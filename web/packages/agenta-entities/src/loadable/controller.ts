@@ -345,12 +345,15 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
  * Dirty detection that uses testcaseMolecule when connected.
  *
  * Returns true if:
- * - There are changes to RELEVANT columns (expected by runnable OR in server data)
- * - OR expected columns from runnable don't exist in original row data (new variables added)
- * - OR there are applied output mapping values that differ from server data
+ * - There are new entities (testcases added)
+ * - There are deleted entities (testcases removed)
+ * - There are hidden testcases (server-side testcases that have been removed from view)
+ * - Any testcase has been edited (uses testcaseMolecule.isDirty)
  *
- * This is reactive - when a variable is added then removed, changes to that column
- * no longer count as "local changes" since the column is no longer relevant.
+ * This approach uses the entity-level isDirty state to track actual user edits,
+ * rather than structural differences between app schema and testset schema.
+ * This means connecting to a testset with different columns won't trigger
+ * hasLocalChanges until the user actually edits something.
  */
 const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
@@ -376,80 +379,12 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
             }
         }
 
-        // Check if there are any new column keys (new variables added)
-        const newKeys = get(newColumnKeysAtomFamily(loadableId))
-        if (newKeys.length > 0) {
-            return true
-        }
-
-        // Get expected columns from runnable
-        const expectedColumns = get(loadableColumnsFromRunnableAtomFamily(loadableId))
-        const expectedKeys = new Set(expectedColumns.map((c) => c.key))
-
-        // Get server keys from first row
+        // Check if any testcase has been edited using entity-level isDirty
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
-        if (displayRowIds.length === 0) return false
-
-        const firstRowServerData = get(testcaseMolecule.selectors.serverData(displayRowIds[0]))
-        const serverKeys = firstRowServerData
-            ? new Set(
-                  Object.keys(firstRowServerData).filter(
-                      (key) => key !== "id" && key !== "flags" && key !== "tags" && key !== "meta",
-                  ),
-              )
-            : new Set<string>()
-
-        // Relevant keys = expected by runnable OR in server data
-        const relevantKeys = new Set([...expectedKeys, ...serverKeys])
-
-        // Check if any row has changes to RELEVANT columns only
         for (const id of displayRowIds) {
-            const serverData = get(testcaseMolecule.selectors.serverData(id))
-            const mergedData = get(testcaseMolecule.data(id))
-
-            if (!serverData || !mergedData) continue
-
-            // Compare only relevant columns
-            for (const key of relevantKeys) {
-                const serverValue = serverData[key as keyof typeof serverData]
-                const mergedValue = mergedData[key as keyof typeof mergedData]
-
-                // If values differ, there are local changes
-                if (serverValue !== mergedValue) {
-                    return true
-                }
-            }
-        }
-
-        // Also check for applied output mapping values that differ from server data.
-        // This handles the case where output mappings have been applied (via the Apply button)
-        // but the draft comparison above didn't catch the change (e.g., due to trace data
-        // timing or value normalization issues).
-        const mappings = state.outputMappings ?? []
-        if (mappings.length > 0) {
-            for (const id of displayRowIds) {
-                // Skip if output mapping is disabled for this row
-                if (state.disabledOutputMappingRowIds.has(id)) continue
-
-                const serverData = get(testcaseMolecule.selectors.serverData(id))
-                if (!serverData) continue
-
-                // Get derived output values for this row
-                const derivedValues = get(derivedOutputValuesAtomFamily({loadableId, rowId: id}))
-                if (!derivedValues) continue
-
-                // Check if any derived output value differs from server data
-                for (const [key, derivedValue] of Object.entries(derivedValues)) {
-                    // Only check relevant columns (expected by runnable OR in server data)
-                    if (!relevantKeys.has(key)) continue
-
-                    const serverValue = serverData[key as keyof typeof serverData]
-
-                    // Compare values - if they differ, there are local changes to commit
-                    if (serverValue !== derivedValue) {
-                        return true
-                    }
-                }
+            const isDirty = get(testcaseMolecule.isDirty(id))
+            if (isDirty) {
+                return true
             }
         }
 

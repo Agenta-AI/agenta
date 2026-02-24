@@ -6,14 +6,17 @@
  *
  * Note: The testsetName comes from the testset entity, not the revision.
  * We use testset.dataOptional to fetch the testset name when a revision is selected.
+ *
+ * Selection behavior:
+ * - Load mode: No auto-selection. User must manually select testcases.
+ * - Edit mode: Selection is pre-initialized by TestsetDropdown before modal opens.
+ *   This hook does NOT auto-select - it only manages the selected testset/revision.
  */
 
 import {useCallback, useMemo, useState} from "react"
 
 // Clean entity imports from main package
 import {revision, testcase, testset} from "@agenta/entities"
-import {fetchTestcasesPage} from "@agenta/entities/testcase"
-import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {RevisionInfo, UseTestsetSelectionReturn} from "../types"
@@ -80,11 +83,11 @@ export function useTestsetSelection(
     const setRevisionContext = useSetAtom(testcase.actions.setRevisionContext)
     // Selection draft actions
     const initSelectionDraft = useSetAtom(testcase.actions.initSelectionDraft)
-    const setSelectionDraft = useSetAtom(testcase.actions.setSelectionDraft)
-
-    const projectId = useAtomValue(projectIdAtom)
 
     // Handle selection change (both revision and testset)
+    // Note: This does NOT auto-select testcases. For edit mode, selection is
+    // pre-initialized by TestsetDropdown before opening the modal.
+    // For load mode, user must manually select testcases.
     const handleSetSelection = useCallback(
         (revisionId: string | null, testsetId: string | null) => {
             setSelectedRevisionId(revisionId)
@@ -92,27 +95,12 @@ export function useTestsetSelection(
             // Set revision context using molecule action
             setRevisionContext(revisionId)
 
-            // Also initialize draft to eliminate coordinate effects
+            // Initialize selection draft to empty - user must manually select testcases
             if (revisionId) {
                 initSelectionDraft(revisionId, [])
-
-                // Fetch first page of testcases to auto-select them locally
-                // Doing this imperatively avoids UI-triggered useEffect chains
-                if (projectId) {
-                    fetchTestcasesPage({revisionId, projectId, limit: 100})
-                        .then((result: {testcases: {id: string}[]}) => {
-                            if (result.testcases.length > 0) {
-                                setSelectionDraft(
-                                    revisionId,
-                                    result.testcases.map((tc: {id: string}) => tc.id),
-                                )
-                            }
-                        })
-                        .catch(console.error)
-                }
             }
         },
-        [setRevisionContext, initSelectionDraft, setSelectionDraft, projectId],
+        [setRevisionContext, initSelectionDraft],
     )
 
     return {

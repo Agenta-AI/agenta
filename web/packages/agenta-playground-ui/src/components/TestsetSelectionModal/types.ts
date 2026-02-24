@@ -63,6 +63,21 @@ export interface TestsetSelectionModalProps extends Omit<ModalProps, "onCancel">
     onConfirm: (payload: TestsetSelectionPayload) => void
     /** Called when cancelled */
     onCancel: () => void
+    /** Selection mode: 'single' for radio-style, 'multiple' for checkboxes (default: 'multiple') */
+    selectionMode?: "single" | "multiple"
+    /** Optional render prop for the create card */
+    renderCreateCard?: (props: CreateCardRenderProps) => React.ReactNode
+    /** Called when "Create & Load" is clicked in create mode. Returns success. */
+    onCreateAndLoad?: (params: {
+        testsetName: string
+        commitMessage: string
+    }) => Promise<{success: boolean; revisionId?: string; testsetId?: string}>
+    /** Optional render prop to replace the entire right panel (search + table) */
+    renderPreviewPanel?: (props: PreviewPanelRenderProps) => React.ReactNode
+    /** Warning message to show in the footer (e.g., input compatibility) */
+    warningMessage?: string
+    /** Whether there is a compatibility warning */
+    hasWarning?: boolean
 }
 
 /**
@@ -80,9 +95,64 @@ export interface TestsetSelectionModalContentProps {
     onConfirm: (payload: TestsetSelectionPayload) => void
     /** Called when cancelled */
     onCancel: () => void
+    /** Selection mode: 'single' for radio-style, 'multiple' for checkboxes (default: 'multiple') */
+    selectionMode?: "single" | "multiple"
+    /** Optional render prop for the create card */
+    renderCreateCard?: (props: CreateCardRenderProps) => React.ReactNode
+    /** Called when "Create & Load" is clicked in create mode. Returns success. */
+    onCreateAndLoad?: (params: {
+        testsetName: string
+        commitMessage: string
+    }) => Promise<{success: boolean; revisionId?: string; testsetId?: string}>
+    /** Optional render prop to replace the entire right panel (search + table) */
+    renderPreviewPanel?: (props: PreviewPanelRenderProps) => React.ReactNode
+    /** Warning message to show in the footer (e.g., input compatibility) */
+    warningMessage?: string
+    /** Whether there is a compatibility warning */
+    hasWarning?: boolean
 }
 
 // Note: TestcaseTableProps is provided by @agenta/entity-ui and re-exported from index.ts
+
+/**
+ * Render props passed to the custom preview panel
+ */
+export interface PreviewPanelRenderProps {
+    /** Currently selected revision ID */
+    revisionId: string | null
+    /** Currently selected testcase IDs */
+    selectedIds: string[]
+    /** Callback when selection changes */
+    onSelectionChange: (ids: string[]) => void
+    /** Selection mode */
+    selectionMode?: "single" | "multiple"
+    /** Whether selection is disabled */
+    selectionDisabled?: boolean
+    /** Whether the panel is in "create" mode (Build in UI) */
+    isCreateMode?: boolean
+    /** Callback to go back from create mode to list mode */
+    onExitCreateMode?: () => void
+}
+
+/**
+ * Props passed to the renderCreateCard render prop
+ */
+export interface CreateCardRenderProps {
+    onTestsetCreated: (revisionId: string, testsetId: string) => void
+    onBuildInUI: () => void
+    /** Whether the modal is currently in create mode */
+    isCreateMode: boolean
+    /** Exit create mode and go back to list */
+    onExitCreateMode: () => void
+    /** Current testset name value */
+    newTestsetName: string
+    /** Callback when testset name changes */
+    onTestsetNameChange: (name: string) => void
+    /** Current commit message value */
+    newTestsetCommitMessage: string
+    /** Callback when commit message changes */
+    onCommitMessageChange: (message: string) => void
+}
 
 /**
  * Props for the SelectionSummary component (footer)
@@ -104,6 +174,16 @@ export interface SelectionSummaryProps {
     disabled?: boolean
     /** Message to show when disabled */
     disabledMessage?: string
+    /** Warning message to show (e.g., input-variable compatibility) */
+    warningMessage?: string
+    /** Whether there is a compatibility warning */
+    hasWarning?: boolean
+    /** Whether the modal is in create mode (Build in UI) */
+    isCreateMode?: boolean
+    /** Whether the create action is disabled */
+    createDisabled?: boolean
+    /** Whether the create action is loading */
+    createLoading?: boolean
 }
 
 // ============================================================================

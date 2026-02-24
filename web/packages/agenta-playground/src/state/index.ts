@@ -40,81 +40,81 @@
 // ============================================================================
 
 export type {
-    // Entity types
-    EntityType,
-    RunnableType,
-    EntitySelection,
-    EntitySelectorConfig,
-    // Node types
-    PlaygroundNode,
-    ExtraColumn,
-    ConnectedTestset,
-    // Connection types
-    InputMappingStatus,
-    InputMapping,
-    OutputConnection,
-    // Testset types
-    TestsetRow,
-    TestsetColumn,
-    // Execution types
-    ExecutionStatus,
-    TraceInfo,
-    ExecutionMetrics,
-    ExecutionResult,
-    StageExecutionResult,
-    ChainProgress,
     ChainExecutionProgress,
-    RowExecutionResult,
-    // Runnable types
-    RunnableInputPort,
-    RunnableOutputPort,
-    RunnableData,
-    EvaluatorRevisionData,
-    // Path types
-    PathInfo,
-    ExtendedPathInfo,
-    PathItem,
-    // State types
-    PlaygroundState,
-    PlaygroundAction,
     // View model types (playground-specific)
     ChainExecutionResult,
     ChainNodeInfo,
+    ChainProgress,
+    ConnectedTestset,
+    EntitySelection,
+    EntitySelectorConfig,
+    // Entity types
+    EntityType,
+    EvaluatorRevisionData,
+    ExecutionMetrics,
+    ExecutionResult,
+    // Execution types
+    ExecutionStatus,
+    ExtendedPathInfo,
+    ExtraColumn,
+    InputMapping,
+    // Connection types
+    InputMappingStatus,
+    OutputConnection,
+    // Path types
+    PathInfo,
+    PathItem,
+    PlaygroundAction,
+    // Node types
+    PlaygroundNode,
+    // State types
+    PlaygroundState,
+    RowExecutionResult,
+    RunnableData,
+    // Runnable types
+    RunnableInputPort,
+    RunnableOutputPort,
+    RunnableType,
+    StageExecutionResult,
+    TestsetColumn,
+    // Testset types
+    TestsetRow,
+    TraceInfo,
 } from "./types"
 
 // Multi-session execution types (from execution module)
 export type {
-    ExecutionMode,
-    ExecutionSession,
-    ExecutionInput,
+    AddStepPayload,
+    AgConfigFallbackCandidate,
+    BuildChatExecutionItemParams,
+    BuildCompletionExecutionItemParams,
+    CancelStepPayload,
+    CancelTestsParams,
     ChatExecutionInput,
     CompletionExecutionInput,
-    ExecutionStep,
-    RunStatus,
-    RunResult,
-    InitSessionsPayload,
-    RunStepPayload,
-    AddStepPayload,
-    CancelStepPayload,
-    SessionExecutionOptions,
-    ExecutionState,
-    RunStepWithContextPayload,
     ExecutionAdapter,
-    PlaygroundTestResult,
-    CancelTestsParams,
+    ExecutionInput,
     ExecutionItem,
-    ExecutionItemHandle,
-    ExecutionItemRunParams,
     ExecutionItemCancelParams,
+    ExecutionItemHandle,
+    ExecutionItemInvocation,
+    ExecutionItemLifecycleApi,
     ExecutionItemLifecyclePhase,
     ExecutionItemLifecycleSnapshot,
-    ExecutionItemLifecycleApi,
     ExecutionItemReference,
-    ExecutionItemInvocation,
+    ExecutionItemRunParams,
+    ExecutionMode,
+    ExecutionSession,
+    ExecutionState,
+    ExecutionStep,
+    InitSessionsPayload,
+    PlaygroundTestResult,
+    RunResult,
+    RunStatus,
+    RunStepPayload,
+    RunStepWithContextPayload,
+    SessionExecutionOptions,
     WorkerRunEntityRowPayload,
-    AgConfigFallbackCandidate,
-    BuildCompletionExecutionItemParams,
-    BuildChatExecutionItemParams,
 } from "./execution"
 
 // Execution adapter atom (for DI)
@@ -122,24 +122,25 @@ export {executionAdapterAtom} from "./execution"
 
 // Execution item builders (invocation-ready payload construction)
 export {
-    buildCompletionExecutionItem,
     buildChatExecutionItem,
+    buildCompletionExecutionItem,
     resolveAgConfigCandidate,
 } from "./execution"
 
 // Execution reducer atoms (for OSS adapter writes)
 export {
-    startRunAtom,
+    buildResultKey,
+    cancelRunAtom,
+    clearResponseByRowRevisionWithContextAtom,
     completeRunAtom,
     failRunAtom,
-    cancelRunAtom,
     resetExecutionAtom,
+    resultAtomFamily,
+    resultsByKeyAtomFamily,
     setRepetitionCountAtom,
     setRepetitionIndexAtom,
+    startRunAtom,
     clearResponseByRowEntityWithContextAtom,
-    resultsByKeyAtomFamily,
-    resultAtomFamily,
-    buildResultKey,
 } from "./execution"
 
 // Row-entity convenience selectors
@@ -159,12 +160,13 @@ export {
 } from "./execution"
 
 // Unified row IDs (chat/completion)
-export {generationRowIdsAtom, executionRowIdsAtom} from "./execution"
 export {
+    executionRowIdsAtom,
+    generationRowIdsAtom,
     renderableExecutionItemsAtom,
-    renderableExecutionRowsAtom,
-    renderableExecutionItemsByRowAtomFamily,
     renderableExecutionItemsByExecutionIdAtomFamily,
+    renderableExecutionItemsByRowAtomFamily,
+    renderableExecutionRowsAtom,
     type RenderableExecutionItem,
     type RenderableExecutionRow,
 } from "./execution"
@@ -173,180 +175,188 @@ export {
 export {inputVariableNamesAtom} from "./execution"
 
 // App-level mode selectors
-export {isChatModeAtom, appTypeAtom, type AppType} from "./execution"
+export {appTypeAtom, isChatModeAtom, type AppType} from "./execution"
 
 // Row run status
 export {isAnyRunningForRowAtomFamily} from "./execution"
 
 // Generation selectors (higher-level UI selectors)
 export {
-    resolvedGenerationResultAtomFamily,
+    cancelTestsMutationAtom,
+    canRunAllChatComparisonAtom,
+    clearAllRunsMutationAtom,
     generationHeaderDataAtomFamily,
     generationVariableRowIdsAtom,
-    cancelTestsMutationAtom,
-    clearAllRunsMutationAtom,
-    canRunAllChatComparisonAtom,
+    resolvedGenerationResultAtomFamily,
 } from "./execution"
 
 // Displayed entities (validated entity IDs, layout, readiness, status)
 export {
+    displayedEntityIdsAtom,
+    isComparisonViewAtom,
+    playgroundInitializedAtom,
+    playgroundLayoutAtom,
     playgroundRevisionsReadyAtom,
     playgroundStatusAtom,
-    playgroundInitializedAtom,
-    type PlaygroundStatus,
-    displayedEntityIdsAtom,
     resolvedEntityIdsAtom,
-    isComparisonViewAtom,
-    playgroundLayoutAtom,
     schemaInputKeysAtom,
+    type PlaygroundStatus,
 } from "./execution"
 
 // Web worker integration
 export {
     executionHeadersAtom,
     executionWorkerBridgeAtom,
-    pendingWebWorkerRequestsAtom,
+    handleWebWorkerResultAtom,
     ignoredWebWorkerRunIdsAtom,
+    pendingWebWorkerRequestsAtom,
     triggerExecutionAtom,
     triggerExecutionsAtom,
     handleExecutionResultFromWorkerAtom,
 } from "./execution"
 
 // Chat types
+export {createInitialFlatChatState, SHARED_SESSION_ID} from "./chat"
 export type {
-    SimpleChatMessage,
-    ChatMessageNode,
+    AddMessagePayload,
     AddUserMessagePayload,
-    TruncateChatPayload,
-    MessageTarget,
-    PatchMessagePayload,
-    DeleteMessagePayload,
     ChatMessage,
+    ChatMessageNode,
+    ClearSessionResponsesPayload,
+    CompleteExecutionPayload,
+    DeleteMessagePayload,
+    DerivedTurn,
+    FailExecutionPayload,
+    FlatChatState,
     MessageExecution,
     MessageExecutionStatus,
-    FlatChatState,
-    DerivedTurn,
-    AddMessagePayload,
-    UpdateMessagePayload,
+    MessageTarget,
+    PatchMessagePayload,
     RemoveMessagesPayload,
-    ClearSessionResponsesPayload,
+    SimpleChatMessage,
     StartExecutionPayload,
-    CompleteExecutionPayload,
-    FailExecutionPayload,
+    TruncateChatPayload,
+    UpdateMessagePayload,
 } from "./chat"
-export {SHARED_SESSION_ID, createInitialFlatChatState} from "./chat"
 
 // Chat atoms
 export {
-    messageIdsAtomFamily,
-    messagesByIdAtomFamily,
     executionByMessageIdAtomFamily,
     messageAtomFamily,
-    messageExecutionAtomFamily,
-    orderedMessagesAtomFamily,
     messageCountAtomFamily,
+    messageExecutionAtomFamily,
+    messageIdsAtomFamily,
+    messagesByIdAtomFamily,
+    orderedMessagesAtomFamily,
 } from "./chat"
 
 // Chat reducer actions
 export {
-    generateMessageId,
     // CRUD
     addMessageAtom,
     addMessagesAtom,
-    updateMessageAtom,
-    removeMessagesAtom,
-    clearSessionResponsesAtom,
-    truncateAfterMessageAtom,
-    clearAllMessagesAtom,
-    // Execution lifecycle
-    startMessageExecutionAtom,
-    completeMessageExecutionAtom,
-    failMessageExecutionAtom,
-    cancelMessageExecutionAtom,
-    // Session operations
-    duplicateSessionResponsesAtom,
+    addMessagesWithContextAtom,
+    addMessageWithContextAtom,
     // Domain-level (turn-aware)
     addUserMessageAtom,
-    truncateChatAtom,
-    patchMessageAtom,
-    deleteMessageAtom,
     // Context-aware
     addUserMessageWithContextAtom,
-    truncateChatWithContextAtom,
-    patchMessageWithContextAtom,
-    deleteMessageWithContextAtom,
-    addMessageWithContextAtom,
-    addMessagesWithContextAtom,
-    updateMessageWithContextAtom,
-    removeMessagesWithContextAtom,
-    clearSessionResponsesWithContextAtom,
-    truncateAfterMessageWithContextAtom,
+    cancelMessageExecutionAtom,
+    clearAllMessagesAtom,
     clearAllMessagesWithContextAtom,
+    clearSessionResponsesAtom,
+    clearSessionResponsesWithContextAtom,
+    completeMessageExecutionAtom,
+    deleteMessageAtom,
+    deleteMessageWithContextAtom,
+    // Session operations
+    duplicateSessionResponsesAtom,
     duplicateSessionResponsesWithContextAtom,
+    failMessageExecutionAtom,
+    generateMessageId,
+    patchMessageAtom,
+    patchMessageWithContextAtom,
+    removeMessagesAtom,
+    removeMessagesWithContextAtom,
+    // Execution lifecycle
+    startMessageExecutionAtom,
+    truncateAfterMessageAtom,
+    truncateAfterMessageWithContextAtom,
+    truncateChatAtom,
+    truncateChatWithContextAtom,
+    updateMessageAtom,
+    updateMessageWithContextAtom,
 } from "./chat"
 
 // Chat selectors
 export {
-    sharedMessageIdsAtomFamily,
-    sharedMessageIdsWithContextAtom,
-    derivedTurnsAtomFamily,
-    groupMessagesIntoTurns,
+    activeSessionIdsFromMessagesAtomFamily,
+    apiHistoryBeforeMessageAtomFamily,
     apiHistoryForSessionAtomFamily,
     buildApiHistory,
-    apiHistoryBeforeMessageAtomFamily,
-    messagesForSessionAtomFamily,
-    activeSessionIdsFromMessagesAtomFamily,
-    isSessionRunningAtomFamily,
-    isAnySessionRunningAtomFamily,
+    derivedTurnsAtomFamily,
     derivedTurnsWithContextAtom,
+    executionByMessageIdWithContextAtom,
+    groupMessagesIntoTurns,
+    isAnySessionRunningAtomFamily,
+    isSessionRunningAtomFamily,
+    messageCountWithContextAtom,
     messageIdsWithContextAtom,
     messagesByIdWithContextAtom,
-    executionByMessageIdWithContextAtom,
-    messageCountWithContextAtom,
+    messagesForSessionAtomFamily,
+    sharedMessageIdsAtomFamily,
+    sharedMessageIdsWithContextAtom,
 } from "./chat"
 
 // Chat utilities
 export {messageHasContent, messageHasToolCalls} from "./chat"
 
 // Testset import mutation
+export {
+    extractAndLoadChatMessagesAtom,
+    type ExtractChatMessagesParams,
+} from "./helpers/extractAndLoadChatMessages"
 export {loadTestsetNormalizedMutationAtom} from "./helpers/loadTestsetNormalizedMutation"
+
+// Chat ↔ entity sync (writes chat messages back to testcase drafts)
+export {syncChatMessagesToEntityAtom} from "./helpers/syncChatMessagesToEntity"
 
 // ============================================================================
 // CONTROLLERS (Public)
 // ============================================================================
 
 export {
-    playgroundController,
-    outputConnectionController,
-    entitySelectorController,
-    executionController,
-    executionItemController,
-    playgroundSnapshotController,
     applyPendingHydration,
     applyPendingHydrationsForRevision,
     clearPendingHydrations,
+    entitySelectorController,
+    executionController,
+    executionItemController,
+    getRunnableTypeResolver,
+    isPlaceholderId,
+    outputConnectionController,
     pendingHydrations,
     pendingHydrationsAtom,
-    setSelectionUpdateCallback,
-    setOnSelectionChangeCallback,
-    isPlaceholderId,
-    urlSnapshotController,
-    setRunnableTypeResolver,
-    getRunnableTypeResolver,
+    playgroundController,
+    playgroundSnapshotController,
     resetRunnableTypeResolver,
+    setOnSelectionChangeCallback,
+    setRunnableTypeResolver,
+    setSelectionUpdateCallback,
+    urlSnapshotController,
 } from "./controllers"
 
-export {setRunnableBridge, getRunnableBridge, resetRunnableBridge} from "./controllers"
+export {getRunnableBridge, resetRunnableBridge, setRunnableBridge} from "./controllers"
 
 export type {
+    BuildEncodedSnapshotResult,
     CreateSnapshotResult,
+    HydrateFromUrlResult,
     HydrateSnapshotResult,
     HydratedSnapshotEntity,
-    SnapshotSelectionInput,
     RunnableTypeResolver,
-    BuildEncodedSnapshotResult,
+    SnapshotSelectionInput,
     UrlComponents,
-    HydrateFromUrlResult,
 } from "./controllers"
 
 // ============================================================================
@@ -360,21 +370,21 @@ export {
 } from "./context"
 
 export type {
-    PlaygroundEntityProviders,
-    EntityRevisionSelectors,
-    EvaluatorSelectors,
-    EvaluatorRevisionSelectors,
-    EvaluatorRevisionActions,
-    EntityQueryState,
-    SettingsPreset,
-    AppRevisionRawData,
-    EvaluatorRawData,
-    EvaluatorRevisionRawData,
-    AppRevisionListSelectors,
     AppRevisionActions,
-    AppRevisionCreateVariantPayload,
     AppRevisionCommitPayload,
+    AppRevisionCreateVariantPayload,
     AppRevisionCrudResult,
+    AppRevisionListSelectors,
+    AppRevisionRawData,
+    EntityQueryState,
+    EntityRevisionSelectors,
+    EvaluatorRawData,
+    EvaluatorRevisionActions,
+    EvaluatorRevisionRawData,
+    EvaluatorRevisionSelectors,
+    EvaluatorSelectors,
+    PlaygroundEntityProviders,
+    SettingsPreset,
 } from "./context"
 
 // ============================================================================
@@ -385,26 +395,28 @@ export type {
 // External consumers should use controllers instead.
 
 export {
-    // Playground atoms
-    defaultLocalTestsetName,
-    playgroundNodesAtom,
-    selectedNodeIdAtom,
     connectedTestsetAtom,
-    extraColumnsAtom,
-    testsetModalOpenAtom,
-    mappingModalOpenAtom,
-    editingConnectionIdAtom,
-    hasMultipleNodesAtom,
-    entityIdsAtom,
-    playgroundDispatchAtom,
-    // Connection atoms
-    outputConnectionsAtom,
     connectionsBySourceAtomFamily,
     connectionsByTargetAtomFamily,
+    // Playground atoms
+    defaultLocalTestsetName,
+    editingConnectionIdAtom,
+    entityIdsAtom,
+    entitySelectorConfigAtom,
     // Entity selector atoms
     entitySelectorOpenAtom,
-    entitySelectorConfigAtom,
     entitySelectorResolverAtom,
+    extraColumnsAtom,
+    hasMultipleNodesAtom,
+    mappingModalOpenAtom,
+    // Connection atoms
+    outputConnectionsAtom,
+    playgroundDispatchAtom,
+    playgroundNodesAtom,
+    primaryEntityIdAtom,
+    primaryNodeAtom,
+    selectedNodeIdAtom,
+    testsetModalOpenAtom,
 } from "./atoms"
 
 // ============================================================================

@@ -7,12 +7,14 @@
  * State 1 — Local testset (default):
  *   Button: "Testset ▼"
  *   Menu:   • Connect testset → opens TestsetSelectionModal (load mode)
+ *           • Add to testset  → opens AddToTestsetDrawer with current run results
  *
  * State 2 — Connected to API-backed testset:
  *   Button: "<testset_name> ▼"
  *   Menu:   • Sync changes (disabled when no changes)
  *           • Manage testcases → opens TestsetSelectionModal (edit mode)
  *           • Change testset  → opens TestsetSelectionModal (load mode)
+ *           • Add to testset  → opens AddToTestsetDrawer with current run results
  *           • Disconnect (danger)
  */
 
@@ -23,8 +25,10 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import type {CommitModeOption, CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
+import {resultsByKeyAtomFamily} from "@agenta/playground/state"
 import {
     TestsetSelectionModal,
+    type PreviewPanelRenderProps,
     type TestsetSelectionMode,
     type TestsetSelectionPayload,
 } from "@agenta/playground-ui/components"
@@ -34,11 +38,24 @@ import {
     DatabaseIcon,
     LinkIcon,
     ListBulletsIcon,
+    Plus,
     XCircleIcon,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Dropdown, Input, Typography} from "antd"
-import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {Button, Dropdown, Input, Typography, message} from "antd"
+import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
+import dynamic from "next/dynamic"
+
+import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
+
+import {CreateTestsetCardWrapper} from "./CreateTestsetCardWrapper"
+import {TestsetPreviewPanelWrapper} from "./TestsetPreviewPanelWrapper"
+
+// ── Lazy-loaded AddToTestset drawer ────────────────────────────────────────
+const TestsetDrawer = dynamic(
+    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+)
 
 // ============================================================================
 // CONSTANTS
@@ -133,6 +150,7 @@ export function TestsetDropdown() {
     const saveAsNewTestset = useSetAtom(loadableController.actions.saveAsNewTestset)
     const setLoadableName = useSetAtom(loadableController.actions.setName)
     const initSelectionDraft = useSetAtom(testcaseMolecule.actions.initSelectionDraft)
+    const saveNewTestset = useSetAtom(saveNewTestsetAtom)
     const store = useStore()
 
     // ── Derived state ──────────────────────────────────────────────────────
@@ -140,6 +158,39 @@ export function TestsetDropdown() {
     const revisionId = connectedSource?.id ?? null
     const testsetName = connectedSource?.name ?? null
     const buttonLabel = isConnected && testsetName ? testsetName : "Testset"
+
+    // ── Add-to-testset: reactive success check ─────────────────────────────
+    // Tracks whether there are any successful run results (with a trace) to add
+    const hasSuccessfulResults = useAtomValue(
+        useMemo(
+            () =>
+                atom((get) => {
+                    if (!loadableId) return false
+                    const all = get(resultsByKeyAtomFamily(loadableId))
+                    return Object.values(all).some((r) => r?.status === "success" && !!r?.traceId)
+                }),
+            [loadableId],
+        ),
+    )
+
+    // ── Add-to-testset drawer state ────────────────────────────────────────
+    const [addToTestsetOpen, setAddToTestsetOpen] = useState(false)
+    const [testsetSpanIds, setTestsetSpanIds] = useState<string[]>([])
+
+    const handleAddToTestset = useCallback(() => {
+        if (!loadableId) return
+        const allResults = store.get(resultsByKeyAtomFamily(loadableId))
+        const ids = Object.values(allResults)
+            .filter((r) => r?.status === "success" && !!r?.traceId)
+            .map((r) => r!.traceId!)
+        setTestsetSpanIds(ids)
+        setAddToTestsetOpen(true)
+    }, [loadableId, store])
+
+    const handleAddToTestsetClose = useCallback(() => {
+        setAddToTestsetOpen(false)
+        setTestsetSpanIds([])
+    }, [])
 
     // ── TestsetSelectionModal state ─────────────────────────────────────────
     // null = closed, "load" = connect/change, "edit" = manage testcases
@@ -208,6 +259,48 @@ export function TestsetDropdown() {
     }, [loadableId, connectedSource?.id, store, initSelectionDraft])
 
     const handleSelectionCancel = useCallback(() => setSelectionModalMode(null), [])
+
+    // ── Create & Load: persist a brand-new testset via saveNewTestsetAtom ───
+    const handleCreateAndLoad = useCallback(
+        async ({testsetName, commitMessage}: {testsetName: string; commitMessage: string}) => {
+            if (!loadableId) return {success: false as const}
+
+            const projectId = store.get(projectIdAtom) as string | null
+
+            if (!projectId) {
+                message.error("Project ID not found")
+                return {success: false as const}
+            }
+
+            const result = await saveNewTestset({
+                projectId,
+                testsetName,
+            })
+
+            if (result.success && result.revisionId && result.testsetId) {
+                // Connect the newly created testset
+                const testcases = result.testcases ?? []
+                connectToTestset({
+                    loadableId,
+                    revisionId: result.revisionId,
+                    testcases,
+                    testsetName,
+                    testsetId: result.testsetId,
+                    revisionVersion: null,
+                })
+                message.success(`Test set "${testsetName}" created successfully`)
+                return {
+                    success: true as const,
+                    revisionId: result.revisionId,
+                    testsetId: result.testsetId,
+                }
+            }
+
+            message.error(result.error?.message ?? "Failed to create test set")
+            return {success: false as const}
+        },
+        [loadableId, store, saveNewTestset, connectToTestset],
+    )
 
     // ── Disconnect ─────────────────────────────────────────────────────────
     const handleDisconnect = useCallback(() => {
@@ -293,6 +386,14 @@ export function TestsetDropdown() {
                     label: "Connect testset",
                     onClick: () => setSelectionModalMode("load"),
                 },
+                {type: "divider"},
+                {
+                    key: "add-to-testset",
+                    icon: <Plus size={14} />,
+                    label: "Add to testset",
+                    disabled: !hasSuccessfulResults,
+                    onClick: handleAddToTestset,
+                },
             ]
         }
 
@@ -317,6 +418,13 @@ export function TestsetDropdown() {
                 label: "Change testset",
                 onClick: () => setSelectionModalMode("load"),
             },
+            {
+                key: "add-to-testset",
+                icon: <Plus size={14} />,
+                label: "Add to testset",
+                disabled: !hasSuccessfulResults,
+                onClick: handleAddToTestset,
+            },
             {type: "divider"},
             {
                 key: "disconnect",
@@ -326,13 +434,20 @@ export function TestsetDropdown() {
                 onClick: handleDisconnect,
             },
         ]
-    }, [isConnected, hasLocalChanges, handleSyncOpen, handleDisconnect])
+    }, [
+        isConnected,
+        hasLocalChanges,
+        hasSuccessfulResults,
+        handleSyncOpen,
+        handleDisconnect,
+        handleAddToTestset,
+    ])
 
     if (!loadableId) return null
 
     return (
         <>
-            <Dropdown menu={{items: menuItems}} trigger={["click"]}>
+            <Dropdown menu={{items: menuItems}} trigger={["click"]} placement="bottomRight">
                 <Button
                     size="small"
                     icon={<DatabaseIcon size={14} />}
@@ -352,6 +467,11 @@ export function TestsetDropdown() {
                     mode="load"
                     onConfirm={handleLoadConfirm}
                     onCancel={handleSelectionCancel}
+                    renderCreateCard={(props) => <CreateTestsetCardWrapper {...props} />}
+                    renderPreviewPanel={(props: PreviewPanelRenderProps) => (
+                        <TestsetPreviewPanelWrapper {...props} />
+                    )}
+                    onCreateAndLoad={handleCreateAndLoad}
                 />
             )}
 
@@ -389,6 +509,16 @@ export function TestsetDropdown() {
                 submitLabel={syncSubmitLabel}
                 successMessage="Testset updated successfully"
             />
+
+            {/* Add to testset drawer — mounted only when open to avoid isDrawerOpenAtom conflicts */}
+            {addToTestsetOpen && (
+                <TestsetDrawer
+                    open={addToTestsetOpen}
+                    spanIds={testsetSpanIds}
+                    showSelectedSpanText={false}
+                    onClose={handleAddToTestsetClose}
+                />
+            )}
         </>
     )
 }

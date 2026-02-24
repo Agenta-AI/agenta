@@ -46,6 +46,12 @@ export function TestsetSelectionModal({
     onConfirm,
     onCancel,
     open,
+    selectionMode,
+    renderCreateCard,
+    renderPreviewPanel,
+    warningMessage,
+    hasWarning,
+    onCreateAndLoad,
     ...modalProps
 }: TestsetSelectionModalProps) {
     const modalTitle = mode === "load" ? "Load Testset" : "Edit Testcase Selection"
@@ -59,6 +65,7 @@ export function TestsetSelectionModal({
             width={width}
             onCancel={onCancel}
             footer={null}
+            classNames={{body: "!p-0"}}
             styles={{
                 body: {
                     flex: "1 1 auto",
@@ -74,6 +81,12 @@ export function TestsetSelectionModal({
                 mode={mode}
                 onConfirm={onConfirm}
                 onCancel={onCancel}
+                selectionMode={selectionMode}
+                renderCreateCard={renderCreateCard}
+                renderPreviewPanel={renderPreviewPanel}
+                warningMessage={warningMessage}
+                hasWarning={hasWarning}
+                onCreateAndLoad={onCreateAndLoad}
             />
         </EnhancedModal>
     )

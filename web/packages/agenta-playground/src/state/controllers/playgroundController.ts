@@ -41,39 +41,43 @@ import {getDefaultStore} from "jotai/vanilla"
 import type {SnapshotLoadableConnection, SnapshotLocalTestset} from "../../snapshot"
 import {outputConnectionsAtom} from "../atoms/connections"
 import {
-    playgroundNodesAtom,
-    selectedNodeIdAtom,
-    hasMultipleNodesAtom,
-    entityIdsAtom,
     connectedTestsetAtom,
-    extraColumnsAtom,
-    testsetModalOpenAtom,
-    mappingModalOpenAtom,
     editingConnectionIdAtom,
+    entityIdsAtom,
+    extraColumnsAtom,
+    hasMultipleNodesAtom,
+    mappingModalOpenAtom,
     playgroundDispatchAtom,
+    playgroundNodesAtom,
+    primaryEntityIdAtom,
+    primaryNodeAtom,
+    selectedNodeIdAtom,
+    testsetModalOpenAtom,
 } from "../atoms/playground"
 import {duplicateSessionResponsesWithContextAtom} from "../chat"
 import type {
-    AppRevisionCreateVariantPayload,
     AppRevisionCommitPayload,
+    AppRevisionCreateVariantPayload,
     AppRevisionCrudResult,
 } from "../context"
 import {
     displayedEntityIdsAtom,
-    resolvedEntityIdsAtom,
     isComparisonViewAtom,
     playgroundLayoutAtom,
     playgroundRevisionsReadyAtom,
     playgroundStatusAtom,
+    resolvedEntityIdsAtom,
     schemaInputKeysAtom,
 } from "../execution/displayedEntities"
 import {
     derivedLoadableIdAtom,
     hiddenTestcaseCountAtom,
     inputVariableNamesAtom,
+    isChatModeAtom,
     newTestcaseCountAtom,
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
+import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
 import {getRunnableBridge} from "./runnableBridgeAccess"
@@ -514,6 +518,18 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
         name: displayName ?? null,
         id: testsetId ?? null,
     })
+
+    // Extract chat messages from testcase rows if in chat mode.
+    // The entity layer stores `messages` as a regular data column, but the
+    // playground chat UI reads from messageIdsAtomFamily/messagesByIdAtomFamily.
+    // Without this step, inputPorts load correctly but chat messages are lost.
+    const isChat = get(isChatModeAtom) ?? false
+    if (isChat) {
+        set(extractAndLoadChatMessagesAtom, {
+            loadableId,
+            testcaseRows: testcasesWithIds as Record<string, unknown>[],
+        })
+    }
 })
 
 /**
@@ -530,6 +546,17 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
 
     // Import rows via loadable controller (stays in local mode)
     set(loadableController.actions.importRows, loadableId, testcases)
+
+    // Extract chat messages from imported testcase rows if in chat mode.
+    // Same reasoning as connectToTestsetAtom — the entity layer stores `messages`
+    // as data but the chat UI needs them in the message atom system.
+    const isChat = get(isChatModeAtom) ?? false
+    if (isChat) {
+        set(extractAndLoadChatMessagesAtom, {
+            loadableId,
+            testcaseRows: testcases,
+        })
+    }
 })
 
 // ============================================================================

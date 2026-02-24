@@ -19,7 +19,6 @@
  *       <PlaygroundUIProvider providers={{
  *         EntityDrillInView,
  *         SharedGenerationResultUtils,
- *         LoadTestsetModal: dynamic(() => import("...LoadTestsetModal")),
  *         CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
  *       }}>
  *         <PlaygroundContent />
@@ -50,17 +49,15 @@ export {
     PlaygroundUIProvider,
     usePlaygroundUI,
     usePlaygroundUIOptional,
-    type PlaygroundUIProviders,
-    type PlaygroundUIProviderProps,
-    type PlaygroundUIContextValue,
+    type CommitVariantChangesButtonProps,
     // Component prop types
     type EntityDrillInViewProps,
-    type SharedGenerationResultUtilsProps,
-    type LoadTestsetModalProps,
-    type LoadTestsetSelectionPayload,
-    type CommitVariantChangesButtonProps,
-    type SettingsPreset,
+    type PlaygroundUIContextValue,
+    type PlaygroundUIProviderProps,
+    type PlaygroundUIProviders,
     type SaveModeConfig,
+    type SettingsPreset,
+    type SharedGenerationResultUtilsProps,
     type SimpleSharedEditorProps,
 } from "./context"
 
@@ -69,24 +66,24 @@ export {
 // ============================================================================
 
 export {
+    // Chat controls
+    ControlsBar,
     EmptyState,
-    // Entity selector
-    EntitySelectorProvider,
     EntitySelector,
     EntitySelectorModal,
-    useEntitySelector,
-    type EntitySelectorConfig,
-    type EntitySelection,
-    type EntityType,
+    // Entity selector
+    EntitySelectorProvider,
+    // Focus drawer
+    PlaygroundFocusDrawer,
     // Tool call view
     ToolCallView,
     ToolCallViewHeader,
     createToolCallPayloads,
-    // Chat controls
-    ControlsBar,
+    useEntitySelector,
     type ControlsBarProps,
-    // Focus drawer
-    PlaygroundFocusDrawer,
+    type EntitySelection,
+    type EntitySelectorConfig,
+    type EntityType,
 } from "./components"
 
 // ============================================================================
