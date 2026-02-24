@@ -25,6 +25,7 @@ import {
 import {playgroundController} from "@agenta/playground"
 import {getDefaultStore} from "jotai"
 
+import {routerAppNavigationAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 // ============================================================================
@@ -71,6 +72,10 @@ registerWorkflowArchiveCallbacks({
         if (updatedIds.length > 0) {
             store.set(playgroundController.actions.setEntityIds, updatedIds)
             void writePlaygroundSelectionToQuery(updatedIds)
+        } else {
+            // All entities deleted — navigate back to apps list
+            store.set(playgroundController.actions.setEntityIds, [])
+            store.set(routerAppNavigationAtom, null)
         }
     },
 })
