@@ -124,6 +124,7 @@ export type {
 
 export {
     computeTopologicalOrder,
+    computeTopologicalLevels,
     resolveChainInputs,
     resolveInputsFromMappings,
     autoMapInputs,

@@ -91,6 +91,79 @@ export function computeTopologicalOrder(
     return result
 }
 
+/**
+ * Like computeTopologicalOrder but groups nodes into parallel-safe levels.
+ * Nodes within the same level have all their dependencies satisfied by
+ * prior levels and can therefore execute concurrently.
+ *
+ * Returns `string[][]` where each inner array is a set of nodes that can
+ * safely run in parallel.
+ *
+ * Example: App → [Eval1, Eval2, Eval3]
+ *   → [["app"], ["eval1", "eval2", "eval3"]]
+ */
+export function computeTopologicalLevels(
+    nodes: {nodeId: string}[] | PlaygroundNode[],
+    connections: OutputConnection[],
+    startNodeId?: string,
+): string[][] {
+    const nodeIds = nodes.map((n) => ("nodeId" in n ? n.nodeId : n.id))
+
+    const inDegree = new Map<string, number>()
+    const adjacency = new Map<string, string[]>()
+
+    for (const nodeId of nodeIds) {
+        inDegree.set(nodeId, 0)
+        adjacency.set(nodeId, [])
+    }
+
+    for (const conn of connections) {
+        const targets = adjacency.get(conn.sourceNodeId) ?? []
+        targets.push(conn.targetNodeId)
+        adjacency.set(conn.sourceNodeId, targets)
+
+        const currentInDegree = inDegree.get(conn.targetNodeId) ?? 0
+        inDegree.set(conn.targetNodeId, currentInDegree + 1)
+    }
+
+    const queue: string[] = []
+
+    if (startNodeId && inDegree.get(startNodeId) === 0) {
+        queue.push(startNodeId)
+    }
+
+    for (const [nodeId, degree] of inDegree.entries()) {
+        if (degree === 0 && nodeId !== startNodeId) {
+            queue.push(nodeId)
+        }
+    }
+
+    const levels: string[][] = []
+
+    while (queue.length > 0) {
+        const levelSize = queue.length
+        const level: string[] = []
+
+        for (let i = 0; i < levelSize; i++) {
+            const nodeId = queue.shift()!
+            level.push(nodeId)
+
+            for (const neighbor of adjacency.get(nodeId) ?? []) {
+                const newDegree = (inDegree.get(neighbor) ?? 1) - 1
+                inDegree.set(neighbor, newDegree)
+
+                if (newDegree === 0) {
+                    queue.push(neighbor)
+                }
+            }
+        }
+
+        levels.push(level)
+    }
+
+    return levels
+}
+
 // ============================================================================
 // INPUT RESOLUTION
 // ============================================================================
