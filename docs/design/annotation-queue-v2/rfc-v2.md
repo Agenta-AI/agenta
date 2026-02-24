@@ -522,3 +522,108 @@ The key difference: instead of running a tracing query to discover traces, the n
 ### Estimate
 
 ~2-3 days of backend work for a senior developer familiar with the evaluation subsystem. The new worker is a hybrid of existing patterns, not a greenfield implementation.
+
+---
+
+## Appendix B: Annotation View — Current State vs Proposed Changes
+
+This section documents how the annotation view works TODAY in the frontend, and what needs to change to support annotation queues.
+
+### How it works today
+
+There are **two separate annotation contexts** in the current frontend:
+
+#### Context 1: Trace Drawer (ad-hoc annotation)
+
+- **Where:** Observability/Traces pages. User clicks an "Annotate" button on a trace span.
+- **Component:** `AnnotateDrawer` (`web/oss/src/components/SharedDrawers/AnnotateDrawer/`)
+- **What it shows:** A 400px side drawer with ONLY the annotation form. No trace inputs/outputs are shown in the drawer — the user sees them in the trace detail behind the drawer.
+- **Evaluator source:** User selects from ALL human evaluators via a multi-step wizard (Annotate → Select Evaluators → Create Evaluator). Selection persisted in localStorage.
+- **Annotation kind:** `adhoc` (origin: human, channel: web)
+- **API calls:** `POST /preview/annotations/` to create, `PATCH /preview/annotations/{traceId}/{spanId}` to update
+- **State:** SWR for fetching, local React state for form values
+- **No assignment, no queue, no progress tracking**
+
+#### Context 2: Eval Run Detail (evaluation annotation)
+
+This has **two sub-views:**
+
+**2a. Table view ("Scenarios" tab):**
+- **Where:** Eval run detail page, scenarios table
+- **Component:** `EvalRunDetailsTable` → `ActionCell` → `VirtualizedScenarioTableAnnotateDrawer`
+- **What it shows:** The eval table shows all scenarios with columns for inputs, outputs, and evaluator results. Clicking "Annotate" on a row opens a side drawer with ONLY the annotation form (no inputs/outputs in the drawer).
+- **Evaluator source:** Auto-determined from the run's configured evaluators (no selection UI)
+- **Save behavior:** Creates annotation + upserts step result + upserts scenario metrics + updates scenario/run status
+- **State:** Jotai atoms (`virtualScenarioTableAnnotateDrawerAtom`, `scenarioAnnotationsQueryAtomFamily`)
+
+**2b. Focus view ("Annotate" tab):**
+- **Where:** Eval run detail page, "Annotate" tab (default for human eval runs)
+- **Component:** `SingleScenarioViewerPOC` → `ScenarioAnnotationPanel`
+- **What it shows:** Full-page layout with:
+  - Left side (7/12 width): Input card (testcase data) + Output card (invocation result + trace link)
+  - Right side (5/12 width): Sticky annotation panel with evaluator metric forms
+- **Navigation:** `ScenarioNavigator` with prev/next arrows + dropdown. Iterates ALL scenarios.
+- **Auto-run:** If invocation not yet run, auto-triggers it when the scenario is opened
+- **Annotation form:** Collapsible panels per evaluator. Supports: number/slider, boolean (True/False radio), text, multi-select tags (array with enum), single-select dropdown (anyOf).
+- **JSON schema source:** `evaluator.data.service.format.properties.outputs.properties` or `evaluator.data.schemas.outputs`
+- **State:** React hooks (`useAnnotationState`) for form values, Jotai atoms as backup
+
+### What does NOT exist today
+
+| Feature | Status |
+|---------|--------|
+| Assignment (show only items assigned to current user) | **Does not exist.** No FE code calls EvaluationQueue endpoints. All scenarios shown to all users. |
+| Progress tracking (X/Y completed) | **Does not exist.** No progress bar or completion counter anywhere. |
+| Trace data in annotation view | **Partial.** Focus view shows inputs+outputs but not full trace tree. Table drawer shows nothing. |
+| Queue-based navigation | **Does not exist.** ScenarioNavigator iterates ALL scenarios, not assigned ones. |
+| Auto-advance after annotation | **Does not exist.** User stays on same scenario after save. |
+| Unified view for traces + testcases | **Does not exist.** Trace drawer and eval run views are completely separate code paths. |
+
+### What needs to change
+
+The **Focus View** (`SingleScenarioViewerPOC` + `ScenarioAnnotationPanel`) is the closest to what we need. It already shows inputs + outputs + annotation form in a single layout. The annotation queue view should be built as an evolution of this component.
+
+#### 1. New "Annotation Queue View" page component
+
+Create a new page at the annotation queue route that wraps the focus view pattern:
+- Fetches queue metadata (name, labels, source type, progress)
+- Fetches assigned scenario IDs from `EvaluationQueue` API (new FE service needed)
+- Renders items using the focus view layout (inputs/outputs on left, annotation form on right)
+- Adapts data rendering based on source type:
+  - **Traces:** Fetch trace span data, show inputs/outputs from trace root span attributes
+  - **Testcases:** Show testcase data columns (same as current focus view)
+  - **Eval run scenarios:** Show testcase inputs + invocation outputs (same as current focus view)
+
+#### 2. Assignment filtering
+
+- New atom: `assignedScenarioIdsAtom` — fetched from `GET /preview/annotation-queues/{queue_id}?user_id=X`
+- `ScenarioNavigator`: Filter `loadedScenarios` to only show assigned IDs
+- `ActionCell` (if table view is used): Only show "Annotate" button for assigned scenarios
+
+#### 3. Progress tracking
+
+- Add progress bar to page header: `{completed}/{total} completed`
+- Data source: convenience API returns `{completed, total}` on queue detail endpoint
+- `ScenarioNavigator`: Show completion status per item (checkmark icon for completed scenarios)
+
+#### 4. Navigation improvements
+
+- **Auto-advance:** After saving annotation, auto-navigate to next unfinished item
+- **Keyboard shortcuts:** Add `Cmd+ArrowLeft/Right` for prev/next (focus view already has `Cmd+Enter` for run)
+- **Skip button:** Allow annotator to skip an item and come back later
+
+#### 5. Trace data rendering
+
+- For trace-sourced queues: Fetch trace data via tracing API, extract `ag.data.inputs` and `ag.data.outputs` from root span
+- Render using the same `ColumnValueView` components as the current focus view
+- Include a "View full trace" link that opens the trace drawer
+
+### Estimate
+
+The annotation queue view is an evolution of the existing Focus View. Key work:
+- New page route + queue list page: ~2 days
+- Queue detail → annotation view (adapting Focus View): ~3 days
+- Assignment integration (new API service + filtering): ~1 day
+- Progress tracking: ~1 day
+- Navigation improvements (auto-advance, keyboard): ~1 day
+- **Total: ~8 days FE work**
