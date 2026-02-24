@@ -27,6 +27,7 @@ export {
     type EphemeralSelectionItem,
     type SnapshotDraftEntry,
     type SnapshotLoadableConnection,
+    type SnapshotLocalTestset,
     type ValidationResult,
 } from "./snapshotSchema"
 

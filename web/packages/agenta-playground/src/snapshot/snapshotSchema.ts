@@ -134,6 +134,26 @@ export interface SnapshotLoadableConnection {
     sourceName: string | null
     /** Testset entity UUID (for connectedTestsetAtom) */
     testsetId: string | null
+    /** Testcase IDs hidden by the user (deselected from the connected testset) */
+    hiddenTestcaseIds?: string[]
+    /** Locally-added testcase rows (not yet committed to the testset) */
+    draftRows?: {data: Record<string, unknown>}[]
+}
+
+// ============================================================================
+// LOCAL TESTSET
+// ============================================================================
+
+/**
+ * Local testset data captured in a URL snapshot.
+ * Present when the playground has local (non-connected) testcase rows.
+ * Mutually exclusive with `loadable` — a snapshot has one or the other (or neither).
+ */
+export interface SnapshotLocalTestset {
+    /** Testcase rows with their data fields */
+    rows: {data: Record<string, unknown>}[]
+    /** Display name for the local testset (from connectedTestsetAtom) */
+    name: string | null
 }
 
 // ============================================================================
@@ -160,6 +180,8 @@ export interface PlaygroundSnapshot {
     drafts: SnapshotDraftEntry[]
     /** Present when connected to an API-backed testset */
     loadable?: SnapshotLoadableConnection
+    /** Present when the playground has local testcase rows (mutually exclusive with loadable) */
+    localTestset?: SnapshotLocalTestset
 }
 
 // ============================================================================
@@ -267,6 +289,34 @@ function isSnapshotLoadableConnection(value: unknown): value is SnapshotLoadable
     if (typeof v.revisionId !== "string") return false
     if (v.sourceName !== null && typeof v.sourceName !== "string") return false
     if (v.testsetId !== null && typeof v.testsetId !== "string") return false
+    if (v.hiddenTestcaseIds !== undefined) {
+        if (!Array.isArray(v.hiddenTestcaseIds)) return false
+        if (!v.hiddenTestcaseIds.every((id) => typeof id === "string")) return false
+    }
+    if (v.draftRows !== undefined) {
+        if (!Array.isArray(v.draftRows)) return false
+        for (const row of v.draftRows) {
+            if (typeof row !== "object" || row === null) return false
+            const r = row as Record<string, unknown>
+            if (typeof r.data !== "object" || r.data === null) return false
+        }
+    }
+    return true
+}
+
+/**
+ * Type guard for SnapshotLocalTestset.
+ */
+function isSnapshotLocalTestset(value: unknown): value is SnapshotLocalTestset {
+    if (typeof value !== "object" || value === null) return false
+    const v = value as Record<string, unknown>
+    if (!Array.isArray(v.rows)) return false
+    for (const row of v.rows) {
+        if (typeof row !== "object" || row === null) return false
+        const r = row as Record<string, unknown>
+        if (typeof r.data !== "object" || r.data === null) return false
+    }
+    if (v.name !== null && typeof v.name !== "string") return false
     return true
 }
 
@@ -354,6 +404,11 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
         return {ok: false, error: "Invalid loadable connection in snapshot"}
     }
 
+    // Check optional localTestset field (v=2+)
+    if (obj.localTestset !== undefined && !isSnapshotLocalTestset(obj.localTestset)) {
+        return {ok: false, error: "Invalid local testset data in snapshot"}
+    }
+
     const selection = obj.selection as SelectionItem[]
     const drafts = obj.drafts as SnapshotDraftEntry[]
 
@@ -363,6 +418,8 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
             v: SNAPSHOT_VERSION,
             selection,
             drafts,
+            ...(obj.loadable ? {loadable: obj.loadable as SnapshotLoadableConnection} : {}),
+            ...(obj.localTestset ? {localTestset: obj.localTestset as SnapshotLocalTestset} : {}),
         },
     }
 }
