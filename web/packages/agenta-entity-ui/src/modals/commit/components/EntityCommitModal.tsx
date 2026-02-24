@@ -124,6 +124,7 @@ export function EntityCommitModal({
     const setCommitError = useSetAtom(setCommitErrorAtom)
     const setCommitLoading = useSetAtom(setCommitLoadingAtom)
     const wasExternallyOpenRef = useRef(false)
+    const syncedEntityRef = useRef<{id: string; type: string} | null>(null)
 
     const [selectedMode, setSelectedMode] = useState<string | undefined>(
         defaultCommitMode ?? commitModes?.[0]?.id,
@@ -137,21 +138,27 @@ export function EntityCommitModal({
     const hasDiffData = context?.diffData?.original && context?.diffData?.modified
 
     // Initialize controlled modal state without toggling global modal open state.
+    // Uses a ref to track the last synced entity to avoid re-triggering from
+    // our own setEntity() call (which would cause currentEntity to change).
     useEffect(() => {
         if (!isExternallyControlled) return
 
         const isOpening = Boolean(externalOpen) && !wasExternallyOpenRef.current
         const entityChanged =
             externalEntity &&
-            (currentEntity?.id !== externalEntity.id ||
-                currentEntity?.type !== externalEntity.type ||
-                currentEntity?.name !== externalEntity.name)
+            (syncedEntityRef.current?.id !== externalEntity.id ||
+                syncedEntityRef.current?.type !== externalEntity.type)
 
         if (externalOpen && externalEntity && (isOpening || entityChanged)) {
+            syncedEntityRef.current = {id: externalEntity.id, type: externalEntity.type}
             setEntity(externalEntity)
             setMessage(initialMessage ?? "")
             setCommitError(null)
             setCommitLoading(false)
+        }
+
+        if (!externalOpen) {
+            syncedEntityRef.current = null
         }
 
         wasExternallyOpenRef.current = Boolean(externalOpen)
@@ -160,7 +167,6 @@ export function EntityCommitModal({
         externalOpen,
         externalEntity,
         initialMessage,
-        currentEntity,
         setEntity,
         setMessage,
         setCommitError,
@@ -181,8 +187,12 @@ export function EntityCommitModal({
     }, [isExternallyControlled, closeModal, onClose])
 
     const handleAfterClose = useCallback(() => {
+        // In externally controlled mode, only reset if the modal is actually closed.
+        // This prevents a stale afterClose animation callback from clobbering state
+        // when the modal has already been re-opened by the parent.
+        if (isExternallyControlled && externalOpen) return
         resetModal()
-    }, [resetModal])
+    }, [resetModal, isExternallyControlled, externalOpen])
 
     const handleSuccess = useCallback(
         (result: {newRevisionId?: string}) => {

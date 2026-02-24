@@ -161,7 +161,7 @@ export function EntityCommitContent({
                 {!canCommit && (
                     <Alert
                         type="warning"
-                        message="This entity cannot be committed"
+                        title="This entity cannot be committed"
                         description="Check that there are changes to commit and the entity is in a valid state."
                         showIcon
                     />
@@ -211,7 +211,7 @@ export function EntityCommitContent({
                 {error && (
                     <Alert
                         type="error"
-                        message="Commit failed"
+                        title="Commit failed"
                         description={error.message}
                         showIcon
                     />

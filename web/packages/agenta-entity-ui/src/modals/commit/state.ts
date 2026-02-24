@@ -76,6 +76,9 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
     if (!adapter?.canCommit) return true // Default to true if no canCommit defined
 
     const entityData = get(adapter.dataAtom(entity.id))
+    // Default to true while adapter data is still loading — the actual
+    // submit guard (canProceed) prevents premature commits.
+    if (entityData === null || entityData === undefined) return true
     return adapter.canCommit(entityData)
 })
 
