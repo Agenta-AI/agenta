@@ -36,10 +36,10 @@ Platform X stores all data (traces, dataset rows, experiment results) as items w
 │  }                                                               │
 │  metadata: {                                                     │
 │    model: "gpt-4",                ← User metadata                │
-│    ~__review_lists: {             ← System: queue membership     │
+│    review_lists: {                ← System: queue membership     │
 │      default: {status: "PENDING"}                                │
 │    },                                                            │
-│    ~__assignments: ["user-1"]     ← System: assignees            │
+│    assignments: ["user-1"]        ← System: assignees            │
 │  }                                                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -49,8 +49,8 @@ Platform X stores all data (traces, dataset rows, experiment results) as items w
 | Decision | Approach |
 |----------|----------|
 | Annotation storage | Inline fields on items (`expected`, `scores.*`, `metadata.*`) |
-| Queue membership | Metadata field: `metadata.~__review_lists.{queue}.status` |
-| Assignments | Metadata field: `metadata.~__assignments` (array of user IDs) |
+| Queue membership | Metadata field: `metadata.review_lists.{queue}.status` |
+| Assignments | Metadata field: `metadata.assignments` (array of user IDs) |
 | Annotation schema | **None enforced** - freeform fields |
 | Write mechanism | Merge/patch with explicit `_merge_paths` |
 | Audit trail | `_audit_source` and `_audit_metadata` on each write |
@@ -77,7 +77,7 @@ The UI likely:
 All writes use a merge/patch pattern:
 
 ```json
-POST /logs
+POST /items
 {
   "rows": [{
     "_is_merge": true,
@@ -118,14 +118,14 @@ There is no `Queue` table. A "queue" is just:
 ### Adding Items to Queue
 
 ```json
-POST /logs
+POST /items
 {
   "rows": [{
     "_is_merge": true,
     "id": "item-123",
-    "_merge_paths": [["metadata", "~__review_lists"]],
+    "_merge_paths": [["metadata", "review_lists"]],
     "metadata": {
-      "~__review_lists": {
+      "review_lists": {
         "default": {"status": "PENDING"}
       }
     }
@@ -137,8 +137,8 @@ POST /logs
 
 ```sql
 SELECT * FROM items
-WHERE metadata.~__review_lists.default.status IS NOT NULL
-   OR metadata.~__assignments IS NOT NULL
+WHERE metadata.review_lists.default.status IS NOT NULL
+   OR metadata.assignments IS NOT NULL
 ORDER BY created_at DESC
 ```
 
@@ -157,9 +157,9 @@ Observed statuses:
 
 ```json
 {
-  "_merge_paths": [["metadata", "~__assignments"]],
+  "_merge_paths": [["metadata", "assignments"]],
   "metadata": {
-    "~__assignments": ["user-id-1", "user-id-2"]
+    "assignments": ["user-id-1", "user-id-2"]
   }
 }
 ```
@@ -172,15 +172,14 @@ Observed statuses:
 Separate endpoint for sending assignment emails:
 
 ```json
-POST /actions/sendAssignmentNotification
+POST /actions/notify
 {
   "function_args": {
-    "orgName": "acme",
-    "assignerName": "John Doe",
-    "link": "/app/acme/p/my-project/datasets/ds-123",
+    "assigner_name": "John Doe",
+    "link": "/app/my-project/datasets/ds-123",
     "emails": ["jane@example.com"],
-    "entityType": "dataset",
-    "entityName": "my-dataset"
+    "entity_type": "dataset",
+    "entity_name": "my-dataset"
   }
 }
 ```
@@ -212,10 +211,10 @@ The UI then:
 The API has an `infer` capability:
 
 ```json
-POST /btql
+POST /query
 {
   "query": {
-    "from": {"op": "function", "name": ["project_logs"], "args": [...]},
+    "from": {"op": "function", "name": ["project_items"], "args": [...]},
     "infer": [{"op": "ident", "name": ["input"]}],
     "limit": 500
   }
@@ -231,15 +230,15 @@ This likely:
 
 ## Unified API Pattern
 
-Everything goes through one endpoint (`/logs`) with the same merge pattern:
+Everything goes through one endpoint with the same merge pattern:
 
 | Operation | Implementation |
 |-----------|----------------|
-| Log a trace | `POST /logs` with full item |
-| Add annotation | `POST /logs` with `_is_merge: true` |
-| Add to queue | `POST /logs` with `_is_merge: true` + review_lists |
-| Assign users | `POST /logs` with `_is_merge: true` + assignments |
-| Update status | `POST /logs` with `_is_merge: true` + status change |
+| Log a trace | `POST /items` with full item |
+| Add annotation | `POST /items` with `_is_merge: true` |
+| Add to queue | `POST /items` with `_is_merge: true` + review_lists |
+| Assign users | `POST /items` with `_is_merge: true` + assignments |
+| Update status | `POST /items` with `_is_merge: true` + status change |
 
 This unified pattern simplifies the API surface dramatically.
 
@@ -252,13 +251,13 @@ Platform X uses a custom query language (AST-based) that supports:
 ```json
 {
   "query": {
-    "filter": {"btql": "metadata.~__review_lists.default.status IS NOT NULL"},
-    "from": {"op": "function", "name": ["project_logs"], "args": [...]},
+    "filter": {"expr": "metadata.review_lists.default.status IS NOT NULL"},
+    "from": {"op": "function", "name": ["project_items"], "args": [...]},
     "select": [{"op": "star"}],
-    "sort": [{"expr": {"btql": "_pagination_key"}, "dir": "desc"}],
+    "sort": [{"expr": {"field": "_pagination_key"}, "dir": "desc"}],
     "limit": 50,
     "custom_columns": [
-      {"expr": {"btql": "metadata.~__review_lists.default.status"}, "alias": "review_status"}
+      {"expr": {"field": "metadata.review_lists.default.status"}, "alias": "review_status"}
     ]
   }
 }
