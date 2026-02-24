@@ -173,7 +173,7 @@ export function EditModeContent({
                     />
                 </div>
 
-                <Divider type="vertical" className="m-0 h-auto self-stretch" />
+                <Divider orientation="vertical" className="m-0 h-auto self-stretch" />
 
                 {/* Right panel - Testcase table (fills remaining width and height) */}
                 <div

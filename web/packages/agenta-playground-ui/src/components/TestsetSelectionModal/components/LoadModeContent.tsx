@@ -189,7 +189,7 @@ export function LoadModeContent({connectedRevisionId, onConfirm, onCancel}: Load
                     </div>
                 </div>
 
-                <Divider type="vertical" className="m-0 h-auto self-stretch" />
+                <Divider orientation="vertical" className="m-0 h-auto self-stretch" />
 
                 {/* Right panel - Testcase search + table (fills remaining width and height) */}
                 <div

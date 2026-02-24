@@ -60,7 +60,7 @@ export const PresetContent = memo(function PresetContent({
                 />
             </div>
 
-            <Divider type="vertical" className="m-0 h-full" />
+            <Divider orientation="vertical" className="m-0 h-full" />
 
             {/* Right content - preview */}
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
