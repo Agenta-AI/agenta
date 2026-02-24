@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {HeightCollapse} from "@agenta/ui"
+import {HeightCollapse, SyncStateTag, type SyncState} from "@agenta/ui"
 import {RightOutlined} from "@ant-design/icons"
 import {Code, TreeStructure} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -14,7 +14,11 @@ import type {EntityAPI, EntityDrillIn, PathItem} from "@/oss/state/entities/shar
 // ============================================================================
 
 type Testcase = NonNullable<ReturnType<typeof testcaseMolecule.get.data>>
-type Column = {key: string; label?: string; name?: string}
+interface Column {
+    key: string
+    label?: string
+    name?: string
+}
 
 /**
  * Entity adapter that maps testcaseMolecule → EntityAPI interface.
@@ -42,11 +46,7 @@ const testcaseEntityAdapter = {
         getValueAtPath: testcaseMolecule.drillIn.getValueAtPath,
         setValueAtPathAtom: atom(
             null,
-            (
-                _get,
-                set,
-                params: {id: string; path: string[]; value: unknown},
-            ) => {
+            (_get, set, params: {id: string; path: string[]; value: unknown}) => {
                 const changes = testcaseMolecule.drillIn.getChangesFromPath(
                     testcaseMolecule.get.data(params.id),
                     params.path,
@@ -120,14 +120,15 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
         [updateTestcase, testcaseId],
     )
 
+    // Locally-created testcases have no server counterpart so isDirty is
+    // always true. Show "New" (green) for those instead of "Edited" (blue).
+    const isNewRow = testcaseId.startsWith("new-") || testcaseId.startsWith("local-")
+    const syncState: SyncState = isNewRow ? "new" : isDirty ? "modified" : "unmodified"
+
     const toolbar = useMemo(
         () => (
             <div className="flex items-center gap-1">
-                {isDirty && (
-                    <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium mr-1">
-                        edited
-                    </span>
-                )}
+                <SyncStateTag syncState={syncState} className="mr-1" />
                 <button
                     type="button"
                     onClick={() => setEditMode("fields")}
@@ -152,7 +153,7 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
                 </button>
             </div>
         ),
-        [isDirty, editMode],
+        [syncState, editMode],
     )
 
     return (
@@ -200,7 +201,9 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
                     ) : (
                         <div
                             className={
-                                isDirty ? "[&_.agenta-shared-editor]:border-blue-400" : ""
+                                syncState === "modified"
+                                    ? "[&_.agenta-shared-editor]:border-blue-400"
+                                    : ""
                             }
                         >
                             <JsonEditorWithLocalState
