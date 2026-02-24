@@ -77,9 +77,12 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
             )
 
             const status = fullResult?.status
-            const isRunning = status === "running" || status === "pending"
-            const resultHash = fullResult?.resultHash ?? null
             const result = fullResult?.output ?? null
+            // If the root node's output has already been surfaced (via
+            // chainResults) but the chain is still running, treat the root
+            // as no longer loading so the UI shows the output immediately.
+            const isRunning = (status === "running" || status === "pending") && !result
+            const resultHash = fullResult?.resultHash ?? null
             const traceId =
                 fullResult?.traceId ?? extractTraceIdFromPayload(fullResult?.output) ?? null
 
