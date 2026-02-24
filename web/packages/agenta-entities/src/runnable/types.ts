@@ -171,7 +171,14 @@ export interface TestsetColumn {
 /**
  * Execution status
  */
-export type ExecutionStatus = "idle" | "pending" | "running" | "success" | "error" | "cancelled"
+export type ExecutionStatus =
+    | "idle"
+    | "pending"
+    | "running"
+    | "success"
+    | "error"
+    | "cancelled"
+    | "skipped"
 
 /**
  * Trace info from execution

@@ -7,7 +7,14 @@ import clsx from "clsx"
 // STATUS TYPES
 // ============================================================================
 
-export type NodeStatus = "idle" | "running" | "pending" | "success" | "error" | "cancelled"
+export type NodeStatus =
+    | "idle"
+    | "running"
+    | "pending"
+    | "success"
+    | "error"
+    | "cancelled"
+    | "skipped"
 
 // ============================================================================
 // NODE NAME TAG
@@ -54,6 +61,7 @@ export const NodeResultCard = ({
 }) => {
     const isRunning = status === "running" || status === "pending"
     const isError = status === "error"
+    const isSkipped = status === "skipped"
 
     // Both states share the same outer wrapper so spacing is identical.
     // The legend label always sits at the top of this wrapper (top: 0, left: 10),
@@ -131,7 +139,9 @@ export const NodeResultCard = ({
                     "rounded-lg px-3 pt-6 pb-2 border border-solid",
                     isError
                         ? "border-[var(--ant-color-error)]"
-                        : "border-[var(--ant-color-border-secondary)]",
+                        : isSkipped
+                          ? "border-[var(--ant-color-warning)] border-dashed"
+                          : "border-[var(--ant-color-border-secondary)]",
                 )}
             >
                 {children}
