@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.86.4",
+    "version": "0.86.7",
     "workspaces": [
         "ee",
         "oss",
@@ -81,7 +81,13 @@
             "prismjs@<1.30.0": ">=1.30.0",
             "@babel/runtime@<7.26.10": ">=7.26.10",
             "mdast-util-to-hast@<13.2.1": ">=13.2.1",
-            "lodash@<4.17.23": ">=4.17.23"
+            "lodash@<4.17.23": ">=4.17.23",
+            "lodash-es@<4.17.23": ">=4.17.23",
+            "minimatch@<10.2.1": ">=10.2.1",
+            "axios@<1.13.5": ">=1.13.5"
+        },
+        "patchedDependencies": {
+            "minimatch@10.2.2": "patches/minimatch@10.2.2.patch"
         }
     }
 }

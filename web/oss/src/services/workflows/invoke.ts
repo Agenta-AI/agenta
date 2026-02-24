@@ -32,6 +32,7 @@ export interface InvokeEvaluatorParams {
     evaluator?: Partial<SimpleEvaluator> | null
     inputs?: Record<string, any>
     outputs?: any
+    trace?: any
     parameters?: Record<string, any>
     options?: InvokeEvaluatorOptions
 }
@@ -44,6 +45,7 @@ export const invokeEvaluator = async ({
     evaluator,
     inputs,
     outputs,
+    trace,
     parameters,
     options,
 }: InvokeEvaluatorParams): Promise<WorkflowServiceBatchResponse> => {
@@ -67,6 +69,7 @@ export const invokeEvaluator = async ({
         data: {
             inputs,
             outputs,
+            trace,
             parameters,
         },
     }

@@ -10,19 +10,9 @@
 
 For comprehensive testing documentation, see [docs/designs/testing/README.md](docs/designs/testing/README.md).
 
-Quick overview:
-- **API Tests**: `cd api && python run-tests.py --api-url <api_url> --auth-key <auth_key> --license oss`
-- **SDK Tests**: `cd sdk && python run-tests.py --api-url <api_url> --auth-key <auth_key> --license oss`
-- **Web Tests**: `cd web/tests && AGENTA_WEB_URL=<web_url> TESTMAIL_NAMESPACE=<email_ns> TESTMAIL_API_KEY=<email_key> pnpm tsx playwright/scripts/run-tests.ts --coverage smoke`
-
-Test documentation covers:
-- Testing principles and philosophy
-- Test boundaries (utils, unit, E2E)
-- Test dimensions (coverage, path, case, lens, speed, license, cost, role, plan)
-- Interface-specific guides (API, SDK, Web, Services)
-- Test structure and organization
-- Fixtures and utilities
-- Running tests locally and in CI 
+## Packs
+- Hosting: [docs/packs/hosting.md](docs/packs/hosting.md)
+- Testing: [docs/packs/testing.md](docs/packs/testing.md)
 
 ## PR instructions
 - If the user provides you with the issue id, title the PR: [issue-id] fix(frontend): <Title> where fix is the type (fix, feat, chore, ci, doc, test.. [we're using better-branch) and frontend is where and it could be API, SDK, frontend, docs, ..

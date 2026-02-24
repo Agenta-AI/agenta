@@ -111,7 +111,6 @@ from oss.src.routers import (
     admin_router,
     app_router,
     environment_router,
-    evaluators_router,
     user_profile,
     variants_router,
     configs_router,
@@ -648,12 +647,6 @@ app.include_router(
     container_router.router,
     prefix="/containers",
     tags=["Containers"],
-)
-
-app.include_router(
-    evaluators_router.router,
-    prefix="/evaluators",
-    tags=["Evaluators"],
 )
 
 app.include_router(
