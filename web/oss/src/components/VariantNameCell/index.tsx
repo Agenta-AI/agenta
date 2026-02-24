@@ -62,7 +62,7 @@ const VariantNameCell = memo(
 
         if (!rev) {
             return (
-                <Tag color="default" bordered={false} className="-ml-1">
+                <Tag color="default" variant="filled" className="-ml-1">
                     No deployment
                 </Tag>
             )
