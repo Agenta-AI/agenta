@@ -110,7 +110,7 @@ const deleteAtPath = (target: unknown, path: string[]) => {
 
 const removeEmptyContainers = (value: unknown): unknown => {
     if (Array.isArray(value)) {
-        return value.map(removeEmptyContainers)
+        return value.map(removeEmptyContainers).filter((nested) => nested !== undefined)
     }
 
     if (!isRecord(value)) {

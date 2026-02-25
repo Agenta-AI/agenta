@@ -286,9 +286,6 @@ const AccordionTreePanel = ({
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
     const classes = useStyles({bgColor, theme: token})
-    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
-        viewModePreset === "message" ? "text" : "json",
-    )
     const editorRef = useRef<HTMLDivElement>(null)
     const textViewerId = useId().replace(/:/g, "")
 
@@ -367,6 +364,9 @@ const AccordionTreePanel = ({
         }
         return modes
     }, [viewModePreset, isStringValue, parsedStructuredString, renderedJsonResult.didRender])
+    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
+        () => availableViewModes[0] ?? "json",
+    )
 
     useEffect(() => {
         if (!availableViewModes.includes(panelViewMode)) {

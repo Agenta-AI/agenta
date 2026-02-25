@@ -316,7 +316,6 @@ export const TraceSpanDrillInView = memo(
             imageAttachments,
         } = useMemo(() => sanitizeDataWithBlobUrls(spanData), [spanData])
 
-        const [viewMode, setViewMode] = useState<RawSpanDisplayMode>("json")
         const [isCollapsed, setIsCollapsed] = useState(false)
         const [isSearchOpen, setIsSearchOpen] = useState(false)
         const [searchTerm, setSearchTerm] = useState("")
@@ -387,6 +386,9 @@ export const TraceSpanDrillInView = memo(
             }
             return modes
         }, [isStringValue, parsedStructuredString, renderedJsonResult.didRender])
+        const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(
+            () => availableViewModes[0] ?? "json",
+        )
 
         const isCodeMode =
             viewMode === "json" || viewMode === "yaml" || viewMode === "rendered-json"
