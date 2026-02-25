@@ -65,6 +65,8 @@ export interface EntityCommitModalProps {
     renderModeContent?: (params: {mode?: string}) => ReactNode
     /** Additional submit guard from caller (e.g. requires variant name or environment) */
     canSubmit?: (params: {mode?: string}) => boolean
+    /** Whether a commit message is required to proceed. Defaults to false. */
+    commitMessageRequired?: boolean
 }
 
 /**
@@ -109,6 +111,7 @@ export function EntityCommitModal({
     defaultCommitMode,
     renderModeContent,
     canSubmit,
+    commitMessageRequired = false,
 }: EntityCommitModalProps) {
     const internalOpen = useAtomValue(commitModalOpenAtom)
     const context = useAtomValue(commitModalContextAtom)
@@ -205,8 +208,9 @@ export function EntityCommitModal({
         [onSuccess],
     )
 
+    const messageValid = !commitMessageRequired || commitMessage.trim().length > 0
     const canProceedWithExtension =
-        canProceed && (canSubmit ? canSubmit({mode: selectedMode}) : true)
+        canProceed && messageValid && (canSubmit ? canSubmit({mode: selectedMode}) : true)
 
     const handleConfirm = useCallback(async () => {
         if (onSubmit) {
