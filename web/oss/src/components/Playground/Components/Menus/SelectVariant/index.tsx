@@ -392,7 +392,7 @@ const SelectVariant = ({
                     placement="bottomRight"
                     arrow={false}
                     destroyOnHidden
-                    styles={{body: {padding: 0}}}
+                    overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
                     <Button icon={<DownOutlined style={{fontSize: 10}} />} />
                 </Popover>
@@ -426,7 +426,7 @@ const SelectVariant = ({
                     placement="bottomLeft"
                     arrow={false}
                     destroyOnHidden
-                    styles={{body: {padding: 0}}}
+                    overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
                     <Tooltip title={triggerLabel} mouseEnterDelay={0.5}>
                         <Button
@@ -470,7 +470,7 @@ const SelectVariant = ({
                 placement="bottomLeft"
                 arrow={false}
                 destroyOnHidden
-                styles={{body: {padding: 0}}}
+                overlayClassName="[&_.ant-popover-container]:!p-0"
             >
                 <Button
                     size="small"

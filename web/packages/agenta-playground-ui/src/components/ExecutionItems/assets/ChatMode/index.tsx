@@ -104,7 +104,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
     return (
         <section className="flex flex-col">
             {/* Chat turns */}
-            <div className="flex flex-col border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+            <div className="flex flex-col">
                 <HeightCollapse
                     open={!isAllCollapsed}
                     className={!isAllCollapsed ? "mb-2" : undefined}
@@ -121,7 +121,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                             ))}
                         {configMessages.length > 0 && (
                             <div className="px-4 pb-2">
-                                <div className="rounded-md border border-solid border-colorBorderSecondary">
+                                <div className="rounded-md border border-solid border-colorBorderSecondary mt-4">
                                     <ChatMessageList
                                         messages={configMessages}
                                         onChange={noop}
@@ -184,7 +184,7 @@ const FooterControlsSingle = ({
                 onRun={run}
                 onCancel={cancel}
                 onAddMessage={onAddMessage}
-                className="p-3"
+                className="py-3"
             />
         )
     }
@@ -196,7 +196,7 @@ const FooterControlsSingle = ({
                 onRun: run,
                 onCancelAll: cancel,
                 onAddMessage,
-                className: "p-3",
+                className: "py-3",
             })}
         </>
     )

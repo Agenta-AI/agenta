@@ -31,7 +31,7 @@ import type {TestsetSelectionModalProps} from "./types"
 // ============================================================================
 
 const MODAL_SIZES = {
-    edit: {width: modalSizes.medium.width, height: modalSizes.large.height},
+    edit: {width: modalSizes.large.width, height: modalSizes.large.height},
     load: {width: modalSizes.large.width, height: "70dvh"},
 } as const
 

@@ -158,9 +158,9 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [onAddTool, existingToolCount])
 
     const content = (
-        <div className="flex flex-col gap-2 min-w-[280px] max-h-[400px]">
+        <div className="flex flex-col gap-2 min-w-[250px] max-h-[400px]">
             {/* Header: Search + Create in-line */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 border-0 border-b border-solid border-gray-200 px-2 py-1.5">
                 <Input
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder="Search"
@@ -168,7 +168,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     allowClear
-                    className="flex-1"
+                    className="flex-1 w-[150px]"
                 />
                 <Button
                     size="small"
@@ -181,7 +181,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             </div>
 
             {/* Provider tool list */}
-            <div className="flex flex-col gap-1 overflow-y-auto max-h-[320px] -mx-1 px-1">
+            <div className="flex flex-col gap-1 overflow-y-auto max-h-[320px] px-2 pb-2">
                 {grouped.map((group) => (
                     <div key={group.providerKey} className="flex flex-col">
                         {/* Provider header */}
@@ -226,6 +226,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             placement="bottomLeft"
             arrow={false}
             content={content}
+            overlayClassName="[&_.ant-popover-container]:!p-0"
         >
             <Button
                 variant="outlined"

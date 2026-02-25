@@ -11,7 +11,7 @@
 import React, {useCallback, useEffect, useId, useRef} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Input, type InputRef, Spin, Tree} from "antd"
+import {Input, Spin, Tree, type InputRef} from "antd"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -34,6 +34,11 @@ export type TreeSelectPopupContentProps<TSelection = EntitySelectionResult> = Om
 > & {
     /** Width of the popup content */
     width?: number | string
+    /**
+     * Whether to show dates/subtitles in labels.
+     * @default false
+     */
+    showDate?: boolean
 }
 
 // ============================================================================
@@ -65,6 +70,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     popupHeaderAction,
     popupFooter,
     width = 280,
+    showDate = false,
 }: TreeSelectPopupContentProps<TSelection>) {
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
@@ -96,6 +102,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         defaultExpandAll,
         parentFilter,
         childFilter,
+        showDate,
     })
 
     // Ref for scroll container — used to auto-scroll to selected item
@@ -161,7 +168,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         <div className={cn("flex flex-col", className)} style={{width}}>
             {/* Search input row with optional action */}
             {(showSearch || popupHeaderAction) && (
-                <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100">
+                <div className="flex items-center gap-2 px-2 py-1 border-0 border-b border-solid border-gray-200 mb-2">
                     {showSearch && (
                         <Input
                             ref={searchInputRef}
@@ -205,18 +212,19 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
                 <div
                     ref={scrollContainerRef}
                     style={{maxHeight, overflow: "auto"}}
-                    className="tree-popup-compact"
+                    className="tree-popup-compact px-2 pb-2"
                 >
                     <style>{`
                         .tree-popup-compact .ant-tree-treenode-leaf .ant-tree-indent { display: none !important; }
                         .tree-popup-compact .ant-tree-treenode-leaf { padding-left: 24px !important; }
                         .tree-popup-compact .ant-tree-checkbox { display: none; }
-                        .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); }
+                        .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); opacity: 0.8; }
                         .tree-popup-compact .ant-tree-node-content-wrapper { padding-left: 4px !important; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; }
                         .tree-popup-compact .ant-tree-switcher { margin: 0 !important; display: flex; align-items: center; justify-content: center; }
+
                         .tree-popup-compact .ant-tree-switcher-noop { display: none !important; }
                         .tree-popup-compact .ant-tree-title { width: 100%; }
-                        .tree-popup-compact .ant-tree-treenode-disabled > .ant-tree-node-content-wrapper { opacity: 0.5; cursor: not-allowed; background: transparent !important; }
+                        .tree-popup-compact .ant-tree-treenode-disabled > .ant-tree-node-content-wrapper { opacity: 0.8; cursor: not-allowed; background: transparent !important; }
                         /* Allow sticky positioning through intermediate Tree wrappers */
                         .tree-popup-compact .ant-tree-list,
                         .tree-popup-compact .ant-tree-list-holder,

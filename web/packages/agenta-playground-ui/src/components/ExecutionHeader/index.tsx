@@ -83,6 +83,7 @@ const ExecutionHeader = ({
             className={clsx(
                 "flex justify-between items-center gap-4 flex-shrink-0 px-4 py-2",
                 "border-0 border-b border-solid border-colorBorderSecondary",
+                "sticky top-0 z-10",
                 isComparisonView
                     ? "h-[40px] bg-[var(--ant-control-item-bg-active)]"
                     : "h-[48px] bg-white",
@@ -103,7 +104,7 @@ const ExecutionHeader = ({
                             isCollapsed={isAllCollapsed}
                             onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                             iconSize={16}
-                            className="text-[16px] leading-[18px] font-[600] text-nowrap"
+                            className="text-[16px] leading-[18px] font-[600] text-nowrap items-center"
                         />
                     </div>
                 ) : (
