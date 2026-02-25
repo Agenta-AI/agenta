@@ -49,9 +49,9 @@ _openai_checked = False
 _yaml_module: Optional[_YamlModule] = None
 _yaml_checked = False
 
-_jinja_cached: Optional[
-    Tuple[type["SandboxedEnvironment"], type["TemplateError"]]
-] = None
+_jinja_cached: Optional[Tuple[type["SandboxedEnvironment"], type["TemplateError"]]] = (
+    None
+)
 _jinja_checked = False
 
 _fastapi_module: Optional[_FastAPIModule] = None
