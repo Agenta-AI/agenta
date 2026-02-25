@@ -155,14 +155,18 @@ class OTelReference(Reference):
 OTelReferences = List[OTelReference]
 
 
-class OTelSpansTree(BaseModel):
-    spans: Optional["OTelNestedSpans"] = None
+class SpansTree(BaseModel):
+    spans: Optional[Dict[str, Union["SpansNode", List["SpansNode"]]]] = None
 
 
-OTelSpansTrees = List[OTelSpansTree]
+# Backward-compatible aliases for legacy names.
+OTelSpansTree = SpansTree
+
+SpansTrees = List[SpansTree]
+OTelSpansTrees = SpansTrees
 
 
-class Trace(TraceID, OTelSpansTree):
+class Trace(TraceID, SpansTree):
     # Canonical single-trace model (trace_id + spans tree).
     pass
 
@@ -170,7 +174,7 @@ class Trace(TraceID, OTelSpansTree):
 Traces = List[Trace]
 
 
-class OTelFlatSpan(Lifecycle):
+class Span(Lifecycle):
     trace_id: str
     span_id: str
     parent_id: Optional[str] = None
@@ -219,18 +223,20 @@ class OTelFlatSpan(Lifecycle):
         return self
 
 
-class OTelSpan(OTelFlatSpan, OTelSpansTree):
+class SpansNode(Span, SpansTree):
     pass
 
 
-OTelFlatSpans = List[OTelFlatSpan]
-OTelNestedSpans = Dict[str, Union[OTelSpan, List[OTelSpan]]]
-OTelTraceTree = Dict[str, OTelSpansTree]
-OTelTraceTrees = List[OTelTraceTree]
-OTelSpans = List[OTelSpan]
+Spans = List[Span]
+NestedSpans = Dict[str, Union[SpansNode, List[SpansNode]]]
+TraceTree = Dict[str, SpansTree]
+TraceTrees = List[TraceTree]
 
-# Canonical external flat span payload names.
-Span = OTelFlatSpan
-Spans = OTelFlatSpans
-
-TraceTree = OTelTraceTree
+# Backward-compatible aliases for legacy names.
+OTelFlatSpan = Span
+OTelFlatSpans = Spans
+OTelSpan = SpansNode
+OTelNestedSpans = NestedSpans
+OTelTraceTree = TraceTree
+OTelTraceTrees = TraceTrees
+OTelSpans = List[SpansNode]

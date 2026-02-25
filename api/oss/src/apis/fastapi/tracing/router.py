@@ -23,10 +23,10 @@ from oss.src.apis.fastapi.tracing.utils import (
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
+    LinkResponse,
+    LinksResponse,
     TraceIdResponse,
     TraceIdsResponse,
-    SpanIdResponse,
-    SpanIdsResponse,
     OTelTracingRequest,
     TraceRequest,
     TracesRequest,
@@ -76,7 +76,7 @@ from oss.src.core.tracing.dtos import (
     MetricType,
     MetricSpec,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Windowing, Trace, Link
 
 log = get_module_logger(__name__)
 
@@ -586,7 +586,7 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
-        sync: bool = False,
+        sync: bool = True,
     ) -> OTelLinksResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1005,12 +1005,12 @@ class SpansRouter:
             methods=["POST"],
             operation_id="ingest_spans",
             status_code=status.HTTP_202_ACCEPTED,
-            response_model=SpanIdsResponse,
+            response_model=LinksResponse,
             response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
-            "/{span_id}",
+            "/{trace_id}/{span_id}",
             self.fetch_span,
             methods=["GET"],
             operation_id="fetch_span",
@@ -1024,8 +1024,8 @@ class SpansRouter:
             self.create_span,
             methods=["POST"],
             operation_id="create_span",
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=SpanIdResponse,
+            status_code=status.HTTP_201_CREATED,
+            response_model=LinkResponse,
             response_model_exclude_none=True,
         )
 
@@ -1067,23 +1067,29 @@ class SpansRouter:
         return []
 
     @staticmethod
-    def _span_ids_from_links(links: Optional[OTelLinks]) -> List[str]:
-        span_ids: List[str] = []
+    def _links_from_otel_links(otel_links: Optional[OTelLinks]) -> List[Link]:
+        links: List[Link] = []
         seen = set()
-        for link in links or []:
-            sid = str(link.span_id)
-            if sid not in seen:
-                seen.add(sid)
-                span_ids.append(sid)
-        return span_ids
+        for otel_link in otel_links or []:
+            pair = (str(otel_link.trace_id), str(otel_link.span_id))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            links.append(
+                Link(
+                    trace_id=pair[0],
+                    span_id=pair[1],
+                )
+            )
+        return links
 
     @intercept_exceptions()
     async def create_span(
         self,
         request: Request,
         span_request: SpanRequest,
-        sync: bool = False,
-    ) -> SpanIdResponse:
+        sync: bool = True,
+    ) -> LinkResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1104,11 +1110,11 @@ class SpansRouter:
             sync=sync,
         )
 
-        span_ids = self._span_ids_from_links(links)
-        span_id = span_ids[0] if span_ids else None
-        return SpanIdResponse(
-            count=1 if span_id else 0,
-            span_id=span_id,
+        normalized_links = self._links_from_otel_links(links)
+        link = normalized_links[0] if normalized_links else None
+        return LinkResponse(
+            count=1 if link else 0,
+            link=link,
         )
 
     @intercept_exceptions()
@@ -1116,7 +1122,7 @@ class SpansRouter:
         self,
         request: Request,
         spans_request: SpansRequest,
-    ) -> SpanIdsResponse:
+    ) -> LinksResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1136,10 +1142,10 @@ class SpansRouter:
             spans=spans_request.spans,
         )
 
-        span_ids = self._span_ids_from_links(links)
-        return SpanIdsResponse(
-            count=len(span_ids),
-            span_ids=span_ids,
+        normalized_links = self._links_from_otel_links(links)
+        return LinksResponse(
+            count=len(normalized_links),
+            links=normalized_links,
         )
 
     @intercept_exceptions()
@@ -1147,7 +1153,9 @@ class SpansRouter:
     async def query_spans(
         self,
         request: Request,
-        spans_query_request: SpansQueryRequest = Body(default_factory=SpansQueryRequest),
+        spans_query_request: SpansQueryRequest = Body(
+            default_factory=SpansQueryRequest
+        ),
     ) -> SpansResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1286,7 +1294,9 @@ class SpansRouter:
 
         if trace_id_values:
             try:
-                uuid_ids = [UUID(parse_trace_id_to_uuid(tid)) for tid in trace_id_values]
+                uuid_ids = [
+                    UUID(parse_trace_id_to_uuid(tid)) for tid in trace_id_values
+                ]
             except Exception as e:
                 raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
@@ -1354,8 +1364,8 @@ class SpansRouter:
         self,
         request: Request,
         *,
+        trace_id: str,
         span_id: str,
-        trace_id: Optional[str] = Query(default=None),
     ) -> SpanResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1365,38 +1375,15 @@ class SpansRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if trace_id:
-            try:
-                trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
-            except Exception as e:
-                raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+        try:
+            trace_uuid = UUID(parse_trace_id_to_uuid(trace_id))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-            span_dtos = await self.tracing_router.service.fetch(
-                project_id=UUID(request.state.project_id),
-                trace_ids=[trace_uuid],
-            )
-        else:
-            query = TracingQuery(
-                formatting={"focus": Focus.SPAN, "format": Format.AGENTA},
-                filtering=Filtering(
-                    operator=LogicalOperator.AND,
-                    conditions=[
-                        Condition(
-                            field="span_id",
-                            value=span_id,
-                            operator=ComparisonOperator.IS,
-                        )
-                    ],
-                ),
-            )
-
-            try:
-                span_dtos = await self.tracing_router.service.query(
-                    project_id=UUID(request.state.project_id),
-                    query=query,
-                )
-            except FilteringException as e:
-                raise HTTPException(status_code=400, detail=str(e)) from e
+        span_dtos = await self.tracing_router.service.fetch(
+            project_id=UUID(request.state.project_id),
+            trace_ids=[trace_uuid],
+        )
 
         spans_or_traces: Optional[Union[OTelFlatSpans, OTelTraceTree]] = (
             parse_spans_into_response(
@@ -1408,12 +1395,6 @@ class SpansRouter:
 
         spans = self._spans_from_parse_response(spans_or_traces)
         matching_spans = self._spans_from_list(spans, span_ids=[span_id])
-
-        if len(matching_spans) > 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Multiple spans found for span_id. Use trace_id query parameter to disambiguate.",
-            )
 
         span = matching_spans[0] if matching_spans else None
 
@@ -1481,15 +1462,13 @@ class TracesRouter:
             self.create_trace,
             methods=["POST"],
             operation_id="create_trace",
-            status_code=status.HTTP_202_ACCEPTED,
+            status_code=status.HTTP_201_CREATED,
             response_model=TraceIdResponse,
             response_model_exclude_none=True,
         )
 
     @staticmethod
     def _trace_map_to_traces(trace_map: OTelTraceTree) -> List["Trace"]:
-        from oss.src.core.shared.dtos import Trace
-
         traces: List[Trace] = []
         for tid, spans_tree in trace_map.items():
             if isinstance(spans_tree, dict):
@@ -1508,7 +1487,9 @@ class TracesRouter:
             trace_map[str(trace.trace_id)] = OTelSpansTree(spans=trace.spans)
         return trace_map
 
-    def _extract_trace_map(self, traces_request: TracesRequest) -> Optional[OTelTraceTree]:
+    def _extract_trace_map(
+        self, traces_request: TracesRequest
+    ) -> Optional[OTelTraceTree]:
         return (
             self._traces_to_trace_map(traces_request.traces)
             if traces_request.traces
@@ -1635,10 +1616,14 @@ class TracesRouter:
 
             spans_or_traces = parse_spans_into_response(
                 span_dtos,
-                focus=(tracing_query.formatting.focus if tracing_query.formatting else None)
+                focus=(
+                    tracing_query.formatting.focus if tracing_query.formatting else None
+                )
                 or Focus.TRACE,
                 format=(
-                    tracing_query.formatting.format if tracing_query.formatting else None
+                    tracing_query.formatting.format
+                    if tracing_query.formatting
+                    else None
                 )
                 or Format.AGENTA,
             )
@@ -1685,7 +1670,7 @@ class TracesRouter:
         self,
         request: Request,
         trace_request: TraceRequest,
-        sync: bool = False,
+        sync: bool = True,
     ) -> TraceIdResponse:
         traces = self._extract_single_trace_map(trace_request)
         if not traces:

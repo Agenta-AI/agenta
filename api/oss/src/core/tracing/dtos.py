@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Union, Optional
 
 from datetime import datetime
 from enum import Enum
@@ -45,6 +45,14 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     OTelLinks,
     OTelReference,
     OTelReferences,
+    SpansTree,
+    SpansTrees,
+    Span,
+    Spans,
+    SpansNode,
+    NestedSpans,
+    TraceTree,
+    TraceTrees,
     OTelSpansTree,
     OTelSpansTrees,
     OTelFlatSpan,
@@ -54,8 +62,6 @@ from agenta.sdk.models.tracing import (  # noqa: F401
     OTelTraceTree,
     OTelTraceTrees,
     OTelSpans,
-    Span,
-    Spans,
 )
 
 ## --- QUERY --- ##
