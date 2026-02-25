@@ -1470,12 +1470,16 @@ class EvaluationsService:
             return [run_scenario_ids]
 
         is_sequential = queue.flags and queue.flags.is_sequential or False
+        batch_size = queue.data.batch_size if queue.data else None
+        batch_offset = queue.data.batch_offset if queue.data else None
 
         user_scenario_ids = filter_scenario_ids(
             user_id,
             queue_user_ids,
             run_scenario_ids,
             is_sequential,
+            batch_offset=batch_offset,
+            batch_size=batch_size,
         )
 
         return user_scenario_ids

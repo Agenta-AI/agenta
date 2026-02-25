@@ -5,7 +5,7 @@ from asyncio import sleep
 from oss.src.core.tracing.dtos import OTelSpansTree
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
-BLOCKS = 1 * 2 * 3 * 4 * 5
+DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
 
 
 def filter_scenario_ids(
@@ -13,11 +13,21 @@ def filter_scenario_ids(
     user_ids: List[List[UUID]],
     scenario_ids: List[UUID],
     is_sequential: bool,
-    offset: int = 0,
+    batch_offset: Optional[int] = None,
+    batch_size: Optional[int] = None,
 ) -> List[List[UUID]]:
     user_scenario_ids: List[List[UUID]] = []
 
-    MOD = min(len(scenario_ids), BLOCKS)
+    if is_sequential:
+        blocks = (
+            batch_size
+            if isinstance(batch_size, int) and batch_size > 0
+            else DEFAULT_BATCH_SIZE
+        )
+        MOD = min(len(scenario_ids), blocks)
+    else:
+        MOD = DEFAULT_BATCH_SIZE
+    offset = batch_offset if isinstance(batch_offset, int) and batch_offset >= 0 else 0
 
     for repeat_user_ids in user_ids:
         if not repeat_user_ids:

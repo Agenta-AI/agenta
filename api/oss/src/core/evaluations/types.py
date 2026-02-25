@@ -385,6 +385,30 @@ class EvaluationQueueData(BaseModel):
     user_ids: Optional[List[List[UUID]]] = None
     scenario_ids: Optional[List[UUID]] = None
     step_keys: Optional[List[str]] = None
+    batch_size: Optional[int] = None
+    batch_offset: Optional[int] = None
+
+    @field_validator("batch_size", mode="before")
+    def validate_batch_size(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("batch_size must be an integer greater than 0 or null")
+        if v <= 0:
+            raise ValueError("batch_size must be greater than 0")
+        return v
+
+    @field_validator("batch_offset", mode="before")
+    def validate_batch_offset(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(
+                "batch_offset must be an integer greater than or equal to 0 or null"
+            )
+        if v < 0:
+            raise ValueError("batch_offset must be greater than or equal to 0")
+        return v
 
 
 class EvaluationQueue(Version, Identifier, Lifecycle, Header, Metadata):
