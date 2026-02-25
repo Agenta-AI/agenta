@@ -117,11 +117,11 @@ def _to_plain_dict(value: Any) -> Dict[str, Any]:
     if value is None:
         return {}
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(mode="json")
     if hasattr(value, "dict"):
         return value.dict()
     if isinstance(value, dict):
-        return dict(value)  # Make a copy to be safe
+        return {k: _serialize_value(v) for k, v in value.items()}
     return {}
 
 
@@ -136,7 +136,7 @@ def _serialize_value(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)):
         return value
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(mode="json")
     if hasattr(value, "dict"):
         return value.dict()
     if isinstance(value, dict):
@@ -1362,7 +1362,13 @@ class TestsetsRouter:
             "windowing": _to_plain_dict(testset_revision_retrieve_request.windowing),
         }
 
-        should_cache = testset_revision_retrieve_request.include_testcases is False
+        include_testcase_ids_off = (
+            testset_revision_retrieve_request.include_testcase_ids is False
+        )
+        include_testcases_off = (
+            testset_revision_retrieve_request.include_testcases is False
+        )
+        should_cache = include_testcase_ids_off and include_testcases_off
 
         testset_revision = (
             await get_cache(

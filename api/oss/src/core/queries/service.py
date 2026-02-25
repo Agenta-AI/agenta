@@ -5,8 +5,14 @@ from collections import defaultdict
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.tracing.dtos import TracingQuery, OTelSpan, OTelSpansTree
+from oss.src.core.shared.dtos import Reference, Windowing, Trace, Traces
+from oss.src.core.tracing.dtos import (
+    TracingQuery,
+    OTelSpan,
+    Formatting,
+    Focus,
+    Format,
+)
 
 if TYPE_CHECKING:
     from oss.src.core.tracing.service import TracingService
@@ -111,6 +117,20 @@ class QueriesService:
             merged = windowing
 
         tracing_query = TracingQuery(
+            formatting=(
+                query_revision.data.formatting.model_copy(
+                    update={
+                        "focus": (
+                            query_revision.data.formatting.focus or Focus.TRACE
+                        ),
+                        "format": (
+                            query_revision.data.formatting.format or Format.AGENTA
+                        ),
+                    }
+                )
+                if query_revision.data.formatting
+                else Formatting(focus=Focus.TRACE, format=Format.AGENTA)
+            ),
             filtering=query_revision.data.filtering,
             windowing=merged,
         )
@@ -120,22 +140,31 @@ class QueriesService:
             query=tracing_query,
         )
 
-        # Group spans by trace_id to extract unique IDs
-        spans_by_trace: dict = defaultdict(list)
+        # Group spans by trace_id while preserving first-seen order.
+        spans_by_trace: dict[str, list] = defaultdict(list)
         for span in flat_spans:
             spans_by_trace[span.trace_id].append(span)
 
-        query_revision.data.trace_ids = list(spans_by_trace.keys())
+        traces: Traces = [
+            Trace(
+                trace_id=str(tid),
+                spans={
+                    s.span_id: OTelSpan(**s.model_dump()).model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    for s in spans
+                },
+            )
+            for tid, spans in spans_by_trace.items()
+        ]
+
+        query_revision.data.trace_ids = [
+            trace.trace_id for trace in traces if trace.trace_id
+        ]
 
         if _include_items:
-            query_revision.data.traces = [
-                {
-                    tid: OTelSpansTree(
-                        spans={s.span_id: OTelSpan(**s.model_dump()) for s in spans}
-                    )
-                }
-                for tid, spans in spans_by_trace.items()
-            ]
+            query_revision.data.traces = traces
         else:
             query_revision.data.traces = None
 

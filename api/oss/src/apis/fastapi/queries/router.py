@@ -63,7 +63,7 @@ def _to_plain_dict(value):
     if value is None:
         return {}
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return value.model_dump(mode="json")
     if hasattr(value, "dict"):
         return value.dict()
     if isinstance(value, dict):
@@ -962,10 +962,11 @@ class QueriesRouter:
             "windowing": _to_plain_dict(query_revision_retrieve_request.windowing),
         }
 
-        should_cache = not (
-            query_revision_retrieve_request.include_trace_ids is True
-            or query_revision_retrieve_request.include_traces is True
+        include_trace_ids_off = (
+            query_revision_retrieve_request.include_trace_ids is not True
         )
+        include_traces_off = query_revision_retrieve_request.include_traces is not True
+        should_cache = include_trace_ids_off and include_traces_off
 
         query_revision = (
             await get_cache(

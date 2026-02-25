@@ -83,7 +83,9 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
-from oss.src.apis.fastapi.tracing.router import TracingRouter, TracesRouter
+from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
@@ -356,6 +358,11 @@ traces = TracesRouter(
     queries_service=queries_service,
 )
 
+spans = SpansRouter(
+    tracing_router=tracing,
+    queries_service=queries_service,
+)
+
 testcases = TestcasesRouter(
     testcases_service=testcases_service,
     testsets_service=testsets_service,
@@ -483,6 +490,12 @@ app.include_router(
 app.include_router(
     router=traces.router,
     prefix="/preview/traces",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/preview/spans",
     tags=["Observability"],
 )
 

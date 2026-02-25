@@ -56,11 +56,13 @@ from oss.src.core.invocations.types import (
     InvocationQuery,
 )
 
-from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracingRouter, TracesRouter
 from oss.src.apis.fastapi.tracing.models import (
     OTelFlatSpan,
     OTelTracingRequest,
-    OTelTracingResponse,
+    TraceResponse,
+    TracesResponse,
+    TracesQueryRequest,
 )
 
 
@@ -78,6 +80,7 @@ class InvocationsService:
         self.applications_service = applications_service
         self.simple_applications_service = simple_applications_service
         self.tracing_router = tracing_router
+        self.traces_router = TracesRouter(tracing_router=tracing_router)
 
     async def create(
         self,
@@ -563,17 +566,16 @@ class InvocationsService:
         if not invocation_link.trace_id:
             return None
 
-        trace_response: OTelTracingResponse = await self.tracing_router.fetch_trace(
+        trace_response: TraceResponse = await self.traces_router.fetch_trace(
             request=request,
             #
             trace_id=invocation_link.trace_id,
         )
 
-        if not trace_response or not trace_response.traces:
+        if not trace_response or not trace_response.trace:
             return None
 
-        traces = list(trace_response.traces.values())
-        trace = traces[0] if traces else None
+        trace = trace_response.trace
 
         if not trace or not trace.spans:
             return None
@@ -977,16 +979,19 @@ class InvocationsService:
         request.state.project_id = str(project_id)
         request.state.user_id = str(user_id) if user_id else None
 
-        spans_response: OTelTracingResponse = await self.tracing_router.query_spans(
+        traces_response: TracesResponse = await self.traces_router.query_traces(
             request=request,
             #
-            query=query,
+            traces_query_request=TracesQueryRequest(
+                filtering=query.filtering,
+                windowing=query.windowing,
+            ),
         )
 
-        if not spans_response or not spans_response.traces:
+        if not traces_response or not traces_response.traces:
             return []
 
-        traces = list(spans_response.traces.values())
+        traces = traces_response.traces
 
         invocations = []
 

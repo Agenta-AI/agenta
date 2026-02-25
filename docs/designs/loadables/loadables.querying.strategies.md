@@ -10,7 +10,7 @@ Each strategy has three sub-options (levels 0, 1, 2), producing six concrete acc
 **Types:**
 
 - **Testset Revision** — stores an immutable, ordered list of testcase IDs; points to an immutable, ordered list of immutable testcases.
-- **Query Revision** — stores an immutable set of `filtering` and `windowing` expressions to evaluate against mutable traces; points to a mutable, ordered list of mutable traces.
+- **Query Revision** — stores immutable query expressions (`formatting`, `filtering`, `windowing`) to evaluate against mutable records. `formatting.focus` selects trace lane (`trace`) or span lane (`span`).
 
 **Strategies:**
 
@@ -45,12 +45,18 @@ Consequences:
 ### Caching behavior
 
 - Query revision retrieve caches only when `include_trace_ids=false` and `include_traces=false`.
-- Testset revision retrieve caches only when `include_testcases=false`.
+- Testset revision retrieve caches only when `include_testcase_ids=false` and `include_testcases=false`.
 
 ### Permission coupling for trace expansion
 
 - Query revision retrieve that includes traces (`include_trace_ids` or `include_traces`) requires both query-view and trace-view permissions.
 - Traces query by query ref (`query_ref` / `query_variant_ref` / `query_revision_ref`) requires both trace-view and query-view permissions.
+
+### Query lane selection from formatting
+
+- `query_revision.data.formatting.focus=trace` uses `/preview/traces/*`.
+- `query_revision.data.formatting.focus=span` uses `/preview/spans/*`.
+- If `formatting` is missing, default lane is trace (`focus=trace`, `format=agenta`).
 
 ------------------------------------------------------------------------
 
@@ -66,7 +72,7 @@ The revision endpoint returns only what is structurally stored in the revision, 
 
 | | Testset Revision | Query Revision |
 |---|---|---|
-| **Returns** | Revision metadata only; no `testcase_ids`, no `testcases` | Revision metadata + `filtering` + `windowing`; no `trace_ids`, no `traces` |
+| **Returns** | Revision metadata only; no `testcase_ids`, no `testcases` | Revision metadata + `formatting` + `filtering` + `windowing`; no `trace_ids`, no `traces` |
 
 ```
 POST /api/preview/testsets/revisions/retrieve { refs }
@@ -75,10 +81,10 @@ POST /api/preview/testsets/revisions/retrieve { refs }
 
 ```
 POST /api/preview/queries/revisions/retrieve { refs }
-→ { query_revision: { id, slug, version, ..., data: { filtering, windowing } } }
+→ { query_revision: { id, slug, version, ..., data: { formatting, filtering, windowing } } }
 ```
 
-**Use case:** Read the revision's definition before deciding what to do with it. For queries, `filtering` and `windowing` are available at this level since they are stored in the revision.
+**Use case:** Read the revision's definition before deciding what to do with it. For queries, `formatting`, `filtering`, and `windowing` are available at this level since they are stored in the revision.
 
 ------------------------------------------------------------------------
 
@@ -88,7 +94,7 @@ The revision endpoint enumerates item IDs. In both cases the caller supplies pag
 
 | | Testset Revision | Query Revision |
 |---|---|---|
-| **Source of IDs** | Directly stored in the revision | Computed by executing `filtering` + stored `windowing` against the trace store |
+| **Source of IDs** | Directly stored in the revision | Computed by executing stored query expressions against the lane selected by `formatting.focus` |
 | **Endpoint windowing** | Pagination only (`limit`, `next`) — this is all that applies | Pagination only (`limit`, `next`) — merged into and bounded by the stored `windowing` |
 | **Stored windowing** | N/A — ordering is defined by the stored ID list itself | Defines the universe: time bounds, ordering, and any other constraints; the endpoint pagination operates within these bounds |
 | **Determinism** | Fully deterministic | Live — depends on trace store state at query time |
@@ -102,7 +108,7 @@ POST /api/preview/testsets/revisions/retrieve
 ```
 POST /api/preview/queries/revisions/retrieve
 { refs, "include_trace_ids": true, "windowing": { "limit": 500, "next": "<uuid>" } }
-→ { query_revision: { id, ..., data: { filtering, windowing, trace_ids } } }
+→ { query_revision: { id, ..., data: { formatting, filtering, windowing, trace_ids } } }
 ```
 
 **Use case:** Enumerate IDs to drive a subsequent batch fetch [B.1], or to cache the ID list for reuse across multiple passes.
@@ -115,7 +121,7 @@ The revision endpoint acts as a proxy to the underlying record store, returning 
 
 | | Testset Revision | Query Revision |
 |---|---|---|
-| **Source of items** | Testcase store, looked up by stored IDs | Trace store, queried via `filtering` + `windowing` |
+| **Source of items** | Testcase store, looked up by stored IDs | Record store selected by `formatting.focus` and queried via stored expressions |
 | **Determinism** | Fully deterministic | Live — depends on trace store state at query time |
 
 ```
@@ -127,7 +133,7 @@ POST /api/preview/testsets/revisions/retrieve
 ```
 POST /api/preview/queries/revisions/retrieve
 { refs, "include_traces": true, "windowing": { "limit": 50, "next": "<uuid>" } }
-→ { query_revision: { id, ..., data: { filtering, windowing, trace_ids, traces } } }
+→ { query_revision: { id, ..., data: { formatting, filtering, windowing, trace_ids, traces } } }
 ```
 
 **Use case:** Simplest client — a single call returns everything needed. The revision endpoint owns the full resolution, including pagination.
@@ -138,33 +144,34 @@ POST /api/preview/queries/revisions/retrieve
 
 Strategy B decouples the revision retrieval from the item fetch. The client calls the record endpoint directly. Three sub-options exist, but not all apply to both Loadable types:
 
-- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: the stored `filtering` + `windowing` are the direct input to `POST /traces/query`. Testset Revisions have no stored expressions; their content is an ID list — use [B.1] — or a revision reference — use [B.2].
+- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: route to `/traces/query` or `/spans/query` from `data.formatting.focus`, then push stored expressions.
 - **B.1** — fetch by IDs obtained from [A.1]. Applies to both types.
-- **B.2** — pass the revision reference to the record endpoint and let it dereference internally. Applies to both types.
+- **B.2** — pass the revision reference to the lane-matching record endpoint and let it dereference internally.
 
 ------------------------------------------------------------------------
 
 ### B.0 — Push stored expressions to record query (Query Revision only)
 
-Applies only to Query Revisions. The stored `filtering` and `windowing` expressions retrieved via [A.0] are pushed directly to the record endpoint.
+Applies only to Query Revisions. The stored `formatting`, `filtering`, and `windowing` expressions retrieved via [A.0] are pushed directly to the lane-matching record endpoint.
 
 ```
-# Step 1 — get data.filtering + data.windowing from [A.0]
+# Step 1 — get data.formatting + data.filtering + data.windowing from [A.0]
 # Step 2 — push to record query endpoint
-POST /api/preview/traces/query
-{ "filtering": { <from query_revision.data.filtering> },
+POST /api/preview/{traces|spans}/query
+{ "formatting": { <from query_revision.data.formatting> },
+  "filtering": { <from query_revision.data.filtering> },
   "windowing": { <from query_revision.data.windowing, overridable> } }
-→ { traces: [...] }
+→ { traces: [...] } | { spans: [...] }
 ```
 
 | | Query Revision |
 |---|---|
 | **Applies to** | Query Revision only |
-| **Content pushed** | `data.filtering` + `data.windowing` — from [A.0] |
+| **Content pushed** | `data.formatting` + `data.filtering` + `data.windowing` — from [A.0] |
 | **Total steps** | 2 |
 | **Pagination owner** | Record endpoint |
 
-**Use case:** The natural pattern for query revisions — the stored filter expressions are the direct input to `POST /traces/query`.
+**Use case:** The natural pattern for query revisions — `formatting.focus` picks traces vs spans endpoint, then stored expressions are pushed directly.
 
 ------------------------------------------------------------------------
 
@@ -181,12 +188,14 @@ GET /api/preview/testcases?testcase_ids=<id1>,<id2>,...
 ```
 
 ```
-# Traces
+# Query Revision (current contract)
 # Step 1 — get data.trace_ids from [A.1]
 # Step 2 — fetch from record endpoint by IDs
 GET /api/preview/traces?trace_ids=<id1>,<id2>,...
 → { traces: [...] }
 ```
+
+For `formatting.focus=span`, use [B.0] or [B.2] today. [A.1] does not currently emit `span_ids`.
 
 | | Testset Revision | Query Revision |
 |---|---|---|
@@ -222,7 +231,7 @@ POST /api/preview/traces/query
 
 | | Testset Revision | Query Revision |
 |---|---|---|
-| **Internal resolution** | Record endpoint resolves stored IDs | Record endpoint executes stored filter |
+| **Internal resolution** | Record endpoint resolves stored IDs | Record endpoint executes stored query expressions in lane selected by `formatting.focus` |
 | **Endpoint windowing** | Pagination only (`limit`, `next`) | Pagination only — merged into and bounded by stored `windowing` |
 | **Total steps** | 1 (no prior retrieve needed) | 1 |
 
@@ -237,11 +246,11 @@ rather than the revision endpoint.
 
 |  | **Testset Revision → Testcases** | **Query Revision → Traces** |
 |---|---|---|
-| **What revision stores** | Immutable, ordered list of testcase IDs | Immutable `filtering` + `windowing` expressions |
+| **What revision stores** | Immutable, ordered list of testcase IDs | Immutable `formatting` + `filtering` + `windowing` expressions |
 | **Points to** | Immutable, ordered list of immutable testcases | Mutable, ordered list of mutable traces |
-| **A.0** — by content (revision) | Revision metadata only (no IDs, no items) | Revision metadata + `filtering` + `windowing` (no IDs, no items) |
+| **A.0** — by content (revision) | Revision metadata only (no IDs, no items) | Revision metadata + `formatting` + `filtering` + `windowing` (no IDs, no items) |
 | **A.1** — by IDs (revision) | Revision with `data.testcase_ids[]` (stored, paginated) | Revision with `data.trace_ids[]` (computed by filter, paginated) |
-| **A.2** — by reference (revision proxies) | Revision with `data.testcase_ids[]` + `data.testcases[]` (proxied, paginated) | Revision with `data.trace_ids[]` + `data.traces[]` (proxied, paginated) |
-| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.filtering + data.windowing` from [A.0] → `POST /traces/query { filtering, windowing }` |
-| **B.1** — by IDs (record) | IDs from [A.1] → `GET /testcases?testcase_ids=...` | IDs from [A.1] → `GET /traces?trace_ids=...` |
-| **B.2** — by reference (record dereferences) | `POST /testcases/query { refs }` | `POST /traces/query { refs }` |
+| **A.2** — by reference (revision proxies) | Revision with `data.testcase_ids[]` + `data.testcases[]` (proxied, paginated) | Revision with `data.trace_ids[]` + `data.traces` (proxied, paginated) |
+| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.formatting + data.filtering + data.windowing` from [A.0] → lane endpoint (`/traces/query` or `/spans/query`) |
+| **B.1** — by IDs (record) | IDs from [A.1] → `GET /testcases?testcase_ids=...` | IDs from [A.1] → `GET /traces?trace_ids=...` (current contract; no `span_ids` yet) |
+| **B.2** — by reference (record dereferences) | `POST /testcases/query { refs }` | Lane endpoint by `formatting.focus` (`POST /traces/query { refs }` or `POST /spans/query { refs }`) |
