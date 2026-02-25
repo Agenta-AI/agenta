@@ -26,7 +26,7 @@ export const deployModalEnvironmentsTableAtom = selectAtom(
 
         return (envs as any[]).map((e) => ({
             name: e?.name,
-            deployedAppVariantRevisionId: e?.deployedAppVariantRevisionId ?? null,
+            deployedAppVariantRevisionId: e?.deployed_app_variant_revision_id ?? null,
         })) as DeployModalEnvRow[]
     },
     deepEqual,
