@@ -8,7 +8,8 @@ if TYPE_CHECKING:
         Sandbox,
     )
     from fastapi import APIRouter, FastAPI, HTTPException, Request
-    from jinja2 import Template, TemplateError
+    from jinja2 import TemplateError
+    from jinja2.sandbox import SandboxedEnvironment
     from openai import AsyncOpenAI, OpenAIError
     from starlette.responses import Response as StarletteResponse, StreamingResponse
     from jsonpath import JSONPointer
@@ -48,7 +49,9 @@ _openai_checked = False
 _yaml_module: Optional[_YamlModule] = None
 _yaml_checked = False
 
-_jinja_cached: Optional[Tuple[type["Template"], type["TemplateError"]]] = None
+_jinja_cached: Optional[
+    Tuple[type["SandboxedEnvironment"], type["TemplateError"]]
+] = None
 _jinja_checked = False
 
 _fastapi_module: Optional[_FastAPIModule] = None
@@ -171,7 +174,7 @@ def _load_yaml() -> _YamlModule:
     return _yaml_module
 
 
-def _load_jinja2() -> Tuple[type["Template"], type["TemplateError"]]:
+def _load_jinja2() -> Tuple[type["SandboxedEnvironment"], type["TemplateError"]]:
     global _jinja_cached, _jinja_checked  # pylint: disable=global-statement
 
     if _jinja_checked:
@@ -181,12 +184,13 @@ def _load_jinja2() -> Tuple[type["Template"], type["TemplateError"]]:
 
     _jinja_checked = True
     try:
-        from jinja2 import Template, TemplateError
+        from jinja2 import TemplateError
+        from jinja2.sandbox import SandboxedEnvironment
     except Exception as exc:
         _jinja_cached = None
         raise ImportError("jinja2 is required for jinja2 template rendering.") from exc
 
-    _jinja_cached = (Template, TemplateError)
+    _jinja_cached = (SandboxedEnvironment, TemplateError)
     return _jinja_cached
 
 

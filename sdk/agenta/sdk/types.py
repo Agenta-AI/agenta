@@ -709,10 +709,11 @@ class PromptTemplate(BaseModel):
                 return content.format(**kwargs)
 
             elif self.template_format == "jinja2":
-                Template, TemplateError = _load_jinja2()
+                SandboxedEnvironment, TemplateError = _load_jinja2()
+                env = SandboxedEnvironment()
 
                 try:
-                    return Template(content).render(**kwargs)
+                    return env.from_string(content).render(**kwargs)
                 except TemplateError as e:
                     raise TemplateFormatError(
                         f"Jinja2 template error in content: '{content}'. Error: {str(e)}",
