@@ -51,11 +51,11 @@ from oss.src.core.shared.dtos import (  # noqa: F401
     Reference,
     Link,
     Schema,
+    Trace,
     # Credentials,
     # Secret,
 )
 
-from oss.src.core.tracing.dtos import Trace  # noqa: F401
 from agenta.sdk.models.workflows import (
     WorkflowServiceRequestData,  # noqa: F401
     WorkflowServiceResponseData,  # noqa: F401

@@ -44,7 +44,8 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.annotations.service import AnnotationsService
 
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
-from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracingRouter, TracesRouter
+from oss.src.apis.fastapi.tracing.models import TracesQueryRequest
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
@@ -58,6 +59,7 @@ from oss.src.core.evaluations.types import (
 )
 from oss.src.core.shared.dtos import (
     Reference,
+    Traces,
 )
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -66,7 +68,6 @@ from oss.src.core.tracing.dtos import (
     Format,
     Focus,
     TracingQuery,
-    OTelSpansTree as Trace,
     LogicalOperator,
 )
 from oss.src.core.workflows.dtos import (
@@ -179,6 +180,11 @@ tracing_router = TracingRouter(
     tracing_worker=tracing_worker,
 )
 
+traces_router = TracesRouter(
+    tracing_router=tracing_router,
+    queries_service=queries_service,
+)
+
 annotations_service = AnnotationsService(
     tracing_router=tracing_router,
     evaluators_service=evaluators_service,
@@ -269,7 +275,7 @@ async def evaluate_live_query(
         query_revisions: Dict[str, QueryRevision] = dict()
         query_references: Dict[str, Dict[str, Reference]] = dict()
         #
-        query_traces: Dict[str, Dict[str, Trace]] = dict()
+        query_traces: Dict[str, Traces] = dict()
         # ----------------------------------------------------------------------
 
         # initialize evaluator variables ---------------------------------------
@@ -393,10 +399,13 @@ async def evaluate_live_query(
                 windowing=windowing,
             )
 
-            tracing_response = await tracing_router.query_spans(
+            tracing_response = await traces_router.query_traces(
                 request=request,
                 #
-                query=query,
+                traces_query_request=TracesQueryRequest(
+                    filtering=query.filtering,
+                    windowing=query.windowing,
+                ),
             )
 
             nof_traces = tracing_response.count
@@ -407,7 +416,7 @@ async def evaluate_live_query(
                 count=nof_traces,
             )
 
-            query_traces[query_step_key] = tracing_response.traces or dict()
+            query_traces[query_step_key] = tracing_response.traces or []
         # ----------------------------------------------------------------------
 
         total_traces = sum(len(traces) for traces in query_traces.values())
@@ -417,12 +426,17 @@ async def evaluate_live_query(
         # run online evaluation ------------------------------------------------
         any_results_created = False
         for query_step_key in query_traces.keys():
-            if not query_traces[query_step_key].keys():
+            query_step_traces = [
+                trace
+                for trace in query_traces[query_step_key]
+                if trace and trace.trace_id
+            ]
+            if not query_step_traces:
                 continue
 
             # create scenarios -------------------------------------------------
 
-            nof_traces = len(query_traces[query_step_key].keys())
+            nof_traces = len(query_step_traces)
 
             scenarios_create = [
                 EvaluationScenarioCreate(
@@ -451,7 +465,9 @@ async def evaluate_live_query(
             # ------------------------------------------------------------------
 
             # create query steps -----------------------------------------------
-            query_trace_ids = list(query_traces[query_step_key].keys())
+            query_trace_ids = [
+                trace.trace_id for trace in query_step_traces if trace.trace_id
+            ]
             scenario_ids = [scenario.id for scenario in scenarios if scenario.id]
 
             results_create = [
@@ -487,7 +503,7 @@ async def evaluate_live_query(
             scenario_status: Dict[int, EvaluationStatus] = dict()
 
             # iterate over query traces ----------------------------------------
-            for idx, trace in enumerate(query_traces[query_step_key].values()):
+            for idx, trace in enumerate(query_step_traces):
                 scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
