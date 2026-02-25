@@ -28,8 +28,6 @@ import {isLocalDraftId} from "../../shared"
 import {buildRevisionSchemaState, fetchRevisionSchema, type OpenAPISpec} from "../api"
 import type {RevisionSchemaState} from "../core"
 import {
-    deriveEnhancedCustomProperties,
-    deriveEnhancedPrompts,
     isPromptProperty,
     type EnhancedCustomProperty,
     type EnhancedPrompt,

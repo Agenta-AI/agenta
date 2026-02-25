@@ -33,7 +33,11 @@ import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runn
 import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
 import {fetchTestcasesPage} from "@agenta/entities/testcase"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {commitWorkflowRevisionAtom, archiveWorkflowRevisionAtom} from "@agenta/entities/workflow"
+import {
+    commitWorkflowRevisionAtom,
+    archiveWorkflowRevisionAtom,
+    createWorkflowVariantAtom,
+} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -343,6 +347,7 @@ const connectDownstreamNodeAtom = atom(
                 targetNodeId: result.nodeId,
                 sourceOutputKey: "output",
                 inputMappings: [],
+                parallel: true,
             },
         ])
 
@@ -859,6 +864,36 @@ const controllerCreateVariantAtom = atom(
             }
         }
 
+        // Check if this entity is a workflow type
+        const node = nodes.find((n) => n.entityId === baseRevisionId)
+
+        if (node?.entityType === "workflow") {
+            const result = await set(createWorkflowVariantAtom, {
+                baseRevisionId,
+                newVariantName: payload.newVariantName,
+                commitMessage: payload.note,
+            })
+
+            if (!result.success) {
+                return {
+                    success: false,
+                    error: result.error.message,
+                }
+            }
+
+            if (payload.callback) {
+                const state = {selected: [...selectedIds]}
+                payload.callback({id: result.newRevisionId}, state)
+                set(setEntityIdsAtom, state.selected)
+            }
+
+            return {
+                success: true,
+                newRevisionId: result.newRevisionId,
+            }
+        }
+
+        // Legacy path (unchanged)
         const projectId = get(projectIdAtom)
         if (!projectId) {
             return {

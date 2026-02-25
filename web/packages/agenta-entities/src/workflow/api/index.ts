@@ -26,11 +26,18 @@ export {
     // Create
     createWorkflow,
     type CreateWorkflowPayload,
+    // Create Variant
+    createWorkflowVariantApi,
+    type CreateWorkflowVariantPayload,
     // Update
     updateWorkflow,
     type UpdateWorkflowPayload,
+    // Commit revision
+    commitWorkflowRevisionApi,
+    type CommitWorkflowRevisionPayload,
     // Archive / Unarchive
     archiveWorkflow,
+    archiveWorkflowRevision,
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,

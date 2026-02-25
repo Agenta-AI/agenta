@@ -400,8 +400,31 @@ export const updateChainProgressAtom = atom(
         const existing = resultsByKey[key]
 
         if (existing) {
+            // When chainResults includes a completed root entry (stageIndex 0)
+            // and the RunResult doesn't have output yet, surface the root's
+            // output immediately so the UI can show it while downstream nodes
+            // are still running.
+            let rootOutputPatch: Partial<RunResult> = {}
+            if (chainResults && !existing.output) {
+                const rootEntry = Object.values(chainResults).find((e) => e.stageIndex === 0)
+                if (
+                    rootEntry?.status === "success" &&
+                    (rootEntry.output || rootEntry.structuredOutput)
+                ) {
+                    // Wrap in {response: structuredOutput} to match the shape
+                    // that deriveToolViewModelFromResult expects (reads result.response.data).
+                    rootOutputPatch = {
+                        output: {response: rootEntry.structuredOutput},
+                        structuredOutput: rootEntry.structuredOutput,
+                        traceId: rootEntry.traceId,
+                        metrics: rootEntry.metrics,
+                    }
+                }
+            }
+
             resultsByKey[key] = {
                 ...existing,
+                ...rootOutputPatch,
                 chainProgress,
                 ...(chainResults !== undefined ? {chainResults} : {}),
             }

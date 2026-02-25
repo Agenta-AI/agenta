@@ -5,8 +5,10 @@ import {
     revisionsListWithDraftsAtomFamily,
     variantsListWithDraftsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import type {PlaygroundNode} from "@agenta/playground"
+import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
@@ -37,6 +39,9 @@ const isVisibleServerRevision = (revision: any) => {
     return Number(revision?.revision ?? 0) > 0
 }
 
+// Stable empty atom for when no entity ID is available
+const emptyWorkflowDataAtom = atom(() => null)
+
 // ============================================================================
 // WORKFLOW DELETE CONTENT
 // ============================================================================
@@ -59,7 +64,21 @@ const WorkflowDeleteContent = ({
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
     const [isMutating, setIsMutating] = useState(false)
 
-    const displayName = workflowNodes[0]?.label || "this workflow"
+    // Get the entity ID from the first workflow node
+    const entityId = workflowNodes[0]?.entityId ?? revisionIds[0]
+
+    // Memoize the data atom to get the proper entity data with version info
+    const dataAtom = useMemo(
+        () => (entityId ? workflowMolecule.selectors.data(entityId) : null),
+        [entityId],
+    )
+
+    // Read workflow entity data
+    const workflowData = useAtomValue(dataAtom ?? emptyWorkflowDataAtom)
+
+    // Extract name and version for display
+    const entityName = workflowData?.name || workflowData?.slug || "this workflow"
+    const entityVersion = workflowData?.version
 
     const onDelete = useCallback(async () => {
         setIsMutating(true)
@@ -87,8 +106,9 @@ const WorkflowDeleteContent = ({
         <section className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
                 <Text>
-                    You are about to delete <Text strong>{displayName}</Text>. This action cannot
-                    be undone.
+                    You are about to delete{" "}
+                    <EntityNameWithVersion name={entityName} version={entityVersion} />. This action
+                    cannot be undone.
                 </Text>
             </div>
 

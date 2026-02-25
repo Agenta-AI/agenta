@@ -1,6 +1,6 @@
 import {
     resolveChainInputs,
-    computeTopologicalOrder,
+    computeTopologicalLevels,
     buildEvaluatorExecutionInputs,
     validateEvaluatorInputs,
     runnableBridge,
@@ -128,16 +128,25 @@ export async function executeStepForSessionWithExecutionItems(
     try {
         const downstreamConnections = allConnections.filter((c) => c.sourceNodeId === rootNode.id)
         const isChain = downstreamConnections.length > 0
-        const executionOrder = isChain
-            ? computeTopologicalOrder(
+        const executionLevels = isChain
+            ? computeTopologicalLevels(
                   runnableNodes.map((n) => ({nodeId: n.id})),
                   allConnections,
                   rootNode.id,
               )
-            : [rootNode.id]
-        const stageOrder = executionOrder
+            : [[rootNode.id]]
 
-        const totalStages = stageOrder?.length || 1
+        // Pre-compute a flat index for each nodeId so stageIndex stays
+        // backward-compatible with the old sequential numbering.
+        const flatIndex = new Map<string, number>()
+        let idx = 0
+        for (const level of executionLevels) {
+            for (const nid of level) {
+                flatIndex.set(nid, idx++)
+            }
+        }
+
+        const totalStages = idx || 1
         const chainResults: Record<string, StageExecutionResult> = {}
         const nodeResults: Record<string, ExecutionResult> = {}
 
@@ -175,229 +184,258 @@ export async function executeStepForSessionWithExecutionItems(
             }
         }
 
-        for (let stageIndex = 0; stageIndex < (stageOrder?.length || 1); stageIndex++) {
+        // Execute nodes level-by-level. Nodes within the same level have all
+        // their upstream dependencies satisfied and can run in parallel.
+        for (const level of executionLevels) {
             if (abortController.signal.aborted) {
                 lifecycle.onCancel()
                 return
             }
 
-            const nodeId = stageOrder?.[stageIndex] || rootNode.id
-            const node = runnableNodes.find((n) => n.id === nodeId)
-            if (!node) continue
+            await Promise.all(
+                level.map(async (nodeId) => {
+                    const stageIndex = flatIndex.get(nodeId) ?? 0
+                    const node = runnableNodes.find((n) => n.id === nodeId)
+                    if (!node) return
 
-            // When targeting a specific node, skip non-target stages.
-            // Populate chainResults from cached data if available.
-            if (params.targetNodeId && nodeId !== params.targetNodeId) {
-                if (nodeResults[nodeId]) {
-                    const cachedResult = nodeResults[nodeId]
+                    // When targeting a specific node, skip non-target stages.
+                    // Populate chainResults from cached data if available.
+                    if (params.targetNodeId && nodeId !== params.targetNodeId) {
+                        if (nodeResults[nodeId]) {
+                            const cachedResult = nodeResults[nodeId]
+                            const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
+                            chainResults[nodeId] = {
+                                executionId: cachedResult.executionId,
+                                nodeId,
+                                nodeLabel,
+                                nodeType: node.entity.type,
+                                stageIndex,
+                                status: cachedResult.status,
+                                startedAt: cachedResult.startedAt,
+                                completedAt: cachedResult.completedAt,
+                                output: cachedResult.output,
+                                structuredOutput: cachedResult.structuredOutput,
+                                error: cachedResult.error,
+                                traceId: cachedResult.trace?.id || null,
+                                metrics: cachedResult.metrics,
+                            }
+                        }
+                        return
+                    }
+
                     const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
+
+                    lifecycle.onProgress({
+                        chainProgress: {
+                            currentStage: stageIndex + 1,
+                            totalStages,
+                            currentNodeId: nodeId,
+                            currentNodeLabel: nodeLabel,
+                            currentNodeType: node.entity.type,
+                        },
+                        chainResults,
+                    })
+
+                    let nodeInputs: Record<string, unknown>
+                    if (node.depth === 0) {
+                        nodeInputs = {...data}
+                    } else {
+                        // Check whether the incoming connection has explicit valid mappings.
+                        // resolveChainInputs always returns non-empty (fallback spreads testcaseData
+                        // + prediction), so we can't rely on its result length alone.
+                        const incomingConnection = allConnections.find(
+                            (c) => c.targetNodeId === nodeId,
+                        )
+                        const hasExplicitMappings =
+                            incomingConnection?.inputMappings?.some(
+                                (m) => m.status === "valid" && m.sourcePath,
+                            ) ?? false
+
+                        if (hasExplicitMappings) {
+                            // Use resolveChainInputs with explicit inputMappings
+                            const resolved = resolveChainInputs(
+                                allConnections,
+                                nodeId,
+                                nodeResults,
+                                data,
+                            )
+                            console.debug(
+                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): using resolveChainInputs (explicit mappings)`,
+                                {resolvedKeys: Object.keys(resolved), resolved},
+                            )
+                            nodeInputs = resolved
+                        } else {
+                            // No explicit mappings — delegate to entity-owned input construction
+                            // (DebugSection pattern). This handles evaluator-specific logic like
+                            // correct_answer_key → ground_truth resolution.
+                            const upstreamNodeId = incomingConnection?.sourceNodeId
+                            const upstreamResult = upstreamNodeId
+                                ? nodeResults[upstreamNodeId]
+                                : undefined
+                            const upstreamOutput =
+                                upstreamResult?.output ?? upstreamResult?.structuredOutput
+
+                            const evalStore = getDefaultStore()
+                            const typeScopedData = runnableBridge.forType(node.entity.type)
+                            const stageRunnableData = evalStore.get(
+                                typeScopedData.data(node.entity.id as string),
+                            ) as RunnableData | null
+
+                            // Extract inputSchema from the bridge's RunnableData.
+                            // The bridge returns { schemas: { inputSchema, outputSchema } }.
+                            const bridgeSchemas = (
+                                stageRunnableData as Record<string, unknown> | null
+                            )?.schemas as {inputSchema?: Record<string, unknown>} | undefined
+                            const inputSchema = bridgeSchemas?.inputSchema ?? null
+
+                            const evaluatorInputContext = {
+                                testcaseData: data,
+                                upstreamOutput,
+                                settings: stageRunnableData?.configuration ?? {},
+                                inputSchema,
+                            }
+
+                            // Validate required inputs before building — skip if missing
+                            const validation = validateEvaluatorInputs(evaluatorInputContext)
+                            if (!validation.valid) {
+                                console.debug(
+                                    `[executionRunner] Node "${nodeLabel}" (${nodeId}): skipping due to missing required inputs`,
+                                    {
+                                        missingInputs: validation.missingInputs,
+                                        message: validation.message,
+                                    },
+                                )
+
+                                // Record skipped result and return (parallel-safe)
+                                const skippedAt = new Date().toISOString()
+                                chainResults[nodeId] = {
+                                    executionId: `skipped-${nodeId}-${Date.now()}`,
+                                    nodeId,
+                                    nodeLabel,
+                                    nodeType: node.entity.type,
+                                    stageIndex,
+                                    status: "skipped",
+                                    startedAt: skippedAt,
+                                    completedAt: skippedAt,
+                                    error: {
+                                        message:
+                                            validation.message ||
+                                            `Missing required inputs: ${validation.missingInputs.join(", ")}`,
+                                        code: "MISSING_REQUIRED_INPUTS",
+                                    },
+                                    traceId: null,
+                                }
+                                return
+                            }
+
+                            console.debug(
+                                `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
+                                {
+                                    testcaseDataKeys: Object.keys(data),
+                                    testcaseData: data,
+                                    upstreamOutput,
+                                    settings: stageRunnableData?.configuration ?? {},
+                                    hasInputSchema: !!inputSchema,
+                                    inputSchemaProperties: inputSchema?.properties
+                                        ? Object.keys(
+                                              inputSchema.properties as Record<string, unknown>,
+                                          )
+                                        : [],
+                                },
+                            )
+
+                            nodeInputs = buildEvaluatorExecutionInputs(evaluatorInputContext)
+                        }
+
+                        console.debug(
+                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final nodeInputs`,
+                            {keys: Object.keys(nodeInputs), nodeInputs},
+                        )
+                    }
+
+                    const stageRunnableId =
+                        node.depth === 0 ? session.runnableId : (node.entity.id as string)
+                    const stageHandle =
+                        node.depth === 0
+                            ? rootExecutionHandle
+                            : createExecutionItemHandle({
+                                  loadableId,
+                                  rowId: stepId,
+                                  entityId: stageRunnableId,
+                                  entityType: node.entity.type,
+                              })
+
+                    const stageExecutionItem = stageHandle.run({
+                        get,
+                        headers: perSession?.headers ?? {},
+                        repetitions: 1,
+                        runId,
+                        inputValues: nodeInputs,
+                    })
+                    if (!stageExecutionItem) {
+                        throw new Error(`Failed to build execution item for ${stageRunnableId}`)
+                    }
+
+                    if (node.depth > 0) {
+                        console.debug(
+                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): final request`,
+                            {
+                                invocationUrl: stageExecutionItem.invocation.invocationUrl,
+                                requestBodyKeys: Object.keys(
+                                    stageExecutionItem.invocation.requestBody,
+                                ),
+                                requestBody: stageExecutionItem.invocation.requestBody,
+                            },
+                        )
+                    }
+
+                    // Use the execution item's invocationUrl and requestBody directly.
+                    // This is the same URL the web worker uses (includes /test suffix),
+                    // ensuring a single unified URL resolution path for all execution modes.
+                    const result = await executeViaFetch({
+                        invocationUrl: stageExecutionItem.invocation.invocationUrl,
+                        requestBody: stageExecutionItem.invocation.requestBody,
+                        headers: {
+                            ...stageExecutionItem.invocation.headers,
+                            ...(perSession?.headers ?? {}),
+                        },
+                        abortSignal: abortController.signal,
+                        normalizeResponse: (responseData) =>
+                            runnableBridge.normalizeResponse(stageRunnableId, responseData),
+                    })
+
+                    if (!result) {
+                        throw new Error(`Execution returned null for node ${nodeId}`)
+                    }
+
+                    nodeResults[nodeId] = result
                     chainResults[nodeId] = {
-                        executionId: cachedResult.executionId,
+                        executionId: result.executionId,
                         nodeId,
                         nodeLabel,
                         nodeType: node.entity.type,
                         stageIndex,
-                        status: cachedResult.status,
-                        startedAt: cachedResult.startedAt,
-                        completedAt: cachedResult.completedAt,
-                        output: cachedResult.output,
-                        structuredOutput: cachedResult.structuredOutput,
-                        error: cachedResult.error,
-                        traceId: cachedResult.trace?.id || null,
-                        metrics: cachedResult.metrics,
+                        status: result.status,
+                        startedAt: result.startedAt,
+                        completedAt: result.completedAt,
+                        output: result.output,
+                        structuredOutput: result.structuredOutput,
+                        error: result.error,
+                        traceId: result.trace?.id || null,
+                        metrics: result.metrics,
                     }
-                }
-                continue
-            }
+                    // Downstream node errors are recorded in chainResults but don't stop siblings.
+                }),
+            )
 
-            const nodeLabel = node.entity.label || `Stage ${stageIndex + 1}`
-
-            lifecycle.onProgress({
-                chainProgress: {
-                    currentStage: stageIndex + 1,
-                    totalStages,
-                    currentNodeId: nodeId,
-                    currentNodeLabel: nodeLabel,
-                    currentNodeType: node.entity.type,
-                },
-                chainResults,
-            })
-
-            let nodeInputs: Record<string, unknown>
-            if (node.depth === 0) {
-                nodeInputs = {...data}
-            } else {
-                // Check whether the incoming connection has explicit valid mappings.
-                // resolveChainInputs always returns non-empty (fallback spreads testcaseData
-                // + prediction), so we can't rely on its result length alone.
-                const incomingConnection = allConnections.find((c) => c.targetNodeId === nodeId)
-                const hasExplicitMappings =
-                    incomingConnection?.inputMappings?.some(
-                        (m) => m.status === "valid" && m.sourcePath,
-                    ) ?? false
-
-                if (hasExplicitMappings) {
-                    // Use resolveChainInputs with explicit inputMappings
-                    const resolved = resolveChainInputs(allConnections, nodeId, nodeResults, data)
-                    console.debug(
-                        `[executionRunner] Node "${nodeLabel}" (${nodeId}): using resolveChainInputs (explicit mappings)`,
-                        {resolvedKeys: Object.keys(resolved), resolved},
-                    )
-                    nodeInputs = resolved
-                } else {
-                    // No explicit mappings — delegate to entity-owned input construction
-                    // (DebugSection pattern). This handles evaluator-specific logic like
-                    // correct_answer_key → ground_truth resolution.
-                    const upstreamNodeId = incomingConnection?.sourceNodeId
-                    const upstreamResult = upstreamNodeId ? nodeResults[upstreamNodeId] : undefined
-                    const upstreamOutput =
-                        upstreamResult?.output ?? upstreamResult?.structuredOutput
-
-                    const evalStore = getDefaultStore()
-                    const typeScopedData = runnableBridge.forType(node.entity.type)
-                    const stageRunnableData = evalStore.get(
-                        typeScopedData.data(node.entity.id as string),
-                    ) as RunnableData | null
-
-                    // Extract inputSchema from the bridge's RunnableData.
-                    // The bridge returns { schemas: { inputSchema, outputSchema } }.
-                    const bridgeSchemas = (stageRunnableData as Record<string, unknown> | null)
-                        ?.schemas as {inputSchema?: Record<string, unknown>} | undefined
-                    const inputSchema = bridgeSchemas?.inputSchema ?? null
-
-                    const evaluatorInputContext = {
-                        testcaseData: data,
-                        upstreamOutput,
-                        settings: stageRunnableData?.configuration ?? {},
-                        inputSchema,
-                    }
-
-                    // Validate required inputs before building — skip if missing
-                    const validation = validateEvaluatorInputs(evaluatorInputContext)
-                    if (!validation.valid) {
-                        console.debug(
-                            `[executionRunner] Node "${nodeLabel}" (${nodeId}): skipping due to missing required inputs`,
-                            {missingInputs: validation.missingInputs, message: validation.message},
-                        )
-
-                        // Record skipped result and continue to next node
-                        const skippedAt = new Date().toISOString()
-                        chainResults[nodeId] = {
-                            executionId: `skipped-${nodeId}-${Date.now()}`,
-                            nodeId,
-                            nodeLabel,
-                            nodeType: node.entity.type,
-                            stageIndex,
-                            status: "skipped",
-                            startedAt: skippedAt,
-                            completedAt: skippedAt,
-                            error: {
-                                message:
-                                    validation.message ||
-                                    `Missing required inputs: ${validation.missingInputs.join(", ")}`,
-                                code: "MISSING_REQUIRED_INPUTS",
-                            },
-                            traceId: null,
-                        }
-                        continue
-                    }
-
-                    console.debug(
-                        `[executionRunner] Node "${nodeLabel}" (${nodeId}): no explicit mappings, using buildEvaluatorExecutionInputs`,
-                        {
-                            testcaseDataKeys: Object.keys(data),
-                            testcaseData: data,
-                            upstreamOutput,
-                            settings: stageRunnableData?.configuration ?? {},
-                            hasInputSchema: !!inputSchema,
-                            inputSchemaProperties: inputSchema?.properties
-                                ? Object.keys(inputSchema.properties as Record<string, unknown>)
-                                : [],
-                        },
-                    )
-
-                    nodeInputs = buildEvaluatorExecutionInputs(evaluatorInputContext)
-                }
-
-                console.debug(
-                    `[executionRunner] Node "${nodeLabel}" (${nodeId}): final nodeInputs`,
-                    {keys: Object.keys(nodeInputs), nodeInputs},
-                )
-            }
-
-            const stageRunnableId =
-                node.depth === 0 ? session.runnableId : (node.entity.id as string)
-            const stageHandle =
-                node.depth === 0
-                    ? rootExecutionHandle
-                    : createExecutionItemHandle({
-                          loadableId,
-                          rowId: stepId,
-                          entityId: stageRunnableId,
-                          entityType: node.entity.type,
-                      })
-
-            const stageExecutionItem = stageHandle.run({
-                get,
-                headers: perSession?.headers ?? {},
-                repetitions: 1,
-                runId,
-                inputValues: nodeInputs,
-            })
-            if (!stageExecutionItem) {
-                throw new Error(`Failed to build execution item for ${stageRunnableId}`)
-            }
-
-            if (node.depth > 0) {
-                console.debug(`[executionRunner] Node "${nodeLabel}" (${nodeId}): final request`, {
-                    invocationUrl: stageExecutionItem.invocation.invocationUrl,
-                    requestBodyKeys: Object.keys(stageExecutionItem.invocation.requestBody),
-                    requestBody: stageExecutionItem.invocation.requestBody,
+            // Root node failure is fatal — downstream nodes depend on its output.
+            // The root is always alone in its level, so check after level completes.
+            if (level.includes(rootNode.id) && nodeResults[rootNode.id]?.status === "error") {
+                lifecycle.onFail({
+                    error: nodeResults[rootNode.id].error || {message: "Execution failed"},
                 })
-            }
-
-            // Use the execution item's invocationUrl and requestBody directly.
-            // This is the same URL the web worker uses (includes /test suffix),
-            // ensuring a single unified URL resolution path for all execution modes.
-            const result = await executeViaFetch({
-                invocationUrl: stageExecutionItem.invocation.invocationUrl,
-                requestBody: stageExecutionItem.invocation.requestBody,
-                headers: {
-                    ...stageExecutionItem.invocation.headers,
-                    ...(perSession?.headers ?? {}),
-                },
-                abortSignal: abortController.signal,
-                normalizeResponse: (responseData) =>
-                    runnableBridge.normalizeResponse(stageRunnableId, responseData),
-            })
-
-            if (!result) {
-                throw new Error(`Execution returned null for node ${nodeId}`)
-            }
-
-            nodeResults[nodeId] = result
-            chainResults[nodeId] = {
-                executionId: result.executionId,
-                nodeId,
-                nodeLabel,
-                nodeType: node.entity.type,
-                stageIndex,
-                status: result.status,
-                startedAt: result.startedAt,
-                completedAt: result.completedAt,
-                output: result.output,
-                structuredOutput: result.structuredOutput,
-                error: result.error,
-                traceId: result.trace?.id || null,
-                metrics: result.metrics,
-            }
-
-            if (result.status === "error" && node.depth === 0) {
-                // Root node failure is fatal — downstream nodes depend on its output.
-                lifecycle.onFail({error: result.error || {message: "Execution failed"}})
                 return
             }
-            // Downstream node errors are recorded in chainResults but don't stop siblings.
         }
 
         const primaryResult = nodeResults[rootNode.id]

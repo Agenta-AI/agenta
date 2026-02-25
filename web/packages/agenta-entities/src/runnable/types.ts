@@ -134,6 +134,9 @@ export interface OutputConnection {
     targetNodeId: string
     sourceOutputKey: string
     inputMappings: InputMapping[]
+    /** When true, the target node can execute concurrently with other
+     *  parallel siblings from the same source. Defaults to false (sequential). */
+    parallel?: boolean
 }
 
 // ============================================================================

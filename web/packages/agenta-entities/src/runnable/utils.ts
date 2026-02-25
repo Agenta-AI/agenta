@@ -91,6 +91,121 @@ export function computeTopologicalOrder(
     return result
 }
 
+/**
+ * Like computeTopologicalOrder but groups nodes into execution batches
+ * that respect connection-level parallelism.
+ *
+ * Returns `string[][]` where each inner array is a batch of nodes.
+ * Nodes within the same batch execute concurrently via `Promise.all`;
+ * batches execute sequentially.
+ *
+ * Within each BFS depth level, nodes are partitioned:
+ * - **Parallel batch**: nodes whose ALL incoming connections have `parallel: true`
+ *   are grouped into a single batch.
+ * - **Sequential slots**: each node with any non-parallel incoming connection
+ *   gets its own single-element batch.
+ *
+ * Example: App →(parallel) [Eval1, Eval2, Eval3]
+ *   → [["app"], ["eval1", "eval2", "eval3"]]
+ *
+ * Example: App →(sequential) App2 →(parallel) [Eval1, Eval2]
+ *   → [["app"], ["app2"], ["eval1", "eval2"]]
+ */
+export function computeTopologicalLevels(
+    nodes: {nodeId: string}[] | PlaygroundNode[],
+    connections: OutputConnection[],
+    startNodeId?: string,
+): string[][] {
+    const nodeIds = nodes.map((n) => ("nodeId" in n ? n.nodeId : n.id))
+
+    const inDegree = new Map<string, number>()
+    const adjacency = new Map<string, string[]>()
+
+    for (const nodeId of nodeIds) {
+        inDegree.set(nodeId, 0)
+        adjacency.set(nodeId, [])
+    }
+
+    // Build a lookup of incoming connections per target node
+    const incomingByTarget = new Map<string, OutputConnection[]>()
+    for (const conn of connections) {
+        const targets = adjacency.get(conn.sourceNodeId) ?? []
+        targets.push(conn.targetNodeId)
+        adjacency.set(conn.sourceNodeId, targets)
+
+        const currentInDegree = inDegree.get(conn.targetNodeId) ?? 0
+        inDegree.set(conn.targetNodeId, currentInDegree + 1)
+
+        const incoming = incomingByTarget.get(conn.targetNodeId) ?? []
+        incoming.push(conn)
+        incomingByTarget.set(conn.targetNodeId, incoming)
+    }
+
+    const queue: string[] = []
+
+    if (startNodeId && inDegree.get(startNodeId) === 0) {
+        queue.push(startNodeId)
+    }
+
+    for (const [nodeId, degree] of inDegree.entries()) {
+        if (degree === 0 && nodeId !== startNodeId) {
+            queue.push(nodeId)
+        }
+    }
+
+    const batches: string[][] = []
+
+    while (queue.length > 0) {
+        const levelSize = queue.length
+        const bfsLevel: string[] = []
+
+        for (let i = 0; i < levelSize; i++) {
+            const nodeId = queue.shift()!
+            bfsLevel.push(nodeId)
+
+            for (const neighbor of adjacency.get(nodeId) ?? []) {
+                const newDegree = (inDegree.get(neighbor) ?? 1) - 1
+                inDegree.set(neighbor, newDegree)
+
+                if (newDegree === 0) {
+                    queue.push(neighbor)
+                }
+            }
+        }
+
+        // Partition this BFS level into parallel vs sequential nodes.
+        // A node is "parallel-safe" when ALL its incoming connections
+        // have `parallel: true`.
+        const parallelBatch: string[] = []
+        const sequentialNodes: string[] = []
+
+        for (const nodeId of bfsLevel) {
+            const incoming = incomingByTarget.get(nodeId)
+            const allParallel = incoming?.length
+                ? incoming.every((c) => c.parallel === true)
+                : false
+
+            if (allParallel) {
+                parallelBatch.push(nodeId)
+            } else {
+                sequentialNodes.push(nodeId)
+            }
+        }
+
+        // Sequential nodes each become their own batch
+        for (const nodeId of sequentialNodes) {
+            batches.push([nodeId])
+        }
+
+        // Parallel-safe nodes share a single batch
+        if (parallelBatch.length > 0) {
+            batches.push(parallelBatch)
+        }
+    }
+
+    return batches
+}
+
 // ============================================================================
 // INPUT RESOLUTION
 // ============================================================================

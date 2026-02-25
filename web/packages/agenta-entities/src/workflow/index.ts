@@ -175,6 +175,11 @@ export {
     type WorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
     clearWorkflowCommitCallbacks,
+    // Create Variant
+    createWorkflowVariantAtom,
+    type WorkflowCreateVariantParams,
+    type WorkflowCreateVariantResult,
+    type WorkflowCreateVariantOutcome,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,

@@ -10,7 +10,7 @@ const Version: React.FC<Props> = ({revision, className, ...props}) => {
     return (
         <Tag
             color="default"
-            bordered={false}
+            variant="filled"
             className={clsx("bg-[rgba(5,23,41,0.06)]", className)}
             {...props}
         >

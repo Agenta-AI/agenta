@@ -125,6 +125,9 @@ export function EntityCommitModal({
     const setCommitLoading = useSetAtom(setCommitLoadingAtom)
     const wasExternallyOpenRef = useRef(false)
     const syncedEntityRef = useRef<{id: string; type: string} | null>(null)
+    // Track current externalOpen value in a ref to avoid stale closures in afterClose callbacks
+    const externalOpenRef = useRef(externalOpen)
+    externalOpenRef.current = externalOpen
 
     const [selectedMode, setSelectedMode] = useState<string | undefined>(
         defaultCommitMode ?? commitModes?.[0]?.id,
@@ -190,9 +193,10 @@ export function EntityCommitModal({
         // In externally controlled mode, only reset if the modal is actually closed.
         // This prevents a stale afterClose animation callback from clobbering state
         // when the modal has already been re-opened by the parent.
-        if (isExternallyControlled && externalOpen) return
+        // Use ref to get the current value, avoiding stale closure issues.
+        if (isExternallyControlled && externalOpenRef.current) return
         resetModal()
-    }, [resetModal, isExternallyControlled, externalOpen])
+    }, [resetModal, isExternallyControlled])
 
     const handleSuccess = useCallback(
         (result: {newRevisionId?: string}) => {
