@@ -755,7 +755,7 @@ export function DrillInContent({
                             (dataType === "string" || dataType === "null")
                         const showFieldHeader =
                             !hideFieldHeaders &&
-                            !(hideSingleFieldHeader && currentLevelItems.length === 1)
+                            !(hideSingleFieldHeader && filteredLevelItems.length === 1)
                         const editorId = `drill-field-${fieldKey}`
 
                         return (
