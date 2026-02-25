@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -95,37 +97,52 @@ const collectMessageGroups = (value: unknown, baseKey: string): MessageGroup[] =
 const deleteAtPath = (target: unknown, path: string[]) => {
     if (!path.length || !target || typeof target !== "object") return
 
+    const removeAtSegment = (container: unknown, segment: string): boolean => {
+        if (Array.isArray(container)) {
+            const index = Number(segment)
+            if (
+                Number.isInteger(index) &&
+                String(index) === segment &&
+                index >= 0 &&
+                index < container.length
+            ) {
+                container.splice(index, 1)
+                return true
+            }
+        }
+
+        if (container && typeof container === "object" && segment in container) {
+            delete (container as Record<string, unknown>)[segment]
+            return true
+        }
+
+        return false
+    }
+
+    const isEmptyContainer = (value: unknown) =>
+        (Array.isArray(value) && value.length === 0) ||
+        (isRecord(value) && Object.keys(value).length === 0)
+
+    const ancestors: {parent: unknown; segment: string}[] = []
     let cursor: any = target
+
     for (let index = 0; index < path.length - 1; index += 1) {
         const segment = path[index]
         if (!cursor || typeof cursor !== "object" || !(segment in cursor)) return
+        ancestors.push({parent: cursor, segment})
         cursor = cursor[segment]
     }
 
     const lastSegment = path[path.length - 1]
-    if (cursor && typeof cursor === "object") {
-        delete cursor[lastSegment]
+    if (!removeAtSegment(cursor, lastSegment)) return
+
+    // Prune only containers emptied by this delete path.
+    for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+        const {parent, segment} = ancestors[index]
+        const child = (parent as any)?.[segment]
+        if (!isEmptyContainer(child)) break
+        removeAtSegment(parent, segment)
     }
-}
-
-const removeEmptyContainers = (value: unknown): unknown => {
-    if (Array.isArray(value)) {
-        return value.map(removeEmptyContainers).filter((nested) => nested !== undefined)
-    }
-
-    if (!isRecord(value)) {
-        return value
-    }
-
-    const cleanedEntries = Object.entries(value)
-        .map(([key, nested]) => [key, removeEmptyContainers(nested)] as const)
-        .filter(([, nested]) => {
-            if (nested === undefined) return false
-            return !(isRecord(nested) && Object.keys(nested).length === 0)
-        })
-
-    if (!cleanedEntries.length) return undefined
-    return Object.fromEntries(cleanedEntries)
 }
 
 const removeMessageGroupsFromData = (value: unknown, groups: MessageGroup[]): unknown => {
@@ -140,7 +157,15 @@ const removeMessageGroupsFromData = (value: unknown, groups: MessageGroup[]): un
     }
 
     groups.forEach((group) => deleteAtPath(cloned, group.path))
-    return removeEmptyContainers(cloned)
+
+    if (
+        (Array.isArray(cloned) && cloned.length === 0) ||
+        (isRecord(cloned) && Object.keys(cloned).length === 0)
+    ) {
+        return undefined
+    }
+
+    return cloned
 }
 
 const getMessageContent = (message: RoleMessage): unknown => {
@@ -168,28 +193,55 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const nodeType = useAtomValue(spanNodeTypeAtomFamily(activeTrace))
     const exception = useAtomValue(spanExceptionAtomFamily(activeTrace))
 
-    const inputs =
-        entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "inputs"]) ??
-        inputsFromSelectors
-    const outputs =
-        entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "outputs"]) ??
-        outputsFromSelectors
-    const internals =
-        entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "internals"]) ??
-        internalsFromSelectors
+    const {inputs, outputs, internals} = useMemo(
+        () => ({
+            inputs:
+                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "inputs"]) ??
+                inputsFromSelectors,
+            outputs:
+                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "outputs"]) ??
+                outputsFromSelectors,
+            internals:
+                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, [
+                    "ag",
+                    "data",
+                    "internals",
+                ]) ?? internalsFromSelectors,
+        }),
+        [
+            activeTrace,
+            entityWithDrillIn,
+            inputsFromSelectors,
+            outputsFromSelectors,
+            internalsFromSelectors,
+        ],
+    )
     const spanEntityId =
         activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeTrace?.key
     const isChatSpan = activeTrace?.span_type === "chat" || nodeType === "chat"
     const isEmbeddingSpan = activeTrace?.span_type === "embedding"
     const shouldRenderMessagePanels = isChatSpan && !isEmbeddingSpan
-    const inputMessageGroups = shouldRenderMessagePanels
-        ? collectMessageGroups(inputs, "inputs")
-        : []
-    const outputMessageGroups = shouldRenderMessagePanels
-        ? collectMessageGroups(outputs, "outputs")
-        : []
-    const inputsPanelValue = removeMessageGroupsFromData(inputs, inputMessageGroups)
-    const outputsPanelValue = removeMessageGroupsFromData(outputs, outputMessageGroups)
+    const {inputMessageGroups, outputMessageGroups, inputsPanelValue, outputsPanelValue} =
+        useMemo(() => {
+            if (!shouldRenderMessagePanels) {
+                return {
+                    inputMessageGroups: [] as MessageGroup[],
+                    outputMessageGroups: [] as MessageGroup[],
+                    inputsPanelValue: inputs,
+                    outputsPanelValue: outputs,
+                }
+            }
+
+            const nextInputMessageGroups = collectMessageGroups(inputs, "inputs")
+            const nextOutputMessageGroups = collectMessageGroups(outputs, "outputs")
+
+            return {
+                inputMessageGroups: nextInputMessageGroups,
+                outputMessageGroups: nextOutputMessageGroups,
+                inputsPanelValue: removeMessageGroupsFromData(inputs, nextInputMessageGroups),
+                outputsPanelValue: removeMessageGroupsFromData(outputs, nextOutputMessageGroups),
+            }
+        }, [inputs, outputs, shouldRenderMessagePanels])
 
     return (
         <Space orientation="vertical" size={24} className="w-full">
