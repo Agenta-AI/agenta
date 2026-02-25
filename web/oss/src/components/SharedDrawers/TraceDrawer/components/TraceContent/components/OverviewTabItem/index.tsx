@@ -120,7 +120,7 @@ const removeEmptyContainers = (value: unknown): unknown => {
     const cleanedEntries = Object.entries(value)
         .map(([key, nested]) => [key, removeEmptyContainers(nested)] as const)
         .filter(([, nested]) => {
-            if (nested === undefined || nested === null) return false
+            if (nested === undefined) return false
             return !(isRecord(nested) && Object.keys(nested).length === 0)
         })
 
