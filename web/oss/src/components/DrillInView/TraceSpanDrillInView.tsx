@@ -1,16 +1,20 @@
-import {memo, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
+import {memo, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
     ArrowDownIcon,
     ArrowUpIcon,
     CaretDown,
     CaretRight,
+    CopyIcon,
+    DownloadIcon,
+    FileTextIcon,
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
 import {Button, Input, Select} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
+import dynamic from "next/dynamic"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import EditorWrapper, {
@@ -18,11 +22,15 @@ import EditorWrapper, {
     useLexicalComposerContext,
 } from "@/oss/components/Editor/Editor"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
+import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {traceSpan} from "@/oss/state/entities/trace"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
+const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 // ============================================================================
 // TYPES
@@ -66,9 +74,73 @@ export interface TraceSpanDrillInViewProps extends Omit<
     enableFieldViewModes?: boolean
     /** Root scope to render: span attributes (default) or full span payload */
     rootScope?: "attributes" | "span"
+    /** Controls collapse behavior for rootScope="span" */
+    allowSpanCollapse?: boolean
+    /** Optional override data for rootScope="span" rendering */
+    spanDataOverride?: unknown
 }
 
 type RawSpanViewMode = "json" | "yaml"
+
+type RawSpanDisplayMode = RawSpanViewMode | "rendered-json" | "text" | "markdown"
+
+const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
+    json: "JSON",
+    yaml: "YAML",
+    "rendered-json": "Rendered JSON",
+    text: "Text",
+    markdown: "Markdown",
+}
+
+const parseStructuredJson = (value: string): unknown | null => {
+    const trimmed = value.trim()
+    if (
+        !(
+            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+            (trimmed.startsWith("[") && trimmed.endsWith("]"))
+        )
+    ) {
+        return null
+    }
+    try {
+        return JSON.parse(trimmed)
+    } catch {
+        return null
+    }
+}
+
+const renderStringifiedJson = (value: unknown): {value: unknown; didRender: boolean} => {
+    if (typeof value === "string") {
+        const parsed = parseStructuredJson(value)
+        if (parsed === null) return {value, didRender: false}
+        const nested = renderStringifiedJson(parsed)
+        return {value: nested.value, didRender: true}
+    }
+
+    if (Array.isArray(value)) {
+        let didRender = false
+        const rendered = value.map((item) => {
+            const next = renderStringifiedJson(item)
+            if (next.didRender) didRender = true
+            return next.value
+        })
+        return {value: rendered, didRender}
+    }
+
+    if (value && typeof value === "object") {
+        let didRender = false
+        const rendered = Object.fromEntries(
+            Object.entries(value).map(([key, nestedValue]) => {
+                const next = renderStringifiedJson(nestedValue)
+                if (next.didRender) didRender = true
+                return [key, next.value]
+            }),
+        )
+        return {value: rendered, didRender}
+    }
+
+    return {value, didRender: false}
+}
 
 const LanguageAwareViewer = ({
     initialValue,
@@ -76,7 +148,7 @@ const LanguageAwareViewer = ({
     searchProps,
 }: {
     initialValue: string
-    language: RawSpanViewMode
+    language: RawSpanDisplayMode
     searchProps?: {
         searchTerm: string
         currentResultIndex: number
@@ -92,7 +164,7 @@ const LanguageAwareViewer = ({
     )
 
     useEffect(() => {
-        changeLanguage(language)
+        changeLanguage(language === "yaml" ? "yaml" : "json")
         editor.setEditable(false)
     }, [changeLanguage, editor, language])
 
@@ -111,7 +183,7 @@ const LanguageAwareViewer = ({
     return (
         <EditorWrapper
             initialValue={initialValue}
-            language={language}
+            language={language === "yaml" ? "yaml" : "json"}
             codeOnly={true}
             showToolbar={false}
             enableTokens={false}
@@ -120,6 +192,60 @@ const LanguageAwareViewer = ({
             readOnly
             additionalCodePlugins={additionalPlugins}
         />
+    )
+}
+
+const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
+    const [editor] = useLexicalComposerContext()
+    const previousModeRef = useRef<boolean | null>(null)
+
+    useEffect(() => {
+        if (previousModeRef.current === null) {
+            if (isMarkdownView) {
+                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
+            }
+            previousModeRef.current = isMarkdownView
+            return
+        }
+
+        if (previousModeRef.current !== isMarkdownView) {
+            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
+            previousModeRef.current = isMarkdownView
+        }
+    }, [editor, isMarkdownView])
+
+    return null
+}
+
+const TextModeViewer = ({
+    editorId,
+    value,
+    mode,
+}: {
+    editorId: string
+    value: string
+    mode: "text" | "markdown"
+}) => {
+    return (
+        <EditorProvider
+            id={editorId}
+            initialValue={value}
+            showToolbar={false}
+            enableTokens
+            readOnly
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+        >
+            <MarkdownModeSync isMarkdownView={mode === "markdown"} />
+            <EditorWrapper
+                initialValue={value}
+                disabled
+                codeOnly={false}
+                showToolbar={false}
+                boundHeight={false}
+                noProvider
+                readOnly
+            />
+        </EditorProvider>
     )
 }
 
@@ -177,28 +303,102 @@ export const TraceSpanDrillInView = memo(
         hideFieldHeaders,
         showFieldCollapse,
         rootScope = "attributes",
+        allowSpanCollapse = true,
+        spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
-        const spanData = useAtomValue(traceSpan.selectors.data(spanId))
-        const [viewMode, setViewMode] = useState<RawSpanViewMode>("json")
+        const spanEntityData = useAtomValue(traceSpan.selectors.data(spanId))
+        const spanData = spanDataOverride ?? spanEntityData
+        const textViewerId = useId().replace(/:/g, "")
+
+        const {
+            data: sanitizedSpanData,
+            fileAttachments,
+            imageAttachments,
+        } = useMemo(() => sanitizeDataWithBlobUrls(spanData), [spanData])
+
+        const [viewMode, setViewMode] = useState<RawSpanDisplayMode>("json")
         const [isCollapsed, setIsCollapsed] = useState(false)
         const [isSearchOpen, setIsSearchOpen] = useState(false)
         const [searchTerm, setSearchTerm] = useState("")
         const [currentResultIndex, setCurrentResultIndex] = useState(0)
         const [resultCount, setResultCount] = useState(0)
 
+        const isStringValue = typeof sanitizedSpanData === "string"
+        const parsedStructuredString = useMemo(
+            () => (isStringValue ? parseStructuredJson(sanitizedSpanData) : null),
+            [isStringValue, sanitizedSpanData],
+        )
+
+        const renderedJsonSource = useMemo(() => {
+            if (isStringValue) {
+                return parsedStructuredString ?? sanitizedSpanData
+            }
+            return sanitizedSpanData
+        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
+
         const jsonOutput = useMemo(
-            () => JSON.stringify(spanData ?? {}, null, 2) ?? "null",
-            [spanData],
+            () =>
+                isStringValue
+                    ? parsedStructuredString !== null
+                        ? sanitizedSpanData
+                        : (JSON.stringify(sanitizedSpanData) ?? "")
+                    : getStringOrJson(sanitizedSpanData),
+            [isStringValue, parsedStructuredString, sanitizedSpanData],
+        )
+        const renderedJsonResult = useMemo(
+            () => renderStringifiedJson(renderedJsonSource ?? {}),
+            [renderedJsonSource],
+        )
+        const renderedJsonOutput = useMemo(
+            () => JSON.stringify(renderedJsonResult.value, null, 2) ?? "null",
+            [renderedJsonResult.value],
         )
         const yamlOutput = useMemo(() => {
+            const yamlSource = isStringValue ? parsedStructuredString : sanitizedSpanData
+            if (yamlSource === null || yamlSource === undefined) return ""
             try {
-                return yaml.dump(spanData ?? {}, {lineWidth: 120})
+                return yaml.dump(yamlSource, {lineWidth: 120})
             } catch {
                 return ""
             }
-        }, [spanData])
+        }, [isStringValue, parsedStructuredString, sanitizedSpanData])
 
-        const activeOutput = viewMode === "yaml" ? yamlOutput : jsonOutput
+        const textOutput = useMemo(() => {
+            if (typeof sanitizedSpanData === "string") return sanitizedSpanData
+            return getStringOrJson(sanitizedSpanData)
+        }, [sanitizedSpanData])
+
+        const availableViewModes = useMemo(() => {
+            if (isStringValue) {
+                if (parsedStructuredString !== null) {
+                    const modes: RawSpanDisplayMode[] = ["json", "yaml"]
+                    if (renderedJsonResult.didRender) {
+                        modes.push("rendered-json")
+                    }
+                    modes.push("text", "markdown")
+                    return modes
+                }
+                return ["text", "markdown"] as RawSpanDisplayMode[]
+            }
+
+            const modes: RawSpanDisplayMode[] = ["json", "yaml"]
+            if (renderedJsonResult.didRender) {
+                modes.push("rendered-json")
+            }
+            return modes
+        }, [isStringValue, parsedStructuredString, renderedJsonResult.didRender])
+
+        const isCodeMode =
+            viewMode === "json" || viewMode === "yaml" || viewMode === "rendered-json"
+
+        const activeOutput =
+            viewMode === "yaml"
+                ? yamlOutput
+                : viewMode === "rendered-json"
+                  ? renderedJsonOutput
+                  : viewMode === "json"
+                    ? jsonOutput
+                    : textOutput
 
         const closeSearch = useCallback(() => {
             setIsSearchOpen(false)
@@ -218,27 +418,49 @@ export const TraceSpanDrillInView = memo(
         }, [resultCount])
 
         const toggleCollapsed = useCallback(() => {
+            if (!allowSpanCollapse) return
             setIsCollapsed((prev) => {
                 const next = !prev
                 if (next) closeSearch()
                 return next
             })
-        }, [closeSearch])
+        }, [allowSpanCollapse, closeSearch])
+
+        useEffect(() => {
+            if (!availableViewModes.includes(viewMode)) {
+                setViewMode(availableViewModes[0] ?? "json")
+            }
+        }, [availableViewModes, viewMode])
 
         useEffect(() => {
             closeSearch()
         }, [activeOutput, closeSearch])
 
+        useEffect(() => {
+            if (!isCodeMode) {
+                closeSearch()
+            }
+        }, [isCodeMode, closeSearch])
+
+        const downloadFile = useCallback((url: string) => {
+            const link = document.createElement("a")
+            link.href = url
+            link.download = ""
+            link.click()
+        }, [])
+
         if (rootScope === "span") {
+            const showTitle = Boolean(title)
             return (
                 <div className="rounded-md overflow-hidden bg-white">
                     <div
-                        className="drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-[#FAFAFA] border border-solid border-[rgba(5,23,41,0.06)] cursor-pointer"
-                        onClick={toggleCollapsed}
+                        className={`drill-in-field-header rounded-md flex items-center justify-between py-2 px-3 bg-white border border-solid border-[rgba(5,23,41,0.06)] ${allowSpanCollapse ? "cursor-pointer" : ""}`}
+                        onClick={allowSpanCollapse ? toggleCollapsed : undefined}
                     >
-                        <div className="flex items-center gap-2 text-gray-700 font-medium">
-                            {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-                            <span>{title}</span>
+                        <div className="flex items-center gap-2 text-gray-700 font-medium min-h-[16px]">
+                            {allowSpanCollapse &&
+                                (isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />)}
+                            {showTitle ? <span>{title}</span> : null}
                         </div>
                         <div
                             className="flex items-center gap-2"
@@ -250,15 +472,16 @@ export const TraceSpanDrillInView = memo(
                                 className={`${isSearchOpen ? "!bg-[#17324D] !border-[#17324D]" : "text-gray-500"} !px-1 !h-6 text-xs`}
                                 icon={<MagnifyingGlassIcon size={14} />}
                                 onClick={() => setIsSearchOpen((prev) => !prev)}
+                                disabled={!isCodeMode}
                             />
                             <Select
                                 size="small"
                                 value={viewMode}
-                                options={[
-                                    {label: "JSON", value: "json"},
-                                    {label: "YAML", value: "yaml"},
-                                ]}
-                                onChange={(value) => setViewMode(value as RawSpanViewMode)}
+                                options={availableViewModes.map((mode) => ({
+                                    label: RAW_SPAN_VIEW_MODE_LABELS[mode],
+                                    value: mode,
+                                }))}
+                                onChange={(value) => setViewMode(value as RawSpanDisplayMode)}
                                 className="min-w-[126px]"
                                 popupMatchSelectWidth={false}
                             />
@@ -271,9 +494,9 @@ export const TraceSpanDrillInView = memo(
                             />
                         </div>
                     </div>
-                    {!isCollapsed && (
+                    {(!allowSpanCollapse || !isCollapsed) && (
                         <div className="relative">
-                            {isSearchOpen && (
+                            {isSearchOpen && isCodeMode && (
                                 <div className="absolute right-4 top-3 z-20 flex items-center gap-2 rounded-xl border border-[rgba(5,23,41,0.14)] bg-white px-2 py-2 shadow-[0_8px_24px_rgba(5,23,41,0.12)]">
                                     <Input
                                         size="small"
@@ -309,30 +532,94 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </div>
                             )}
-                            <EditorProvider
-                                codeOnly
-                                enableTokens={false}
-                                showToolbar={false}
-                                readOnly
-                                disabled
-                                noProvider
-                            >
-                                <LanguageAwareViewer
-                                    initialValue={activeOutput}
-                                    language={viewMode}
-                                    searchProps={
-                                        isSearchOpen
-                                            ? {
-                                                  searchTerm,
-                                                  currentResultIndex,
-                                                  onResultCountChange: setResultCount,
-                                              }
-                                            : undefined
-                                    }
+                            {isCodeMode ? (
+                                <EditorProvider
+                                    codeOnly
+                                    enableTokens={false}
+                                    showToolbar={false}
+                                    readOnly
+                                    disabled
+                                    noProvider
+                                >
+                                    <LanguageAwareViewer
+                                        initialValue={activeOutput}
+                                        language={viewMode}
+                                        searchProps={
+                                            isSearchOpen
+                                                ? {
+                                                      searchTerm,
+                                                      currentResultIndex,
+                                                      onResultCountChange: setResultCount,
+                                                  }
+                                                : undefined
+                                        }
+                                    />
+                                </EditorProvider>
+                            ) : (
+                                <TextModeViewer
+                                    editorId={`trace-span-${textViewerId}`}
+                                    value={textOutput}
+                                    mode={viewMode as "text" | "markdown"}
                                 />
-                            </EditorProvider>
+                            )}
                         </div>
                     )}
+                    {fileAttachments?.length || imageAttachments?.length ? (
+                        <div className="flex flex-col gap-2 mt-4">
+                            <span className="tracking-wide">Attachments</span>
+                            <div className="flex flex-wrap gap-2">
+                                {(fileAttachments || [])?.map((file, index) => (
+                                    <a
+                                        key={`${file.data}-${index}`}
+                                        className="group w-[80px] h-[60px] rounded border border-solid border-gray-200 bg-gray-100 px-2 pt-3 pb-2 hover:bg-gray-200 hover:scale-[1.02] cursor-pointer flex flex-col justify-between"
+                                        href={file.data}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <div className="w-full flex items-start gap-1">
+                                            <FileTextIcon size={16} className="shrink-0" />
+                                            <span className="text-[10px] truncate">
+                                                {file.filename || `File ${index + 1}`}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-1.5 shrink-0 invisible group-hover:visible">
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<DownloadIcon size={10} />}
+                                                className="!w-5 !h-5"
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    downloadFile(file.data)
+                                                }}
+                                            />
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={<CopyIcon size={10} />}
+                                                className="!w-5 !h-5"
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    copyToClipboard(file.data)
+                                                }}
+                                            />
+                                        </div>
+                                    </a>
+                                ))}
+
+                                {(imageAttachments || [])?.map((image, index) => (
+                                    <ImagePreview
+                                        key={`${image.data}-${index}`}
+                                        src={image.data}
+                                        isValidPreview={true}
+                                        alt={image.filename || `Image ${index + 1}`}
+                                        size={80}
+                                        className=""
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             )
         }

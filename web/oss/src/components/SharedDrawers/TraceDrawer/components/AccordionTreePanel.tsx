@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
     ArrowDownIcon,
@@ -10,27 +10,32 @@ import {
     MagnifyingGlassIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {Button, Collapse, Dropdown, Input, Space} from "antd"
-import clsx from "clsx"
+import {Button, Collapse, Dropdown, Input, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
 import dynamic from "next/dynamic"
+import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import {TraceSpanDrillInView} from "@/oss/components/DrillInView/TraceSpanDrillInView"
+import EditorWrapper, {
+    EditorProvider,
+    useLexicalComposerContext,
+} from "@/oss/components/Editor/Editor"
+import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {JSSTheme} from "@/oss/lib/Types"
 const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {
     value: Record<string, any> | string | any[]
-    spanId?: string
     label: string
     enableFormatSwitcher?: boolean
     bgColor?: string
     fullEditorHeight?: boolean
     enableSearch?: boolean
-    useDrillInView?: boolean
     viewModePreset?: "default" | "message"
 } & React.ComponentProps<typeof Collapse>
 
@@ -95,22 +100,197 @@ const renderStringifiedJson = (value: unknown): {value: unknown; didRender: bool
     return {value, didRender: false}
 }
 
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    collapseContainer: ({bgColor}: {bgColor?: string}) => ({
+        backgroundColor: "unset",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        "& .ant-collapse-item": {
+            display: "flex !important",
+            flexDirection: "column",
+            height: "100%",
+            background: theme.colorFillAlter,
+            borderRadius: `${theme.borderRadiusLG}px !important`,
+            border: `1px solid ${theme.colorBorder}`,
+            overflowY: "auto",
+        },
+        "& .ant-collapse-item:last-child": {
+            borderBottom: `1px solid ${theme.colorBorder}`,
+        },
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+            height: 42,
+            backgroundColor: `${theme.colorBgContainer} !important`,
+        },
+        "& .ant-collapse-panel": {
+            borderTop: `1px solid ${theme.colorBorder} !important`,
+            padding: `0px`,
+            lineHeight: theme.lineHeight,
+            backgroundColor: `${bgColor || theme.colorBgContainer} !important`,
+            borderBottomLeftRadius: theme.borderRadius,
+            borderBottomRightRadius: theme.borderRadius,
+            fontSize: theme.fontSize,
+            flexGrow: 1,
+            "& .ant-collapse-body": {
+                height: "100%",
+                padding: "0px !important",
+            },
+        },
+    }),
+    editor: ({bgColor}: {bgColor?: string}) => ({
+        "& .agenta-editor-wrapper": {
+            backgroundColor: bgColor,
+        },
+        "& .editor-code": {
+            backgroundColor: "transparent",
+            margin: 0,
+        },
+    }),
+    searchBar: {
+        position: "absolute",
+        top: 48,
+        right: 24,
+        zIndex: 100,
+        background: "#fff",
+        borderRadius: 6,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        display: "flex",
+        alignItems: "center",
+        padding: 4,
+        gap: 4,
+        border: `1px solid ${theme.colorBorder}`,
+    },
+}))
+
+const LanguageAwareViewer = ({
+    initialValue,
+    language,
+    searchProps,
+}: {
+    initialValue: string
+    language: "json" | "yaml" | "rendered-json"
+    searchProps?: {
+        searchTerm: string
+        currentResultIndex: number
+        onResultCountChange: (count: number) => void
+    }
+}) => {
+    const [editor] = useLexicalComposerContext()
+    const changeLanguage = useCallback(
+        (lang: "json" | "yaml") => {
+            editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: lang})
+        },
+        [editor],
+    )
+
+    useEffect(() => {
+        if (language === "json" || language === "rendered-json") {
+            changeLanguage("json")
+        } else {
+            changeLanguage("yaml")
+        }
+        editor.setEditable(false)
+    }, [language, changeLanguage, editor])
+
+    const additionalPlugins = useMemo(() => {
+        if (!searchProps) return []
+        return [
+            <SearchPlugin
+                key="search"
+                searchTerm={searchProps.searchTerm}
+                currentResultIndex={searchProps.currentResultIndex}
+                onResultCountChange={searchProps.onResultCountChange}
+            />,
+        ]
+    }, [searchProps])
+
+    return (
+        <EditorWrapper
+            initialValue={initialValue}
+            language={language === "rendered-json" ? "json" : language}
+            codeOnly={true}
+            showToolbar={false}
+            enableTokens={false}
+            disabled
+            noProvider
+            readOnly
+            additionalCodePlugins={additionalPlugins}
+        />
+    )
+}
+
+const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
+    const [editor] = useLexicalComposerContext()
+    const previousModeRef = useRef<boolean | null>(null)
+
+    useEffect(() => {
+        if (previousModeRef.current === null) {
+            if (isMarkdownView) {
+                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
+            }
+            previousModeRef.current = isMarkdownView
+            return
+        }
+
+        if (previousModeRef.current !== isMarkdownView) {
+            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
+            previousModeRef.current = isMarkdownView
+        }
+    }, [editor, isMarkdownView])
+
+    return null
+}
+
+const TextModeViewer = ({
+    editorId,
+    value,
+    mode,
+}: {
+    editorId: string
+    value: string
+    mode: "text" | "markdown"
+}) => {
+    return (
+        <EditorProvider
+            id={editorId}
+            initialValue={value}
+            showToolbar={false}
+            enableTokens
+            readOnly
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+        >
+            <MarkdownModeSync isMarkdownView={mode === "markdown"} />
+            <EditorWrapper
+                initialValue={value}
+                disabled
+                codeOnly={false}
+                showToolbar={false}
+                boundHeight={false}
+                noProvider
+                readOnly
+            />
+        </EditorProvider>
+    )
+}
+
 const AccordionTreePanel = ({
     value: incomingValue,
-    spanId,
     label,
     enableFormatSwitcher = false,
     bgColor,
     fullEditorHeight = false,
     enableSearch = false,
-    useDrillInView = false,
     viewModePreset = "default",
     ...props
 }: AccordionTreePanelProps) => {
+    const {token} = theme.useToken()
+    const classes = useStyles({bgColor, theme: token})
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
         viewModePreset === "message" ? "text" : "json",
     )
     const editorRef = useRef<HTMLDivElement>(null)
+    const textViewerId = useId().replace(/:/g, "")
 
     // Search State
     const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -128,12 +308,12 @@ const AccordionTreePanel = ({
         setCurrentResultIndex((prev) => (prev - 1 + resultCount) % resultCount)
     }
 
-    const closeSearch = () => {
+    const closeSearch = useCallback(() => {
         setIsSearchOpen(false)
         setSearchTerm("")
         setResultCount(0)
         setCurrentResultIndex(0)
-    }
+    }, [])
 
     const {
         data: sanitizedValue,
@@ -142,37 +322,51 @@ const AccordionTreePanel = ({
     } = useMemo(() => {
         return sanitizeDataWithBlobUrls(incomingValue)
     }, [incomingValue])
+
     const isStringValue = typeof sanitizedValue === "string"
     const parsedStructuredString = useMemo(
         () => (isStringValue ? parseStructuredJson(sanitizedValue) : null),
         [isStringValue, sanitizedValue],
     )
 
+    const renderedJsonSource = useMemo(() => {
+        if (isStringValue) {
+            return parsedStructuredString ?? sanitizedValue
+        }
+        return sanitizedValue
+    }, [isStringValue, parsedStructuredString, sanitizedValue])
+
     const renderedJsonResult = useMemo(() => {
-        return renderStringifiedJson(sanitizedValue)
-    }, [sanitizedValue])
+        return renderStringifiedJson(renderedJsonSource)
+    }, [renderedJsonSource])
 
     const availableViewModes = useMemo<PanelViewMode[]>(() => {
-        if (viewModePreset === "message") {
+        if (viewModePreset === "message" && isStringValue) {
             const modes: PanelViewMode[] = ["text", "markdown"]
-            if (isStringValue && parsedStructuredString !== null) {
+            if (parsedStructuredString !== null) {
                 modes.push("rendered-json")
             }
             return modes
         }
 
-        const modes: PanelViewMode[] = ["json"]
-        if (!isStringValue || parsedStructuredString !== null) {
-            modes.push("yaml")
+        if (isStringValue) {
+            if (parsedStructuredString !== null) {
+                const modes: PanelViewMode[] = ["json", "yaml"]
+                if (renderedJsonResult.didRender) {
+                    modes.push("rendered-json")
+                }
+                modes.push("text", "markdown")
+                return modes
+            }
+            return ["text", "markdown"]
         }
+
+        const modes: PanelViewMode[] = ["json", "yaml"]
         if (renderedJsonResult.didRender) {
             modes.push("rendered-json")
         }
-        if (isStringValue) {
-            modes.push("text", "markdown")
-        }
         return modes
-    }, [isStringValue, parsedStructuredString, renderedJsonResult.didRender, viewModePreset])
+    }, [viewModePreset, isStringValue, parsedStructuredString, renderedJsonResult.didRender])
 
     useEffect(() => {
         if (!availableViewModes.includes(panelViewMode)) {
@@ -180,9 +374,18 @@ const AccordionTreePanel = ({
         }
     }, [availableViewModes, panelViewMode])
 
+    const isCodeMode =
+        panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "rendered-json"
+
+    useEffect(() => {
+        if (!isCodeMode) {
+            closeSearch()
+        }
+    }, [isCodeMode, closeSearch])
+
     useEffect(() => {
         closeSearch()
-    }, [sanitizedValue])
+    }, [sanitizedValue, closeSearch])
 
     const downloadFile = useCallback((url: string) => {
         const link = document.createElement("a")
@@ -191,24 +394,38 @@ const AccordionTreePanel = ({
         link.click()
     }, [])
 
-    const renderedJsonOutput = useMemo(() => {
-        if (panelViewMode !== "rendered-json") return ""
-        const next = JSON.stringify(renderedJsonResult.value, null, 2)
-        return next ?? "null"
-    }, [panelViewMode, renderedJsonResult.value])
+    const jsonOutput = useMemo(() => {
+        if (panelViewMode !== "json") return ""
+
+        if (isStringValue) {
+            if (parsedStructuredString !== null) {
+                return sanitizedValue
+            }
+            return JSON.stringify(sanitizedValue) ?? ""
+        }
+
+        return getStringOrJson(sanitizedValue)
+    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
 
     const yamlOutput = useMemo(() => {
         if (panelViewMode !== "yaml") return ""
-        const yamlSource = isStringValue
-            ? (parsedStructuredString ?? sanitizedValue)
-            : sanitizedValue
+
+        const yamlSource = isStringValue ? parsedStructuredString : sanitizedValue
+        if (yamlSource === null || yamlSource === undefined) return ""
+
         try {
             return yaml.dump(yamlSource, {lineWidth: 120})
         } catch (error: any) {
             console.error("Failed to convert value to YAML:", error)
             return `Error: Failed to convert content to YAML. (${error?.message || "Unknown error"})`
         }
-    }, [isStringValue, panelViewMode, parsedStructuredString, sanitizedValue])
+    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
+
+    const renderedJsonOutput = useMemo(() => {
+        if (panelViewMode !== "rendered-json") return ""
+        const next = JSON.stringify(renderedJsonResult.value, null, 2)
+        return next ?? "null"
+    }, [panelViewMode, renderedJsonResult.value])
 
     const textOutput = useMemo(() => {
         if (typeof sanitizedValue === "string") return sanitizedValue
@@ -225,23 +442,19 @@ const AccordionTreePanel = ({
         [availableViewModes],
     )
 
-    const collapseClassName = clsx(
-        "relative flex flex-col bg-transparent",
-        "[&_.ant-collapse-item]:!flex [&_.ant-collapse-item]:!flex-col [&_.ant-collapse-item]:h-full [&_.ant-collapse-item]:overflow-y-auto",
-        "[&_.ant-collapse-item]:rounded-lg [&_.ant-collapse-item]:border [&_.ant-collapse-item]:border-solid [&_.ant-collapse-item]:border-[rgba(5,23,41,0.06)]",
-        useDrillInView ? "[&_.ant-collapse-item]:bg-white" : "[&_.ant-collapse-item]:bg-[#fafafa]",
-        "[&_.ant-collapse-item:last-child]:border-b [&_.ant-collapse-item:last-child]:border-solid [&_.ant-collapse-item:last-child]:border-[rgba(5,23,41,0.06)]",
-        "[&_.ant-collapse-header]:!items-center [&_.ant-collapse-header]:!h-[42px]",
-        useDrillInView ? "[&_.ant-collapse-header]:!bg-white" : "",
-        "[&_.ant-collapse-panel]:!border-t [&_.ant-collapse-panel]:!border-solid [&_.ant-collapse-panel]:!border-[rgba(5,23,41,0.06)]",
-        "[&_.ant-collapse-panel]:!p-0 [&_.ant-collapse-panel]:!rounded-b-md [&_.ant-collapse-panel]:text-sm [&_.ant-collapse-panel]:flex-grow [&_.ant-collapse-panel]:!bg-[var(--accordion-panel-bg)]",
-        "[&_.ant-collapse-body]:!h-full [&_.ant-collapse-body]:!p-0",
-    )
+    const copyText =
+        panelViewMode === "yaml"
+            ? yamlOutput
+            : panelViewMode === "rendered-json"
+              ? renderedJsonOutput
+              : panelViewMode === "json"
+                ? jsonOutput
+                : textOutput
 
     const collapse = (
         <div className="relative">
             {isSearchOpen && (
-                <div className="absolute top-12 right-6 z-[100] flex items-center gap-1 rounded-md border border-solid border-gray-200 bg-white p-1 shadow-[0_2px_8px_rgba(0,0,0,0.15)]">
+                <div className={classes.searchBar}>
                     <Input
                         size="small"
                         placeholder="Search..."
@@ -299,15 +512,48 @@ const AccordionTreePanel = ({
                                     overflowY: "auto",
                                 }}
                             >
-                                <TraceSpanDrillInView
-                                    spanId={spanId}
-                                    initialPath={"data.ag.data.inputs.parameters"}
-                                />
+                                {isCodeMode ? (
+                                    <EditorProvider
+                                        codeOnly={true}
+                                        enableTokens={false}
+                                        showToolbar={false}
+                                        className={classes.editor}
+                                        readOnly
+                                        disabled
+                                        noProvider
+                                    >
+                                        <LanguageAwareViewer
+                                            initialValue={
+                                                panelViewMode === "yaml"
+                                                    ? yamlOutput
+                                                    : panelViewMode === "rendered-json"
+                                                      ? renderedJsonOutput
+                                                      : jsonOutput
+                                            }
+                                            language={panelViewMode}
+                                            searchProps={
+                                                isSearchOpen
+                                                    ? {
+                                                          searchTerm,
+                                                          currentResultIndex,
+                                                          onResultCountChange: setResultCount,
+                                                      }
+                                                    : undefined
+                                            }
+                                        />
+                                    </EditorProvider>
+                                ) : (
+                                    <TextModeViewer
+                                        editorId={`accordion-${textViewerId}`}
+                                        value={textOutput}
+                                        mode={panelViewMode as "text" | "markdown"}
+                                    />
+                                )}
                             </div>
                         ),
                         extra: (
                             <Space size={8} onClick={(e) => e.stopPropagation()}>
-                                {enableSearch && !isStringValue && (
+                                {enableSearch && isCodeMode && (
                                     <EnhancedButton
                                         icon={<MagnifyingGlassIcon size={14} />}
                                         type={isSearchOpen ? "primary" : "text"}
@@ -316,31 +562,39 @@ const AccordionTreePanel = ({
                                         tooltipProps={{title: "Search"}}
                                     />
                                 )}
-                                {enableFormatSwitcher && availableViewModes.length > 0 && (
-                                    <Dropdown
-                                        trigger={["click"]}
-                                        menu={{
-                                            items: viewModeMenuItems,
-                                            selectable: true,
-                                            selectedKeys: [panelViewMode],
-                                            className: "[&_.ant-dropdown-menu-item]:!py-2",
-                                        }}
-                                        overlayStyle={{minWidth: 168}}
-                                    >
-                                        <Button size="small" type="text">
-                                            {PANEL_VIEW_MODE_LABELS[panelViewMode]}
-                                            <CaretUpDown size={14} />
-                                        </Button>
-                                    </Dropdown>
-                                )}
+                                {enableFormatSwitcher &&
+                                    availableViewModes.length > 1 &&
+                                    (availableViewModes.length === 2 &&
+                                    availableViewModes[0] === "json" &&
+                                    availableViewModes[1] === "yaml" ? (
+                                        <Radio.Group
+                                            value={panelViewMode}
+                                            onChange={(e) =>
+                                                setPanelViewMode(e.target.value as PanelViewMode)
+                                            }
+                                            size="small"
+                                        >
+                                            <Radio.Button value="json">JSON</Radio.Button>
+                                            <Radio.Button value="yaml">YAML</Radio.Button>
+                                        </Radio.Group>
+                                    ) : (
+                                        <Dropdown
+                                            trigger={["click"]}
+                                            menu={{
+                                                items: viewModeMenuItems,
+                                                selectable: true,
+                                                selectedKeys: [panelViewMode],
+                                            }}
+                                            overlayStyle={{minWidth: 168}}
+                                        >
+                                            <Button size="small" type="text">
+                                                {PANEL_VIEW_MODE_LABELS[panelViewMode]}
+                                                <CaretUpDown size={14} />
+                                            </Button>
+                                        </Dropdown>
+                                    ))}
                                 <CopyButton
-                                    text={
-                                        panelViewMode === "yaml"
-                                            ? yamlOutput
-                                            : panelViewMode === "rendered-json"
-                                              ? renderedJsonOutput
-                                              : textOutput
-                                    }
+                                    text={copyText}
                                     icon={true}
                                     buttonText={null}
                                     stopPropagation
@@ -350,12 +604,7 @@ const AccordionTreePanel = ({
                         ),
                     },
                 ]}
-                className={collapseClassName}
-                style={
-                    {
-                        "--accordion-panel-bg": bgColor || "white",
-                    } as any
-                }
+                className={classes.collapseContainer}
                 bordered={false}
             />
         </div>
