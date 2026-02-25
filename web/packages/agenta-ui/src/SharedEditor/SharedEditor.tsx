@@ -194,8 +194,8 @@ const SharedEditor = ({
                     enableTokens={!editorProps?.codeOnly}
                     // Use mount-time initial value for first render
                     initialValue={mountInitialValueRef.current}
-                    // Pass controlled value for undo/redo support - this triggers re-hydration when value changes
-                    value={value}
+                    // Pass local value to keep Editor in sync with user typing and prevent re-hydration jumps
+                    value={localValue}
                     className={editorClassName}
                     onChange={(val) => {
                         handleLocalValueChange(val.textContent)

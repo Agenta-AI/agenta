@@ -4,7 +4,7 @@ import {getEvaluatorColor} from "@agenta/entities/evaluator"
 import type {EvaluatorColor} from "@agenta/entities/evaluator"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
-import {EntityPicker} from "@agenta/entity-ui"
+import {EntityPicker, selectionMolecule} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
@@ -46,6 +46,9 @@ type PlaygroundHeaderProps = BaseContainerProps
 /** Entity types that represent evaluator downstream nodes */
 const EVALUATOR_ENTITY_TYPES = ["workflow"]
 
+/** Unique instance ID for the evaluator picker in the header */
+const EVALUATOR_PICKER_INSTANCE_ID = "playground-header-evaluator"
+
 /** Resolves a user UUID to a display name via workspace members */
 const MemberAuthor: React.FC<{userId: string}> = ({userId}) => {
     const memberAtom = useMemo(() => workspaceMemberByIdFamily(userId), [userId])
@@ -82,7 +85,7 @@ const EvaluatorTag: React.FC<{
 }> = ({node, onDisconnect}) => {
     const runnableData = useAtomValue(
         useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
-    ) as {name?: string | null; slug?: string | null; uri?: string | null} | null
+    ) as {name?: string | null; slug?: string | null; uri?: string | null; version?: number | null} | null
 
     const color: EvaluatorColor | undefined = useMemo(() => {
         if (!runnableData?.uri) return undefined
@@ -90,14 +93,11 @@ const EvaluatorTag: React.FC<{
     }, [runnableData])
 
     const label = useMemo(() => {
-        const nodeLabel = node.label?.trim()
-        if (nodeLabel && nodeLabel !== node.entityId) return nodeLabel
         const fetchedName = runnableData?.name?.trim()
-        if (fetchedName) return fetchedName
-        const fetchedSlug = runnableData?.slug?.trim()
-        if (fetchedSlug) return fetchedSlug
-        return "Evaluator"
-    }, [node, runnableData])
+        const name = fetchedName || runnableData?.slug?.trim() || "Evaluator"
+        const version = runnableData?.version
+        return version != null ? `${name} v${version}` : name
+    }, [runnableData])
 
     return (
         <Tag
@@ -144,6 +144,25 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         playgroundController.actions.disconnectSingleDownstreamNode,
     )
     const [evaluatorPopoverOpen, setEvaluatorPopoverOpen] = useState(false)
+
+    // Evaluator selection state reset
+    const resetEvaluatorSelection = useSetAtom(
+        useMemo(
+            () => selectionMolecule.actions.reset(EVALUATOR_PICKER_INSTANCE_ID),
+            [EVALUATOR_PICKER_INSTANCE_ID],
+        ),
+    )
+
+    const handleEvaluatorPopoverOpenChange = useCallback(
+        (open: boolean) => {
+            setEvaluatorPopoverOpen(open)
+            // Reset the picker state when opening the popover to ensure it starts from the root level
+            if (open) {
+                resetEvaluatorSelection()
+            }
+        },
+        [resetEvaluatorSelection],
+    )
 
     const hasRootNode = useMemo(() => nodes.some((n) => n.depth === 0), [nodes])
 
@@ -278,12 +297,11 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     )}
                     <Popover
                         open={evaluatorPopoverOpen}
-                        onOpenChange={setEvaluatorPopoverOpen}
+                        onOpenChange={handleEvaluatorPopoverOpenChange}
                         trigger="click"
                         placement="bottomRight"
                         arrow={false}
                         destroyOnHidden
-                        styles={{body: {padding: 0}}}
                         content={
                             <div style={{width: 320}}>
                                 <EntityPicker<WorkflowRevisionSelectionResult>
@@ -297,7 +315,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                                     emptyMessage="No evaluators available"
                                     loadingMessage="Loading evaluators..."
                                     maxHeight={250}
-                                    instanceId="playground-header-evaluator"
+                                    instanceId={EVALUATOR_PICKER_INSTANCE_ID}
                                     breadcrumbActions={
                                         connectedEvaluatorNodes.length > 0 ? (
                                             <Button
