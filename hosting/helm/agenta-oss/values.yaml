@@ -1,0 +1,465 @@
+# =================================================================
+# Global
+# =================================================================
+global:
+  webUrl: "http://localhost"
+  apiUrl: "http://localhost/api"
+  servicesUrl: "http://localhost/services"
+  posthogApiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+  imagePullSecrets: []
+  # Wire the Bitnami subchart to read the PostgreSQL password from the
+  # chart-managed secret so users only need to set secrets.postgresPassword.
+  #
+  # IMPORTANT: The Bitnami PostgreSQL subchart evaluates
+  # global.postgresql.auth.existingSecret as a plain string at chart-render
+  # time — it cannot process Helm template expressions.  The default value
+  # below ("agenta-pgauth") matches a release named "agenta".  If you install
+  # with a different release name or run multiple instances in the same
+  # namespace, override this value to match your release, e.g.:
+  #   global.postgresql.auth.existingSecret: "<release>-agenta-oss-pgauth"
+  postgresql:
+    auth:
+      existingSecret: "agenta-pgauth"
+      secretKeys:
+        userPasswordKey: "POSTGRES_PASSWORD"
+        adminPasswordKey: "POSTGRES_PASSWORD"
+
+# =================================================================
+# Secrets
+# =================================================================
+secrets:
+  # Set to the name of an existing Secret to use instead of the chart-managed one.
+  # The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, POSTGRES_PASSWORD
+  existingSecret: ""
+  # REQUIRED — helm install will fail if these are not set (when existingSecret is empty).
+  # Generate random keys:
+  #   openssl rand -hex 32
+  agentaAuthKey: ""
+  agentaCryptKey: ""
+  postgresPassword: ""
+  supertokensApiKey: ""
+  # Extra OAuth env vars injected into application pods (key = env var name)
+  oauth: {}
+  #   GOOGLE_OAUTH_CLIENT_ID: ""
+  #   GOOGLE_OAUTH_CLIENT_SECRET: ""
+  # Extra LLM provider API keys injected into application pods
+  llmProviders: {}
+  #   OPENAI_API_KEY: ""
+  #   ANTHROPIC_API_KEY: ""
+
+# =================================================================
+# ServiceAccount
+# =================================================================
+serviceAccount:
+  # Set to true to create a ServiceAccount for Agenta pods.
+  create: false
+  # Annotations to add to the ServiceAccount (e.g. for IAM roles).
+  annotations: {}
+  # Override the ServiceAccount name. Defaults to the fullname template.
+  name: ""
+
+# =================================================================
+# PostgreSQL (Bitnami subchart) — internal / external toggle
+# =================================================================
+postgresql:
+  enabled: true
+  auth:
+    username: "agenta"
+  primary:
+    initdb:
+      scripts:
+        init-db.sql: |
+          \c postgres
+
+          SELECT 'CREATE DATABASE agenta_oss_core'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_core')\gexec
+
+          SELECT 'CREATE DATABASE agenta_oss_tracing'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_tracing')\gexec
+
+          SELECT 'CREATE DATABASE agenta_oss_supertokens'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_supertokens')\gexec
+
+          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_core TO agenta;
+          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_tracing TO agenta;
+          GRANT ALL PRIVILEGES ON DATABASE agenta_oss_supertokens TO agenta;
+
+          \c agenta_oss_core
+          GRANT ALL ON SCHEMA public TO agenta;
+
+          \c agenta_oss_tracing
+          GRANT ALL ON SCHEMA public TO agenta;
+
+          \c agenta_oss_supertokens
+          GRANT ALL ON SCHEMA public TO agenta;
+
+          \c postgres
+    persistence:
+      size: 10Gi
+  databases:
+    core: "agenta_oss_core"
+    tracing: "agenta_oss_tracing"
+    supertokens: "agenta_oss_supertokens"
+  # Only used when postgresql.enabled=false
+  external:
+    host: ""                    # REQUIRED when enabled=false
+    port: 5432
+    username: "agenta"
+    sslmode: "prefer"           # Appended to auto-constructed URIs only (ignored when full URI overrides are set). Set to "" to omit.
+    # Full URI overrides (optional — constructed from host/port/user/pass/db if empty)
+    uriCore: ""
+    uriTracing: ""
+    uriSupertokens: ""
+
+# =================================================================
+# Redis — Volatile (cache, pub/sub)
+# =================================================================
+redisVolatile:
+  enabled: true
+  image:
+    repository: redis
+    tag: "8"
+    pullPolicy: IfNotPresent
+  port: 6379
+  # Optional password for Redis authentication. When set, the Redis server
+  # starts with --requirepass and the URI includes the credential.
+  password: ""
+  maxmemory: "512mb"
+  maxmemoryPolicy: "volatile-lru"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Only used when redisVolatile.enabled=false
+  external:
+    uri: ""
+
+# =================================================================
+# Redis — Durable (queues, persistent state)
+# =================================================================
+redisDurable:
+  enabled: true
+  image:
+    repository: redis
+    tag: "8"
+    pullPolicy: IfNotPresent
+  port: 6381
+  # Optional password for Redis authentication. When set, the Redis server
+  # starts with --requirepass and the URI includes the credential.
+  password: ""
+  maxmemory: "512mb"
+  maxmemoryPolicy: "noeviction"
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Only used when redisDurable.enabled=false
+  external:
+    uri: ""
+
+# =================================================================
+# API
+# =================================================================
+# NOTE: The workers (workerEvaluations, workerTracing) and cron containers
+# reuse the API image. There is no separate image configuration for them.
+#
+# The official API image includes newrelic-admin. It acts as a no-op
+# passthrough when NEW_RELIC_LICENSE_KEY is not set.
+api:
+  enabled: true
+  image:
+    repository: ghcr.io/agenta-ai/agenta-api
+    # Defaults to .Chart.AppVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 8000
+  workers: 2
+  env: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# Web (Next.js)
+# =================================================================
+web:
+  enabled: true
+  image:
+    repository: ghcr.io/agenta-ai/agenta-web
+    # Defaults to .Chart.AppVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3000
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# Services
+# =================================================================
+services:
+  enabled: true
+  image:
+    repository: ghcr.io/agenta-ai/agenta-services
+    # Defaults to .Chart.AppVersion when empty.
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 80
+  workers: 2
+  env: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# Workers — use the API image (see note above api section)
+# =================================================================
+workerEvaluations:
+  enabled: true
+  replicas: 1
+  env: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+workerTracing:
+  enabled: true
+  replicas: 1
+  env: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# Cron — uses the API image
+# =================================================================
+cron:
+  enabled: true
+  replicas: 1
+  env: {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# Alembic (database migrations)
+# =================================================================
+alembic:
+  enabled: true
+  activeDeadlineSeconds: 600
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =================================================================
+# SuperTokens
+# =================================================================
+supertokens:
+  enabled: true
+  image:
+    repository: registry.supertokens.io/supertokens/supertokens-postgresql
+    # SuperTokens is a third-party image — .Chart.AppVersion is not a valid
+    # tag for it, so we default to "latest" (matching docker-compose behavior).
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3567
+  env: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  podSecurityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # Only used when supertokens.enabled=false
+  external:
+    uri: ""
+
+# =================================================================
+# Ingress
+# =================================================================
+ingress:
+  enabled: true
+  className: "traefik"
+  host: ""
+  tls: []
+  #  - secretName: agenta-tls
+  #    hosts:
+  #      - agenta.example.com
+  annotations: {}
+  # Path prefix stripping for /api and /services is REQUIRED — the backend
+  # services expect requests without the prefix. The API and Services
+  # deployments set SCRIPT_NAME (which FastAPI reads as root_path) so that
+  # generated OpenAPI docs and redirect URLs include the prefix, but the
+  # actual routing inside the app uses the stripped path.
+  #
+  # Traefik — set the annotation and add the Middleware via extraObjects:
+  #   annotations:
+  #     traefik.ingress.kubernetes.io/router.middlewares: <namespace>-strip-prefixes@kubernetescrd
+  #   (see extraObjects below for the matching Middleware resource)
+  #
+  # NGINX Ingress Controller:
+  #   className: nginx
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/use-regex: "true"
+  #     nginx.ingress.kubernetes.io/rewrite-target: /$1
+
+# =================================================================
+# Extra Objects — arbitrary Kubernetes resources managed by this release.
+# Supports {{ .Release.Namespace }} and other Helm template expressions.
+# =================================================================
+extraObjects: []
+# Example: Traefik StripPrefix Middleware (required when using Traefik ingress)
+#  - apiVersion: traefik.io/v1alpha1
+#    kind: Middleware
+#    metadata:
+#      name: strip-prefixes
+#      namespace: "{{ .Release.Namespace }}"
+#    spec:
+#      stripPrefix:
+#        prefixes:
+#          - /api
+#          - /services
