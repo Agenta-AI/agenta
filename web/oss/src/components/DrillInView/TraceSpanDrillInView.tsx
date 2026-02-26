@@ -566,7 +566,8 @@ export const TraceSpanDrillInView = memo(
                             )}
                         </div>
                     )}
-                    {fileAttachments?.length || imageAttachments?.length ? (
+                    {(!allowSpanCollapse || !isCollapsed) &&
+                    (fileAttachments?.length || imageAttachments?.length) ? (
                         <div className="flex flex-col gap-2 mt-4">
                             <span className="tracking-wide">Attachments</span>
                             <div className="flex flex-wrap gap-2">
