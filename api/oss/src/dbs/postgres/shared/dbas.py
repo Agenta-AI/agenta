@@ -209,12 +209,3 @@ class CommitDBA:
         server_default=func.current_timestamp(),
         nullable=False,
     )
-
-
-class StatusDBA:
-    __abstract__ = True
-
-    status = Column(
-        JSONB(none_as_null=True),
-        nullable=True,
-    )

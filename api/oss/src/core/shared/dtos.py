@@ -21,7 +21,6 @@ from agenta.sdk.models.shared import (  # noqa: F401
     Hashes,
     Metrics,
     Schema,
-    Status,
     #
     Lifecycle,
     Header,
