@@ -20,7 +20,6 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.models.testsets import TestsetRevision
 
-from agenta.sdk.utils.references import get_slug_from_name_and_id
 from agenta.sdk.evaluations.preview.utils import fetch_trace_data
 
 from agenta.sdk.managers.testsets import (
@@ -59,6 +58,10 @@ from agenta.sdk.decorators.running import (
     invoke_application,
     invoke_evaluator,
 )
+from agenta.sdk.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 class EvaluateSpecs(BaseModel):
@@ -67,6 +70,73 @@ class EvaluateSpecs(BaseModel):
     evaluators: Optional[Target] = None
 
     repeats: Optional[int] = None
+
+
+_ALLOWED_ORIGINS = {"custom", "human", "auto"}
+
+
+def _normalize_step_id(step_id: Any) -> Optional[str]:
+    if step_id is None:
+        return None
+
+    if isinstance(step_id, UUID):
+        return str(step_id)
+
+    try:
+        return str(UUID(str(step_id)))
+    except Exception:
+        log.warning(
+            "Ignoring invalid evaluate() step id. Expected UUID-compatible value, got %r",
+            step_id,
+        )
+        return None
+
+
+def _normalize_target_steps(
+    *,
+    steps: Any,
+    step_name: str,
+) -> Dict[str, Origin]:
+    if not steps or not isinstance(steps, dict):
+        raise ValueError(
+            f"Invalid 'evaluate()' specs: missing or invalid {step_name}",
+        )
+
+    normalized_steps: Dict[str, Origin] = {}
+    invalid_step_ids = 0
+    invalid_origins = 0
+
+    for step_id, origin in steps.items():
+        normalized_step_id = _normalize_step_id(step_id)
+        if not normalized_step_id:
+            invalid_step_ids += 1
+            continue
+
+        if not isinstance(origin, str) or origin not in _ALLOWED_ORIGINS:
+            invalid_origins += 1
+            continue
+
+        normalized_steps[normalized_step_id] = origin
+
+    if invalid_step_ids or invalid_origins:
+        errors: List[str] = []
+        if invalid_step_ids:
+            errors.append(f"{invalid_step_ids} invalid id(s)")
+        if invalid_origins:
+            errors.append(
+                f"{invalid_origins} invalid origin(s) among entries with valid id(s)"
+            )
+
+        raise ValueError(
+            f"Invalid 'evaluate()' specs: invalid {step_name} ({', '.join(errors)})",
+        )
+
+    if not normalized_steps:
+        raise ValueError(
+            f"Invalid 'evaluate()' specs: missing or invalid {step_name}",
+        )
+
+    return normalized_steps
 
 
 async def _parse_evaluate_kwargs(
@@ -129,16 +199,18 @@ async def _upsert_entities(
                                 data=testcases_data,
                             )
                             if created_revision and created_revision.id:
-                                testset_steps[str(created_revision.id)] = "custom"
+                                normalized_revision_id = _normalize_step_id(
+                                    created_revision.id
+                                )
+                                if normalized_revision_id:
+                                    testset_steps[normalized_revision_id] = "custom"
 
             simple_evaluation_data.testset_steps = testset_steps
 
-    if not simple_evaluation_data.testset_steps or not isinstance(
-        simple_evaluation_data.testset_steps, dict
-    ):
-        raise ValueError(
-            "Invalid 'evaluate()' specs: missing or invalid testset steps",
-        )
+    simple_evaluation_data.testset_steps = _normalize_target_steps(
+        steps=simple_evaluation_data.testset_steps,
+        step_name="testset steps",
+    )
 
     if simple_evaluation_data.application_steps:
         if isinstance(simple_evaluation_data.application_steps, list):
@@ -149,8 +221,9 @@ async def _upsert_entities(
                 for application_revision_id in simple_evaluation_data.application_steps
             ):
                 for application_revision_id in simple_evaluation_data.application_steps:
-                    if isinstance(application_revision_id, UUID):
-                        application_steps[str(application_revision_id)] = "custom"
+                    normalized_revision_id = _normalize_step_id(application_revision_id)
+                    if normalized_revision_id:
+                        application_steps[normalized_revision_id] = "custom"
 
             elif all(
                 callable(application_handler)
@@ -161,16 +234,22 @@ async def _upsert_entities(
                         application_revision_id = await aupsert_application(
                             handler=application_handler,
                         )
-                        application_steps[str(application_revision_id)] = "custom"
+                        normalized_revision_id = _normalize_step_id(
+                            application_revision_id
+                        )
+                        if not normalized_revision_id:
+                            raise ValueError(
+                                "Invalid 'evaluate()' specs: failed to upsert application",
+                            )
+
+                        application_steps[normalized_revision_id] = "custom"
 
             simple_evaluation_data.application_steps = application_steps
 
-    if not simple_evaluation_data.application_steps or not isinstance(
-        simple_evaluation_data.application_steps, dict
-    ):
-        raise ValueError(
-            "Invalid 'evaluate()' specs: missing or invalid application steps",
-        )
+    simple_evaluation_data.application_steps = _normalize_target_steps(
+        steps=simple_evaluation_data.application_steps,
+        step_name="application steps",
+    )
 
     if simple_evaluation_data.evaluator_steps:
         if isinstance(simple_evaluation_data.evaluator_steps, list):
@@ -181,8 +260,9 @@ async def _upsert_entities(
                 for evaluator_revision_id in simple_evaluation_data.evaluator_steps
             ):
                 for evaluator_revision_id in simple_evaluation_data.evaluator_steps:
-                    if isinstance(evaluator_revision_id, UUID):
-                        evaluator_steps[str(evaluator_revision_id)] = "custom"
+                    normalized_revision_id = _normalize_step_id(evaluator_revision_id)
+                    if normalized_revision_id:
+                        evaluator_steps[normalized_revision_id] = "custom"
 
             elif all(
                 callable(evaluator_handler)
@@ -193,16 +273,22 @@ async def _upsert_entities(
                         evaluator_revision_id = await aupsert_evaluator(
                             handler=evaluator_handler,
                         )
-                        evaluator_steps[str(evaluator_revision_id)] = "custom"
+                        normalized_revision_id = _normalize_step_id(
+                            evaluator_revision_id
+                        )
+                        if not normalized_revision_id:
+                            raise ValueError(
+                                "Invalid 'evaluate()' specs: failed to upsert evaluator",
+                            )
+
+                        evaluator_steps[normalized_revision_id] = "custom"
 
             simple_evaluation_data.evaluator_steps = evaluator_steps
 
-    if not simple_evaluation_data.evaluator_steps or not isinstance(
-        simple_evaluation_data.evaluator_steps, dict
-    ):
-        raise ValueError(
-            "Invalid 'evaluate()' specs: missing or invalid evaluator steps",
-        )
+    simple_evaluation_data.evaluator_steps = _normalize_target_steps(
+        steps=simple_evaluation_data.evaluator_steps,
+        step_name="evaluator steps",
+    )
 
     return simple_evaluation_data
 
@@ -336,7 +422,10 @@ async def aevaluate(
         simple_evaluation_data.testset_steps = normalized_testset_steps
 
     suffix = _timestamp_suffix()
-    name = f"{name}{suffix}"
+    base_name = name.strip() if isinstance(name, str) else ""
+    if not base_name:
+        base_name = "SDK Eval"
+    name = f"{base_name}{suffix}"
 
     run = await acreate_run(
         name=name,
@@ -546,14 +635,11 @@ async def aevaluate(
 
                 trace_id = application_response.trace_id
 
-                if not application_revision.id or not application_revision.name:
-                    print("Missing application revision ID or name")
+                if not application_revision.slug:
+                    print("Missing application revision slug")
                     continue
 
-                application_slug = get_slug_from_name_and_id(
-                    name=application_revision.name,
-                    id=application_revision.id,
-                )
+                application_slug = application_revision.slug
 
                 trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
 
@@ -692,7 +778,7 @@ async def aevaluate(
 
                     trace_id = evaluator_response.trace_id
 
-                    trace = fetch_trace_data(trace_id, max_retries=20, delay=1.0)
+                    trace = fetch_trace_data(trace_id, max_retries=30, delay=1.0)
 
                     result = await alog_result(
                         run_id=run.id,

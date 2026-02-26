@@ -558,6 +558,20 @@ class PostgresConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ComposioConfig(BaseModel):
+    """Composio integration configuration"""
+
+    api_key: str | None = os.getenv("COMPOSIO_API_KEY")
+    api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+
+    @property
+    def enabled(self) -> bool:
+        """Composio enabled if API key is present"""
+        return bool(self.api_key)
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AlembicConfig(BaseModel):
     """Database migration configuration"""
 
@@ -569,6 +583,30 @@ class AlembicConfig(BaseModel):
     )
 
     model_config = ConfigDict(extra="ignore")
+
+
+class AIServicesConfig(BaseModel):
+    """AI services configuration.
+
+    Feature is enabled only when all required env vars are present.
+    """
+
+    api_key: str | None = os.getenv("AGENTA_AI_SERVICES_API_KEY")
+    api_url: str | None = os.getenv("AGENTA_AI_SERVICES_API_URL")
+    environment_slug: str | None = os.getenv("AGENTA_AI_SERVICES_ENVIRONMENT_SLUG")
+    refine_prompt_key: str | None = os.getenv("AGENTA_AI_SERVICES_REFINE_PROMPT_KEY")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        required = [
+            self.api_key,
+            self.api_url,
+            self.environment_slug,
+            self.refine_prompt_key,
+        ]
+        return all(isinstance(v, str) and v.strip() for v in required)
 
 
 class EnvironSettings(BaseModel):
@@ -611,8 +649,10 @@ class EnvironSettings(BaseModel):
     otlp: OTLPConfig = OTLPConfig()
     redis: RedisConfig = RedisConfig()
     agenta: AgentaConfig = AgentaConfig()
+    ai_services: AIServicesConfig = AIServicesConfig()
     postgres: PostgresConfig = PostgresConfig()
     alembic: AlembicConfig = AlembicConfig()
+    composio: ComposioConfig = ComposioConfig()
 
     model_config = ConfigDict(extra="ignore")
 

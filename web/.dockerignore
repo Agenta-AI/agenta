@@ -1,11 +1,50 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Dependencies
+node_modules
+.pnpm-store
 oss/node_modules
 ee/node_modules
-./node_modules
-.pnpm-store
+tests/node_modules
+packages/*/node_modules
+
+# Build outputs
+.turbo
 oss/.next
 ee/.next
-tests/node_modules
+*.tsbuildinfo
+dist/
+build/
+
+# Tests
 tests/.cache
 tests/test-results
 tests/playwright-report
-.turbo
+coverage/
+.nyc_output/
+
+# Development tools
+.husky
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation
+docs/
+*.md
+
+# Environment and secrets
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -99,11 +99,15 @@ class EnvironmentsService:
         project_id: UUID,
         #
         environment_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Environment]:
         artifact = await self.environments_dao.fetch_artifact(
             project_id=project_id,
             #
             artifact_ref=environment_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not artifact:
@@ -288,12 +292,16 @@ class EnvironmentsService:
         #
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
             artifact_ref=environment_ref,
             variant_ref=environment_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not variant:
@@ -481,6 +489,8 @@ class EnvironmentsService:
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,
         environment_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentRevision]:
         if (
             not environment_ref
@@ -498,6 +508,8 @@ class EnvironmentsService:
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not environment:
@@ -512,6 +524,8 @@ class EnvironmentsService:
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not environment_variant:
@@ -527,6 +541,8 @@ class EnvironmentsService:
             #
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not revision:
@@ -794,11 +810,15 @@ class EnvironmentsService:
         project_id: UUID,
         #
         environment_revisions_log: EnvironmentRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[EnvironmentRevision]:
         revisions = await self.environments_dao.log_revisions(
             project_id=project_id,
             #
             revisions_log=environment_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not revisions:

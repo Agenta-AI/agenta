@@ -203,3 +203,43 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
         },
     ),
 )
+
+// Remove a tool by identifier from a prompt identified by `${revisionId}:${promptId}`
+// - function tools: identifier is value.function.name
+// - non-function builtin tools: identifier is __tool (toolCode)
+export const removePromptToolByNameAtomFamily = atomFamily((compoundKey: string) =>
+    atom(null, (_get, set, toolIdentifier: string) => {
+        const [revisionId, promptId] = splitCompoundKey(compoundKey)
+
+        const mutatePrompts = (prev: any[]) => {
+            const list = Array.isArray(prev) ? prev : []
+            return list.map((p: any) => {
+                if (!(p?.__id === promptId || p?.__name === promptId)) return p
+                const configKey = p?.llm_config ? "llm_config" : "llmConfig"
+                const llm = p?.[configKey] || {}
+                const toolsArr = llm?.tools?.value
+                if (!Array.isArray(toolsArr)) return p
+
+                const updatedTools = toolsArr.filter(
+                    (tool: any) =>
+                        tool?.value?.function?.name !== toolIdentifier &&
+                        tool?.__tool !== toolIdentifier,
+                )
+                if (updatedTools.length === toolsArr.length) return p
+
+                return {
+                    ...p,
+                    [configKey]: {
+                        ...llm,
+                        tools: {
+                            ...llm?.tools,
+                            value: updatedTools,
+                        },
+                    },
+                }
+            })
+        }
+
+        set(moleculeBackedPromptsAtomFamily(revisionId), mutatePrompts)
+    }),
+)

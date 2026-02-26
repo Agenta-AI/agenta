@@ -372,8 +372,9 @@ class FoldersDAO(FoldersDAOInterface):
             if folder_query.flags is not None:
                 stmt = stmt.filter(FolderDBE.flags.contains(folder_query.flags))
 
-            if folder_query.meta is not None:
-                stmt = stmt.filter(FolderDBE.meta.contains(folder_query.meta))
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if folder_query.meta is not None:
+            #     stmt = stmt.filter(FolderDBE.meta.contains(folder_query.meta))
 
             result = await session.execute(stmt)
 

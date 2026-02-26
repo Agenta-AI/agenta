@@ -46,6 +46,7 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionCommit,
     EvaluatorRevisionQuery,
 )
+from oss.src.core.evaluators.utils import build_evaluator_data
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.logging import get_module_logger
 
@@ -104,11 +105,15 @@ class EvaluatorsService:
         project_id: UUID,
         #
         evaluator_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Evaluator]:
         workflow = await self.workflows_service.fetch_workflow(
             project_id=project_id,
             #
             workflow_ref=evaluator_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow:
@@ -293,12 +298,16 @@ class EvaluatorsService:
         #
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorVariant]:
         workflow_variant = await self.workflows_service.fetch_workflow_variant(
             project_id=project_id,
             #
             workflow_ref=evaluator_ref,
             workflow_variant_ref=evaluator_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_variant:
@@ -521,6 +530,8 @@ class EvaluatorsService:
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
         evaluator_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=project_id,
@@ -528,6 +539,8 @@ class EvaluatorsService:
             workflow_ref=evaluator_ref,
             workflow_variant_ref=evaluator_variant_ref,
             workflow_revision_ref=evaluator_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revision:
@@ -716,6 +729,8 @@ class EvaluatorsService:
         project_id: UUID,
         #
         evaluator_revisions_log: EvaluatorRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[EvaluatorRevision]:
         workflow_revisions_log = WorkflowRevisionsLog(
             **evaluator_revisions_log.model_dump(
@@ -727,6 +742,8 @@ class EvaluatorsService:
             project_id=project_id,
             #
             workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not workflow_revisions:
@@ -757,6 +774,83 @@ class SimpleEvaluatorsService:
         evaluators_service: EvaluatorsService,
     ):
         self.evaluators_service = evaluators_service
+
+    @staticmethod
+    def _extract_builtin_evaluator_key(
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[str]:
+        uri = simple_evaluator_data.uri if simple_evaluator_data else None
+
+        if not uri:
+            return None
+
+        parts = uri.split(":")
+
+        if len(parts) < 4:
+            return None
+
+        if parts[0] != "agenta" or parts[1] != "builtin":
+            return None
+
+        return parts[2] or None
+
+    @staticmethod
+    def _has_outputs_schema(
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> bool:
+        if not simple_evaluator_data or not isinstance(
+            simple_evaluator_data.schemas, dict
+        ):
+            return False
+
+        return bool(simple_evaluator_data.schemas.get("outputs"))
+
+    def _ensure_builtin_evaluator_data(
+        self,
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[SimpleEvaluatorData]:
+        evaluator_key = self._extract_builtin_evaluator_key(simple_evaluator_data)
+
+        if not evaluator_key:
+            return simple_evaluator_data
+
+        if self._has_outputs_schema(simple_evaluator_data):
+            return simple_evaluator_data
+
+        settings_values = (
+            simple_evaluator_data.parameters
+            if simple_evaluator_data
+            and isinstance(simple_evaluator_data.parameters, dict)
+            else None
+        )
+
+        hydrated_data = build_evaluator_data(
+            evaluator_key=evaluator_key,
+            settings_values=settings_values,
+        )
+
+        hydrated_data_dict = hydrated_data.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        existing_data_dict = (
+            simple_evaluator_data.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_evaluator_data
+            else {}
+        )
+
+        return SimpleEvaluatorData(
+            **{
+                **hydrated_data_dict,
+                **existing_data_dict,
+            }
+        )
 
     # public -------------------------------------------------------------------
 
@@ -848,6 +942,10 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
+        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+            simple_evaluator_create.data,
+        )
+
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
             #
@@ -889,7 +987,7 @@ class SimpleEvaluatorsService:
             tags=evaluator_create.tags,
             meta=evaluator_create.meta,
             #
-            data=simple_evaluator_create.data,
+            data=hydrated_simple_evaluator_data,
             #
             evaluator_id=evaluator.id,
             evaluator_variant_id=evaluator_variant.id,
@@ -1134,6 +1232,10 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
+        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+            simple_evaluator_edit.data,
+        )
+
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
             #
@@ -1144,7 +1246,7 @@ class SimpleEvaluatorsService:
             tags=evaluator_edit.tags,
             meta=evaluator_edit.meta,
             #
-            data=simple_evaluator_edit.data,
+            data=hydrated_simple_evaluator_data,
             #
             evaluator_id=evaluator.id,
             evaluator_variant_id=evaluator_variant.id,

@@ -1,0 +1,234 @@
+---
+title: Deploy on Railway
+sidebar_label: Deploy on Railway
+description: 'Deploy Agenta on Railway using CLI scripts. Covers fresh deployments, upgrades, environment variables, and common troubleshooting.'
+---
+
+This guide walks you through deploying Agenta on [Railway](https://railway.com) using a set of CLI scripts. By the end, you will have a fully working Agenta instance with a single public URL.
+
+Railway is a managed platform that handles containers, databases, and networking for you. The scripts in this guide create all the required services automatically; you do not need to configure anything in the Railway dashboard.
+
+## What Gets Deployed
+
+The scripts create the following services inside one Railway project:
+
+- **Gateway** (Nginx) with a public domain that routes traffic by path
+- **Web** frontend (Next.js)
+- **API** backend (FastAPI + Gunicorn)
+- **Services** backend (FastAPI + Gunicorn)
+- **Postgres** with a persistent volume
+- **Redis** with a persistent volume
+- **SuperTokens** for authentication
+- **Alembic** for database migrations
+- **Worker (tracing)** for OTLP trace ingestion
+- **Worker (evaluations)** for async evaluation jobs
+- **Cron** for scheduled maintenance tasks
+
+All traffic enters through the gateway. The gateway routes `/` to web, `/api/` to the API, and `/services/` to the services backend.
+
+## Prerequisites
+
+Before you start, install these tools on your local machine:
+
+1. [Railway CLI](https://docs.railway.com/guides/cli#installing-the-cli) (`railway --version` to verify)
+2. [jq](https://jqlang.org/download/) (`jq --version` to verify)
+3. A Railway account with an API token. Generate one at https://railway.com/account/tokens.
+
+## Step 1: Set Environment Variables
+
+Open a terminal and export the required variables:
+
+```bash
+export RAILWAY_API_TOKEN="<your-railway-api-token>"
+export RAILWAY_PROJECT_NAME="agenta-oss"
+export RAILWAY_ENVIRONMENT_NAME="production"
+```
+
+For production deployments, generate unique auth and encryption keys:
+
+```bash
+export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
+export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+```
+
+Save these keys somewhere safe. You will need them again when upgrading.
+
+:::warning
+If you skip this step, the scripts use placeholder keys (`000...` and `111...`). This is acceptable for testing but not for production.
+:::
+
+## Step 2: Clone the Repository
+
+```bash
+git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
+```
+
+## Step 3: Bootstrap the Project
+
+The bootstrap script creates the Railway project, all services, database volumes, and assigns a public domain to the gateway:
+
+```bash
+./hosting/railway/oss/scripts/bootstrap.sh
+```
+
+This step is idempotent. Running it again on an existing project is safe; it skips anything already created.
+
+## Step 4: Deploy
+
+Set the image tags you want to deploy. Use `latest` for the most recent stable release:
+
+```bash
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
+export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
+```
+
+Then run the deploy script:
+
+```bash
+./hosting/railway/oss/scripts/deploy-from-images.sh
+```
+
+This script handles the entire deploy in one step. It configures environment variables, creates databases, runs migrations, deploys all services from the specified images, and runs smoke tests at the end.
+
+You can also pin to a specific version instead of `latest`:
+
+```bash
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.30.0"
+export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.30.0"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.30.0"
+```
+
+## Step 5: Verify
+
+Once the deploy script finishes, it prints the public URL. Open it in your browser. You should see the Agenta login page.
+
+If you want to re-run health checks manually:
+
+```bash
+./hosting/railway/oss/scripts/smoke.sh
+```
+
+The smoke script checks three endpoints through the gateway: `/w`, `/api/health`, and `/services/health`. It retries with backoff until all three respond with HTTP 200.
+
+## Upgrading an Existing Deployment
+
+To update an existing Railway deployment to a new version, set the new image tags and re-run the deploy script:
+
+```bash
+export RAILWAY_PROJECT_NAME="agenta-oss"
+export RAILWAY_ENVIRONMENT_NAME="production"
+
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:latest"
+export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:latest"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:latest"
+
+./hosting/railway/oss/scripts/deploy-from-images.sh
+```
+
+The script re-configures environment variables, runs any new migrations, and redeploys all services.
+
+There is also a dedicated upgrade script for source-based deployments:
+
+```bash
+./hosting/railway/oss/scripts/upgrade.sh
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `UPGRADE_RUN_DB_INIT` | `true` | Run database init before deploying |
+| `UPGRADE_GATEWAY_RETRY_ON_FAIL` | `true` | Retry gateway redeploy if smoke fails |
+
+## Building from Source (Advanced)
+
+If you want to build and deploy from the repository source code instead of pre-built images (for example, to test local changes), you can use the source-based deploy flow:
+
+```bash
+./hosting/railway/oss/scripts/configure.sh
+./hosting/railway/oss/scripts/init-databases.sh
+./hosting/railway/oss/scripts/deploy-services.sh
+./hosting/railway/oss/scripts/smoke.sh
+```
+
+This builds each service directly on Railway from the Dockerfiles in `hosting/railway/oss/`. The first build takes longer because Docker layer caches are cold.
+
+## Configuration Reference
+
+These environment variables control the deployment scripts. All have sensible defaults.
+
+### Project Settings
+
+| Variable | Default | Description |
+|---|---|---|
+| `RAILWAY_PROJECT_NAME` | `agenta-oss-railway` | Railway project name |
+| `RAILWAY_ENVIRONMENT_NAME` | `staging` | Railway environment name |
+| `RAILWAY_API_TOKEN` | (none) | Railway account API token |
+
+### Security
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENTA_AUTH_KEY` | placeholder | Authentication key (set for production) |
+| `AGENTA_CRYPT_KEY` | placeholder | Encryption key (set for production) |
+
+### Optional Integrations
+
+| Variable | Default | Description |
+|---|---|---|
+| `POSTHOG_API_KEY` | (none) | PostHog analytics key |
+| `SENDGRID_API_KEY` | (none) | SendGrid email key |
+| `COMPOSIO_API_KEY` | (none) | Composio API key |
+
+### Smoke Test Tuning
+
+| Variable | Default | Description |
+|---|---|---|
+| `SMOKE_MAX_RETRIES` | `30` | Number of retries per endpoint |
+| `SMOKE_SLEEP_SECONDS` | `10` | Seconds between retries |
+| `SMOKE_AUTO_REPAIR` | `true` | Redeploy failing services automatically |
+
+### Deploy Timing
+
+| Variable | Default | Description |
+|---|---|---|
+| `RAILWAY_INFRA_SETTLE_SECONDS` | `40` | Wait after infra (Postgres/Redis) redeploy |
+| `RAILWAY_APP_SETTLE_SECONDS` | `60` | Wait after app services deploy |
+| `RAILWAY_ALEMBIC_MAX_ATTEMPTS` | `3` | Alembic migration retry count |
+
+## Troubleshooting
+
+### Smoke tests fail on first deploy
+
+The deploy script waits for services to become healthy, but the first deploy can be slow. Wait a minute and re-run smoke:
+
+```bash
+./hosting/railway/oss/scripts/smoke.sh
+```
+
+### 504 Gateway Timeout after a service redeploy
+
+Railway assigns new internal IPs when a service redeploys. The gateway Nginx config uses variable-based `proxy_pass` with a short DNS TTL to handle this. If you see 504 errors, redeploy the gateway:
+
+```bash
+./hosting/railway/oss/scripts/deploy-gateway.sh
+```
+
+### Alembic migrations fail
+
+Alembic sometimes fails on the first try because Postgres is still initializing. The deploy script retries up to 3 times by default. If it still fails, check that your Postgres service is healthy in Railway, then re-run:
+
+```bash
+./hosting/railway/oss/scripts/init-databases.sh
+```
+
+### Duplicate volume errors
+
+`bootstrap.sh` checks for existing volumes before creating new ones. If you see "Failed to create deployment" errors related to volumes, a volume may have been created outside the script. Check volumes in the Railway dashboard and remove duplicates.
+
+## Getting Help
+
+If you run into issues:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) for direct support
+
+For contributor-level details about the scripts (call chains, CI workflows, caveats), see the [technical README](https://github.com/Agenta-AI/agenta/tree/main/hosting/railway/oss/README.md) in the repository.

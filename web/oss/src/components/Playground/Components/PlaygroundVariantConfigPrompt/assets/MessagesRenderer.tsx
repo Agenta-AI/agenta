@@ -44,6 +44,7 @@ const MessagesRenderer: React.FC<Props> = ({promptId, variantId, compoundKey, vi
                               editorClassName="min-h-4 [&_p:last-child]:!mb-0"
                               isMessageDeletable={!viewOnly && (messageIds?.length || 0) > 1}
                               viewOnly={viewOnly}
+                              defaultMinimized
                           />
                       )
                   })

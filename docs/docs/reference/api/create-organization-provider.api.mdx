@@ -1,0 +1,71 @@
+---
+id: create-organization-provider
+title: "Create Organization Provider"
+description: "Add a new SSO provider to an organization."
+sidebar_label: "Create Organization Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJyVVcFu2zAM/RWDpw3Q4q7YyadlXYEG3ZCgyXYJgoKxmVidbamSnDYz/O8DZTt2krZYc4ktPVLU4+NzBQnZ2EjtpCoggnGSBBgU9BTM59NAG7WTCZnAqQCLQJktFvIvMnYEApQm418mCUQQG0JH90PQfZcABGg0mJMjYyFaVlBgThDBEVomIEByGRpdCgIMPZbSUAKRMyUJsHFKOUJUgdtrDrfOyGILApx0GS9MB/mCSQJ1vWrSkHXfVLLn2NOssSocFY63UOtMxj46fLDMSHV+qFo/UOxAACaJZChmM8NcOEm2S9oVNMN9ppALqWuuxGpVWIZVcHlxwX/HDZiXcUzWbsosuGvB8P8lNqd8ubw8T/wbM5k0vFwbo8w7soIeXI/zOpQZP0lHuT0HZCo+2sViP934rh+3rRaHFVk42pKBelWLbg2Nwf2gtz9UUyDUAnK7fUsGP8la3BIckr0O9WQEC96tWX269IR02xO/UAuI3fNLGuhwV8zls4O6r/+A6QW39Nw05be4VZ+jb1HTodep+N604KXDOsjNYjE7S9joIyeXKh5Zrazzo+lSiCAcDqMNq5PZrMNumi0IsGR23SyXJoMIUue0jcIwzlSZjHBLhcMRyhC1BJ5CS3FppNv7kPFsckv7G0I2h2i5GgLmrLtGScewA/uo5S0xH62LjEuXKtOW2nlI2kTxhVnRd70JXD9jrpmkynd8o4YNH/vCg/FsAgL4is34XIw+jy5AnNrlEMzjhLFXT1eX3wZxwtCBGxBAuZ8lcIT5136Dq+bu5FgM8l15iw2OTG7WW+xRbVU/3u9z9ZZjVnOoM5R+3vwFqlYpyyPbZjVE5z7ei2UlIGWhRUuoqjVa+mWyuublx5IM62ElYIdG4po7sKwgkZafE4g2mFl642Yf7trZ+hi8VnqnmYIFs8Os5DcQ8If2L3yAvAGlnS6rFnXVHPjJ20Sf5cw12dGaiHEck3ZvYleDSZxN5wsQsG4/UblKOMbgE9sHPjUVK93wzd8wXqsgw2JbstFF0OTk3z+VlbMc
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Organization Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/providers"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Add a new SSO provider to an organization.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Payload"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

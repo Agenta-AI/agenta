@@ -1,0 +1,71 @@
+---
+id: patch-organization
+title: "Update Organization"
+description: "Update Organization"
+sidebar_label: "Update Organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVlFv2zYQ/ivGPW0AF2dBn/Q0L+0Qo2tjJO72YBjBWTpbbCWRJakknsD/PhwpW5LtBJuLvtUvto93H48fvzteA0qTQSdVNc0gAY0uzR+U2WAl/wlmEKDRYEmOjIVk0UCFJUECfacHmYEAWUWEHAQY+lpLQxkkztQkwKY5lQhJA26rOdw6I6sNCHDSFWy47eGNphl4v4wwZN3vKtty7CFqqipHleMl1LqQaYgef7aqYlu3qTZ8TifJBntRb0JMtb1dhzMNk/Jib6nqogDOZJfmPcd60bJwHsZHjvUCMrKpkTrQfCbU2x6EF7AucGOHWJhlkpexmPVIiPy1qGr1mVL36j5/BGAvoNYZOsoe0J2b8qeIMJo48P4wh9N6iCHgPQcYslpVNl7l1eUlfw2YhPs6TcnadV2M7lpnOFssMjul2rUyJVMAdR20v8uahSt+COwbBOa+0wbzFr8kh98D/wPjegHqqSLz8P9Uc8sxo6idkspVaLUNSEelPcbpigaNwS30c4ixnpvxo3RB4QOol2OnvQAv4EmZL1ZjSudl8ncXfqrIu0a+gMDEnrXl6Q7Q1v6bq6vjcv8LC5nFd+OdMcqcX+sZOZTF4MBDh0Klg9X/UFGycrQhA375Mlt/qhR3FVbazWvP5AeyFjfUUf+yayBjNOfVIAhdB0K6C2eDF5C65x7MUSO+Zi6fTzfr/j0yNzH91q93ld0VxRt6mYq38Qpeexlu5vPZEWDUx1AY8dkY3Q7HmZJcrvbDTphvXA4JjPsTjR03BwOOBwGWzONuDKpNAQnkzmmbjMdpoersAjdUObxAOUYtQ3ewlNZGum0Imcym72l7Q5iRgWSx7DvcsySjyIZu+4tBLd8TU9UOYJPa5cp05wrjVx6jmAsW+103P717xlIX1M0/nWBawP3/IYtd92p7/8EU0GsGslqrvsQmgY/RZDYFAcxcRLy8+PXi8mifgTMXMKZBr7vjhmUQB8TvKQcBVIbqBUdY/tYtMBlaWVdi1cM7LY6DF7OlnvU/1gXKUKEhgaaVzWIwCFsQkBxOxksBubKOfZtmhZY+mcJ7Nn+tybA0lgIe0UhcMWuLBjJp+XcGyRoLS0dp7dsb/HTXVuDPIxCn093Jp2LtPGJR8z8Q8IW2J8b40KbynUSb1us6bvhLaCYdylFv5b4XIyZpStq96rvs1eJsMr++AQGrdtIvVcZBBp+4y+BTTFnp/YMWbA0UWG1q7ocJRFD+/AufPWZB
+sidebar_class_name: "patch api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update Organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"patch"}
+  path={"/organizations/{organization_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update Organization
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"organization_id","in":"path","required":true,"schema":{"type":"string","title":"Organization Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Flags"},"updated_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Updated At"}},"type":"object","title":"OrganizationUpdate"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","format":"uuid","title":"Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Meta"},"owner_id":{"type":"string","format":"uuid","title":"Owner Id"},"members":{"items":{"type":"string"},"type":"array","title":"Members"},"invitations":{"items":{},"type":"array","title":"Invitations"},"workspaces":{"items":{"type":"string"},"type":"array","title":"Workspaces"}},"type":"object","required":["id","owner_id"],"title":"Organization"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

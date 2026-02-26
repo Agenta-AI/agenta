@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from pydantic import BaseModel
 
@@ -183,3 +183,27 @@ class SimpleEvaluatorResponse(BaseModel):
 class SimpleEvaluatorsResponse(BaseModel):
     count: int = 0
     evaluators: List[SimpleEvaluator] = []
+
+
+# EVALUATOR TEMPLATES ----------------------------------------------------------
+
+
+class EvaluatorTemplate(BaseModel):
+    """Static evaluator template definition (built-in evaluator types)."""
+
+    name: str
+    key: str
+    direct_use: bool
+    settings_presets: Optional[List[Dict[str, Any]]] = None
+    settings_template: Dict[str, Any]
+    outputs_schema: Optional[Dict[str, Any]] = None
+    description: Optional[str] = None
+    oss: Optional[bool] = False
+    requires_llm_api_keys: Optional[bool] = False
+    tags: List[str] = []
+    archived: Optional[bool] = False
+
+
+class EvaluatorTemplatesResponse(BaseModel):
+    count: int = 0
+    templates: List[EvaluatorTemplate] = []

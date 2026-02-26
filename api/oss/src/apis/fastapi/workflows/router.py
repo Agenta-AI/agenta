@@ -1002,7 +1002,7 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(workflow_variant_id) != str(
+        if workflow_variant_id is not None and str(workflow_variant_id) != str(
             workflow_revision_commit_request.workflow_revision.workflow_variant_id
         ):
             return WorkflowRevisionResponse()

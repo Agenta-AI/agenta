@@ -60,6 +60,9 @@ _PUBLIC_ENDPOINTS = (
     # STRIPE
     "/billing/stripe/events/",
     "/api/billing/stripe/events/",
+    # TOOLS — OAuth callback arrives from provider with no auth token
+    "/preview/tools/connections/callback",
+    "/api/preview/tools/connections/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"

@@ -267,7 +267,9 @@ async def add_default_simple_evaluators(
         SimpleEvaluatorFlags,
     )
     from oss.src.core.evaluators.utils import build_evaluator_data
-    from oss.src.routers.evaluators_router import BUILTIN_EVALUATORS
+    from oss.src.resources.evaluators.evaluators import get_builtin_evaluators
+
+    BUILTIN_EVALUATORS = get_builtin_evaluators()
 
     workflows_dao = GitDAO(
         ArtifactDBE=WorkflowArtifactDBE,

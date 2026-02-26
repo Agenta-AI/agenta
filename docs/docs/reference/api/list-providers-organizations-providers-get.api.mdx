@@ -1,0 +1,63 @@
+---
+id: list-providers-organizations-providers-get
+title: "List Providers"
+description: "List all SSO providers for the organization."
+sidebar_label: "List Providers"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVU2P2jAQ/SvRnF2gPeZU1I8t2qqLSveEEPImA/HWib32BJVG+e/VOB847HallgMEe+Z5/N7MSwMkjx7SLdy5o6zUb0nKVB52AnL0mVOW/0MKX5WnRGqdbDZ3iXXmpHJ0PjkYl1CBiYmyZyDAWHThzyqHFLTytB+T9nGwj9aPSCDAobem8ughbeDdYsE/01o2dZah94daJ9/7YBCQmYqwIg6X1mqVBfz5o+ecBnxWYCn5SRGWAdw6LpNUd5TK+ZvOFiEFT05VRxBAijQvrHJoBXhdH1+L2vB+K6CSJYZCqvPdAdLtdUYrxpWq1hra3QXjG+e2V/z/H9THCKIVcNBB6wZknitelHodUUCuRjFgmYdHzCi62ueQzBwgkar+H2gz5LcCMoeSMN9LeonVg3El70AuCd+QKjGC+dClJktioNrmEdDfuHoR8jUC7zvY/pC4b/evt0s8TQn3TvucEIdPtXKY8/SpHPru6ptnqv+gXcT+hLwJAc8L3b1c2LqfvGiIpoM2bCSlyVGHYZfVxAFmcLmYdE6eIw7G7OAd69EzJk4Trd8gQcsfASVSYdg5OkuwkgpIYT4xjvloHIEWd+In1rx2GlIoiKxP5/NMmzqfySNWJGdSzaVVQWKPWe0UnUPKcr26xfMXlDk6SLe7OGDDxtFZxDRsVF9adYvnQbkUljUVxvV1ggDFXBZdFt9OVQcT0nuilqG4ZLlegQC+Rsf+YvZ2tnimySSYPU9moeeHs8M2N8SEhfH+IABLqXiPUJbvLxtcmTWeSllFeFPtrqtpLq77r2+InjvCXzS3WqrgUKHoptd7O+ljPvui+E5AYTxxUNM8SI/3TrctLz/V6FjUnYCTdEo+MMXbXSsGBVjvn3hmrrIMLffXSeq6E/LqvcF9MPbizacf0LZ/AKXRfMo=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Providers"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/organizations/providers"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List all SSO providers for the organization.
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"settings":{"additionalProperties":true,"type":"object","title":"Settings"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","settings","created_at","updated_at","organization_id"],"title":"OrganizationProviderResponse","description":"Response model for an SSO provider."},"type":"array","title":"Response List Providers Organizations Providers Get"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

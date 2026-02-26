@@ -97,6 +97,12 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
             (parsedBody as any)?.detail ||
             (parsedBody as any)?.error ||
             (typeof parsedBody === "string" ? parsedBody : undefined)
+        const detailMessage =
+            typeof detail === "string"
+                ? detail
+                : typeof (detail as any)?.message === "string"
+                  ? (detail as any).message
+                  : undefined
 
         const detailObj = (parsedBody as any)?.detail
         if (
@@ -157,9 +163,7 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
         }
 
         const errorMessage =
-            detail && typeof detail === "string"
-                ? `${detail}`
-                : `${init.method || "GET"} ${url.pathname} failed: ${res.status}`
+            detailMessage || `${init.method || "GET"} ${url.pathname} failed: ${res.status}`
 
         const error = new Error(errorMessage)
         ;(error as any).status = res.status

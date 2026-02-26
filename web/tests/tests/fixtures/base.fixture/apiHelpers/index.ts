@@ -48,7 +48,7 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     await page.goto("/apps")
-    await page.waitForURL("/apps")
+    await page.waitForURL("**/apps")
 
     const appsResponse = await waitForApiResponse<ListAppsItem[]>(page, {
         route: "/api/apps",
