@@ -124,19 +124,47 @@ const MarkdownPlugin = ({id}: {id: string}) => {
         return editor.registerCommand(
             KEY_ENTER_COMMAND,
             (event) => {
-                editor.update(() => {
+                // Read-only check: determine if cursor is inside a markdown CodeNode
+                const shouldHandle = editor.getEditorState().read(() => {
                     const selection = $getSelection()
                     if (!$isRangeSelection(selection)) return false
-
                     const anchorNode = selection.anchor.getNode()
                     const topNode = anchorNode.getTopLevelElementOrThrow()
-
-                    if ($isCodeNode(topNode) && topNode.getLanguage() === "markdown") {
-                        event?.preventDefault()
-                        selection.insertRawText("\n")
-                        return true
-                    }
+                    return $isCodeNode(topNode) && topNode.getLanguage() === "markdown"
                 })
+
+                if (!shouldHandle) return false
+
+                event?.preventDefault()
+
+                // Save scroll position before inserting text to prevent
+                // the browser from auto-scrolling to the bottom
+                const rootElement = editor.getRootElement()
+                const scrollContainer = rootElement?.closest(
+                    ".agenta-editor-wrapper",
+                ) as HTMLElement | null
+                const savedScrollTop = scrollContainer?.scrollTop ?? 0
+                const savedElementScrollTop = rootElement?.scrollTop ?? 0
+
+                // {discrete: true} ensures DOM is flushed synchronously
+                editor.update(
+                    () => {
+                        const selection = $getSelection()
+                        if ($isRangeSelection(selection)) {
+                            selection.insertRawText("\n")
+                        }
+                    },
+                    {discrete: true},
+                )
+
+                // Restore scroll after DOM flush.
+                // Use rAF to also cover the merge-back update from
+                // the registerUpdateListener that follows this effect.
+                requestAnimationFrame(() => {
+                    if (scrollContainer) scrollContainer.scrollTop = savedScrollTop
+                    if (rootElement) rootElement.scrollTop = savedElementScrollTop
+                })
+
                 return true
             },
             COMMAND_PRIORITY_HIGH,
@@ -158,6 +186,15 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                 const trailingNodes = children.slice(index + 1)
 
                 if (trailingNodes.length > 0) {
+                    // Save scroll position before merging trailing nodes back,
+                    // as this second editor.update() can also trigger scroll jumps
+                    const rootElement = editor.getRootElement()
+                    const scrollContainer = rootElement?.closest(
+                        ".agenta-editor-wrapper",
+                    ) as HTMLElement | null
+                    const savedScrollTop = scrollContainer?.scrollTop ?? 0
+                    const savedElementScrollTop = rootElement?.scrollTop ?? 0
+
                     editor.update(() => {
                         for (const node of trailingNodes) {
                             const content = node.getTextContent()
@@ -166,6 +203,12 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                             )
                             node.remove()
                         }
+                    })
+
+                    // Restore scroll after the merge-back DOM update
+                    requestAnimationFrame(() => {
+                        if (scrollContainer) scrollContainer.scrollTop = savedScrollTop
+                        if (rootElement) rootElement.scrollTop = savedElementScrollTop
                     })
                 }
             })
