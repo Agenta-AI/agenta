@@ -149,6 +149,11 @@ class Permission(str, Enum):
     VIEW_EVALUATION_QUEUES = "view_evaluation_queues"
     EDIT_EVALUATION_QUEUES = "edit_evaluation_queues"
 
+    # Tools
+    VIEW_TOOLS = "view_tools"
+    EDIT_TOOLS = "edit_tools"
+    RUN_TOOLS = "run_tools"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -176,6 +181,8 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_RESULTS,
             cls.VIEW_EVALUATION_METRICS,
             cls.VIEW_EVALUATION_QUEUES,
+            #
+            cls.VIEW_TOOLS,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],

@@ -1,0 +1,70 @@
+@composio_url = https://backend.composio.dev/api/v3
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+@composio_user_id = {{$dotenv COMPOSIO_USER_ID}}
+
+# Simulates: project_id = test-project-001
+@entity_id = project_test-project-001
+
+###
+# --- Step 1: Resolve auth config ---
+
+# @name resolve_auth_config
+# Find existing auth config for gmail
+GET {{composio_url}}/auth_configs?toolkit_slugs=gmail
+x-api-key: {{composio_api_key}}
+
+###
+# Copy the auth_config_id from the response above
+@auth_config_id = replace-me-with-ac_id
+
+###
+# --- Step 2: Initiate connection (OAuth) ---
+
+# @name initiate_connection
+# Create a connected account link (returns redirect_url for OAuth popup)
+POST {{composio_url}}/connected_accounts/link
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "user_id": "{{entity_id}}",
+  "auth_config_id": "{{auth_config_id}}",
+  "callback_url": "https://app.agenta.ai/tools/callback"
+}
+
+###
+@connected_account_id = {{initiate_connection.response.body.id}}
+@redirect_url = {{initiate_connection.response.body.redirect_url}}
+
+###
+# --- Step 3: Poll connection status ---
+# (Run this after completing OAuth in browser via redirect_url)
+
+# @name poll_connection_status
+GET {{composio_url}}/connected_accounts/{{connected_account_id}}
+x-api-key: {{composio_api_key}}
+
+###
+# --- Step 4: List all connected accounts for this entity ---
+
+# @name list_connected_accounts
+GET {{composio_url}}/connected_accounts?user_id={{entity_id}}
+x-api-key: {{composio_api_key}}
+
+###
+# --- Step 5: Refresh connection ---
+
+# @name refresh_connection
+POST {{composio_url}}/connected_accounts/{{connected_account_id}}/refresh
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{}
+
+###
+# --- Step 6: Delete connection ---
+# WARNING: This permanently revokes the connected account
+
+# @name delete_connection
+DELETE {{composio_url}}/connected_accounts/{{connected_account_id}}
+x-api-key: {{composio_api_key}}

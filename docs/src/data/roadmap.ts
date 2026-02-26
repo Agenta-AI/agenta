@@ -27,6 +27,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Integration: FFA500
   // Security: 000000
   {
+    id: "ai-prompt-refinement",
+    title: "AI-Powered Prompt Refinement in the Playground",
+    description:
+      "Refine prompts with AI directly in the playground. Describe what you want to improve and get a refined version with an explanation of the changes.",
+    changelogPath: "/docs/changelog/refine-ai",
+    shippedAt: "2026-02-25",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
     id: "enterprise-compliance",
     title: "Enterprise Compliance Features",
     description:
@@ -398,19 +412,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     description:
       "Create reusable prompt snippets that can be referenced across multiple prompts. Reference specific versions or always use the latest version to maintain consistency across prompt variants.",
     githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2858",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "ai-prompt-refinement",
-    title: "AI-Powered Prompt Refinement in the Playground",
-    description:
-      "Analyze prompts and suggest improvements based on best practices. Identify issues, propose refined versions, and allow users to accept, modify, or reject suggestions.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2861",
     labels: [
       {
         name: "Playground",
