@@ -1,17 +1,21 @@
 # Code Review: feat/extend-loadables-in-api
 
+> Updated post-merge with main (a1f26dc39). Gateway-tools removal is no longer
+> in scope — main still carries those files and the merge brought them back.
+> This review now covers only the branch's effective diff (74 files, ~9.1k ins / ~4.6k del).
+
 ## Context
 
-This branch (240 files, +10.5k/-23.3k lines) does three things:
-1. **Extends loadables in API** - adds `include_*_ids` / `include_*` flags and windowing to revision retrieve endpoints for testsets and queries
-2. **Cleans up tracing** - splits monolithic `tracing/utils.py` into a package, extracts streaming module, simplifies annotations/invocations services
-3. **Removes gateway-tools** - complete removal of the tools feature (API, frontend, docs, DB migration, deps)
+This branch does three things:
+1. **Extends loadables in API** — adds `include_*_ids` / `include_*` flags and windowing to revision retrieve endpoints for testsets and queries
+2. **Cleans up tracing** — splits monolithic `tracing/utils.py` into a subpackage, extracts streaming module, simplifies annotations/invocations services
+3. **Refactors shared DTOs and EE types** — moves tracing type imports to `agenta.sdk.models.tracing`, adds `Status` DTO, adds EE workspace types
 
 ---
 
 ## Verdict: GOOD — merge-ready with minor fixes
 
-The branch is well-structured, follows project conventions, and the removal is thorough with no dangling imports. The loadables extension is functionally complete. I found **0 critical blockers**, **2 medium issues**, and **5 minor/cosmetic issues**.
+The branch is well-structured, follows project conventions, and the loadables extension is functionally complete. I found **0 critical blockers**, **2 medium issues**, and **5 minor/cosmetic issues**.
 
 ---
 
@@ -37,7 +41,7 @@ The method signature accepts `trace_id` but discards it. The caller (router) bel
 
 ### M2. `merge_specs()` silently returns empty list when both params AND body provide specs
 
-**File**: `api/oss/src/core/tracing/service.py:311-322`
+**File**: `api/oss/src/core/tracing/service.py:312-322`
 
 ```python
 @staticmethod
@@ -99,8 +103,7 @@ All consumers import directly from submodules (`from ...utils.attributes import 
 
 | Check | Status | Evidence |
 |-------|--------|----------|
-| No dangling imports from deleted tools modules | PASS | grep finds 0 matches |
-| No dangling imports from old `core.tracing.utils` path | PASS | grep finds 0 matches |
+| No dangling imports from old `core.tracing.utils` path | PASS | grep finds 0 matches across api/ |
 | Loadable models have both flags (ids + items) | PASS | `QueryRevisionRetrieveRequest:143-144`, `TestsetRevisionRetrieveRequest:134-135` |
 | Services correctly implement A.0/A.1/A.2 strategies | PASS | `_populate_traces:95-169`, `_populate_testcases:73-126` |
 | Testcases B.2 reference resolution works | PASS | `testcases/router.py:174-198` resolves refs via `fetch_testset_revision` |
@@ -108,8 +111,7 @@ All consumers import directly from submodules (`from ...utils.attributes import 
 | Permission coupling (queries+spans) | PASS | `queries/router.py:941-950` |
 | Caching only on [A.0] (no dynamic content) | PASS | `queries/router.py:965-969`, `testsets/router.py:1367-1373` |
 | Domain exceptions caught at router boundary | PASS | `tracing/router.py:1115-1119` (409), `1129-1130` (400) |
-| Entrypoint wiring has no tools references | PASS | `entrypoints/routers.py` clean |
-| Frontend tools removal complete | PASS | All gateway-tools, settings Tools, playground tool files deleted |
+| Entrypoint wiring correct | PASS | `entrypoints/routers.py` clean |
 | SQL injection prevention | PASS | All DAO queries use SQLAlchemy parameterized queries |
 | Auth/scope enforcement | PASS | `project_id` scope + EE permission checks throughout |
 | Unit tests for tracing utils | PASS | 6 test files covering all submodules |

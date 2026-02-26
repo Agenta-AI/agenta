@@ -4,10 +4,13 @@ Date: 2026-02-26
 Branch: `feat/extend-loadables-in-api`
 Scope: completeness, soundness, consistency, correctness, security, functionality, compatibility
 
+Revalidated after merge from `main` at commit `a1f26dc39` (2026-02-26):
+- Status: all 6 findings below are still open.
+
 ## Findings
 
 1. High - Compatibility/Functionality - `transfer` removed from API/service but still called by SDK and migrations
-- API simple testset router no longer exposes `/{testset_id}/transfer`: `api/oss/src/apis/fastapi/testsets/router.py:1456`
+- API simple testset router no longer exposes `/{testset_id}/transfer`: `api/oss/src/apis/fastapi/testsets/router.py:1510`
 - SDK still calls transfer endpoint:
   - `sdk/agenta/client/backend/testsets/raw_client.py:2278`
   - `sdk/agenta/client/backend/testsets/client.py:1342`
