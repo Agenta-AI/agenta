@@ -287,6 +287,20 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                 group.messages.map((message, index) => {
                                     const content = getMessageContent(message)
                                     if (content !== undefined) {
+                                        if (spanEntityId) {
+                                            return (
+                                                <TraceSpanDrillInView
+                                                    key={`${group.key}-input-message-${index}`}
+                                                    spanId={spanEntityId}
+                                                    title={message.role || "message"}
+                                                    editable={false}
+                                                    rootScope="span"
+                                                    viewModePreset="message"
+                                                    spanDataOverride={content}
+                                                />
+                                            )
+                                        }
+
                                         return (
                                             <AccordionTreePanel
                                                 key={`${group.key}-input-message-${index}`}
@@ -299,6 +313,20 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                     }
 
                                     const {role, ...messageWithoutRole} = message
+                                    if (spanEntityId) {
+                                        return (
+                                            <TraceSpanDrillInView
+                                                key={`${group.key}-input-message-${index}`}
+                                                spanId={spanEntityId}
+                                                title={role || "message"}
+                                                editable={false}
+                                                rootScope="span"
+                                                viewModePreset="message"
+                                                spanDataOverride={messageWithoutRole}
+                                            />
+                                        )
+                                    }
+
                                     return (
                                         <AccordionTreePanel
                                             key={`${group.key}-input-message-${index}`}
@@ -339,6 +367,20 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                 group.messages.map((message, index) => {
                                     const content = getMessageContent(message)
                                     if (content !== undefined) {
+                                        if (spanEntityId) {
+                                            return (
+                                                <TraceSpanDrillInView
+                                                    key={`${group.key}-output-message-${index}`}
+                                                    spanId={spanEntityId}
+                                                    title={message.role || "assistant"}
+                                                    editable={false}
+                                                    rootScope="span"
+                                                    viewModePreset="message"
+                                                    spanDataOverride={content}
+                                                />
+                                            )
+                                        }
+
                                         return (
                                             <AccordionTreePanel
                                                 key={`${group.key}-output-message-${index}`}
@@ -352,6 +394,20 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                                     }
 
                                     const {role, ...messageWithoutRole} = message
+                                    if (spanEntityId) {
+                                        return (
+                                            <TraceSpanDrillInView
+                                                key={`${group.key}-output-message-${index}`}
+                                                spanId={spanEntityId}
+                                                title={role || "assistant"}
+                                                editable={false}
+                                                rootScope="span"
+                                                viewModePreset="message"
+                                                spanDataOverride={messageWithoutRole}
+                                            />
+                                        )
+                                    }
+
                                     return (
                                         <AccordionTreePanel
                                             key={`${group.key}-output-message-${index}`}

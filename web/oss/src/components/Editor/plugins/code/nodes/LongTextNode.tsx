@@ -107,13 +107,16 @@ export type SerializedLongTextNode = Spread<
  */
 function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: string}) {
     useLexicalComposerContext() // Ensure we're in a Lexical context
-    const {enabled: drillInEnabled} = useDrillInContext()
+    const {enabled: drillInEnabled, decodeEscapedJsonStrings} = useDrillInContext()
     const [copied, setCopied] = useState(false)
     const [expanded, setExpanded] = useState(false)
     const [popoverOpen, setPopoverOpen] = useState(false)
     const parsed = useMemo(
-        () => parseLongTextString(`"${decodeEscapedJsonString(fullValue)}"`),
-        [fullValue],
+        () =>
+            parseLongTextString(
+                `"${decodeEscapedJsonStrings ? decodeEscapedJsonString(fullValue) : fullValue}"`,
+            ),
+        [fullValue, decodeEscapedJsonStrings],
     )
     const spanRef = React.useRef<HTMLSpanElement>(null)
 

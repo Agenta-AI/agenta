@@ -77,6 +77,7 @@ const EditorPlugins = ({
     additionalCodePlugins = [],
     onPropertyClick,
     disableLongText,
+    decodeEscapedJsonStringsInLongText,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -134,6 +135,7 @@ const EditorPlugins = ({
                         additionalCodePlugins={additionalCodePlugins}
                         onPropertyClick={onPropertyClick}
                         disableLongText={disableLongText}
+                        decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
                     />
                     <TabIndentationPlugin />
                 </>

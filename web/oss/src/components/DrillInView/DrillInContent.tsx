@@ -965,52 +965,8 @@ function tryParseStructuredJson(value: string): unknown | null {
     }
 }
 
-function renderStringifiedJson(value: unknown): {value: unknown; didRender: boolean} {
-    if (typeof value === "string") {
-        const parsed = tryParseStructuredJson(value)
-        if (parsed === null) {
-            return {value, didRender: false}
-        }
-        const nested = renderStringifiedJson(parsed)
-        return {value: nested.value, didRender: true}
-    }
-
-    if (Array.isArray(value)) {
-        let didRender = false
-        const rendered = value.map((item) => {
-            const result = renderStringifiedJson(item)
-            if (result.didRender) {
-                didRender = true
-            }
-            return result.value
-        })
-        return {value: rendered, didRender}
-    }
-
-    if (value && typeof value === "object") {
-        let didRender = false
-        const rendered = Object.fromEntries(
-            Object.entries(value).map(([key, nestedValue]) => {
-                const result = renderStringifiedJson(nestedValue)
-                if (result.didRender) {
-                    didRender = true
-                }
-                return [key, result.value]
-            }),
-        )
-        return {value: rendered, didRender}
-    }
-
-    return {value, didRender: false}
-}
-
 function getDefaultFieldViewMode(value: unknown, availableModes: FieldViewMode[]): FieldViewMode {
-    const rendered = renderStringifiedJson(value).didRender
     const hasMode = (mode: FieldViewMode) => availableModes.includes(mode)
-
-    if (rendered && hasMode("rendered-json")) {
-        return "rendered-json"
-    }
 
     if (typeof value === "string") {
         if (hasMode("text")) return "text"
@@ -1019,6 +975,7 @@ function getDefaultFieldViewMode(value: unknown, availableModes: FieldViewMode[]
 
     if (hasMode("json")) return "json"
     if (hasMode("yaml")) return "yaml"
+    if (hasMode("rendered-json")) return "rendered-json"
     return availableModes[0] ?? "json"
 }
 

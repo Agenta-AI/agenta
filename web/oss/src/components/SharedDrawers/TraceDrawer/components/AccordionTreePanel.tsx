@@ -216,6 +216,7 @@ const LanguageAwareViewer = ({
             noProvider
             readOnly
             additionalCodePlugins={additionalPlugins}
+            decodeEscapedJsonStringsInLongText={language === "rendered-json"}
         />
     )
 }
@@ -321,6 +322,7 @@ const AccordionTreePanel = ({
     }, [incomingValue])
 
     const isStringValue = typeof sanitizedValue === "string"
+    const isObjectOrArrayValue = sanitizedValue !== null && typeof sanitizedValue === "object"
     const parsedStructuredString = useMemo(
         () => (isStringValue ? parseStructuredJson(sanitizedValue) : null),
         [isStringValue, sanitizedValue],
@@ -338,9 +340,12 @@ const AccordionTreePanel = ({
     }, [renderedJsonSource])
 
     const availableViewModes = useMemo<PanelViewMode[]>(() => {
-        if (viewModePreset === "message" && isStringValue) {
+        if (viewModePreset === "message") {
             const modes: PanelViewMode[] = ["text", "markdown"]
-            if (parsedStructuredString !== null) {
+            if (
+                (isStringValue && parsedStructuredString !== null) ||
+                (!isStringValue && isObjectOrArrayValue)
+            ) {
                 modes.push("rendered-json")
             }
             return modes
@@ -363,7 +368,13 @@ const AccordionTreePanel = ({
             modes.push("rendered-json")
         }
         return modes
-    }, [viewModePreset, isStringValue, parsedStructuredString, renderedJsonResult.didRender])
+    }, [
+        viewModePreset,
+        isStringValue,
+        isObjectOrArrayValue,
+        parsedStructuredString,
+        renderedJsonResult.didRender,
+    ])
     const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
         () => availableViewModes[0] ?? "json",
     )

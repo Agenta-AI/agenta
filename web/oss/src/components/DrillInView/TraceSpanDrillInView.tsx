@@ -74,6 +74,8 @@ export interface TraceSpanDrillInViewProps extends Omit<
     enableFieldViewModes?: boolean
     /** Root scope to render: span attributes (default) or full span payload */
     rootScope?: "attributes" | "span"
+    /** View-mode preset for span content rendering */
+    viewModePreset?: "default" | "message"
     /** Controls collapse behavior for rootScope="span" */
     allowSpanCollapse?: boolean
     /** Optional override data for rootScope="span" rendering */
@@ -191,6 +193,7 @@ const LanguageAwareViewer = ({
             noProvider
             readOnly
             additionalCodePlugins={additionalPlugins}
+            decodeEscapedJsonStringsInLongText={language === "rendered-json"}
         />
     )
 }
@@ -303,6 +306,7 @@ export const TraceSpanDrillInView = memo(
         hideFieldHeaders,
         showFieldCollapse,
         rootScope = "attributes",
+        viewModePreset = "default",
         allowSpanCollapse = true,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
@@ -323,6 +327,8 @@ export const TraceSpanDrillInView = memo(
         const [resultCount, setResultCount] = useState(0)
 
         const isStringValue = typeof sanitizedSpanData === "string"
+        const isObjectOrArrayValue =
+            sanitizedSpanData !== null && typeof sanitizedSpanData === "object"
         const parsedStructuredString = useMemo(
             () => (isStringValue ? parseStructuredJson(sanitizedSpanData) : null),
             [isStringValue, sanitizedSpanData],
@@ -368,6 +374,17 @@ export const TraceSpanDrillInView = memo(
         }, [sanitizedSpanData])
 
         const availableViewModes = useMemo(() => {
+            if (viewModePreset === "message") {
+                const modes: RawSpanDisplayMode[] = ["text", "markdown"]
+                if (
+                    (isStringValue && parsedStructuredString !== null) ||
+                    (!isStringValue && isObjectOrArrayValue)
+                ) {
+                    modes.push("rendered-json")
+                }
+                return modes
+            }
+
             if (isStringValue) {
                 if (parsedStructuredString !== null) {
                     const modes: RawSpanDisplayMode[] = ["json", "yaml"]
@@ -385,7 +402,13 @@ export const TraceSpanDrillInView = memo(
                 modes.push("rendered-json")
             }
             return modes
-        }, [isStringValue, parsedStructuredString, renderedJsonResult.didRender])
+        }, [
+            viewModePreset,
+            isStringValue,
+            isObjectOrArrayValue,
+            parsedStructuredString,
+            renderedJsonResult.didRender,
+        ])
         const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(
             () => availableViewModes[0] ?? "json",
         )
@@ -450,6 +473,9 @@ export const TraceSpanDrillInView = memo(
             link.download = ""
             link.click()
         }, [])
+        const hasAttachments = Boolean(
+            (fileAttachments?.length ?? 0) + (imageAttachments?.length ?? 0),
+        )
 
         if (rootScope === "span") {
             const showTitle = Boolean(title)
@@ -558,16 +584,17 @@ export const TraceSpanDrillInView = memo(
                                     />
                                 </EditorProvider>
                             ) : (
-                                <TextModeViewer
-                                    editorId={`trace-span-${textViewerId}`}
-                                    value={textOutput}
-                                    mode={viewMode as "text" | "markdown"}
-                                />
+                                <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
+                                    <TextModeViewer
+                                        editorId={`trace-span-${textViewerId}`}
+                                        value={textOutput}
+                                        mode={viewMode as "text" | "markdown"}
+                                    />
+                                </div>
                             )}
                         </div>
                     )}
-                    {(!allowSpanCollapse || !isCollapsed) &&
-                    (fileAttachments?.length || imageAttachments?.length) ? (
+                    {(!allowSpanCollapse || !isCollapsed) && hasAttachments ? (
                         <div className="flex flex-col gap-2 mt-4">
                             <span className="tracking-wide">Attachments</span>
                             <div className="flex flex-wrap gap-2">
