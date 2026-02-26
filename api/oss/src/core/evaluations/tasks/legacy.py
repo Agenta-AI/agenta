@@ -1433,6 +1433,360 @@ async def evaluate_batch_testset(
     return
 
 
+async def evaluate_batch_invocation(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    run_id: UUID,
+    #
+    testsets_service: TestsetsService,
+    applications_service: ApplicationsService,
+    evaluations_service: EvaluationsService,
+):
+    """
+    Run batch invocation over a testset without evaluator steps.
+
+    This loop creates scenarios and input/invocation results, but does not
+    invoke evaluator workflows and does not refresh evaluation metrics.
+    """
+    run = None
+    run_status = EvaluationStatus.SUCCESS
+
+    try:
+        # ----------------------------------------------------------------------
+        log.info(
+            "[SCOPE]       ", run_id=run_id, project_id=project_id, user_id=user_id
+        )
+        # ----------------------------------------------------------------------
+
+        # fetch project --------------------------------------------------------
+        project = await get_project_by_id(
+            project_id=str(project_id),
+        )
+        # ----------------------------------------------------------------------
+
+        # fetch secrets --------------------------------------------------------
+        _ = await get_llm_providers_secrets(
+            project_id=str(project_id),
+        )
+        # ----------------------------------------------------------------------
+
+        # prepare credentials --------------------------------------------------
+        secret_token = await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(project_id),
+            workspace_id=str(project.workspace_id),
+            organization_id=str(project.organization_id),
+        )
+
+        credentials = f"Secret {secret_token}"
+        # ----------------------------------------------------------------------
+
+        # fetch run ------------------------------------------------------------
+        run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
+        if not run.data or not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no steps!")
+
+        steps = run.data.steps
+        input_steps = [step for step in steps if step.type == "input"]
+        invocation_steps = [step for step in steps if step.type == "invocation"]
+        annotation_steps = [step for step in steps if step.type == "annotation"]
+
+        if annotation_steps:
+            raise ValueError(
+                f"Evaluation run with id {run_id} contains annotation steps; "
+                "use evaluate_batch_testset instead."
+            )
+        if len(input_steps) != 1 or len(invocation_steps) != 1:
+            raise ValueError(
+                f"Evaluation run with id {run_id} must have exactly one input and one invocation step."
+            )
+
+        input_step_key = input_steps[0].key
+        invocation_step_key = invocation_steps[0].key
+        input_refs = input_steps[0].references or {}
+        invocation_refs = invocation_steps[0].references or {}
+
+        testset_revision_ref = input_refs.get("testset_revision")
+        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
+            raise ValueError(
+                f"Evaluation run with id {run_id} missing input.testset_revision reference."
+            )
+
+        application_revision_ref = invocation_refs.get("application_revision")
+        if not application_revision_ref or not isinstance(
+            application_revision_ref.id, UUID
+        ):
+            raise ValueError(
+                f"Evaluation run with id {run_id} missing invocation.application_revision reference."
+            )
+        # ----------------------------------------------------------------------
+
+        # fetch testset --------------------------------------------------------
+        testset_revision = await testsets_service.fetch_testset_revision(
+            project_id=project_id,
+            testset_revision_ref=testset_revision_ref,
+        )
+        if not testset_revision:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} not found!"
+            )
+        if not testset_revision.data or not testset_revision.data.testcases:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} has no testcases!"
+            )
+
+        testset_variant_ref = Reference(id=testset_revision.variant_id)
+        testset_variant = await testsets_service.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=testset_variant_ref,
+        )
+        if not testset_variant:
+            raise ValueError(
+                f"Testset variant with id {testset_revision.variant_id} not found!"
+            )
+
+        testset_ref = Reference(id=testset_variant.testset_id)
+        testset = await testsets_service.fetch_testset(
+            project_id=project_id,
+            testset_ref=testset_ref,
+        )
+        if not testset:
+            raise ValueError(f"Testset with id {testset_ref.id} not found!")
+
+        testcases = testset_revision.data.testcases
+        testcases_data = [
+            {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+        ]
+        nof_testcases = len(testcases)
+        # ----------------------------------------------------------------------
+
+        # fetch application ----------------------------------------------------
+        application_revision = await applications_service.fetch_application_revision(
+            project_id=project_id,
+            application_revision_ref=application_revision_ref,
+        )
+        if not application_revision:
+            raise ValueError(
+                f"Application revision with id {application_revision_ref.id} not found!"
+            )
+
+        application_variant = await applications_service.fetch_application_variant(
+            project_id=project_id,
+            application_variant_ref=Reference(
+                id=application_revision.application_variant_id
+            ),
+        )
+        if not application_variant:
+            raise ValueError(
+                f"Application variant with id {application_revision.application_variant_id} not found!"
+            )
+
+        application = await applications_service.fetch_application(
+            project_id=project_id,
+            application_ref=Reference(id=application_variant.application_id),
+        )
+        if not application:
+            raise ValueError(
+                f"Application with id {application_variant.application_id} not found!"
+            )
+
+        deployment_uri = None
+        if application_revision.data:
+            deployment_uri = application_revision.data.url or getattr(
+                application_revision.data, "uri", None
+            )
+        if not deployment_uri:
+            raise ValueError(
+                f"No deployment URI found for revision {application_revision_ref.id}!"
+            )
+
+        uri = parse_url(url=deployment_uri)
+        if uri is None:
+            raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
+
+        revision_parameters = (
+            application_revision.data.parameters if application_revision.data else None
+        )
+        if revision_parameters is None:
+            raise ValueError(
+                f"Revision parameters for revision {application_revision_ref.id} not found!"
+            )
+        # ----------------------------------------------------------------------
+
+        # create scenarios -----------------------------------------------------
+        scenarios = await evaluations_service.create_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            scenarios=[
+                EvaluationScenarioCreate(
+                    run_id=run_id,
+                    status=EvaluationStatus.RUNNING,
+                )
+                for _ in range(nof_testcases)
+            ],
+        )
+        if len(scenarios) != nof_testcases:
+            raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
+        # ----------------------------------------------------------------------
+
+        # create input results -------------------------------------------------
+        input_results = await evaluations_service.create_results(
+            project_id=project_id,
+            user_id=user_id,
+            results=[
+                EvaluationResultCreate(
+                    run_id=run_id,
+                    scenario_id=scenario.id,
+                    step_key=input_step_key,
+                    status=EvaluationStatus.SUCCESS,
+                    testcase_id=testcases[idx].id,
+                )
+                for idx, scenario in enumerate(scenarios)
+            ],
+        )
+        if len(input_results) != nof_testcases:
+            raise ValueError(f"Failed to create input results for run {run_id}!")
+        # ----------------------------------------------------------------------
+
+        # invoke application ---------------------------------------------------
+        run_config = {
+            "batch_size": 10,
+            "max_retries": 3,
+            "retry_delay": 3,
+            "delay_between_batches": 5,
+        }
+        headers = {"Authorization": credentials} if credentials else {}
+        headers["ngrok-skip-browser-warning"] = "1"
+        _ = headers  # keep parity with legacy setup flow
+
+        invocations: List[InvokationResult] = await llm_apps_service.batch_invoke(
+            project_id=str(project_id),
+            user_id=str(user_id),
+            testset_data=testcases_data,  # type: ignore[arg-type]
+            parameters=revision_parameters,  # type: ignore[arg-type]
+            uri=uri,
+            rate_limit_config=run_config,
+            application_id=str(application.id),
+            references={
+                "testset": {"id": str(testset.id)},
+                "testset_revision": {"id": str(testset_revision.id)},
+                "application": {"id": str(application.id)},
+                "application_variant": {"id": str(application_variant.id)},
+                "application_revision": {"id": str(application_revision.id)},
+            },
+            scenarios=[
+                s.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+                for s in scenarios
+            ],
+        )
+        if len(invocations) != nof_testcases:
+            raise ValueError(f"Unexpected batch invocation count for run {run_id}!")
+        # ----------------------------------------------------------------------
+
+        # create invocation results + finalize scenarios ------------------------
+        run_has_errors = 0
+        invocation_results = await evaluations_service.create_results(
+            project_id=project_id,
+            user_id=user_id,
+            results=[
+                EvaluationResultCreate(
+                    run_id=run_id,
+                    scenario_id=scenario.id,
+                    step_key=invocation_step_key,
+                    status=(
+                        EvaluationStatus.SUCCESS
+                        if not invocations[idx].result.error
+                        else EvaluationStatus.FAILURE
+                    ),
+                    trace_id=invocations[idx].trace_id,
+                    error=(
+                        invocations[idx].result.error.model_dump(mode="json")
+                        if invocations[idx].result.error
+                        else None
+                    ),
+                )
+                for idx, scenario in enumerate(scenarios)
+            ],
+        )
+        if len(invocation_results) != nof_testcases:
+            raise ValueError(f"Failed to create invocation results for run {run_id}!")
+
+        for idx, scenario in enumerate(scenarios):
+            invocation = invocations[idx]
+            scenario_status = (
+                EvaluationStatus.SUCCESS
+                if not invocation.result.error
+                else EvaluationStatus.ERRORS
+            )
+            if invocation.result.error:
+                run_has_errors += 1
+
+            edited_scenario = await evaluations_service.edit_scenario(
+                project_id=project_id,
+                user_id=user_id,
+                scenario=EvaluationScenarioEdit(
+                    id=scenario.id,
+                    tags=scenario.tags,
+                    meta=scenario.meta,
+                    status=scenario_status,
+                ),
+            )
+            if not edited_scenario:
+                raise ValueError(
+                    f"Failed to edit evaluation scenario with id {scenario.id}!"
+                )
+
+        if run_has_errors:
+            run_status = EvaluationStatus.ERRORS
+        # ----------------------------------------------------------------------
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.error(
+            f"An error occurred during batch invocation: {e}",
+            exc_info=True,
+        )
+        run_status = EvaluationStatus.FAILURE
+
+    if not run:
+        log.info("[FAIL]      ", run_id=run_id, project_id=project_id, user_id=user_id)
+        return
+
+    await evaluations_service.edit_run(
+        project_id=project_id,
+        user_id=user_id,
+        run=EvaluationRunEdit(
+            id=run_id,
+            name=run.name,
+            description=run.description,
+            tags=run.tags,
+            meta=run.meta,
+            status=run_status,
+            data=run.data,
+        ),
+    )
+
+    if run_status == EvaluationStatus.FAILURE and is_ee():
+        await check_entitlements(
+            organization_id=project.organization_id,  # type: ignore[attr-defined]
+            key=Counter.EVALUATIONS,
+            delta=-1,
+        )
+
+    log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
+    return
+
+
 async def _evaluate_batch_items(
     *,
     project_id: UUID,

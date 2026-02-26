@@ -1918,8 +1918,21 @@ class SimpleEvaluationsService:
                 has_application_steps = bool(_evaluation.data.application_steps)
                 has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
 
-                if has_testset_steps and has_application_steps:
+                if has_testset_steps and has_application_steps and has_evaluator_steps:
                     await self.evaluations_worker.evaluate_batch_testset.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+
+                elif (
+                    has_testset_steps
+                    and has_application_steps
+                    and not has_evaluator_steps
+                    and not has_query_steps
+                ):
+                    await self.evaluations_worker.evaluate_batch_invocation.kiq(
                         project_id=project_id,
                         user_id=user_id,
                         #

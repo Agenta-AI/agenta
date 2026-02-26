@@ -16,6 +16,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 
 from oss.src.core.evaluations.tasks.legacy import (
     evaluate_batch_testset as evaluate_batch_testset_impl,
+    evaluate_batch_invocation as evaluate_batch_invocation_impl,
     evaluate_batch_testcases as evaluate_batch_testcases_impl,
     evaluate_batch_traces as evaluate_batch_traces_impl,
 )
@@ -147,6 +148,32 @@ class EvaluationsWorker:
             return result
 
         @self.broker.task(
+            task_name="evaluations.invocations.batch",
+            retry_on_error=False,
+            max_retries=0,
+        )
+        async def evaluate_batch_invocation(
+            *,
+            project_id: UUID,
+            user_id: UUID,
+            #
+            run_id: UUID,
+        ) -> Any:
+            log.info("[TASK] Starting evaluate_batch_invocation")
+            result = await evaluate_batch_invocation_impl(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                run_id=run_id,
+                #
+                testsets_service=self.testsets_service,
+                applications_service=self.applications_service,
+                evaluations_service=self.evaluations_service,
+            )
+            log.info("[TASK] Completed evaluate_batch_invocation")
+            return result
+
+        @self.broker.task(
             task_name="evaluations.traces.batch",
             retry_on_error=False,
             max_retries=0,
@@ -205,5 +232,6 @@ class EvaluationsWorker:
         # Store task references for external access
         self.evaluate_batch_testset = evaluate_batch_testset
         self.evaluate_live_query = evaluate_live_query
+        self.evaluate_batch_invocation = evaluate_batch_invocation
         self.evaluate_batch_traces = evaluate_batch_traces
         self.evaluate_batch_testcases = evaluate_batch_testcases
