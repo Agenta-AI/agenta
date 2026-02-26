@@ -1,3 +1,7 @@
+from importlib.metadata import version as _version
+
+__version__ = _version("agenta")
+
 from typing import Any, Callable, Optional
 
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
