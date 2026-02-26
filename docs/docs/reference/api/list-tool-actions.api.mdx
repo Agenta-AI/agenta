@@ -1,0 +1,71 @@
+---
+id: list-tool-actions
+title: "List Actions"
+description: "List Actions"
+sidebar_label: "List Actions"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtz2zYQ/iuaPSUzrKl6euKpGidtVLu1Gqu9eDQeiFxJSEGCAUA3iob/vbMAHyApMart3HzSCNwXvm93gcUBDNtqiO5hKaXQsApA5qiY4TKbJxCB4No8GCnFA4tpUUMAOVMsRYOKFA+QsRQhglzJR56gevgH9xAAz2iNmR0EoPBzwRUmEBlVYAA63mHKIDqA2eekq43i2RYCMNwIWlhUxibXuIeyDBovPDO4dfG9iKN5a2/g63OBqvFQ/2ldbJjQHR8s299uLCRdb2SyWskKIaBctf7/tGZ9rzEzuJWKo36Oa6YUs7EbTPUQgHIspqs2Aj8wwVNunhOT5Q7VKB431kkHj0Jpqb4zDVfOie93UwjxkKBhXPwfJioPaykFsgwCSHDDCmEa0drlL4UQk3eV/ZKCUahzmWm0fF1Op/SToI4Vzyk/IYK7Io5R600hJh8rYQgglpnBzNi957ngsU3n8JMmnYMXW66ouA13HmJZOKUePR4qVsLbwrQMwEjDxKja0kr01Coan8lPAHUbig5tbrcWuzukBjFS+7beg4rv02J/0Pcy6FLxtG2880wQJm2h+dvp2+vX9JE69cC+X5UBCLmVTw3yhnTL1q1cf8LYdLL+HlzvtdCtfOaluGKGCbmdxdUuX0l5OVLqRjOa9f7x7EuxJOG0SSYWHfkzwjnaudN1d6VuebR03BfEXMWFYOoNNb/ftMx+uC1MXpi30M82MlJhf46WY2EMwJ4uDPJ7THnRQlrSUZAX5hXclwJ37uAsA5BW+xXZl0L2tsLzWDOvZcj4XdVUhrZsx5F5H/Ezu+JYbHfO7AudM809anW6M8+aAcZvyyPQDLzo5tJVlqT40+Xl8I72NxM8cQPFe6XszfWJFzR3+eycQl0BIeMT96Bvl8QIUDfSBUh8pno7dgz/jlqzLbbMnxa1YEyW9LXuoVbc7wL2/DVfPDMDUq4Iyy/mm4lD2LjwKzkvfVqKHEOnoXB5NVpAH5bLxcCgy49uYtxwbSZtEqZodpJG7C0aO1SbHUQQ5gofOf4b0sytw9ilX1gP1zo8+HN2GXrzsA4Pvem4DKvbcggBaFSP9cheKAER7IzJdRSGsZBFcsG2mBl2wXjIcm5LVWNcKG72VmW2mF/j/gOyBJUtHE/A9g+Xkl2xdhzN+XVbyRHMCrOTin91eVZNVzunVdr02Eg/O2Y2uMlsMYcAaBsO0unFjxdT6APdEabaY7FNtdq3/QxBD4Vm/xAAprbwwCBLf24/UGS51CZlmWevx2vvRloBQDkb5oJxW1XW86Hi/B4qzimp7CuMvYQS75QXNfMQQDR4Y2nJp8/Dx5H20Ybyfyc1NT04HNZM419KlCUtu6mWSE64ZmvhzbX2st6MvY9MFLQZ21BOyHaeL85RqJ8VzjJevwWcI9wb4FuVFf1RnHSO77pHYdO+4c3HqsO8nbSHeJfaOuGzDmB1TB0Cj8b+/Xz3s8MeAbu6oKvBDGZxjLnPx+DEIvya5vXr+yWU5X9wlvCb
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Actions"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/tools/catalog/providers/{provider_key}/integrations/{integration_key}/actions/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Actions
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"provider_key","in":"path","required":true,"schema":{"type":"string","title":"Provider Key"}},{"name":"integration_key","in":"path","required":true,"schema":{"type":"string","title":"Integration Key"}},{"name":"query","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Query"}},{"name":"categories","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}],"title":"Categories"}},{"name":"limit","in":"query","required":false,"schema":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"}},{"name":"cursor","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Cursor"}},{"name":"full_details","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Full Details"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"total":{"type":"integer","title":"Total","default":0},"cursor":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Cursor"},"actions":{"items":{"anyOf":[{"properties":{"key":{"type":"string","title":"Key"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"categories":{"items":{"type":"string"},"type":"array","title":"Categories","default":[]},"logo":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Logo"}},"type":"object","required":["key","name"],"title":"ToolCatalogAction"},{"properties":{"key":{"type":"string","title":"Key"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"categories":{"items":{"type":"string"},"type":"array","title":"Categories","default":[]},"logo":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Logo"},"schemas":{"anyOf":[{"properties":{"parameters":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Parameters"},"inputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Inputs"},"outputs":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Outputs"}},"type":"object","title":"JsonSchemas"},{"type":"null"}]},"scopes":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Scopes"}},"type":"object","required":["key","name"],"title":"ToolCatalogActionDetails"}]},"type":"array","title":"Actions","default":[]}},"type":"object","title":"ToolCatalogActionsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
