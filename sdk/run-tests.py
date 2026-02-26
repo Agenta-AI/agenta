@@ -9,13 +9,14 @@ from dotenv import load_dotenv
 
 TYPES = {
     "license": ["ee", "oss"],
-    "coverage": ["smoke"],
+    "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
     "role": ["owner", "admin", "editor", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],
+    "cost": ["free", "paid"],
 }
 
 
@@ -47,7 +48,7 @@ TYPES = {
 @click.option(
     "--coverage",
     type=click.Choice(TYPES["coverage"]),
-    help="Coverage [smoke]",
+    help="Coverage [smoke|full] (full = no coverage marker filter)",
     show_default=True,
 )
 @click.option(
@@ -82,6 +83,11 @@ TYPES = {
     help="Speed [fast|slow]",
 )
 @click.option(
+    "--cost",
+    type=click.Choice(TYPES["cost"]),
+    help="Cost [free|paid]",
+)
+@click.option(
     "--scope",
     help="Scope [...]",
 )
@@ -102,6 +108,7 @@ def run_tests(
     path: Optional[str] = None,
     case: Optional[str] = None,
     speed: Optional[str] = None,
+    cost: Optional[str] = None,
     scope: Optional[str] = None,
     pytest_args: Optional[tuple] = None,
 ):
@@ -149,14 +156,22 @@ def run_tests(
         ("PATH", path),
         ("CASE", case),
         ("SPEED", speed),
+        ("COST", cost),
         ("SCOPE", scope),
     ]:
         if value:
+            if name == "COVERAGE" and value == "full":
+                os.environ.pop("COVERAGE", None)
+                click.echo("COVERAGE=full (coverage markers disabled)")
+                continue
             os.environ[name] = value
             click.echo(f"{name}={value}")
             marker_args.append(f"{name.lower()}_{value}")
 
-    test_dirs = ["tests/pytest"]
+    if license == "ee":
+        test_dirs = ["oss/tests/pytest", "ee/tests/pytest"]
+    else:
+        test_dirs = [f"{license}/tests/pytest"]
 
     cmd = ["pytest"] + test_dirs
 

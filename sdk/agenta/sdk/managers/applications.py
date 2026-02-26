@@ -8,6 +8,7 @@ from agenta.sdk.models.workflows import (
     #
     ApplicationRevisionResponse,
     #
+    SimpleApplication,
     SimpleApplicationFlags,
     SimpleApplicationData,
     SimpleApplicationCreate,
@@ -79,6 +80,33 @@ async def _retrieve_application(
     # print(" --- application_revision:", application_revision)
 
     return application_revision
+
+
+async def _fetch_simple_application(
+    *,
+    application_id: UUID,
+) -> Optional[SimpleApplication]:
+    response = authed_api()(
+        method="GET",
+        endpoint=f"/preview/simple/applications/{application_id}",
+    )
+
+    if response.status_code == 404:
+        return None
+
+    try:
+        response.raise_for_status()
+    except Exception as e:
+        detail = _response_detail(response)
+        message = (
+            f"Failed to fetch application '{application_id}' before update: {detail}"
+        )
+        print("[ERROR]:", message)
+        raise ValueError(message) from e
+
+    simple_application_response = SimpleApplicationResponse(**response.json())
+
+    return simple_application_response.application
 
 
 async def aretrieve(
@@ -240,21 +268,35 @@ async def aupsert(
     # print("Retrieve response:", retrieve_response)
 
     if retrieve_response and retrieve_response.id and retrieve_response.application_id:
+        existing_application_name = None
+        try:
+            with_name = await _fetch_simple_application(
+                application_id=retrieve_response.application_id
+            )
+        except ValueError as e:
+            print(
+                "[WARN]: Failed to fetch existing application for name preservation; "
+                f"continuing without it: {e}"
+            )
+            with_name = None
+        if with_name:
+            existing_application_name = with_name.name
+
         # TEMPORARY: API simple application edit currently rejects renaming.
         # Preserve the existing stored name when updating by slug/id so evaluate()
         # can keep syncing configuration/data without triggering rename failures.
         if (
-            retrieve_response.name
+            existing_application_name
             and name is not None
-            and name != retrieve_response.name
+            and name != existing_application_name
         ):
             print(
                 "[INFO]: Renaming applications is temporarily disabled. "
-                f"Using existing application name '{retrieve_response.name}'."
+                f"Using existing application name '{existing_application_name}'."
             )
-            name = retrieve_response.name
-        elif retrieve_response.name and name is None:
-            name = retrieve_response.name
+            name = existing_application_name
+        elif existing_application_name and name is None:
+            name = existing_application_name
 
         application_id = retrieve_response.application_id
         # print(" --- Updating application...", application_id)

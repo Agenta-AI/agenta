@@ -1,0 +1,107 @@
+name: "06 - railway preview: build images"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'api/**'
+      - 'web/**'
+      - 'services/**'
+      - 'hosting/railway/**'
+      - '.github/workflows/06-railway-preview-build.yml'
+      - '.github/workflows/07-railway-preview-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number (for manual runs)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: railway-preview-build-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+      pr_number: ${{ steps.tag.outputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          SHA="$(git rev-parse --short HEAD)"
+          TAG="pr-${PR}-${SHA}"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
+          echo "Image tag: ${TAG}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: api
+          file: api/oss/docker/Dockerfile.gh
+          push: true
+          tags: ghcr.io/agenta-ai/agenta-api:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          file: web/oss/docker/Dockerfile.gh
+          push: true
+          tags: ghcr.io/agenta-ai/agenta-web:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Build and push Services image
+        uses: docker/build-push-action@v6
+        with:
+          context: services
+          file: services/oss/docker/Dockerfile.gh
+          push: true
+          tags: ghcr.io/agenta-ai/agenta-services:${{ steps.tag.outputs.image_tag }}
+          cache-from: type=gha,scope=services
+          cache-to: type=gha,mode=max,scope=services
+
+      - name: Summary
+        run: |
+          TAG="${{ steps.tag.outputs.image_tag }}"
+          echo "### Railway Preview Images" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tag |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-----|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| agenta-api | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| agenta-web | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| agenta-services | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: build-and-push
+    if: needs.build-and-push.outputs.pr_number != ''
+    uses: ./.github/workflows/07-railway-preview-deploy.yml
+    with:
+      image_tag: ${{ needs.build-and-push.outputs.image_tag }}
+      pr_number: ${{ needs.build-and-push.outputs.pr_number }}
+    secrets: inherit

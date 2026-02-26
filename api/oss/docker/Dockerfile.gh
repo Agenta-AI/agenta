@@ -98,7 +98,9 @@ COPY --from=builder /app/entrypoints /app/entrypoints
 COPY --from=builder /app/sdk /app/sdk
 
 RUN set -eux; \
-    sed -i -e '$a\' /etc/cron.d/queries-cron
+    for cron_file in /etc/cron.d/queries-cron; do \
+        sed -i -e '$a\' "${cron_file}"; \
+    done
 
 LABEL org.opencontainers.image.title="agenta-api" \
     org.opencontainers.image.description="Agenta API GH runtime image" \

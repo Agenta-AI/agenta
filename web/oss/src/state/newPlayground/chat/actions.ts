@@ -136,15 +136,21 @@ export const runChatTurnAtom = atom(
             })
         }
 
+        const currentIds = (get(chatTurnIdsAtom) || []) as string[]
+        const currentIndex = currentIds.indexOf(turnId)
+
         if (variantId) {
+            set(chatTurnIdsAtom, (prev) => {
+                const list = prev || []
+                const i = list.indexOf(turnId)
+                return i >= 0 ? list.slice(0, i + 1) : list
+            })
+
             const rowId = turnId
             // map[variantId] || `turn-${variantId}-${turnId}`
             set(triggerWebWorkerTestAtom, {rowId, revisionId: variantId, messageId})
             return
         }
-
-        const x = get(chatTurnIdsAtom)
-        const currentIndex = x.indexOf(turnId)
 
         set(chatTurnIdsAtom, (prev) => {
             const newIds = [...prev]

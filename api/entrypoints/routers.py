@@ -110,13 +110,17 @@ from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.core.tools.providers.composio import ComposioToolsAdapter
+from oss.src.core.tools.registry import ToolsGatewayRegistry
+from oss.src.core.tools.service import ToolsService
+from oss.src.apis.fastapi.tools.router import ToolsRouter
 
 
 from oss.src.routers import (
     admin_router,
     app_router,
     environment_router,
-    evaluators_router,
     user_profile,
     variants_router,
     configs_router,
@@ -172,6 +176,9 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     yield
+
+    for adapter in _composio_adapters.values():
+        await adapter.close()
 
 
 app = FastAPI(
@@ -251,6 +258,8 @@ environments_dao = GitDAO(
 
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
+
+tools_dao = ToolsDAO()
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -359,6 +368,25 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_worker=evaluations_worker,
 )
 
+# Tools adapter + service
+_composio_adapters = {}
+if env.composio.enabled:
+    _composio_adapters["composio"] = ComposioToolsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+else:
+    log.warning("Composio not enabled — set COMPOSIO_API_KEY to activate gateway tools")
+
+tools_adapter_registry = ToolsGatewayRegistry(
+    adapters=_composio_adapters,
+)
+
+tools_service = ToolsService(
+    tools_dao=tools_dao,
+    adapter_registry=tools_adapter_registry,
+)
+
 # ROUTERS ----------------------------------------------------------------------
 
 secrets = VaultRouter(
@@ -441,6 +469,10 @@ simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+tools = ToolsRouter(
+    tools_service=tools_service,
+)
+
 invocations_service = InvocationsService(
     tracing_router=tracing,
     applications_service=applications_service,
@@ -517,25 +549,59 @@ app.include_router(
 
 app.include_router(
     router=invocations.router,
+    prefix="/invocations",
+    tags=["Invocations"],
+)
+
+app.include_router(
+    router=invocations.router,
     prefix="/preview/invocations",
     tags=["Invocations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/annotations",
+    tags=["Annotations"],
 )
 
 app.include_router(
     router=annotations.router,
     prefix="/preview/annotations",
     tags=["Annotations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testcases.router,
+    prefix="/testcases",
+    tags=["Testcases"],
 )
 
 app.include_router(
     router=testcases.router,
     prefix="/preview/testcases",
     tags=["Testcases"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testsets.router,
+    prefix="/testsets",
+    tags=["Testsets"],
 )
 
 app.include_router(
     router=testsets.router,
     prefix="/preview/testsets",
+    tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_testsets.router,
+    prefix="/simple/testsets",
     tags=["Testsets"],
 )
 
@@ -543,11 +609,25 @@ app.include_router(
     router=simple_testsets.router,
     prefix="/preview/simple/testsets",
     tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=queries.router,
+    prefix="/queries",
+    tags=["Queries"],
 )
 
 app.include_router(
     router=queries.router,
     prefix="/preview/queries",
+    tags=["Queries"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queries.router,
+    prefix="/simple/queries",
     tags=["Queries"],
 )
 
@@ -555,6 +635,7 @@ app.include_router(
     router=simple_queries.router,
     prefix="/preview/simple/queries",
     tags=["Queries"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -565,7 +646,20 @@ app.include_router(
 
 app.include_router(
     router=applications.router,
+    prefix="/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=applications.router,
     prefix="/preview/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/simple/applications",
     tags=["Applications"],
 )
 
@@ -573,12 +667,20 @@ app.include_router(
     router=simple_applications.router,
     prefix="/preview/simple/applications",
     tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=workflows.router,
+    prefix="/workflows",
+    tags=["Workflows"],
 )
 
 app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
     tags=["Workflows"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -589,7 +691,20 @@ app.include_router(
 
 app.include_router(
     router=evaluators.router,
+    prefix="/evaluators",
+    tags=["Evaluators"],
+)
+
+app.include_router(
+    router=evaluators.router,
     prefix="/preview/evaluators",
+    tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluators.router,
+    prefix="/simple/evaluators",
     tags=["Evaluators"],
 )
 
@@ -597,6 +712,7 @@ app.include_router(
     router=simple_evaluators.router,
     prefix="/preview/simple/evaluators",
     tags=["Evaluators"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -612,6 +728,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=tools.router,
+    prefix="/preview/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
@@ -619,7 +741,20 @@ app.include_router(
 
 app.include_router(
     router=evaluations.router,
+    prefix="/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=evaluations.router,
     prefix="/preview/evaluations",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluations.router,
+    prefix="/simple/evaluations",
     tags=["Evaluations"],
 )
 
@@ -627,6 +762,7 @@ app.include_router(
     router=simple_evaluations.router,
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -673,12 +809,6 @@ app.include_router(
     container_router.router,
     prefix="/containers",
     tags=["Containers"],
-)
-
-app.include_router(
-    evaluators_router.router,
-    prefix="/evaluators",
-    tags=["Evaluators"],
 )
 
 app.include_router(

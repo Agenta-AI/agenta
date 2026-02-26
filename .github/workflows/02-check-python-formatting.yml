@@ -25,4 +25,4 @@ jobs:
         run: pip install ruff==0.14.0
 
       - name: Run Ruff formatting check
-        run: ruff format --check api sdk
+        run: ruff format --check
