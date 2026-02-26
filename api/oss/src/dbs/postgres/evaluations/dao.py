@@ -2299,6 +2299,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             project_id=project_id,
             dto=queue,
         )
+        queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
             async with engine.core_session() as session:
@@ -2364,6 +2365,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             )
             for queue in queues
         ]
+        for queue_dbe, queue in zip(queue_dbes, queues):
+            queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
             async with engine.core_session() as session:
@@ -2497,6 +2500,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
             )
+            queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
@@ -2560,6 +2564,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         updated_at=datetime.now(timezone.utc),
                         updated_by_id=user_id,
                     )
+                    queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
@@ -2669,6 +2674,16 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.run_id.in_(queue.run_ids),
                     )
 
+                if queue.user_id is not None:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.user_ids.any(queue.user_id),  # type: ignore[arg-type]
+                    )
+
+                if queue.user_ids is not None and len(queue.user_ids) != 0:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.user_ids.overlap(queue.user_ids),  # type: ignore[arg-type]
+                    )
+
                 if queue.flags is not None:
                     stmt = stmt.filter(
                         EvaluationQueueDBE.flags.contains(queue.flags),
@@ -2746,3 +2761,28 @@ async def _get_run_flags(
     run_flags = res.scalars().first()
 
     return run_flags or {}
+
+
+def _flatten_queue_user_ids(
+    queue_data,
+) -> Optional[List[UUID]]:
+    if queue_data is None or not getattr(queue_data, "user_ids", None):
+        return None
+
+    user_ids: List[UUID] = []
+    seen = set()
+
+    for repeat_user_ids in queue_data.user_ids:
+        if not repeat_user_ids:
+            continue
+
+        for user_id in repeat_user_ids:
+            normalized_user_id = UUID(str(user_id))
+
+            if normalized_user_id in seen:
+                continue
+
+            seen.add(normalized_user_id)
+            user_ids.append(normalized_user_id)
+
+    return user_ids or None
