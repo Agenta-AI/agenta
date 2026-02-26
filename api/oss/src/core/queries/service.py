@@ -120,9 +120,7 @@ class QueriesService:
             formatting=(
                 query_revision.data.formatting.model_copy(
                     update={
-                        "focus": (
-                            query_revision.data.formatting.focus or Focus.TRACE
-                        ),
+                        "focus": (query_revision.data.formatting.focus or Focus.TRACE),
                         "format": (
                             query_revision.data.formatting.format or Format.AGENTA
                         ),
