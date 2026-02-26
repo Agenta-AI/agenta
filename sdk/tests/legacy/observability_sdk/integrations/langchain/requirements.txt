@@ -1,8 +1,0 @@
-agenta==0.27.0a10
-# opentelemetry.instrumentation.openai==0.31.2
-openai
-opentelemetry-instrumentation-langchain
-langchain
-langchain_community
-langchain_openai
-openinference-instrumentation-langchain

@@ -1,5 +1,0 @@
-opentelemetry-api
-opentelemetry-sdk
-opentelemetry-exporter-otlp
-agenta==0.27.0a9
-litellm

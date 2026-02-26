@@ -1,5 +1,0 @@
-agenta
-litellm
-uvicorn
-opentelemetry.instrumentation.openai
-openai

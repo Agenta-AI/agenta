@@ -1,5 +1,0 @@
-export enum AnnotateDrawerSteps {
-    ANNOTATE = "ANNOTATE",
-    SELECT_EVALUATORS = "SELECT_EVALUATORS",
-    CREATE_EVALUATOR = "CREATE_EVALUATOR",
-}
