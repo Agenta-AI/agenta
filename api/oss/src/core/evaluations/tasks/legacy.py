@@ -2029,26 +2029,11 @@ async def _evaluate_batch_items(
                 for annotation_step in annotation_steps:
                     annotation_step_key = annotation_step.key
                     if annotation_step.origin == "human":
-                        pending_results = await evaluations_service.create_results(
-                            project_id=project_id,
-                            user_id=user_id,
-                            results=[
-                                EvaluationResultCreate(
-                                    run_id=run_id,
-                                    scenario_id=scenario.id,
-                                    step_key=annotation_step_key,
-                                    status=EvaluationStatus.PENDING,
-                                    testcase_id=source_testcase_id,
-                                    trace_id=source_trace_id,
-                                )
-                            ],
-                        )
-                        if len(pending_results) != 1:
-                            raise ValueError(
-                                f"Failed to seed human result for scenario {scenario.id}"
-                            )
                         scenario_has_pending = True
                         run_has_pending = True
+                        continue
+
+                    if annotation_step.origin != "auto":
                         continue
 
                     evaluator_revision = evaluator_revisions.get(annotation_step_key)
