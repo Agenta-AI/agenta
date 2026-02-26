@@ -1,5 +1,6 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
@@ -11,22 +12,18 @@ import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {getNodeById} from "@/oss/lib/traces/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
 import {
-    getAgData,
-    getAgDataInputs,
-    getAgDataOutputs,
-    getCost,
-    getLatency,
-    getTokens,
-} from "@/oss/state/newObservability/selectors/tracing"
+    buildTraceQueryParams,
+    fetchAllTracesForExport,
+} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
 
+import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
 import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
 import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
@@ -88,7 +85,7 @@ const AutoRefreshControl: React.FC<{
                 </Typography.Text>
                 {checked && (
                     <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-all duration-100"
+                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-[width] duration-100"
                         style={{width: `${progress}%`}}
                     />
                 )}
@@ -110,6 +107,8 @@ const ObservabilityHeader = ({
 }: ObservabilityHeaderProps) => {
     const [isScrolled, setIsScrolled] = useState(false)
     const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
+    const [isExporting, setIsExporting] = useState(false)
+    const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
 
     const {
@@ -121,6 +120,7 @@ const ObservabilityHeader = ({
         setTraceTabs,
         filters,
         setFilters,
+        sort,
         setSort,
         selectedRowKeys,
         setSelectedRowKeys,
@@ -155,6 +155,13 @@ const ObservabilityHeader = ({
             window.removeEventListener("scroll", handleScroll)
         }
     }, [])
+
+    useEffect(
+        () => () => {
+            exportAbortRef.current?.abort()
+        },
+        [],
+    )
 
     const updateFilter = useCallback(
         ({field, operator, value}: {field: string; operator: FilterConditions; value: string}) => {
@@ -206,13 +213,16 @@ const ObservabilityHeader = ({
         setFilters(newFilters)
     }, [])
 
-    const onClearFilter = useCallback((filter: Filter[]) => {
-        setFilters(filter)
-        setSearchQuery("")
-        if (traceTabs === "chat") {
-            setTraceTabs("trace")
-        }
-    }, [])
+    const onClearFilter = useCallback(
+        (filter: Filter[]) => {
+            setFilters(filter)
+            setSearchQuery("")
+            if (traceTabs === "chat") {
+                setTraceTabs("trace")
+            }
+        },
+        [setFilters, setSearchQuery, setTraceTabs, traceTabs],
+    )
 
     const onTraceTabChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -265,57 +275,93 @@ const ObservabilityHeader = ({
     }, [traces, selectedRowKeys, setTestsetDrawerData])
 
     const onExport = useCallback(async () => {
+        const exportKey = "observability-export"
+
         try {
-            if (traces.length) {
-                const {currentApp} = getAppValues()
-                const filename = `${currentApp?.app_name || ""}_observability.csv`
+            if (!traces.length) return
 
-                const convertToStringOrJson = (value: any) => {
-                    return typeof value === "string" ? value : JSON.stringify(value)
-                }
+            const {currentApp} = getAppValues()
+            const appId = currentApp?.app_id || ""
+            const filename = `${currentApp?.app_name || ""}_observability.csv`
 
-                // Helper function to create a trace object
-                const createTraceObject = (trace: any) => {
-                    const inputs = getAgDataInputs(trace)
-                    const outputs = getAgDataOutputs(trace)
-                    const duration = formatLatency(getLatency(trace))
-                    const cost = formatCurrency(getCost(trace))
-                    const usage = formatTokenUsage(getTokens(trace))
+            const {
+                params,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+                isHasAnnotationSelected,
+            } = buildTraceQueryParams(filters, sort, traceTabs, undefined)
 
-                    return {
-                        "Trace ID": trace.trace_id,
-                        Name: trace.span_name || "N/A",
-                        "Span type": trace.span_type || "N/A",
-                        Inputs: convertToStringOrJson(inputs) || "N/A",
-                        Outputs: convertToStringOrJson(outputs) || "N/A",
-                        Duration: duration,
-                        Cost: cost,
-                        Usage: usage,
-                        Timestamp: formatDay({
-                            date: trace.start_time,
-                            inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
-                            outputFormat: "HH:mm:ss DD MMM YYYY",
-                        }),
-                        Status: trace.status_code === "failed" ? "ERROR" : "SUCCESS",
-                    }
-                }
+            const headers =
+                columns
+                    .map((col) => {
+                        if (col.title === "ID") return "Trace ID"
+                        return typeof col.title === "string" ? col.title : null
+                    })
+                    .filter((header): header is string => Boolean(header)) || []
 
-                const csvData = convertToCsv(
-                    traces.flatMap((trace) => {
-                        const parentTrace = createTraceObject(trace)
-                        return trace.children && Array.isArray(trace.children)
-                            ? [parentTrace, ...trace.children.map(createTraceObject)]
-                            : [parentTrace]
-                    }),
-                    columns.map((col) => (col.title === "ID" ? "Trace ID" : (col.title as string))),
-                )
+            const controller = new AbortController()
+            exportAbortRef.current = controller
 
-                downloadCsv(csvData, filename)
+            setIsExporting(true)
+            message.loading({
+                content: "Preparing export",
+                key: exportKey,
+                duration: 0,
+            })
+
+            const {csvParts, rowCount} = await fetchAllTracesForExport({
+                params,
+                appId,
+                isHasAnnotationSelected,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+                formatRow: createTraceObject,
+                headers: headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS,
+                signal: controller.signal,
+                onProgress: (count) => {
+                    message.loading({
+                        content: `Exporting ${count.toLocaleString()} rows`,
+                        key: exportKey,
+                        duration: 0,
+                    })
+                },
+            })
+
+            if (!rowCount) {
+                message.info({
+                    content: "No traces to export",
+                    key: exportKey,
+                })
+
+                return
             }
+
+            downloadCsv(csvParts, filename)
+
+            message.success({
+                content: `Exported ${rowCount.toLocaleString()} rows`,
+                key: exportKey,
+            })
         } catch (error) {
+            if ((error as Error).name === "AbortError") {
+                message.info({
+                    content: "Export cancelled",
+                    key: exportKey,
+                })
+
+                return
+            }
+
             console.error("Export error:", error)
+            message.error({
+                content: "Export failed",
+                key: exportKey,
+            })
+        } finally {
+            exportAbortRef.current = null
+            setIsExporting(false)
         }
-    }, [traces, columns])
+    }, [columns, filters, sort, traceTabs, traces])
 
     const handleRefresh = async () => {
         if (componentType === "sessions") {
@@ -350,7 +396,7 @@ const ObservabilityHeader = ({
         <>
             <section
                 className={clsx([
-                    "flex justify-between gap-2 flex-col transition-all duration-200 ease-linear",
+                    "flex justify-between gap-2 flex-col transition-[transform,opacity] duration-200 ease-linear",
                     {
                         "!flex-row sticky top-2 z-10 bg-white py-2 px-2 border border-solid border-gray-200 rounded-lg mx-2 shadow-md":
                             isScrolled,
@@ -362,6 +408,7 @@ const ObservabilityHeader = ({
                     <div className="flex items-center gap-1">
                         {!isScrolled && (
                             <EnhancedButton
+                                aria-label="Refresh data"
                                 icon={
                                     <ArrowsClockwiseIcon
                                         size={14}
@@ -373,6 +420,7 @@ const ObservabilityHeader = ({
                             />
                         )}
                         <Input.Search
+                            aria-label="Search observability data"
                             placeholder="Search"
                             value={searchQuery}
                             onChange={onSearchChange}
@@ -412,6 +460,7 @@ const ObservabilityHeader = ({
                                 </Space>
 
                                 <EnhancedButton
+                                    aria-label="Add selected traces to testset"
                                     onClick={() => getTestsetTraceData()}
                                     icon={<DatabaseIcon size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
@@ -455,11 +504,18 @@ const ObservabilityHeader = ({
                         <Space>
                             <Button
                                 type="text"
-                                onClick={onExport}
+                                onClick={() => {
+                                    if (isExporting) {
+                                        exportAbortRef.current?.abort()
+                                        return
+                                    }
+
+                                    onExport()
+                                }}
                                 icon={<ExportIcon size={14} className="mt-0.5" />}
-                                disabled={traces.length === 0}
+                                disabled={!isExporting && traces.length === 0}
                             >
-                                Export
+                                {isExporting ? "Cancel export" : "Export"}
                             </Button>
 
                             <EditColumns

@@ -3,21 +3,29 @@ import Papa from "papaparse"
 import {GenericObject} from "../Types"
 
 export const convertToCsv = (rows: GenericObject[], header: string[]) => {
-    return Papa.unparse({fields: header.filter((item) => !!item), data: rows})
+    return Papa.unparse({
+        fields: header.filter((item) => !!item),
+        data: rows,
+        escapeFormulae: true,
+    })
 }
 
 export const escapeNewlines = (value: string) => value.replace(/\n/g, "\\n")
 
-export const downloadCsv = (csvContent: string, filename: string): void => {
+export const downloadCsv = (csvContent: string | BlobPart[], filename: string): void => {
     if (typeof window === "undefined") return
 
-    const blob = new Blob([csvContent], {type: "text/csv"})
+    const blob = new Blob(Array.isArray(csvContent) ? csvContent : [csvContent], {
+        type: "text/csv",
+    })
+    const objectUrl = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
+    link.href = objectUrl
     link.download = filename
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(objectUrl)
 }
 
 export const isValidCSVFile = (file: File) => {
