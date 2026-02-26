@@ -147,17 +147,31 @@ Base prefix: `/api/preview/simple/queries`
 
 Base prefix: `/api/preview/traces`
 
-| Method | Path           | Operation ID   |
-|--------|----------------|----------------|
-| POST   | `/`            | `create_trace` |
-| GET    | `/{trace_id}`  | `fetch_trace`  |
-| GET    | `/`            | `fetch_traces` |
-| POST   | `/query`       | `query_traces` |
+| Method | Path           | Operation ID    |
+|--------|----------------|-----------------|
+| POST   | `/ingest`      | `ingest_traces` |
+| POST   | `/`            | `create_trace`  |
+| GET    | `/{trace_id}`  | `fetch_trace`   |
+| GET    | `/?trace_id=...&trace_ids=...` | `fetch_traces`  |
+| POST   | `/query`       | `query_traces`  |
 
-### 6.2 OTLP
+### 6.2 Spans
+
+Base prefix: `/api/preview/spans`
+
+| Method | Path                     | Operation ID    |
+|--------|--------------------------|-----------------|
+| POST   | `/ingest`                | `ingest_spans`  |
+| POST   | `/`                      | `create_span`   |
+| GET    | `/{trace_id}/{span_id}`  | `fetch_span`    |
+| GET    | `/?trace_id=...&trace_ids=...&span_id=...&span_ids=...` | `fetch_spans`   |
+| POST   | `/query`                 | `query_spans`   |
+
+### 6.3 OTLP
 
 Base prefix: `/api/otlp/v1`
 
 | Method | Path       | Operation ID   |
 |--------|------------|----------------|
+| GET    | `/traces`  | `otlp_status`  |
 | POST   | `/traces`  | `otlp_ingest`  |

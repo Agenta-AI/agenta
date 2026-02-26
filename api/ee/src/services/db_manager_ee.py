@@ -16,13 +16,13 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services import db_manager
-from ee.src.models.api.workspace_models import (
+from ee.src.core.workspaces.types import (
     UserRole,
     UpdateWorkspace,
     CreateWorkspace,
     WorkspaceResponse,
 )
-from ee.src.models.api.organization_models import (
+from ee.src.core.organizations.types import (
     Organization,
     CreateOrganization,
     OrganizationUpdate,

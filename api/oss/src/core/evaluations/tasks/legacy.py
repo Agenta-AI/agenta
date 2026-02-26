@@ -25,7 +25,7 @@ from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 
-from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.core.tracing.service import TracingService
 
 
 from oss.src.core.evaluations.types import (
@@ -600,7 +600,7 @@ async def evaluate_batch_testset(
     #
     run_id: UUID,
     #
-    tracing_router: TracingRouter,
+    tracing_service: TracingService,
     testsets_service: TestsetsService,
     queries_service: QueriesService,
     workflows_service: WorkflowsService,
@@ -1021,8 +1021,8 @@ async def evaluate_batch_testset(
                 trace = None
                 if invocation.trace_id:
                     trace = await fetch_trace(
-                        tracing_router=tracing_router,
-                        request=request,
+                        tracing_service=tracing_service,
+                        project_id=project_id,
                         trace_id=invocation.trace_id,
                     )
 
@@ -1275,8 +1275,8 @@ async def evaluate_batch_testset(
                         trace = None
                         if annotation.trace_id:
                             trace = await fetch_trace(
-                                tracing_router=tracing_router,
-                                request=request,
+                                tracing_service=tracing_service,
+                                project_id=project_id,
                                 trace_id=annotation.trace_id,
                             )
 

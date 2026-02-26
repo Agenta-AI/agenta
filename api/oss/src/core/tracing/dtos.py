@@ -202,6 +202,12 @@ class FilteringException(Exception):
     pass
 
 
+class QueryFocusConflictError(Exception):
+    def __init__(self, detail: str):
+        self.detail = detail
+        super().__init__(detail)
+
+
 class Analytics(BaseModel):
     count: Optional[int] = 0
     duration: Optional[float] = 0.0

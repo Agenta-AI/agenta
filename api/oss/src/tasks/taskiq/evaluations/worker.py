@@ -4,8 +4,8 @@ from datetime import datetime
 
 from taskiq import AsyncBroker
 
-from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import TestsetsService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.testsets.service import TestsetsService
 
 from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.queries.service import QueriesService
@@ -37,7 +37,7 @@ class EvaluationsWorker:
         *,
         broker: AsyncBroker,
         #
-        tracing_router: TracingRouter,
+        tracing_service: TracingService,
         simple_evaluators_service: SimpleEvaluatorsService,
         #
         testsets_service: TestsetsService,
@@ -54,7 +54,7 @@ class EvaluationsWorker:
         """
         self.broker = broker
         #
-        self.tracing_router = tracing_router
+        self.tracing_service = tracing_service
         self.testsets_service = testsets_service
         self.queries_service = queries_service
         self.workflows_service = workflows_service
@@ -94,7 +94,7 @@ class EvaluationsWorker:
                 #
                 run_id=run_id,
                 #
-                tracing_router=self.tracing_router,
+                tracing_service=self.tracing_service,
                 testsets_service=self.testsets_service,
                 queries_service=self.queries_service,
                 workflows_service=self.workflows_service,

@@ -17,7 +17,7 @@ from ee.src.services.db_manager_ee import (
     add_user_to_workspace,
     add_user_to_project,
 )
-from ee.src.models.api.organization_models import CreateOrganization
+from ee.src.core.organizations.types import CreateOrganization
 from oss.src.services.user_service import (
     create_new_user,
     delete_user,

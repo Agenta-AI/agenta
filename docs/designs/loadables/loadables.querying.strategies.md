@@ -15,7 +15,7 @@ Each strategy has three sub-options (levels 0, 1, 2), producing six concrete acc
 **Strategies:**
 
 - **Strategy A** — the client goes through the revision endpoint, which can return progressively more information: stored content only in [A.0], IDs in [A.1], or full items proxied from the record store in [A.2].
-- **Strategy B** — the client calls the record endpoint directly, at a matching level of indirection: by pushing the stored content from [A.0] in [B.0], by supplying IDs obtained from [A.1] in [B.1], or by passing a revision reference and letting the record endpoint dereference it internally in B.2].
+- **Strategy B** — the client calls the record endpoint directly, at a matching level of indirection: by pushing the stored content from [A.0] in [B.0], by supplying IDs obtained from [A.1] in [B.1], or by passing a revision reference and letting the record endpoint dereference it internally in [B.2].
 
 **Refs:** In [A.0] and [B.2], a single ref identifies the revision — `testset_revision_ref | testset_variant_ref | testset_ref` for testsets; `query_revision_ref | query_variant_ref | query_ref` for queries. Resolution follows the same rules in both cases.
 
@@ -144,7 +144,7 @@ POST /api/preview/queries/revisions/retrieve
 
 Strategy B decouples the revision retrieval from the item fetch. The client calls the record endpoint directly. Three sub-options exist, but not all apply to both Loadable types:
 
-- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: route to `/traces/query` or `/spans/query` from `data.formatting.focus`, then push stored expressions.
+- **B.0** — push stored expressions to record query. Applies to **Query Revisions only**: route to `/api/preview/traces/query` or `/api/preview/spans/query` from `data.formatting.focus`, then push stored expressions.
 - **B.1** — fetch by IDs obtained from [A.1]. Applies to both types.
 - **B.2** — pass the revision reference to the lane-matching record endpoint and let it dereference internally.
 
@@ -251,6 +251,6 @@ rather than the revision endpoint.
 | **A.0** — by content (revision) | Revision metadata only (no IDs, no items) | Revision metadata + `formatting` + `filtering` + `windowing` (no IDs, no items) |
 | **A.1** — by IDs (revision) | Revision with `data.testcase_ids[]` (stored, paginated) | Revision with `data.trace_ids[]` (computed by filter, paginated) |
 | **A.2** — by reference (revision proxies) | Revision with `data.testcase_ids[]` + `data.testcases[]` (proxied, paginated) | Revision with `data.trace_ids[]` + `data.traces` (proxied, paginated) |
-| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.formatting + data.filtering + data.windowing` from [A.0] → lane endpoint (`/traces/query` or `/spans/query`) |
-| **B.1** — by IDs (record) | IDs from [A.1] → `GET /testcases?testcase_ids=...` | IDs from [A.1] → `GET /traces?trace_ids=...` (current contract; no `span_ids` yet) |
-| **B.2** — by reference (record dereferences) | `POST /testcases/query { refs }` | Lane endpoint by `formatting.focus` (`POST /traces/query { refs }` or `POST /spans/query { refs }`) |
+| **B.0** — by content (record) | N/A — no stored expressions; use [B.1] with IDs or [B.2] with a revision ref | `data.formatting + data.filtering + data.windowing` from [A.0] → lane endpoint (`/api/preview/traces/query` or `/api/preview/spans/query`) |
+| **B.1** — by IDs (record) | IDs from [A.1] → `GET /api/preview/testcases?testcase_ids=...` | IDs from [A.1] → `GET /api/preview/traces?trace_ids=...` (current contract; no `span_ids` yet) |
+| **B.2** — by reference (record dereferences) | `POST /api/preview/testcases/query { refs }` | Lane endpoint by `formatting.focus` (`POST /api/preview/traces/query { refs }` or `POST /api/preview/spans/query { refs }`) |

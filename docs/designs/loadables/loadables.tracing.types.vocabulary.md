@@ -204,20 +204,20 @@ Legacy spans payload (`OTelFlatSpans`):
 
 ## 4) Query Revision Contracts
 
-### 4.1 Legacy
-
-| Surface | Legacy contract |
-|---|---|
-| `QueryRevisionData.trace_ids` | `Optional[List[str]]` |
-| `QueryRevisionData.traces` | previously map-style in old flows |
-
-### 4.2 New
+### 4.1 New Contracts
 
 | Surface | New contract |
 |---|---|
 | `QueryRevisionData.trace_ids` | Keep as `Optional[List[str]]` for lightweight retrieval |
 | `QueryRevisionData.traces` | `Optional[Traces]` |
 | `_populate_traces(...)` | builds `List[Trace]` |
+
+### 4.2 Legacy Contracts
+
+| Surface | Legacy contract |
+|---|---|
+| `QueryRevisionData.trace_ids` | `Optional[List[str]]` |
+| `QueryRevisionData.traces` | previously map-style in old flows |
 
 ### 4.3 Gap
 
@@ -229,15 +229,7 @@ Legacy spans payload (`OTelFlatSpans`):
 
 ## 5) Internal Consumers
 
-### 5.1 Legacy
-
-| Consumer | Legacy pattern |
-|---|---|
-| Invocations | map-first trace reads (`response.traces` map) |
-| Annotations | map-first trace reads (`response.traces` map) |
-| Live evaluations | per-step traces as map keyed by trace id |
-
-### 5.2 New
+### 5.1 New Consumers
 
 | Consumer | New pattern |
 |---|---|
@@ -245,31 +237,38 @@ Legacy spans payload (`OTelFlatSpans`):
 | Annotations | `TraceResponse.trace` and `TracesResponse.traces` |
 | Live evaluations | `Dict[str, Traces]`, derive ids from `trace.trace_id` |
 
+### 5.2 Legacy Consumers
+
+| Consumer | Legacy pattern |
+|---|---|
+| Invocations | map-first trace reads (`response.traces` map) |
+| Annotations | map-first trace reads (`response.traces` map) |
+| Live evaluations | per-step traces as map keyed by trace id |
+
 ### 5.3 Gap
 
 | Surface | Legacy | New | Gap |
 |---|---|---|---|
-| `core/evaluations/utils.fetch_trace` | still reads `response.traces.values()` | target is `TraceResponse.trace` | Not migrated yet |
 | `core/evaluations/tasks/legacy.py` | legacy map-like traversal | list-first target | Legacy task still needs migration decision |
 
 ---
 
 ## 6) Span Contracts
 
-### 6.1 Legacy
-
-| Surface | Legacy contract |
-|---|---|
-| Top-level `spans` naming | usually documented as `OTelFlatSpans` |
-| Legacy query endpoint | `POST /preview/tracing/spans/query` may return traces or spans |
-
-### 6.2 New
+### 6.1 New Contracts
 
 | Surface | New contract |
 |---|---|
 | Top-level `spans` naming | `Spans` (alias of `OTelFlatSpans`) |
 | Single span payload | `span: Span` |
 | Span routes | `/preview/spans/*` deterministic span-focused contracts |
+
+### 6.2 Legacy Contracts
+
+| Surface | Legacy contract |
+|---|---|
+| Top-level `spans` naming | usually documented as `OTelFlatSpans` |
+| Legacy query endpoint | `POST /preview/tracing/spans/query` may return traces or spans |
 
 ### 6.3 Gap
 
@@ -282,21 +281,21 @@ Legacy spans payload (`OTelFlatSpans`):
 
 ## 7) Web + SDK Surface Mapping
 
-### 7.1 Legacy
-
-| Surface | Legacy usage |
-|---|---|
-| `web/oss/src/services/tracing/types/index.ts` | `traces` as record map |
-| `web/packages/agenta-entities/src/trace/core/schema.ts` | schema expects trace map |
-| helpers | `Object.values(data.traces)` map-to-array conversion |
-
-### 7.2 New
+### 7.1 New Mapping
 
 | Surface | New usage |
 |---|---|
 | SDK shared | `Trace`, `Traces` canonical |
 | SDK tracing | `Span`, `Spans` aliases added |
 | API tracing models | `Trace/Traces` and `Span/Spans` response/request models |
+
+### 7.2 Legacy Mapping
+
+| Surface | Legacy usage |
+|---|---|
+| `web/oss/src/services/tracing/types/index.ts` | `traces` as record map |
+| `web/packages/agenta-entities/src/trace/core/schema.ts` | schema expects trace map |
+| helpers | `Object.values(data.traces)` map-to-array conversion |
 
 ### 7.3 Gap
 

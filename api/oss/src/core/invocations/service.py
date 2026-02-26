@@ -1,7 +1,5 @@
-from typing import Optional, List, Union
+from typing import Optional, List
 from uuid import UUID, uuid4
-
-from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
 
@@ -19,28 +17,23 @@ from oss.src.core.shared.dtos import (
     Windowing,
 )
 from oss.src.core.tracing.dtos import (
-    Focus,
-    Format,
-    TracingQuery,
-    Formatting,
-    Condition,
-    Filtering,
-    OTelLink,
-    LogicalOperator,
-    ComparisonOperator,
-    ListOperator,
+    OTelFlatSpan,
     TraceType,
     SpanType,
 )
+from oss.src.core.tracing.service import TracingService
 from oss.src.core.applications.dtos import (
     SimpleApplicationFlags,
     SimpleApplicationCreate,
 )
 
 
-from oss.src.core.tracing.utils import (
-    parse_into_attributes,
-    parse_from_attributes,
+from oss.src.core.tracing.utils.simple_traces import (
+    build_otel_links,
+    build_simple_trace_attributes,
+    build_simple_trace_query,
+    first_link,
+    parse_simple_trace,
 )
 from oss.src.core.invocations.types import (
     InvocationOrigin,
@@ -56,16 +49,6 @@ from oss.src.core.invocations.types import (
     InvocationQuery,
 )
 
-from oss.src.apis.fastapi.tracing.router import TracingRouter, TracesRouter
-from oss.src.apis.fastapi.tracing.models import (
-    OTelFlatSpan,
-    OTelTracingRequest,
-    TraceResponse,
-    TracesResponse,
-    TracesQueryRequest,
-)
-
-
 log = get_module_logger(__name__)
 
 
@@ -75,12 +58,11 @@ class InvocationsService:
         *,
         applications_service: ApplicationsService,
         simple_applications_service: SimpleApplicationsService,
-        tracing_router: TracingRouter,
+        tracing_service: TracingService,
     ):
         self.applications_service = applications_service
         self.simple_applications_service = simple_applications_service
-        self.tracing_router = tracing_router
-        self.traces_router = TracesRouter(tracing_router=tracing_router)
+        self.tracing_service = tracing_service
 
     async def create(
         self,
@@ -469,38 +451,12 @@ class InvocationsService:
             exclude_unset=True,
         )
 
-        if isinstance(links, dict):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": key},  # type: ignore
-                )
-                for key, link in links.items()
-                if link.trace_id and link.span_id
-            ]
-        elif isinstance(links, list):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": "key"},  # type: ignore
-                )
-                for link in links
-                if link.trace_id and link.span_id
-            ]
-        else:
-            _links = None
+        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
-        _type = {
-            "trace": "invocation",
-            "span": "task",
-        }
-
-        _attributes = parse_into_attributes(
-            type=_type,
+        _attributes = build_simple_trace_attributes(
+            trace_kind="invocation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -508,7 +464,10 @@ class InvocationsService:
             references=_references,
         )
 
-        trace_request = OTelTracingRequest(
+        links = await self.tracing_service.create_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
@@ -519,32 +478,11 @@ class InvocationsService:
                     attributes=_attributes,
                     links=_links,
                 )
-            ]
-        )
-
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.organization_id = str(organization_id)
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        _links_response = await self.tracing_router.create_trace(
-            request=request,
-            #
-            trace_request=trace_request,
+            ],
             sync=True,  # Synchronous for user-facing invocations
         )
 
-        _link = (
-            Link(
-                trace_id=_links_response.links[0].trace_id,
-                span_id=_links_response.links[0].span_id,
-            )
-            if _links_response.links and len(_links_response.links) > 0
-            else None
-        )
+        _link = first_link(links)
 
         return _link
 
@@ -556,109 +494,67 @@ class InvocationsService:
         #
         invocation_link: Link,
     ) -> Optional[Invocation]:
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id) if user_id else None
-
         if not invocation_link.trace_id:
             return None
 
-        trace_response: TraceResponse = await self.traces_router.fetch_trace(
-            request=request,
-            #
+        trace = await self.tracing_service.fetch_trace(
+            project_id=project_id,
             trace_id=invocation_link.trace_id,
         )
 
-        if not trace_response or not trace_response.trace:
-            return None
-
-        trace = trace_response.trace
-
-        if not trace or not trace.spans:
-            return None
-
-        spans = list(trace.spans.values())
-        root_span = spans[0] if spans else None
-
-        if not root_span or isinstance(root_span, list):
-            return None
-
-        (
-            type,
-            flags,
-            tags,
-            meta,
-            data,
-            references,
-        ) = parse_from_attributes(root_span.attributes or {})
-
-        if not data:
+        parsed_trace = parse_simple_trace(trace)
+        if parsed_trace is None:
             return None
 
         _references = InvocationReferences(
-            **{
-                key: Reference(
-                    id=ref.get("id"),
-                    slug=ref.get("slug"),
-                    version=ref.get("version"),
-                )
-                for key, ref in (references or {}).items()
-            }
+            **parsed_trace.references,
         )
 
-        _links = dict(
-            **{
-                str(link.attributes["key"]): Link(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                )
-                for link in root_span.links or []
-                if link.attributes and "key" in link.attributes
-            }
-        )
+        _links = parsed_trace.links
 
         _origin = InvocationOrigin.CUSTOM
 
         _kind = (
-            (flags.get("is_evaluation") and InvocationKind.EVAL or InvocationKind.ADHOC)
-            if flags
+            (
+                parsed_trace.flags.get("is_evaluation")
+                and InvocationKind.EVAL
+                or InvocationKind.ADHOC
+            )
+            if parsed_trace.flags
             else InvocationKind.ADHOC
         )
 
         _channel = (
             (
-                flags.get("is_sdk")
+                parsed_trace.flags.get("is_sdk")
                 and InvocationChannel.SDK
-                or flags.get("is_web")
+                or parsed_trace.flags.get("is_web")
                 and InvocationChannel.WEB
                 or InvocationChannel.API
             )
-            if flags
+            if parsed_trace.flags
             else InvocationChannel.API
         )
 
         invocation = Invocation(
-            trace_id=root_span.trace_id,
-            span_id=root_span.span_id,
+            trace_id=parsed_trace.span.trace_id,
+            span_id=parsed_trace.span.span_id,
             #
-            created_at=root_span.created_at,
-            updated_at=root_span.updated_at,
-            deleted_at=root_span.deleted_at,
-            created_by_id=root_span.created_by_id,
-            updated_by_id=root_span.updated_by_id,
-            deleted_by_id=root_span.deleted_by_id,
+            created_at=parsed_trace.span.created_at,
+            updated_at=parsed_trace.span.updated_at,
+            deleted_at=parsed_trace.span.deleted_at,
+            created_by_id=parsed_trace.span.created_by_id,
+            updated_by_id=parsed_trace.span.updated_by_id,
+            deleted_by_id=parsed_trace.span.deleted_by_id,
             #
             origin=_origin,
             kind=_kind,
             channel=_channel,
             #
-            tags=tags,
-            meta=meta,
+            tags=parsed_trace.tags,
+            meta=parsed_trace.meta,
             #
-            data=data,
+            data=parsed_trace.data,
             #
             references=_references,
             links=_links,
@@ -693,38 +589,12 @@ class InvocationsService:
             exclude_unset=True,
         )
 
-        if isinstance(links, dict):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": key},  # type: ignore
-                )
-                for key, link in links.items()
-                if link.trace_id and link.span_id
-            ]
-        elif isinstance(links, list):
-            _links = [
-                OTelLink(
-                    trace_id=link.trace_id,
-                    span_id=link.span_id,
-                    attributes={"key": "key"},  # type: ignore
-                )
-                for link in links
-                if link.trace_id and link.span_id
-            ]
-        else:
-            _links = None
+        _links = build_otel_links(links)
 
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
-        _type = {
-            "trace": "invocation",
-            "span": "task",
-        }
-
-        _attributes = parse_into_attributes(
-            type=_type,
+        _attributes = build_simple_trace_attributes(
+            trace_kind="invocation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -732,7 +602,11 @@ class InvocationsService:
             references=_references,
         )
 
-        trace_request = OTelTracingRequest(
+        links = await self.tracing_service.edit_trace(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            trace_id=invocation.trace_id,
             spans=[
                 OTelFlatSpan(
                     trace_id=invocation.trace_id,
@@ -740,34 +614,11 @@ class InvocationsService:
                     attributes=_attributes,
                     links=_links,
                 )
-            ]
-        )
-
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.organization_id = str(organization_id)
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        _links_response = await self.tracing_router.edit_trace(
-            request=request,
-            #
-            trace_id=invocation.trace_id,
-            #
-            trace_request=trace_request,
+            ],
             sync=True,  # Synchronous for user-facing invocations
         )
 
-        _link = (
-            Link(
-                trace_id=_links_response.links[0].trace_id,
-                span_id=_links_response.links[0].span_id,
-            )
-            if _links_response.links and len(_links_response.links) > 0
-            else None
-        )
+        _link = first_link(links)
 
         return _link
 
@@ -782,30 +633,12 @@ class InvocationsService:
         if not invocation_link.trace_id:
             return None
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
-        )
-
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id)
-
-        link_response = await self.tracing_router.delete_trace(
-            request=request,
-            #
+        links = await self.tracing_service.delete_trace(
+            project_id=project_id,
             trace_id=invocation_link.trace_id,
         )
 
-        link = link_response.links[0] if link_response.links else None
-
-        if not link or not link.trace_id or not link.span_id:
-            return None
-
-        invocation_link = Link(
-            trace_id=link.trace_id,
-            span_id=link.span_id,
-        )
-
-        return invocation_link
+        return first_link(links)
 
     async def _query_invocation(
         self,
@@ -824,264 +657,81 @@ class InvocationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Invocation]:
-        formatting = Formatting(
-            focus=Focus.TRACE,
-            format=Format.AGENTA,
-        )
-
-        filtering = Filtering()
-
-        conditions: List[Union[Condition, Filtering]] = [
-            Condition(
-                field="attributes",
-                key="ag.type.trace",
-                value="invocation",
-                operator=ComparisonOperator.IS,
-            )
-        ]
-
-        trace_ids = (
-            [invocation_link.trace_id for invocation_link in invocation_links]
-            if invocation_links
-            else None
-        )
-
-        # span_ids = (
-        #     [invocation_link.span_id for invocation_link in invocation_links]
-        #     if invocation_links
-        #     else None
-        # )
-
-        if trace_ids:
-            conditions.append(
-                Condition(
-                    field="trace_id",
-                    value=trace_ids,
-                    operator=ListOperator.IN,
-                )
-            )
-
-        # if span_ids:
-        #     conditions.append(
-        #         Condition(
-        #             field="span_id",
-        #             value=span_ids,
-        #             operator=ListOperator.IN,
-        #         )
-        #     )
-
-        if flags:
-            for key, value in flags.model_dump(mode="json", exclude_none=True).items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.flags.{key}",
-                        value=value,
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if tags:
-            for key, value in tags.items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.tags.{key}",
-                        value=value,  # type:ignore
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if meta:
-            for key, value in meta.items():
-                conditions.append(
-                    Condition(
-                        field="attributes",
-                        key=f"ag.meta.{key}",
-                        value=value,  # type:ignore
-                        operator=ComparisonOperator.IS,
-                    )
-                )
-
-        if references:
-            for _, reference in references.model_dump(mode="json").items():
-                if reference:
-                    ref_id = str(reference.get("id")) if reference.get("id") else None
-                    ref_slug = (
-                        str(reference.get("slug")) if reference.get("slug") else None
-                    )
-                    conditions.append(
-                        Condition(
-                            field="references",
-                            value=[
-                                {"id": ref_id, "slug": ref_slug},
-                            ],
-                            operator=ListOperator.IN,
-                        )
-                    )
-
-        if links:
-            if isinstance(links, dict):
-                for _, link in links.items():
-                    if link:
-                        conditions.append(
-                            Condition(
-                                field="links",
-                                value=[
-                                    {
-                                        "trace_id": link.trace_id,
-                                        "span_id": link.span_id,
-                                    },
-                                ],
-                                operator=ListOperator.IN,
-                            )
-                        )
-            elif isinstance(links, list):
-                _conditions = []
-                for link in links:
-                    if link:
-                        _conditions.append(
-                            Condition(
-                                field="links",
-                                value=[
-                                    {
-                                        "trace_id": link.trace_id,
-                                        "span_id": link.span_id,
-                                    },
-                                ],
-                                operator=ListOperator.IN,
-                            )
-                        )
-                if _conditions:
-                    conditions.append(
-                        Filtering(
-                            operator=LogicalOperator.OR,
-                            conditions=_conditions,
-                        )
-                    )
-
-        if conditions:
-            filtering = Filtering(
-                operator=LogicalOperator.AND,
-                conditions=conditions,
-            )
-
-        query = TracingQuery(
-            formatting=formatting,
-            filtering=filtering,
+        query = build_simple_trace_query(
+            trace_kind="invocation",
+            flags=flags.model_dump(mode="json", exclude_none=True) if flags else None,
+            tags=tags,
+            meta=meta,
+            references=references.model_dump(mode="json") if references else None,
+            links=links,
+            trace_links=invocation_links,
             windowing=windowing,
         )
 
-        request = Request(
-            scope={"type": "http", "http_version": "1.1", "scheme": "http"}
+        traces = await self.tracing_service.query_traces(
+            project_id=project_id,
+            query=query,
         )
 
-        request.state.project_id = str(project_id)
-        request.state.user_id = str(user_id) if user_id else None
-
-        traces_response: TracesResponse = await self.traces_router.query_traces(
-            request=request,
-            #
-            traces_query_request=TracesQueryRequest(
-                filtering=query.filtering,
-                windowing=query.windowing,
-            ),
-        )
-
-        if not traces_response or not traces_response.traces:
+        if not traces:
             return []
-
-        traces = traces_response.traces
 
         invocations = []
 
         for trace in traces:
-            if not trace or not trace.spans:
-                continue
-
-            spans = list(trace.spans.values())
-            root_span = spans[0] if spans else None
-
-            if not root_span or isinstance(root_span, list):
-                continue
-
-            (
-                __type,
-                __flags,
-                __tags,
-                __meta,
-                __data,
-                __references,
-            ) = parse_from_attributes(root_span.attributes or {})
-
-            if not __data:
+            parsed_trace = parse_simple_trace(trace)
+            if parsed_trace is None:
                 continue
 
             _references = InvocationReferences(
-                **{
-                    key: Reference(
-                        id=ref.get("id"),
-                        slug=ref.get("slug"),
-                        version=ref.get("version"),
-                    )
-                    for key, ref in (__references or {}).items()
-                }
+                **parsed_trace.references,
             )
 
-            _links = dict(
-                **{
-                    str(link.attributes["key"]): Link(
-                        trace_id=link.trace_id,
-                        span_id=link.span_id,
-                    )
-                    for link in root_span.links or []
-                    if link.attributes and "key" in link.attributes
-                }
-            )
+            _links = parsed_trace.links
 
             _origin = InvocationOrigin.CUSTOM
 
             _kind = (
                 (
-                    __flags.get("is_evaluation")
+                    parsed_trace.flags.get("is_evaluation")
                     and InvocationKind.EVAL
                     or InvocationKind.ADHOC
                 )
-                if __flags
+                if parsed_trace.flags
                 else InvocationKind.ADHOC
             )
 
             _channel = (
                 (
-                    __flags.get("is_sdk")
+                    parsed_trace.flags.get("is_sdk")
                     and InvocationChannel.SDK
-                    or __flags.get("is_web")
+                    or parsed_trace.flags.get("is_web")
                     and InvocationChannel.WEB
                     or InvocationChannel.API
                 )
-                if __flags
+                if parsed_trace.flags
                 else InvocationChannel.API
             )
 
             invocation = Invocation(
-                trace_id=root_span.trace_id,
-                span_id=root_span.span_id,
+                trace_id=parsed_trace.span.trace_id,
+                span_id=parsed_trace.span.span_id,
                 #
-                created_at=root_span.created_at,
-                updated_at=root_span.updated_at,
-                deleted_at=root_span.deleted_at,
-                created_by_id=root_span.created_by_id,
-                updated_by_id=root_span.updated_by_id,
-                deleted_by_id=root_span.deleted_by_id,
+                created_at=parsed_trace.span.created_at,
+                updated_at=parsed_trace.span.updated_at,
+                deleted_at=parsed_trace.span.deleted_at,
+                created_by_id=parsed_trace.span.created_by_id,
+                updated_by_id=parsed_trace.span.updated_by_id,
+                deleted_by_id=parsed_trace.span.deleted_by_id,
                 #
                 origin=_origin,
                 kind=_kind,
                 channel=_channel,
                 #
-                tags=__tags,
-                meta=__meta,
+                tags=parsed_trace.tags,
+                meta=parsed_trace.meta,
                 #
-                data=__data,
+                data=parsed_trace.data,
                 #
                 references=_references,
                 links=_links,

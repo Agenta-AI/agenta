@@ -2,11 +2,7 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
-from redis.asyncio import Redis
-from fastapi import Request
-
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -42,12 +38,6 @@ from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.annotations.service import AnnotationsService
-
-# from oss.src.apis.fastapi.tracing.utils import make_hash_id
-from oss.src.apis.fastapi.tracing.router import TracingRouter, TracesRouter
-from oss.src.apis.fastapi.tracing.models import TracesQueryRequest
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 from oss.src.core.evaluations.types import (
@@ -123,18 +113,6 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
-
 queries_service = QueriesService(
     queries_dao=queries_dao,
 )
@@ -175,25 +153,11 @@ evaluations_service = EvaluationsService(
 
 # APIS -------------------------------------------------------------------------
 
-tracing_router = TracingRouter(
-    tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
-)
-
-traces_router = TracesRouter(
-    tracing_router=tracing_router,
-    queries_service=queries_service,
-)
-
 annotations_service = AnnotationsService(
-    tracing_router=tracing_router,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
-
-annotations_router = AnnotationsRouter(
-    annotations_service=annotations_service,
-)  # TODO: REMOVE/REPLACE ONCE ANNOTATE IS MOVED TO 'core'
 
 # ------------------------------------------------------------------------------
 
@@ -207,11 +171,6 @@ async def evaluate_live_query(
     newest: datetime,
     oldest: datetime,
 ):
-    request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
-
-    request.state.project_id = str(project_id)
-    request.state.user_id = str(user_id)
-
     # count in minutes
     timestamp = oldest
     interval = int((newest - oldest).total_seconds() / 60)
@@ -399,16 +358,16 @@ async def evaluate_live_query(
                 windowing=windowing,
             )
 
-            tracing_response = await traces_router.query_traces(
-                request=request,
-                #
-                traces_query_request=TracesQueryRequest(
+            query_traces_result = await tracing_service.query_traces(
+                project_id=project_id,
+                query=TracingQuery(
+                    formatting=query.formatting,
                     filtering=query.filtering,
                     windowing=query.windowing,
                 ),
             )
 
-            nof_traces = tracing_response.count
+            nof_traces = len(query_traces_result)
 
             log.info(
                 "[TRACES]    ",
@@ -416,7 +375,7 @@ async def evaluate_live_query(
                 count=nof_traces,
             )
 
-            query_traces[query_step_key] = tracing_response.traces or []
+            query_traces[query_step_key] = query_traces_result or []
         # ----------------------------------------------------------------------
 
         total_traces = sum(len(traces) for traces in query_traces.values())
@@ -726,8 +685,8 @@ async def evaluate_live_query(
                         trace = None
                         if annotation.trace_id:
                             trace = await fetch_trace(
-                                tracing_router=tracing_router,
-                                request=request,
+                                tracing_service=tracing_service,
+                                project_id=project_id,
                                 trace_id=annotation.trace_id,
                             )
 

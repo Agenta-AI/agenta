@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
-from ee.src.models.api.workspace_models import WorkspaceRole, WorkspaceResponse
+from ee.src.core.workspaces.types import WorkspaceResponse
 from ee.src.models.shared_models import Permission
+from ee.src.models.shared_models import WorkspaceRole
 from oss.src.models.db_models import WorkspaceDB
 
 

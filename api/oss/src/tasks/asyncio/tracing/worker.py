@@ -16,7 +16,7 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-from oss.src.tasks.asyncio.tracing.utils import serialize_span, deserialize_span
+from oss.src.core.tracing.streaming import deserialize_span
 
 log = get_module_logger(__name__)
 
@@ -75,45 +75,6 @@ class TracingWorker:
         self.max_block_ms = max_block_ms
         self.max_batch_mb = max_batch_mb
         self.max_delay_ms = max_delay_ms
-
-    async def publish_to_stream(
-        self,
-        *,
-        organization_id: UUID,
-        project_id: UUID,
-        user_id: UUID,
-        span_dtos: List[OTelFlatSpan],
-    ) -> int:
-        """
-        Publish spans to Redis Streams.
-
-        Args:
-            organization_id: Organization UUID
-            project_id: Project UUID
-            user_id: User UUID
-            span_dtos: Spans to publish
-
-        Returns:
-            Number of spans published
-        """
-        count = 0
-
-        for span_dto in span_dtos:
-            span_bytes = serialize_span(
-                organization_id=organization_id,
-                project_id=project_id,
-                user_id=user_id,
-                span_dto=span_dto,
-            )
-
-            await self.redis.xadd(
-                name=self.stream_name,
-                fields={"data": span_bytes},
-            )
-
-            count += 1
-
-        return count
 
     async def create_consumer_group(self):
         """

@@ -47,6 +47,11 @@ from oss.src.core.testsets.service import (
     TestsetsService,
     SimpleTestsetsService,
 )
+from oss.src.core.testsets.utils import (
+    json_array_to_json_object,
+    validate_testset_limits,
+    TESTSETS_SIZE_LIMIT,
+)
 
 from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
@@ -79,10 +84,7 @@ from oss.src.apis.fastapi.testsets.models import (
 from oss.src.apis.fastapi.testsets.utils import (
     csv_file_to_json_array,
     json_file_to_json_array,
-    json_array_to_json_object,
-    validate_testset_limits,
     TESTSETS_SIZE_EXCEPTION,
-    TESTSETS_SIZE_LIMIT,
 )
 
 if is_ee():
@@ -1586,7 +1588,7 @@ class SimpleTestsetsRouter:
             #
             testset_id=testset_id,
             #
-            simple_testset_create_request=simple_testset_create_request,
+            simple_testset_create=simple_testset_create_request.testset,
         )
 
         simple_testset_response = SimpleTestsetResponse(
@@ -1718,7 +1720,7 @@ class SimpleTestsetsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            simple_testset_edit_request=simple_testset_edit_request,
+            simple_testset_edit=simple_testset_edit_request.testset,
         )
 
         simple_testset_response = SimpleTestsetResponse(

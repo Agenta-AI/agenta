@@ -127,8 +127,8 @@ def get_metrics_keys_from_schema(
 
 
 async def fetch_trace(
-    tracing_router,
-    request,
+    tracing_service,
+    project_id: UUID,
     #
     trace_id: str,
     max_retries: int = 15,
@@ -136,13 +136,12 @@ async def fetch_trace(
 ) -> Optional[OTelSpansTree]:
     for attempt in range(max_retries):
         try:
-            response = await tracing_router.fetch_trace(
-                request=request,
+            trace = await tracing_service.fetch_trace(
+                project_id=project_id,
                 trace_id=trace_id,
             )
-
-            if response and response.traces:
-                return next(iter(response.traces.values()), None)
+            if trace:
+                return OTelSpansTree(spans=trace.spans)
 
         except Exception:
             pass
