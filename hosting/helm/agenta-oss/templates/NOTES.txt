@@ -1,0 +1,56 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named: {{ .Release.Name }}
+
+{{- if .Values.ingress.enabled }}
+
+Agenta is accessible via Ingress:
+{{- if .Values.ingress.host }}
+  Web UI:   http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/
+  API:      http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/api/
+  Services: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}/services/
+{{- else }}
+  Determine the ingress IP:
+    kubectl get ingress {{ include "agenta.fullname" . }} -n {{ .Release.Namespace }}
+
+  Then access:
+    Web UI:   http://<INGRESS_IP>/
+    API:      http://<INGRESS_IP>/api/
+    Services: http://<INGRESS_IP>/services/
+{{- end }}
+{{- else }}
+
+Agenta services are available via ClusterIP. Use port-forward to access them:
+
+  # Web UI
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-web {{ .Values.web.port }}:{{ .Values.web.port }} -n {{ .Release.Namespace }}
+
+  # API
+  kubectl port-forward svc/{{ include "agenta.fullname" . }}-api {{ .Values.api.port }}:{{ .Values.api.port }} -n {{ .Release.Namespace }}
+{{- end }}
+
+To check the status of all pods:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if .Values.alembic.enabled }}
+
+Database migrations run as a post-install/post-upgrade hook. Check the migration job:
+  kubectl get jobs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=alembic
+  kubectl logs job/{{ include "agenta.fullname" . }}-alembic -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if eq .Release.Name "agenta" | not }}
+NOTE: Your release is named "{{ .Release.Name }}", not "agenta".
+The default global.postgresql.auth.existingSecret is "agenta-pgauth",
+which assumes a release named "agenta". You should set it to match your
+release name so the Bitnami PostgreSQL subchart finds the correct secret:
+
+  --set global.postgresql.auth.existingSecret={{ printf "%s-pgauth" (include "agenta.fullname" .) }}
+{{- end }}
+
+IMPORTANT: Three secrets are REQUIRED. Install with:
+
+  helm install agenta hosting/helm/agenta-oss \
+    --set secrets.agentaAuthKey=$(openssl rand -hex 32) \
+    --set secrets.agentaCryptKey=$(openssl rand -hex 32) \
+    --set secrets.postgresPassword=$(openssl rand -hex 16)
