@@ -2028,12 +2028,9 @@ async def _evaluate_batch_items(
             if scenario_status == EvaluationStatus.SUCCESS:
                 for annotation_step in annotation_steps:
                     annotation_step_key = annotation_step.key
-                    if annotation_step.origin == "human":
+                    if annotation_step.origin in {"human", "custom"}:
                         scenario_has_pending = True
                         run_has_pending = True
-                        continue
-
-                    if annotation_step.origin != "auto":
                         continue
 
                     evaluator_revision = evaluator_revisions.get(annotation_step_key)
