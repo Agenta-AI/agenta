@@ -22,22 +22,14 @@ export const DEFAULT_TRACE_EXPORT_HEADERS = [
     "Status",
 ]
 
-const CSV_FORMULA_PREFIX = /^[=+\-@]/
-
-const sanitizeCsvCell = (value: string): string => {
-    const trimmed = value.trimStart()
-    if (!trimmed) return value
-    return CSV_FORMULA_PREFIX.test(trimmed) ? `'${value}` : value
-}
-
 const convertToStringOrJson = (value: unknown): string => {
     if (value === null || value === undefined) return "N/A"
-    if (typeof value === "string") return sanitizeCsvCell(value)
+    if (typeof value === "string") return value
 
     try {
-        return sanitizeCsvCell(JSON.stringify(value))
+        return JSON.stringify(value)
     } catch {
-        return sanitizeCsvCell(String(value))
+        return String(value)
     }
 }
 
@@ -57,21 +49,19 @@ export const createTraceObject = (trace: TraceSpanNode | TraceSpan) => {
               : "UNKNOWN"
 
     return {
-        "Trace ID": sanitizeCsvCell(trace.trace_id || "N/A"),
-        Name: sanitizeCsvCell(trace.span_name || "N/A"),
-        "Span type": sanitizeCsvCell(trace.span_type || "N/A"),
+        "Trace ID": trace.trace_id || "N/A",
+        Name: trace.span_name || "N/A",
+        "Span type": trace.span_type || "N/A",
         Inputs: convertToStringOrJson(inputs),
         Outputs: convertToStringOrJson(outputs),
-        Duration: sanitizeCsvCell(duration),
-        Cost: sanitizeCsvCell(cost),
-        Usage: sanitizeCsvCell(usage),
-        Timestamp: sanitizeCsvCell(
-            formatDay({
-                date: trace.start_time,
-                inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
-                outputFormat: "HH:mm:ss DD MMM YYYY",
-            }),
-        ),
+        Duration: duration,
+        Cost: cost,
+        Usage: usage,
+        Timestamp: formatDay({
+            date: trace.start_time,
+            inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
+            outputFormat: "HH:mm:ss DD MMM YYYY",
+        }),
         Status: status,
     }
 }
