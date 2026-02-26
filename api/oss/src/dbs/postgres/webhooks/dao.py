@@ -1,314 +1,418 @@
-"""Data access object for webhooks."""
-
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
-import uuid as py_uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.dtos import (
-    CreateWebhookSubscriptionDTO,
-    UpdateWebhookSubscriptionDTO,
-    WebhookDeliveryResponseDTO,
-    WebhookSubscriptionQueryDTO,
-    WebhookSubscriptionResponseDTO,
+    WebhookSubscription,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionEdit,
+    WebhookSubscriptionQuery,
+    WebhookDelivery,
+    WebhookDeliveryCreate,
+    WebhookDeliveryQuery,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
-from oss.src.dbs.postgres.webhooks.delivery_dbes import WebhookDeliveryDBE
+from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.src.dbs.postgres.webhooks.dbes import (
+    WebhookSubscriptionDBE,
+    WebhookDeliveryDBE,
+)
 from oss.src.dbs.postgres.webhooks.mappings import (
-    map_delivery_dbe_to_dto,
     map_subscription_dbe_to_dto,
-    map_subscription_dto_to_dbe,
-    map_subscription_dto_to_dbe_update,
+    map_subscription_dto_to_dbe_create,
+    map_subscription_dto_to_dbe_edit,
+    map_delivery_dbe_to_dto,
+    map_delivery_dto_to_dbe_create,
 )
 
 
 class WebhooksDAO(WebhooksDAOInterface):
-    """Webhooks data access object implementing the interface."""
-
     def __init__(self):
         pass
 
-    # ---- Subscription operations (core database) ----
+    # --- SUBSCRIPTIONS ------------------------------------------------------ #
 
     async def create_subscription(
         self,
+        *,
         project_id: UUID,
-        payload: CreateWebhookSubscriptionDTO,
         user_id: UUID,
-        secret_id: Optional[UUID] = None,
-    ) -> WebhookSubscriptionResponseDTO:
-        subscription_dbe = map_subscription_dto_to_dbe(
+        #
+        subscription: WebhookSubscriptionCreate,
+        #
+        secret_id: UUID,
+    ) -> WebhookSubscription:
+        subscription_dbe = map_subscription_dto_to_dbe_create(
             project_id=project_id,
-            payload=payload,
             user_id=user_id,
+            #
+            subscription=subscription,
+            #
             secret_id=secret_id,
         )
 
         async with engine.core_session() as session:
             session.add(subscription_dbe)
+
             await session.commit()
+
             await session.refresh(subscription_dbe)
 
-        return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
+        return map_subscription_dbe_to_dto(
+            subscription_dbe=subscription_dbe,
+        )
 
-    async def get_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.id == subscription_id,
-                WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.deleted_at.is_(None),
-            )
-            result = await session.execute(stmt)
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return None
-
-            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
-
-    async def fetch_subscription_by_id(
-        self, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.id == subscription_id,
-                WebhookSubscriptionDBE.deleted_at.is_(None),
-            )
-            result = await session.execute(stmt)
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return None
-
-            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
-
-    async def query_subscriptions(
+    async def fetch_subscription(
         self,
+        *,
         project_id: UUID,
-        filters: Optional[WebhookSubscriptionQueryDTO] = None,
-        offset: int = 0,
-        limit: int = 20,
-    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
-        async with engine.core_session() as session:
-            conditions = [
-                WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.deleted_at.is_(None),
-            ]
-
-            if filters:
-                if filters.is_active is not None:
-                    conditions.append(
-                        WebhookSubscriptionDBE.flags["is_active"].astext
-                        == str(filters.is_active).lower()
-                    )
-                if filters.events:
-                    conditions.append(
-                        or_(
-                            *[
-                                WebhookSubscriptionDBE.data["events"].contains([event])
-                                for event in filters.events
-                            ]
-                        )
-                    )
-                if filters.created_after is not None:
-                    conditions.append(
-                        WebhookSubscriptionDBE.created_at >= filters.created_after
-                    )
-                if filters.created_before is not None:
-                    conditions.append(
-                        WebhookSubscriptionDBE.created_at <= filters.created_before
-                    )
-
-            count_stmt = select(func.count(WebhookSubscriptionDBE.id)).where(
-                *conditions
-            )
-            total = (await session.execute(count_stmt)).scalar() or 0
-
-            sort_column = getattr(
-                WebhookSubscriptionDBE,
-                filters.sort_by if filters else "created_at",
-                WebhookSubscriptionDBE.created_at,
-            )
-            order = (
-                sort_column.desc()
-                if (not filters or filters.sort_order == "desc")
-                else sort_column.asc()
-            )
-
-            data_stmt = (
-                select(WebhookSubscriptionDBE)
-                .where(*conditions)
-                .order_by(order)
-                .offset(offset)
-                .limit(limit)
-            )
-            result = await session.execute(data_stmt)
-            dtos = [
-                map_subscription_dbe_to_dto(subscription_dbe=dbe)
-                for dbe in result.scalars().all()
-            ]
-
-            return dtos, total
-
-    async def update_subscription(
-        self,
-        project_id: UUID,
+        #
         subscription_id: UUID,
-        payload: UpdateWebhookSubscriptionDTO,
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
+    ) -> Optional[WebhookSubscription]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.id == subscription_id,
                 WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.deleted_at.is_(None),
+                WebhookSubscriptionDBE.id == subscription_id,
             )
+
             result = await session.execute(stmt)
+
             subscription_dbe = result.scalar_one_or_none()
 
             if not subscription_dbe:
                 return None
 
-            map_subscription_dto_to_dbe_update(
+            return map_subscription_dbe_to_dto(
                 subscription_dbe=subscription_dbe,
-                update_dto=payload,
+            )
+
+    async def edit_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription: WebhookSubscriptionEdit,
+    ) -> Optional[WebhookSubscription]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookSubscriptionDBE).where(
+                WebhookSubscriptionDBE.id == subscription.id,
+                WebhookSubscriptionDBE.project_id == project_id,
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalar_one_or_none()
+
+            if not subscription_dbe:
+                return None
+
+            map_subscription_dto_to_dbe_edit(
+                subscription_dbe=subscription_dbe,
+                #
+                user_id=user_id,
+                #
+                subscription=subscription,
             )
 
             await session.commit()
+
             await session.refresh(subscription_dbe)
 
-            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
+            return map_subscription_dbe_to_dto(
+                subscription_dbe=subscription_dbe,
+            )
 
     async def archive_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.id == subscription_id,
                 WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.deleted_at.is_(None),
+                #
+                WebhookSubscriptionDBE.id == subscription_id,
             )
+
             result = await session.execute(stmt)
+
             subscription_dbe = result.scalar_one_or_none()
 
             if not subscription_dbe:
                 return None
 
             subscription_dbe.deleted_at = datetime.now(timezone.utc)
+            subscription_dbe.deleted_by_id = user_id
+            subscription_dbe.updated_by_id = user_id
+
             await session.commit()
+
             await session.refresh(subscription_dbe)
 
-            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
-
-    async def get_active_subscriptions_for_event(
-        self, project_id: UUID, event_type: str
-    ) -> List[WebhookSubscriptionResponseDTO]:
-        async with engine.core_session() as session:
-            stmt = (
-                select(WebhookSubscriptionDBE)
-                .where(
-                    WebhookSubscriptionDBE.project_id == project_id,
-                    WebhookSubscriptionDBE.deleted_at.is_(None),
-                    WebhookSubscriptionDBE.flags["is_active"].astext == "true",
-                )
-                .where(WebhookSubscriptionDBE.data["events"].contains([event_type]))
+            return map_subscription_dbe_to_dto(
+                subscription_dbe=subscription_dbe,
             )
-            result = await session.execute(stmt)
-            subscription_dbes = result.scalars().all()
 
-            return [
-                map_subscription_dbe_to_dto(subscription_dbe=dbe)
-                for dbe in subscription_dbes
+    async def unarchive_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookSubscriptionDBE).where(
+                WebhookSubscriptionDBE.project_id == project_id,
+                #
+                WebhookSubscriptionDBE.id == subscription_id,
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalar_one_or_none()
+
+            if not subscription_dbe:
+                return None
+
+            subscription_dbe.deleted_at = None
+            subscription_dbe.deleted_by_id = None
+            subscription_dbe.updated_by_id = user_id
+
+            await session.commit()
+
+            await session.refresh(subscription_dbe)
+
+            return map_subscription_dbe_to_dto(
+                subscription_dbe=subscription_dbe,
+            )
+
+    async def set_subscription_validity(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        #
+        is_valid: bool,
+    ) -> Optional[WebhookSubscription]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookSubscriptionDBE).where(
+                WebhookSubscriptionDBE.project_id == project_id,
+                WebhookSubscriptionDBE.id == subscription_id,
+            )
+
+            result = await session.execute(stmt)
+
+            subscription_dbe = result.scalar_one_or_none()
+
+            if not subscription_dbe:
+                return None
+
+            subscription_dbe.flags = {
+                **(subscription_dbe.flags or {}),
+                "is_valid": is_valid,
+            }
+
+            await session.commit()
+
+            await session.refresh(subscription_dbe)
+
+            return map_subscription_dbe_to_dto(
+                subscription_dbe=subscription_dbe,
+            )
+
+    async def query_subscriptions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription: Optional[WebhookSubscriptionQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookSubscription]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookSubscriptionDBE).filter(
+                WebhookSubscriptionDBE.project_id == project_id,
+            )
+
+            if include_archived is not True:
+                stmt = stmt.filter(
+                    WebhookSubscriptionDBE.deleted_at.is_(None),
+                )
+
+            if subscription:
+                if subscription.name is not None:
+                    stmt = stmt.filter(
+                        WebhookSubscriptionDBE.name.ilike(f"%{subscription.name}%"),
+                    )
+
+                if subscription.description is not None:
+                    stmt = stmt.filter(
+                        WebhookSubscriptionDBE.description.ilike(
+                            f"%{subscription.description}%"
+                        ),
+                    )
+
+                if subscription.flags is not None:
+                    subscription_flags = subscription.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+
+                    if subscription_flags:
+                        stmt = stmt.filter(
+                            WebhookSubscriptionDBE.flags.contains(subscription_flags),
+                        )
+
+                if subscription.tags is not None:
+                    stmt = stmt.filter(
+                        WebhookSubscriptionDBE.tags.contains(subscription.tags),
+                    )
+
+                # meta is JSON (not JSONB) — containment (@>) is not supported
+                # if subscription.meta is not None:
+                #     stmt = stmt.filter(
+                #         WebhookSubscriptionDBE.meta.contains(subscription.meta),
+                #     )
+
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=WebhookSubscriptionDBE,
+                    attribute="created_at",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+
+            dtos = [
+                map_subscription_dbe_to_dto(
+                    subscription_dbe=dbe,
+                )
+                for dbe in result.scalars().all()
             ]
 
-    # ---- Delivery operations (tracing database) ----
+            return dtos
+
+    # --- DELIVERIES --------------------------------------------------------- #
 
     async def create_delivery(
         self,
-        subscription_id: UUID,
-        event_id: UUID,
-        status: str,
-        created_by_id: Optional[UUID],
-        data: Optional[dict] = None,
-    ) -> WebhookDeliveryResponseDTO:
-        delivery_dbe = WebhookDeliveryDBE(
-            subscription_id=subscription_id,
-            event_id=event_id,
-            status=status,
-            data=data,
-            created_by_id=created_by_id or py_uuid.UUID(int=0),
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: WebhookDeliveryCreate,
+    ) -> WebhookDelivery:
+        delivery_dbe = map_delivery_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            delivery=delivery,
         )
 
-        async with engine.tracing_session() as session:
+        async with engine.core_session() as session:
             session.add(delivery_dbe)
+
             await session.commit()
+
             await session.refresh(delivery_dbe)
 
-        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+        return map_delivery_dbe_to_dto(
+            delivery_dbe=delivery_dbe,
+        )
 
-    async def update_delivery_status(
+    async def fetch_delivery(
         self,
+        *,
+        project_id: UUID,
+        #
         delivery_id: UUID,
-        status: str,
-        data: Optional[dict] = None,
-        updated_by_id: Optional[UUID] = None,
-    ) -> WebhookDeliveryResponseDTO:
-        async with engine.tracing_session() as session:
+    ) -> Optional[WebhookDelivery]:
+        async with engine.core_session() as session:
             stmt = select(WebhookDeliveryDBE).where(
-                WebhookDeliveryDBE.id == delivery_id
+                WebhookDeliveryDBE.project_id == project_id,
+                WebhookDeliveryDBE.id == delivery_id,
             )
+
             result = await session.execute(stmt)
-            delivery_dbe = result.scalar_one()
 
-            delivery_dbe.status = status
-            if data is not None:
-                delivery_dbe.data = data
-            delivery_dbe.updated_by_id = updated_by_id
-
-            await session.commit()
-            await session.refresh(delivery_dbe)
-
-            return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
-
-    async def get_delivery(
-        self, delivery_id: UUID
-    ) -> Optional[WebhookDeliveryResponseDTO]:
-        async with engine.tracing_session() as session:
-            stmt = select(WebhookDeliveryDBE).where(
-                WebhookDeliveryDBE.id == delivery_id
-            )
-            result = await session.execute(stmt)
             delivery_dbe = result.scalar_one_or_none()
 
             if not delivery_dbe:
                 return None
 
-            return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+            return map_delivery_dbe_to_dto(
+                delivery_dbe=delivery_dbe,
+            )
 
-    async def record_test_delivery(
+    async def query_deliveries(
         self,
-        subscription_id: UUID,
-        event_id: UUID,
-        status: str,
-        created_by_id: Optional[UUID],
-        data: Optional[dict] = None,
-    ) -> WebhookDeliveryResponseDTO:
-        delivery_dbe = WebhookDeliveryDBE(
-            subscription_id=subscription_id,
-            event_id=event_id,
-            status=status,
-            data=data,
-            created_by_id=created_by_id or py_uuid.UUID(int=0),
-        )
+        *,
+        project_id: UUID,
+        #
+        delivery: Optional[WebhookDeliveryQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookDelivery]:
+        async with engine.core_session() as session:
+            stmt = select(WebhookDeliveryDBE).filter(
+                WebhookDeliveryDBE.project_id == project_id,
+            )
 
-        async with engine.tracing_session() as session:
-            session.add(delivery_dbe)
-            await session.commit()
-            await session.refresh(delivery_dbe)
+            if include_archived is not True:
+                stmt = stmt.filter(
+                    WebhookDeliveryDBE.deleted_at.is_(None),
+                )
 
-        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+            if delivery:
+                if delivery.status is not None:
+                    if delivery.status.code is not None:
+                        stmt = stmt.filter(
+                            WebhookDeliveryDBE.status["code"].astext
+                            == str(delivery.status.code),
+                        )
+
+                if delivery.subscription_id is not None:
+                    stmt = stmt.filter(
+                        WebhookDeliveryDBE.subscription_id == delivery.subscription_id,
+                    )
+
+                if delivery.event_id is not None:
+                    stmt = stmt.filter(
+                        WebhookDeliveryDBE.event_id == delivery.event_id,
+                    )
+
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=WebhookDeliveryDBE,
+                    attribute="created_at",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+
+            dtos = [
+                map_delivery_dbe_to_dto(
+                    delivery_dbe=dbe,
+                )
+                for dbe in result.scalars().all()
+            ]
+
+            return dtos

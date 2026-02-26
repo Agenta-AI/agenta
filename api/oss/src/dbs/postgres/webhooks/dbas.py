@@ -1,10 +1,11 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column
 from sqlalchemy.dialects.postgresql import UUID
 
 from oss.src.dbs.postgres.shared.dbas import (
     IdentifierDBA,
     HeaderDBA,
     DataDBA,
+    StatusDBA,
     FlagsDBA,
     MetaDBA,
     TagsDBA,
@@ -14,28 +15,38 @@ from oss.src.dbs.postgres.shared.dbas import (
 
 
 class WebhookSubscriptionDBA(
+    ProjectScopeDBA,
+    LifecycleDBA,
     IdentifierDBA,
     HeaderDBA,
     DataDBA,
     FlagsDBA,
-    MetaDBA,
     TagsDBA,
-    LifecycleDBA,
-    ProjectScopeDBA,
+    MetaDBA,
 ):
     __abstract__ = True
 
-    # Reference to a vault secret row used for webhook signing.
-    secret_id = Column(UUID(as_uuid=True), nullable=True)
+    secret_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
 
 
 class WebhookDeliveryDBA(
-    IdentifierDBA,
-    DataDBA,
+    ProjectScopeDBA,
     LifecycleDBA,
+    IdentifierDBA,
+    StatusDBA,
+    DataDBA,
 ):
     __abstract__ = True
 
-    subscription_id = Column(UUID(as_uuid=True), nullable=False)
-    event_id = Column(UUID(as_uuid=True), nullable=False)
-    status = Column(String(20), nullable=False)
+    subscription_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+    event_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )

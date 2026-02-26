@@ -1,15 +1,14 @@
-"""Database entities for webhook subscriptions (core database)."""
-
-from sqlalchemy import ForeignKeyConstraint, PrimaryKeyConstraint
+from sqlalchemy import ForeignKeyConstraint, Index, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base
-from oss.src.dbs.postgres.webhooks.dbas import WebhookSubscriptionDBA
+from oss.src.dbs.postgres.webhooks.dbas import (
+    WebhookDeliveryDBA,
+    WebhookSubscriptionDBA,
+)
 
 
 class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
-    """Webhook subscription DB entity."""
-
     __tablename__ = "webhook_subscriptions"
 
     __table_args__ = (
@@ -28,11 +27,47 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
             ondelete="SET NULL",
         ),
         PrimaryKeyConstraint("id"),
+        Index(
+            "ix_webhook_subscriptions_project_id_created_at",
+            "project_id",
+            "created_at",
+        ),
     )
 
-    project = relationship(
-        "oss.src.models.db_models.ProjectDB",
+    secret = relationship(
+        "oss.src.models.db_models.SecretDB",
     )
-    created_by = relationship(
-        "oss.src.models.db_models.UserDB",
+
+
+class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
+    __tablename__ = "webhook_deliveries"
+
+    __table_args__ = (
+        PrimaryKeyConstraint("id"),
+        Index(
+            "ix_webhook_deliveries_project_id_created_at",
+            "project_id",
+            "created_at",
+        ),
+        Index(
+            "ix_webhook_deliveries_status_created_at",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_webhook_deliveries_subscription_id_created_at",
+            "subscription_id",
+            "created_at",
+        ),
+        Index(
+            "ix_webhook_deliveries_event_id_created_at",
+            "event_id",
+            "created_at",
+        ),
+        Index(
+            "ix_webhook_deliveries_subscription_id_event_id",
+            "subscription_id",
+            "event_id",
+            "created_at",
+        ),
     )

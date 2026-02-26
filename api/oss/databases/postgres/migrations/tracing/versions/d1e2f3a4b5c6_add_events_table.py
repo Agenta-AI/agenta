@@ -39,18 +39,17 @@ def upgrade() -> None:
         sa.Column("created_by_id", sa.UUID(), nullable=False),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
-        sa.Column("flow_id", sa.UUID(), nullable=False),
+        sa.Column("request_id", sa.UUID(), nullable=False),
         sa.Column("event_id", sa.UUID(), nullable=False),
         sa.Column(
-            "flow_type",
+            "request_type",
             sa.Enum(
                 "UNKNOWN",
-                name="flowtype",
+                name="requesttype",
             ),
             nullable=False,
         ),
         sa.Column("event_type", sa.String(), nullable=False),
-        sa.Column("event_name", sa.VARCHAR(), nullable=False),
         sa.Column("timestamp", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column(
             "status_code",
@@ -68,14 +67,14 @@ def upgrade() -> None:
             postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
             nullable=True,
         ),
-        sa.PrimaryKeyConstraint("project_id", "flow_id", "event_id"),
+        sa.PrimaryKeyConstraint("project_id", "request_id", "event_id"),
     )
 
     op.create_index("ix_events_project_id", "events", ["project_id"], unique=False)
     op.create_index(
-        "ix_events_project_id_flow_id",
+        "ix_events_project_id_request_id",
         "events",
-        ["project_id", "flow_id"],
+        ["project_id", "request_id"],
         unique=False,
     )
     op.create_index(
@@ -91,9 +90,9 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ix_events_project_id_flow_type",
+        "ix_events_project_id_request_type",
         "events",
-        ["project_id", "flow_type"],
+        ["project_id", "request_type"],
         unique=False,
     )
     op.create_index(
@@ -103,9 +102,9 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        "ix_events_project_id_flow_id_created_at",
+        "ix_events_project_id_request_id_created_at",
         "events",
-        ["project_id", "flow_id", sa.text("created_at DESC")],
+        ["project_id", "request_id", sa.text("created_at DESC")],
         unique=False,
     )
     op.create_index(
@@ -127,11 +126,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_events_fts_attributes_gin", table_name="events")
     op.drop_index("ix_events_attributes_gin", table_name="events")
-    op.drop_index("ix_events_project_id_flow_id_created_at", table_name="events")
+    op.drop_index("ix_events_project_id_request_id_created_at", table_name="events")
     op.drop_index("ix_events_project_id_event_type", table_name="events")
-    op.drop_index("ix_events_project_id_flow_type", table_name="events")
+    op.drop_index("ix_events_project_id_request_type", table_name="events")
     op.drop_index("ix_events_project_id_timestamp", table_name="events")
     op.drop_index("ix_events_project_id_event_id", table_name="events")
-    op.drop_index("ix_events_project_id_flow_id", table_name="events")
+    op.drop_index("ix_events_project_id_request_id", table_name="events")
     op.drop_index("ix_events_project_id", table_name="events")
     op.drop_table("events")

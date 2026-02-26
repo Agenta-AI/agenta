@@ -817,18 +817,3 @@ class EvaluationScenarioDB(Base):
         cascade=CASCADE_ALL_DELETE,
         backref="evaluation_scenario",
     )
-
-
-# --- Webhook Models ---
-
-
-# --- Webhook Models ---
-
-# These classes are now defined in oss.src.dbs.postgres.webhooks.dbes
-# Importing them here for backwards compatibility
-from oss.src.dbs.postgres.webhooks.dbes import (  # noqa: E402, F401
-    WebhookSubscriptionDBE as WebhookSubscriptionDB,
-)
-from oss.src.dbs.postgres.webhooks.delivery_dbes import (  # noqa: E402, F401
-    WebhookDeliveryDBE as WebhookDeliveryDB,
-)

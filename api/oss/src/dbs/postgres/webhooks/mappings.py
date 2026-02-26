@@ -1,121 +1,182 @@
-"""Mappings between webhooks DTOs and DB entities."""
-
 from uuid import UUID
 
+from oss.src.core.shared.dtos import Status
 from oss.src.core.webhooks.dtos import (
-    CreateWebhookSubscriptionDTO,
-    UpdateWebhookSubscriptionDTO,
-    WebhookDeliveryResponseDTO,
-    WebhookSubscriptionResponseDTO,
+    WebhookDelivery,
+    WebhookDeliveryCreate,
+    WebhookDeliveryData,
+    WebhookSubscription,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionData,
+    WebhookSubscriptionEdit,
+    WebhookSubscriptionFlags,
 )
-from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
-from oss.src.dbs.postgres.webhooks.delivery_dbes import WebhookDeliveryDBE
+
+from oss.src.dbs.postgres.webhooks.dbes import (
+    WebhookDeliveryDBE,
+    WebhookSubscriptionDBE,
+)
 
 
-# Subscription mappings
+# --- Subscription ----------------------------------------------------------- #
 
 
-def map_subscription_dto_to_dbe(
+def map_subscription_dto_to_dbe_create(
     *,
     project_id: UUID,
-    payload: CreateWebhookSubscriptionDTO,
     user_id: UUID,
-    secret_id: UUID | None,
+    #
+    subscription: WebhookSubscriptionCreate,
+    #
+    secret_id: UUID,
 ) -> WebhookSubscriptionDBE:
-    """Map CreateWebhookSubscriptionDTO to DBE."""
     return WebhookSubscriptionDBE(
         project_id=project_id,
-        name=payload.name,
-        data={
-            "url": str(payload.url),
-            "events": payload.events,
-            "headers": payload.headers or {},
-        },
-        flags={"is_active": payload.is_active},
-        meta=payload.meta,
-        tags=payload.tags,
+        #
         created_by_id=user_id,
+        #
+        name=subscription.name,
+        description=subscription.description,
+        #
+        flags=(subscription.flags or WebhookSubscriptionFlags()).model_dump(
+            mode="json",
+            exclude_none=True,
+        ),
+        tags=subscription.tags,
+        meta=subscription.meta,
+        #
+        data=subscription.data.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+        if subscription.data
+        else None,
+        #
         secret_id=secret_id,
     )
 
 
 def map_subscription_dbe_to_dto(
-    *, subscription_dbe: WebhookSubscriptionDBE
-) -> WebhookSubscriptionResponseDTO:
-    """Map WebhookSubscriptionDBE to response DTO."""
-    data = subscription_dbe.data or {}
-    flags = subscription_dbe.flags or {}
-
-    return WebhookSubscriptionResponseDTO(
+    *,
+    subscription_dbe: WebhookSubscriptionDBE,
+) -> WebhookSubscription:
+    return WebhookSubscription(
         id=subscription_dbe.id,
-        project_id=subscription_dbe.project_id,
-        name=subscription_dbe.name or "",
-        url=str(data.get("url") or ""),
-        events=list(data.get("events") or []),
-        headers=data.get("headers") or {},
-        secret_id=subscription_dbe.secret_id,
-        is_active=bool(flags.get("is_active", True)),
-        flags=subscription_dbe.flags,
-        meta=subscription_dbe.meta,
-        tags=subscription_dbe.tags,
+        #
         created_at=subscription_dbe.created_at,
         updated_at=subscription_dbe.updated_at,
+        deleted_at=subscription_dbe.deleted_at,
         created_by_id=subscription_dbe.created_by_id,
         updated_by_id=subscription_dbe.updated_by_id,
         deleted_by_id=subscription_dbe.deleted_by_id,
-        archived_at=subscription_dbe.deleted_at,
+        #
+        name=subscription_dbe.name,
+        description=subscription_dbe.description,
+        #
+        flags=WebhookSubscriptionFlags.model_validate(subscription_dbe.flags)
+        if subscription_dbe.flags
+        else None,
+        tags=subscription_dbe.tags,
+        meta=subscription_dbe.meta,
+        #
+        data=WebhookSubscriptionData.model_validate(subscription_dbe.data)
+        if subscription_dbe.data
+        else None,
+        #
+        secret_id=subscription_dbe.secret_id,
     )
 
 
-def map_subscription_dto_to_dbe_update(
+def map_subscription_dto_to_dbe_edit(
+    *,
     subscription_dbe: WebhookSubscriptionDBE,
-    update_dto: UpdateWebhookSubscriptionDTO,
+    #
+    user_id: UUID,
+    #
+    subscription: WebhookSubscriptionEdit,
 ) -> None:
-    """Update DBE fields from UpdateWebhookSubscriptionDTO (in-place mutation)."""
-    update_data = update_dto.model_dump(exclude_unset=True)
+    subscription_dbe.updated_by_id = user_id
 
-    if "name" in update_data:
-        subscription_dbe.name = update_data["name"]
+    subscription_dbe.name = subscription.name
+    subscription_dbe.description = subscription.description
 
-    if any(key in update_data for key in ("url", "events", "headers")):
-        current_data = dict(subscription_dbe.data or {})
-        if "url" in update_data:
-            current_data["url"] = str(update_data["url"])
-        if "events" in update_data:
-            current_data["events"] = update_data["events"]
-        if "headers" in update_data:
-            current_data["headers"] = update_data["headers"] or {}
-        subscription_dbe.data = current_data
+    # Preserve system-set is_valid; user edits must not overwrite it
+    existing_is_valid = (subscription_dbe.flags or {}).get("is_valid", False)
+    incoming_flags = (
+        subscription.flags.model_dump(mode="json") if subscription.flags else {}
+    )
+    subscription_dbe.flags = {**incoming_flags, "is_valid": existing_is_valid}
+    subscription_dbe.tags = subscription.tags
+    subscription_dbe.meta = subscription.meta
 
-    if "is_active" in update_data:
-        current_flags = dict(subscription_dbe.flags or {})
-        current_flags["is_active"] = update_data["is_active"]
-        subscription_dbe.flags = current_flags
-
-    if "meta" in update_data:
-        subscription_dbe.meta = update_data["meta"]
-
-    if "tags" in update_data:
-        subscription_dbe.tags = update_data["tags"]
+    subscription_dbe.data = (
+        subscription.data.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+        if subscription.data
+        else None
+    )
 
 
-# Delivery mappings
+# --- Delivery --------------------------------------------------------------- #
+
+
+def map_delivery_dto_to_dbe_create(
+    *,
+    project_id: UUID,
+    user_id: UUID | None,
+    #
+    delivery: WebhookDeliveryCreate,
+) -> WebhookDeliveryDBE:
+    return WebhookDeliveryDBE(
+        project_id=project_id,
+        #
+        created_by_id=user_id or UUID(int=0),
+        #
+        status=delivery.status.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+        if delivery.status
+        else None,
+        #
+        data=delivery.data.model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+        if delivery.data
+        else None,
+        #
+        subscription_id=delivery.subscription_id,
+        #
+        event_id=delivery.event_id,
+    )
 
 
 def map_delivery_dbe_to_dto(
-    *, delivery_dbe: WebhookDeliveryDBE
-) -> WebhookDeliveryResponseDTO:
-    """Map WebhookDeliveryDBE to response DTO."""
-    return WebhookDeliveryResponseDTO(
+    *,
+    delivery_dbe: WebhookDeliveryDBE,
+) -> WebhookDelivery:
+    return WebhookDelivery(
         id=delivery_dbe.id,
-        subscription_id=delivery_dbe.subscription_id,
-        event_id=delivery_dbe.event_id,
-        status=delivery_dbe.status,
-        data=delivery_dbe.data,
+        #
         created_at=delivery_dbe.created_at,
         updated_at=delivery_dbe.updated_at,
-        archived_at=delivery_dbe.deleted_at,
+        deleted_at=delivery_dbe.deleted_at,
         created_by_id=delivery_dbe.created_by_id,
         updated_by_id=delivery_dbe.updated_by_id,
         deleted_by_id=delivery_dbe.deleted_by_id,
+        #
+        status=Status.model_validate(delivery_dbe.status)
+        if delivery_dbe.status
+        else None,
+        #
+        data=WebhookDeliveryData.model_validate(delivery_dbe.data)
+        if delivery_dbe.data
+        else None,
+        #
+        subscription_id=delivery_dbe.subscription_id,
+        #
+        event_id=delivery_dbe.event_id,
     )

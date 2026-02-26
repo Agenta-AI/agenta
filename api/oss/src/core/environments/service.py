@@ -1,48 +1,53 @@
-from typing import Optional, List, Dict
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.git.dtos import (
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    #
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    #
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionCommit,
-)
+import uuid_utils.compat as uuid_compat
+
 from oss.src.core.environments.dtos import (
     Environment,
     EnvironmentCreate,
     EnvironmentEdit,
-    EnvironmentQuery,
-    EnvironmentRevisionsLog,
     EnvironmentFlags,
+    EnvironmentQuery,
+    #
+    EnvironmentRevision,
+    EnvironmentRevisionCommit,
+    EnvironmentRevisionCreate,
+    EnvironmentRevisionData,
+    EnvironmentRevisionEdit,
+    EnvironmentRevisionQuery,
+    EnvironmentRevisionsLog,
     #
     EnvironmentVariant,
     EnvironmentVariantCreate,
     EnvironmentVariantEdit,
     EnvironmentVariantQuery,
-    #
-    EnvironmentRevision,
-    EnvironmentRevisionData,
-    EnvironmentRevisionCreate,
-    EnvironmentRevisionEdit,
-    EnvironmentRevisionQuery,
-    EnvironmentRevisionCommit,
     SimpleEnvironment,
     SimpleEnvironmentCreate,
     SimpleEnvironmentEdit,
     SimpleEnvironmentQuery,
 )
-
+from oss.src.core.events.dtos import Event
+from oss.src.core.events.streaming import publish_event
+from oss.src.core.events.types import EventType, RequestType
+from oss.src.core.git.dtos import (
+    ArtifactCreate,
+    ArtifactEdit,
+    ArtifactQuery,
+    RevisionCommit,
+    #
+    RevisionCreate,
+    RevisionEdit,
+    RevisionQuery,
+    #
+    VariantCreate,
+    VariantEdit,
+    VariantQuery,
+)
+from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
@@ -729,6 +734,30 @@ class EnvironmentsService:
         environment_revision = EnvironmentRevision(
             **revision.model_dump(
                 mode="json",
+            ),
+        )
+
+        await publish_event(
+            project_id=project_id,
+            event=Event(
+                request_id=uuid_compat.uuid7(),
+                event_id=uuid_compat.uuid7(),
+                request_type=RequestType.UNKNOWN,
+                event_type=EventType.ENVIRONMENTS_REVISIONS_COMMITTED,
+                timestamp=datetime.now(timezone.utc),
+                attributes={
+                    "environment_revision_id": str(environment_revision.id),
+                    "environment_id": str(environment_revision_commit.environment_id)
+                    if environment_revision_commit.environment_id
+                    else None,
+                    "environment_variant_id": str(
+                        environment_revision_commit.environment_variant_id
+                    )
+                    if environment_revision_commit.environment_variant_id
+                    else None,
+                    "slug": environment_revision.slug,
+                    "deployed_by": str(user_id),
+                },
             ),
         )
 

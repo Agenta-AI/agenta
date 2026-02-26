@@ -2,8 +2,9 @@
 
 import secrets
 import string
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
+
 import uuid_utils.compat as uuid
 
 from oss.src.core.secrets.dtos import (
@@ -14,14 +15,25 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.webhooks.dtos import (
-    CreateWebhookSubscriptionDTO,
-    UpdateWebhookSubscriptionDTO,
-    WebhookSubscriptionQueryDTO,
-    WebhookSubscriptionResponseDTO,
+    WebhookDelivery,
+    WebhookDeliveryCreate,
+    WebhookDeliveryQuery,
+    WebhookSubscription,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionEdit,
+    WebhookSubscriptionQuery,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.utils.caching import (
+    AGENTA_CACHE_TTL,
+    get_cache,
+    invalidate_cache,
+    set_cache,
+)
+from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
@@ -40,178 +52,341 @@ class WebhooksService:
         self.webhooks_worker = webhooks_worker
 
     def _generate_secret(self) -> str:
-        """Generate a secure random secret for webhooks."""
         alphabet = string.ascii_letters + string.digits
         return "".join(secrets.choice(alphabet) for _ in range(32))
 
+    async def _resolve_secret(
+        self, *, project_id: UUID, secret_id: UUID
+    ) -> Optional[str]:
+        """Fetch a subscription's signing secret from the vault."""
+        try:
+            vault_service = VaultService(SecretsDAO())
+            secret_dto = await vault_service.get_secret(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
+            data = secret_dto.data if secret_dto else None
+            provider = getattr(data, "provider", None) or (
+                data.get("provider") if isinstance(data, dict) else None
+            )
+            if isinstance(provider, dict):
+                return provider.get("key")
+            return getattr(provider, "key", None)
+        except Exception as e:
+            log.warning(f"Failed to resolve webhook secret {secret_id}: {e}")
+            return None
+
+    def _with_secret(
+        self, subscription: WebhookSubscription, secret: Optional[str]
+    ) -> WebhookSubscription:
+        subscription.secret = secret
+        return subscription
+
+    # --- subscriptions ------------------------------------------------------- #
+
     async def create_subscription(
         self,
+        *,
         project_id: UUID,
-        payload: CreateWebhookSubscriptionDTO,
         user_id: UUID,
-    ) -> WebhookSubscriptionResponseDTO:
-        secret = self._generate_secret()
+        #
+        subscription: WebhookSubscriptionCreate,
+    ) -> WebhookSubscription:
+        secret_value = self._generate_secret()
         vault_service = VaultService(SecretsDAO())
         secret_dto = await vault_service.create_secret(
             project_id=project_id,
             create_secret_dto=CreateSecretDTO(
                 header={
-                    "name": f"webhook-{payload.name}",
+                    "name": f"webhook-{subscription.name or 'subscription'}",
                     "description": "Webhook signing secret",
                 },
                 secret=SecretDTO(
                     kind=SecretKind.PROVIDER_KEY,
                     data=StandardProviderDTO(
                         kind=StandardProviderKind.OPENAI,
-                        provider=StandardProviderSettingsDTO(key=secret),
+                        provider=StandardProviderSettingsDTO(key=secret_value),
                     ),
                 ),
             ),
         )
 
-        return await self.dao.create_subscription(
+        result = await self.dao.create_subscription(
             project_id=project_id,
-            payload=payload,
             user_id=user_id,
+            #
+            subscription=subscription,
+            #
             secret_id=secret_dto.id,
         )
 
-    async def query_subscriptions(
-        self,
-        project_id: UUID,
-        filters: Optional[WebhookSubscriptionQueryDTO] = None,
-        offset: int = 0,
-        limit: int = 20,
-    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
-        return await self.dao.query_subscriptions(
-            project_id=project_id,
-            filters=filters,
-            offset=offset,
-            limit=limit,
+        result = self._with_secret(result, secret_value)
+
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{result.id}",
+            value=result.model_copy(update={"secret": encrypt(result.secret)})
+            if result.secret
+            else result,
+            ttl=AGENTA_CACHE_TTL,
+        )
+        await invalidate_cache(
+            namespace="webhooks", project_id=str(project_id), key="subscriptions"
         )
 
-    async def get_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        return await self.dao.get_subscription(
-            project_id=project_id, subscription_id=subscription_id
-        )
+        return result
 
-    async def update_subscription(
+    async def fetch_subscription(
         self,
+        *,
         project_id: UUID,
         subscription_id: UUID,
-        payload: UpdateWebhookSubscriptionDTO,
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        return await self.dao.update_subscription(
+    ) -> Optional[WebhookSubscription]:
+        cached = await get_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{subscription_id}",
+            model=WebhookSubscription,
+            is_list=False,
+        )
+        if cached is not None:
+            if cached.secret:
+                try:
+                    cached = cached.model_copy(
+                        update={"secret": decrypt(cached.secret)}
+                    )
+                except Exception:
+                    log.warning(
+                        f"[WEBHOOKS] Failed to decrypt cached secret for"
+                        f" {subscription_id}"
+                    )
+                    cached = cached.model_copy(update={"secret": None})
+            return cached
+
+        result = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription_id,
-            payload=payload,
         )
+        if result is None:
+            return None
+
+        if result.secret_id:
+            secret_value = await self._resolve_secret(
+                project_id=project_id,
+                secret_id=result.secret_id,
+            )
+            result = self._with_secret(result, secret_value)
+
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{result.id}",
+            value=result.model_copy(update={"secret": encrypt(result.secret)})
+            if result.secret
+            else result,
+            ttl=AGENTA_CACHE_TTL,
+        )
+
+        return result
+
+    async def query_subscriptions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription: Optional[WebhookSubscriptionQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookSubscription]:
+        return await self.dao.query_subscriptions(
+            project_id=project_id,
+            #
+            subscription=subscription,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+    async def edit_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription: WebhookSubscriptionEdit,
+    ) -> Optional[WebhookSubscription]:
+        result = await self.dao.edit_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription=subscription,
+        )
+        if result is None:
+            return None
+
+        if result.secret_id:
+            secret_value = await self._resolve_secret(
+                project_id=project_id,
+                secret_id=result.secret_id,
+            )
+            result = self._with_secret(result, secret_value)
+
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{result.id}",
+            value=result.model_copy(update={"secret": encrypt(result.secret)})
+            if result.secret
+            else result,
+            ttl=AGENTA_CACHE_TTL,
+        )
+        await invalidate_cache(
+            namespace="webhooks", project_id=str(project_id), key="subscriptions"
+        )
+
+        return result
 
     async def archive_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        return await self.dao.archive_subscription(
-            project_id=project_id, subscription_id=subscription_id
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
+        result = await self.dao.archive_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription_id=subscription_id,
         )
+        if result is None:
+            return None
 
-    async def trigger_event(
-        self, project_id: UUID, event_type: str, payload: dict
-    ) -> None:
-        """
-        Triggers a webhook event: finds subscribers and enqueues delivery tasks.
-        """
-        # 1. Get subscribers
-        subscriptions = await self.dao.get_active_subscriptions_for_event(
-            project_id, event_type
-        )
-
-        if not subscriptions:
-            # No active subscriptions for this event
-            return
-
-        if not self.webhooks_worker:
-            log.warning(
-                f"WebhooksWorker is not configured. Skipping delivery for event type {event_type}"
+        if result.secret_id:
+            secret_value = await self._resolve_secret(
+                project_id=project_id,
+                secret_id=result.secret_id,
             )
-            return
+            result = self._with_secret(result, secret_value)
 
-        # 2. Create deliveries and queue tasks
-        for sub in subscriptions:
-            try:
-                delivery = await self.dao.create_delivery(
-                    subscription_id=sub.id,
-                    event_id=uuid.uuid7(),
-                    status="pending",
-                    created_by_id=sub.created_by_id,
-                    data={
-                        "event_type": event_type,
-                        "payload": payload,
-                        "url": sub.url,
-                    },
-                )
+        await invalidate_cache(
+            namespace="webhooks", project_id=str(project_id), key="subscriptions"
+        )
+        await invalidate_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{subscription_id}",
+        )
 
-                await self.webhooks_worker.deliver_webhook.kiq(delivery_id=delivery.id)
-                log.info(
-                    f"Enqueued webhook delivery {delivery.id} for subscription {sub.id}"
-                )
-            except Exception as e:
-                log.error(
-                    f"Failed to enqueue webhook delivery for subscription {sub.id}: {e}"
-                )
+        return result
+
+    async def unarchive_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
+        result = await self.dao.unarchive_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription_id=subscription_id,
+        )
+        if result is None:
+            return None
+
+        if result.secret_id:
+            secret_value = await self._resolve_secret(
+                project_id=project_id,
+                secret_id=result.secret_id,
+            )
+            result = self._with_secret(result, secret_value)
+
+        await invalidate_cache(
+            namespace="webhooks", project_id=str(project_id), key="subscriptions"
+        )
+        await invalidate_cache(
+            namespace="webhooks",
+            project_id=str(project_id),
+            key=f"subscription:{subscription_id}",
+        )
+
+        return result
+
+    # --- deliveries ---------------------------------------------------------- #
+
+    async def create_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        delivery: WebhookDeliveryCreate,
+    ) -> WebhookDelivery:
+        return await self.dao.create_delivery(
+            project_id=project_id,
+            user_id=user_id,
+            delivery=delivery,
+        )
+
+    async def query_deliveries(
+        self,
+        *,
+        project_id: UUID,
+        #
+        delivery: Optional[WebhookDeliveryQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookDelivery]:
+        return await self.dao.query_deliveries(
+            project_id=project_id,
+            #
+            delivery=delivery,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
 
     async def test_webhook(
         self,
-        url: str,
-        event_type: str,
+        *,
         project_id: UUID,
         user_id: UUID,
+        #
+        url: str,
+        event_type: str,
         subscription_id: Optional[UUID] = None,
     ) -> dict:
+        """Tests a webhook endpoint with a valid HMAC signature.
+
+        Returns the test secret so the caller can verify the signature locally.
         """
-        Tests a webhook endpoint with valid signature.
-
-        Sends a test payload with:
-        - Real project_id (not dummy)
-        - Valid HMAC signature using temporary test secret
-        - Clear indication this is a test ("test": true)
-        - Returns test secret for signature verification
-
-        Args:
-            url: Webhook endpoint URL to test
-            event_type: Event type to test (e.g., "config.deployed")
-            project_id: Actual project ID
-            user_id: User triggering the test
-            subscription_id: Optional subscription ID to record delivery against
-
-        Returns:
-            Dict with success status, response details, and test secret for verification
-        """
-        import httpx
-        import hmac
         import hashlib
+        import hmac
         import json
         from datetime import datetime, timezone
-        import uuid_utils.compat as uuid
 
-        # This is returned to caller for local signature verification.
+        import httpx
+
         test_secret = self._generate_secret()
 
-        # Construct test payload with real project_id
         payload = {
             "id": f"evt_test_{str(uuid.uuid4())[:8]}",
             "event_type": event_type,
-            "project_id": str(project_id),  # Real project_id
+            "project_id": str(project_id),
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "test": True,  # Clear indicator this is a test
+            "test": True,
             "data": {
-                "message": "This is a test webhook from Agenta. You can use the test_secret in the response to verify the signature.",
+                "message": "This is a test webhook from Agenta.",
                 "triggered_by": str(user_id),
             },
         }
 
-        # Create HMAC signature (same as real deliveries)
         payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         timestamp = str(int(datetime.now(timezone.utc).timestamp()))
         to_sign = f"{timestamp}.{payload_json}"
@@ -229,7 +404,7 @@ class WebhooksService:
             "User-Agent": "Agenta-Webhook-Test/1.0",
         }
 
-        response_data = {
+        response_data: dict = {
             "success": False,
             "status_code": None,
             "response_body": None,
@@ -255,33 +430,41 @@ class WebhooksService:
                         "duration_ms": int(duration),
                     }
                 )
-
         except Exception as e:
-            response_data.update(
-                {
-                    "success": False,
-                    "response_body": str(e),
-                }
-            )
+            response_data.update({"success": False, "response_body": str(e)})
 
-        # Record delivery if subscription_id is provided
         if subscription_id:
             try:
-                await self.dao.record_test_delivery(
-                    subscription_id=subscription_id,
-                    event_id=uuid.uuid7(),
-                    status="success" if response_data["success"] else "failed",
-                    created_by_id=user_id,
-                    data={
-                        "event_type": event_type,
-                        "payload": payload,
-                        "url": url,
-                        "status_code": response_data["status_code"],
-                        "response_body": response_data["response_body"],
-                        "duration_ms": response_data["duration_ms"],
-                    },
+                await self.dao.create_delivery(
+                    project_id=project_id,
+                    user_id=user_id,
+                    delivery=WebhookDeliveryCreate(
+                        subscription_id=subscription_id,
+                        event_id=uuid.uuid7(),
+                        status=Status(
+                            code=200 if response_data["success"] else 500,
+                            message="success" if response_data["success"] else "failed",
+                        ),
+                        data={
+                            "event_type": event_type,
+                            "payload": payload,
+                            "url": url,
+                            "status_code": response_data["status_code"],
+                            "response_body": response_data["response_body"],
+                            "duration_ms": response_data["duration_ms"],
+                        },
+                    ),
                 )
             except Exception as e:
                 log.error(f"Failed to record test delivery: {e}")
+
+            try:
+                await self.dao.set_subscription_validity(
+                    project_id=project_id,
+                    subscription_id=subscription_id,
+                    is_valid=bool(response_data["success"]),
+                )
+            except Exception as e:
+                log.error(f"Failed to update subscription validity: {e}")
 
         return response_data

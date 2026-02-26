@@ -1,46 +1,42 @@
-from typing import Any, Optional, Union, List
+from typing import Any, List, Optional, Union
 from uuid import UUID
-from datetime import datetime, timezone
 
-from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import (
-    intercept_exceptions,
-    build_entity_creation_conflict_message,
-)
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
-
-from oss.src.utils.common import APIRouter
-from oss.src.services import db_manager
-from oss.src.core.webhooks import trigger_webhook, WebhookEventType
-from oss.src.services.legacy_adapter import get_legacy_adapter
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.services.legacy_adapter import get_legacy_adapter
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.exceptions import (
+    build_entity_creation_conflict_message,
+    intercept_exceptions,
+)
+from oss.src.utils.logging import get_module_logger
 
 if is_ee():
-    from ee.src.utils.permissions import (
-        check_action_access,
-    )  # noqa pylint: disable-all
-    from ee.src.models.shared_models import (
-        Permission,
-    )  # noqa pylint: disable-all
     from ee.src.models.api.api_models import (
         AppVariantResponse_ as AppVariantResponse,
     )
+    from ee.src.models.shared_models import (
+        Permission,
+    )  # noqa pylint: disable-all
+    from ee.src.utils.permissions import (
+        check_action_access,
+    )  # noqa pylint: disable-all
 else:
     from oss.src.models.api.api_models import (
         AppVariantResponse,
     )
 
-from oss.src.models.api.api_models import (
-    AppVariantRevision,
-    UpdateVariantURLPayload,
-    AddVariantFromBasePayload,
-    UpdateVariantParameterPayload,
-)
 from pydantic import BaseModel
+
+from oss.src.models.api.api_models import (
+    AddVariantFromBasePayload,
+    AppVariantRevision,
+    UpdateVariantParameterPayload,
+    UpdateVariantURLPayload,
+)
 
 
 # Request/Response models for revision query
@@ -589,22 +585,20 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
-from oss.src.services.variants_manager import (  # noqa: E402
+from oss.src.services.variants_manager import (  # noqa: E402  # noqa: E402
     BaseModel,
-    ReferenceDTO,
     ConfigDTO,
-)
-from oss.src.services.variants_manager import (  # noqa: E402
+    ReferenceDTO,
     add_config,
-    fetch_config_by_variant_ref,
-    fetch_config_by_environment_ref,
-    fork_config_by_variant_ref,
-    fork_config_by_environment_ref,
     commit_config,
-    deploy_config,
     delete_config,
-    list_configs,
+    deploy_config,
+    fetch_config_by_environment_ref,
+    fetch_config_by_variant_ref,
+    fork_config_by_environment_ref,
+    fork_config_by_variant_ref,
     history_configs,
+    list_configs,
 )
 
 
@@ -913,29 +907,6 @@ async def configs_deploy(
             status_code=404,
             detail="Config not found.",
         )
-
-    # Trigger webhook
-    try:
-        if config.variant_ref and config.variant_ref.id:
-            revision = await db_manager.fetch_app_variant_revision_by_id(
-                str(config.variant_ref.id)
-            )
-            if revision:
-                await trigger_webhook(
-                    project_id=UUID(request.state.project_id),
-                    event_type=WebhookEventType.CONFIG_DEPLOYED,
-                    payload={
-                        "variant_id": str(revision.variant_id),
-                        "environment_name": config.environment_ref.slug
-                        if config.environment_ref
-                        else "production",
-                        "deployed_by": str(request.state.user_id),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "version": revision.revision,
-                    },
-                )
-    except Exception as e:
-        log.error(f"Failed to trigger webhook: {e}")
 
     await invalidate_cache(
         project_id=request.state.project_id,

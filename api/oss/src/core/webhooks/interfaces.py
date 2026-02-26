@@ -3,100 +3,123 @@
 from typing import List, Optional
 from uuid import UUID
 
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.dtos import (
-    CreateWebhookSubscriptionDTO,
-    UpdateWebhookSubscriptionDTO,
-    WebhookSubscriptionResponseDTO,
-    WebhookSubscriptionQueryDTO,
-    WebhookDeliveryResponseDTO,
+    WebhookDelivery,
+    WebhookDeliveryCreate,
+    WebhookDeliveryQuery,
+    WebhookSubscription,
+    WebhookSubscriptionCreate,
+    WebhookSubscriptionEdit,
+    WebhookSubscriptionQuery,
 )
 
 
 class WebhooksDAOInterface:
     """Interface for webhooks data access."""
 
-    def __init__(self):
-        raise NotImplementedError
+    # --- subscriptions ---------------------------------------------------------
 
-    # Subscription operations
     async def create_subscription(
         self,
+        *,
         project_id: UUID,
-        payload: CreateWebhookSubscriptionDTO,
         user_id: UUID,
-        secret_id: Optional[UUID] = None,
-    ) -> WebhookSubscriptionResponseDTO:
+        #
+        subscription: WebhookSubscriptionCreate,
+        #
+        secret_id: UUID,
+    ) -> WebhookSubscription:
         raise NotImplementedError
 
-    async def get_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
-        raise NotImplementedError
-
-    async def fetch_subscription_by_id(
-        self, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
+    async def fetch_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 
     async def query_subscriptions(
         self,
+        *,
         project_id: UUID,
-        filters: Optional[WebhookSubscriptionQueryDTO] = None,
-        offset: int = 0,
-        limit: int = 20,
-    ) -> tuple[List[WebhookSubscriptionResponseDTO], int]:
+        #
+        subscription: Optional[WebhookSubscriptionQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookSubscription]:
         raise NotImplementedError
 
-    async def update_subscription(
+    async def edit_subscription(
         self,
+        *,
         project_id: UUID,
-        subscription_id: UUID,
-        payload: UpdateWebhookSubscriptionDTO,
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
+        user_id: UUID,
+        #
+        subscription: WebhookSubscriptionEdit,
+    ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 
     async def archive_subscription(
-        self, project_id: UUID, subscription_id: UUID
-    ) -> Optional[WebhookSubscriptionResponseDTO]:
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 
-    # Event operations
-    async def get_active_subscriptions_for_event(
-        self, project_id: UUID, event_type: str
-    ) -> List[WebhookSubscriptionResponseDTO]:
+    async def unarchive_subscription(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        subscription_id: UUID,
+    ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 
-    # Delivery operations
+    async def set_subscription_validity(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+        #
+        is_valid: bool,
+    ) -> Optional[WebhookSubscription]:
+        raise NotImplementedError
+
+    # --- deliveries ------------------------------------------------------------
+
     async def create_delivery(
         self,
-        subscription_id: UUID,
-        event_id: UUID,
-        status: str,
-        created_by_id: Optional[UUID],
-        data: Optional[dict] = None,
-    ) -> WebhookDeliveryResponseDTO:
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: WebhookDeliveryCreate,
+    ) -> WebhookDelivery:
         raise NotImplementedError
 
-    async def update_delivery_status(
+    async def fetch_delivery(
         self,
+        *,
+        project_id: UUID,
         delivery_id: UUID,
-        status: str,
-        data: Optional[dict] = None,
-        updated_by_id: Optional[UUID] = None,
-    ) -> WebhookDeliveryResponseDTO:
+    ) -> Optional[WebhookDelivery]:
         raise NotImplementedError
 
-    async def get_delivery(
-        self, delivery_id: UUID
-    ) -> Optional[WebhookDeliveryResponseDTO]:
-        raise NotImplementedError
-
-    async def record_test_delivery(
+    async def query_deliveries(
         self,
-        subscription_id: UUID,
-        event_id: UUID,
-        status: str,
-        created_by_id: Optional[UUID],
-        data: Optional[dict] = None,
-    ) -> WebhookDeliveryResponseDTO:
+        *,
+        project_id: UUID,
+        #
+        delivery: Optional[WebhookDeliveryQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WebhookDelivery]:
         raise NotImplementedError

@@ -1,8 +1,11 @@
 from enum import Enum
+from uuid import UUID
+
+from pydantic import BaseModel
 
 
-class FlowType(str, Enum):
-    """Execution flow kind that produced an event."""
+class RequestType(str, Enum):
+    """Execution request kind that produced an event."""
 
     UNKNOWN = "unknown"
     # Future examples:
@@ -15,6 +18,12 @@ class EventType(str, Enum):
     """Top-level event classification."""
 
     UNKNOWN = "unknown"
-    # Future examples:
-    # CONFIG_DEPLOYED = "config.deployed"
-    # EVALUATION_COMPLETED = "evaluation.completed"
+    ENVIRONMENTS_REVISIONS_COMMITTED = "environments.revisions.committed"
+
+
+class RequestID(BaseModel):
+    request_id: UUID
+
+
+class EventID(BaseModel):
+    event_id: UUID

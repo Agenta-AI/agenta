@@ -1,12 +1,12 @@
 import os
-from typing import Dict, List, Tuple, Optional
+from collections import defaultdict
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from redis.asyncio import Redis
 
-from oss.src.core.events.dtos import EventIngestDTO
 from oss.src.core.events.service import EventsService
-from oss.src.tasks.asyncio.events.utils import deserialize_event
+from oss.src.core.events.streaming import EventMessage, deserialize_event
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
@@ -14,6 +14,11 @@ log = get_module_logger(__name__)
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Flag
+
+if TYPE_CHECKING:
+    from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
+
+EventKey = Tuple[Optional[UUID], UUID]
 
 
 class EventsWorker:
@@ -26,6 +31,7 @@ class EventsWorker:
         consumer_name: Optional[str] = None,
         max_batch_size: int = 100,
         max_block_ms: int = 5000,
+        webhooks_dispatcher: Optional["WebhooksDispatcher"] = None,
     ):
         self.service = service
         self.redis = redis_client
@@ -34,6 +40,7 @@ class EventsWorker:
         self.consumer_name = consumer_name or f"worker-{os.getpid()}"
         self.max_batch_size = max_batch_size
         self.max_block_ms = max_block_ms
+        self.webhooks_dispatcher = webhooks_dispatcher
 
     async def create_consumer_group(self):
         try:
@@ -72,39 +79,24 @@ class EventsWorker:
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
-    ) -> Tuple[int, List[bytes]]:
-        event_dtos_by_org: Dict[UUID, List[EventIngestDTO]] = {}
-        event_dtos_without_org: List[EventIngestDTO] = []
+    ) -> Tuple[int, List[bytes], Dict[EventKey, List[EventMessage]]]:
+        messages_by_key: Dict[EventKey, List[EventMessage]] = defaultdict(list)
         processed_ids: List[bytes] = []
 
         for msg_id, data in batch:
             try:
                 payload = data[b"data"]
-                event_dto = deserialize_event(payload=payload)
-                if event_dto.organization_id:
-                    event_dtos_by_org.setdefault(event_dto.organization_id, []).append(
-                        event_dto
-                    )
-                else:
-                    event_dtos_without_org.append(event_dto)
+                msg = deserialize_event(payload=payload)
+                key: EventKey = (msg.organization_id, msg.project_id)
+                messages_by_key[key].append(msg)
                 processed_ids.append(msg_id)
             except Exception as e:
                 log.error(f"[EVENTS] Failed to deserialize message {msg_id!r}: {e}")
 
         total_ingested = 0
 
-        # Ingest records that have no organization scope (OSS/local paths)
-        if event_dtos_without_org:
-            total_ingested += await self.service.ingest(
-                event_dtos=event_dtos_without_org
-            )
-
-        if not event_dtos_by_org:
-            return total_ingested, processed_ids
-
-        # Fast entitlement gate with cache, per organization
-        for organization_id, org_events in event_dtos_by_org.items():
-            if is_ee():
+        for (organization_id, project_id), msgs in messages_by_key.items():
+            if organization_id and is_ee():
                 try:
                     allowed, _, _ = await check_entitlements(
                         organization_id=organization_id,
@@ -121,16 +113,16 @@ class EventsWorker:
                     log.warning(
                         "[EVENTS] Access denied by entitlements, dropping org batch",
                         org_id=str(organization_id),
-                        batch_size=len(org_events),
+                        batch_size=len(msgs),
                     )
                     continue
 
-            total_ingested += await self.service.ingest(event_dtos=org_events)
+            total_ingested += await self.service.ingest(
+                project_id=project_id,
+                events=[msg.to_event() for msg in msgs],
+            )
 
-        if total_ingested == 0:
-            return 0, processed_ids
-
-        return total_ingested, processed_ids
+        return total_ingested, processed_ids, messages_by_key
 
     async def run(self):
         log.info(
@@ -138,6 +130,7 @@ class EventsWorker:
             stream=self.stream_name,
             group=self.consumer_group,
             consumer=self.consumer_name,
+            webhooks=self.webhooks_dispatcher is not None,
         )
 
         while True:
@@ -146,7 +139,20 @@ class EventsWorker:
                 if not batch:
                     continue
 
-                ingested, processed_ids = await self.process_batch(batch)
+                ingested, processed_ids, messages_by_key = await self.process_batch(
+                    batch
+                )
+
+                # --- webhook dispatch parenthesis ---
+                if self.webhooks_dispatcher and messages_by_key:
+                    try:
+                        await self.webhooks_dispatcher.dispatch(messages_by_key)
+                    except Exception as e:
+                        log.error(
+                            f"[EVENTS] Webhook dispatch error: {e}", exc_info=True
+                        )
+                # --- end webhook dispatch -----------
+
                 await self.ack_and_delete(processed_ids)
                 log.debug(
                     "[EVENTS] Batch processed",

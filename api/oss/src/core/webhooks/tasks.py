@@ -1,99 +1,89 @@
+"""Core webhook delivery logic invoked by the TaskIQ worker.
+
+All data needed for delivery (URL, headers, encrypted secret, payload)
+is passed inline in the task parameters — no DB reads during execution.
+Only one write happens: a delivery record created on the final outcome.
+
+Retry policy (enforced by TaskIQ):
+  - 2xx                   → success delivery record, task completes normally
+  - 1xx / 3xx / 4xx       → failure delivery record, task completes normally
+                            (receiver understood; no retry makes sense)
+  - 5xx / timeout / error → raise exception so TaskIQ retries
+  - retries exhausted     → failure delivery record, re-raise
+"""
+
+import hashlib
+import hmac
 import json
 from datetime import datetime, timezone
 from uuid import UUID
 
 import httpx
-import hmac
-import hashlib
 
-from oss.src.core.secrets.services import VaultService
-from oss.src.dbs.postgres.secrets.dao import SecretsDAO
-from oss.src.core.webhooks.circuit_breaker import circuit_breaker
-from oss.src.core.webhooks.config import WEBHOOK_TIMEOUT
+from oss.src.core.shared.dtos import Status
+from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES, WEBHOOK_TIMEOUT
+from oss.src.core.webhooks.dtos import (
+    WebhookDeliveryCreate,
+    WebhookDeliveryData,
+    WebhookDeliveryResponseInfo,
+)
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.utils.crypting import decrypt
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
 
-def _extract_signing_secret(secret_dto) -> str | None:
-    """Extract webhook signing secret from SecretResponseDTO payload."""
-    data = secret_dto.data if secret_dto else None
+def _is_retryable(status_code: int) -> bool:
+    return status_code >= 500
 
-    provider = None
-    if hasattr(data, "provider"):
-        provider = data.provider
-    elif isinstance(data, dict):
-        provider = data.get("provider")
 
-    if hasattr(provider, "key"):
-        return provider.key
-    if isinstance(provider, dict):
-        return provider.get("key")
-
-    return None
+async def _record_delivery(
+    *,
+    dao: WebhooksDAOInterface,
+    project_id: UUID,
+    subscription_id: UUID,
+    event_id: UUID,
+    status: Status,
+    data: WebhookDeliveryData,
+) -> None:
+    try:
+        await dao.create_delivery(
+            project_id=project_id,
+            user_id=None,
+            delivery=WebhookDeliveryCreate(
+                status=status,
+                data=data,
+                subscription_id=subscription_id,
+                event_id=event_id,
+            ),
+        )
+    except Exception as e:
+        log.error(f"[WEBHOOKS TASK] Failed to record delivery: {e}")
 
 
 async def deliver_webhook(
-    delivery_id: UUID,
+    *,
+    project_id: UUID,
+    subscription_id: UUID,
+    event_id: UUID,
+    #
+    url: str,
+    headers: dict,
+    encrypted_secret: str,
+    #
+    event_type: str,
+    payload: dict,
+    #
+    retry_count: int,
+    #
     dao: WebhooksDAOInterface,
 ) -> None:
-    """Deliver a webhook payload and update delivery status in-place."""
-    delivery = await dao.get_delivery(delivery_id)
-    if not delivery:
-        log.error(f"Webhook delivery {delivery_id} not found")
-        return
+    """Deliver a webhook payload to a single subscriber endpoint."""
+    signing_secret = decrypt(encrypted_secret)
 
-    subscription = await dao.fetch_subscription_by_id(delivery.subscription_id)
-    if not subscription:
-        await dao.update_delivery_status(
-            delivery_id=delivery_id,
-            status="failed",
-            data={**(delivery.data or {}), "error": "Subscription not found"},
-        )
-        return
-
-    if not subscription.is_active:
-        await dao.update_delivery_status(
-            delivery_id=delivery_id,
-            status="failed",
-            data={**(delivery.data or {}), "error": "Subscription inactive"},
-        )
-        return
-
-    if await circuit_breaker.is_open(str(subscription.id)):
-        await dao.update_delivery_status(
-            delivery_id=delivery_id,
-            status="retrying",
-            data={
-                **(delivery.data or {}),
-                "error": "Circuit breaker open - endpoint failing repeatedly",
-            },
-        )
-        return
-
-    payload = (delivery.data or {}).get("payload") or {}
-    event_type = (delivery.data or {}).get("event_type") or "unknown"
     payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     timestamp = str(int(datetime.now(timezone.utc).timestamp()))
-
-    signing_secret = None
-    if subscription.secret_id:
-        vault_service = VaultService(SecretsDAO())
-        secret_dto = await vault_service.get_secret(
-            secret_id=subscription.secret_id,
-            project_id=subscription.project_id,
-        )
-        signing_secret = _extract_signing_secret(secret_dto)
-
-    if not signing_secret:
-        await dao.update_delivery_status(
-            delivery_id=delivery_id,
-            status="failed",
-            data={**(delivery.data or {}), "error": "Webhook signing secret not found"},
-        )
-        return
-
     to_sign = f"{timestamp}.{payload_json}"
     signature = hmac.new(
         key=signing_secret.encode("utf-8"),
@@ -101,62 +91,103 @@ async def deliver_webhook(
         digestmod=hashlib.sha256,
     ).hexdigest()
 
-    headers = {
+    request_headers = {
         "Content-Type": "application/json",
         "User-Agent": "Agenta-Webhook/1.0",
-        "X-Agenta-Delivery-ID": str(delivery.id),
         "X-Agenta-Event-Type": event_type,
         "X-Agenta-Signature": f"t={timestamp},v1={signature}",
     }
+    request_headers.update(headers)
 
-    headers.update(subscription.headers or {})
+    base_data = WebhookDeliveryData(
+        url=url,  # type: ignore[arg-type]
+        event_type=event_type,
+        payload=payload,
+    )
 
     try:
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:
             start_time = datetime.now(timezone.utc)
             response = await client.post(
-                subscription.url,
+                url,
                 content=payload_json,
-                headers=headers,
+                headers=request_headers,
             )
-            duration = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
-            response.raise_for_status()
-
-            await circuit_breaker.record_success(str(subscription.id))
-            await dao.update_delivery_status(
-                delivery_id=delivery_id,
-                status="success",
-                data={
-                    **(delivery.data or {}),
-                    "duration_ms": int(duration),
-                    "response": {
-                        "status_code": response.status_code,
-                        "body": response.text[:2000],
-                    },
-                },
+            duration_ms = int(
+                (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             )
 
-    except Exception as e:
-        log.warning(f"Error delivering webhook {delivery_id}: {e}")
-        await circuit_breaker.record_failure(str(subscription.id))
-
-        response_status_code = None
-        response_body = str(e)
-        if isinstance(e, httpx.HTTPStatusError):
-            response_status_code = e.response.status_code
-            response_body = e.response.text[:2000]
-
-        await dao.update_delivery_status(
-            delivery_id=delivery_id,
-            status="retrying",
-            data={
-                **(delivery.data or {}),
-                "error": str(e),
-                "response": {
-                    "status_code": response_status_code,
-                    "body": response_body,
-                },
-            },
+        response_info = WebhookDeliveryResponseInfo(
+            status_code=response.status_code,
+            body=response.text[:2000],
+        )
+        final_data = base_data.model_copy(
+            update={"duration_ms": duration_ms, "response": response_info}
         )
 
-        raise e
+        if response.is_success:
+            # 2xx — record success, task done
+            await _record_delivery(
+                dao=dao,
+                project_id=project_id,
+                subscription_id=subscription_id,
+                event_id=event_id,
+                status=Status(code=response.status_code, message="success"),
+                data=final_data,
+            )
+            return
+
+        if _is_retryable(response.status_code):
+            # 5xx — retry; record only on final attempt
+            is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+            if is_last_attempt:
+                await _record_delivery(
+                    dao=dao,
+                    project_id=project_id,
+                    subscription_id=subscription_id,
+                    event_id=event_id,
+                    status=Status(code=response.status_code, message="failed"),
+                    data=final_data,
+                )
+            response.raise_for_status()  # triggers TaskIQ retry
+
+        else:
+            # 1xx / 3xx / 4xx — permanent failure, no retry
+            await _record_delivery(
+                dao=dao,
+                project_id=project_id,
+                subscription_id=subscription_id,
+                event_id=event_id,
+                status=Status(code=response.status_code, message="failed"),
+                data=final_data,
+            )
+
+    except httpx.TimeoutException as e:
+        is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+        if is_last_attempt:
+            await _record_delivery(
+                dao=dao,
+                project_id=project_id,
+                subscription_id=subscription_id,
+                event_id=event_id,
+                status=Status(code=0, message="failed"),
+                data=base_data.model_copy(update={"error": f"Timeout: {e}"}),
+            )
+        raise
+
+    except httpx.HTTPStatusError:
+        # Already handled above via raise_for_status — re-raise for TaskIQ
+        raise
+
+    except Exception as e:
+        is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+        if is_last_attempt:
+            await _record_delivery(
+                dao=dao,
+                project_id=project_id,
+                subscription_id=subscription_id,
+                event_id=event_id,
+                status=Status(code=0, message="failed"),
+                data=base_data.model_copy(update={"error": str(e)}),
+            )
+        raise

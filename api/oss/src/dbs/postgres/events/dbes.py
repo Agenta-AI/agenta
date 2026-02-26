@@ -1,4 +1,4 @@
-from sqlalchemy import PrimaryKeyConstraint, Index, desc, text
+from sqlalchemy import Column, UUID, PrimaryKeyConstraint, Index, desc, text
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.events.dbas import EventDBA
@@ -13,12 +13,14 @@ class EventDBE(
     LifecycleDBA,
     EventDBA,
 ):
+    # Events are system-generated; override to allow NULL when no user actor exists
+    created_by_id = Column(UUID(as_uuid=True), nullable=True)
     __tablename__ = "events"
 
     __table_args__ = (
         PrimaryKeyConstraint(
             "project_id",
-            "flow_id",
+            "request_id",
             "event_id",
         ),  # for uniqueness
         Index(
@@ -26,10 +28,10 @@ class EventDBE(
             "project_id",
         ),  # for filtering
         Index(
-            "ix_events_project_id_flow_id",
+            "ix_events_project_id_request_id",
             "project_id",
-            "flow_id",
-        ),  # for focus = flow
+            "request_id",
+        ),  # for focus = request
         Index(
             "ix_events_project_id_event_id",
             "project_id",
@@ -41,9 +43,9 @@ class EventDBE(
             "timestamp",
         ),  # for sorting and scrolling
         Index(
-            "ix_events_project_id_flow_type",
+            "ix_events_project_id_request_type",
             "project_id",
-            "flow_type",
+            "request_type",
         ),  # for filtering
         Index(
             "ix_events_project_id_event_type",
@@ -51,48 +53,19 @@ class EventDBE(
             "event_type",
         ),  # for filtering
         Index(
-            "ix_events_project_id_flow_id_created_at",
+            "ix_events_project_id_request_id_created_at",
             "project_id",
-            "flow_id",
+            "request_id",
             desc("created_at"),
-        ),  # for sorting and scrolling within a flow
+        ),  # for sorting and scrolling within a request
         Index(
             "ix_events_attributes_gin",
             "attributes",
             postgresql_using="gin",
         ),  # for filtering
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
-        #
         Index(
             "ix_events_fts_attributes_gin",
             text("to_tsvector('simple', attributes)"),
             postgresql_using="gin",
         ),  # for full-text search on attributes
-        #
-        #
-        #
-        #
-        #
     )

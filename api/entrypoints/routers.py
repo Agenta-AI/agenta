@@ -369,13 +369,10 @@ webhooks = WebhooksRouter(
     webhooks_service=webhooks_service,
 )
 
-otlp = OTLPRouter(
-    tracing_worker=tracing_worker,
-)
+otlp = OTLPRouter()
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
 )
 
 events = EventsRouter(

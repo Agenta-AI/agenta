@@ -1,17 +1,18 @@
 from enum import Enum
 from typing import List
 
+from oss.src.core.events.types import EventType
+
 
 class WebhookEventType(str, Enum):
-    # MVP Event
-    CONFIG_DEPLOYED = "config.deployed"
+    """Subscribable event types — a strict subset of EventType.
 
-    # Future Events (scaffolded for extensibility)
-    # CONFIG_UPDATED = "config.updated"
-    # CONFIG_CREATED = "config.created"
-    # EVALUATION_COMPLETED = "evaluation.completed"
-    # TEST_FAILED = "test.failed"
+    Values are derived from EventType so the strings stay in sync.
+    To add a new subscribable event type, it must first exist in EventType.
+    """
+
+    ENVIRONMENTS_REVISIONS_COMMITTED = EventType.ENVIRONMENTS_REVISIONS_COMMITTED.value
 
     @classmethod
-    def mvp_events(cls) -> List[str]:
-        return [cls.CONFIG_DEPLOYED.value]
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]

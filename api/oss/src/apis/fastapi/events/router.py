@@ -2,19 +2,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
-from oss.src.apis.fastapi.events.models import (
-    EventQueryRequest,
-    EventsQueryResponse,
-    EventResponse,
-)
-from oss.src.core.events.dtos import EventQueryDTO
+from oss.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse
 from oss.src.core.events.service import EventsService
 from oss.src.utils.exceptions import intercept_exceptions
 
 
 class EventsRouter:
-    def __init__(self, events_service: EventsService):
+    def __init__(
+        self,
+        events_service: EventsService,
+    ):
         self.service = events_service
+
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -33,12 +32,14 @@ class EventsRouter:
         request: Request,
         query_request: EventQueryRequest,
     ) -> EventsQueryResponse:
-        query = EventQueryDTO(**query_request.model_dump(mode="json"))
-        event_dtos = await self.service.query(
+        events = await self.service.query(
             project_id=UUID(request.state.project_id),
-            query=query,
+            #
+            event=query_request.event,
+            #
+            windowing=query_request.windowing,
         )
         return EventsQueryResponse(
-            count=len(event_dtos),
-            events=[EventResponse(**e.model_dump(mode="json")) for e in event_dtos],
+            count=len(events),
+            events=events,
         )

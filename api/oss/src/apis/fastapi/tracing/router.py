@@ -38,11 +38,7 @@ from oss.src.core.tracing.utils import (
     calculate_and_propagate_metrics,
 )
 
-# TYPE_CHECKING to avoid circular import at runtime
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+from oss.src.core.tracing.streaming import publish_span
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelLinks,
@@ -70,10 +66,8 @@ class TracingRouter:
     def __init__(
         self,
         tracing_service: TracingService,
-        tracing_worker: "TracingWorker",
     ):
         self.service = tracing_service
-        self.worker = tracing_worker
 
         self.router = APIRouter()
 
@@ -541,7 +535,7 @@ class TracingRouter:
         else:
             # Async path for high-volume operations (observability, evaluations)
             # Publish to Redis Streams for async processing with entitlements check
-            await self.worker.publish_to_stream(
+            await publish_span(
                 organization_id=organization_id,
                 project_id=project_id,
                 user_id=user_id,

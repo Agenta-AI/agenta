@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, or_, and_
 from sqlalchemy.dialects.postgresql import insert
 
-from oss.src.core.events.dtos import EventIngestDTO, EventQueryDTO, EventDTO
+from oss.src.core.shared.dtos import Windowing
+from oss.src.core.events.dtos import Event, EventQuery
 from oss.src.core.events.interfaces import EventsDAOInterface
 from oss.src.dbs.postgres.events.dbes import EventDBE
 from oss.src.dbs.postgres.events.mappings import (
@@ -16,76 +17,143 @@ from oss.src.dbs.postgres.shared.engine import engine
 
 
 class EventsDAO(EventsDAOInterface):
-    async def ingest(self, *, event_dtos: List[EventIngestDTO]) -> int:
-        if not event_dtos:
+    def __init__(self):
+        pass
+
+    ### EVENTS
+
+    async def ingest(
+        self,
+        *,
+        project_id: UUID,
+        #
+        events: List[Event],
+    ) -> int:
+        if not events:
             return 0
 
-        now = datetime.now(timezone.utc)
-
-        values = []
-        for event_dto in event_dtos:
-            event_dbe = map_event_dto_to_dbe(event_dto=event_dto)
-            value = {
-                c.name: getattr(event_dbe, c.name) for c in EventDBE.__table__.columns
-            }
-            value["updated_at"] = now
-            value["updated_by_id"] = event_dto.created_by_id
-            values.append(value)
-
-        stmt = insert(EventDBE).values(values)
-        update_fields = {
-            c.name: stmt.excluded[c.name]
-            for c in EventDBE.__table__.columns
-            if c.name
-            not in [
-                "project_id",
-                "flow_id",
-                "event_id",
-                "created_at",
-                "created_by_id",
-            ]
-        }
-        stmt = stmt.on_conflict_do_update(
-            index_elements=["project_id", "flow_id", "event_id"],
-            set_=update_fields,
-        )
-
         async with engine.tracing_session() as session:
-            res = await session.execute(stmt)
+            total_ingested = 0
+
+            for event in events:
+                event_dbe = map_event_dto_to_dbe(
+                    event=event,
+                    project_id=project_id,
+                )
+
+                values = {
+                    c.name: getattr(event_dbe, c.name)
+                    for c in EventDBE.__table__.columns
+                }
+
+                stmt = insert(EventDBE).values(**values)
+
+                update_fields = {
+                    c.name: stmt.excluded[c.name]
+                    for c in EventDBE.__table__.columns
+                    if c.name
+                    not in [
+                        "project_id",
+                        "request_id",
+                        "event_id",
+                        "created_at",
+                        "created_by_id",
+                    ]
+                }
+                update_fields["updated_at"] = datetime.now(timezone.utc)
+
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["project_id", "request_id", "event_id"],
+                    set_=update_fields,
+                )
+
+                res = await session.execute(stmt)
+                total_ingested += int(res.rowcount or 0)
+
             await session.commit()
-            return int(res.rowcount or 0)
 
-    async def query(self, *, project_id: UUID, query: EventQueryDTO) -> List[EventDTO]:
+            return total_ingested
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event: Optional[EventQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Event]:
         async with engine.tracing_session() as session:
-            stmt = select(EventDBE).where(
+            # BASE
+            stmt = select(EventDBE)
+
+            # SCOPING
+            stmt = stmt.where(
                 EventDBE.project_id == project_id,
-                EventDBE.deleted_at.is_(None),
             )
 
-            if query.flow_id is not None:
-                stmt = stmt.where(EventDBE.flow_id == query.flow_id)
-            if query.flow_type is not None:
-                stmt = stmt.where(EventDBE.flow_type == query.flow_type)
-            if query.event_type is not None:
-                stmt = stmt.where(EventDBE.event_type == query.event_type)
-            if query.event_name is not None:
-                stmt = stmt.where(EventDBE.event_name == query.event_name)
-            if query.status_code is not None:
-                stmt = stmt.where(EventDBE.status_code == query.status_code)
-            if query.timestamp_from is not None:
-                stmt = stmt.where(EventDBE.timestamp >= query.timestamp_from)
-            if query.timestamp_to is not None:
-                stmt = stmt.where(EventDBE.timestamp <= query.timestamp_to)
+            # FILTERING
+            if event:
+                if event.request_id is not None:
+                    stmt = stmt.where(EventDBE.request_id == event.request_id)
+                if event.request_type is not None:
+                    stmt = stmt.where(EventDBE.request_type == event.request_type)
+                if event.event_type is not None:
+                    stmt = stmt.where(EventDBE.event_type == event.event_type)
 
-            order_col = (
-                EventDBE.created_at
-                if query.order_by == "created_at"
-                else EventDBE.timestamp
-            )
-            stmt = stmt.order_by(
-                order_col.asc() if query.order == "asc" else order_col.desc()
-            )
-            stmt = stmt.offset(query.offset).limit(query.limit)
+            # WINDOWING
+            if windowing:
+                order = (windowing.order or "descending").lower()
+                if order == "descending":
+                    if windowing.newest:
+                        if windowing.next:
+                            stmt = stmt.where(EventDBE.timestamp <= windowing.newest)
+                        else:
+                            stmt = stmt.where(EventDBE.timestamp < windowing.newest)
+                    if windowing.oldest:
+                        stmt = stmt.where(EventDBE.timestamp >= windowing.oldest)
+                    if windowing.next and windowing.newest:
+                        stmt = stmt.where(
+                            or_(
+                                EventDBE.timestamp < windowing.newest,
+                                and_(
+                                    EventDBE.timestamp == windowing.newest,
+                                    EventDBE.event_id < windowing.next,
+                                ),
+                            )
+                        )
+                    stmt = stmt.order_by(
+                        EventDBE.timestamp.desc(), EventDBE.event_id.desc()
+                    )
+                else:
+                    if windowing.newest:
+                        stmt = stmt.where(EventDBE.timestamp <= windowing.newest)
+                    if windowing.oldest:
+                        if windowing.next:
+                            stmt = stmt.where(EventDBE.timestamp >= windowing.oldest)
+                        else:
+                            stmt = stmt.where(EventDBE.timestamp > windowing.oldest)
+                    if windowing.next and windowing.oldest:
+                        stmt = stmt.where(
+                            or_(
+                                EventDBE.timestamp > windowing.oldest,
+                                and_(
+                                    EventDBE.timestamp == windowing.oldest,
+                                    EventDBE.event_id > windowing.next,
+                                ),
+                            )
+                        )
+                    stmt = stmt.order_by(
+                        EventDBE.timestamp.asc(), EventDBE.event_id.asc()
+                    )
+                if windowing.limit:
+                    stmt = stmt.limit(windowing.limit)
+            else:
+                stmt = stmt.order_by(EventDBE.timestamp.desc())
 
-            rows = (await session.execute(stmt)).scalars().all()
-            return [map_event_dbe_to_dto(event_dbe=row) for row in rows]
+            dbes = (await session.execute(stmt)).scalars().all()
+
+            if not dbes:
+                return []
+
+            return [map_event_dbe_to_dto(event_dbe=dbe) for dbe in dbes]

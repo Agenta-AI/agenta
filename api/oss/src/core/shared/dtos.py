@@ -20,6 +20,7 @@ from agenta.sdk.models.shared import (  # noqa: F401
     Hashes,
     Metrics,
     Schema,
+    Status,
     #
     Lifecycle,
     Header,
@@ -44,6 +45,10 @@ from agenta.sdk.models.shared import (  # noqa: F401
 
 class FolderScope(BaseModel):
     folder_id: Optional[UUID] = None
+
+
+class ProjectScope(BaseModel):
+    project_id: Optional[UUID] = None
 
 
 class LegacyLifecycleDTO(BaseModel):
