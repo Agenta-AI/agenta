@@ -1514,6 +1514,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
+            is_adhoc=False,
         )
 
         if not evaluation.data:
@@ -1537,6 +1538,7 @@ class SimpleEvaluationsService:
                 is_closed=False,
                 is_live=evaluation.flags.is_live,
                 is_active=False,
+                is_adhoc=evaluation.flags.is_adhoc,
             )
 
             if not run_flags:
@@ -1638,6 +1640,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
+            is_adhoc=False,
         )
 
         if not evaluation.id:
@@ -1713,6 +1716,7 @@ class SimpleEvaluationsService:
                 is_closed=_evaluation.flags.is_closed,
                 is_live=_evaluation.flags.is_live,
                 is_active=_evaluation.flags.is_active,
+                is_adhoc=_evaluation.flags.is_adhoc,
             )
 
             run_data = await self._make_evaluation_run_data(
@@ -1813,6 +1817,7 @@ class SimpleEvaluationsService:
             is_closed=query.flags.is_closed if query and query.flags else None,
             is_live=query.flags.is_live if query and query.flags else None,
             is_active=query.flags.is_active if query and query.flags else None,
+            is_adhoc=query.flags.is_adhoc if query and query.flags else None,
             #
             tags=query.tags if query else None,
             meta=query.meta if query else None,
@@ -1880,11 +1885,7 @@ class SimpleEvaluationsService:
 
                 _evaluation = await self._parse_evaluation_run(run=run)
 
-            elif (
-                not _evaluation.flags.is_live
-                and _evaluation.data.evaluator_steps
-                and (_evaluation.data.query_steps or _evaluation.data.testset_steps)
-            ):
+            elif not _evaluation.flags.is_live:
                 run = await self._activate_evaluation_run(
                     project_id=project_id,
                     user_id=user_id,
@@ -1912,20 +1913,27 @@ class SimpleEvaluationsService:
                     )
                     return _evaluation
 
-                if _evaluation.data.query_steps:
-                    await self.evaluations_worker.evaluate_live_query.kiq(
+                has_query_steps = bool(_evaluation.data.query_steps)
+                has_testset_steps = bool(_evaluation.data.testset_steps)
+                has_application_steps = bool(_evaluation.data.application_steps)
+                has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
+
+                if has_testset_steps and has_application_steps:
+                    await self.evaluations_worker.evaluate_batch_testset.kiq(
                         project_id=project_id,
                         user_id=user_id,
                         #
                         run_id=run.id,
                     )
 
-                elif _evaluation.data.testset_steps:
-                    await self.evaluations_worker.evaluate_batch_testset.kiq(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
+                else:
+                    log.warning(
+                        "[EVAL] [start] [skip] unsupported non-live run topology",
                         run_id=run.id,
+                        has_query_steps=has_query_steps,
+                        has_testset_steps=has_testset_steps,
+                        has_application_steps=has_application_steps,
+                        has_evaluator_steps=has_evaluator_steps,
                     )
 
                 return _evaluation
@@ -1960,6 +1968,76 @@ class SimpleEvaluationsService:
         _evaluation = await self._parse_evaluation_run(run=run)
 
         return _evaluation
+
+    async def evaluate_batch_traces(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluation_id: UUID,
+        trace_ids: List[str],
+    ) -> bool:
+        if not trace_ids:
+            return False
+        if self.evaluations_worker is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch trace batch",
+                evaluation_id=evaluation_id,
+            )
+            return False
+
+        run = await self.fetch(project_id=project_id, evaluation_id=evaluation_id)
+        if not run or not run.flags or not run.flags.is_adhoc:
+            log.warning(
+                "[EVAL] trace batch dispatch requires ad-hoc evaluation",
+                evaluation_id=evaluation_id,
+            )
+            return False
+
+        await self.evaluations_worker.evaluate_batch_traces.kiq(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=evaluation_id,
+            trace_ids=trace_ids,
+        )
+        return True
+
+    async def evaluate_batch_testcases(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluation_id: UUID,
+        testcase_ids: List[UUID],
+    ) -> bool:
+        if not testcase_ids:
+            return False
+        if self.evaluations_worker is None:
+            log.warning(
+                "[EVAL] Taskiq client missing; cannot dispatch testcase batch",
+                evaluation_id=evaluation_id,
+            )
+            return False
+
+        run = await self.fetch(project_id=project_id, evaluation_id=evaluation_id)
+        if not run or not run.flags or not run.flags.is_adhoc:
+            log.warning(
+                "[EVAL] testcase batch dispatch requires ad-hoc evaluation",
+                evaluation_id=evaluation_id,
+            )
+            return False
+
+        await self.evaluations_worker.evaluate_batch_testcases.kiq(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=evaluation_id,
+            testcase_ids=testcase_ids,
+        )
+        return True
 
     async def close(
         self,
@@ -2458,16 +2536,24 @@ class SimpleEvaluationsService:
                     references=evaluator_references[step_key],
                     inputs=(
                         [
-                            # IMPLICIT FLAG: is_multivariate=False
-                            EvaluationRunDataStepInput(key="__all_invocations__"),
-                            # IMPLICIT FLAG: all_inputs=True
-                            EvaluationRunDataStepInput(key="__all_inputs__"),
+                            *(
+                                [
+                                    EvaluationRunDataStepInput(
+                                        key="__all_invocations__"
+                                    ),
+                                ]
+                                if application_invocation_steps_keys
+                                else []
+                            ),
+                            *(
+                                [
+                                    EvaluationRunDataStepInput(key="__all_inputs__"),
+                                ]
+                                if (query_input_steps_keys or testset_input_steps_keys)
+                                else []
+                            ),
                         ]
-                        if not query_steps
-                        else [
-                            # IMPLICIT FLAG: all_inputs=True
-                            EvaluationRunDataStepInput(key="__all_inputs__"),
-                        ]
+                        or None
                     ),
                 )
                 for step_key in evaluator_annotation_steps_keys
@@ -2565,11 +2651,13 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
+        is_adhoc: Optional[bool] = None,
     ) -> EvaluationRunFlags:
         return EvaluationRunFlags(
             is_closed=is_closed or False,
             is_live=is_live or False,
             is_active=is_active or False,
+            is_adhoc=is_adhoc or False,
         )
 
     async def _make_evaluation_run_query(
@@ -2578,6 +2666,7 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
+        is_adhoc: Optional[bool] = None,
         #
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
@@ -2586,6 +2675,7 @@ class SimpleEvaluationsService:
             is_closed=is_closed,
             is_live=is_live,
             is_active=is_active,
+            is_adhoc=is_adhoc,
         )
 
         run_query = EvaluationRunQuery(
@@ -2715,7 +2805,7 @@ class SimpleEvaluationsService:
             for step in steps:
                 step_type = step.type
                 step_origin = step.origin
-                step_references = step.references
+                step_references = step.references or {}
                 step_id = None
 
                 if step_type == "input":

@@ -82,6 +82,7 @@ class EvaluationRunFlags(BaseModel):
     is_live: bool = False  # Indicates if the run has live queries
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
+    is_adhoc: bool = False  # Indicates ad-hoc/bucket run behavior
     #
     has_queries: bool = False  # Indicates if the run has queries
     has_testsets: bool = False  # Indicates if the run has testsets
@@ -96,6 +97,7 @@ class EvaluationRunQueryFlags(BaseModel):
     is_live: Optional[bool] = None  # Indicates if the run has live queries
     is_active: Optional[bool] = None  # Indicates if the run is currently active
     is_closed: Optional[bool] = None  # Indicates if the run is modifiable
+    is_adhoc: Optional[bool] = None  # Indicates ad-hoc/bucket run behavior
     #
     has_queries: Optional[bool] = None  # Indicates if the run has queries
     has_testsets: Optional[bool] = None  # Indicates if the run has testsets

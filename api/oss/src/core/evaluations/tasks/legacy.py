@@ -18,6 +18,7 @@ if is_ee():
 
 
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
@@ -44,6 +45,9 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
     EvaluationResultCreate,
     EvaluationMetricsRefresh,
+    EvaluationQueueCreate,
+    EvaluationQueueData,
+    EvaluationQueueQuery,
 )
 
 from oss.src.core.shared.dtos import Reference
@@ -1427,3 +1431,503 @@ async def evaluate_batch_testset(
     log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
 
     return
+
+
+async def _evaluate_batch_items(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    run_id: UUID,
+    #
+    testcase_ids: Optional[List[UUID]] = None,
+    trace_ids: Optional[List[str]] = None,
+    #
+    tracing_router: Optional[TracingRouter] = None,
+    testcases_service: Optional[TestcasesService] = None,
+    workflows_service: WorkflowsService,
+    evaluations_service: EvaluationsService,
+):
+    request = Request(
+        scope={
+            "type": "http",
+            "http_version": "1.1",
+            "scheme": "http",
+        }
+    )
+    request.state.project_id = str(project_id)
+    request.state.user_id = str(user_id)
+
+    run: Optional[EvaluationRun] = None
+    scenarios = []
+    run_status = EvaluationStatus.SUCCESS
+
+    try:
+        run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run:
+            raise ValueError(f"Evaluation run with id {run_id} not found!")
+        if not run.flags or not run.flags.is_adhoc:
+            raise ValueError(
+                f"Evaluation run with id {run_id} is not configured for ad-hoc batching!"
+            )
+        if not run.data or not run.data.steps:
+            raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
+
+        testcase_ids = testcase_ids or []
+        trace_ids = trace_ids or []
+        if not testcase_ids and not trace_ids:
+            raise ValueError(
+                f"Evaluation run with id {run_id} has no testcase_ids or trace_ids!"
+            )
+        if trace_ids and tracing_router is None:
+            raise ValueError("tracing_router is required for trace batches")
+        if testcase_ids and testcases_service is None:
+            raise ValueError("testcases_service is required for testcase batches")
+
+        steps = run.data.steps
+        input_steps = [step for step in steps if step.type == "input"]
+        invocation_steps = [step for step in steps if step.type == "invocation"]
+        annotation_steps = [step for step in steps if step.type == "annotation"]
+
+        input_step_key = input_steps[0].key if input_steps else None
+        invocation_step_key = invocation_steps[0].key if invocation_steps else None
+        human_step_keys = [
+            step.key for step in annotation_steps if step.origin == "human"
+        ]
+
+        evaluator_references = {step.key: step.references for step in annotation_steps}
+        evaluator_revisions: Dict[str, Any] = {}
+        for annotation_step_key, annotation_refs in evaluator_references.items():
+            evaluator_revision_ref = annotation_refs.get("evaluator_revision")
+            evaluator_revisions[annotation_step_key] = (
+                await workflows_service.fetch_workflow_revision(
+                    project_id=project_id,
+                    workflow_revision_ref=evaluator_revision_ref,
+                )
+                if evaluator_revision_ref
+                else None
+            )
+
+        testcases = (
+            await testcases_service.fetch_testcases(
+                project_id=project_id,
+                testcase_ids=testcase_ids,
+            )
+            if testcase_ids
+            else []
+        )
+        testcases_by_id = {
+            testcase.id: testcase for testcase in testcases if testcase.id
+        }
+
+        scenario_items = []
+        for testcase_id in testcase_ids:
+            testcase = testcases_by_id.get(testcase_id)
+            scenario_items.append(
+                dict(
+                    kind="testcase",
+                    testcase=testcase,
+                    testcase_id=testcase_id,
+                    trace_id=None,
+                )
+            )
+        for trace_id in trace_ids:
+            scenario_items.append(
+                dict(
+                    kind="trace",
+                    testcase=None,
+                    testcase_id=None,
+                    trace_id=trace_id,
+                )
+            )
+
+        scenarios = await evaluations_service.create_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            scenarios=[
+                EvaluationScenarioCreate(
+                    run_id=run_id,
+                    status=EvaluationStatus.RUNNING,
+                )
+                for _ in scenario_items
+            ],
+        )
+        if len(scenarios) != len(scenario_items):
+            raise ValueError(f"Failed to create scenarios for run {run_id}")
+
+        run_has_errors = False
+        run_has_pending = False
+
+        for idx, scenario in enumerate(scenarios):
+            scenario_status = EvaluationStatus.SUCCESS
+            scenario_has_pending = False
+            scenario_item = scenario_items[idx]
+
+            source_testcase = scenario_item["testcase"]
+            source_testcase_id = scenario_item["testcase_id"]
+            source_trace_id = scenario_item["trace_id"]
+
+            _trace = None
+            inputs = None
+            outputs = None
+            query_span_id = None
+
+            if source_testcase_id and input_step_key:
+                input_results = await evaluations_service.create_results(
+                    project_id=project_id,
+                    user_id=user_id,
+                    results=[
+                        EvaluationResultCreate(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                            step_key=input_step_key,
+                            status=EvaluationStatus.SUCCESS,
+                            testcase_id=source_testcase_id,
+                        )
+                    ],
+                )
+                if len(input_results) != 1:
+                    raise ValueError(
+                        f"Failed to create input result for scenario {scenario.id}"
+                    )
+
+            if source_testcase and source_testcase.data:
+                inputs = source_testcase.data
+
+            if source_trace_id:
+                trace = await fetch_trace(
+                    tracing_router=tracing_router,
+                    request=request,
+                    trace_id=source_trace_id,
+                )
+                if not trace or not isinstance(trace.spans, dict):
+                    scenario_status = EvaluationStatus.ERRORS
+                    run_has_errors = True
+                else:
+                    root_span = list(trace.spans.values())[0]
+                    if isinstance(root_span, list):
+                        scenario_status = EvaluationStatus.ERRORS
+                        run_has_errors = True
+                    else:
+                        query_span_id = root_span.span_id
+                        _trace = trace.model_dump(mode="json", exclude_none=True)
+                        _root_span = root_span.model_dump(
+                            mode="json", exclude_none=True
+                        )
+
+                        root_span_attributes: dict = _root_span.get("attributes") or {}
+                        root_span_ag: dict = root_span_attributes.get("ag") or {}
+                        root_span_ag_data: dict = root_span_ag.get("data") or {}
+                        outputs = root_span_ag_data.get("outputs")
+                        if not inputs:
+                            inputs = root_span_ag_data.get("inputs")
+
+            if (
+                source_trace_id
+                and invocation_step_key
+                and scenario_status == EvaluationStatus.SUCCESS
+            ):
+                invocation_results = await evaluations_service.create_results(
+                    project_id=project_id,
+                    user_id=user_id,
+                    results=[
+                        EvaluationResultCreate(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                            step_key=invocation_step_key,
+                            status=EvaluationStatus.SUCCESS,
+                            trace_id=source_trace_id,
+                        )
+                    ],
+                )
+                if len(invocation_results) != 1:
+                    raise ValueError(
+                        f"Failed to create invocation result for scenario {scenario.id}"
+                    )
+
+            if scenario_status == EvaluationStatus.SUCCESS:
+                for annotation_step in annotation_steps:
+                    annotation_step_key = annotation_step.key
+                    if annotation_step.origin == "human":
+                        pending_results = await evaluations_service.create_results(
+                            project_id=project_id,
+                            user_id=user_id,
+                            results=[
+                                EvaluationResultCreate(
+                                    run_id=run_id,
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    status=EvaluationStatus.PENDING,
+                                    testcase_id=source_testcase_id,
+                                    trace_id=source_trace_id,
+                                )
+                            ],
+                        )
+                        if len(pending_results) != 1:
+                            raise ValueError(
+                                f"Failed to seed human result for scenario {scenario.id}"
+                            )
+                        scenario_has_pending = True
+                        run_has_pending = True
+                        continue
+
+                    evaluator_revision = evaluator_revisions.get(annotation_step_key)
+                    if not evaluator_revision:
+                        run_has_errors = True
+                        scenario_status = EvaluationStatus.ERRORS
+                        continue
+
+                    _revision = evaluator_revision.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    interface = (
+                        dict(
+                            uri=evaluator_revision.data.uri,
+                            url=evaluator_revision.data.url,
+                            headers=evaluator_revision.data.headers,
+                            schemas=evaluator_revision.data.schemas,
+                        )
+                        if evaluator_revision.data
+                        else dict()
+                    )
+                    configuration = (
+                        dict(
+                            script=evaluator_revision.data.script,
+                            parameters=evaluator_revision.data.parameters,
+                        )
+                        if evaluator_revision.data
+                        else dict()
+                    )
+                    parameters = configuration.get("parameters")
+                    flags = (
+                        evaluator_revision.flags.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                            exclude_unset=True,
+                        )
+                        if evaluator_revision.flags
+                        else None
+                    )
+
+                    links: Dict[str, Any] = {}
+                    if invocation_step_key and source_trace_id and query_span_id:
+                        links[invocation_step_key] = dict(
+                            trace_id=source_trace_id,
+                            span_id=query_span_id,
+                        )
+
+                    workflow_service_request = WorkflowServiceRequest(
+                        version="2025.07.14",
+                        flags=flags,
+                        interface=interface,
+                        configuration=configuration,
+                        data=WorkflowServiceRequestData(
+                            revision=_revision,
+                            parameters=parameters,
+                            testcase=(
+                                source_testcase.model_dump(
+                                    mode="json", exclude_none=True
+                                )
+                                if source_testcase
+                                else None
+                            ),
+                            inputs=inputs,
+                            trace=_trace,
+                            outputs=outputs,
+                        ),
+                        references=evaluator_references.get(annotation_step_key, {}),
+                        links=links,
+                    )
+
+                    workflows_service_response = (
+                        await workflows_service.invoke_workflow(
+                            project_id=project_id,
+                            user_id=user_id,
+                            request=workflow_service_request,
+                            annotate=True,
+                        )
+                    )
+
+                    has_error = workflows_service_response.status.code != 200
+                    result_trace_id = workflows_service_response.trace_id
+                    result_error = None
+                    result_status = EvaluationStatus.SUCCESS
+                    if has_error:
+                        result_status = EvaluationStatus.FAILURE
+                        result_error = workflows_service_response.status.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        scenario_status = EvaluationStatus.ERRORS
+                        run_has_errors = True
+
+                    step_results = await evaluations_service.create_results(
+                        project_id=project_id,
+                        user_id=user_id,
+                        results=[
+                            EvaluationResultCreate(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                status=result_status,
+                                testcase_id=source_testcase_id,
+                                trace_id=result_trace_id,
+                                error=result_error,
+                            )
+                        ],
+                    )
+                    if len(step_results) != 1:
+                        raise ValueError(
+                            f"Failed to create annotation result for scenario {scenario.id}"
+                        )
+
+            final_scenario_status = (
+                EvaluationStatus.PENDING
+                if scenario_status == EvaluationStatus.SUCCESS and scenario_has_pending
+                else scenario_status
+            )
+            await evaluations_service.edit_scenario(
+                project_id=project_id,
+                user_id=user_id,
+                scenario=EvaluationScenarioEdit(
+                    id=scenario.id,
+                    tags=scenario.tags,
+                    meta=scenario.meta,
+                    status=final_scenario_status,
+                ),
+            )
+
+            try:
+                await evaluations_service.refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    metrics=EvaluationMetricsRefresh(
+                        run_id=run_id,
+                        scenario_id=scenario.id,
+                    ),
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    f"Refreshing metrics failed for {run_id} | {scenario.id}",
+                    exc_info=True,
+                )
+
+        if run_has_errors:
+            run_status = EvaluationStatus.ERRORS
+        elif run_has_pending:
+            run_status = EvaluationStatus.RUNNING
+        else:
+            run_status = EvaluationStatus.SUCCESS
+
+        if human_step_keys:
+            existing_queues = await evaluations_service.query_queues(
+                project_id=project_id,
+                queue=EvaluationQueueQuery(
+                    run_id=run_id,
+                ),
+            )
+            has_run_queue = any(queue.run_id == run_id for queue in existing_queues)
+            if not has_run_queue:
+                await evaluations_service.create_queue(
+                    project_id=project_id,
+                    user_id=user_id,
+                    queue=EvaluationQueueCreate(
+                        run_id=run_id,
+                        status=EvaluationStatus.RUNNING,
+                        data=EvaluationQueueData(
+                            scenario_ids=[s.id for s in scenarios if s.id],
+                            step_keys=human_step_keys,
+                        ),
+                    ),
+                )
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.error(
+            f"An error occurred during trace batch evaluation: {e}",
+            exc_info=True,
+        )
+        run_status = EvaluationStatus.FAILURE
+
+    if not run:
+        return
+
+    try:
+        if run_status != EvaluationStatus.FAILURE:
+            await evaluations_service.refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=EvaluationMetricsRefresh(run_id=run_id),
+            )
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(f"Refreshing metrics failed for {run_id}", exc_info=True)
+        run_status = EvaluationStatus.FAILURE
+
+    await evaluations_service.edit_run(
+        project_id=project_id,
+        user_id=user_id,
+        run=EvaluationRunEdit(
+            id=run_id,
+            name=run.name,
+            description=run.description,
+            tags=run.tags,
+            meta=run.meta,
+            status=run_status,
+            data=run.data,
+        ),
+    )
+
+    log.info("[DONE]      ", run_id=run_id, project_id=project_id, user_id=user_id)
+
+    return
+
+
+async def evaluate_batch_traces(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    run_id: UUID,
+    trace_ids: List[str],
+    #
+    tracing_router: TracingRouter,
+    workflows_service: WorkflowsService,
+    evaluations_service: EvaluationsService,
+):
+    return await _evaluate_batch_items(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        #
+        trace_ids=trace_ids,
+        tracing_router=tracing_router,
+        workflows_service=workflows_service,
+        evaluations_service=evaluations_service,
+    )
+
+
+async def evaluate_batch_testcases(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    run_id: UUID,
+    testcase_ids: List[UUID],
+    #
+    testcases_service: TestcasesService,
+    workflows_service: WorkflowsService,
+    evaluations_service: EvaluationsService,
+):
+    return await _evaluate_batch_items(
+        project_id=project_id,
+        user_id=user_id,
+        run_id=run_id,
+        #
+        testcase_ids=testcase_ids,
+        testcases_service=testcases_service,
+        workflows_service=workflows_service,
+        evaluations_service=evaluations_service,
+    )

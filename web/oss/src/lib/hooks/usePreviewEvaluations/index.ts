@@ -37,6 +37,7 @@ export interface RunFlagsFilter {
     is_live?: boolean
     is_active?: boolean
     is_closed?: boolean
+    is_adhoc?: boolean
     has_queries?: boolean
     has_testsets?: boolean
     has_evaluators?: boolean
