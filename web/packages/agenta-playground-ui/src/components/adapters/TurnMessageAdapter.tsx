@@ -1,4 +1,4 @@
-import React, {ComponentProps, useCallback, useMemo, useRef, useState} from "react"
+import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {ChatMessage, MessageTarget, SimpleChatMessage} from "@agenta/playground"
@@ -111,7 +111,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
     const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
     const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
-    const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
+    const [isMessageCollapsed, setIsMessageCollapsed] = useState(() => kind === "tool")
+    const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
     const sessionId = `sess:${entityId}`
 
@@ -241,10 +242,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
     )
 
     const deleteMessage = useCallback(() => {
-        if (isToolKind) return
         const msgId = msg?.id
         if (!msgId) return
-        if (kind === "assistant") {
+        if (isToolKind) {
+            deleteMsg({target: messageTarget})
+        } else if (kind === "assistant") {
             deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
         } else {
             deleteMsg({target: {turnId: rowId, kind: "user"}})
@@ -262,6 +264,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         isToolKind,
         messageOverride,
         clearResponseByRowEntity,
+        messageTarget,
     ])
 
     const onChangeRole = useCallback(
@@ -389,6 +392,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return createToolCallPayloads(msg?.tool_calls)
     }, [kind, msg])
 
+    useEffect(() => {
+        const shouldAutoMinimize = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
+        if (!shouldAutoMinimize || autoMinimizedRef.current) return
+        setIsMessageCollapsed(true)
+        autoMinimizedRef.current = true
+    }, [isToolKind, kind, toolPayloads.length])
+
     return toolPayloads?.length ? (
         toolPayloads.map((p) => (
             <div
@@ -418,7 +428,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     onChangeText={onChangeText}
                     state={"readOnly"}
                     headerBottom={
-                        toolCallsView ? <ToolCallViewHeader className="mt-2" {...p} /> : null
+                        p.name || p.callId ? (
+                            <ToolCallViewHeader className="mt-2" name={p.name} callId={p.callId} />
+                        ) : null
                     }
                     headerRight={
                         <TurnMessageHeaderOptions
@@ -444,7 +456,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                               ? propsHandleRerun({rowId, entityId})
                                               : handleRerun(),
                                 onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
-                                onDelete: isToolKind ? undefined : deleteMessage,
+                                onDelete: deleteMessage,
                             }}
                         >
                             {isUserRole && !effectiveDisabled && (
@@ -513,7 +525,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                           ? propsHandleRerun({rowId, entityId})
                                           : handleRerun(),
                             onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
-                            onDelete: isToolKind ? undefined : deleteMessage,
+                            onDelete: deleteMessage,
                         }}
                     >
                         {isUserRole && !effectiveDisabled && (

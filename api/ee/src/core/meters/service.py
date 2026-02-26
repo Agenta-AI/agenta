@@ -282,6 +282,22 @@ class MetersService:
                                 f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
                             )
 
+                        except stripe.error.InvalidRequestError as e:
+                            # Stripe deduplicates MeterEvents by identifier.
+                            # If the event already exists, treat this as idempotent
+                            # success and bump synced to avoid infinite retries.
+                            if "event already exists with identifier" in str(e).lower():
+                                log.warn(
+                                    f"[stripe] counter-event duplicate (idempotent): job={job_id} "
+                                    f"org={meter.organization_id} key={meter.key} "
+                                    f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} delta={delta} "
+                                    f"event={event_name} customer={customer_id} identifier={event_identifier}"
+                                )
+                                reported_count += 1
+                                meters_to_bump.append(meter)
+                                continue
+                            raise
+
                         except Exception:  # pylint: disable=broad-exception-caught
                             # Actual Stripe API failure — do NOT bump so it
                             # gets retried on the next run.

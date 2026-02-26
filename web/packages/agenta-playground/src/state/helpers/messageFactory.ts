@@ -15,6 +15,21 @@ const asRecord = (value: unknown): Record<string, unknown> | null => {
     return value as Record<string, unknown>
 }
 
+const unwrapValue = (value: unknown): unknown => {
+    const rec = asRecord(value)
+    return rec && "value" in rec ? rec.value : value
+}
+
+const unwrapArray = (value: unknown): unknown[] | undefined => {
+    if (Array.isArray(value)) return value
+    const unwrapped = unwrapValue(value)
+    return Array.isArray(unwrapped) ? unwrapped : undefined
+}
+
+const unwrapRecord = (value: unknown): Record<string, unknown> | null => {
+    return asRecord(unwrapValue(value))
+}
+
 /**
  * Extract a plain string value from a potentially PropertyNode-wrapped value.
  * Handles both `"text"` and `{value: "text"}` shapes for backward compat
@@ -55,7 +70,8 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
 
     // Preserve tool_calls so subsequent tool messages have a valid predecessor
     const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
-    const toolCallsArr = Array.isArray(toolCalls) && toolCalls.length > 0 ? toolCalls : undefined
+    const toolCallsArr = unwrapArray(toolCalls)
+    const normalizedToolCalls = toolCallsArr && toolCallsArr.length > 0 ? toolCallsArr : undefined
 
     let finalText: string | undefined
     if (typeof content === "string") {
@@ -78,7 +94,7 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
             role: "assistant",
             content: finalText,
         }
-        if (toolCallsArr) msg.tool_calls = toolCallsArr
+        if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls
         return msg
     }
 
@@ -92,7 +108,7 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
         role: "assistant",
         content: fallbackContent,
     }
-    if (toolCallsArr) msg.tool_calls = toolCallsArr
+    if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls
     return msg
 }
 
@@ -103,23 +119,29 @@ export function buildToolMessages(testResult: unknown): SimpleChatMessage[] {
         const raw = responseRec?.data
         if (!raw) return []
         const rawRec = asRecord(raw)
-        const inner = rawRec && rawRec.data !== undefined ? rawRec.data : raw
+        const inner = rawRec && rawRec.data !== undefined ? unwrapValue(rawRec.data) : raw
         const innerRec = asRecord(inner)
 
-        const toolCalls = (innerRec?.tool_calls ?? innerRec?.toolCalls) as unknown
-        if (!Array.isArray(toolCalls) || toolCalls.length === 0) return []
+        const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
+        const toolCallsArray = unwrapArray(toolCalls)
+        if (!toolCallsArray || toolCallsArray.length === 0) return []
 
-        return toolCalls
+        return toolCallsArray
             .map((toolCall, index: number): SimpleChatMessage | null => {
-                const toolCallRec = asRecord(toolCall)
-                const functionRec = asRecord(toolCallRec?.function)
+                const toolCallRec = unwrapRecord(toolCall)
+                const functionRec = unwrapRecord(toolCallRec?.function)
+                const functionCallRec = unwrapRecord(toolCallRec?.function_call)
                 const name =
-                    (functionRec?.name as string | undefined) ||
-                    (toolCallRec?.name as string | undefined) ||
+                    unwrapString(functionRec?.name) ||
+                    unwrapString(toolCallRec?.name) ||
                     `tool_${index + 1}`
                 const toolCallId =
-                    (toolCallRec?.id as string | undefined) ||
-                    (toolCallRec?.tool_call_id as string | undefined)
+                    unwrapString(toolCallRec?.id) ||
+                    unwrapString(toolCallRec?.__id) ||
+                    unwrapString(toolCallRec?.tool_call_id) ||
+                    unwrapString(toolCallRec?.toolCallId) ||
+                    unwrapString(toolCallRec?.toolCallID) ||
+                    unwrapString(functionCallRec?.id)
 
                 return {
                     id: generateId(),

@@ -9,6 +9,7 @@ export {
     usePlaygroundUI,
     usePlaygroundUIOptional,
     type CommitVariantChangesButtonProps,
+    type ChatTurnAssistantActionsProps,
     // Component prop types
     type EntityDrillInViewProps,
     type PlaygroundUIContextValue,

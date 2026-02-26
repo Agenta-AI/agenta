@@ -1,0 +1,73 @@
+---
+id: list-evaluator-templates
+title: "List Evaluator Templates"
+description: "Returns the list of built-in evaluator templates."
+sidebar_label: "List Evaluator Templates"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFVlFv20YM/isHPnWAamfBnvw0ownWINkaNO5e0sC4SLR17Ul3PVJZPUP/feBJls6x46152ZMBi/xIfvzI4xZYrwlm93D5pG2j2QWChwwKpDwYz8bVMIOPyE2oSXGJyhpi5VbqsTGW35pa4c5RMVbeakaafK4/14sSCZUOqIg1mzw13HhUBa5MbSQCqTe1Y9UQhrd5QM1YqNzVK7OmnyaQgfMYtBheFTADSWA5YC2HoJCB10FXyBikoi3UukKYgalz2xS41CEvzRMWkIGRqr41GDaQQcBvjQlYwGylLWEGlJdYaZhtQRKFGTw6Z1HXILysdGN5MGXDViyuuhhqvovRtg+CTN7VhCRY52dn8rPP7F2T50i0aqz62BtDBrmrGWsWc+29NXmsfvqFxGeb5OeDcMOmi5C7pnPq0zY14xoDjGm+ixZJGWdtBiODsy0YxooOoTsqB2TiYOp1AvyHfG8z+IqbU2bXuBGrwgTMedkQHiV5Z30RzdQnitCEzKZe09IHJOSYlq43H1ax10PeuiiiqLS9TSrg0Ei3ukju8QvmLJj9HzoELYkNudSNtSAd3KVy1wdXt33wNKEdgT8W/gj4YgfUZuAa9g3Tcmz2WOyP1PhyTR+6COqui9A+m/o04H4/T4FeJBBSBdFRpF2zT+ZHdDBx7TCutLS2Wmpvll9x8/ogH3s0dWMrNfdGXQvakbDdnkyE9pyTfTGNERbimADeP7QZDLvotXnPx2X2LNX2UGjjhrvvJrkb1L1BPKbnJN7wPAwaff5I3B1s+d4y2fTqzbFnY+NRFv0JCpMdn/J4pNQX86Vhv7atOP5yfn64jv/U1hRx2arLEFx4/S4ukLWxJzaqdfne1/8wbLt93j68TNWN6xIUNitan1rGvyORXuPI+8umkQy1kK+tvJ6+6d6Z4fWTP9oMcv6ewBw05Z1w+Z3h3zQq3HTp93aJEMcWdR16mYqLrgWnVPJ+sbg9AOz0USGXTu6NNXI8LbiEGUx9wCeDf03JVN7idFAxTdNDhDA87a6QJliYQcnsaTad5tY1xUSvsWY90WaqvYlzTZg3wfAmusxvr65x8x51gSEKPTGI27qT0L7ZQLv25jpOd3//zBsuXTB/d7roj5+y82pjO1cu7eY8Jqfmt1eQgZTRzcbZ5OfJ2cHU7xnLrOicx4Oh/wzZMxaG+iEDrOKgAKOufh0/SGbeEVe6TvBu5PocZlvtL4a9x2uY2//7eu27IsKfeqtNHM1Ix7ZX1T30qhLlRF0JLeM9np5oDxmUjmT9wXb7qAk/Bdu28nd3zop8CkP60SYHbbzKjt3BEkOSixJ80sGIX/9ElTv5bXv/eZ6j58TrYB8KyjA3v10uoG3/AWTMS94=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Evaluator Templates"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/simple/evaluators/templates"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns the list of built-in evaluator templates.
+
+These are static evaluator type definitions (not user-created configs).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"include_archived","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Include Archived"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"templates":{"items":{"properties":{"name":{"type":"string","title":"Name"},"key":{"type":"string","title":"Key"},"direct_use":{"type":"boolean","title":"Direct Use"},"settings_presets":{"anyOf":[{"items":{"additionalProperties":true,"type":"object"},"type":"array"},{"type":"null"}],"title":"Settings Presets"},"settings_template":{"additionalProperties":true,"type":"object","title":"Settings Template"},"outputs_schema":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Outputs Schema"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"oss":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Oss","default":false},"requires_llm_api_keys":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Requires Llm Api Keys","default":false},"tags":{"items":{"type":"string"},"type":"array","title":"Tags","default":[]},"archived":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Archived","default":false}},"type":"object","required":["name","key","direct_use","settings_template"],"title":"EvaluatorTemplate","description":"Static evaluator template definition (built-in evaluator types)."},"type":"array","title":"Templates","default":[]}},"type":"object","title":"EvaluatorTemplatesResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

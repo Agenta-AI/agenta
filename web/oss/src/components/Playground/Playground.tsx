@@ -14,6 +14,7 @@ import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResult
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import PlaygroundMainView from "./Components/MainLayout"
+import GatewayToolAssistantActions from "./Components/PlaygroundGenerations/assets/GatewayToolAssistantActions"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import PlaygroundTestcaseEditor from "./Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundEntityProvider} from "./OSSPlaygroundEntityProvider"
@@ -71,6 +72,7 @@ const Playground: FC = () => {
     const providers = {
         SimpleSharedEditor,
         SharedGenerationResultUtils,
+        ChatTurnAssistantActions: GatewayToolAssistantActions,
         renderSyncStateTag: PlaygroundSyncStateTag,
         TestcaseEditor: PlaygroundTestcaseEditor,
     } as unknown as PlaygroundUIProviders

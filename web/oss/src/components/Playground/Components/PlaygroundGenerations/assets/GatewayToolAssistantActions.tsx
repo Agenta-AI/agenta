@@ -1,0 +1,104 @@
+import React, {useCallback, useMemo} from "react"
+
+import {executionItemController, type ChatMessage} from "@agenta/playground"
+import {createToolCallPayloads, type ChatTurnAssistantActionsProps} from "@agenta/playground-ui"
+import {generateId} from "@agenta/shared/utils"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import GatewayToolExecuteButton from "./GatewayToolExecuteButton"
+
+function toolCallIdOf(message: ChatMessage | null | undefined): string | undefined {
+    if (!message) return undefined
+    const id = (message as any).tool_call_id
+    return typeof id === "string" && id.length > 0 ? id : undefined
+}
+
+const GatewayToolAssistantActions: React.FC<ChatTurnAssistantActionsProps> = ({
+    rowId,
+    entityId,
+    currentResult,
+    onRun,
+}) => {
+    const sessionId = `sess:${entityId}`
+
+    const assistantMessage = useAtomValue(
+        useMemo(
+            () => executionItemController.selectors.assistantForTurn({turnId: rowId, sessionId}),
+            [rowId, sessionId],
+        ),
+    )
+    const toolMessages = useAtomValue(
+        useMemo(
+            () => executionItemController.selectors.toolsForTurn({turnId: rowId, sessionId}),
+            [rowId, sessionId],
+        ),
+    ) as ChatMessage[]
+
+    const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
+    const addMessage = useSetAtom(executionItemController.actions.addMessage as any)
+
+    const messageOverride = useMemo(
+        () =>
+            currentResult ? (executionItemController.helpers.buildAssistantMessage(currentResult) as any) : null,
+        [currentResult],
+    )
+
+    const assistantForToolCalls = (messageOverride || assistantMessage) as any
+    const toolPayloads = useMemo(
+        () => createToolCallPayloads(assistantForToolCalls?.tool_calls),
+        [assistantForToolCalls],
+    )
+
+    const handleUpdateToolResponse = useCallback(
+        (callId: string | undefined, resultStr: string, toolName?: string) => {
+            const matchIndex = callId
+                ? toolMessages.findIndex((m) => toolCallIdOf(m) === callId)
+                : toolMessages.length > 0
+                  ? 0
+                  : -1
+
+            if (matchIndex >= 0) {
+                patchMessage({
+                    target: {turnId: rowId, kind: "tool", sessionId, toolIndex: matchIndex},
+                    updater: (m: ChatMessage | null) =>
+                        m
+                            ? {
+                                  ...m,
+                                  content: resultStr,
+                                  ...(toolName && !m.name ? {name: toolName} : {}),
+                                  ...(callId && !m.tool_call_id ? {tool_call_id: callId} : {}),
+                              }
+                            : m,
+                } as any)
+                return
+            }
+
+            addMessage({
+                message: {
+                    id: `msg-${generateId()}`,
+                    role: "tool",
+                    name: toolName || "tool_1",
+                    ...(callId ? {tool_call_id: callId} : {}),
+                    content: resultStr,
+                    sessionId,
+                    parentId: rowId,
+                },
+            })
+        },
+        [toolMessages, patchMessage, addMessage, rowId, sessionId],
+    )
+
+    if (!toolPayloads.length) return null
+
+    return (
+        <div className="px-1">
+            <GatewayToolExecuteButton
+                toolPayloads={toolPayloads}
+                onUpdateToolResponse={handleUpdateToolResponse}
+                onExecuteAndSendToChat={onRun}
+            />
+        </div>
+    )
+}
+
+export default GatewayToolAssistantActions

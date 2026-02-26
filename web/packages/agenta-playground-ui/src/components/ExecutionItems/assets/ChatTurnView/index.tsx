@@ -178,6 +178,7 @@ const ChatTurnView = ({
 }: Props) => {
     const providers = usePlaygroundUIOptional()
     const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
+    const ChatTurnAssistantActions = providers?.ChatTurnAssistantActions
     const addUserMessage = useSetAtom(executionItemController.actions.addUserMessage)
 
     const {
@@ -311,6 +312,14 @@ const ChatTurnView = ({
                         messageOverride={messageOverride}
                         repetitionProps={repetitionProps}
                     />
+                    {ChatTurnAssistantActions && entityId ? (
+                        <ChatTurnAssistantActions
+                            rowId={turnId}
+                            entityId={entityId}
+                            currentResult={currentResult}
+                            onRun={run}
+                        />
+                    ) : null}
                     {entityId
                         ? toolMessages.map((_, index) => (
                               <TurnMessageAdapter

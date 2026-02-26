@@ -193,8 +193,9 @@ services:
         command: cron -f
         # === STORAGE ============================================== #
         volumes:
-            - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
+            - ../../../api/ee/src/crons/meters.sh:/meters.sh
+            - ../../../api/ee/src/crons/spans.sh:/spans.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

@@ -91,16 +91,25 @@ const evaluatorIconsMap = {
     // rag_context_relevancy: codeImg,
 }
 
-//Evaluators
+// Evaluator Templates Response type
+interface EvaluatorTemplatesResponse {
+    count: number
+    templates: Evaluator[]
+}
+
+// Evaluators (templates)
 export const fetchAllEvaluators = async (includeArchived = false) => {
     const tagColors = getTagColors()
     const {projectId} = getProjectValues()
 
-    const response = await axios.get(`/evaluators?project_id=${projectId}`)
-    const evaluators = (response.data || [])
+    const response = await axios.get<EvaluatorTemplatesResponse>(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/templates?project_id=${projectId}&include_archived=${includeArchived}`,
+    )
+    const templates = response.data?.templates || []
+
+    const evaluators = templates
         .filter((item: Evaluator) => !item.key.startsWith("human"))
         .filter((item: Evaluator) => isDemo() || item.oss)
-        .filter((item: Evaluator) => includeArchived || (item as any).archived !== true)
         // Deduplicate by key (keep first occurrence)
         .filter(
             (item: Evaluator, index: number, self: Evaluator[]) =>

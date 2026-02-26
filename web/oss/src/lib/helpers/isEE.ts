@@ -17,3 +17,7 @@ export const isEmailInvitationsEnabled = () => {
     const sendgridEnabled = getEnv("NEXT_PUBLIC_AGENTA_SENDGRID_ENABLED")
     return sendgridEnabled === "true"
 }
+
+export const isToolsEnabled = () => {
+    return getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
+}

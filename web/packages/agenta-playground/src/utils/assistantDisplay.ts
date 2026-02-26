@@ -206,9 +206,14 @@ export function hasAssistantContent(
 ): boolean {
     const txt = (displayValue || "").trim()
     const assistantRec = asRecord(assistant)
+    const toolCallsCamel = assistantRec?.toolCalls
+    const toolCallsCamelRec = asRecord(toolCallsCamel)
+    const toolCallsCamelValue = toolCallsCamelRec?.value
     const hasTools = Boolean(
         assistantRec?.function_call ||
         assistantRec?.tool_call ||
+        (Array.isArray(toolCallsCamel) && toolCallsCamel.length > 0) ||
+        (Array.isArray(toolCallsCamelValue) && toolCallsCamelValue.length > 0) ||
         (Array.isArray(assistantRec?.tool_calls) && assistantRec.tool_calls.length > 0),
     )
     return Boolean(txt) || hasTools || Boolean(hasToolCallsOverride)

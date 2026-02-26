@@ -208,10 +208,25 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     return value as Record<string, unknown>
 }
 
+function unwrapValue(value: unknown): unknown {
+    const rec = asRecord(value)
+    return rec && "value" in rec ? rec.value : value
+}
+
+function unwrapArray(value: unknown): unknown[] | undefined {
+    if (Array.isArray(value)) return value
+    const unwrapped = unwrapValue(value)
+    return Array.isArray(unwrapped) ? unwrapped : undefined
+}
+
 function readString(value: unknown): string | undefined {
     if (typeof value !== "string") return undefined
     const trimmed = value.trim()
     return trimmed.length > 0 ? trimmed : undefined
+}
+
+function readWrappedString(value: unknown): string | undefined {
+    return readString(value) ?? readString(unwrapValue(value))
 }
 
 function extractLogicalRowId(rowId: string): string {
@@ -220,26 +235,39 @@ function extractLogicalRowId(rowId: string): string {
 }
 
 function normalizeTransformContent(content: unknown): string | unknown[] {
-    if (Array.isArray(content)) return content
-    if (typeof content === "string") return content
+    const unwrapped = unwrapValue(content)
+    if (Array.isArray(unwrapped)) return unwrapped
+    if (typeof unwrapped === "string") return unwrapped
     return ""
 }
 
 function toTransformMessage(message: ChatMessage): TransformMessage {
     const messageRecord = asRecord(message)
     const toolCalls =
-        (messageRecord && Array.isArray(messageRecord.toolCalls)
-            ? messageRecord.toolCalls
-            : undefined) ?? (Array.isArray(message.tool_calls) ? message.tool_calls : undefined)
-    const toolCallId = readString(messageRecord?.toolCallId) ?? readString(message.tool_call_id)
+        unwrapArray(messageRecord?.toolCalls) ??
+        unwrapArray(messageRecord?.tool_calls) ??
+        (Array.isArray(message.tool_calls) ? message.tool_calls : undefined)
+    const toolCallId =
+        readWrappedString(messageRecord?.toolCallId) ??
+        readWrappedString(messageRecord?.tool_call_id) ??
+        readWrappedString(messageRecord?.toolCallID) ??
+        readWrappedString(message.tool_call_id)
+
+    let content = normalizeTransformContent(message.content)
+    if (message.role === "tool" && content === "") {
+        content =
+            normalizeTransformContent(messageRecord?.response) ||
+            normalizeTransformContent(messageRecord?.output)
+    }
 
     const transformed: TransformMessage = {
         role: message.role,
-        content: normalizeTransformContent(message.content),
+        content,
     }
 
-    if (typeof message.name === "string" && message.name.length > 0) {
-        transformed.name = message.name
+    const normalizedName = readWrappedString(message.name) ?? readWrappedString(messageRecord?.name)
+    if (normalizedName) {
+        transformed.name = normalizedName
     }
 
     if (toolCalls && toolCalls.length > 0) {

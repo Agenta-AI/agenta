@@ -7,6 +7,7 @@
  */
 
 import {execSync} from "child_process"
+import {config as loadDotenv} from "dotenv"
 
 // Test dimension types and their tag prefixes
 const DIMENSION_PREFIXES: Record<string, string> = {
@@ -23,17 +24,34 @@ const DIMENSION_PREFIXES: Record<string, string> = {
 }
 
 interface ParsedArgs {
+    envFile: string | null
     grepPatterns: string[]
     playwrightArgs: string[]
 }
 
 function parseArgs(args: string[]): ParsedArgs {
+    let envFile: string | null = null
     const grepPatterns: string[] = []
     const playwrightArgs: string[] = []
 
     let i = 0
     while (i < args.length) {
         const arg = args[i]
+
+        if (arg === "--env-file") {
+            if (i + 1 >= args.length) {
+                throw new Error("--env-file requires a value")
+            }
+            envFile = args[i + 1]
+            i += 2
+            continue
+        }
+
+        if (arg.startsWith("--env-file=")) {
+            envFile = arg.slice("--env-file=".length)
+            i++
+            continue
+        }
 
         // Check if this is a dimension flag
         const dimensionMatch = arg.match(/^--?(coverage|lens|path|case|speed|scope|license|cost|plan|role)$/)
@@ -51,7 +69,7 @@ function parseArgs(args: string[]): ParsedArgs {
         }
     }
 
-    return {grepPatterns, playwrightArgs}
+    return {envFile, grepPatterns, playwrightArgs}
 }
 
 function buildCommand(grepPatterns: string[], playwrightArgs: string[]): string {
@@ -72,7 +90,24 @@ function buildCommand(grepPatterns: string[], playwrightArgs: string[]): string 
 
 // Parse command line arguments (skip node and script paths)
 const args = process.argv.slice(2)
-const {grepPatterns, playwrightArgs} = parseArgs(args)
+let parsedArgs: ParsedArgs
+try {
+    parsedArgs = parseArgs(args)
+} catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+}
+
+const {envFile, grepPatterns, playwrightArgs} = parsedArgs
+
+if (envFile) {
+    const {error} = loadDotenv({path: envFile})
+    if (error) {
+        console.error(`Failed to load environment variables from ${envFile}: ${error.message}`)
+        process.exit(1)
+    }
+    console.log(`Loaded environment variables from ${envFile}`)
+}
 
 // Build and execute the command
 const command = buildCommand(grepPatterns, playwrightArgs)

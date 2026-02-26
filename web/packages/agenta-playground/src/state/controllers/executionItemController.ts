@@ -30,6 +30,7 @@ import {
     messageIdsWithContextAtom,
     messagesByIdWithContextAtom,
     addUserMessageWithContextAtom,
+    addMessageWithContextAtom,
     patchMessageWithContextAtom,
     deleteMessageWithContextAtom,
     truncateChatWithContextAtom,
@@ -311,6 +312,9 @@ export const executionItemController = {
 
         /** Add a user message turn */
         addUserMessage: addUserMessageWithContextAtom,
+
+        /** Add a message (assistant/tool/system) to the current chat context */
+        addMessage: addMessageWithContextAtom,
 
         /** Patch (edit) a specific message */
         patchMessage: patchMessageWithContextAtom,

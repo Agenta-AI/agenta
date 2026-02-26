@@ -49,6 +49,7 @@ export {
     PlaygroundUIProvider,
     usePlaygroundUI,
     usePlaygroundUIOptional,
+    type ChatTurnAssistantActionsProps,
     type CommitVariantChangesButtonProps,
     // Component prop types
     type EntityDrillInViewProps,
