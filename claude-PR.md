@@ -1,7 +1,8 @@
 # Code Review: Events & Webhooks Feature
 
 **Branch:** `feature/webhooks`
-**Reviewed:** 2026-02-26
+**Initial review:** 2026-02-26
+**Post-merge revalidation:** 2026-02-26 (after `3524b9004` merge from `main`, head `3f2e8ee92`)
 **Scope:** Full code review — completeness, soundness, consistency, correctness, security, functionality, compatibility
 
 ---
@@ -92,6 +93,44 @@ The feature introduces an event-driven webhook delivery pipeline: internal event
 | n-8 | `dispatcher.py:29`, `events/worker.py:21` | `EventKey` type alias duplicated in two files. |
 | n-9 | `routers.py:479` vs `513` | Positional vs keyword arg style for `include_router`. |
 | n-10 | EE/OSS events migrations | Byte-for-byte identical — consider if EE migration is needed. |
+
+---
+
+## Post-Merge Revalidation (main → feature/webhooks)
+
+All findings were re-verified against the current head (`3f2e8ee92`) after merging main.
+
+### Merge Status
+- Merge was clean — no conflict markers found in any files
+- Commit `3f2e8ee92` ("fix duplicates from merge") cleaned up a duplicate `StatusDBA` from merge
+- No new issues introduced by the merge itself
+
+### Finding Status Changes
+- **All CRITICAL findings (C-1 through C-5):** Still valid, line numbers unchanged
+- **All MAJOR findings (M-1 through M-20):** Still valid, line numbers unchanged
+- **All MINOR findings:** Still valid
+- **All NIT findings:** Still valid
+
+### Alignment with codex-PR.md
+
+The `codex-PR.md` (curated review) introduces an additional P0 not in this review:
+
+| codex-PR.md Finding | claude-PR.md Equivalent | Notes |
+|----------------------|-------------------------|-------|
+| P0 — `publish_span` import crash | Not originally listed | **Confirmed valid.** `otlp/router.py:26` and `tracing/router.py:41` import `publish_span` (singular) but `streaming.py:73` defines only `publish_spans` (plural). API startup will fail with `ImportError`. |
+| P0 — Events `created_by_id` mismatch | C-5 | Same finding |
+| P0 — SSRF risk | C-1 | Same finding |
+| P1 — Header override | C-3 (upgraded to CRITICAL here) | Same finding, different severity |
+| P1 — `str(enum)` matching | M-3 | Same finding |
+| P1 — Edit clears `is_active` | m-6 (related) | codex-PR.md has sharper evidence: `mappings.py:108` merges `{**incoming_flags, "is_valid": existing}` which drops `is_active` when flags omitted |
+| P1 — ACK on dispatch failure | M-12/M-13 (related) | Same concern |
+| P1 — No unique delivery constraint | Not originally listed as MAJOR | **Confirmed valid.** `cdb813cbb0e3:82` has `unique=False` |
+| P1 — Secret in response | M-1 | Same finding |
+| P1 — Delivery write swallowed | Not originally listed as P1 | **Confirmed valid.** `tasks.py:41-50` catches all exceptions |
+| P2 — Malformed test delivery | M-5 | Same finding |
+| P2 — Stale delivery cache | Not originally listed | **Confirmed valid.** No invalidation on `create_delivery` path or worker writes |
+| P2 — `status.message` not applied | Not originally listed | **Confirmed valid.** `dao.py:383` only filters `status.code` |
+| P2 — Weak default crypt key | C-2 (partially) | Same underlying issue |
 
 ---
 

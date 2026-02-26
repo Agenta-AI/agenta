@@ -1,13 +1,14 @@
-# Codex Review: `feature/webhooks`
+# Codex Review Update: `feature/webhooks`
 
 ## Scope
-- Branch diff reviewed against `origin/main`
-- Design docs reviewed:
+- Re-reviewed after merge commit `3524b9004` (`main` -> `feature/webhooks`)
+- Current head reviewed: `3f2e8ee92`
+- Revalidated against:
   - `docs/designs/webhooks/README.md`
   - `docs/designs/webhooks/DESIGN.md`
 
 ## Merge Readiness
-- **Not ready to merge**. There are blocking correctness and reliability issues.
+- **Not ready to merge**. Blocking correctness and security issues remain.
 
 ## Findings (ordered by severity)
 
@@ -15,132 +16,173 @@
 - **Evidence**
   - `api/oss/src/apis/fastapi/otlp/router.py:26` imports `publish_span`
   - `api/oss/src/apis/fastapi/tracing/router.py:41` imports `publish_span`
-  - `api/oss/src/core/tracing/streaming.py:73` defines `publish_spans` (plural), not `publish_span`
-  - Runtime confirmation: `python -c "import oss.src.apis.fastapi.otlp.router"` fails with `ImportError`
+  - `api/oss/src/core/tracing/streaming.py:73` defines `publish_spans` only
+  - Repro: `cd api && python -c "import oss.src.apis.fastapi.otlp.router"` fails with `ImportError`
 - **Impact**
-  - Tracing/OTLP router modules fail to import; this is a startup/runtime blocker.
+  - Tracing/OTLP router modules fail to import.
 - **Recommendation**
-  - Replace imports/calls with `publish_spans` (or add a compatible alias) and add a module import smoke test.
+  - Rename calls/imports to `publish_spans` (or add a compatibility alias) and add import smoke tests.
 
-### P0 — Events ingestion cannot persist due schema/model mismatch
+### P0 — Events ingestion schema/model mismatch (`created_by_id`)
 - **Evidence**
-  - Migration requires non-null `created_by_id`:
+  - Migration sets non-null `created_by_id`:
     - `api/oss/databases/postgres/migrations/tracing/versions/d1e2f3a4b5c6_add_events_table.py:39`
     - `api/ee/databases/postgres/migrations/tracing/versions/d1e2f3a4b5c6_add_events_table.py:39`
-  - ORM/mapping writes `created_by_id=None`:
+  - Model/mapping writes null:
     - `api/oss/src/dbs/postgres/events/dbes.py:17`
     - `api/oss/src/dbs/postgres/events/mappings.py:10`
-  - DAO inserts all columns as-is:
-    - `api/oss/src/dbs/postgres/events/dao.py:44`
 - **Impact**
-  - Event ingestion is expected to fail on insert for null `created_by_id`.
+  - Event ingestion is likely to fail on insert.
 - **Recommendation**
-  - Align schema and model (make migration nullable or always provide actor ID).
+  - Align migration and ORM nullability and add migration+ingest test coverage.
 
-### P1 — Editing a subscription can unintentionally deactivate it
+### P0 — SSRF risk in webhook/test delivery
 - **Evidence**
-  - `flags` is optional in edit DTO: `api/oss/src/core/webhooks/dtos.py:51`
-  - Edit mapping replaces flags with only `is_valid` when `flags` is omitted:
-    - `api/oss/src/dbs/postgres/webhooks/mappings.py:103`
+  - Production worker posts to subscription URL without destination restrictions:
+    - `api/oss/src/core/webhooks/tasks.py:111`
+  - Test endpoint posts to provided URL without destination restrictions:
+    - `api/oss/src/core/webhooks/service.py:420`
 - **Impact**
-  - Any edit request without `flags` can clear `is_active`, silently stopping deliveries.
+  - Internal network endpoints/metadata services can be targeted from webhook config.
 - **Recommendation**
-  - Preserve existing `is_active` when edit payload omits flags.
+  - Add outbound URL/IP validation and explicit denylist for local/private/link-local ranges.
+
+### P1 — User headers can override signature and system headers
+- **Evidence**
+  - System headers are set, then overridden by subscription headers:
+    - `api/oss/src/core/webhooks/tasks.py:94`
+    - `api/oss/src/core/webhooks/tasks.py:100`
+- **Impact**
+  - A subscription can override `X-Agenta-Signature`, `Content-Type`, etc.
+- **Recommendation**
+  - Apply user headers first, then enforce immutable system headers (or blocklist override keys).
+
+### P1 — Event-type matching bug in dispatcher (`str(enum)`)
+- **Evidence**
+  - Dispatcher uses `str(event.event_type)`:
+    - `api/oss/src/tasks/asyncio/webhooks/dispatcher.py:159`
+  - Matching compares that string against subscribed enum values:
+    - `api/oss/src/tasks/asyncio/webhooks/dispatcher.py:161`
+- **Impact**
+  - Event-type-filtered subscriptions may not match correctly.
+- **Recommendation**
+  - Use `event.event_type.value` for matching.
+
+### P1 — Editing a subscription can unintentionally clear `is_active`
+- **Evidence**
+  - Edit mapping rebuilds flags from incoming payload and preserves only `is_valid` from existing flags:
+    - `api/oss/src/dbs/postgres/webhooks/mappings.py:104`
+    - `api/oss/src/dbs/postgres/webhooks/mappings.py:108`
+- **Impact**
+  - Edits without explicit flags can silently deactivate subscriptions.
+- **Recommendation**
+  - Preserve existing `is_active` when omitted in edit payload.
 
 ### P1 — Events are ACKed even when webhook dispatch enqueue fails
 - **Evidence**
-  - Dispatch errors are caught/logged:
+  - Dispatch errors are swallowed:
     - `api/oss/src/tasks/asyncio/events/worker.py:150`
     - `api/oss/src/tasks/asyncio/webhooks/dispatcher.py:193`
-  - Messages are still ACK+DEL afterward:
+  - Messages are ACK+DEL regardless:
     - `api/oss/src/tasks/asyncio/events/worker.py:156`
-  - Design expects ACK after successful ingestion + dispatch:
+  - Design expects ack after ingestion + dispatch:
     - `docs/designs/webhooks/README.md:55`
 - **Impact**
-  - Failed enqueues can be dropped permanently (no replay from `streams:events`).
+  - Dispatch failures can lead to permanent event loss.
 - **Recommendation**
-  - Fail the batch (no ACK) on enqueue failures, or track/retry failed dispatches before ACK.
+  - Fail batch/withhold ACK on enqueue errors or implement retryable dispatch tracking.
 
 ### P1 — “Exactly one delivery row per (subscription,event)” is not enforced
 - **Evidence**
-  - Design requires one final row per pair:
+  - Design states one final row per pair:
     - `docs/designs/webhooks/README.md:10`
     - `docs/designs/webhooks/DESIGN.md:29`
-  - DB has no unique constraint on `(subscription_id, event_id)`:
+  - No uniqueness constraint:
     - `api/oss/databases/postgres/migrations/core/versions/cdb813cbb0e3_add_webhook_deliveries.py:82` (`unique=False`)
-  - DAO does plain insert (no conflict handling):
+  - DAO uses plain insert:
     - `api/oss/src/dbs/postgres/webhooks/dao.py:311`
 - **Impact**
-  - Duplicate deliveries can occur under retries/replays/duplicate task execution.
+  - Duplicate delivery rows can occur under replay/retry conditions.
 - **Recommendation**
-  - Add unique constraint and idempotent insert/upsert strategy.
+  - Add unique constraint + idempotent insert/upsert behavior.
 
-### P1 — Delivery recording errors are swallowed
+### P1 — Signing secret is in webhook subscription response shape
 - **Evidence**
-  - `_record_delivery` logs and suppresses exceptions:
+  - DTO includes `secret`:
+    - `api/oss/src/core/webhooks/dtos.py:42`
+  - API response model aliases directly to that DTO:
+    - `api/oss/src/apis/fastapi/webhooks/models.py:25`
+  - Service sets secret on returned subscription objects:
+    - `api/oss/src/core/webhooks/service.py:123`
+    - `api/oss/src/core/webhooks/service.py:179`
+- **Impact**
+  - Plaintext secret can be returned by create/fetch/edit/archive flows.
+- **Recommendation**
+  - Split internal DTO from API response model and exclude secret from normal responses.
+
+### P1 — Delivery write failures are swallowed
+- **Evidence**
+  - `_record_delivery` catches and logs errors without surfacing failure:
     - `api/oss/src/core/webhooks/tasks.py:49`
 - **Impact**
-  - Final delivery rows can be silently missing while task appears successful.
+  - Final delivery audit records can be silently dropped.
 - **Recommendation**
-  - Propagate/persist record-write failures (or queue compensating retry) to preserve audit integrity.
+  - Propagate, retry, or compensate failed delivery-record writes.
 
-### P2 — `test_webhook` writes malformed delivery payload and inaccurate status code
+### P2 — `test_webhook` persists malformed delivery data and synthetic status code
 - **Evidence**
-  - Persists `status.code` as `200`/`500` based on success boolean instead of actual response code:
-    - `api/oss/src/core/webhooks/service.py:444`
-  - Persists `data` keys `status_code` and `response_body` that are not in `WebhookDeliveryData` schema:
-    - `api/oss/src/core/webhooks/service.py:452`
+  - Uses success boolean to write `200/500` instead of actual response code:
+    - `api/oss/src/core/webhooks/service.py:445`
+  - Writes non-canonical data keys (`status_code`, `response_body`) instead of `response` object:
+    - `api/oss/src/core/webhooks/service.py:448`
     - `api/oss/src/core/webhooks/dtos.py:69`
 - **Impact**
-  - Stored test-delivery records lose/incorrectly represent response details.
+  - Persisted test deliveries are inconsistent with delivery schema.
 - **Recommendation**
-  - Use canonical `WebhookDeliveryData.response = {status_code, body}` and actual HTTP response code.
+  - Persist canonical `WebhookDeliveryData.response` and actual HTTP status.
 
-### P2 — Delivery query cache can be stale for up to TTL
+### P2 — Delivery query cache can be stale
 - **Evidence**
-  - Delivery query responses are cached:
+  - Query endpoint caches responses:
     - `api/oss/src/apis/fastapi/webhooks/router.py:465`
-  - No invalidation on `create_delivery` path:
+  - No invalidation on create-delivery path:
     - `api/oss/src/apis/fastapi/webhooks/router.py:384`
-  - Worker writes deliveries directly via DAO (bypasses router invalidation entirely):
+  - Worker inserts bypass router invalidation:
     - `api/oss/src/core/webhooks/tasks.py:51`
 - **Impact**
-  - `POST /webhooks/deliveries/query` can return stale results despite new deliveries.
+  - Recent deliveries can be absent from query results until TTL expiration.
 - **Recommendation**
-  - Disable cache for deliveries query or invalidate on every delivery insert.
+  - Disable caching for deliveries query or invalidate on every delivery write.
 
-### P2 — `status.message` filter is accepted but not applied
+### P2 — `status.message` is accepted in API filter but not applied in DAO
 - **Evidence**
-  - API/cache key includes `status_message`:
+  - API cache key includes `status_message`:
     - `api/oss/src/apis/fastapi/webhooks/router.py:429`
-  - DAO only filters `status.code`:
+  - DAO filters only `status.code`:
     - `api/oss/src/dbs/postgres/webhooks/dao.py:383`
 - **Impact**
-  - Query behavior is inconsistent with request model and cache key.
+  - API contract and DB filtering behavior are inconsistent.
 - **Recommendation**
-  - Implement status-message filtering or remove it from request/caching contract.
+  - Implement message filtering or remove it from query contract.
 
-### P2 — Weak default encryption key is accepted for webhook secret-at-rest encryption
+### P2 — Weak default crypt key remains allowed
 - **Evidence**
-  - Default key is `"replace-me"`:
+  - Default `AGENTA_CRYPT_KEY` is `"replace-me"`:
     - `api/oss/src/utils/env.py:511`
-  - Validation only checks non-empty value:
+  - Required-env validation checks presence, not secure value:
     - `api/oss/src/utils/helpers.py:175`
 - **Impact**
-  - If env is not explicitly set in production, Redis-cached encrypted secrets are weakly protected.
+  - Secret-at-rest encryption can be weak in misconfigured environments.
 - **Recommendation**
-  - Fail startup on insecure defaults for `AGENTA_CRYPT_KEY`.
+  - Reject insecure default in non-local environments.
 
 ## Completeness / Test Gaps
-- No new tests found for:
-  - webhook dispatch reliability semantics
-  - TaskIQ retry/final-write behavior
-  - events ingestion migration compatibility
-  - router import smoke/boot checks
-- Suggested minimum additions:
-  - import smoke tests for tracing/otlp routers
-  - integration test: event -> dispatch -> final delivery record semantics
-  - migration + ingest test covering `events.created_by_id` nullability
+- No tests were added for these high-risk paths:
+  - tracing/otlp import smoke
+  - events ingestion compatibility with new migration
+  - webhook dispatch reliability under enqueue failures
+  - delivery idempotency and final-write guarantees
 
-## Summary
-- The PR introduces major functionality but currently has blockers in startup correctness, persistence compatibility, and delivery reliability guarantees relative to the design docs.
+## Post-merge Status
+- After merging `main`, previously identified blockers still reproduce.
+- Additional confirmed issues were added here (SSRF, header override, enum-string matching, secret exposure).
