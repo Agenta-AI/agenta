@@ -1,99 +1,41 @@
 # Code Review: `feature/annotation-queue-v2`
 
 **Reviewer:** Claude Opus 4.6
-**Date:** 2026-02-26
-**Branch:** `feature/annotation-queue-v2` (13 commits ahead of `main`)
-**Scope:** Annotation queue v2 — ad-hoc evaluation queues, batch trace/testcase evaluation, queue user assignment
+**Date:** 2026-02-26 (updated after merge from main)
+**Branch:** `feature/annotation-queue-v2`
+**Scope:** Ad-hoc evaluation queues, batch trace/testcase evaluation, queue user assignment
 
 ---
 
 ## Summary
 
-This branch introduces the **SimpleQueuesService** layer — a convenience API for creating ad-hoc evaluation queues backed by existing evaluation infrastructure. Key additions:
+This branch introduces the **SimpleQueuesService** layer — a convenience API for creating ad-hoc evaluation queues backed by existing evaluation infrastructure. The diff is purely additive (~2200 lines added, ~29 removed).
+
+**Key additions:**
 
 1. **`SimpleQueuesService`** — orchestrates queue creation, trace/testcase ingestion, scenario querying
-2. **New worker tasks** — `evaluate_batch_invocation`, `evaluate_batch_traces`, `evaluate_batch_testcases`
+2. **New worker tasks** — `evaluate_batch_invocation`, `evaluate_batch_traces`, `evaluate_batch_testcases` (in `tasks/legacy.py`)
 3. **`SimpleQueuesRouter`** — REST endpoints under `/preview/simple/queues/`
-4. **`is_adhoc` flag** — marks evaluation runs for ad-hoc/bucket behavior
-5. **`user_ids` column** — denormalized UUID array on `evaluation_queues` for efficient assignee filtering
-6. **DB migrations** — two new Alembic migrations (OSS + EE mirrors)
-7. **Routing cleanup** — removed duplicate non-`/preview/` route mounts; removed Tools and AI Services wiring
+4. **`is_adhoc` flag** on `EvaluationRunFlags` — marks evaluation runs for ad-hoc/bucket behavior
+5. **`user_ids` column** — denormalized `UUID[]` on `evaluation_queues` for efficient assignee filtering (GIN indexed)
+6. **`batch_size` / `batch_offset`** on `EvaluationQueueData` — configurable scenario partitioning
+7. **DB migrations** — two new Alembic migrations (OSS + EE mirrors)
+8. **`SimpleQueue*` types** — `SimpleQueueKind`, `SimpleQueueData`, `SimpleQueueCreate`, `SimpleQueueQuery`, etc.
+
+**Endpoints added:**
+
+| Method | Path | Operation |
+|--------|------|-----------|
+| POST | `/preview/simple/queues/` | Create queue |
+| POST | `/preview/simple/queues/query` | Query queues |
+| GET | `/preview/simple/queues/{queue_id}` | Fetch queue |
+| POST | `/preview/simple/queues/{queue_id}/scenarios/query` | Query queue scenarios |
+| POST | `/preview/simple/queues/{queue_id}/traces/` | Add traces to queue |
+| POST | `/preview/simple/queues/{queue_id}/testcases/` | Add testcases to queue |
 
 ---
 
-## CRITICAL — Project Scope Bypass in DAO (Security)
-
-**Severity: CRITICAL**
-**Files:** `api/oss/src/dbs/postgres/evaluations/dao.py`
-
-The diff introduces a **project scope bypass** across ~20 DAO methods. The pattern:
-
-```python
-# Line 1: builds a scoped query
-stmt = select(EvaluationRunDBE).filter(
-    EvaluationRunDBE.project_id == project_id,
-)
-
-# Line 2: OVERWRITES stmt, discarding project_id filter
-stmt = select(EvaluationRunDBE).filter(
-    EvaluationRunDBE.id == run_id,
-)
-```
-
-The original code was `stmt = stmt.filter(...)` (chaining filters). The diff changes every instance to `stmt = select(...).filter(...)` (creating a new statement).
-
-**Affected methods** (all entity types — runs, scenarios, results, metrics):
-- `fetch_run`, `fetch_runs`
-- `edit_run`, `edit_runs`
-- `delete_run`, `delete_runs`
-- `fetch_scenario`, `fetch_scenarios`, `edit_scenario`, `edit_scenarios`, `delete_scenario`, `delete_scenarios`
-- `fetch_results`, `edit_result`, `edit_results`, `delete_result`, `delete_results`
-- `fetch_metrics`, `edit_metrics`, `delete_metrics`
-
-**Impact:** Any authenticated user can read/modify/delete evaluation data belonging to **any project** by guessing or knowing entity IDs. This is a **tenant isolation violation**.
-
-**Fix:** Revert all `stmt = select(...).filter(...)` back to `stmt = stmt.filter(...)` in the chained filter lines.
-
----
-
-## CRITICAL — `close_run` / `close_runs` No Longer Close
-
-**Severity: CRITICAL**
-**File:** `api/oss/src/dbs/postgres/evaluations/dao.py:495, 540`
-
-The line `run_dbe.flags["is_closed"] = True` is **commented out** in both `close_run()` and `close_runs()`. The `flag_modified(run_dbe, "flags")` call still runs, but no actual mutation happens.
-
-```python
-# run_dbe.flags["is_closed"] = True  # type: ignore   <-- COMMENTED OUT
-flag_modified(run_dbe, "flags")   # <-- no-op without the mutation
-```
-
-**Impact:** The `close_run` / `close_runs` endpoints and the `is_closed` enforcement in `edit_run` become dead code. Runs can never be closed, which breaks the immutability guarantee the system relies on.
-
-**Fix:** Uncomment the line or replace with the intended behavior.
-
----
-
-## HIGH — `meta` Containment Queries on JSON (Not JSONB) Column
-
-**Severity: HIGH**
-**File:** `api/oss/src/dbs/postgres/evaluations/dao.py` — lines 693, 1248, 1768, 2223, 2697
-
-The diff **uncomments** `meta.contains(...)` filters that were previously disabled with the note:
-
-```python
-# meta is JSON (not JSONB) — containment (@>) is not supported
-```
-
-If `meta` is indeed stored as `JSON` (not `JSONB`), PostgreSQL will raise a runtime error on `@>` containment queries. The original author explicitly disabled this for a reason.
-
-**Impact:** Any query with a `meta` filter will throw a 500 error at the DB level.
-
-**Fix:** Verify column type. If `JSON`, re-disable. If `JSONB`, the uncomment is correct.
-
----
-
-## HIGH — `_make_evaluation_run_flags` Coerces `None` to `False`
+## HIGH — `_make_evaluation_run_flags` Coerces `None` to `False` in Query Path
 
 **Severity: HIGH**
 **File:** `api/oss/src/core/evaluations/service.py:2700-2712`
@@ -108,49 +50,24 @@ async def _make_evaluation_run_flags(self, *, is_closed=None, is_adhoc=None, ...
     )
 ```
 
-When used for **query construction** via `_make_evaluation_run_query`, this means:
-- Passing `is_adhoc=None` (meaning "don't filter") becomes `is_adhoc=False` (meaning "filter for non-adhoc").
-- The JSONB containment query `flags @> {"is_adhoc": false, "has_queries": false, ...}` will match only runs where ALL these flags are explicitly `false`.
+This method is used for both **creating** run flags (where `False` defaults are correct) and **query construction** via `_make_evaluation_run_query`. In the query path, `None` should mean "don't filter", but it becomes `False` which means "filter for runs where this flag is false".
 
-The same method is used for both **creating** run flags (where defaults to `False` make sense) and **querying** (where `None` should mean "don't include in filter"). These two use cases need different semantics.
+The JSONB containment query `flags @> {"is_adhoc": false, "is_closed": false, "is_live": false, ...}` will only match runs where ALL unspecified flags are explicitly `false`.
 
-**Impact:** `SimpleQueuesService.query()` and `SimpleEvaluationsService.query()` silently exclude runs that don't match the zero-default flag pattern. For example, querying for `is_adhoc=True` runs will also require `is_closed=False`, `is_live=False`, etc. — filtering out closed or live adhoc runs unintentionally.
+**Impact:** `SimpleQueuesService.query()` and `SimpleEvaluationsService.query()` silently over-filter. For example, querying for `is_adhoc=True` will also require `is_closed=False`, `is_live=False`, etc. — filtering out closed or live adhoc runs.
 
-**Fix:** Use `EvaluationRunQueryFlags` (with `Optional` fields and `exclude_none=True` serialization) for query construction instead of `EvaluationRunFlags`. The `_make_evaluation_run_query` should build `EvaluationRunQueryFlags` directly.
+**Fix:** Use `EvaluationRunQueryFlags` (which has `Optional` fields) for the query path with `exclude_none=True` serialization. The `_make_evaluation_run_query` should build `EvaluationRunQueryFlags` directly instead of routing through `_make_evaluation_run_flags`.
 
----
-
-## MEDIUM — Stale Queue Response After `add_traces` / `add_testcases`
-
-**Severity: MEDIUM**
-**File:** `api/oss/src/core/evaluations/service.py:3193-3207, 3236-3250`
-
-Both `add_traces` and `add_testcases` in `SimpleQueuesService`:
-1. Fetch the queue and run **before** dispatching the worker task
-2. Dispatch `evaluate_batch_traces.kiq()` (async worker task)
-3. Return the **pre-dispatch** queue/run state
-
-```python
-ok = await self.simple_evaluations_service.evaluate_batch_traces(...)
-if not ok:
-    return None
-return self._parse_queue(queue=queue, run=run)  # <-- stale data
-```
-
-The worker task creates new scenarios, results, and potentially updates the run status asynchronously. The response will always show the state **before** any items were added.
-
-**Impact:** Callers see outdated item counts and status after adding items. Not a data corruption issue, but misleading.
-
-**Recommendation:** Either re-fetch after dispatch, or document that the response is the pre-dispatch snapshot and callers should poll for updated state.
+**Note:** The caller in `SimpleEvaluationsService.query()` already does `flags.get("is_closed")` via `model_dump(exclude_none=True)`, but the downstream method re-introduces the `None -> False` coercion.
 
 ---
 
-## MEDIUM — No Queue Update When Adding Items
+## MEDIUM — No Queue Update When Adding Items to Existing Queue
 
 **Severity: MEDIUM**
-**File:** `api/oss/src/core/evaluations/tasks/legacy.py:2183-2207`
+**File:** `api/oss/src/core/evaluations/tasks/legacy.py` — `_evaluate_batch_items` function
 
-In `_evaluate_batch_items`, after creating new scenarios, the code checks for an existing queue and creates one if missing. But it **never updates** an existing queue's `scenario_ids` or `data` to include the new scenarios:
+After creating new scenarios, the code checks for an existing queue and creates one if missing. But it **never updates** an existing queue's `data.scenario_ids` with the newly created scenarios:
 
 ```python
 existing_queues = await evaluations_service.query_queues(...)
@@ -160,32 +77,54 @@ if not has_run_queue:
 # <-- missing: update existing queue's scenario_ids with new scenarios
 ```
 
-**Impact:** After calling `add_traces`/`add_testcases` on an existing queue, the queue's `data.scenario_ids` is stale. The `query_scenarios` method uses `filter_scenario_ids()` which relies on the queue's scenario list. New items may not appear in the user's assigned scenario set.
+**Impact:** After calling `add_traces`/`add_testcases` on an existing queue, the queue's `data.scenario_ids` is stale. `filter_scenario_ids()` relies on the queue's scenario list, so newly added items may not appear in user-assigned scenario sets.
 
-**Fix:** After creating new scenarios, append them to the existing queue's `data.scenario_ids` via `edit_queue`.
+**Fix:** When `has_run_queue is True`, fetch the existing queue, append new scenario IDs to `data.scenario_ids`, and call `edit_queue`.
 
 ---
 
-## MEDIUM — `_normalize_assignments` Type Ambiguity
+## MEDIUM — Stale Queue Response After `add_traces` / `add_testcases`
 
 **Severity: MEDIUM**
-**File:** `api/oss/src/core/evaluations/service.py:3571-3589`
+**File:** `api/oss/src/core/evaluations/service.py` — `SimpleQueuesService.add_traces` / `add_testcases`
+
+Both methods fetch the queue/run **before** dispatching the async worker task, then return that pre-dispatch snapshot:
+
+```python
+ok = await self.simple_evaluations_service.evaluate_batch_traces(...)
+if not ok:
+    return None
+return self._parse_queue(queue=queue, run=run)  # <-- fetched before dispatch
+```
+
+**Impact:** Callers see outdated item counts and status. Not data corruption, but misleading.
+
+**Recommendation:** Document that the response is a pre-dispatch snapshot and callers should poll for updated state, or re-fetch after dispatch.
+
+---
+
+## MEDIUM — `_normalize_assignments` Union Type Ambiguity
+
+**Severity: MEDIUM**
+**File:** `api/oss/src/core/evaluations/service.py` — `SimpleQueuesService._normalize_assignments`
 
 ```python
 def _normalize_assignments(self, *, assignments: Optional[List[List[UUID]] | List[UUID]]):
     first_item = assignments[0]
     if isinstance(first_item, list):
-        return [...]  # treat as List[List[UUID]]
-    return [[UUID(str(user_id)) for user_id in assignments]]  # treat as List[UUID]
+        return [...]  # List[List[UUID]]
+    return [[UUID(str(user_id)) for user_id in assignments]]  # List[UUID]
 ```
 
-The Union type `List[List[UUID]] | List[UUID]` is ambiguous at runtime when receiving JSON input via Pydantic. A list like `["uuid1", "uuid2"]` could be deserialized as `List[UUID]` (flat assignments) or could be the first element of `List[List[UUID]]`. Pydantic v2 will try the first matching type in a Union, which may not match user intent.
+The Union type `List[List[UUID]] | List[UUID]` is ambiguous for Pydantic v2 deserialization. A JSON array `["uuid1", "uuid2"]` matches both types. Pydantic tries the first type in the Union, which may not match user intent.
 
-**Recommendation:** Use a discriminated field or explicit `repeats` parameter instead of type introspection.
+Also, `SimpleQueueData.assignments` uses this same Union type — Pydantic's left-to-right Union resolution means `List[List[UUID]]` is always tried first, so a flat list like `["uuid1"]` could be coerced to `[[uuid1]]` if Pydantic manages to parse each UUID string as a single-element list.
+
+**Recommendation:** Use a discriminated approach, or always require `List[List[UUID]]` with the single-repeat case being `[[uuid1, uuid2]]`.
 
 ---
 
-## MEDIUM — `fetch_trace` Retry Loop Is Expensive
+## MEDIUM — `fetch_trace` Retry Loop Is Expensive Per-Scenario
 
 **Severity: MEDIUM**
 **File:** `api/oss/src/core/evaluations/utils.py:139-163`
@@ -195,59 +134,65 @@ async def fetch_trace(tracing_router, request, trace_id, max_retries=15, delay=1
     for attempt in range(max_retries):
         try:
             response = await tracing_router.fetch_trace(...)
-            if response and response.traces:
-                return next(iter(response.traces.values()), None)
         except Exception:
-            pass
-        if attempt < max_retries - 1:
-            await sleep(delay)
-    return None
+            pass  # silently swallows all errors
+        await sleep(delay)
 ```
 
-This is called **per-scenario** in `_evaluate_batch_items` for trace-based queues. With 15 retries x 1s delay x N traces, a batch of 100 traces with intermittent failures could block the worker for **25+ minutes**. The broad `except Exception: pass` silently swallows all errors including programming bugs.
+Called **per-scenario** in `_evaluate_batch_items` for trace-based queues. With 15 retries x 1s x N traces, a batch of 100 missing traces could block the worker for **25+ minutes**. The broad `except Exception: pass` swallows programming bugs.
 
-**Recommendation:** Add exponential backoff, reduce max retries, and log the exception at `WARNING` level.
+**Recommendation:** Reduce max retries for this use case, add exponential backoff, and log exceptions at `WARNING` level.
 
 ---
 
-## MEDIUM — Route Cleanup Removes Non-Preview Endpoints
+## MEDIUM — `start()` Dispatch Logic Change — Live Query Path Removed
 
-**Severity: MEDIUM (breaking change)**
-**File:** `api/entrypoints/routers.py`
+**Severity: MEDIUM**
+**File:** `api/oss/src/core/evaluations/service.py` — `SimpleEvaluationsService.start()`
 
-The diff removes many non-`/preview/` route mounts:
+The original code dispatched `evaluate_live_query` for runs with query steps:
 
+```python
+# BEFORE:
+if _evaluation.data.query_steps:
+    await self.evaluations_worker.evaluate_live_query.kiq(...)
+elif _evaluation.data.testset_steps:
+    await self.evaluations_worker.evaluate_batch_testset.kiq(...)
 ```
-REMOVED: /evaluations, /invocations, /annotations, /testcases, /testsets,
-         /simple/testsets, /queries, /simple/queries, /applications,
-         /simple/applications, /workflows, /evaluators, /simple/evaluators,
-         /ai/services, /preview/tools
+
+The new code removes the live query dispatch entirely from this branch:
+
+```python
+# AFTER:
+if has_testset_steps and has_application_steps and has_evaluator_steps:
+    await self.evaluations_worker.evaluate_batch_testset.kiq(...)
+elif has_testset_steps and has_application_steps and not has_evaluator_steps and not has_query_steps:
+    await self.evaluations_worker.evaluate_batch_invocation.kiq(...)
+else:
+    log.warning("[EVAL] [start] [skip] unsupported non-live run topology", ...)
 ```
 
-This also removes the **Tools router** (`/preview/tools/`) and **AI Services router** (`/ai/services/`) entirely, along with their services and DAOs.
+Runs with `query_steps` (and no testset steps) will now fall into the `else` branch and only log a warning instead of being dispatched.
 
-**Impact:** Any SDK client, integration, or internal service calling the non-`/preview/` endpoint paths will break with 404. The evaluations router is re-mounted under a different legacy router import.
-
-**Recommendation:** Verify that all clients have been migrated to `/preview/` paths before merging. Ensure the Tools/AI Services removal is intentional and tracked separately.
+**Impact:** Live query evaluations that were previously started via `SimpleEvaluationsService.start()` will silently not execute. This may be intentional (live runs use a different code path), but should be verified.
 
 ---
 
-## LOW — `_make_run_data` Always Adds Source Step With Empty References
+## LOW — Source Step Empty References / Key-Name Convention
 
 **Severity: LOW**
-**File:** `api/oss/src/core/evaluations/service.py:3358-3367`
+**File:** `api/oss/src/core/evaluations/service.py` — `SimpleQueuesService._make_run_data`
 
 ```python
 source_step = EvaluationRunDataStep(
-    key=source_step_key,   # "query-direct" or "testset-direct"
+    key="query-direct",  # or "testset-direct"
     type="input",
     origin="custom",
-    references={},
-    inputs=None,
+    references={},  # empty
 )
 ```
 
-The source step has empty `references={}`. When `_make_run_flags` processes this, the `is_adhoc` branch infers `has_queries`/`has_testsets` from the step key string:
+Flag inference in `_make_run_flags` (in `dbs/postgres/evaluations/utils.py`) uses a string convention to detect queue kind:
 
 ```python
 if flags.is_adhoc and not _references:
@@ -256,63 +201,51 @@ if flags.is_adhoc and not _references:
         flags.has_queries = True
 ```
 
-This relies on the convention that `source_step_key` is `"query-direct"` or `"testset-direct"`. While it works, it's fragile — renaming the key breaks flag computation silently.
+Renaming the key breaks flag computation silently.
 
-**Recommendation:** Set explicit references or flags instead of relying on key-name conventions.
+**Recommendation:** Set explicit references or use a different mechanism for flag inference.
 
 ---
 
 ## LOW — Queue Query Hardcodes `is_sequential=False`
 
 **Severity: LOW**
-**File:** `api/oss/src/core/evaluations/service.py:3128`
+**File:** `api/oss/src/core/evaluations/service.py` — `SimpleQueuesService.query()`
 
 ```python
-queues = await self.evaluations_service.query_queues(
+queue=EvaluationQueueQuery(
+    flags=EvaluationQueueFlags(is_sequential=False),
     ...
-    queue=EvaluationQueueQuery(
-        flags=EvaluationQueueFlags(is_sequential=False),
-        ...
-    ),
 )
 ```
 
-The query always filters for `is_sequential=False`. This means sequential queues are invisible to the SimpleQueues API, which may be intentional but is not documented.
+Sequential queues are invisible to the SimpleQueues query API. May be intentional but is undocumented.
 
 ---
 
-## LOW — Migration `down_revision` Chain
+## LOW — Migration `down_revision` Chain Needs Verification
 
 **Severity: LOW**
-**Files:** Both migration files
+**Files:** `d7e8f9a0b1c2_add_is_adhoc_to_evaluation_run_flags.py`, `e9f0a1b2c3d4_add_user_ids_to_evaluation_queues.py`
 
-Migration `d7e8f9a0b1c2` declares `down_revision = "c2d3e4f5a6b7"`. This must match an existing migration revision ID. If that revision doesn't exist in the target database, `alembic upgrade head` will fail with a missing ancestor error.
+Migration `d7e8f9a0b1c2` declares `down_revision = "c2d3e4f5a6b7"`. This must match an existing migration revision ID on `main`. If it doesn't, `alembic upgrade head` will fail.
 
-**Recommendation:** Verify `c2d3e4f5a6b7` exists in both OSS and EE migration chains on `main`.
-
----
-
-## LOW — `str(scenario_id) != scenario_edit_request.scenario.id` Type Mismatch
-
-**Severity: LOW**
-**File:** `api/oss/src/apis/fastapi/evaluations/router.py:1140, 1361, 1740, 2127`
-
-The diff changes `str(scenario_id) != str(...)` to `str(scenario_id) != scenario_edit_request.scenario.id`. If `scenario.id` is a `UUID` object, this comparison will always fail because `str(UUID(...))` != `UUID(...)`. If `scenario.id` is already a string, it's fine.
-
-**Recommendation:** Keep consistent comparison: either both `str()` or use direct UUID comparison.
+**Recommendation:** Verify `c2d3e4f5a6b7` exists in the current migration chain after the merge.
 
 ---
 
 ## Positive Observations
 
-- **Worker task registration** is well-structured — the `EvaluationsWorker` class cleanly maps all 5 tasks with proper `retry_on_error=False`.
-- **`_flatten_queue_user_ids`** is a clean utility with proper deduplication.
-- **Validator functions** on `batch_size` and `batch_offset` are defensive and correct (including the `isinstance(v, bool)` guard for Python's `bool` subclass of `int`).
-- **`filter_scenario_ids`** logic with sequential/round-robin modes is well-designed and has corresponding unit tests.
-- **`_evaluate_batch_items`** correctly handles mixed human/auto evaluator steps, creating pending results for human steps and invoking auto evaluators.
-- **Migration data migration** (flattening nested `data.user_ids` into the column) is well-implemented with `CROSS JOIN LATERAL`.
-- **GIN index** on `user_ids` array is the correct index type for `@>` and `&&` operations.
-- **Design docs** in `docs/design/annotation-queue-v2/` are thorough and well-structured.
+- **Clean additive diff** — After merging main, the branch is purely additive (~2200 lines, no destructive changes to existing code paths).
+- **Worker task registration** is well-structured — `EvaluationsWorker` cleanly maps all 5 tasks with `retry_on_error=False` and proper service injection.
+- **`_flatten_queue_user_ids`** is a clean utility with proper deduplication and None-safe handling.
+- **Validator functions** on `batch_size` / `batch_offset` include the `isinstance(v, bool)` guard (Python's `bool` is a subclass of `int`).
+- **`filter_scenario_ids`** with sequential/round-robin modes is well-designed with unit test coverage.
+- **`_evaluate_batch_items`** correctly handles mixed human/auto evaluator steps — skipping invocation for human/custom origins and creating PENDING results.
+- **Migration data migration** for user_ids (flattening nested JSONB into UUID array) is well-implemented with `CROSS JOIN LATERAL`.
+- **GIN index** on `user_ids` array is the correct index type for `@>` / `&&` array operations.
+- **Entrypoint wiring** is clean — `SimpleQueuesService` gets its dependencies injected properly, circular dependency with worker is handled.
+- **Permission checks** are consistently applied across all SimpleQueuesRouter endpoints.
 
 ---
 
@@ -320,9 +253,8 @@ The diff changes `str(scenario_id) != str(...)` to `str(scenario_id) != scenario
 
 | Severity | Count | Key Issues |
 |----------|-------|------------|
-| CRITICAL | 2 | DAO project scope bypass (security); `close_run` commented out |
-| HIGH | 2 | `meta` containment on JSON column; flag query coercion |
-| MEDIUM | 5 | Stale response; queue not updated on add; type ambiguity; retry loop; route removal |
-| LOW | 4 | Fragile key conventions; hardcoded sequential filter; migration chain; type comparison |
+| HIGH | 1 | Flag query coercion (`None` -> `False`) causes over-filtering |
+| MEDIUM | 4 | Queue not updated on add; stale response; Union type ambiguity; retry loop cost; start() dispatch change |
+| LOW | 3 | Key-name convention fragility; hardcoded sequential filter; migration chain |
 
-**Recommendation:** Fix the two CRITICAL issues before merging. The DAO scope bypass is a tenant isolation vulnerability. The remaining HIGH and MEDIUM issues should be addressed or acknowledged with TODOs.
+**Recommendation:** The HIGH issue should be fixed before merging — it will cause incorrect query results for any evaluation/queue list that uses flag filters. The MEDIUM queue-not-updated issue should also be addressed as it breaks the core "add items to queue" flow. The rest can be tracked as follow-ups.
