@@ -14,6 +14,7 @@ from oss.src.core.evaluations.types import (
     EvaluationStatus,
     # EVALUATION RUN
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
@@ -42,7 +43,9 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
     # EVALUATION QUEUE
     EvaluationQueue,
+    EvaluationQueueFlags,
     EvaluationQueueCreate,
+    EvaluationQueueData,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
 )
@@ -58,6 +61,13 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
     SimpleEvaluationQuery,
+    #
+    SimpleQueue,
+    SimpleQueueCreate,
+    SimpleQueueQuery,
+    SimpleQueueScenariosQuery,
+    SimpleQueueData,
+    SimpleQueueKind,
 )
 from oss.src.core.evaluations.types import CURRENT_VERSION
 from oss.src.core.tracing.dtos import (
@@ -1813,11 +1823,27 @@ class SimpleEvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[SimpleEvaluation]:
+        flags = (
+            query.flags.model_dump(
+                exclude_none=True,
+                mode="json",
+            )
+            if query and query.flags
+            else {}
+        )
+
         run_query = await self._make_evaluation_run_query(
-            is_closed=query.flags.is_closed if query and query.flags else None,
-            is_live=query.flags.is_live if query and query.flags else None,
-            is_active=query.flags.is_active if query and query.flags else None,
-            is_adhoc=query.flags.is_adhoc if query and query.flags else None,
+            is_closed=flags.get("is_closed"),
+            is_live=flags.get("is_live"),
+            is_active=flags.get("is_active"),
+            is_adhoc=flags.get("is_adhoc"),
+            #
+            has_queries=flags.get("has_queries"),
+            has_testsets=flags.get("has_testsets"),
+            has_evaluators=flags.get("has_evaluators"),
+            has_custom=flags.get("has_custom"),
+            has_human=flags.get("has_human"),
+            has_auto=flags.get("has_auto"),
             #
             tags=query.tags if query else None,
             meta=query.meta if query else None,
@@ -1988,7 +2014,7 @@ class SimpleEvaluationsService:
         project_id: UUID,
         user_id: UUID,
         #
-        evaluation_id: UUID,
+        run_id: UUID,
         trace_ids: List[str],
     ) -> bool:
         if not trace_ids:
@@ -1996,15 +2022,15 @@ class SimpleEvaluationsService:
         if self.evaluations_worker is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch trace batch",
-                evaluation_id=evaluation_id,
+                run_id=run_id,
             )
             return False
 
-        run = await self.fetch(project_id=project_id, evaluation_id=evaluation_id)
+        run = await self.fetch(project_id=project_id, evaluation_id=run_id)
         if not run or not run.flags or not run.flags.is_adhoc:
             log.warning(
                 "[EVAL] trace batch dispatch requires ad-hoc evaluation",
-                evaluation_id=evaluation_id,
+                run_id=run_id,
             )
             return False
 
@@ -2012,7 +2038,7 @@ class SimpleEvaluationsService:
             project_id=project_id,
             user_id=user_id,
             #
-            run_id=evaluation_id,
+            run_id=run_id,
             trace_ids=trace_ids,
         )
         return True
@@ -2023,7 +2049,7 @@ class SimpleEvaluationsService:
         project_id: UUID,
         user_id: UUID,
         #
-        evaluation_id: UUID,
+        run_id: UUID,
         testcase_ids: List[UUID],
     ) -> bool:
         if not testcase_ids:
@@ -2031,15 +2057,15 @@ class SimpleEvaluationsService:
         if self.evaluations_worker is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch testcase batch",
-                evaluation_id=evaluation_id,
+                run_id=run_id,
             )
             return False
 
-        run = await self.fetch(project_id=project_id, evaluation_id=evaluation_id)
+        run = await self.fetch(project_id=project_id, evaluation_id=run_id)
         if not run or not run.flags or not run.flags.is_adhoc:
             log.warning(
                 "[EVAL] testcase batch dispatch requires ad-hoc evaluation",
-                evaluation_id=evaluation_id,
+                run_id=run_id,
             )
             return False
 
@@ -2047,7 +2073,7 @@ class SimpleEvaluationsService:
             project_id=project_id,
             user_id=user_id,
             #
-            run_id=evaluation_id,
+            run_id=run_id,
             testcase_ids=testcase_ids,
         )
         return True
@@ -2665,12 +2691,24 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_adhoc: Optional[bool] = None,
+        has_queries: Optional[bool] = None,
+        has_testsets: Optional[bool] = None,
+        has_evaluators: Optional[bool] = None,
+        has_custom: Optional[bool] = None,
+        has_human: Optional[bool] = None,
+        has_auto: Optional[bool] = None,
     ) -> EvaluationRunFlags:
         return EvaluationRunFlags(
             is_closed=is_closed or False,
             is_live=is_live or False,
             is_active=is_active or False,
             is_adhoc=is_adhoc or False,
+            has_queries=has_queries or False,
+            has_testsets=has_testsets or False,
+            has_evaluators=has_evaluators or False,
+            has_custom=has_custom or False,
+            has_human=has_human or False,
+            has_auto=has_auto or False,
         )
 
     async def _make_evaluation_run_query(
@@ -2680,6 +2718,12 @@ class SimpleEvaluationsService:
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
         is_adhoc: Optional[bool] = None,
+        has_queries: Optional[bool] = None,
+        has_testsets: Optional[bool] = None,
+        has_evaluators: Optional[bool] = None,
+        has_custom: Optional[bool] = None,
+        has_human: Optional[bool] = None,
+        has_auto: Optional[bool] = None,
         #
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
@@ -2689,6 +2733,12 @@ class SimpleEvaluationsService:
             is_live=is_live,
             is_active=is_active,
             is_adhoc=is_adhoc,
+            has_queries=has_queries,
+            has_testsets=has_testsets,
+            has_evaluators=has_evaluators,
+            has_custom=has_custom,
+            has_human=has_human,
+            has_auto=has_auto,
         )
 
         run_query = EvaluationRunQuery(
@@ -2887,3 +2937,653 @@ class SimpleEvaluationsService:
         except Exception:  # pylint: disable=broad-exception-caught
             log.error("[EVAL] [run] [parse] [failure]", exc_info=True)
             return None
+
+
+class SimpleQueuesService:
+    def __init__(
+        self,
+        *,
+        evaluations_service: EvaluationsService,
+        simple_evaluations_service: SimpleEvaluationsService,
+        evaluators_service: EvaluatorsService,
+    ):
+        self.evaluations_service = evaluations_service
+        self.simple_evaluations_service = simple_evaluations_service
+        self.evaluators_service = evaluators_service
+
+    async def create(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: SimpleQueueCreate,
+    ) -> Optional[SimpleQueue]:
+        if not queue.data:
+            return None
+
+        if not queue.data.evaluator_steps:
+            return None
+
+        kind = queue.data.kind
+        queue_user_ids = self._normalize_assignments(
+            assignments=queue.data.assignments,
+        )
+        min_repeats = len(queue_user_ids) if queue_user_ids else 1
+        repeats = (
+            max(queue.data.repeats, min_repeats)
+            if queue.data.repeats is not None
+            else min_repeats
+        )
+
+        run_data_and_keys = await self._make_run_data(
+            project_id=project_id,
+            #
+            kind=kind,
+            #
+            evaluator_steps=queue.data.evaluator_steps,
+            repeats=repeats,
+        )
+
+        if not run_data_and_keys:
+            return None
+
+        run_data, annotation_step_keys = run_data_and_keys
+
+        run = await self.evaluations_service.create_run(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run=EvaluationRunCreate(
+                name=queue.name,
+                description=queue.description,
+                #
+                flags=EvaluationRunFlags(
+                    is_live=False,
+                    is_active=True,
+                    is_closed=False,
+                    is_adhoc=True,
+                ),
+                tags=queue.tags,
+                meta=queue.meta,
+                #
+                status=queue.status or EvaluationStatus.RUNNING,
+                #
+                data=run_data,
+            ),
+        )
+
+        if not run or not run.id:
+            return None
+
+        created_queue = await self.evaluations_service.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            queue=EvaluationQueueCreate(
+                name=queue.name,
+                description=queue.description,
+                #
+                flags=EvaluationQueueFlags(
+                    is_sequential=False,
+                ),
+                tags=queue.tags,
+                meta=queue.meta,
+                #
+                status=queue.status or EvaluationStatus.RUNNING,
+                #
+                data=EvaluationQueueData(
+                    user_ids=queue_user_ids,
+                    step_keys=annotation_step_keys,
+                ),
+                #
+                run_id=run.id,
+            ),
+        )
+
+        if not created_queue:
+            return None
+
+        return self._parse_queue(
+            queue=created_queue,
+            run=run,
+        )
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        queue_id: UUID,
+    ) -> Optional[SimpleQueue]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        return self._parse_queue(
+            queue=queue,
+            run=run,
+        )
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        query: Optional[SimpleQueueQuery] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleQueue]:
+        run_ids_filter: Optional[List[UUID]] = None
+        if query and (query.run_id is not None or query.run_ids is not None):
+            requested_run_ids: List[UUID] = []
+
+            if query.run_id is not None:
+                requested_run_ids.append(query.run_id)
+
+            if query.run_ids:
+                requested_run_ids.extend(query.run_ids)
+
+            run_ids_filter = list(dict.fromkeys(requested_run_ids))
+
+        if query and query.kind is not None:
+            run_query = EvaluationRunQuery(
+                flags=EvaluationRunQueryFlags(
+                    is_adhoc=True,
+                    has_queries=query.kind == SimpleQueueKind.TRACES,
+                    has_testsets=query.kind == SimpleQueueKind.TESTCASES,
+                ),
+            )
+            runs = await self.evaluations_service.query_runs(
+                project_id=project_id,
+                run=run_query,
+            )
+
+            kind_run_ids = [run.id for run in runs if run and run.id]
+            if not kind_run_ids:
+                return []
+
+            kind_run_ids_set = set(kind_run_ids)
+            if run_ids_filter is None:
+                run_ids_filter = kind_run_ids
+            else:
+                run_ids_filter = [
+                    run_id for run_id in run_ids_filter if run_id in kind_run_ids_set
+                ]
+                if not run_ids_filter:
+                    return []
+
+        queues = await self.evaluations_service.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(
+                name=query.name if query else None,
+                description=query.description if query else None,
+                #
+                flags=EvaluationQueueFlags(is_sequential=False),
+                tags=query.tags if query else None,
+                meta=query.meta if query else None,
+                #
+                user_id=query.user_id if query else None,
+                user_ids=query.user_ids if query else None,
+                #
+                run_id=None,
+                run_ids=run_ids_filter,
+                #
+                ids=query.queue_ids if query else None,
+            ),
+            windowing=windowing,
+        )
+
+        if not queues:
+            return []
+
+        queue_run_ids = list(dict.fromkeys([queue.run_id for queue in queues if queue]))
+        runs = await self.evaluations_service.fetch_runs(
+            project_id=project_id,
+            run_ids=queue_run_ids,
+        )
+        runs_by_id = {run.id: run for run in runs if run and run.id}
+
+        return [
+            parsed
+            for parsed in [
+                self._parse_queue(
+                    queue=queue,
+                    run=runs_by_id.get(queue.run_id),
+                )
+                for queue in queues
+            ]
+            if parsed
+        ]
+
+    async def add_traces(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue_id: UUID,
+        #
+        trace_ids: List[str],
+    ) -> Optional[SimpleQueue]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        if self._get_kind(run) != SimpleQueueKind.TRACES:
+            return None
+
+        ok = await self.simple_evaluations_service.evaluate_batch_traces(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=queue.run_id,
+            #
+            trace_ids=trace_ids,
+        )
+        if not ok:
+            return None
+
+        return self._parse_queue(
+            queue=queue,
+            run=run,
+        )
+
+    async def add_testcases(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue_id: UUID,
+        #
+        testcase_ids: List[UUID],
+    ) -> Optional[SimpleQueue]:
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue_id,
+        )
+        if not queue:
+            return None
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+        if not run:
+            return None
+
+        if self._get_kind(run) != SimpleQueueKind.TESTCASES:
+            return None
+
+        ok = await self.simple_evaluations_service.evaluate_batch_testcases(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            run_id=queue.run_id,
+            #
+            testcase_ids=testcase_ids,
+        )
+        if not ok:
+            return None
+
+        return self._parse_queue(
+            queue=queue,
+            run=run,
+        )
+
+    async def query_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue: Optional[SimpleQueueScenariosQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[EvaluationScenario]:
+        if not queue or not queue.id:
+            return []
+
+        evaluation_queue = await self.evaluations_service.fetch_queue(
+            project_id=project_id,
+            queue_id=queue.id,
+        )
+        if not evaluation_queue:
+            return []
+
+        query_user_ids: List[UUID] = []
+        if queue and queue.user_id:
+            query_user_ids.append(queue.user_id)
+        if queue and queue.user_ids:
+            query_user_ids.extend(queue.user_ids)
+
+        query_user_ids = list(dict.fromkeys(query_user_ids))
+
+        assigned_scenario_ids_by_repeat: List[List[UUID]] = []
+        if query_user_ids:
+            for query_user_id in query_user_ids:
+                user_assigned_scenario_ids_by_repeat = (
+                    await self.evaluations_service.fetch_queue_scenarios(
+                        project_id=project_id,
+                        user_id=query_user_id,
+                        #
+                        queue_id=queue.id,
+                    )
+                )
+
+                for idx, repeat_ids in enumerate(user_assigned_scenario_ids_by_repeat):
+                    while len(assigned_scenario_ids_by_repeat) <= idx:
+                        assigned_scenario_ids_by_repeat.append([])
+
+                    current_repeat_ids = assigned_scenario_ids_by_repeat[idx]
+                    current_repeat_ids_set = set(current_repeat_ids)
+                    for scenario_id in repeat_ids:
+                        if scenario_id in current_repeat_ids_set:
+                            continue
+                        current_repeat_ids.append(scenario_id)
+                        current_repeat_ids_set.add(scenario_id)
+        else:
+            assigned_scenario_ids_by_repeat = (
+                await self.evaluations_service.fetch_queue_scenarios(
+                    project_id=project_id,
+                    user_id=None,
+                    #
+                    queue_id=queue.id,
+                )
+            )
+
+        assigned_scenario_ids: List[UUID] = []
+        seen_scenario_ids = set()
+        for repeat_ids in assigned_scenario_ids_by_repeat:
+            for scenario_id in repeat_ids:
+                if scenario_id in seen_scenario_ids:
+                    continue
+                seen_scenario_ids.add(scenario_id)
+                assigned_scenario_ids.append(scenario_id)
+
+        if not assigned_scenario_ids:
+            return []
+
+        scenario_query = EvaluationScenarioQuery(
+            run_id=evaluation_queue.run_id,
+            ids=assigned_scenario_ids,
+        )
+
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=project_id,
+            #
+            scenario=scenario_query,
+            #
+            windowing=windowing,
+        )
+
+        return scenarios
+
+    async def _make_run_data(
+        self,
+        *,
+        project_id: UUID,
+        kind: SimpleQueueKind,
+        evaluator_steps: Target,
+        repeats: int,
+    ) -> Optional[Tuple[EvaluationRunData, List[str]]]:
+        evaluator_step_origins: Dict[UUID, Origin]
+        if isinstance(evaluator_steps, list):
+            evaluator_step_origins = {
+                evaluator_revision_id: "human"
+                for evaluator_revision_id in evaluator_steps
+            }
+        else:
+            evaluator_step_origins = evaluator_steps
+
+        annotation_steps: List[EvaluationRunDataStep] = []
+        annotation_mappings: List[EvaluationRunDataMapping] = []
+        annotation_step_keys: List[str] = []
+
+        source_step_key = (
+            "query-direct" if kind == SimpleQueueKind.TRACES else "testset-direct"
+        )
+        source_step = EvaluationRunDataStep(
+            key=source_step_key,
+            type="input",
+            origin="custom",
+            references={},
+        )
+
+        source_mappings: List[EvaluationRunDataMapping] = []
+
+        for evaluator_revision_id, origin in evaluator_step_origins.items():
+            evaluator_revision_ref = Reference(id=evaluator_revision_id)
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            if not evaluator_revision or not evaluator_revision.slug:
+                return None
+
+            evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+                project_id=project_id,
+                evaluator_variant_ref=Reference(id=evaluator_revision.variant_id),
+            )
+            if not evaluator_variant:
+                return None
+
+            evaluator = await self.evaluators_service.fetch_evaluator(
+                project_id=project_id,
+                evaluator_ref=Reference(id=evaluator_variant.evaluator_id),
+            )
+            if not evaluator:
+                return None
+
+            step_key = "evaluator-" + evaluator_revision.slug
+            annotation_step_keys.append(step_key)
+
+            step_inputs: List[EvaluationRunDataStepInput] = [
+                EvaluationRunDataStepInput(key="__all_inputs__")
+            ]
+
+            annotation_steps.append(
+                EvaluationRunDataStep(
+                    key=step_key,
+                    type="annotation",
+                    origin=origin,
+                    references={
+                        "evaluator": Reference(
+                            id=evaluator.id,
+                            slug=evaluator.slug,
+                        ),
+                        "evaluator_variant": Reference(
+                            id=evaluator_variant.id,
+                            slug=evaluator_variant.slug,
+                        ),
+                        "evaluator_revision": Reference(
+                            id=evaluator_revision.id,
+                            slug=evaluator_revision.slug,
+                            version=evaluator_revision.version,
+                        ),
+                    },
+                    inputs=step_inputs,
+                )
+            )
+
+            metrics_keys: List[Dict[str, str]]
+            if evaluator_revision.data and evaluator_revision.data.schemas:
+                metrics_keys = get_metrics_keys_from_schema(
+                    schema=evaluator_revision.data.schemas.outputs,
+                )
+                metrics_keys = [
+                    {
+                        "path": metric_key.get("path", ""),
+                        "type": metric_key.get("type", ""),
+                    }
+                    for metric_key in metrics_keys
+                ]
+            else:
+                metrics_keys = [
+                    {
+                        "path": "outputs",
+                        "type": "json",
+                    }
+                ]
+
+            annotation_mappings.extend(
+                [
+                    EvaluationRunDataMapping(
+                        column=EvaluationRunDataMappingColumn(
+                            kind="annotation",
+                            name=metric_key.get("path", ""),
+                        ),
+                        step=EvaluationRunDataMappingStep(
+                            key=step_key,
+                            path=(
+                                "attributes.ag.data.outputs"
+                                + (
+                                    "." + metric_key.get("path", "")
+                                    if metric_key.get("path")
+                                    else ""
+                                )
+                            ),
+                        ),
+                    )
+                    for metric_key in metrics_keys
+                ]
+            )
+
+        run_data = EvaluationRunData(
+            steps=[source_step] + annotation_steps,
+            mappings=source_mappings + annotation_mappings,
+            repeats=repeats,
+        )
+
+        return run_data, annotation_step_keys
+
+    def _get_kind(self, run: EvaluationRun) -> Optional[SimpleQueueKind]:
+        if not run.flags or not run.flags.is_adhoc:
+            return None
+
+        if run.flags.has_queries and not run.flags.has_testsets:
+            return SimpleQueueKind.TRACES
+
+        if run.flags.has_testsets and not run.flags.has_queries:
+            return SimpleQueueKind.TESTCASES
+
+        if run.data and run.data.steps:
+            has_input = any(step.type == "input" for step in run.data.steps)
+            has_invocation = any(step.type == "invocation" for step in run.data.steps)
+
+            # Backward compatibility for older ad-hoc trace runs.
+            if has_invocation and not has_input:
+                return SimpleQueueKind.TRACES
+
+            if has_input and not has_invocation:
+                input_step_keys = [
+                    (step.key or "").lower()
+                    for step in run.data.steps
+                    if step.type == "input"
+                ]
+                if any("query" in step_key for step_key in input_step_keys):
+                    return SimpleQueueKind.TRACES
+
+                if any("testset" in step_key for step_key in input_step_keys):
+                    return SimpleQueueKind.TESTCASES
+
+                return SimpleQueueKind.TESTCASES
+
+        return None
+
+    def _parse_queue(
+        self,
+        *,
+        queue: EvaluationQueue,
+        #
+        run: Optional[EvaluationRun],
+    ) -> Optional[SimpleQueue]:
+        if run is None:
+            return None
+
+        kind = self._get_kind(run)
+        if kind is None:
+            return None
+
+        assignments: Optional[List[List[UUID]] | List[UUID]] = None
+        repeats: Optional[int] = None
+        if queue.data and queue.data.user_ids:
+            normalized_assignments = [
+                [UUID(str(user_id)) for user_id in repeat_user_ids]
+                for repeat_user_ids in queue.data.user_ids
+            ]
+            assignments = (
+                normalized_assignments[0]
+                if len(normalized_assignments) == 1
+                else normalized_assignments
+            )
+
+        if run and run.data and run.data.repeats and run.data.repeats > 1:
+            repeats = run.data.repeats
+        elif queue.data and queue.data.user_ids and len(queue.data.user_ids) > 1:
+            repeats = len(queue.data.user_ids)
+
+        return SimpleQueue(
+            id=queue.id,
+            #
+            name=queue.name,
+            description=queue.description,
+            #
+            created_at=queue.created_at,
+            updated_at=queue.updated_at,
+            deleted_at=queue.deleted_at,
+            created_by_id=queue.created_by_id,
+            updated_by_id=queue.updated_by_id,
+            deleted_by_id=queue.deleted_by_id,
+            #
+            flags=queue.flags,
+            tags=queue.tags,
+            meta=queue.meta,
+            #
+            status=queue.status,
+            #
+            data=SimpleQueueData(
+                kind=kind,
+                assignments=assignments,
+                repeats=repeats,
+            ),
+            #
+            run_id=queue.run_id,
+        )
+
+    def _normalize_assignments(
+        self,
+        *,
+        assignments: Optional[List[List[UUID]] | List[UUID]],
+    ) -> Optional[List[List[UUID]]]:
+        if assignments is None:
+            return None
+
+        if len(assignments) == 0:
+            return None
+
+        first_item = assignments[0]
+        if isinstance(first_item, list):
+            return [
+                [UUID(str(user_id)) for user_id in repeat_user_ids]
+                for repeat_user_ids in assignments
+            ]
+
+        return [[UUID(str(user_id)) for user_id in assignments]]

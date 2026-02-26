@@ -1981,6 +1981,29 @@ async def _evaluate_batch_items(
 
             if (
                 source_trace_id
+                and input_step_key
+                and scenario_status == EvaluationStatus.SUCCESS
+            ):
+                input_results = await evaluations_service.create_results(
+                    project_id=project_id,
+                    user_id=user_id,
+                    results=[
+                        EvaluationResultCreate(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                            step_key=input_step_key,
+                            status=EvaluationStatus.SUCCESS,
+                            trace_id=source_trace_id,
+                        )
+                    ],
+                )
+                if len(input_results) != 1:
+                    raise ValueError(
+                        f"Failed to create trace input result for scenario {scenario.id}"
+                    )
+
+            if (
+                source_trace_id
                 and invocation_step_key
                 and scenario_status == EvaluationStatus.SUCCESS
             ):
@@ -2068,8 +2091,9 @@ async def _evaluate_batch_items(
                     )
 
                     links: Dict[str, Any] = {}
-                    if invocation_step_key and source_trace_id and query_span_id:
-                        links[invocation_step_key] = dict(
+                    source_step_key = invocation_step_key or input_step_key
+                    if source_step_key and source_trace_id and query_span_id:
+                        links[source_step_key] = dict(
                             trace_id=source_trace_id,
                             span_id=query_span_id,
                         )

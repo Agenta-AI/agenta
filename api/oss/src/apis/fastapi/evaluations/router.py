@@ -17,6 +17,7 @@ from oss.src.core.evaluations.service import (
     EvaluationStatus,
     EvaluationsService,
     SimpleEvaluationsService,
+    SimpleQueuesService,
 )
 
 from oss.src.apis.fastapi.evaluations.models import (
@@ -77,6 +78,15 @@ from oss.src.apis.fastapi.evaluations.models import (
     SimpleEvaluationResponse,
     SimpleEvaluationsResponse,
     SimpleEvaluationIdResponse,
+    #
+    SimpleQueueCreateRequest,
+    SimpleQueueQueryRequest,
+    SimpleQueueScenariosQueryRequest,
+    SimpleQueueTracesCreateRequest,
+    SimpleQueueTestcasesCreateRequest,
+    SimpleQueueResponse,
+    SimpleQueuesResponse,
+    SimpleQueueScenarioIdsResponse,
 )
 from oss.src.apis.fastapi.evaluations.utils import (
     handle_evaluation_closed_exception,
@@ -90,6 +100,7 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluation,
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
+    SimpleQueueScenariosQuery,
 )
 
 if is_ee():
@@ -2406,6 +2417,282 @@ class SimpleEvaluationsRouter:
             resolved[evaluator_revision.id] = origin
 
         evaluation.data.evaluator_steps = resolved
+
+
+class SimpleQueuesRouter:
+    def __init__(
+        self,
+        *,
+        simple_queues_service: SimpleQueuesService,
+    ):
+        self.simple_queues_service = simple_queues_service
+
+        self.router = APIRouter()
+
+        # SIMPLE QUEUES -------------------------------------------------------
+
+        self.router.add_api_route(
+            "/",
+            self.create_queue,
+            methods=["POST"],
+            operation_id="create_simple_queue",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/query",
+            self.query_queues,
+            methods=["POST"],
+            operation_id="query_simple_queues",
+            response_model=SimpleQueuesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}",
+            self.fetch_queue,
+            methods=["GET"],
+            operation_id="fetch_simple_queue",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/scenarios/query",
+            self.query_queue_scenarios,
+            methods=["POST"],
+            operation_id="query_simple_queue_scenarios",
+            response_model=SimpleQueueScenarioIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/traces/",
+            self.add_queue_traces,
+            methods=["POST"],
+            operation_id="add_simple_queue_traces",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/testcases/",
+            self.add_queue_testcases,
+            methods=["POST"],
+            operation_id="add_simple_queue_testcases",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+    # SIMPLE QUEUES -----------------------------------------------------------
+
+    @intercept_exceptions()
+    async def create_queue(
+        self,
+        request: Request,
+        *,
+        queue_create_request: SimpleQueueCreateRequest,
+    ) -> SimpleQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.create(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queue=queue_create_request.queue,
+        )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleQueuesResponse(), exclude=[HTTPException])
+    async def query_queues(
+        self,
+        request: Request,
+        *,
+        queue_query_request: SimpleQueueQueryRequest,
+    ) -> SimpleQueuesResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queues = await self.simple_queues_service.query(
+            project_id=UUID(request.state.project_id),
+            #
+            query=queue_query_request.queue,
+            #
+            windowing=queue_query_request.windowing,
+        )
+
+        windowing = compute_next_windowing(
+            entities=queues,
+            attribute="id",
+            windowing=queue_query_request.windowing,
+        )
+
+        return SimpleQueuesResponse(
+            count=len(queues),
+            queues=queues,
+            windowing=windowing,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleQueueResponse(), exclude=[HTTPException])
+    async def fetch_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> SimpleQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=SimpleQueueScenarioIdsResponse(), exclude=[HTTPException]
+    )
+    async def query_queue_scenarios(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_scenarios_query_request: SimpleQueueScenariosQueryRequest,
+    ) -> SimpleQueueScenarioIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue_scenarios_query = (
+            queue_scenarios_query_request.queue
+            if queue_scenarios_query_request.queue
+            else SimpleQueueScenariosQuery(id=queue_id)
+        )
+
+        if queue_scenarios_query.id and queue_scenarios_query.id != queue_id:
+            raise HTTPException(
+                status_code=400,
+                detail="queue_id in path must match queue.id in request body",
+            )
+
+        queue_scenarios_query.id = queue_id
+
+        scenarios = await self.simple_queues_service.query_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            queue=queue_scenarios_query,
+            #
+            windowing=queue_scenarios_query_request.windowing,
+        )
+        scenario_ids = [scenario.id for scenario in scenarios if scenario.id]
+
+        windowing = compute_next_windowing(
+            entities=scenarios,
+            attribute="id",
+            windowing=queue_scenarios_query_request.windowing,
+        )
+
+        return SimpleQueueScenarioIdsResponse(
+            count=len(scenario_ids),
+            scenario_ids=scenario_ids,
+            windowing=windowing,
+        )
+
+    @intercept_exceptions()
+    async def add_queue_traces(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_traces_create_request: SimpleQueueTracesCreateRequest,
+    ) -> SimpleQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.add_traces(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queue_id=queue_id,
+            #
+            trace_ids=queue_traces_create_request.trace_ids,
+        )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+    @intercept_exceptions()
+    async def add_queue_testcases(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_testcases_create_request: SimpleQueueTestcasesCreateRequest,
+    ) -> SimpleQueueResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.add_testcases(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queue_id=queue_id,
+            #
+            testcase_ids=queue_testcases_create_request.testcase_ids,
+        )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
 
     async def _unresolve_evaluation_response(
         self,

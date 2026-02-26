@@ -504,3 +504,52 @@ class SimpleEvaluationQuery(Header, Metadata):
     flags: Optional[SimpleEvaluationQueryFlags] = None  # type: ignore
 
     ids: Optional[List[UUID]] = None
+
+
+# - SIMPLE QUEUE ---------------------------------------------------------------
+
+
+class SimpleQueueKind(str, Enum):
+    TRACES = "traces"
+    TESTCASES = "testcases"
+
+
+class SimpleQueueData(BaseModel):
+    kind: SimpleQueueKind
+
+    evaluator_steps: Optional[Target] = None
+
+    repeats: Optional[int] = None
+
+    assignments: Optional[Union[List[List[UUID]], List[UUID]]] = None
+
+
+class SimpleQueue(Identifier, Lifecycle, Header, Metadata):
+    status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
+
+    data: Optional[SimpleQueueData] = None
+
+    run_id: UUID
+
+
+class SimpleQueueCreate(Header, Metadata):
+    status: Optional[EvaluationStatus] = None
+
+    data: Optional[SimpleQueueData] = None
+
+
+class SimpleQueueQuery(Header, Metadata):
+    kind: Optional[SimpleQueueKind] = None
+
+    user_id: Optional[UUID] = None
+    user_ids: Optional[List[UUID]] = None
+
+    run_id: Optional[UUID] = None
+    run_ids: Optional[List[UUID]] = None
+
+    queue_ids: Optional[List[UUID]] = None
+
+
+class SimpleQueueScenariosQuery(Identifier):
+    user_id: Optional[UUID] = None
+    user_ids: Optional[List[UUID]] = None

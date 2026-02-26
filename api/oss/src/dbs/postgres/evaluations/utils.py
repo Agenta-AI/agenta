@@ -92,11 +92,20 @@ def _make_run_flags(
         if _step.type == "input":
             _references = _step.references or dict()
 
-            for _key in _references.keys():
-                if "query" in str(_key).lower():
-                    flags.has_queries = True
+            if flags.is_adhoc and not _references:
+                step_key = (_step.key or "").lower()
 
-                if "testset" in str(_key).lower():
+                if "query" in step_key:
+                    flags.has_queries = True
+                if "testset" in step_key:
+                    flags.has_testsets = True
+
+            for _key in _references.keys():
+                step_key = str(_key).lower()
+
+                if "query" in step_key:
+                    flags.has_queries = True
+                if "testset" in step_key:
                     flags.has_testsets = True
 
         if _step.type == "annotation":

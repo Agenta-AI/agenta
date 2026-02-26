@@ -79,6 +79,7 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -102,6 +103,7 @@ from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 
 
 from oss.src.routers import (
@@ -334,6 +336,12 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_worker=evaluations_worker,
 )
 
+simple_queues_service = SimpleQueuesService(
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    simple_evaluations_service=simple_evaluations_service,
+)
+
 # ROUTERS ----------------------------------------------------------------------
 
 secrets = VaultRouter(
@@ -409,6 +417,10 @@ evaluations = EvaluationsRouter(
 
 simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
+)
+
+simple_queues = SimpleQueuesRouter(
+    simple_queues_service=simple_queues_service,
 )
 
 invocations_service = InvocationsService(
@@ -571,6 +583,12 @@ app.include_router(
 app.include_router(
     router=simple_evaluations.router,
     prefix="/preview/simple/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
     tags=["Evaluations"],
 )
 
