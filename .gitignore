@@ -4,6 +4,8 @@
 **/*.next
 **/*.pnpm-store
 **/*.env*
+!**/*.env.example*
+!**/*env.example*
 **/*.DS_Store
 **/*.vscode
 **/*.pem
@@ -47,15 +49,23 @@ sdk/agenta/templates/agenta.py
 web/ee/public/__env.js
 web/oss/public/__env.js
 
-web/oss/tests/datalayer/results
+web/tests/results
+web/oss/tests/results
+web/ee/tests/results
 api/tests/results/
+api/oss/tests/results/
+api/ee/tests/results/
 sdk/tests/results/
 sdk/oss/tests/results/
 sdk/ee/tests/results/
+services/tests/results/
+services/oss/tests/results/
+services/ee/tests/results/
 .*
 !**/.gitkeep
 !api/.dockerignore
 !services/.dockerignore
+!.env.example
 
 # Temporary SDK symlinks created by run.sh --local
 api/sdk

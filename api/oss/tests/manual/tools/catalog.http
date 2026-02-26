@@ -1,0 +1,143 @@
+@agenta_api_url = {{$dotenv AGENTA_API_URL}}
+@agenta_auth_key = {{$dotenv AGENTA_AUTH_KEY}}
+@composio_api_url = {{$dotenv COMPOSIO_API_URL}}
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+
+###
+# @name create_account
+POST {{agenta_api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{agenta_auth_key}}
+
+{
+  "user": {
+    "name": "test_user_{{$guid}}",
+    "email": "test+{{$guid}}@agenta.ai"
+  },
+  "scope": {
+    "name": "Agenta (test) {{$guid}}"
+  }
+}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+# =====================================================================
+# PROVIDERS
+# =====================================================================
+
+###
+# @name list_providers
+GET {{agenta_api_url}}/preview/tools/catalog/providers/
+Authorization: {{authorization}}
+
+###
+# @name get_provider
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio
+Authorization: {{authorization}}
+
+# =====================================================================
+# INTEGRATIONS  (cursor-paginated)
+# =====================================================================
+
+###
+# @name list_integrations_page1
+# Our API — first page
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?limit=20
+Authorization: {{authorization}}
+
+###
+# @name composio_list_toolkits_page1
+# Composio direct — first page
+GET {{composio_api_url}}/toolkits?limit=20
+x-api-key: {{composio_api_key}}
+
+###
+@integrations_next = {{list_integrations_page1.response.body.next}}
+@composio_toolkits_next = {{composio_list_toolkits_page1.response.body.next_cursor}}
+
+###
+# @name list_integrations_page2
+# Our API — next page
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?limit=20&cursor={{integrations_next}}
+Authorization: {{authorization}}
+
+###
+# @name composio_list_toolkits_page2
+# Composio direct — next page
+GET {{composio_api_url}}/toolkits?limit=20&cursor={{composio_toolkits_next}}
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_integrations_search
+# Our API — client-side search (cursor suppressed when search is applied)
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/?search=gmail&limit=10
+Authorization: {{authorization}}
+
+###
+# @name get_integration
+# Our API — single integration
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail
+Authorization: {{authorization}}
+
+# =====================================================================
+# ACTIONS  (cursor-paginated)
+# =====================================================================
+
+###
+# @name list_actions_page1
+# Our API — first page; action keys have GMAIL_ prefix stripped
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20
+Authorization: {{authorization}}
+
+###
+# @name composio_list_actions_page1
+# Composio direct — toolkit_slug=gmail
+GET {{composio_api_url}}/tools?toolkit_slug=gmail&limit=20
+x-api-key: {{composio_api_key}}
+
+###
+@actions_next = {{list_actions_page1.response.body.next}}
+@composio_actions_next = {{composio_list_actions_page1.response.body.next_cursor}}
+
+###
+# @name list_actions_page2
+# Our API — next page
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?limit=20&cursor={{actions_next}}
+Authorization: {{authorization}}
+
+###
+# @name composio_list_actions_page2
+# Composio direct — next page
+GET {{composio_api_url}}/tools?toolkit_slug=gmail&limit=20&cursor={{composio_actions_next}}
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_actions_search
+# Our API — client-side search (cursor suppressed)
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/?search=send&limit=10
+Authorization: {{authorization}}
+
+###
+# @name get_action
+# Our API — use stripped key (GMAIL_ prefix removed by our parser)
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
+Authorization: {{authorization}}
+
+###
+# @name composio_get_action
+# Composio direct — full slug required
+GET {{composio_api_url}}/tools/GMAIL_SEND_EMAIL
+x-api-key: {{composio_api_key}}
+
+###
+# @name get_action_github
+# Our API — stripped key
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/github/actions/CREATE_ISSUE
+Authorization: {{authorization}}
+
+###
+# @name composio_get_action_github
+# Composio direct — full slug
+GET {{composio_api_url}}/tools/GITHUB_CREATE_ISSUE
+x-api-key: {{composio_api_key}}

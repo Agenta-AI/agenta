@@ -58,7 +58,9 @@ def ensure_databases() -> None:
     )
 
     if not uri:
-        raise RuntimeError("Missing POSTGRES_URI_CORE/POSTGRES_URI_SUPERTOKENS/POSTGRES_URI_TRACING")
+        raise RuntimeError(
+            "Missing POSTGRES_URI_CORE/POSTGRES_URI_SUPERTOKENS/POSTGRES_URI_TRACING"
+        )
 
     conn_args = parse_postgres_uri(uri)
 
