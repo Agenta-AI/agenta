@@ -4,7 +4,7 @@
  * A custom Lexical node for rendering long text strings in a collapsed/truncated view.
  * Shows a preview with character count and allows viewing the full content via drill-in.
  */
-import React, {useCallback, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
@@ -77,6 +77,21 @@ function formatCharCount(count: number): string {
 }
 
 /**
+ * Decode escaped JSON string characters (e.g. "\n", "\t") for display-only rendering.
+ * Falls back to the raw value if decoding fails.
+ */
+function decodeEscapedJsonString(value: string): string {
+    try {
+        return JSON.parse(`"${value}"`) as string
+    } catch {
+        return value
+            .replace(/\\r\\n/g, "\r\n")
+            .replace(/\\n/g, "\n")
+            .replace(/\\t/g, "\t")
+    }
+}
+
+/**
  * Serialized form of LongTextNode
  */
 export type SerializedLongTextNode = Spread<
@@ -96,7 +111,10 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
     const [copied, setCopied] = useState(false)
     const [expanded, setExpanded] = useState(false)
     const [popoverOpen, setPopoverOpen] = useState(false)
-    const parsed = parseLongTextString(`"${fullValue}"`)
+    const parsed = useMemo(
+        () => parseLongTextString(`"${decodeEscapedJsonString(fullValue)}"`),
+        [fullValue],
+    )
     const spanRef = React.useRef<HTMLSpanElement>(null)
 
     const handleCopy = useCallback(async () => {
@@ -211,7 +229,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                 {/* The text itself - also clickable to collapse */}
                 <span
                     ref={spanRef}
-                    className="token token-string cursor-pointer hover:opacity-70 transition-opacity"
+                    className="token token-string whitespace-pre-wrap break-words cursor-pointer hover:opacity-70 transition-opacity"
                     data-lexical-longtext="true"
                     data-node-key={nodeKey}
                     onClick={handleCollapse}
