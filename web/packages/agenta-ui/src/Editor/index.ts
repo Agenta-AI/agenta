@@ -55,6 +55,7 @@ export {
     PropertyClickPlugin,
 } from "./plugins/code"
 export {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
+export {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 
 // JSON parsing utilities - Re-exported from @agenta/shared
@@ -70,6 +71,9 @@ export {
 
 // Form view types
 export type {CustomRenderFn} from "./form/nodes/NodeTypes"
+
+// Search plugin
+export {SearchPlugin} from "./plugins/search/SearchPlugin"
 
 // Hooks
 export {default as useEditorConfig} from "./hooks/useEditorConfig"

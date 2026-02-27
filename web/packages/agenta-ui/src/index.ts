@@ -205,6 +205,7 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
     $getEditorCodeAsString,
+    $isCodeBlockNode,
     tryParsePartialJson,
     safeJson5Parse,
     // Drill-in context for Editor integration
@@ -214,6 +215,8 @@ export {
     ON_CHANGE_COMMAND,
     $convertToMarkdownStringCustom,
     PLAYGROUND_TRANSFORMERS,
+    // Search plugin
+    SearchPlugin,
     // Hooks
     useEditorConfig,
     useEditorInvariant,
