@@ -1,8 +1,7 @@
 import {useCallback} from "react"
 
-import EditorWrapper from "@/oss/components/Editor/Editor"
-
-import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
+import {Editor as EditorWrapper} from "@agenta/ui/editor"
+import {useDebounceInput} from "@agenta/ui/shared-editor"
 
 import type {PromptMessageContentProps} from "./types"
 

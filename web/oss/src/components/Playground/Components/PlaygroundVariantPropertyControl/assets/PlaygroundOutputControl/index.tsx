@@ -1,14 +1,15 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    EditorProvider,
+    useLexicalComposerContext,
+    $getEditorCodeAsString,
+    constructJsonFromSchema,
+    tryParsePartialJson,
+} from "@agenta/ui/editor"
 import {Button, Modal, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {
-    $getEditorCodeAsString,
-    constructJsonFromSchema,
-} from "@/oss/components/Editor/plugins/code/plugins/RealTimeValidationPlugin"
-import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import {CompoundMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import SharedEditor from "../../../SharedEditor"

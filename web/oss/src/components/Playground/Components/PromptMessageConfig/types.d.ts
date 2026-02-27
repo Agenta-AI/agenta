@@ -1,4 +1,4 @@
-import {EditorProps} from "@/oss/components/Editor/types"
+import type {EditorProps} from "@agenta/ui/editor"
 
 import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import type {SharedEditorProps} from "../SharedEditor/types"
