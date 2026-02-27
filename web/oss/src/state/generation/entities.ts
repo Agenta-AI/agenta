@@ -319,53 +319,22 @@ export const chatTurnsByIdFamilyAtom = atomFamily((rowId: string) =>
 
                 const assistantHasContent = messageHasContent(assistantNode)
 
-                const shouldAppendToolTurn = hasToolCallsForRevision
-                const shouldAppendBlankTurn = !shouldAppendToolTurn && assistantHasContent
+                // When assistant requests tool calls, do not auto-append a pending turn.
+                // The next turn should appear only after tool execution or explicit +Message.
+                const shouldAppendBlankTurn = !hasToolCallsForRevision && assistantHasContent
 
-                if (!shouldAppendToolTurn && !shouldAppendBlankTurn) return
+                if (!shouldAppendBlankTurn) return
 
                 const ids = (get(chatTurnIdsAtom) || []) as string[]
                 const idx = ids.indexOf(String(logicalId))
                 const isLast = idx >= 0 && idx === ids.length - 1
                 if (!isLast) return
 
-                let appendedId: string | null = null
-                let appendedTurn: ChatTurn | null = null
-
                 set(chatTurnIdsAtom, (prev) => {
                     const prevIds = prev || []
                     if (prevIds[prevIds.length - 1] !== logicalId) return prev
-                    const nextLogicalId = `lt-${generateId()}`
-                    if (shouldAppendToolTurn) {
-                        appendedId = nextLogicalId
-                        const sessionId =
-                            nextVal?.sessionId ||
-                            (activeRevisionId ? `session-${activeRevisionId}` : "session-")
-                        appendedTurn = {
-                            id: nextLogicalId,
-                            sessionId,
-                            userMessage: null,
-                            assistantMessageByRevision: activeRevisionId
-                                ? {[activeRevisionId]: null}
-                                : {},
-                            toolResponsesByRevision: {},
-                            meta: {},
-                        }
-                    }
-                    return [...prevIds, nextLogicalId]
+                    return [...prevIds, `lt-${generateId()}`]
                 })
-
-                if (appendedId && appendedTurn) {
-                    const turnIdToAdd = appendedId
-                    const turnValue = appendedTurn
-                    set(chatTurnsByIdCacheAtom, (prev) => {
-                        if (prev && prev[turnIdToAdd]) return prev
-                        return {
-                            ...(prev || {}),
-                            [turnIdToAdd]: turnValue,
-                        }
-                    })
-                }
             }
         },
     ),

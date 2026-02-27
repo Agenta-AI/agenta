@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.86.8",
+    "version": "0.87.1",
     "workspaces": [
         "ee",
         "oss",
@@ -44,7 +44,7 @@
         "turbo": "2.8.2",
         "typescript-eslint": "^8.50.0"
     },
-    "packageManager": "pnpm@10.29.2",
+    "packageManager": "pnpm@10.30.0",
     "scripts": {
         "build-oss": "turbo run build --filter=@agenta/oss",
         "build-ee": "turbo run build --filter=@agenta/ee",

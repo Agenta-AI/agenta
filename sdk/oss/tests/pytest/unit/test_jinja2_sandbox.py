@@ -1,4 +1,4 @@
-import logging
+from unittest.mock import patch
 
 import pytest
 
@@ -19,8 +19,12 @@ def test_handlers_jinja2_renders_safe_template() -> None:
     assert result == "Hello alice"
 
 
-def test_handlers_jinja2_blocks_ssti_payload(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.WARNING):
+def test_handlers_jinja2_blocks_ssti_payload() -> None:
+    # The SDK uses a structlog-based MultiLogger with propagate=False, so records
+    # don't flow through the standard logging hierarchy (caplog won't see them)
+    # and the StreamHandler holds a reference to the pre-test sys.stdout (capsys
+    # won't see them either). Patch the module-level logger directly instead.
+    with patch("agenta.sdk.workflows.handlers.log") as mock_log:
         result = _format_with_template(
             content=SSTI_PAYLOAD,
             format="jinja2",
@@ -28,7 +32,9 @@ def test_handlers_jinja2_blocks_ssti_payload(caplog: pytest.LogCaptureFixture) -
         )
 
     assert result == SSTI_PAYLOAD
-    assert any("sandbox violation" in r.message for r in caplog.records)
+    assert mock_log.warning.called
+    warning_msg = mock_log.warning.call_args[0][0]
+    assert "sandbox violation" in warning_msg
 
 
 def test_prompt_template_jinja2_renders_safe_template() -> None:

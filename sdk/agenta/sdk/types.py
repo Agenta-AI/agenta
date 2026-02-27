@@ -9,6 +9,7 @@ from starlette.responses import StreamingResponse
 
 
 from agenta.sdk.assets import supported_llm_models, model_metadata
+from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
 
 
 # SDK-internal types for inline trace responses.
@@ -519,7 +520,6 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import re  # noqa: E402
 from typing import Any, Dict, Iterable, Tuple, Optional  # noqa: E402
 
 from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath  # noqa: E402
@@ -601,8 +601,6 @@ def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
 
 # ========= Placeholder & coercion helpers =========
 
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
-
 
 def extract_placeholders(template: str) -> Iterable[str]:
     """Yield the inner text of all {{ ... }} occurrences (trimmed)."""
@@ -634,22 +632,6 @@ def build_replacements(
         except Exception:
             unresolved.add(expr)
     return replacements, unresolved
-
-
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
 
 
 def missing_lib_hints(unreplaced: set) -> Optional[str]:
@@ -727,11 +709,13 @@ class PromptTemplate(BaseModel):
                     original_placeholders, kwargs
                 )
 
-                result = apply_replacements(content, replacements)
-
-                truly_unreplaced = compute_truly_unreplaced(
-                    original_placeholders, result
+                result, successfully_replaced = apply_replacements_with_tracking(
+                    content, replacements
                 )
+
+                # Only the placeholders that were NOT successfully replaced are errors
+                # This avoids false positives when substituted values contain {{...}} patterns
+                truly_unreplaced = original_placeholders - successfully_replaced
                 if truly_unreplaced:
                     hint = missing_lib_hints(truly_unreplaced)
                     suffix = f" Hint: {hint}" if hint else ""

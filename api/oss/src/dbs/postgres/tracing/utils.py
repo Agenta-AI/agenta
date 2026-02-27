@@ -522,6 +522,14 @@ def _handle_string_field(
                 value=value,
             )
         )
+    elif isinstance(operator, NumericOperator):
+        clauses.extend(
+            _handle_numeric_operator(
+                attribute=attribute,
+                operator=operator,
+                value=value,
+            )
+        )
     elif isinstance(operator, StringOperator):
         clauses.extend(
             _handle_string_operator(

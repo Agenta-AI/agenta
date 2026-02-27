@@ -71,7 +71,9 @@ def run_tests(
         api_url = os.getenv("AGENTA_API_URL")
         if api_url:
             base_url = derive_services_url(api_url)
-            click.echo(f"AGENTA_SERVICES_URL not set; derived from AGENTA_API_URL -> {base_url}")
+            click.echo(
+                f"AGENTA_SERVICES_URL not set; derived from AGENTA_API_URL -> {base_url}"
+            )
 
     if not base_url:
         base_url = "http://localhost/services"

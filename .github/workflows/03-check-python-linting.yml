@@ -25,4 +25,4 @@ jobs:
         run: pip install ruff==0.14.0
 
       - name: Run Ruff linting check
-        run: ruff check api sdk
+        run: ruff check

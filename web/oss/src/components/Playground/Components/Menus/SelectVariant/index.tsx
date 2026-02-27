@@ -304,7 +304,7 @@ const SelectVariant = ({
 
     // Normal mode: standard picker
     return (
-        <div style={style ?? {width: 120}}>
+        <div style={style ?? {width: 200}}>
             <EntityPicker<PlaygroundRevisionSelectionResult>
                 variant="tree-select"
                 adapter={adapter}

@@ -9,7 +9,7 @@ import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {isEE} from "@/oss/lib/helpers/isEE"
+import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -34,6 +34,10 @@ const ProjectsSettings = dynamic(() => import("@/oss/components/pages/settings/P
     ssr: false,
 })
 
+const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"), {
+    ssr: false,
+})
+
 const Organization = dynamic(() => import("@/oss/components/pages/settings/Organization"), {
     ssr: false,
 })
@@ -47,8 +51,11 @@ const Settings: React.FC = () => {
     const {selectedOrg} = useOrgData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowBilling = isEE() && isOwner
+    const canShowTools = isToolsEnabled()
     const resolvedTab =
-        (tab === "organization" && !canShowOrganization) || (tab === "billing" && !canShowBilling)
+        (tab === "organization" && !canShowOrganization) ||
+        (tab === "billing" && !canShowBilling) ||
+        (tab === "tools" && !canShowTools)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -91,7 +98,9 @@ const Settings: React.FC = () => {
                         case "projects":
                             return "Projects"
                         case "secrets":
-                            return "Providers & Models"
+                            return "Models"
+                        case "tools":
+                            return "Tools"
                         case "apiKeys":
                             return "API Keys"
                         case "billing":
@@ -133,7 +142,9 @@ const Settings: React.FC = () => {
                     ),
                 }
             case "secrets":
-                return {content: <Secrets />, title: "Providers & Models"}
+                return {content: <Secrets />, title: "Models"}
+            case "tools":
+                return {content: <Tools />, title: "Tools"}
             case "apiKeys":
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":

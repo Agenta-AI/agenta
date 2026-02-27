@@ -1,0 +1,52 @@
+---
+title: "AI-Powered Prompt Refinement in the Playground"
+slug: refine-ai
+date: 2026-02-25
+tags: [v0.84.0]
+description: "Refine your prompts with AI directly in the playground. Describe what you want to improve and get a refined version with an explanation of the changes."
+---
+
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
+
+## The Problem
+
+Prompt engineering is iterative. You write a prompt, test it, notice it's too vague or missing constraints, and rewrite it. Each cycle requires you to figure out *how* to improve it, not just *what* to improve. That's the hard part.
+
+## The Solution
+
+You can now refine prompts with AI directly in the playground. Click the wand icon on any prompt section, describe what you want to change in plain English, and get back a refined version with an explanation of what changed and why.
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/V2hHC8hZEeE"
+    title="AI-Powered Prompt Refinement"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## How It Works
+
+1. Open a prompt in the playground and click the **wand icon** in the prompt section header.
+2. A two-panel modal opens. On the left, type what you want to improve (e.g., "add output format instructions" or "make it more concise"). On the right, see the refined prompt.
+3. Each refinement builds on the previous result, so you can iterate. Ask for one change, review it, then ask for another.
+4. Toggle the **Diff view** to see exactly what changed compared to the original.
+5. Edit the refined prompt directly if you want to adjust anything before applying.
+6. Click **Use refined prompt** to apply the changes to your playground session.
+
+You can also use the built-in quick action "Optimize the prompt using best practices" for a one-click improvement.
+
+## What You Can Do
+
+- **Describe improvements in plain English**: "Add a constraint that the output must be valid JSON" or "Make the tone more professional."
+- **Iterate**: Each refinement uses the latest version, so you can make incremental changes across multiple rounds.
+- **Review diffs**: Toggle the diff view to see a side-by-side comparison of the original and refined prompts.
+- **Edit before applying**: The refined prompt is fully editable. Adjust anything before committing.
+- **Quick optimize**: Use the built-in "Optimize the prompt using best practices" shortcut for an instant improvement.
+
+## Getting Started
+
+Open any prompt in the playground. Look for the wand icon in the prompt section header. If you don't see it, the feature may not be enabled for your organization yet.
