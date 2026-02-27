@@ -1076,6 +1076,8 @@ async def evaluate_batch_testset(
                     if annotation_step.origin in {"human", "custom"}:
                         scenario_has_pending = True
                         run_has_pending = True
+                        # Human/custom steps are not auto-invoked here.
+                        # Results are created later by the annotator via the annotation submission flow.
                         continue
 
                     references: Dict[str, Any] = {
@@ -2058,6 +2060,8 @@ async def _evaluate_batch_items(
                     if annotation_step.origin in {"human", "custom"}:
                         scenario_has_pending = True
                         run_has_pending = True
+                        # Human/custom steps are not auto-invoked here.
+                        # Results are created later by the annotator via the annotation submission flow.
                         continue
 
                     evaluator_revision = evaluator_revisions.get(annotation_step_key)
@@ -2203,6 +2207,10 @@ async def _evaluate_batch_items(
                     exc_info=True,
                 )
 
+        # TODO: run_status computed per-batch is unreliable for multi-batch ad-hoc runs
+        # (a later successful batch can overwrite ERRORS from an earlier batch).
+        # Run status on SimpleQueues is effectively meaningless until we implement
+        # an aggregate status derived from all scenarios across all batches.
         if run_has_errors:
             run_status = EvaluationStatus.ERRORS
         elif run_has_pending:
@@ -2233,7 +2241,7 @@ async def _evaluate_batch_items(
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(
-            f"An error occurred during trace batch evaluation: {e}",
+            f"An error occurred during batch items evaluation: {e}",
             exc_info=True,
         )
         run_status = EvaluationStatus.FAILURE

@@ -2504,7 +2504,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
             )
-            queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
+            if queue.data is not None:
+                queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
@@ -2568,7 +2569,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         updated_at=datetime.now(timezone.utc),
                         updated_by_id=user_id,
                     )
-                    queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
+                    if queue.data is not None:
+                        queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
