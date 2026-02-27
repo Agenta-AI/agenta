@@ -208,12 +208,18 @@ class TestVercelAIIngestion:
         inc = tokens.get("incremental", {})
         cum = tokens.get("cumulative", {})
         assert inc.get("prompt") == 15, f"Expected incremental.prompt=15, got {inc}"
-        assert inc.get("completion") == 8, f"Expected incremental.completion=8, got {inc}"
+        assert inc.get("completion") == 8, (
+            f"Expected incremental.completion=8, got {inc}"
+        )
         assert cum.get("prompt") == 15, f"Expected cumulative.prompt=15, got {cum}"
-        assert cum.get("completion") == 8, f"Expected cumulative.completion=8, got {cum}"
+        assert cum.get("completion") == 8, (
+            f"Expected cumulative.completion=8, got {cum}"
+        )
 
         # Verify type mapping (pipeline renames ag.type.node -> ag.type.span)
-        assert ag.get("type", {}).get("span") == "task", f"Expected type.span='task', got {ag.get('type')}"
+        assert ag.get("type", {}).get("span") == "task", (
+            f"Expected type.span='task', got {ag.get('type')}"
+        )
 
     def test_stream_text_token_naming(self, authed_api, cls_account):
         """Verify streamText token naming (inputTokens/outputTokens) is mapped."""
