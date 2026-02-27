@@ -37,29 +37,23 @@ The implementation quality and architecture are generally strong, but there are 
 
 ## P0 Findings
 
-1. Compatibility/Functionality: `transfer` removed from API/service while SDK and migrations still call it.
+1. Compatibility/Functionality: `transfer` removed from API/service while migrations still call it.
 - Missing API route in simple testsets router: `api/oss/src/apis/fastapi/testsets/router.py:1510`
-- SDK still calls transfer:
-  - `sdk/agenta/client/backend/testsets/raw_client.py:2278`
-  - `sdk/agenta/client/backend/testsets/client.py:1342`
 - Migrations still call missing service method:
   - `api/oss/databases/postgres/migrations/core/data_migrations/testsets.py:315`
   - `api/ee/databases/postgres/migrations/core/data_migrations/testsets.py:329`
 - Service no longer has method: `api/oss/src/core/testsets/service.py:1059`
-- Impact: SDK/runtime 404 and migration-time failures.
+- Impact: migration-time failures.
 
 ## P1 Findings
 
-1. Compatibility/Correctness: `/preview/testcases/query` dropped `testset_revision_id` while SDK still sends it.
+1. Compatibility/Correctness: `/preview/testcases/query` dropped legacy `testset_revision_id`.
 - Request model no longer includes legacy field: `api/oss/src/apis/fastapi/testcases/models.py:18`
 - Router resolves only ref fields: `api/oss/src/apis/fastapi/testcases/router.py:174`
-- SDK still sends `testset_revision_id`:
-  - `sdk/agenta/client/backend/testcases/raw_client.py:90`
-  - `sdk/agenta/client/backend/testcases/raw_client.py:119`
 - Service/DAO path can fall back to broad project query when expected filters are absent:
   - `api/oss/src/core/testcases/service.py:91`
   - `api/oss/src/dbs/postgres/blobs/dao.py:426`
-- Impact: silent behavior change and potentially over-broad reads.
+- Impact: silent behavior change and potentially over-broad reads for legacy callers.
 
 2. Correctness: `/preview/spans/{trace_id}/{span_id}` cannot fetch nested spans.
 - Lookup checks only top-level spans: `api/oss/src/core/tracing/utils/trees.py:493`
