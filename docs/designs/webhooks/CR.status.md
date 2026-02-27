@@ -10,21 +10,21 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 - [x] P0-4 | category: Security | severity: P0 | action: Add non-overwritable header list and drop blocked user headers before merge | status: done
 - [x] P0-5 | category: Correctness | severity: P0 | action: Align events migration column type: `status_code` -> `String` (OSS + EE) | status: done
 - [x] P0-6 | category: Correctness | severity: P0 | action: Align events migration nullability: `created_by_id` -> `nullable=True` (OSS + EE) | status: done
-- [ ] P1-1 | category: Security | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-1 | category: Security | severity: P1 | action: Intentional — secret returned on all responses by design | status: done
 - [x] P1-2 | category: Security | severity: P1 | action: Remove `docker.sock` mounts from untrusted outbound webhook/event workers | status: done
 - [x] P1-3 | category: Correctness | severity: P1 | action: Use `event.event_type.value` for subscription matching in dispatcher | status: done
 - [x] P1-4 | category: Correctness | severity: P1 | action: Remove deprecated test request model with invalid default and use path-param test route | status: done
 - [x] P1-5 | category: Correctness | severity: P1 | action: Use canonical `WebhookDeliveryData` shape in test delivery flow | status: done
 - [x] P1-6 | category: Correctness | severity: P1 | action: Align webhook delivery composite index definition between DBE and migrations | status: done
 - [x] P1-7 | category: Correctness | severity: P1 | action: Remove unused `flags`/`tags`/`meta` columns from webhook deliveries migrations | status: done
-- [ ] P1-8 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-8 | category: Correctness | severity: P1 | action: Not a bug — oldest/newest are window boundaries, logic is correct | status: done
 - [x] P1-9 | category: Correctness | severity: P1 | action: Parse TaskIQ retry labels defensively as int before retry comparisons | status: done
 - [x] P1-10 | category: Correctness | severity: P1 | action: Normalize `request.state.user_id` to `UUID` before service calls in webhooks router | status: done
 - [x] P1-11 | category: Correctness | severity: P1 | action: Make `publish_event` require non-optional `project_id` | status: done
-- [ ] P1-12 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-12 | category: Reliability | severity: P1 | action: ACK unprocessable messages to prevent PEL buildup (matching tracing worker pattern) | status: done
 - [x] P1-13 | category: Reliability | severity: P1 | action: Skip ACK/DEL when webhook dispatch fails; propagate enqueue/load failures | status: done
-- [ ] P1-14 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-15 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-14 | category: Reliability | severity: P1 | action: Consistent with tracing worker pattern — project-wide, not webhooks-specific | status: done
+- [x] P1-15 | category: Reliability | severity: P1 | action: Consistent with evaluations worker pattern — project-wide, not webhooks-specific | status: done
 - [x] P1-16 | category: Completeness | severity: P1 | action: Add EE webhook-subscriptions indexes to match OSS migration | status: done
 - [x] P1-17 | category: Completeness | severity: P1 | action: Add EE permission gate to events query endpoint | status: done
 - [x] P1-18 | category: Completeness | severity: P1 | action: Add health checks for webhook/event workers in compose files | status: done
@@ -68,9 +68,9 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 
 ## PR Comment Findings (Non-duplicated)
 
-- [ ] PR-1 | category: Architecture/Layering | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] PR-2 | category: Architecture/DB Structure | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] PR-3 | category: Contract Design | severity: P1 | action: _TBD by user_ | status: todo
+- [x] PR-1 | category: Architecture/Layering | severity: P1 | action: Verified — no layering violations in webhooks/events domains | status: done
+- [x] PR-2 | category: Architecture/DB Structure | severity: P1 | action: Verified — DBEs correctly placed in `dbs/postgres/webhooks/dbes.py` | status: done
+- [x] PR-3 | category: Contract Design | severity: P1 | action: Verified — all services/DAOs return typed DTOs via mappings layer | status: done
 - [x] PR-4 | category: API Conventions | severity: P1 | action: Use nested request/response envelopes for webhook subscription/delivery payloads and return singular responses with `count` | status: done
 - [ ] PR-5 | category: Migration Seam/Coupling | severity: P2 | action: _TBD by user_ | status: todo
 - [ ] PR-6 | category: Style/Consistency | severity: P3 | action: _TBD by user_ | status: todo

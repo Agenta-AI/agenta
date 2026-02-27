@@ -92,6 +92,8 @@ class EventsWorker:
                 processed_ids.append(msg_id)
             except Exception as e:
                 log.error(f"[EVENTS] Failed to deserialize message {msg_id!r}: {e}")
+                # ACK unprocessable messages to prevent PEL buildup
+                processed_ids.append(msg_id)
 
         total_ingested = 0
 
