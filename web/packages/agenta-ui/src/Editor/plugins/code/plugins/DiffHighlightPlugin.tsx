@@ -497,7 +497,7 @@ const DIFF_LINE_TRUNCATE_THRESHOLD = 200
 /** How many characters of context to keep around a changed segment */
 const DIFF_CONTEXT_CHARS = 60
 /** Ellipsis indicator for truncated text */
-const TRUNCATION_INDICATOR = " … "
+const _TRUNCATION_INDICATOR = " … "
 
 /**
  * Format a character count for display in truncation indicators.
@@ -524,7 +524,7 @@ function $truncationSegment(hiddenCount: number): InlineDiffSegment {
  * Truncate a long plain-text line into segments with styled truncation indicators.
  * Returns null if no truncation needed (caller should use plain text).
  */
-function truncateDiffLineToSegments(content: string): InlineDiffSegment[] | null {
+function $truncateDiffLineToSegments(content: string): InlineDiffSegment[] | null {
     if (content.length <= DIFF_LINE_TRUNCATE_THRESHOLD) return null
 
     // Find the JSON string value boundary (first quote after a colon)
@@ -553,7 +553,7 @@ function truncateDiffLineToSegments(content: string): InlineDiffSegment[] | null
  * Truncate long unchanged segments in inline diff.
  * Produces separate styled truncation indicator segments.
  */
-function truncateInlineDiffSegments(segments: InlineDiffSegment[]): InlineDiffSegment[] {
+function $truncateInlineDiffSegments(segments: InlineDiffSegment[]): InlineDiffSegment[] {
     // Only truncate if total text length exceeds threshold
     const totalLength = segments.reduce((sum, s) => sum + s.text.length, 0)
     if (totalLength <= DIFF_LINE_TRUNCATE_THRESHOLD) return segments
@@ -625,7 +625,7 @@ function $setLineContentWithInlineDiff(
 
     if (!segments || segments.length === 0) {
         // Try to produce styled truncation segments for plain text
-        const truncatedSegs = truncateDiffLineToSegments(fullContent)
+        const truncatedSegs = $truncateDiffLineToSegments(fullContent)
         if (truncatedSegs) {
             truncatedSegs.forEach((seg) => {
                 const node = $createTextNode(seg.text)
@@ -640,7 +640,7 @@ function $setLineContentWithInlineDiff(
         return
     }
 
-    const truncatedSegments = truncateInlineDiffSegments(segments)
+    const truncatedSegments = $truncateInlineDiffSegments(segments)
 
     truncatedSegments.forEach((segment) => {
         const node = $createTextNode(segment.text)
