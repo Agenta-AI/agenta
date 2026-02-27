@@ -40,6 +40,30 @@ def test_initialize_ag_attributes_keeps_ag_data_outputs_as_string():
     assert parsed["ag"]["data"]["outputs"] == '{"answer": "do-not-parse"}'
 
 
+def test_initialize_ag_attributes_keeps_json_primitives_as_strings_for_non_outputs():
+    attributes = {
+        "ag": {
+            "data": {
+                "inputs": "null",
+                "internals": "true",
+                "parameters": "42",
+            }
+        }
+    }
+
+    parsed = initialize_ag_attributes(attributes)
+    ag = parsed["ag"]
+
+    # inputs is Optional[Any], so keep primitive JSON-like strings unchanged
+    assert ag["data"]["inputs"] == "null"
+
+    # internals/parameters are dict-typed and invalid primitive strings are sanitized
+    assert "internals" not in ag["data"]
+    assert "parameters" not in ag["data"]
+    assert ag["unsupported"]["data"]["internals"] == "true"
+    assert ag["unsupported"]["data"]["parameters"] == "42"
+
+
 def test_initialize_ag_attributes_moves_invalid_ag_data_subfield_to_unsupported():
     attributes = {
         "ag": {

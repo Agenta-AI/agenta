@@ -418,7 +418,9 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         # Parse them back for all fields EXCEPT outputs (which can legitimately be a plain string).
         if key != "outputs" and isinstance(value, str):
             try:
-                value = loads(value)
+                parsed = loads(value)
+                if isinstance(parsed, (dict, list)):
+                    value = parsed
             except (ValueError, TypeError):
                 pass
         cleaned_data[key] = value
