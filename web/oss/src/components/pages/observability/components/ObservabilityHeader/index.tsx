@@ -309,7 +309,7 @@ const ObservabilityHeader = ({
                 duration: 0,
             })
 
-            const {csvParts, rowCount} = await fetchAllTracesForExport({
+            const {csvParts, rowCount, limitReached} = await fetchAllTracesForExport({
                 params,
                 appId,
                 isHasAnnotationSelected,
@@ -338,10 +338,18 @@ const ObservabilityHeader = ({
 
             downloadCsv(csvParts, filename)
 
-            message.success({
-                content: `Exported ${rowCount.toLocaleString()} rows`,
-                key: exportKey,
-            })
+            if (limitReached) {
+                message.warning({
+                    content: `Export limit reached. Downloaded first ${rowCount.toLocaleString()} rows.`,
+                    key: exportKey,
+                    duration: 5,
+                })
+            } else {
+                message.success({
+                    content: `Exported ${rowCount.toLocaleString()} rows`,
+                    key: exportKey,
+                })
+            }
         } catch (error) {
             if ((error as Error).name === "AbortError") {
                 message.info({

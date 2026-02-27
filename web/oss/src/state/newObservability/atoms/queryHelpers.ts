@@ -25,7 +25,11 @@ type ExportRow = Record<string, string | number | null | undefined>
 const EXPORT_PROGRESS_THROTTLE_MS = 300
 const DEFAULT_EXPORT_PAGE_SIZE = 500
 const MAX_EMPTY_PAGES = 3
+const MAX_EXPORT_ROWS = 20_000
+const EXPORT_PAGE_DELAY_MS = 100
 const CSV_UNPARSE_OPTIONS = {header: false, escapeFormulae: true}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const throwIfAborted = (signal?: AbortSignal) => {
     if (signal?.aborted) {
@@ -439,7 +443,7 @@ export const fetchAllTracesForExport = async ({
     onProgress?: (rowCount: number) => void
     signal?: AbortSignal
     pageSize?: number
-}): Promise<{csvParts: BlobPart[]; rowCount: number}> => {
+}): Promise<{csvParts: BlobPart[]; rowCount: number; limitReached: boolean}> => {
     const exportParams = {...params, size: pageSize}
 
     if (!exportParams.newest) {
@@ -454,6 +458,7 @@ export const fetchAllTracesForExport = async ({
     let cursor: string | undefined
     let lastProgressUpdate = 0
     let emptyPageCount = 0
+    let limitReached = false
 
     while (true) {
         throwIfAborted(signal)
@@ -473,6 +478,8 @@ export const fetchAllTracesForExport = async ({
         const collectSpans = (node: TraceSpan | TraceSpanNode) => {
             const key = getTraceExportKey(node)
             if (seen.has(key)) return
+            // Stop collecting if we've hit the limit
+            if (rowCount + rows.length >= MAX_EXPORT_ROWS) return
             rows.push(formatRow(node))
             seen.add(key)
 
@@ -502,9 +509,19 @@ export const fetchAllTracesForExport = async ({
             lastProgressUpdate = now
         }
 
+        // Check if we hit the row limit
+        if (rowCount >= MAX_EXPORT_ROWS) {
+            limitReached = true
+            break
+        }
+
         if (!result.nextCursor) break
         // Safety: if cursor isn't advancing (all rows already seen), stop
         if (emptyPageCount >= MAX_EMPTY_PAGES) break
+
+        // Throttle requests to reduce API load
+        await delay(EXPORT_PAGE_DELAY_MS)
+
         cursor = result.nextCursor
     }
 
@@ -513,5 +530,6 @@ export const fetchAllTracesForExport = async ({
     return {
         csvParts,
         rowCount,
+        limitReached,
     }
 }
