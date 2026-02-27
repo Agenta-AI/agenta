@@ -11,28 +11,28 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 - [x] P0-5 | category: Correctness | severity: P0 | action: Align events migration column type: `status_code` -> `String` (OSS + EE) | status: done
 - [x] P0-6 | category: Correctness | severity: P0 | action: Align events migration nullability: `created_by_id` -> `nullable=True` (OSS + EE) | status: done
 - [ ] P1-1 | category: Security | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-2 | category: Security | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-3 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-4 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-5 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-6 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-7 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-2 | category: Security | severity: P1 | action: Remove `docker.sock` mounts from untrusted outbound webhook/event workers | status: done
+- [x] P1-3 | category: Correctness | severity: P1 | action: Use `event.event_type.value` for subscription matching in dispatcher | status: done
+- [x] P1-4 | category: Correctness | severity: P1 | action: Remove deprecated test request model with invalid default and use path-param test route | status: done
+- [x] P1-5 | category: Correctness | severity: P1 | action: Use canonical `WebhookDeliveryData` shape in test delivery flow | status: done
+- [x] P1-6 | category: Correctness | severity: P1 | action: Align webhook delivery composite index definition between DBE and migrations | status: done
+- [x] P1-7 | category: Correctness | severity: P1 | action: Remove unused `flags`/`tags`/`meta` columns from webhook deliveries migrations | status: done
 - [ ] P1-8 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-9 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-10 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-11 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-9 | category: Correctness | severity: P1 | action: Parse TaskIQ retry labels defensively as int before retry comparisons | status: done
+- [x] P1-10 | category: Correctness | severity: P1 | action: Normalize `request.state.user_id` to `UUID` before service calls in webhooks router | status: done
+- [x] P1-11 | category: Correctness | severity: P1 | action: Make `publish_event` require non-optional `project_id` | status: done
 - [ ] P1-12 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-13 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-13 | category: Reliability | severity: P1 | action: Skip ACK/DEL when webhook dispatch fails; propagate enqueue/load failures | status: done
 - [ ] P1-14 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
 - [ ] P1-15 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-16 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-17 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-18 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-19 | category: Consistency | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-20 | category: Consistency | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-21 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-22 | category: Correctness/Reliability | severity: P1 | action: _TBD by user_ | status: todo
-- [ ] P1-23 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [x] P1-16 | category: Completeness | severity: P1 | action: Add EE webhook-subscriptions indexes to match OSS migration | status: done
+- [x] P1-17 | category: Completeness | severity: P1 | action: Add EE permission gate to events query endpoint | status: done
+- [x] P1-18 | category: Completeness | severity: P1 | action: Add health checks for webhook/event workers in compose files | status: done
+- [x] P1-19 | category: Consistency | severity: P1 | action: Use project-standard `FORBIDDEN_EXCEPTION` in webhooks router EE checks | status: done
+- [x] P1-20 | category: Consistency | severity: P1 | action: Inject `VaultService` via entrypoint wiring (service + dispatcher), remove inline construction | status: done
+- [x] P1-21 | category: Reliability | severity: P1 | action: Stop swallowing delivery persistence errors in webhook task path | status: done
+- [x] P1-22 | category: Correctness/Reliability | severity: P1 | action: Enforce delivery idempotency with unique `(project_id, subscription_id, event_id)` and DAO upsert | status: done
+- [x] P1-23 | category: Correctness | severity: P1 | action: Preserve existing flags on edit when incoming flags are omitted | status: done
 - [ ] P2-1 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
 - [ ] P2-2 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
 - [ ] P2-3 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo

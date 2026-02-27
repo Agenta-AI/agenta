@@ -21,7 +21,6 @@ from oss.src.core.webhooks.dtos import (
     WebhookSubscriptionQueryFlags,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
-from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.utils.caching import get_cache, set_cache, AGENTA_CACHE_TTL
 from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
@@ -44,9 +43,11 @@ class WebhooksDispatcher:
         self,
         *,
         subscriptions_dao: WebhooksDAOInterface,
+        vault_service: VaultService,
         deliver_task: Any,
     ):
         self.subscriptions_dao = subscriptions_dao
+        self.vault_service = vault_service
         self.deliver_task = deliver_task
 
     # --- internal helpers ---------------------------------------------------- #
@@ -58,8 +59,7 @@ class WebhooksDispatcher:
         secret_id: UUID,
     ) -> Optional[str]:
         try:
-            vault_service = VaultService(SecretsDAO())
-            secret_dto = await vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret(
                 secret_id=secret_id,
                 project_id=project_id,
             )
@@ -147,6 +147,8 @@ class WebhooksDispatcher:
         messages_by_key: Dict[EventKey, list],
     ) -> None:
         """Fan out TaskIQ delivery tasks for all (event, subscription) matches."""
+        enqueue_failures = 0
+
         for (_, project_id), msgs in messages_by_key.items():
             try:
                 subscriptions = await self._get_subscriptions(project_id)
@@ -155,6 +157,7 @@ class WebhooksDispatcher:
                     f"[WEBHOOKS DISPATCHER] Failed to load subscriptions "
                     f"for project {project_id}: {e}"
                 )
+                enqueue_failures += len(msgs)
                 continue
 
             for msg in msgs:
@@ -218,3 +221,9 @@ class WebhooksDispatcher:
                             f"[WEBHOOKS DISPATCHER] Failed to enqueue delivery "
                             f"for subscription {sub.id}: {e}"
                         )
+                        enqueue_failures += 1
+
+        if enqueue_failures > 0:
+            raise RuntimeError(
+                f"Webhook dispatch had {enqueue_failures} enqueue failures"
+            )

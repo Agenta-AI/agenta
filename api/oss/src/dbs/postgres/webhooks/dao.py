@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.dtos import (
@@ -324,11 +325,30 @@ class WebhooksDAO(WebhooksDAOInterface):
         )
 
         async with engine.core_session() as session:
-            session.add(delivery_dbe)
+            values = {
+                c.name: getattr(delivery_dbe, c.name)
+                for c in WebhookDeliveryDBE.__table__.columns
+            }
 
+            stmt = insert(WebhookDeliveryDBE).values(**values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["project_id", "subscription_id", "event_id"],
+                set_={
+                    "status": stmt.excluded.status,
+                    "data": stmt.excluded.data,
+                    "updated_at": datetime.now(timezone.utc),
+                    "updated_by_id": stmt.excluded.created_by_id,
+                },
+            )
+            await session.execute(stmt)
             await session.commit()
 
-            await session.refresh(delivery_dbe)
+            refreshed_stmt = select(WebhookDeliveryDBE).where(
+                WebhookDeliveryDBE.project_id == project_id,
+                WebhookDeliveryDBE.subscription_id == delivery.subscription_id,
+                WebhookDeliveryDBE.event_id == delivery.event_id,
+            )
+            delivery_dbe = (await session.execute(refreshed_stmt)).scalar_one()
 
         return map_delivery_dbe_to_dto(
             delivery_dbe=delivery_dbe,

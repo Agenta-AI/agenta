@@ -66,8 +66,9 @@ class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
         ),
         Index(
             "ix_webhook_deliveries_subscription_id_event_id",
+            "project_id",
             "subscription_id",
             "event_id",
-            "created_at",
+            unique=True,
         ),
     )

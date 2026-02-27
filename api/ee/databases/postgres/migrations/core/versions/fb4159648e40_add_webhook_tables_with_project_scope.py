@@ -48,6 +48,27 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
+    op.create_index(
+        "ix_webhook_subscriptions_project_id_created_at",
+        "webhook_subscriptions",
+        ["project_id", "created_at"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_webhook_subscriptions_project_id_deleted_at",
+        "webhook_subscriptions",
+        ["project_id", "deleted_at"],
+        unique=False,
+    )
+
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_webhook_subscriptions_project_id_deleted_at",
+        table_name="webhook_subscriptions",
+    )
+    op.drop_index(
+        "ix_webhook_subscriptions_project_id_created_at",
+        table_name="webhook_subscriptions",
+    )
     op.drop_table("webhook_subscriptions")

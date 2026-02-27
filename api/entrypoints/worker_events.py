@@ -5,7 +5,9 @@ from redis.asyncio import Redis
 from taskiq_redis import RedisStreamBroker
 
 from oss.src.core.events.service import EventsService
+from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -42,9 +44,13 @@ async def main_async() -> int:
             broker=broker,
             webhooks_dao=webhooks_dao,
         )
+        vault_service = VaultService(
+            secrets_dao=SecretsDAO(),
+        )
 
         webhooks_dispatcher = WebhooksDispatcher(
             subscriptions_dao=webhooks_dao,
+            vault_service=vault_service,
             deliver_task=webhooks_worker.deliver_webhook,
         )
 

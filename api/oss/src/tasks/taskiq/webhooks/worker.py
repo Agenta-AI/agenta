@@ -53,7 +53,11 @@ class WebhooksWorker:
             #
             context: Context = TaskiqDepends(),
         ) -> None:
-            retry_count = context.message.labels.get("_taskiq_retry_count", 0) or 0
+            retry_count_raw = context.message.labels.get("_taskiq_retry_count", 0) or 0
+            try:
+                retry_count = int(retry_count_raw)
+            except (TypeError, ValueError):
+                retry_count = 0
 
             log.info(
                 f"[TASK] webhooks.deliver "

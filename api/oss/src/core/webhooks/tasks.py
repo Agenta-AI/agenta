@@ -85,20 +85,17 @@ async def _record_delivery(
     status: Status,
     data: WebhookDeliveryData,
 ) -> None:
-    try:
-        await dao.create_delivery(
-            project_id=project_id,
-            user_id=None,
-            delivery=WebhookDeliveryCreate(
-                id=delivery_id,
-                subscription_id=subscription_id,
-                event_id=event_id,
-                status=status,
-                data=data,
-            ),
-        )
-    except Exception as e:
-        log.error(f"[WEBHOOKS TASK] Failed to record delivery: {e}")
+    await dao.create_delivery(
+        project_id=project_id,
+        user_id=None,
+        delivery=WebhookDeliveryCreate(
+            id=delivery_id,
+            subscription_id=subscription_id,
+            event_id=event_id,
+            status=status,
+            data=data,
+        ),
+    )
 
 
 async def deliver_webhook(

@@ -144,6 +144,7 @@ class EventsWorker:
                 )
 
                 # --- webhook dispatch parenthesis ---
+                dispatch_ok = True
                 if self.webhooks_dispatcher and messages_by_key:
                     try:
                         await self.webhooks_dispatcher.dispatch(messages_by_key)
@@ -151,7 +152,15 @@ class EventsWorker:
                         log.error(
                             f"[EVENTS] Webhook dispatch error: {e}", exc_info=True
                         )
+                        dispatch_ok = False
                 # --- end webhook dispatch -----------
+
+                if not dispatch_ok:
+                    log.warning(
+                        "[EVENTS] Skipping ACK/DEL because webhook dispatch failed",
+                        batch_size=len(batch),
+                    )
+                    continue
 
                 await self.ack_and_delete(processed_ids)
                 log.debug(

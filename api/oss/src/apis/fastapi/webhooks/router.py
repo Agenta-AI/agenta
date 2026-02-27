@@ -3,7 +3,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException
-from fastapi.responses import JSONResponse
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
@@ -28,7 +27,7 @@ from oss.src.apis.fastapi.webhooks.models import (
 
 if is_ee():
     from ee.src.models.shared_models import Permission
-    from ee.src.utils.permissions import check_action_access
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 
 class WebhooksRouter:
@@ -113,13 +112,10 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         subscription = await self.service.create_subscription(
-            user_id=request.state.user_id,
+            user_id=UUID(str(request.state.user_id)),
             project_id=UUID(request.state.project_id),
             subscription=body.subscription,
         )
@@ -145,10 +141,7 @@ class WebhooksRouter:
                 permission=Permission.VIEW_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             k: v
@@ -249,10 +242,7 @@ class WebhooksRouter:
                 permission=Permission.VIEW_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         subscription = await self.service.fetch_subscription(
             subscription_id=subscription_id,
@@ -283,10 +273,7 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(subscription_id) != str(body.subscription.id):
             raise HTTPException(
@@ -296,7 +283,7 @@ class WebhooksRouter:
 
         subscription = await self.service.edit_subscription(
             project_id=UUID(request.state.project_id),
-            user_id=request.state.user_id,
+            user_id=UUID(str(request.state.user_id)),
             subscription=body.subscription,
         )
         if not subscription:
@@ -326,15 +313,12 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         subscription = await self.service.archive_subscription(
             subscription_id=subscription_id,
             project_id=UUID(request.state.project_id),
-            user_id=request.state.user_id,
+            user_id=UUID(str(request.state.user_id)),
         )
         if not subscription:
             raise HTTPException(
@@ -363,15 +347,12 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         subscription = await self.service.unarchive_subscription(
             subscription_id=subscription_id,
             project_id=UUID(request.state.project_id),
-            user_id=request.state.user_id,
+            user_id=UUID(str(request.state.user_id)),
         )
         if not subscription:
             raise HTTPException(
@@ -400,14 +381,11 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         delivery = await self.service.create_delivery(
             project_id=UUID(request.state.project_id),
-            user_id=request.state.user_id,
+            user_id=UUID(str(request.state.user_id)),
             delivery=body.delivery,
         )
 
@@ -429,10 +407,7 @@ class WebhooksRouter:
                 permission=Permission.VIEW_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             k: v
@@ -536,15 +511,12 @@ class WebhooksRouter:
                 permission=Permission.EDIT_WEBHOOKS,
             )
             if not has_permission:
-                return JSONResponse(
-                    {"detail": "You do not have access to perform this action"},
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
             delivery = await self.service.test_webhook(
                 project_id=UUID(request.state.project_id),
-                user_id=request.state.user_id,
+                user_id=UUID(str(request.state.user_id)),
                 subscription_id=subscription_id,
             )
             return WebhookDeliveryResponse(

@@ -32,9 +32,6 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column("data", postgresql.JSON(astext_type=sa.Text()), nullable=True),
-        sa.Column("flags", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("tags", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("meta", postgresql.JSON(astext_type=sa.Text()), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
@@ -81,8 +78,8 @@ def upgrade() -> None:
     op.create_index(
         "ix_webhook_deliveries_subscription_id_event_id",
         "webhook_deliveries",
-        ["subscription_id", "event_id"],
-        unique=False,
+        ["project_id", "subscription_id", "event_id"],
+        unique=True,
     )
 
 

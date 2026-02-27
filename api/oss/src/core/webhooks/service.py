@@ -38,7 +38,6 @@ from oss.src.core.webhooks.exceptions import (
     WebhookTestDeliveryTimeoutError,
     WebhookTestEventPublishFailedError,
 )
-from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.utils.caching import (
     AGENTA_CACHE_TTL,
     get_cache,
@@ -58,9 +57,11 @@ class WebhooksService:
     def __init__(
         self,
         dao: WebhooksDAOInterface,
+        vault_service: VaultService,
         webhooks_worker: Optional["WebhooksWorker"] = None,
     ):
         self.dao = dao
+        self.vault_service = vault_service
         self.webhooks_worker = webhooks_worker
 
     def _generate_secret(self) -> str:
@@ -72,8 +73,7 @@ class WebhooksService:
     ) -> Optional[str]:
         """Fetch a subscription's signing secret from the vault."""
         try:
-            vault_service = VaultService(SecretsDAO())
-            secret_dto = await vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret(
                 secret_id=secret_id,
                 project_id=project_id,
             )
@@ -105,8 +105,7 @@ class WebhooksService:
         subscription: WebhookSubscriptionCreate,
     ) -> WebhookSubscription:
         secret_value = self._generate_secret()
-        vault_service = VaultService(SecretsDAO())
-        secret_dto = await vault_service.create_secret(
+        secret_dto = await self.vault_service.create_secret(
             project_id=project_id,
             create_secret_dto=CreateSecretDTO(
                 header={

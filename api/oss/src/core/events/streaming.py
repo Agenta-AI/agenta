@@ -52,9 +52,8 @@ def deserialize_event(*, payload: bytes) -> EventMessage:
 
 async def publish_event(
     *,
-    organization_id: Optional[UUID] = None,
-    workspace_id: Optional[UUID] = None,
-    project_id: Optional[UUID] = None,
+    organization_id: UUID,
+    project_id: UUID,
     user_id: Optional[UUID] = None,
     #
     event: Event,
@@ -67,7 +66,6 @@ async def publish_event(
     try:
         message = {
             "organization_id": organization_id,
-            "workspace_id": workspace_id,
             "project_id": project_id,
             "user_id": user_id,
             "event": event.model_dump(mode="json"),

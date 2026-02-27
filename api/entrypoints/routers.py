@@ -270,6 +270,7 @@ vault_service = VaultService(
 
 webhooks_service = WebhooksService(
     dao=webhooks_dao,
+    vault_service=vault_service,
     webhooks_worker=webhooks_worker,
 )
 

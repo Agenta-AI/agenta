@@ -2,9 +2,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status
 
+from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse
 from oss.src.core.events.service import EventsService
 from oss.src.utils.exceptions import intercept_exceptions
+
+if is_ee():
+    from ee.src.models.shared_models import Permission
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
 
 class EventsRouter:
@@ -32,6 +37,14 @@ class EventsRouter:
         request: Request,
         query_request: EventQueryRequest,
     ) -> EventsQueryResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         events = await self.service.query(
             project_id=UUID(request.state.project_id),
             #
