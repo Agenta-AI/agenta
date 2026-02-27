@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 from enum import Enum
 
 from pydantic import BaseModel
@@ -37,6 +37,7 @@ class ObjectEmbed(BaseModel):
 
     key: str  # JSON key where the embed is defined
     location: str  # JSON path where embed occurs
+    token: Dict[str, Any]  # Original {"@ag.embed": {...}} value stored at location
     references: Dict[str, Reference]  # e.g., {"workflow_revision": Reference(...)}
     selector: Optional[Selector] = None  # Path selector for extraction
 
@@ -63,12 +64,13 @@ class StringEmbed(BaseModel):
         - environment_revision.slug=my-env
 
     The token @ag.embed[...] gets replaced with the stringified resolved value.
-    During resolution, the token is reconstructed from references and selector,
-    found in the string at location, and replaced.
+    The original token text is stored so it can be found verbatim in the string
+    during resolution without relying on reconstruction.
     """
 
     key: str  # JSON key where the string embed is defined
     location: str  # JSON path where string occurs
+    token: str  # Original token text as it appears in the string
     references: Dict[str, Reference]  # Reference extracted from token
     selector: Optional[Selector] = None  # Path selector extracted from token
 

@@ -606,8 +606,9 @@ async def _resolve_and_inline_string_embed(
     if not isinstance(resolved_value, str):
         resolved_value = dumps(resolved_value)
 
-    # Reconstruct the token from references and selector
-    token = _reconstruct_token(embed.references, embed.selector)
+    # Use the original token stored at parse time (reconstruction could differ
+    # from the original text, e.g. for environment_revision.key= tokens)
+    token = embed.token
 
     # Get the original string from config
     original_string = extract_path(config, embed.location)
@@ -694,6 +695,7 @@ def find_object_embeds(
                     ObjectEmbed(
                         key=parent_key,
                         location=parent_path,
+                        token=embed_data,
                         references=references,
                         selector=selector,
                     )
@@ -760,6 +762,7 @@ def find_string_embeds(
                                 StringEmbed(
                                     key=key,
                                     location=child_path,
+                                    token=token,
                                     references=references,
                                     selector=selector,
                                 )
@@ -787,6 +790,7 @@ def find_string_embeds(
                                 StringEmbed(
                                     key=str(idx),
                                     location=child_path,
+                                    token=token,
                                     references=references,
                                     selector=selector,
                                 )
@@ -938,55 +942,6 @@ def _parse_embed_token(
     return (references, selector)
 
 
-def _reconstruct_token(
-    references: Dict[str, Reference],
-    selector: Optional[Selector] = None,
-) -> str:
-    """
-    Reconstruct an @ag.embed[...] token from References dict and optional Selector.
-
-    Args:
-        references: Dict of references (e.g., {"workflow_revision": Reference(version="v1")})
-        selector: Optional selector for path extraction
-
-    Returns:
-        Token string in supported parseable format:
-        - @ag.embed[@ag.references[workflow_revision.slug=my-revision-v1], @ag.selector[path:...]]
-        - @ag.embed[@ag.references[workflow_revision.version=v1]]
-        - @ag.embed[@ag.references[workflow_variant.id=abc-123]]
-        - @ag.embed[@ag.references[workflow_revision.version=v1, environment_revision.slug=prod-v1]]
-    """
-    # Get the first reference
-    if not references:
-        raise ValueError("Cannot reconstruct token without references")
-
-    reference_parts: List[str] = []
-    for entity_type, reference in references.items():
-        has_any = False
-        if reference.id is not None:
-            reference_parts.append(f"{entity_type}.id={reference.id}")
-            has_any = True
-        if reference.slug is not None:
-            reference_parts.append(f"{entity_type}.slug={reference.slug}")
-            has_any = True
-        if reference.version is not None:
-            reference_parts.append(f"{entity_type}.version={reference.version}")
-            has_any = True
-
-        if not has_any:
-            raise ValueError(f"Reference {entity_type} has no id, slug, or version")
-
-    ref_part = f"@ag.references[{', '.join(reference_parts)}]"
-
-    # Build @ag.selector[...] part if present
-    parts = [ref_part]
-    if selector and selector.path:
-        parts.append(f"@ag.selector[path:{selector.path}]")
-
-    # Combine into full token
-    return f"@ag.embed[{', '.join(parts)}]"
-
-
 def extract_path(
     config: Dict[str, Any],
     path: str,
@@ -1009,7 +964,7 @@ def extract_path(
     parts = path.split(".")
     current = config
 
-    for part in parts:
+    for i, part in enumerate(parts):
         if isinstance(current, dict):
             if part not in current:
                 raise PathExtractionError(path, config)
@@ -1023,7 +978,9 @@ def extract_path(
         else:
             raise PathExtractionError(path, config)
 
-        if current is None:
+        # Only raise on None at intermediate segments; None at the final
+        # position is a legitimate value and should be returned as-is.
+        if current is None and i < len(parts) - 1:
             raise PathExtractionError(path, config)
 
     return current
