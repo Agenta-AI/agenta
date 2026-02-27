@@ -496,7 +496,7 @@ export const fetchAllTracesForExport = async ({
         }
 
         if (rows.length > 0) {
-            csvParts.push("\n", Papa.unparse({fields: headers, data: rows}, CSV_UNPARSE_OPTIONS))
+            csvParts.push("\r\n", Papa.unparse({fields: headers, data: rows}, CSV_UNPARSE_OPTIONS))
             rowCount += rows.length
             emptyPageCount = 0
         } else {
