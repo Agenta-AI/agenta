@@ -1,53 +1,33 @@
-"""Lightweight symmetric encrypt/decrypt using Python stdlib only.
+"""Symmetric encryption helpers for secrets.
 
-Uses HMAC-SHA256 as a keystream generator (stream cipher) with a random
-16-byte nonce to ensure non-deterministic ciphertext. Intended for
-lightly protecting secrets at rest in Redis — not a replacement for
-full-fat authenticated encryption.
-
-Key is derived from env.agenta.crypt_key via SHA-256.
-Output format: base64url(nonce[16] + ciphertext)
+Uses `cryptography.fernet.Fernet` for authenticated encryption.
+AGENTA_CRYPT_KEY can be any non-empty string and is deterministically
+derived to a Fernet key via SHA-256 + base64url encoding.
 """
 
 import base64
 import hashlib
-import hmac
-import os
+
+from cryptography.fernet import Fernet, InvalidToken
 
 from oss.src.utils.env import env
 
 
-def _derive_key() -> bytes:
-    return hashlib.sha256(env.agenta.crypt_key.encode()).digest()
-
-
-def _keystream(key_bytes: bytes, nonce: bytes, length: int) -> bytes:
-    stream = b""
-    counter = 0
-    while len(stream) < length:
-        stream += hmac.new(
-            key_bytes,
-            nonce + counter.to_bytes(4, "big"),
-            hashlib.sha256,
-        ).digest()
-        counter += 1
-    return stream[:length]
+def _get_fernet() -> Fernet:
+    crypt_key = env.agenta.crypt_key
+    if not crypt_key:
+        raise ValueError("AGENTA_CRYPT_KEY is required for secret encryption")
+    key_material = hashlib.sha256(crypt_key.encode()).digest()
+    fernet_key = base64.urlsafe_b64encode(key_material)
+    return Fernet(fernet_key)
 
 
 def encrypt(value: str) -> str:
-    key_bytes = _derive_key()
-    nonce = os.urandom(16)
-    plaintext = value.encode()
-    keystream = _keystream(key_bytes, nonce, len(plaintext))
-    ciphertext = bytes(a ^ b for a, b in zip(plaintext, keystream))
-    return base64.urlsafe_b64encode(nonce + ciphertext).decode()
+    return _get_fernet().encrypt(value.encode()).decode()
 
 
 def decrypt(value: str) -> str:
-    key_bytes = _derive_key()
-    data = base64.urlsafe_b64decode(value.encode())
-    nonce = data[:16]
-    ciphertext = data[16:]
-    keystream = _keystream(key_bytes, nonce, len(ciphertext))
-    plaintext = bytes(a ^ b for a, b in zip(ciphertext, keystream))
-    return plaintext.decode()
+    try:
+        return _get_fernet().decrypt(value.encode()).decode()
+    except InvalidToken as e:
+        raise ValueError("Invalid ciphertext") from e

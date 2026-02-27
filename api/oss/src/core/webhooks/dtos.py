@@ -86,7 +86,7 @@ class WebhookDelivery(Identifier, Lifecycle):
     event_id: UUID
 
 
-class WebhookDeliveryCreate(BaseModel):
+class WebhookDeliveryCreate(Identifier):
     status: Status
 
     data: Optional[WebhookDeliveryData] = None

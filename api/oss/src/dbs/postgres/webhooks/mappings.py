@@ -129,7 +129,7 @@ def map_delivery_dto_to_dbe_create(
     #
     delivery: WebhookDeliveryCreate,
 ) -> WebhookDeliveryDBE:
-    return WebhookDeliveryDBE(
+    dbe_kwargs = dict(
         project_id=project_id,
         #
         created_by_id=user_id or UUID(int=0),
@@ -152,6 +152,10 @@ def map_delivery_dto_to_dbe_create(
         #
         event_id=delivery.event_id,
     )
+    if delivery.id is not None:
+        dbe_kwargs["id"] = delivery.id
+
+    return WebhookDeliveryDBE(**dbe_kwargs)
 
 
 def map_delivery_dbe_to_dto(

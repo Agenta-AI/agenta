@@ -19,6 +19,7 @@ class EventType(str, Enum):
 
     UNKNOWN = "unknown"
     ENVIRONMENTS_REVISIONS_COMMITTED = "environments.revisions.committed"
+    WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"
 
 
 class RequestID(BaseModel):

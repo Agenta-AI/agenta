@@ -12,6 +12,7 @@ class WebhookEventType(str, Enum):
     """
 
     ENVIRONMENTS_REVISIONS_COMMITTED = EventType.ENVIRONMENTS_REVISIONS_COMMITTED.value
+    WEBHOOKS_SUBSCRIPTIONS_TESTED = EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED.value
 
     @classmethod
     def values(cls) -> List[str]:

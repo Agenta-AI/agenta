@@ -38,7 +38,7 @@ from oss.src.core.tracing.utils import (
     calculate_and_propagate_metrics,
 )
 
-from oss.src.core.tracing.streaming import publish_span
+from oss.src.core.tracing.streaming import publish_spans
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelLinks,
@@ -535,7 +535,7 @@ class TracingRouter:
         else:
             # Async path for high-volume operations (observability, evaluations)
             # Publish to Redis Streams for async processing with entitlements check
-            await publish_span(
+            await publish_spans(
                 organization_id=organization_id,
                 project_id=project_id,
                 user_id=user_id,

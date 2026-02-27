@@ -1,0 +1,95 @@
+# CR Status
+
+Status values: `todo`, `in_progress`, `done`, `blocked`.
+
+## Findings Checklist
+
+- [x] P0-1 | category: Correctness | severity: P0 | action: Rename `publish_span` imports/calls to `publish_spans` in tracing + OTLP routers | status: done
+- [x] P0-2 | category: Security | severity: P0 | action: Apply existing SDK-style webhook URL validation to both delivery and test paths | status: done
+- [x] P0-3 | category: Security | severity: P0 | action: Accept any provided `AGENTA_CRYPT_KEY`, fail if missing, and use Fernet authenticated encryption | status: done
+- [x] P0-4 | category: Security | severity: P0 | action: Add non-overwritable header list and drop blocked user headers before merge | status: done
+- [x] P0-5 | category: Correctness | severity: P0 | action: Align events migration column type: `status_code` -> `String` (OSS + EE) | status: done
+- [x] P0-6 | category: Correctness | severity: P0 | action: Align events migration nullability: `created_by_id` -> `nullable=True` (OSS + EE) | status: done
+- [ ] P1-1 | category: Security | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-2 | category: Security | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-3 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-4 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-5 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-6 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-7 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-8 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-9 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-10 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-11 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-12 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-13 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-14 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-15 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-16 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-17 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-18 | category: Completeness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-19 | category: Consistency | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-20 | category: Consistency | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-21 | category: Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-22 | category: Correctness/Reliability | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P1-23 | category: Correctness | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] P2-1 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-2 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-3 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-4 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-5 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-6 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-7 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-8 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-9 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-10 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-11 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-12 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-13 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-14 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-15 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-16 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-17 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-18 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-19 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-20 | category: Quality | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-21 | category: Quality | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P2-22 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] P3-1 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-2 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-3 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-4 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-5 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-6 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-7 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-8 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-9 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P3-10 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+
+## PR Comment Findings (Non-duplicated)
+
+- [ ] PR-1 | category: Architecture/Layering | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] PR-2 | category: Architecture/DB Structure | severity: P1 | action: _TBD by user_ | status: todo
+- [ ] PR-3 | category: Contract Design | severity: P1 | action: _TBD by user_ | status: todo
+- [x] PR-4 | category: API Conventions | severity: P1 | action: Use nested request/response envelopes for webhook subscription/delivery payloads and return singular responses with `count` | status: done
+- [ ] PR-5 | category: Migration Seam/Coupling | severity: P2 | action: _TBD by user_ | status: todo
+- [ ] PR-6 | category: Style/Consistency | severity: P3 | action: _TBD by user_ | status: todo
+
+PR finding notes:
+- `PR-1`: Core/DB import API schemas and core imports entrypoints; violates Router -> Service -> DAO Interface -> DAO Impl -> DB direction.
+- `PR-2`: Webhook DB models placed in legacy monolithic models file instead of `dbs/postgres/webhooks/dbes.py`.
+- `PR-3`: Services/routers return DBE objects instead of typed DTO contracts.
+- `PR-4`: Endpoints diverge from project conventions (`POST /query`, archive/unarchive routes, response envelopes with `count`).
+- `PR-5`: New webhook trigger path added through legacy router seam; should remain minimal and not force core->entrypoint coupling.
+- `PR-6`: Lower-priority style drift (`schemas.py` naming and signature style vs local conventions).
+
+## PR Inline Comment Mapping
+
+- `2863230926`, `2863230977` -> `P0-1`
+- `2863231009`, `2863231044` -> `P0-2`
+- `2863230905` -> `P0-3`
+- `2863230989` -> `P0-4`
+- `2863230936`, `2863231060` -> `P0-6`
+- `2863230952` -> `P1-1`
+- `2863230962`, `2863231029` -> `P1-13`
+- `2863231077` -> `P1-12`

@@ -1,12 +1,15 @@
-"""Webhooks service layer."""
-
+import asyncio
 import secrets
 import string
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid
 
+from oss.src.core.events.dtos import Event
+from oss.src.core.events.streaming import publish_event
+from oss.src.core.events.types import EventType, RequestType
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
@@ -15,7 +18,7 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.shared.dtos import Status, Windowing
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.dtos import (
     WebhookDelivery,
     WebhookDeliveryCreate,
@@ -25,7 +28,16 @@ from oss.src.core.webhooks.dtos import (
     WebhookSubscriptionEdit,
     WebhookSubscriptionQuery,
 )
+from oss.src.core.webhooks.config import (
+    WEBHOOK_TEST_MAX_ATTEMPTS,
+    WEBHOOK_TEST_POLL_INTERVAL_MS,
+)
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
+from oss.src.core.webhooks.exceptions import (
+    WebhookSubscriptionNotFoundError,
+    WebhookTestDeliveryTimeoutError,
+    WebhookTestEventPublishFailedError,
+)
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.utils.caching import (
     AGENTA_CACHE_TTL,
@@ -358,113 +370,56 @@ class WebhooksService:
         project_id: UUID,
         user_id: UUID,
         #
-        url: str,
-        event_type: str,
-        subscription_id: Optional[UUID] = None,
-    ) -> dict:
-        """Tests a webhook endpoint with a valid HMAC signature.
+        subscription_id: UUID,
+    ) -> WebhookDelivery:
+        """Test delivery by emitting an event and polling for resulting delivery."""
+        subscription = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+        if subscription is None:
+            raise WebhookSubscriptionNotFoundError(str(subscription_id))
 
-        Returns the test secret so the caller can verify the signature locally.
-        """
-        import hashlib
-        import hmac
-        import json
-        from datetime import datetime, timezone
+        event_id = uuid.uuid7()
+        published = await publish_event(
+            project_id=project_id,
+            event=Event(
+                request_id=uuid.uuid7(),
+                event_id=event_id,
+                request_type=RequestType.UNKNOWN,
+                event_type=EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED,
+                timestamp=datetime.now(timezone.utc),
+                attributes={
+                    "test": True,
+                    "subscription_id": str(subscription_id),
+                    "tested_by": str(user_id),
+                },
+            ),
+        )
+        if not published:
+            raise WebhookTestEventPublishFailedError(
+                event_id=str(event_id),
+                subscription_id=str(subscription_id),
+            )
 
-        import httpx
-
-        test_secret = self._generate_secret()
-
-        payload = {
-            "id": f"evt_test_{str(uuid.uuid4())[:8]}",
-            "event_type": event_type,
-            "project_id": str(project_id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "test": True,
-            "data": {
-                "message": "This is a test webhook from Agenta.",
-                "triggered_by": str(user_id),
-            },
-        }
-
-        payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        timestamp = str(int(datetime.now(timezone.utc).timestamp()))
-        to_sign = f"{timestamp}.{payload_json}"
-        signature = hmac.new(
-            key=test_secret.encode("utf-8"),
-            msg=to_sign.encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-
-        headers = {
-            "Content-Type": "application/json",
-            "X-Agenta-Signature": f"t={timestamp},v1={signature}",
-            "X-Agenta-Event": event_type,
-            "X-Agenta-Delivery": f"del_test_{str(uuid.uuid4())[:8]}",
-            "User-Agent": "Agenta-Webhook-Test/1.0",
-        }
-
-        response_data: dict = {
-            "success": False,
-            "status_code": None,
-            "response_body": None,
-            "duration_ms": 0,
-            "test_secret": test_secret,
-            "signature_format": "t=<timestamp>,v1=<hmac_sha256_hex>",
-            "signing_payload": f"{timestamp}.{payload_json[:100]}...",
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                start_time = datetime.now(timezone.utc)
-                response = await client.post(url, content=payload_json, headers=headers)
-                duration = (
-                    datetime.now(timezone.utc) - start_time
-                ).total_seconds() * 1000
-
-                response_data.update(
-                    {
-                        "success": response.is_success,
-                        "status_code": response.status_code,
-                        "response_body": response.text[:1000],
-                        "duration_ms": int(duration),
-                    }
-                )
-        except Exception as e:
-            response_data.update({"success": False, "response_body": str(e)})
-
-        if subscription_id:
-            try:
-                await self.dao.create_delivery(
-                    project_id=project_id,
-                    user_id=user_id,
-                    delivery=WebhookDeliveryCreate(
-                        subscription_id=subscription_id,
-                        event_id=uuid.uuid7(),
-                        status=Status(
-                            code=200 if response_data["success"] else 500,
-                            message="success" if response_data["success"] else "failed",
-                        ),
-                        data={
-                            "event_type": event_type,
-                            "payload": payload,
-                            "url": url,
-                            "status_code": response_data["status_code"],
-                            "response_body": response_data["response_body"],
-                            "duration_ms": response_data["duration_ms"],
-                        },
-                    ),
-                )
-            except Exception as e:
-                log.error(f"Failed to record test delivery: {e}")
-
-            try:
-                await self.dao.set_subscription_validity(
-                    project_id=project_id,
+        for attempt in range(1, WEBHOOK_TEST_MAX_ATTEMPTS + 1):
+            deliveries = await self.dao.query_deliveries(
+                project_id=project_id,
+                delivery=WebhookDeliveryQuery(
                     subscription_id=subscription_id,
-                    is_valid=bool(response_data["success"]),
-                )
-            except Exception as e:
-                log.error(f"Failed to update subscription validity: {e}")
+                    event_id=event_id,
+                ),
+                include_archived=False,
+                windowing=Windowing(limit=1, order="descending"),
+            )
+            if deliveries:
+                return deliveries[0]
 
-        return response_data
+            if attempt < WEBHOOK_TEST_MAX_ATTEMPTS:
+                await asyncio.sleep(WEBHOOK_TEST_POLL_INTERVAL_MS / 1000)
+
+        raise WebhookTestDeliveryTimeoutError(
+            event_id=str(event_id),
+            subscription_id=str(subscription_id),
+            attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
+        )

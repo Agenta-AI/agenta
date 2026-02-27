@@ -23,7 +23,7 @@ if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-from oss.src.core.tracing.streaming import publish_span
+from oss.src.core.tracing.streaming import publish_spans
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -221,7 +221,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await publish_span(
+                await publish_spans(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),

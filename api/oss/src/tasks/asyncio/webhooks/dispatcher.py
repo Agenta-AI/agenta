@@ -11,7 +11,10 @@ its own consumer process later without changing its internal logic.
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+import uuid_utils.compat as uuid_compat
+
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.dtos import (
     WebhookSubscription,
     WebhookSubscriptionQuery,
@@ -156,14 +159,28 @@ class WebhooksDispatcher:
 
             for msg in msgs:
                 event = msg.event
-                event_type = str(event.event_type)
+                event_type = event.event_type.value
+                target_subscription_id = None
+                if event.event_type == EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED:
+                    target_subscription_id = (
+                        (event.attributes or {}).get("subscription_id")
+                        if event.attributes
+                        else None
+                    )
 
-                matching = [
-                    sub
-                    for sub in subscriptions
-                    if sub.data.event_types is None
-                    or event_type in sub.data.event_types
-                ]
+                if target_subscription_id is not None:
+                    matching = [
+                        sub
+                        for sub in subscriptions
+                        if str(sub.id) == target_subscription_id
+                    ]
+                else:
+                    matching = [
+                        sub
+                        for sub in subscriptions
+                        if sub.data.event_types is None
+                        or event_type in sub.data.event_types
+                    ]
 
                 for sub in matching:
                     if not sub.secret:
@@ -174,8 +191,13 @@ class WebhooksDispatcher:
                         continue
 
                     try:
+                        delivery_id = uuid_compat.uuid7()
+
                         await self.deliver_task.kiq(
                             project_id=str(project_id),
+                            #
+                            delivery_id=str(delivery_id),
+                            #
                             subscription_id=str(sub.id),
                             event_id=str(event.event_id),
                             #
@@ -188,7 +210,8 @@ class WebhooksDispatcher:
                         )
                         log.debug(
                             f"[WEBHOOKS DISPATCHER] Enqueued delivery "
-                            f"event={event.event_id} subscription={sub.id}"
+                            f"delivery={delivery_id} event={event.event_id} "
+                            f"subscription={sub.id}"
                         )
                     except Exception as e:
                         log.error(

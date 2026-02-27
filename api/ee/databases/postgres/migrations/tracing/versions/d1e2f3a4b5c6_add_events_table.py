@@ -36,7 +36,7 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_by_id", sa.UUID(), nullable=False),
+        sa.Column("created_by_id", sa.UUID(), nullable=True),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.Column("request_id", sa.UUID(), nullable=False),
@@ -51,16 +51,7 @@ def upgrade() -> None:
         ),
         sa.Column("event_type", sa.String(), nullable=False),
         sa.Column("timestamp", sa.TIMESTAMP(timezone=True), nullable=False),
-        sa.Column(
-            "status_code",
-            sa.Enum(
-                "STATUS_CODE_UNSET",
-                "STATUS_CODE_OK",
-                "STATUS_CODE_ERROR",
-                name="otelstatuscode",
-            ),
-            nullable=True,
-        ),
+        sa.Column("status_code", sa.String(), nullable=True),
         sa.Column("status_message", sa.VARCHAR(), nullable=True),
         sa.Column(
             "attributes",

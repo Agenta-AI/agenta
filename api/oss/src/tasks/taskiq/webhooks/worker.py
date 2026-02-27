@@ -39,6 +39,8 @@ class WebhooksWorker:
         async def deliver_webhook(
             project_id: str,
             #
+            delivery_id: str,
+            #
             subscription_id: str,
             event_id: str,
             #
@@ -55,12 +57,14 @@ class WebhooksWorker:
 
             log.info(
                 f"[TASK] webhooks.deliver "
-                f"subscription={subscription_id} event={event_id} "
+                f"delivery={delivery_id} subscription={subscription_id} event={event_id} "
                 f"attempt={retry_count}/{WEBHOOK_MAX_RETRIES}"
             )
 
             await deliver_webhook_impl(
                 project_id=UUID(project_id),
+                #
+                delivery_id=UUID(delivery_id),
                 subscription_id=UUID(subscription_id),
                 event_id=UUID(event_id),
                 #

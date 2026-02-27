@@ -9,3 +9,7 @@ WEBHOOK_RETRY_JITTER_FACTOR = 0.2  # ±20%
 
 # Request Configuration
 WEBHOOK_TIMEOUT = 10.0  # seconds per request
+
+# Test Configuration
+WEBHOOK_TEST_POLL_INTERVAL_MS = 500
+WEBHOOK_TEST_MAX_ATTEMPTS = 20
