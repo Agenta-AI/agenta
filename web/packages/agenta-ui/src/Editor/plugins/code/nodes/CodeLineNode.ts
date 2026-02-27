@@ -12,13 +12,14 @@ import {ElementNode, LexicalNode, SerializedElementNode, Spread} from "lexical"
 
 import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 import diffStyles from "../components/assets/DiffCodeBlock.module.css"
-import {ErrorInfo, getValidationManager} from "../plugins/GlobalErrorIndicatorPlugin"
-import {getCurrentEditorId} from "../plugins/SyntaxHighlightPlugin"
+import {getCurrentEditorId} from "../core/validation/context"
+import {getValidationManager} from "../core/validation/manager"
+import type {ErrorInfo} from "../core/validation/types"
 
 /**
  * Diff line types for code diff display
  */
-export type DiffType = "added" | "removed" | "context" | "fold" | null
+export type DiffType = "added" | "removed" | "modified" | "context" | "fold" | null
 
 /**
  * Represents the serialized form of a CodeLineNode.
@@ -66,7 +67,6 @@ export class CodeLineNode extends ElementNode {
     __newLineNumber?: number
     /** Validation errors for this line */
     __validationErrors: ErrorInfo[]
-    __index = 0
 
     /**
      * Returns the node type identifier.
@@ -205,7 +205,12 @@ export class CodeLineNode extends ElementNode {
                 return this.getLatest().__validationErrors
             }
 
-            const lineNumber = this.calculateActualLineNumber()
+            const state = manager.getState()
+            if (state.errors.length === 0) {
+                return []
+            }
+
+            const lineNumber = this.getLineNumber()
             return manager.getErrorsForLine(lineNumber)
         } catch (error) {
             // Fallback to stored validation errors (for backward compatibility)
@@ -238,34 +243,37 @@ export class CodeLineNode extends ElementNode {
     }
 
     /**
-     * Calculates the actual line number by counting CodeLineNodes in the editor.
-     * This is more reliable than getIndexWithinParent() during node creation/editing.
-     * @returns The actual 1-based line number
+     * Gets a best-effort 1-based line number for this line node.
+     * Handles both flat (parent is CodeBlockNode) and segmented
+     * (parent is CodeSegmentNode) structures.
      */
-    private calculateActualLineNumber(): number {
+    private getLineNumber(): number {
         try {
             const parent = this.getParent()
-            if (!parent) {
-                console.warn(`⚠️ Node ${this.__key} has no parent, defaulting to line 1`)
-                return 1
+            if (!parent) return 1
+
+            // Check if parent is a segment (type "code-segment")
+            if (parent.getType() === "code-segment") {
+                const indexInSegment = this.getIndexWithinParent()
+                const codeBlock = parent.getParent()
+                if (!codeBlock) return indexInSegment + 1
+
+                let offset = 0
+                for (const child of codeBlock.getChildren()) {
+                    if (child.getKey() === parent.getKey()) break
+                    if (child.getType() === "code-segment" && "getChildrenSize" in child) {
+                        offset += (child as ElementNode).getChildrenSize()
+                    } else if (child.getType() === "code-line") {
+                        offset += 1
+                    }
+                }
+                return offset + indexInSegment + 1
             }
 
-            const children = parent.getChildren()
-            let lineNumber = 1
-
-            for (const child of children) {
-                if (child === this) {
-                    return lineNumber
-                }
-                if (child.getType() === "code-line") {
-                    lineNumber++
-                }
-            }
-
-            // console.warn(`⚠️ Node ${this.__key} not found in parent children, defaulting to line 1`)
-            return 1
-        } catch (error) {
-            // console.error(`❌ Error calculating line number for node ${this.__key}:`, error)
+            // Legacy flat structure
+            const index = this.getIndexWithinParent()
+            return index >= 0 ? index + 1 : 1
+        } catch {
             return 1
         }
     }
@@ -276,9 +284,9 @@ export class CodeLineNode extends ElementNode {
      * @returns HTMLElement representing the code line
      */
     createDOM(): HTMLElement {
-        // called on initial render
         const latest = this.getLatest()
         const element = document.createElement("div")
+
         element.classList.add(
             "editor-code-line",
             styles["editor-code-line"],
@@ -307,21 +315,6 @@ export class CodeLineNode extends ElementNode {
             // Just set the data attributes for CSS to use
         }
 
-        // Apply validation error styling if this line has errors
-        const validationError = latest.getValidationError()
-        if (validationError) {
-            element.classList.add("validation-error")
-            element.setAttribute("data-validation-error", validationError.message)
-            // Also apply inline styles for higher specificity
-            // element.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-            // element.style.borderRight = "4px solid #ff8c00"
-            // element.style.position = "relative"
-        }
-
-        // Store line number on the element for use in event listener
-        const lineNumber = this.calculateActualLineNumber()
-        element.setAttribute("data-line-number", lineNumber.toString())
-
         return element
     }
 
@@ -342,17 +335,9 @@ export class CodeLineNode extends ElementNode {
     updateDOM(prevNode: CodeLineNode, dom: HTMLElement): boolean {
         // Check for any state changes that require DOM updates
         const latest = this.getLatest()
-        const latestContent = latest.getTextContent()
-        const isEmpty = latestContent.trim() === ""
-        const latestIndex = latest.getIndexWithinParent() + 1
 
         if (prevNode.__isHidden !== latest.__isHidden) {
-            if (latest.__isHidden) {
-                dom.classList.add("folded")
-                return true
-            } else {
-                dom.classList.remove("folded")
-            }
+            dom.classList.toggle("folded", latest.__isHidden)
         }
 
         // Handle diff type changes
@@ -388,65 +373,10 @@ export class CodeLineNode extends ElementNode {
             }
         }
 
-        // This ensures the validation error map lookup uses the correct line number
-        const currentLineNumber = this.calculateActualLineNumber()
-        const prevLineNumber = parseInt(dom.getAttribute("data-line-number") || "1")
-        if (currentLineNumber !== prevLineNumber) {
-            dom.setAttribute("data-line-number", currentLineNumber.toString())
-        }
-
-        // Check for validation errors changes
-        const prevValidationErrors = prevNode.getValidationErrors()
-        const currentValidationErrors = latest.getValidationErrors()
-        const validationErrorsChanged =
-            prevValidationErrors.length !== currentValidationErrors.length ||
-            !prevValidationErrors.every(
-                (prevError, index) =>
-                    prevError.id === currentValidationErrors[index]?.id &&
-                    prevError.message === currentValidationErrors[index]?.message,
-            )
-
-        if (validationErrorsChanged) {
-            // Remove previous validation error styling
-            dom.classList.remove("validation-error")
-            dom.removeAttribute("data-validation-error")
-            dom.removeAttribute("title")
-            dom.style.backgroundColor = ""
-            dom.style.borderRight = ""
-            dom.style.position = ""
-
-            // Apply new validation error styling if errors exist
-            if (currentValidationErrors.length > 0) {
-                const primaryError = currentValidationErrors[0]
-                dom.classList.add("validation-error")
-                dom.setAttribute("data-validation-error", primaryError.message)
-
-                // Create debug tooltip with all errors
-                const debugInfo = [
-                    `🐛 VALIDATION ERRORS (${currentValidationErrors.length}):`,
-                    ...currentValidationErrors.map(
-                        (error, index) => `${index + 1}. [${error.type}] ${error.message}`,
-                    ),
-                ].join("\n")
-                dom.setAttribute("title", debugInfo)
-
-                // dom.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-                // dom.style.borderRight = "4px solid #ff8c00"
-                // dom.style.position = "relative"
-            }
-
-            return true
-        }
-
         if (
             prevNode.__isFoldable !== latest.__isFoldable ||
-            prevNode.__isCollapsed !== latest.__isCollapsed ||
-            prevNode.__isEmpty !== isEmpty ||
-            prevNode.__index !== latestIndex
+            prevNode.__isCollapsed !== latest.__isCollapsed
         ) {
-            // Note: updateDOM should only update DOM, not node state
-            // The __isEmpty and __index properties will be updated elsewhere
-            // during normal node lifecycle, not during DOM reconciliation
             return true
         }
 
