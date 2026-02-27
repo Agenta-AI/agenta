@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Collapse, Dropdown, Input, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
+import JSON5 from "json5"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
@@ -49,19 +50,42 @@ const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
     markdown: "Markdown",
 }
 
+const getDefaultPanelViewMode = (availableModes: PanelViewMode[]): PanelViewMode => {
+    if (availableModes.includes("rendered-json")) return "rendered-json"
+    return availableModes[0] ?? "json"
+}
+
 const parseStructuredJson = (value: string): unknown | null => {
-    const trimmed = value.trim()
-    if (
-        !(
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            (trimmed.startsWith("[") && trimmed.endsWith("]"))
-        )
-    ) {
+    const tryParseJson = (input: string): unknown | null => {
+        try {
+            return JSON.parse(input)
+        } catch {
+            return null
+        }
+    }
+
+    const toStructured = (parsed: unknown): unknown | null => {
+        if (parsed && typeof parsed === "object") return parsed
+        if (typeof parsed !== "string") return null
+
+        const nested = tryParseJson(parsed.trim())
+        if (nested && typeof nested === "object") return nested
         return null
     }
 
+    let candidate = value.trim()
+    if (!candidate) return null
+
+    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    if (fencedMatch?.[1]) {
+        candidate = fencedMatch[1].trim()
+    }
+
+    const strictParsed = toStructured(tryParseJson(candidate))
+    if (strictParsed !== null) return strictParsed
+
     try {
-        return JSON.parse(trimmed)
+        return toStructured(JSON5.parse(candidate))
     } catch {
         return null
     }
@@ -353,35 +377,23 @@ const AccordionTreePanel = ({
 
         if (isStringValue) {
             if (parsedStructuredString !== null) {
-                const modes: PanelViewMode[] = ["json", "yaml"]
-                if (renderedJsonResult.didRender) {
-                    modes.push("rendered-json")
-                }
+                const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
                 modes.push("text", "markdown")
                 return modes
             }
             return ["text", "markdown"]
         }
 
-        const modes: PanelViewMode[] = ["json", "yaml"]
-        if (renderedJsonResult.didRender) {
-            modes.push("rendered-json")
-        }
+        const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
         return modes
-    }, [
-        viewModePreset,
-        isStringValue,
-        isObjectOrArrayValue,
-        parsedStructuredString,
-        renderedJsonResult.didRender,
-    ])
-    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(
-        () => availableViewModes[0] ?? "json",
+    }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
+        getDefaultPanelViewMode(availableViewModes),
     )
 
     useEffect(() => {
         if (!availableViewModes.includes(panelViewMode)) {
-            setPanelViewMode(availableViewModes[0] ?? "json")
+            setPanelViewMode(getDefaultPanelViewMode(availableViewModes))
         }
     }, [availableViewModes, panelViewMode])
 

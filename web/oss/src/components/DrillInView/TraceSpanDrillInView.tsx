@@ -14,6 +14,7 @@ import {
 import {Button, Input, Select} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
+import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
@@ -94,18 +95,42 @@ const RAW_SPAN_VIEW_MODE_LABELS: Record<RawSpanDisplayMode, string> = {
     markdown: "Markdown",
 }
 
+const getDefaultRawSpanViewMode = (availableModes: RawSpanDisplayMode[]): RawSpanDisplayMode => {
+    if (availableModes.includes("rendered-json")) return "rendered-json"
+    return availableModes[0] ?? "json"
+}
+
 const parseStructuredJson = (value: string): unknown | null => {
-    const trimmed = value.trim()
-    if (
-        !(
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            (trimmed.startsWith("[") && trimmed.endsWith("]"))
-        )
-    ) {
+    const tryParseJson = (input: string): unknown | null => {
+        try {
+            return JSON.parse(input)
+        } catch {
+            return null
+        }
+    }
+
+    const toStructured = (parsed: unknown): unknown | null => {
+        if (parsed && typeof parsed === "object") return parsed
+        if (typeof parsed !== "string") return null
+
+        const nested = tryParseJson(parsed.trim())
+        if (nested && typeof nested === "object") return nested
         return null
     }
+
+    let candidate = value.trim()
+    if (!candidate) return null
+
+    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    if (fencedMatch?.[1]) {
+        candidate = fencedMatch[1].trim()
+    }
+
+    const strictParsed = toStructured(tryParseJson(candidate))
+    if (strictParsed !== null) return strictParsed
+
     try {
-        return JSON.parse(trimmed)
+        return toStructured(JSON5.parse(candidate))
     } catch {
         return null
     }
@@ -387,30 +412,18 @@ export const TraceSpanDrillInView = memo(
 
             if (isStringValue) {
                 if (parsedStructuredString !== null) {
-                    const modes: RawSpanDisplayMode[] = ["json", "yaml"]
-                    if (renderedJsonResult.didRender) {
-                        modes.push("rendered-json")
-                    }
+                    const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
                     modes.push("text", "markdown")
                     return modes
                 }
                 return ["text", "markdown"] as RawSpanDisplayMode[]
             }
 
-            const modes: RawSpanDisplayMode[] = ["json", "yaml"]
-            if (renderedJsonResult.didRender) {
-                modes.push("rendered-json")
-            }
+            const modes: RawSpanDisplayMode[] = ["json", "yaml", "rendered-json"]
             return modes
-        }, [
-            viewModePreset,
-            isStringValue,
-            isObjectOrArrayValue,
-            parsedStructuredString,
-            renderedJsonResult.didRender,
-        ])
-        const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(
-            () => availableViewModes[0] ?? "json",
+        }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+        const [viewMode, setViewMode] = useState<RawSpanDisplayMode>(() =>
+            getDefaultRawSpanViewMode(availableViewModes),
         )
 
         const isCodeMode =
@@ -453,7 +466,7 @@ export const TraceSpanDrillInView = memo(
 
         useEffect(() => {
             if (!availableViewModes.includes(viewMode)) {
-                setViewMode(availableViewModes[0] ?? "json")
+                setViewMode(getDefaultRawSpanViewMode(availableViewModes))
             }
         }, [availableViewModes, viewMode])
 

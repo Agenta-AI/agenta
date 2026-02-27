@@ -81,14 +81,27 @@ function formatCharCount(count: number): string {
  * Falls back to the raw value if decoding fails.
  */
 function decodeEscapedJsonString(value: string): string {
-    try {
-        return JSON.parse(`"${value}"`) as string
-    } catch {
-        return value
+    let decoded = value
+
+    // Decode common escaped control chars for display.
+    // We do at most two passes to support both "\n" and "\\n" source encodings
+    // while keeping this inexpensive for long strings.
+    for (let i = 0; i < 2; i += 1) {
+        const next = decoded
+            .replace(/\\\\r\\\\n/g, "\r\n")
+            .replace(/\\\\n/g, "\n")
+            .replace(/\\\\r/g, "\r")
+            .replace(/\\\\t/g, "\t")
             .replace(/\\r\\n/g, "\r\n")
             .replace(/\\n/g, "\n")
+            .replace(/\\r/g, "\r")
             .replace(/\\t/g, "\t")
+
+        if (next === decoded) break
+        decoded = next
     }
+
+    return decoded
 }
 
 /**
