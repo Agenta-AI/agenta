@@ -257,6 +257,13 @@ After running your application, log in to your Agenta dashboard and navigate to 
   loading="lazy"
 />
 
+## Troubleshooting
+
+- **Some spans arrive, others are missing**: Agenta uses best-effort ingestion. A malformed span in a batch is skipped so valid spans can still be stored.
+- **`ag.data.*` values look wrong**: for OpenTelemetry JS/TS, send structured fields as JSON strings. Agenta parses JSON strings for `ag.data.inputs`, `ag.data.parameters`, and `ag.data.internals`.
+- **`ag.data.outputs` stays a string**: this is expected. Outputs can legitimately be plain text (for example, raw LLM completion content), so outputs are not force-parsed as JSON.
+- **No traces appear after a successful OTLP response**: verify `AGENTA_HOST`, `AGENTA_API_KEY`, and the OTLP endpoint (`/api/otlp/v1/traces`). Then check API logs for per-span parsing warnings.
+
 ## Next Steps
 
 - Learn about [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions) for better trace formatting

@@ -67,6 +67,13 @@ class AdapterRegistry:
         features_obj = SpanFeatures()
 
         for adapter in self._adapters:
-            adapter.process(attributes, features_obj)
+            try:
+                adapter.process(attributes, features_obj)
+            except Exception:
+                log.warning(
+                    "Adapter %s failed during feature extraction; continuing",
+                    adapter.__class__.__name__,
+                    exc_info=True,
+                )
 
         return features_obj

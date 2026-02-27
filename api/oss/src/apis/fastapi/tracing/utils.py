@@ -7,6 +7,7 @@ from datetime import datetime
 from re import match
 
 from fastapi import Query
+from pydantic import ValidationError
 
 from oss.src.utils.logging import get_module_logger
 
@@ -242,6 +243,46 @@ def ensure_nested_dict(d: dict, *keys: str) -> dict:
     return d
 
 
+def _sanitize_invalid_ag_fields(
+    *, cleaned_ag: dict, unsupported: dict, errors: list
+) -> None:
+    for error in errors:
+        loc = error.get("loc") or ()
+
+        if not loc:
+            continue
+
+        # Invalid ag.data.<field>
+        if (
+            loc[0] == "data"
+            and len(loc) > 1
+            and isinstance(cleaned_ag.get("data"), dict)
+        ):
+            data_key = loc[1]
+            if data_key in cleaned_ag["data"]:
+                dropped_value = cleaned_ag["data"].pop(data_key)
+                unsupported.setdefault("data", {})[data_key] = dropped_value
+                log.warning(
+                    "Sanitized invalid ag.data field during span parsing",
+                    field=f"ag.data.{data_key}",
+                    error=error.get("msg"),
+                )
+            continue
+
+        # Invalid top-level ag field
+        ag_key = loc[0]
+        if ag_key == "unsupported":
+            continue
+        if ag_key in cleaned_ag:
+            dropped_value = cleaned_ag.pop(ag_key)
+            unsupported[ag_key] = dropped_value
+            log.warning(
+                "Sanitized invalid ag field during span parsing",
+                field=f"ag.{ag_key}",
+                error=error.get("msg"),
+            )
+
+
 """Ensure `ag` is present and populate required structure, putting extra fields under 'unsupported'.
 
 Providing this:
@@ -345,7 +386,17 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         attributes = {}
 
     ag = deepcopy(attributes.get("ag", {})) or {}
-    unsupported = deepcopy(ag.get("unsupported", {})) or {}
+    if not isinstance(ag, dict):
+        ag = {"unsupported": {"_invalid_ag": ag}}
+
+    unsupported_raw = deepcopy(ag.get("unsupported", {}))
+    if unsupported_raw is None:
+        unsupported = {}
+    elif isinstance(unsupported_raw, dict):
+        unsupported = unsupported_raw
+    else:
+        unsupported = {"_invalid_unsupported": unsupported_raw}
+
     cleaned_ag = {}
 
     # --- type ---
@@ -367,9 +418,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         # Parse them back for all fields EXCEPT outputs (which can legitimately be a plain string).
         if key != "outputs" and isinstance(value, str):
             try:
-                parsed = loads(value)
-                if isinstance(parsed, (dict, list)):
-                    value = parsed
+                value = loads(value)
             except (ValueError, TypeError):
                 pass
         cleaned_data[key] = value
@@ -467,7 +516,49 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["unsupported"] = unsupported or None
 
-    cleaned_ag = AgAttributes(**cleaned_ag).model_dump(mode="json", exclude_none=True)
+    try:
+        cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
+            mode="json", exclude_none=True
+        )
+    except ValidationError as validation_error:
+        try:
+            _sanitize_invalid_ag_fields(
+                cleaned_ag=cleaned_ag,
+                unsupported=unsupported,
+                errors=validation_error.errors(),
+            )
+        except Exception:
+            log.warning(
+                "Failed to sanitize invalid ag fields; using minimal fallback",
+                errors=validation_error.errors(),
+                exc_info=True,
+            )
+            cleaned_ag = {}
+
+        cleaned_ag["unsupported"] = unsupported or None
+
+        try:
+            cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
+                mode="json", exclude_none=True
+            )
+        except ValidationError:
+            log.warning(
+                "Falling back to minimal ag attributes after repeated validation failures",
+                errors=validation_error.errors(),
+            )
+            cleaned_ag = AgAttributes(
+                type=AgTypeAttributes(
+                    trace=TraceType.INVOCATION,
+                    span=SpanType.TASK,
+                ),
+                data=AgDataAttributes(),
+                metrics=AgMetricsAttributes(),
+                unsupported=unsupported or None,
+            ).model_dump(mode="json", exclude_none=True)
+
+    ensure_nested_dict(cleaned_ag, "type")
+    ensure_nested_dict(cleaned_ag, "data")
+    ensure_nested_dict(cleaned_ag, "metrics")
 
     attributes["ag"] = cleaned_ag
 
@@ -582,8 +673,25 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
     ag = raw_span.attributes["ag"]
 
     # --- Types ---
-    raw_span.trace_type = TraceType(ag["type"].get("trace") or TraceType.INVOCATION)
-    raw_span.span_type = SpanType(ag["type"].get("span") or SpanType.TASK)
+    try:
+        raw_span.trace_type = TraceType(ag["type"].get("trace") or TraceType.INVOCATION)
+    except (TypeError, ValueError):
+        log.warning(
+            "Invalid trace type in span attributes, using fallback",
+            value=ag["type"].get("trace"),
+            fallback=TraceType.INVOCATION,
+        )
+        raw_span.trace_type = TraceType.INVOCATION
+
+    try:
+        raw_span.span_type = SpanType(ag["type"].get("span") or SpanType.TASK)
+    except (TypeError, ValueError):
+        log.warning(
+            "Invalid span type in span attributes, using fallback",
+            value=ag["type"].get("span"),
+            fallback=SpanType.TASK,
+        )
+        raw_span.span_type = SpanType.TASK
 
     # --- Latency ---
     if raw_span.start_time and raw_span.end_time:
