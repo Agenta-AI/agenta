@@ -1,7 +1,7 @@
 // Editor.tsx - Code editor plugin with syntax highlighting
 
 // Editor.tsx
-import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
+import {type ComponentProps, type FC, memo, useEffect, useRef} from "react"
 
 import {tryParsePartialJson, safeJson5Parse, createLogger} from "@agenta/shared/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -11,11 +11,19 @@ import {createStore, atom} from "jotai"
 import yaml from "js-yaml"
 import JSON5 from "json5"
 import {
+    $addUpdateTag,
     $getRoot,
+    $getSelection,
+    $isRangeSelection,
     COMMAND_PRIORITY_LOW,
+    CONTROLLED_TEXT_INSERTION_COMMAND,
+    COPY_COMMAND,
+    CUT_COMMAND,
     createCommand,
     BLUR_COMMAND,
     FOCUS_COMMAND,
+    KEY_BACKSPACE_COMMAND,
+    KEY_DELETE_COMMAND,
     $setSelection,
     LexicalNode,
     SELECT_ALL_COMMAND,
@@ -29,18 +37,13 @@ import {DrillInProvider} from "./context/DrillInContext"
 import {$createBase64Node, isBase64String, parseBase64String} from "./nodes/Base64Node"
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
-import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
+import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {$createLongTextNode, isLongTextString, parseLongTextString} from "./nodes/LongTextNode"
-import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
-import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
-import {ClosingBracketIndentationPlugin} from "./plugins/ClosingBracketIndentationPlugin"
-import {GlobalErrorIndicatorPlugin} from "./plugins/GlobalErrorIndicatorPlugin"
-import {IndentationPlugin} from "./plugins/IndentationPlugin"
 import PropertyClickPlugin from "./plugins/PropertyClickPlugin"
 import {$getEditorCodeAsString} from "./plugins/RealTimeValidationPlugin"
-import {SyntaxHighlightPlugin} from "./plugins/SyntaxHighlightPlugin"
-import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
+import {showEditorLoadingOverlay} from "./utils/loadingOverlay"
+import {$wrapLinesInSegments, $getAllCodeLines, $getLineCount} from "./utils/segmentUtils"
 import {tokenizeCodeLine} from "./utils/tokenizer"
 
 export {PropertyClickPlugin}
@@ -62,6 +65,15 @@ store.set(editorStateAtom, {focused: false})
 const log = createLogger("Code Editor", {
     disabled: true,
 })
+export const BULK_CLEAR_UPDATE_TAG = "agenta:bulk-clear"
+
+const BULK_CLEAR_LINE_THRESHOLD = 500
+
+const LARGE_DOC_INITIAL_HIGHLIGHT_CHAR_THRESHOLD = 50000
+const LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD = 1200
+// Keep a very high cap so normal "large" payloads still get full initial highlight.
+// This guard remains only for extreme payloads.
+const LARGE_DOC_INITIAL_TOKENIZE_LINE_LIMIT = 12000
 
 /**
  * Simple validation function for JSON tokens
@@ -123,16 +135,30 @@ export function createHighlightedNodes(
                 const obj = JSON5.parse(text)
                 pretty = JSON.stringify(obj, null, 2)
             }
+
             // Split pretty-printed JSON into lines
             const lines = pretty.split("\n")
+            const shouldLimitInitialTokenization =
+                pretty.length >= LARGE_DOC_INITIAL_HIGHLIGHT_CHAR_THRESHOLD ||
+                lines.length >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD
             const codeLineNodes: CodeLineNode[] = []
-            lines.forEach((line) => {
+            lines.forEach((line, lineIndex) => {
                 const codeLine = $createCodeLineNode()
                 let content = line
                 while (content.startsWith("  ")) {
                     codeLine.append($createCodeTabNode())
                     content = content.substring(2)
                 }
+
+                if (
+                    shouldLimitInitialTokenization &&
+                    lineIndex >= LARGE_DOC_INITIAL_TOKENIZE_LINE_LIMIT
+                ) {
+                    codeLine.append($createCodeHighlightNode(content, "plain", false, null))
+                    codeLineNodes.push(codeLine)
+                    return
+                }
+
                 const tokens = tokenizeCodeLine(content, language)
                 tokens.forEach((token) => {
                     // Check if this is a base64 string token
@@ -165,6 +191,9 @@ export function createHighlightedNodes(
                             shouldHaveError,
                             expectedMessage,
                         )
+                        if (token.style) {
+                            highlightNode.setStyle(token.style)
+                        }
                         codeLine.append(highlightNode)
                     }
                 })
@@ -178,14 +207,24 @@ export function createHighlightedNodes(
     }
     // Fallback: generic line splitting (for non-JSON or invalid JSON)
     const lines = text.split("\n")
+    const shouldLimitInitialTokenization =
+        text.length >= LARGE_DOC_INITIAL_HIGHLIGHT_CHAR_THRESHOLD ||
+        lines.length >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD
     const codeLineNodes: CodeLineNode[] = []
-    lines.forEach((line) => {
+    lines.forEach((line, lineIndex) => {
         const codeLine = $createCodeLineNode()
         let content = line
         while (content.startsWith("  ")) {
             codeLine.append($createCodeTabNode())
             content = content.substring(2)
         }
+
+        if (shouldLimitInitialTokenization && lineIndex >= LARGE_DOC_INITIAL_TOKENIZE_LINE_LIMIT) {
+            codeLine.append($createCodeHighlightNode(content, "plain", false, null))
+            codeLineNodes.push(codeLine)
+            return
+        }
+
         const tokens = tokenizeCodeLine(content, language)
         tokens.forEach((token) => {
             // Check if this is a base64 string token
@@ -214,6 +253,9 @@ export function createHighlightedNodes(
                     shouldHaveError,
                     expectedMessage,
                 )
+                if (token.style) {
+                    highlightNode.setStyle(token.style)
+                }
                 codeLine.append(highlightNode)
             }
         })
@@ -231,21 +273,13 @@ export function createHighlightedNodes(
  * 3. Ensures the editor always has a valid code block to edit
  */
 function InsertInitialCodeBlockPlugin({
-    debug = false,
     initialValue,
     language = "json",
-    validationSchema,
-    additionalCodePlugins = [],
-    editorId,
     onPropertyClick,
     disableLongText = false,
 }: {
-    debug?: boolean
     initialValue: string
     language?: "json" | "yaml"
-    validationSchema?: Record<string, unknown>
-    additionalCodePlugins?: React.ReactNode[]
-    editorId: string
     onPropertyClick?: (path: string) => void
     disableLongText?: boolean
 }) {
@@ -266,149 +300,210 @@ function InsertInitialCodeBlockPlugin({
                     }
 
                     // Default JSON/YAML processing
-                    editor.update(() => {
-                        const hasFocus = store.get(editorStateAtom)?.focused
-                        const root = $getRoot()
-                        let existingCodeBlock = root.getChildren().find($isCodeBlockNode)
+                    editor.update(
+                        () => {
+                            const hasFocus = store.get(editorStateAtom)?.focused
+                            const root = $getRoot()
+                            let existingCodeBlock = root.getChildren().find($isCodeBlockNode)
 
-                        if (!existingCodeBlock) {
-                            log("INITIAL VALUE CHANGED - CREATE NEW CODE BLOCK")
-                            root.clear()
-                            existingCodeBlock = $createCodeBlockNode(payload.language)
-                            const line = $createCodeLineNode()
-                            existingCodeBlock.append(line)
+                            if (!existingCodeBlock) {
+                                log("INITIAL VALUE CHANGED - CREATE NEW CODE BLOCK")
+                                root.clear()
+                                existingCodeBlock = $createCodeBlockNode(payload.language)
+                                const line = $createCodeLineNode()
+                                existingCodeBlock.append(line)
 
-                            root.append(existingCodeBlock)
-                            line.selectStart()
-                        } else if (hasFocus && editor.isEditable() && !payload.forceUpdate) {
-                            // Don't update if editor has focus and is editable (user is typing)
-                            // But allow updates for read-only editors (like diff view)
-                            // Also allow forceUpdate for undo/redo operations
-                            return
-                        }
+                                root.append(existingCodeBlock)
+                                line.selectStart()
+                            } else if (hasFocus && editor.isEditable() && !payload.forceUpdate) {
+                                // Don't update if editor has focus and is editable (user is typing)
+                                // But allow updates for read-only editors (like diff view)
+                                // Also allow forceUpdate for undo/redo operations
+                                return
+                            }
 
-                        // Default processing for JSON/YAML content
-                        const currentTextValue = $getEditorCodeAsString()
-                        log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
-                        // Skip semantic equality check if forceUpdate is true (for undo/redo)
-                        if (currentTextValue && !payload.forceUpdate) {
-                            try {
-                                const currentObjectValue = JSON5.parse(currentTextValue)
-                                const incomingObjectValue =
-                                    typeof payload.content === "string"
-                                        ? JSON5.parse(payload.content)
-                                        : payload.content
-                                if (isEqual(currentObjectValue, incomingObjectValue)) {
-                                    log("DO NOT CLEAR AND RECONSTRUCT 1", {
-                                        content: payload.content,
-                                        currentTextValue,
-                                    })
-                                    return
-                                }
-                            } catch (e) {
+                            // Default processing for JSON/YAML content
+                            const currentTextValue = $getEditorCodeAsString()
+                            log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
+                            // Skip semantic equality check if forceUpdate is true (for undo/redo)
+                            if (currentTextValue && !payload.forceUpdate) {
                                 try {
-                                    const currentObject = tryParsePartialJson(currentTextValue)
-                                    const incomingObject =
+                                    const currentObjectValue = JSON5.parse(currentTextValue)
+                                    const incomingObjectValue =
                                         typeof payload.content === "string"
                                             ? JSON5.parse(payload.content)
                                             : payload.content
-
-                                    if (isEqual(currentObject, incomingObject)) {
-                                        log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                    if (isEqual(currentObjectValue, incomingObjectValue)) {
+                                        log("DO NOT CLEAR AND RECONSTRUCT 1", {
+                                            content: payload.content,
+                                            currentTextValue,
+                                        })
                                         return
-                                    } else {
-                                        const trimmedIncoming =
-                                            typeof payload.content === "string"
-                                                ? payload.content.trim()
-                                                : JSON5.stringify(payload.content).trim()
-
-                                        if (currentTextValue.trim() === trimmedIncoming) {
-                                            log("DO NOT CLEAR AND RECONSTRUCT 3")
-                                            return
-                                        }
                                     }
                                 } catch (e) {
-                                    log("there was an error parsing to json", {
-                                        e,
-                                        content: payload.content,
-                                        currentTextValue,
-                                    })
-                                }
-                            }
-                        }
-
-                        if (currentTextValue) {
-                            editor.setEditable(false)
-                        }
-                        log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
-                        // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
-                        try {
-                            // For JSON/YAML content, parse and format
-                            const objectValue =
-                                payload.language === "json"
-                                    ? JSON5.parse(payload.content)
-                                    : payload.content
-                            let value: string
-                            if (payload.language === "json") {
-                                value = JSON.stringify(objectValue, null, 2)
-                            } else {
-                                try {
-                                    const obj = yaml.load(objectValue)
-                                    if (obj !== undefined) {
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } else {
-                                        value = objectValue
-                                    }
-                                } catch {
-                                    // Try JSON as a fallback and then dump to YAML for consistent highlighting
                                     try {
-                                        const obj = JSON5.parse(objectValue)
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- js-yaml types require any
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } catch {
-                                        value = objectValue
+                                        const currentObject = tryParsePartialJson(currentTextValue)
+                                        const incomingObject =
+                                            typeof payload.content === "string"
+                                                ? JSON5.parse(payload.content)
+                                                : payload.content
+
+                                        if (isEqual(currentObject, incomingObject)) {
+                                            log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                            return
+                                        } else {
+                                            const trimmedIncoming =
+                                                typeof payload.content === "string"
+                                                    ? payload.content.trim()
+                                                    : JSON5.stringify(payload.content).trim()
+
+                                            if (currentTextValue.trim() === trimmedIncoming) {
+                                                log("DO NOT CLEAR AND RECONSTRUCT 3")
+                                                return
+                                            }
+                                        }
+                                    } catch (e) {
+                                        log("there was an error parsing to json", {
+                                            e,
+                                            content: payload.content,
+                                            currentTextValue,
+                                        })
                                     }
                                 }
                             }
-                            log(" Reconstructing code block due to prop change", {
-                                language: payload.language,
-                                value,
-                            })
 
-                            existingCodeBlock.clear()
-                            log("CLEAR AND RECONSTRUCT", {
-                                content: payload.content,
-                                currentTextValue,
-                            })
-                            const highlightedNodes = createHighlightedNodes(
-                                value,
-                                payload.language as "json" | "yaml",
-                                disableLongText,
-                            )
-                            highlightedNodes.forEach((node) => {
-                                existingCodeBlock.append(node)
-                            })
-
-                            const hasFocus = store.get(editorStateAtom)?.focused
-
-                            if (!hasFocus) {
-                                editor.setEditable(true)
-                                $setSelection(null)
+                            if (currentTextValue) {
+                                editor.setEditable(false)
                             }
-                        } catch (err) {
-                            log("failed values", {
-                                existingCodeBlock,
-                                content: payload.content,
-                                type: typeof payload.content,
-                                err,
-                            })
+                            log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
+                            // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
+                            try {
+                                // For JSON/YAML content, parse and format
+                                const objectValue =
+                                    payload.language === "json"
+                                        ? JSON5.parse(payload.content)
+                                        : payload.content
+                                let value: string
+                                if (payload.language === "json") {
+                                    value = JSON.stringify(objectValue, null, 2)
+                                } else {
+                                    try {
+                                        const obj = yaml.load(objectValue)
+                                        if (obj !== undefined) {
+                                            value = yaml.dump(obj, {indent: 2})
+                                        } else {
+                                            value = objectValue
+                                        }
+                                    } catch {
+                                        // Try JSON as a fallback and then dump to YAML for consistent highlighting
+                                        try {
+                                            const obj = JSON5.parse(objectValue)
+                                            value = yaml.dump(obj, {indent: 2})
+                                        } catch {
+                                            value = objectValue
+                                        }
+                                    }
+                                }
+                                log(" Reconstructing code block due to prop change", {
+                                    language: payload.language,
+                                    value,
+                                })
 
-                            if (!editor.isEditable()) {
-                                editor.setEditable(true)
+                                // For large content, defer the heavy node creation so the
+                                // browser can paint a loading overlay first.
+                                const lineCount = value.split("\n").length
+                                if (lineCount >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD) {
+                                    // Capture values for the deferred callback
+                                    const capturedLanguage = payload.language as "json" | "yaml"
+                                    const capturedDisableLongText = disableLongText
+
+                                    // Clear existing content and show a single empty line
+                                    // so the current update finishes quickly.
+                                    existingCodeBlock.clear()
+                                    const placeholder = $createCodeLineNode()
+                                    existingCodeBlock.append(placeholder)
+                                    $setSelection(null)
+
+                                    if (!store.get(editorStateAtom)?.focused) {
+                                        editor.setEditable(true)
+                                    }
+
+                                    // Show overlay and defer heavy work
+                                    const removeOverlay = showEditorLoadingOverlay(editor)
+                                    setTimeout(() => {
+                                        editor.update(
+                                            () => {
+                                                $addUpdateTag("agenta:initial-content")
+                                                const root = $getRoot()
+                                                const codeBlock = root
+                                                    .getChildren()
+                                                    .find($isCodeBlockNode)
+                                                if (!codeBlock) return
+
+                                                codeBlock.clear()
+                                                const highlightedNodes = createHighlightedNodes(
+                                                    value,
+                                                    capturedLanguage,
+                                                    capturedDisableLongText,
+                                                )
+                                                $wrapLinesInSegments(highlightedNodes).forEach(
+                                                    (node) => {
+                                                        codeBlock.append(node)
+                                                    },
+                                                )
+
+                                                if (!store.get(editorStateAtom)?.focused) {
+                                                    editor.setEditable(true)
+                                                    $setSelection(null)
+                                                }
+                                            },
+                                            {
+                                                tag: "agenta:initial-content",
+                                                onUpdate: () => {
+                                                    removeOverlay?.()
+                                                },
+                                            },
+                                        )
+                                    }, 0)
+
+                                    return
+                                }
+
+                                existingCodeBlock.clear()
+                                log("CLEAR AND RECONSTRUCT", {
+                                    content: payload.content,
+                                    currentTextValue,
+                                })
+                                const highlightedNodes = createHighlightedNodes(
+                                    value,
+                                    payload.language as "json" | "yaml",
+                                    disableLongText,
+                                )
+                                $wrapLinesInSegments(highlightedNodes).forEach((node) => {
+                                    existingCodeBlock.append(node)
+                                })
+
+                                const hasFocus = store.get(editorStateAtom)?.focused
+
+                                if (!hasFocus) {
+                                    editor.setEditable(true)
+                                    $setSelection(null)
+                                }
+                            } catch (err) {
+                                log("failed values", {
+                                    existingCodeBlock,
+                                    content: payload.content,
+                                    type: typeof payload.content,
+                                    err,
+                                })
+
+                                if (!editor.isEditable()) {
+                                    editor.setEditable(true)
+                                }
                             }
-                        }
-                    })
+                        },
+                        {tag: "agenta:initial-content"},
+                    )
 
                     return true // Command handled
                 },
@@ -433,8 +528,7 @@ function InsertInitialCodeBlockPlugin({
                     }
 
                     // Extract current code string
-                    const lines = existingCodeBlock.getChildren().map((line: LexicalNode) => {
-                        if (!$isCodeLineNode(line)) return ""
+                    const lines = $getAllCodeLines(existingCodeBlock).map((line: CodeLineNode) => {
                         return line
                             .getChildren()
                             .map((child: LexicalNode) =>
@@ -492,9 +586,10 @@ function InsertInitialCodeBlockPlugin({
                         return true
                     }
 
+                    $addUpdateTag("agenta:initial-content")
                     existingCodeBlock.clear()
                     const newNodes = createHighlightedNodes(newText, newLanguage, disableLongText)
-                    newNodes.forEach((n) => existingCodeBlock.append(n))
+                    $wrapLinesInSegments(newNodes).forEach((n) => existingCodeBlock.append(n))
                     existingCodeBlock.setLanguage(newLanguage)
 
                     // Re-enable editing and clear selection if the editor was not focused before the change
@@ -586,6 +681,158 @@ function InsertInitialCodeBlockPlugin({
                 },
                 COMMAND_PRIORITY_LOW,
             ),
+            // Copy handler: virtualization detaches DOM children from hidden
+            // lines, so the browser's native copy only captures visible text.
+            // Intercept COPY_COMMAND and write the full Lexical model text to
+            // the clipboard so Cmd+A → Cmd+C works on large documents.
+            editor.registerCommand(
+                COPY_COMMAND,
+                (event) => {
+                    const root = $getRoot()
+                    const codeBlock = root.getChildren().find($isCodeBlockNode)
+                    if (!codeBlock) return false
+
+                    // Only intercept when there are hidden (virtualized) lines.
+                    // For small documents without virtualization, let the browser
+                    // handle copy natively.
+                    const rootElement = editor.getRootElement()
+                    if (!rootElement) return false
+                    const hasHiddenLines =
+                        rootElement.querySelector(".editor-code-line.virtual-hidden") !== null
+                    if (!hasHiddenLines) return false
+
+                    const fullText = $getEditorCodeAsString()
+
+                    if (event instanceof ClipboardEvent && event.clipboardData) {
+                        event.preventDefault()
+                        event.clipboardData.setData("text/plain", fullText)
+                    } else {
+                        // KeyboardEvent path — write via async clipboard API
+                        navigator.clipboard.writeText(fullText).catch(() => {
+                            // Silently fail — user's clipboard is unchanged
+                        })
+                    }
+
+                    return true
+                },
+                COMMAND_PRIORITY_LOW,
+            ),
+            // Bulk-clear helpers: when a large non-collapsed selection exists
+            // (500+ lines), replace the code block with a single empty line
+            // instead of letting Lexical remove 30k+ nodes individually
+            // (which triggers O(n²) transform cascades).
+            // Returns the new empty CodeLineNode, or null if bulk-clear
+            // didn't apply.
+            (() => {
+                const $tryBulkClear = (): CodeLineNode | null => {
+                    const selection = $getSelection()
+                    if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+                        return null
+                    }
+
+                    const root = $getRoot()
+                    const codeBlock = root.getChildren().find($isCodeBlockNode)
+                    if (!codeBlock) return null
+
+                    const lineCount = $getLineCount(codeBlock)
+                    if (lineCount < BULK_CLEAR_LINE_THRESHOLD) return null
+
+                    // Only bulk-clear when the selection covers all content
+                    // (e.g. Ctrl+A then Delete). For partial selections, let
+                    // Lexical handle deletion normally to avoid data loss.
+                    const selectedText = selection.getTextContent()
+                    const fullText = codeBlock.getTextContent()
+                    if (selectedText.length < fullText.length) return null
+
+                    $addUpdateTag(BULK_CLEAR_UPDATE_TAG)
+                    const lang = codeBlock.getLanguage()
+                    root.clear()
+                    const newCodeBlock = $createCodeBlockNode(lang)
+                    const emptyLine = $createCodeLineNode()
+                    newCodeBlock.append(emptyLine)
+                    root.append(newCodeBlock)
+                    emptyLine.selectStart()
+                    return emptyLine
+                }
+
+                return mergeRegister(
+                    editor.registerCommand(
+                        KEY_BACKSPACE_COMMAND,
+                        (event) => {
+                            const cleared = $tryBulkClear()
+                            if (!cleared) return false
+                            event.preventDefault()
+                            return true
+                        },
+                        COMMAND_PRIORITY_LOW,
+                    ),
+                    editor.registerCommand(
+                        KEY_DELETE_COMMAND,
+                        (event) => {
+                            const cleared = $tryBulkClear()
+                            if (!cleared) return false
+                            event.preventDefault()
+                            return true
+                        },
+                        COMMAND_PRIORITY_LOW,
+                    ),
+                    // Typing a character while all text is selected also
+                    // triggers selection removal — handle it the same way.
+                    editor.registerCommand(
+                        CONTROLLED_TEXT_INSERTION_COMMAND,
+                        (payload) => {
+                            const cleared = $tryBulkClear()
+                            if (!cleared) return false
+
+                            // Insert the typed text on the now-empty line
+                            const text =
+                                typeof payload === "string"
+                                    ? payload
+                                    : ((payload as InputEvent).data ?? "")
+                            if (text) {
+                                const sel = $getSelection()
+                                if ($isRangeSelection(sel)) {
+                                    sel.insertText(text)
+                                }
+                            }
+                            return true
+                        },
+                        COMMAND_PRIORITY_LOW,
+                    ),
+                    // Cut = copy + delete. Reuse the copy logic for
+                    // virtualized content, then bulk-clear.
+                    editor.registerCommand(
+                        CUT_COMMAND,
+                        (event) => {
+                            const root = $getRoot()
+                            const codeBlock = root.getChildren().find($isCodeBlockNode)
+                            if (!codeBlock) return false
+
+                            const lineCount = $getLineCount(codeBlock)
+                            if (lineCount < BULK_CLEAR_LINE_THRESHOLD) return false
+
+                            const selection = $getSelection()
+                            if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+                                return false
+                            }
+
+                            // Copy full text to clipboard
+                            const fullText = $getEditorCodeAsString()
+                            if (event instanceof ClipboardEvent && event.clipboardData) {
+                                event.preventDefault()
+                                event.clipboardData.setData("text/plain", fullText)
+                            } else {
+                                navigator.clipboard.writeText(fullText).catch(() => {})
+                            }
+
+                            // Then bulk-clear
+                            $tryBulkClear()
+                            return true
+                        },
+                        COMMAND_PRIORITY_LOW,
+                    ),
+                )
+            })(),
         )
     }, [])
 
@@ -613,6 +860,7 @@ function InsertInitialCodeBlockPlugin({
         let forceUpdate = false
         editor.getEditorState().read(() => {
             const currentEditorContent = $getEditorCodeAsString()
+            // console.log("currentEditorContent", currentEditorContent)
             if (currentEditorContent) {
                 try {
                     const currentParsed = safeJson5Parse(currentEditorContent)
@@ -648,28 +896,7 @@ function InsertInitialCodeBlockPlugin({
 
     const drillInContextValue = {enabled: Boolean(onPropertyClick)}
 
-    return (
-        <DrillInProvider value={drillInContextValue}>
-            <AutoFormatAndValidateOnPastePlugin />
-            <IndentationPlugin />
-            <ClosingBracketIndentationPlugin />
-            <AutoCloseBracketsPlugin />
-            <GlobalErrorIndicatorPlugin editorId={editorId} />
-            <SyntaxHighlightPlugin
-                editorId={editorId}
-                schema={validationSchema}
-                debug={debug}
-                disableLongText={disableLongText}
-            />
-            {onPropertyClick && (
-                <PropertyClickPlugin onPropertyClick={onPropertyClick} language={language} />
-            )}
-            {additionalCodePlugins?.map((plugin, index) => (
-                <Fragment key={index}>{plugin}</Fragment>
-            ))}
-            <VerticalNavigationPlugin />
-        </DrillInProvider>
-    )
+    return <DrillInProvider value={drillInContextValue}>{null}</DrillInProvider>
 }
 
 type InsertInitialCodeBlockProps = ComponentProps<typeof InsertInitialCodeBlockPlugin>
