@@ -25,6 +25,7 @@ import {SpanCategory} from "@/oss/services/tracing/types"
 import {
     COLLECTION_MEMBERSHIP_OPS,
     NUM_OPS,
+    STRING_COMPARISON_OPS,
     STRING_EQU_AND_CONTAINS_OPS,
     STRING_EQU_OPS,
     STRING_SEARCH_OPS,
@@ -634,6 +635,7 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             {value: "endswith", label: "ends with"},
             {value: "in", label: "in"},
             {value: "not_in", label: "not in"},
+            ...STRING_COMPARISON_OPS,
         ],
         valueInput: {kind: "text", placeholder: "Value"},
     },

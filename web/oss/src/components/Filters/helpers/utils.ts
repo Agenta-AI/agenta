@@ -161,7 +161,19 @@ export const customOperatorIdsForType = (t: CustomValueType): FilterConditions[]
         ? ["eq", "neq", "gt", "lt", "gte", "lte"]
         : t === "boolean"
           ? ["is", "is_not"]
-          : ["is", "is_not", "contains", "startswith", "endswith", "in", "not_in"]
+          : [
+                "is",
+                "is_not",
+                "contains",
+                "startswith",
+                "endswith",
+                "in",
+                "not_in",
+                "gt",
+                "lt",
+                "gte",
+                "lte",
+            ]
 
 export const operatorOptionsFromIds = (ids: FilterConditions[]) =>
     ids.map((id) => {

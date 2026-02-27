@@ -120,6 +120,17 @@ const config: Config = {
           },
         },
         {
+          type: "docSidebar",
+          sidebarId: "integrationsSidebar",
+          position: "left",
+          label: "Integrations",
+          customProps: {
+            icon: {
+              name: "puzzle",
+            },
+          },
+        },
+        {
           to: "/roadmap",
           position: "left",
           label: "Roadmap",
@@ -524,6 +535,51 @@ const config: Config = {
           {
             from: "/reference/api",
             to: "/reference/api/category",
+          },
+          // Observability integrations -> new Integrations section
+          {
+            from: "/observability/integrations/openai",
+            to: "/integrations/llm-providers/openai/observability",
+          },
+          {
+            from: "/observability/integrations/langchain",
+            to: "/integrations/frameworks/langchain/observability",
+          },
+          {
+            from: "/observability/integrations/instructor",
+            to: "/integrations/libraries/instructor/observability",
+          },
+          {
+            from: "/observability/integrations/litellm",
+            to: "/integrations/llm-providers/litellm/observability",
+          },
+          {
+            from: "/observability/integrations/llamaindex",
+            to: "/integrations/frameworks/llamaindex/observability",
+          },
+          {
+            from: "/observability/integrations/langgraph",
+            to: "/integrations/frameworks/langgraph/observability",
+          },
+          {
+            from: "/observability/integrations/openai-agents",
+            to: "/integrations/frameworks/openai-agents/observability",
+          },
+          {
+            from: "/observability/integrations/pydanticai",
+            to: "/integrations/frameworks/pydanticai/observability",
+          },
+          {
+            from: "/observability/integrations/dspy",
+            to: "/integrations/frameworks/dspy/observability",
+          },
+          {
+            from: "/observability/integrations/agno",
+            to: "/integrations/frameworks/agno/observability",
+          },
+          {
+            from: "/observability/integrations/google-adk",
+            to: "/integrations/frameworks/google-adk/observability",
           }
         ],
         createRedirects(existingPath) {

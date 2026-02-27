@@ -1,0 +1,71 @@
+---
+id: fetch-testcase-testcases-testcase-id-get
+title: "Fetch Testcase"
+description: "Fetch Testcase"
+sidebar_label: "Fetch Testcase"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV01z20YM/SsanJIZxlI9PfFU1Y4bN+3EEyu9aDQaaAmJmy4/sov1ROXwv3ew/BApOY6TUU7tyTT58AA8YCFsBYw7B/ESFuRYoSMHqwiKkiyyLvLbBGLYEqt0zS2gf3DrwzudrNc7YoigRIsZMVlhrSDHjCCGARAi0DnEUCKnEIGlT15bSiBm6ykCp1LKEOIKeF+KqWOr8x1EsC1shgwxeB9YWLMRQBf55DaBul4JpSuLXFKJK7iczeRPQk5ZXUpOEMO9V4qc23ozed+CIQJV5Ew5CxzL0mgVJJh+dGJTDSIrrQjEuvGgCt8YtQHrnGlHdhDhVUBEkNAWvWGIZ3XUSxLc5ft326DXmFowjlhUG6GelqaOekTujQHRZCiWIw5aRXBe7vueV1lCpmSN/EzuBJlesc7oSQdXDe1kzuLEl8mPcPKhoW2dJGToBzi5bmhbJ51cm/0Zq9GJ9eu+LUqn11m9dGr1XjrBzuqlk6v3cj7qhm9rwhgcUmKSaDn/aO5GZ/LE6aYoDGE+9NLGIW8epwGlrfIG7Ys/cEPmd1fkr955Lj2/lLnRsBSbj6R4FO0xWmI/Qj+R603IUkz+C9ku2mQzYvzOZAeZHQ33keNsM34z1Ohritx48xVBogo0U/ZMK7QW9093wdj220T9U8SUY47/i3o2Ua9FzPrE5HTFeYTlOWb9jlPXAv/58vJ0JfoLjU7CwjN5bW1hv38fSohRG3lqFT4GmEKNvn5Lh6zqo6IMpkXRBBjOvNs9tkIeutg53NGhSl+GBjEmC/kqvzu5FFfg3c9H3lZb8ecBzUkprkTLz/xolQ8r8DJo04Tf4gZtcihRU6EvS3HdlOCp3nizWNydEDb9MW6MG9n+J30HhnmaFnIv6BZ+TiGGaX8tmFaDbb8G2TLtQ3cf8NZADClz6eLpVJnCJxe4o5zxAvUUSx0OhiPlreZ9MJnf3b6l/RvChCzEy9UQcC892HTVGNZXAkv9lkSb9iYy95wWVv/TtEp7F0kbqzpUeFsMCzwPwU3md7cQgaTRqDK7+OliBsdajcByfFCFbul8h88QHanQ5w8RUBbODjBh9svhg0RWFo4zzAd8J6UZRdNLII03LQ3qcDSC76ot27K/hjiIIB5e01YRpIVjwVTVBh19sKau5fUnT1ZKs4rgAa3GjQi1rCDRTp4TiLdoHJ2E088TePG+bfmXk8OQHYfZlS+X2j2g8fIfRPA37Y/uk2EmpF17VC1irhSVPLA9GWHSR30v//Z6AXX9Lxy7JlU=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Testcase"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/testcases/{testcase_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Testcase
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"testcase_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Testcase Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"testcase":{"anyOf":[{"properties":{"testset_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Testset Id"},"set_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Set Id"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"data":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Data"}},"type":"object","title":"Testcase"},{"type":"null"}]}},"type":"object","title":"TestcaseResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
