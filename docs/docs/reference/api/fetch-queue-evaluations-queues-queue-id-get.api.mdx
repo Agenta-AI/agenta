@@ -1,0 +1,71 @@
+---
+id: fetch-queue-evaluations-queues-queue-id-get
+title: "Fetch Queue"
+description: "Fetch Queue"
+sidebar_label: "Fetch Queue"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1V0tz20YM/isanJIZxnI9PfFU1Y9GTdu4fuTi0WggEpI2WS3pfXiiaPjfO9glqSUl27LrnCwv8fjwAQtgN2BxYSC9g/MHlA6tKJSBSQJFSdr/N84hhTnZbDm9d+RoSlvBcGKm9ReRT6cLspBAiRpXZEmz6Q0oXBGk0EhBAkJBCiXaJSSg6d4JTTmkVjtKwGRLWiGkG7DrkvWM1UItIIF5oVdoIQXnvBUrrGSBf9nwYJxDVU3YnikLZciwiZPjY/6Tk8m0KBk1pHDtsoyMmTs5uKqFIYGsUJaUZXEsSykyH+Twq2GdTQSr1MyOFcFDVrigVKMVytKCdATv1EskkNMcnbSQHldJIMP7UuvPc09T1+5c+sw8LiDM1NC9I2UFygjArCgkoYoAjM3geisZAZmjNFRVSaNazL5SZiPNbVV4ji88pippfSknJVQTtrCDFvNcsCbKyw7urUQPcGS3Tjmf7DcDmdCZk6jf/YUzkn+aQn347Gzp7Hvoh8NF0QTUl4ad4Hej22rfhPBhRRZfGWwUWa9gOo5Xs+5JzNFzjFw4+QwhyQaEpdWBWqg1rp/kpaf7MlL/ZjKrpO4SB1G2Y+Mf1q2S7j1/namzyESVQKYJLeVTtE8ZjHpTjpY+WOHxPO7lNJgdjDxZrsx/hpPbYLZ2kpOkn+DkLJitnTR0zdbc6A/z47v5IWT9vvZNfsvXm3pp2Gq9NIS9qZeGrtbL25kO9h5Im/9R/l9q9SoBY9G6J7tYAqTciteHklQeTvxg4+msnVLhyIR5y8GgkE7ztCWtC81HGaqMpKQcJvvmznUAsQ9yO8Za75w07Lfm7tR0hvRU5L2w6m4Y/XguDf3meHizvDWkB+PcDxKTkUItiicQvRTI446va2etc0vl9ButD/P8Ik+WysEntvyC5eIM/RzYs1top+obeOhGeOVU2Ad3vW/XzbvG8N7C85j24Tk8ona5rCrW+vXkZHcX/YJS5F5lcM5X4vWLaE4WhewUcVdAFlnn60t2k0k//dFKVQSAfjEyi31p2o56Y3BB21p6XNSTMbjhr9wkFa8VLN70OlXvGZn9HpnZycgpc/ndPlsJzE2AX8vFLbFNUcjQ41SchRQ8VSIfb24udwyG+ugWxgW/uQahCv3GuSz4KdY8sOwSUhhGj7FheIwNN80zq+LOS/qheYU5LSGFpbWlSYfDTBYuP8IFKYtHKIZYCn+FDWVOC7v2KqPL8SdafyTMSUN6N4kFrrkMQ2F1xdpkYCk+EdNTv/9Gzi4LLX6EaqkfgcugVfkkz4s4xyMPbjC6HEM01uD46JejY+jT1RHmG4SZL5jGt/8MSY+FNn6eSCt/fcASrn7bfmBkZWHsClVkr5ud3tpZx8+FNywlCn81vONNnbk7iDLXDE3+kbaP5EkCy8JYlt1sZmjoVsuq4uN7R5rzM0ngAbXAGbN1t4FcGP6d1++6HVhtX4F3V3Xpvx9s1/wu3CaHihPIWPk/SOAbreOnvG8My6ZANvXnUZZRaSPFnT7GldTW9B/nN1BV/wHwpqY5
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Queue"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluations/queues/{queue_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Queue
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"queue_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Queue Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"queue":{"anyOf":[{"properties":{"flags":{"anyOf":[{"properties":{"is_sequential":{"type":"boolean","title":"Is Sequential","default":false}},"type":"object","title":"EvaluationQueueFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"status":{"anyOf":[{"type":"string","enum":["pending","queued","running","success","failure","errors","cancelled"],"title":"EvaluationStatus"},{"type":"null"}],"default":"pending"},"data":{"anyOf":[{"properties":{"user_ids":{"anyOf":[{"items":{"items":{"type":"string","format":"uuid"},"type":"array"},"type":"array"},{"type":"null"}],"title":"User Ids"},"scenario_ids":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"type":"null"}],"title":"Scenario Ids"},"step_keys":{"anyOf":[{"items":{"type":"string"},"type":"array"},{"type":"null"}],"title":"Step Keys"}},"type":"object","title":"EvaluationQueueData"},{"type":"null"}]},"run_id":{"type":"string","format":"uuid","title":"Run Id"}},"type":"object","required":["run_id"],"title":"EvaluationQueue"},{"type":"null"}]}},"type":"object","title":"EvaluationQueueResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

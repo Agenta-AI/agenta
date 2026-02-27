@@ -1,0 +1,71 @@
+---
+id: get-tool-connection
+title: "Get Connection"
+description: "Get a connection by ID."
+sidebar_label: "Get Connection"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtz20YM/isanJIZxnI9PfFU1c7DddN4bLkXj0YDkZC06ZLL7GLdqBr+9w52KZGUbMXROKf2JIkEPgAfHrvQGhgXDtJ7GBujHUwSyMllVlWsTAkpvCce4CAzZUmZPBrMVoPLixNIwFRkUR5d5pDCgnjKxuhpKwoJVGixICYrJtZQYkGQQisyVTkkoMRQhbyEBCx98cpSDilbTwm4bEkFQroGXlWi7NiqcgEJzI0tkCEF7wMKK9YicN76eplDXU8E1FWmdOQE5+z0VD76Yd76LCPn5l4PbhphSMRRppJFHKtKqyzEO/zsRGfd8a2ywgaraCEzPio1LquSaUG256NICNdz9JohPa2TDi3BYLn6NA+s9cHnOiSsK4B5rkQN9XVPtJVoHJkZowlLqJNdOuXJ4zCQKZt5jfbV7zgj/Zsz5ZtPnivPryWgiGJmnyljEK43Ie5KQ70n3XpReq172u9ClKLyX4h23ARbEOORwXYi26m6nuFi1n/S5ehbjLzz+huEJGtQTMUztdBaXB2ugr7u95H6UciUtrKETPkU+RBxnXmSI9MbVgUdhD+PsINRcMtX+Y8wchdhGyM5afoBRi4ibGNkQ9dsJcP5eXbCBH4OWb+uwkxu+XpRKxu2tlY2hL2olQ1dWyvxVHtWT+6B/YEhOf3T6Dioiw5EnYDTfnEs1K3o1gm8HGmRqcqaB5WTnf5Fq8eOdCp9IXeRzBSVccpAArigkhG6w9IYGVAB6EqVATjMungbeQp760krOriiVSAf/x+7LzZ2LzCOXcfI3h26yVjKlaWMp97qYyv1psEY3FkN9Z6j/appb4a30bl95Mcg2ivpfb+C9+tu8pTBZ5p6XHl7I61rUfr57Gz/AvsnapXHqn5rrbHH315zYlQhIU1R7Qpok/Xefk9TTOqdOuxcoUx0MFyE3OJQD38k53BBbWE+LRrIGIzlbZgTUs8ivp0GTYFn/LUDs5eQc+HyKz9aYt36EG6i+41cpyLaFMUMPU3FRUzBoQr5MB5f7wHG+iiIl6bZycIOxktIYVhZelD091C2NDdslw03XPcWshoScGQfNktb6E5YMlcuHQ4zbXx+EqfyCaohVio0pKPMW8WroDK6vryi1QfCnCyk95OuwK2UXSykvtiWfKzUVeiuZl0ceV4aq/7BZqkM6+IyatUhqXPTzekoODcYXV9CAhJG7JDTk59OTmF3v+0JS8dgFgpkYzseP8kOC9v45dAqQrsAExa/tC/Es8o4LrDs4Mk6fd7dkHcO/m3PHli8G5qkHoeVRhU6ppmhMdkyp0KyRTrs9d3tUn6l/R18ksDSOBbN9XqGju6srmt5/MWTlaROEnhAq3AmFN+vIVdOvueQzlE7OhDIq5umP14PnnJ+k/hSsv6A2ssvSCAc5Tt/F4QRstyU1rqRGWUZVdzR3pt4UoPbznj/dgx1/S+AWtNz
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Connection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/tools/connections/{connection_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get a connection by ID.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"connection_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Connection Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"connection":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"provider_key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"integration_key":{"type":"string","title":"Integration Key"},"data":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Data"},"status":{"anyOf":[{"properties":{"redirect_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Redirect Url"}},"type":"object","title":"ToolConnectionStatus"},{"type":"null"}]}},"type":"object","required":["provider_key","integration_key"],"title":"ToolConnection"},{"type":"null"}]}},"type":"object","title":"ToolConnectionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

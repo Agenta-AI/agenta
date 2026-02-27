@@ -1,0 +1,71 @@
+---
+id: fetch-scenario-evaluations-scenarios-scenario-id-get
+title: "Fetch Scenario"
+description: "Fetch Scenario"
+sidebar_label: "Fetch Scenario"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlV0tvG0cM/isCTwmwsVyjpz1VdezGTYsYtpKLIQjULCVNOju7nocRdbH/veDMPiX5kcA59WR5lvxIfuSQwwocbiykd3DxgMqjk4W2sEigKMmE/64ySGFNTmyXVpBGI4sl9bLdoV3232W2XG7IQQIlGszJkWEbFWjMCVIYCEICUkMKJbotJGDo3ktDGaTOeErAii3lCGkFblcGVWek3kAC68Lk6CAF7wOKk06xwG2DPbnKoK4XDGnLQluyjHJ2esp/MrLCyJIjYBUvBFm79mpy0whDAqLQjrRjcSxLJUUIePrVsk418Kw0TJaT0YIofFRqHJba0YbMwMPzIJFARmv0ykF6WicdJcGc3n1aB77G0GsVcjUUwCyT7Baq65FoL9G4sSoKRaihTvap5JPjMCCkEV6hefMXrkj9aQv97pN3pXdvOZyIUqy+knDATLcB7ktDfSDde6G9UiPtyxAlq/wfop03webk8AeDHUS2V3Mjw/lqfDLk6DlGLr16hpCkAukof6EWGoO7p6tgrPt9pP7NZNYJCEPoKFuie4q4QS/J0NE7J3N6Ev48wk5mwS1fZj/DyOcI2xjJSNFPMPI+wjZGWrpWO27ML7MTuu9LyPp9Fzpyz9erWmnZ6qy0hL2qlZauzsrrQUe8BzJWxvnygmt+APKlUed54tD5J/tFAqR9zqO/JJ3Fk3tPnniaGq91PLJxOHIwKJU3PBrJmMLwkUAtSCnKYOBF/5K4jU4cc7kbfp11plM7Mg+ojrp9tKnts9gCcLuQOVmHefmqN2beodaBpaa6Xvo6ufE6Pkz229nw6XPXAh8ntX0pHLp5DPZxgO6tU9es+OvZ2eHT6AsqmQWtyQUn/cffRRk5lCGzzZzYF1CFGH39njm3qPdGy2A8F9HBMGTt5liy+rFhLW6onzWPiwYyJnP+GuqWRxSLd3XYzCzhvg1gDpJyzlx+c8/WA3MT3W/khpe+S1HM0ONUvI8peKpKPszn1weAsT7GhXHJG8Gkq8XwgNkWvCu0D3+3hRSmg1Vh2q0K02qwAdTcZMg8tDuCNwpS2DpX2nQ6Farw2QluSDs8QTnFUob7aEl4I90uqMyurz7S7gNhRgbSu8VQ4JbrMVbYWKzLCpbyIzFPzXYy825bGPlvLJtmP9lGrTpke10Mkz0Lzk1m11cw6OBwevLLySns8zYS5quEIlROazt8hmSPhS5+br55uEfgCPPf+g/sWVlYl6Me4B2kaeRNRwEX4bRUKMM1CbarJoV3MEgh9IsK/06Hi9wigW1hHWtU1QotfTaqrvn43pPhRC0SeEAjccW03VWQScu/M0jXqCwdONd1Gnhz01yGt5P+ETl2uk2m5kyyx/wfJPAP7fY2ztAttm2xVI3ETAgq3UD3oLlxVXVV/sfFHOr6P/GmOFE=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Scenario"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluations/scenarios/{scenario_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Scenario
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"scenario_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Scenario Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"scenario":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"status":{"anyOf":[{"type":"string","enum":["pending","queued","running","success","failure","errors","cancelled"],"title":"EvaluationStatus"},{"type":"null"}],"default":"pending"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"timestamp":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Timestamp"},"run_id":{"type":"string","format":"uuid","title":"Run Id"}},"type":"object","required":["run_id"],"title":"EvaluationScenario"},{"type":"null"}]}},"type":"object","title":"EvaluationScenarioResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

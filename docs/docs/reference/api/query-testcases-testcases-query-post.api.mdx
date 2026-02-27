@@ -1,0 +1,71 @@
+---
+id: query-testcases-testcases-query-post
+title: "Query Testcases"
+description: "Query Testcases"
+sidebar_label: "Query Testcases"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWN9z2kYQ/leYfWpnhMHYxomeSuxkQpPGrk3amTKM55AWuPSkU+5Otimj/72zd5KQAAPx4JfWfjE67X67tz++W90CDJtq8IcwQG0CplHDyAOZoGKGy7gfgg/fU1TzO1MIVH65N4nUBjxQ+D1Fbd7JcA7+AgIZG4wN/WRJInhgAVvftIxpTQczjBj9ShSZMxw1PRXgdzy0zyyeX03AHy6AG4ycyDxB8EEbxeMpeDCRKmIGfEhTHkLmFQJMKTaHzCs14lQIyEYeGG4ELRSbbvRDbRVRG43mjod107ssbreg0TT6YRVf4T3XXMYvYOgmh84tPvA4lA8EVrNTj3mMD6jNnp6EzGDT8Ai3uvPFQWYeSBEeGvzKQWYexPi4L/TOCH4hrMwDwSO+GZTHBqeotqJ8ttq0bxWi2u4bxmlEvcd0gHHo1kIsH0ZbY2DhM886pe6ZeLbH/QIg80AxgxuB4jQa78C5Id1s2X5y/A0DIoZC4M+yFtdhtumV1PQ70c2NoxnISIU4hysMwTcqRbugExlrV9eddpv+UUgVT4h+wIfbNAhQ60kqGje5MHjPZatApk5pJd5L5y+sBOV1wlJhwG/nPODI1q/w2joRviQXHRb7tsQNFDKD4R07bM9fONhGzzZXmoQvYeSrg82NhCjwBYxcOtjcSBGu8fyA2SiC9W6eJ6WI10GtFNEqrRQBO6iVIlyllcNBO7yJsCNQFZKFIaf+Z+K61pNrRsdSCmRx1UruB61shoGAqyAVTP30mY1R/Kpl3LxKTZKan2GVBGsny4o0rFHmtr1+sLsklf/Dbgf5ZiM07Jmbrexs22G6eixWY7QrIh9SsSMgXnk87KO1e+Bd0f2xoP5GwaQ2Z69BPVhQLymY+0w/ax82Gwak6pwxHL2O/6/j/39p/C/H9czO/qedzvp0/wcTPLSze+O9UlI9f7QP0TAutgzoQga1tz9CdqOnm/mzdA7a40tPN114LAlZazatMMPTojYYjQG9tUVDPEXiZRHkxBWYxwrMWi4uKJbUJxvytfwWG9rYOPdzuUqhLFPkMvR0KC5dCrYVx8fB4HoN0NVHvTDst2OjypQRmpmk+638/iphZgY+tMqPs5a93gL6VFL3qLTNbaoE+DAzJtF+qxUImYZHbIqxYUeMt1jCbVNoDFLFzdyq9K77n3D+EZllhOGoKnBL1efqqS5W5oAl/BOSFzGL6LmXmplU/B9XJJRL8sdp0baprm+WV3HvH1mUCFy/WhvCyYS9OZt0T5tn58fnzdOzbqc5PpkEzU7wtnsy6XbZhHVt4ipfovspPXHTta9y7dQqTifotDunzfZ5s/N2cHzmnx37nTdH7fPjv2B5yGyTcWfFvi7kp0C7JPIaSy9Jt12QZjuzfTWR1bbq2cJo9K774AGVkKvF9tHxURtWK7QmTKTFAtujRd7ta/BWKrCsPTpQIstYYJBFvyxfkGdU4xGLK3jrDVFzp6w/6vdWIhi3jGSNL/JeGVYuMjx3TUz1MqN+8oewWIyZxq9KZBktu/f+cOTBPVOcjSlEdkqZFa2xgL9xXtBMbJqWr0hcpK4VVuibqNVp9IIAE7NVdlRp+eur2wF4MM7vqiMZko5iD8Rj7AF8oKqyobC9adcWIFg8TYlxfXCY9Pcvf6zfPQ==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Query Testcases"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/testcases/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Query Testcases
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"testcase_ids":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"type":"null"}],"title":"Testcase Ids"},"testset_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Testset Id"},"testset_revision_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Testset Revision Id"},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"TestcasesQueryRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"testcases":{"items":{"properties":{"testset_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Testset Id"},"set_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Set Id"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"data":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Data"}},"type":"object","title":"Testcase"},"type":"array","title":"Testcases","default":[]},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"TestcasesResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

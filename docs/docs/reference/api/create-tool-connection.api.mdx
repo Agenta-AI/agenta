@@ -1,0 +1,71 @@
+---
+id: create-tool-connection
+title: "Create Connection"
+description: "Create a new tool connection."
+sidebar_label: "Create Connection"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtvGzcQ/ivCnFpgbblGT3uqIieI6qY2bLkXQxCo3ZHEhLvc8OFYFfa/F0Pue2NZVuwgDuqDLJEz35AzH2eG3IJhKw3hLUylFBpmAcSoI8Uzw2UKIYwVMoMDNkjxy8BIKQaRTFOMaPoYApAZKkY/JjGEEDnpOcnNazkIQOFni9q8kfEGwi1EMjWYGvrKskzwyEEMP2qyuQUdrTFh9C1TZMBw1IVaCdmbWwq3kS2wdHOxhPB2CyyOOQkzcdkSrSXMJkMIYSGlQJZCHlRD2iiertzI12Eg4iqygqlf/mILFH9qmR5N0syaXyEoQeTiI0YG8lkAhhtBQx1hyHvC9RpSK0RL+Z3bI6n8/HudFltN0LADt9rYVzHCU4MrVG3DyaI90vTQY/54Z8VudwRb4AaT/ZSYUmyzmwEt1ad59AN5Mg8gZQnu6a8ext+km3eSxGFQZw2IPAAt7OpQqGvSzQPKCHc8RjX/hC7NtBECwNQmlOsimWRScwkBsBWmhkGTeFJSsB3QOU9jAna88XnuIexSfVKLDs5x45zFuhTupDUmxIJFn+ZWiUNdMC4wBjdKkE1mzXru8ujOWNc+kaRBDsm422LHIyNr1tcerr+MvMfDtvK4ytu+nJwxx8R9YKhwcIUxLbEV3n5QZruNwmPwjeryCNSVr2aQE2QNYZRFN6AzmWof29OTE/rXLqrXNopQ66UVg6tCGILDi6L1Sp0c1+CGk6BDu2RWGAhP8qBTSx+i5o9QVS+seUKp8dKvt66+/G5fWWV90CE7S2tP6wm19RCnlsXVd8DxnJndaXcpVUIyVBzwyPCv5tXGEfawg5Fbls3ilzBy42ELIzEKfAEjZx62MFK6a7GZ83hPO9byeC9nvdkMJnHTX89qpfRWZaV02LNaKd1VWfl5u7fnc5r31KvpBv9Puwen3aKTBG2YsXpXJ6Mw5goj8y1N9lWB4ZvsvZvea7+479fwflOLXnWkuWtvfz897Tew/zDBY8/qt0pJdXj3GqNh3AWkIFVXQMioNfuUQzHLOzxstFDSL9A1Qnq16wx/QK3ZCmtiPizqnDGY0qzLE8RnEq+yQUHwyNw3YHoBGZMv782jNxbyjV9+IddgRB0iH6GHXXHmQ7CLIe+n08seoOdHgmYt6e0vk5pUMmbWEMIwU3jH8cuQ3gL1sL5t6CEEoFHdodIujO48wtqYTIfDYSSkjY99Hj5mfMgy7o6gxsgqbjZOZXQ5OcfNe2QxKghvZ00Bf0l1VGmLVe5mGT9358mXUqCrrVT8X1a8VXJi+Npr0Q6Jwlf1++Xbe5ZkAvvvkeVdqb5H1E12VbhrzrRPVDXsK2n9u13FmsWqV4Ya2EWNab8s1POt14Hi6u+iydOlbDJ25AIxGF1OIAAKmV/tyfFvxye9PbSEKR+wyNG/9LMvrkEn4lWsqSQnLhmAQZb8UU/QyoheCUsbeMXT9Lj5ztzpbKqk9Og7dsENOnbDTDDuEkNRKjylKR07SpO0eyxvXqLpFx2/NZ2C8Ba22wXTeKNEntPwZ4uKuDsL4I4pzhbk3VvKT+uSxVvwQRz7NR+5LELiwnrWdpIqJTyvMYoizMxO2VnjoF5eXE8hgEXxFp/ImHQUo43RZwjuXd/viionjW1BsHRlKQ+G4DHp7z9EAV1Y
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Connection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/tools/connections/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new tool connection.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"connection":{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Input)","type":"object"}],"title":"LabelJson-Input"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Input)","type":"object"}],"title":"LabelJson-Input"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Input)","type":"object"},{"items":"circular(FullJson-Input)","type":"array"},{"type":"null"}],"title":"FullJson-Input"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"provider_key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"integration_key":{"type":"string","title":"Integration Key"},"data":{"anyOf":[{"properties":{"callback_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Callback Url"},"auth_scheme":{"anyOf":[{"type":"string","enum":["oauth","api_key"],"title":"ToolAuthScheme"},{"type":"null"}]}},"type":"object","title":"ToolConnectionCreateData"},{"type":"null"}]}},"type":"object","required":["provider_key","integration_key"],"title":"ToolConnectionCreate"}},"type":"object","required":["connection"],"title":"ToolConnectionCreateRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"connection":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"provider_key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"integration_key":{"type":"string","title":"Integration Key"},"data":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Data"},"status":{"anyOf":[{"properties":{"redirect_url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Redirect Url"}},"type":"object","title":"ToolConnectionStatus"},{"type":"null"}]}},"type":"object","required":["provider_key","integration_key"],"title":"ToolConnection"},{"type":"null"}]}},"type":"object","title":"ToolConnectionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
