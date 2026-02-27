@@ -17,8 +17,12 @@ type LexicalNodes = NonNullable<InitialConfigType["nodes"]>
 const CONFIG_CACHE = new Map<string, InitialConfigType>()
 const CONFIG_PROMISE_CACHE = new Map<string, Promise<InitialConfigType>>()
 
-const buildCacheKey = (codeOnly: boolean, enableTokens: boolean): string =>
-    `${codeOnly ? "code" : "rich"}|${enableTokens ? "tok" : "plain"}`
+const buildCacheKey = (
+    codeOnly: boolean,
+    enableTokens: boolean,
+    useNativeCodeNodes: boolean,
+): string =>
+    `${codeOnly ? "code" : "rich"}|${enableTokens ? "tok" : "plain"}|${useNativeCodeNodes ? "native" : "custom"}`
 
 const useEditorConfig = ({
     id,
@@ -27,11 +31,22 @@ const useEditorConfig = ({
     codeOnly,
     enableTokens,
     disabled,
+    useNativeCodeNodes,
 }: Pick<
     EditorProps,
-    "id" | "initialValue" | "disabled" | "codeOnly" | "enableTokens" | "initialEditorState"
+    | "id"
+    | "initialValue"
+    | "disabled"
+    | "codeOnly"
+    | "enableTokens"
+    | "initialEditorState"
+    | "useNativeCodeNodes"
 >): LexicalComposerProps["initialConfig"] | null => {
-    const cacheKey = buildCacheKey(codeOnly ?? false, enableTokens ?? false)
+    const cacheKey = buildCacheKey(
+        codeOnly ?? false,
+        enableTokens ?? false,
+        useNativeCodeNodes ?? false,
+    )
 
     // Return cached config immediately if we already have it
     const [config, setConfig] = useState<InitialConfigType | null>(
@@ -44,7 +59,7 @@ const useEditorConfig = ({
         const loadConfig = async (): Promise<InitialConfigType> => {
             const initialNodes: LexicalNodes[number][] = []
 
-            if (codeOnly) {
+            if (codeOnly && !useNativeCodeNodes) {
                 const initialNodesPromises = await Promise.all([
                     import("../../plugins/code/nodes/CodeBlockNode"),
                     import("../../plugins/code/nodes/CodeHighlightNode"),
@@ -53,6 +68,7 @@ const useEditorConfig = ({
                     import("../../plugins/code/nodes/CodeTabNode"),
                     import("../../plugins/code/nodes/Base64Node"),
                     import("../../plugins/code/nodes/LongTextNode"),
+                    import("../../plugins/code/nodes/CodeSegmentNode"),
                 ])
 
                 initialNodes.push(
@@ -64,6 +80,7 @@ const useEditorConfig = ({
                         initialNodesPromises[4].CodeTabNode,
                         initialNodesPromises[5].Base64Node,
                         initialNodesPromises[6].LongTextNode,
+                        initialNodesPromises[7].CodeSegmentNode,
                     ],
                 )
             } else {
@@ -136,7 +153,7 @@ const useEditorConfig = ({
         }
         const p = loadConfig()
         CONFIG_PROMISE_CACHE.set(cacheKey, p)
-    }, [cacheKey, codeOnly, disabled, enableTokens, id, initialEditorState])
+    }, [cacheKey, codeOnly, disabled, enableTokens, id, initialEditorState, useNativeCodeNodes])
 
     return config
 }
