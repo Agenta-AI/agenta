@@ -1,0 +1,71 @@
+---
+id: close-evaluation-simple-evaluations-evaluation-id-close-post
+title: "Close Evaluation"
+description: "Close Evaluation"
+sidebar_label: "Close Evaluation"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlWEtv20gM/isGTy2gxtliTzqtN2mRbLvbbJL2EhgGLdHxdEePziOo19B/Lzgzeltx+jr1lFgiP5IfKQ6HezB4ryG+g1cPKC0aUeQalhEUJSn36zKFGBJZaFpRI7LSIitl94ledV+LdLXyOmWhDURQosKMDCm2tYccM4IYehoQgcghhhLNFiJQ9MkKRSnERlmKQCdbyhDiPZhdycraKJHfQwSbQmVoIAZrHYoRRrJAG9HsMoWqWjKoLotck2acl6en/CclnShRshzEcGOThLTeWDm7DsIQQVLkhnLD4liWUiQOdv5Rs86+41upmDgjvIWksF4puCxyQ/ekOj6eOYkIUtqglQbi0yrq0OIM5rt3G8daH3wjXeamBYReSfFAHfvropCEecf+pZ69ZZmOBxuUmqqI1TExTwBYeKnDEK4K0mMQZ17qAMQW9eqTJRVimgS5QD37N8hNwBjSRpM5jnNbC04AhfwU6jjUq1Z0Aiyx2hTZUaAzLzYBsrUZ5kcxLpzUBARaUxxFWLDQCKCKaq1i/ZESc/AbvLb5a1exVdQYya2UUC1Zf1TLmKaC9VBe9aq6lRh42sENrYGfHIaBRKjESlTP3uKa5F+6yF+8s6a05jkMg+G+UYczlIZR6OPoWu1bHz5kZPAbg+1ENugpPcPZuv+ky9ExRl5beYSQaA/CUPZELVQKd4/yMtD9OlL/ZjKrKBwpT6JshPEP61ZR/yj4NqjzDkQVQaIIDaUrNI8Bds6wFA29MML5M23lzMPOFo4sW6Y/w8h7DxuMpCTpJxg597DBSE3XescDwdPsuFP/KWT9uXNzQMvXD7VSs9VYqQn7oVZquhorPw7a4z2Q0t9R/h+COsePwy7XH0+0QWMf7XIRUG4zHk5LylP/5JMl6yYFZfPcP9J+ZONgUUireBQhpfyZm2CekJSUwvLQqXTjnTh4JvHYsVtpQ+XAy9D8jpM9boFTjX4q8KQ+9rfh7HbHNHsXyNxx7/Lz4ITxJ/RQHpx2sxsXKSv6+eeXCD3Mem3wnfn+lyBg0cbbktBMuL8EBc2Q3hKgqCQ0h7vTwYlrAHkd9B+bjW/cHbrtRefoJplRJ/oKiO9Ub268VcVqv798Ob4gf0ApUl8ur7jJfvvtOCWDQrqbal1RfQFZJL23XzMNL4fl1xnii6QmCzJ9f6j+2uFSa7yntpymRR0Zs1t+y8dyzoMsi9enax4m28R87sCMUnLGXH42BwunXYncOW68+0Guewg3KfIZmqbi3KfgsRq5uL29GgH6+ugXhrvDzzq16C4624L3R80WyGwhhrnfHs0726P5vrcLquZub8CHO6mHemtklYQYtsaUOp6zhE1P8J5ygyco5lgK9wlqSqwSZudUFleXb2h3QZiSgvhu2RW44br0ldYXa7KDpXhDzFfYVy2s2RZK/F/H5/ZVW69Vuaxvim7SF8652eLqEjqTFZye/HZyCkP+esL8SWHiKqi27V5DNGChiZ+7Zua+JzCE2R/tC/aMExBWBAHvQLoG159AApfjvJQo3AfjrO9DJu/AZxK6OyueuuLhZs+ncxnBlishvoP9fo2a3itZVfzYzVqcoAgeUAlcM393e0iF5v/TsGoY+di0Hnh2Hb6O57P27tn3vc5qzillB/kXRPAf7UbLSNdAtnXd7IPMIkmoNB3tUb/jAmvK/urdzS1U1Rc7Q1kQ
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Close Evaluation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/simple/evaluations/{evaluation_id}/close"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Close Evaluation
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"evaluation_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Evaluation Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"evaluation":{"anyOf":[{"properties":{"flags":{"anyOf":[{"properties":{"is_live":{"type":"boolean","title":"Is Live","default":false},"is_active":{"type":"boolean","title":"Is Active","default":false},"is_closed":{"type":"boolean","title":"Is Closed","default":false},"has_queries":{"type":"boolean","title":"Has Queries","default":false},"has_testsets":{"type":"boolean","title":"Has Testsets","default":false},"has_evaluators":{"type":"boolean","title":"Has Evaluators","default":false},"has_custom":{"type":"boolean","title":"Has Custom","default":false},"has_human":{"type":"boolean","title":"Has Human","default":false},"has_auto":{"type":"boolean","title":"Has Auto","default":false}},"type":"object","title":"EvaluationRunFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"data":{"anyOf":[{"properties":{"status":{"anyOf":[{"type":"string","enum":["pending","queued","running","success","failure","errors","cancelled"],"title":"EvaluationStatus"},{"type":"null"}]},"query_steps":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"additionalProperties":{"type":"string","enum":["custom","human","auto"]},"propertyNames":{"format":"uuid"},"type":"object"},{"type":"null"}],"title":"Query Steps"},"testset_steps":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"additionalProperties":{"type":"string","enum":["custom","human","auto"]},"propertyNames":{"format":"uuid"},"type":"object"},{"type":"null"}],"title":"Testset Steps"},"application_steps":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"additionalProperties":{"type":"string","enum":["custom","human","auto"]},"propertyNames":{"format":"uuid"},"type":"object"},{"type":"null"}],"title":"Application Steps"},"evaluator_steps":{"anyOf":[{"items":{"type":"string","format":"uuid"},"type":"array"},{"additionalProperties":{"type":"string","enum":["custom","human","auto"]},"propertyNames":{"format":"uuid"},"type":"object"},{"type":"null"}],"title":"Evaluator Steps"},"repeats":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Repeats"}},"type":"object","title":"SimpleEvaluationData"},{"type":"null"}]}},"type":"object","title":"SimpleEvaluation"},{"type":"null"}]}},"type":"object","title":"SimpleEvaluationResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
