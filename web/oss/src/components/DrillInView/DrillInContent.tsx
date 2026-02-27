@@ -1,4 +1,12 @@
-import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
@@ -42,8 +50,15 @@ function MarkdownViewState({
 function MarkdownViewSync({isMarkdownView}: {isMarkdownView: boolean}) {
     const [editor] = useLexicalComposerContext()
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+    }, [editor, isMarkdownView])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+        })
+        return () => cancelAnimationFrame(frameId)
     }, [editor, isMarkdownView])
 
     return null

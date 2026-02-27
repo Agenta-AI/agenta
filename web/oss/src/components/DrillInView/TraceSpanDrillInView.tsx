@@ -1,4 +1,13 @@
-import {memo, type ReactNode, useCallback, useEffect, useId, useMemo, useState} from "react"
+import {
+    memo,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useId,
+    useMemo,
+    useState,
+} from "react"
 
 import {
     ArrowDownIcon,
@@ -99,6 +108,9 @@ const getDefaultRawSpanViewMode = (availableModes: RawSpanDisplayMode[]): RawSpa
     if (availableModes.includes("rendered-json")) return "rendered-json"
     return availableModes[0] ?? "json"
 }
+
+const normalizeEscapedLineBreaks = (value: string): string =>
+    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
 
 const parseStructuredJson = (value: string): unknown | null => {
     const tryParseJson = (input: string): unknown | null => {
@@ -226,8 +238,15 @@ const LanguageAwareViewer = ({
 const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+    }, [editor, isMarkdownView])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+        })
+        return () => cancelAnimationFrame(frameId)
     }, [editor, isMarkdownView])
 
     return null
@@ -382,9 +401,13 @@ export const TraceSpanDrillInView = memo(
         }, [isStringValue, parsedStructuredString, sanitizedSpanData])
 
         const textOutput = useMemo(() => {
-            if (typeof sanitizedSpanData === "string") return sanitizedSpanData
+            if (typeof sanitizedSpanData === "string") {
+                return parsedStructuredString !== null
+                    ? normalizeEscapedLineBreaks(sanitizedSpanData)
+                    : sanitizedSpanData
+            }
             return getStringOrJson(sanitizedSpanData)
-        }, [sanitizedSpanData])
+        }, [parsedStructuredString, sanitizedSpanData])
 
         const availableViewModes = useMemo(() => {
             if (viewModePreset === "message") {

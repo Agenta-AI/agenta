@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
     ArrowDownIcon,
@@ -54,6 +54,9 @@ const getDefaultPanelViewMode = (availableModes: PanelViewMode[]): PanelViewMode
     if (availableModes.includes("rendered-json")) return "rendered-json"
     return availableModes[0] ?? "json"
 }
+
+const normalizeEscapedLineBreaks = (value: string): string =>
+    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
 
 const parseStructuredJson = (value: string): unknown | null => {
     const tryParseJson = (input: string): unknown | null => {
@@ -248,8 +251,15 @@ const LanguageAwareViewer = ({
 const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+    }, [editor, isMarkdownView])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+        })
+        return () => cancelAnimationFrame(frameId)
     }, [editor, isMarkdownView])
 
     return null
@@ -439,9 +449,13 @@ const AccordionTreePanel = ({
     }, [panelViewMode, renderedJsonResult.value])
 
     const textOutput = useMemo(() => {
-        if (typeof sanitizedValue === "string") return sanitizedValue
+        if (typeof sanitizedValue === "string") {
+            return parsedStructuredString !== null
+                ? normalizeEscapedLineBreaks(sanitizedValue)
+                : sanitizedValue
+        }
         return getStringOrJson(sanitizedValue)
-    }, [sanitizedValue])
+    }, [parsedStructuredString, sanitizedValue])
 
     const viewModeMenuItems = useMemo(
         () =>
