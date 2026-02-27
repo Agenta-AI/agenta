@@ -82,7 +82,7 @@ class EvaluationRunFlags(BaseModel):
     is_live: bool = False  # Indicates if the run has live queries
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
-    is_adhoc: bool = False  # Indicates ad-hoc/bucket run behavior
+    is_queue: bool = False  # Indicates this run belongs to a simple annotation queue
     #
     has_queries: bool = False  # Indicates if the run has queries
     has_testsets: bool = False  # Indicates if the run has testsets
@@ -97,7 +97,9 @@ class EvaluationRunQueryFlags(BaseModel):
     is_live: Optional[bool] = None  # Indicates if the run has live queries
     is_active: Optional[bool] = None  # Indicates if the run is currently active
     is_closed: Optional[bool] = None  # Indicates if the run is modifiable
-    is_adhoc: Optional[bool] = None  # Indicates ad-hoc/bucket run behavior
+    is_queue: Optional[bool] = (
+        None  # Indicates this run belongs to a simple annotation queue
+    )
     #
     has_queries: Optional[bool] = None  # Indicates if the run has queries
     has_testsets: Optional[bool] = None  # Indicates if the run has testsets
@@ -461,6 +463,11 @@ class EvaluationQueueQuery(Header, Metadata):
     ids: Optional[List[UUID]] = None
 
 
+class EvaluationQueueScenariosQuery(Identifier):
+    user_id: Optional[UUID] = None
+    user_ids: Optional[List[UUID]] = None
+
+
 # - SIMPLE EVALUATION ----------------------------------------------------------
 
 
@@ -518,14 +525,64 @@ class SimpleQueueKind(str, Enum):
     TESTCASES = "testcases"
 
 
+class SimpleQueueSettings(BaseModel):
+    batch_size: Optional[int] = None
+    """
+    Number of scenarios per batch per user. When set, implies sequential (non-randomized)
+    assignment. If None, scenarios are distributed randomly across users.
+    """
+    batch_offset: Optional[int] = None
+    """
+    Starting offset into the scenario list for batch assignment.
+    """
+
+    @field_validator("batch_size", mode="before")
+    def validate_batch_size(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("batch_size must be an integer greater than 0 or null")
+        if v <= 0:
+            raise ValueError("batch_size must be greater than 0")
+        return v
+
+    @field_validator("batch_offset", mode="before")
+    def validate_batch_offset(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError(
+                "batch_offset must be an integer greater than or equal to 0 or null"
+            )
+        if v < 0:
+            raise ValueError("batch_offset must be greater than or equal to 0")
+        return v
+
+
 class SimpleQueueData(BaseModel):
     kind: SimpleQueueKind
 
-    evaluator_steps: Optional[Target] = None
+    evaluators: Optional[Target] = None
+    """
+    The evaluators to run on each scenario.
+    Either a list of evaluator revision UUIDs (all treated as 'human'),
+    or a dict mapping evaluator revision UUID -> origin ('human' | 'auto' | 'custom').
+    """
 
     repeats: Optional[int] = None
 
     assignments: Optional[List[List[UUID]]] = None
+    """
+    Ordered assignment of users per annotation repeat.
+    Each inner list is the set of user UUIDs assigned to that repeat index.
+    Example: [[user_a, user_b], [user_c]] means repeat 0 → user_a & user_b, repeat 1 → user_c.
+    """
+
+    settings: Optional[SimpleQueueSettings] = None
+    """
+    Optional distribution settings. Setting batch_size and/or batch_offset implies sequential
+    (non-randomized) assignment. Omitting settings means randomized distribution.
+    """
 
 
 class SimpleQueue(Identifier, Lifecycle, Header, Metadata):

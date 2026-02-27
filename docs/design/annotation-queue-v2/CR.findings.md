@@ -153,7 +153,7 @@ However, there are **two P0 correctness blockers**: a flag-query over-filtering 
 
 ### 13. [P2] Migration chain should be re-verified after rebase/merge
 - **Where**:
-  - `d7e8f9a0b1c2_add_is_adhoc_to_evaluation_run_flags.py`
+  - `d7e8f9a0b1c2_add_is_queue_to_evaluation_run_flags.py`
   - `e9f0a1b2c3d4_add_user_ids_to_evaluation_queues.py`
 - **What**:
   - `down_revision` continuity must match current graph.
@@ -201,7 +201,7 @@ This branch introduces the **SimpleQueuesService** layer — a convenience API f
 1. **`SimpleQueuesService`** — orchestrates queue creation, trace/testcase ingestion, scenario querying
 2. **New worker tasks** — `evaluate_batch_invocation`, `evaluate_batch_traces`, `evaluate_batch_testcases` (in `tasks/legacy.py`)
 3. **`SimpleQueuesRouter`** — REST endpoints under `/preview/simple/queues/`
-4. **`is_adhoc` flag** on `EvaluationRunFlags` — marks evaluation runs for ad-hoc/bucket behavior
+4. **`is_queue` flag** on `EvaluationRunFlags` — marks evaluation runs for ad-hoc/bucket behavior
 5. **`user_ids` column** — denormalized `UUID[]` on `evaluation_queues` for efficient assignee filtering (GIN indexed)
 6. **`batch_size` / `batch_offset`** on `EvaluationQueueData` — configurable scenario partitioning
 7. **DB migrations** — two new Alembic migrations (OSS + EE mirrors)
@@ -226,10 +226,10 @@ This branch introduces the **SimpleQueuesService** layer — a convenience API f
 **File:** `api/oss/src/core/evaluations/service.py:2700-2712`
 
 ```python
-async def _make_evaluation_run_flags(self, *, is_closed=None, is_adhoc=None, ...):
+async def _make_evaluation_run_flags(self, *, is_closed=None, is_queue=None, ...):
     return EvaluationRunFlags(
         is_closed=is_closed or False,   # None -> False
-        is_adhoc=is_adhoc or False,     # None -> False
+        is_queue=is_queue or False,     # None -> False
         has_queries=has_queries or False,
         ...
     )
@@ -237,9 +237,9 @@ async def _make_evaluation_run_flags(self, *, is_closed=None, is_adhoc=None, ...
 
 This method is used for both **creating** run flags (where `False` defaults are correct) and **query construction** via `_make_evaluation_run_query`. In the query path, `None` should mean "don't filter", but it becomes `False` which means "filter for runs where this flag is false".
 
-The JSONB containment query `flags @> {"is_adhoc": false, "is_closed": false, "is_live": false, ...}` will only match runs where ALL unspecified flags are explicitly `false`.
+The JSONB containment query `flags @> {"is_queue": false, "is_closed": false, "is_live": false, ...}` will only match runs where ALL unspecified flags are explicitly `false`.
 
-**Impact:** `SimpleQueuesService.query()` and `SimpleEvaluationsService.query()` silently over-filter. For example, querying for `is_adhoc=True` will also require `is_closed=False`, `is_live=False`, etc. — filtering out closed or live adhoc runs.
+**Impact:** `SimpleQueuesService.query()` and `SimpleEvaluationsService.query()` silently over-filter. For example, querying for `is_queue=True` will also require `is_closed=False`, `is_live=False`, etc. — filtering out closed or live adhoc runs.
 
 **Fix:** Use `EvaluationRunQueryFlags` (which has `Optional` fields) for the query path with `exclude_none=True` serialization. The `_make_evaluation_run_query` should build `EvaluationRunQueryFlags` directly instead of routing through `_make_evaluation_run_flags`.
 
@@ -380,7 +380,7 @@ source_step = EvaluationRunDataStep(
 Flag inference in `_make_run_flags` (in `dbs/postgres/evaluations/utils.py`) uses a string convention to detect queue kind:
 
 ```python
-if flags.is_adhoc and not _references:
+if flags.is_queue and not _references:
     step_key = (_step.key or "").lower()
     if "query" in step_key:
         flags.has_queries = True
@@ -411,7 +411,7 @@ Sequential queues are invisible to the SimpleQueues query API. May be intentiona
 ## LOW — Migration `down_revision` Chain Needs Verification
 
 **Severity: LOW**
-**Files:** `d7e8f9a0b1c2_add_is_adhoc_to_evaluation_run_flags.py`, `e9f0a1b2c3d4_add_user_ids_to_evaluation_queues.py`
+**Files:** `d7e8f9a0b1c2_add_is_queue_to_evaluation_run_flags.py`, `e9f0a1b2c3d4_add_user_ids_to_evaluation_queues.py`
 
 Migration `d7e8f9a0b1c2` declares `down_revision = "c2d3e4f5a6b7"`. This must match an existing migration revision ID on `main`. If it doesn't, `alembic upgrade head` will fail.
 

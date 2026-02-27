@@ -4,11 +4,75 @@ from asyncio import sleep
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.tracing.dtos import OTelSpansTree
+from oss.src.core.shared.dtos import Windowing
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
 
 log = get_module_logger(__name__)
+
+
+def paginate_ids(
+    *,
+    ids: List[UUID],
+    windowing: Optional[Windowing],
+) -> Tuple[List[UUID], bool]:
+    """Apply cursor-based pagination to an ordered list of UUIDs.
+
+    Returns (page_ids, has_more).  The list must be deterministically ordered
+    (UUID7 ascending by default) so the cursor lookup is stable across requests.
+    """
+    if not windowing:
+        return list(ids), False
+
+    ordered = list(ids)
+
+    if windowing.order == "descending":
+        ordered.reverse()
+
+    if windowing.next is not None:
+        try:
+            next_index = ordered.index(windowing.next)
+            ordered = ordered[next_index + 1 :]
+        except ValueError:
+            return [], False
+
+    if windowing.limit is None:
+        return ordered, False
+
+    has_more = len(ordered) > windowing.limit
+    return ordered[: windowing.limit], has_more
+
+
+def next_windowing_from_ids(
+    *,
+    paged_ids: List[UUID],
+    windowing: Optional[Windowing],
+    has_more: bool,
+) -> Optional[Windowing]:
+    """Build the next-page windowing cursor from a paginated ID slice."""
+    if not windowing or windowing.limit is None or len(paged_ids) == 0 or not has_more:
+        return None
+
+    return Windowing(
+        newest=windowing.newest,
+        oldest=windowing.oldest,
+        next=paged_ids[-1],
+        limit=windowing.limit,
+        order=windowing.order,
+    )
+
+
+def flatten_dedup_ids(ids_by_group: List[List[UUID]]) -> List[UUID]:
+    """Flatten a list of ID groups, deduplicating while preserving first-seen order."""
+    result: List[UUID] = []
+    seen: set = set()
+    for group in ids_by_group:
+        for id_ in group:
+            if id_ not in seen:
+                seen.add(id_)
+                result.append(id_)
+    return result
 
 
 def filter_scenario_ids(

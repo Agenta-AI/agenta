@@ -70,7 +70,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationQueueIdResponse,
     EvaluationQueueIdsResponse,
     #
-    EvaluationQueueScenarioIdsResponse,
+    EvaluationQueueScenariosQueryRequest,
     #
     SimpleEvaluationCreateRequest,
     SimpleEvaluationEditRequest,
@@ -87,7 +87,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     SimpleQueueResponse,
     SimpleQueuesResponse,
     SimpleQueueIdResponse,
-    SimpleQueueScenarioIdsResponse,
+    SimpleQueueScenariosResponse,
 )
 from oss.src.apis.fastapi.evaluations.utils import (
     handle_evaluation_closed_exception,
@@ -102,6 +102,7 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
     SimpleQueueScenariosQuery,
+    EvaluationQueueScenariosQuery,
 )
 
 if is_ee():
@@ -486,13 +487,14 @@ class EvaluationsRouter:
             response_model_exclude_none=True,
         )
 
-        # GET /api/evaluations/queues/{queue_id}/scenarios/
+        # POST /api/evaluations/queues/{queue_id}/scenarios/query
         self.router.add_api_route(
-            path="/queues/{queue_id}/scenarios",
-            methods=["GET"],
-            endpoint=self.fetch_queue_scenarios,
-            response_model=EvaluationQueueScenarioIdsResponse,
+            path="/queues/{queue_id}/scenarios/query",
+            methods=["POST"],
+            endpoint=self.query_queue_scenarios,
+            response_model=EvaluationScenariosResponse,
             response_model_exclude_none=True,
+            operation_id="query_evaluation_queue_scenarios",
         )
 
     # EVALUATION RUNS ----------------------------------------------------------
@@ -1788,19 +1790,17 @@ class EvaluationsRouter:
 
         return queue_id_response
 
-    # GET /evaluations/queues/{queue_id}/scenarios
+    # POST /evaluations/queues/{queue_id}/scenarios/query
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=EvaluationQueueScenarioIdsResponse(), exclude=[HTTPException]
-    )
-    async def fetch_queue_scenarios(
+    @suppress_exceptions(default=EvaluationScenariosResponse(), exclude=[HTTPException])
+    async def query_queue_scenarios(
         self,
         request: Request,
         *,
         queue_id: UUID,
         #
-        user_id: Optional[UUID] = Query(None),
-    ) -> EvaluationQueueScenarioIdsResponse:
+        queue_scenarios_query_request: EvaluationQueueScenariosQueryRequest,
+    ) -> EvaluationScenariosResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1809,19 +1809,36 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        scenario_ids = await self.evaluations_service.fetch_queue_scenarios(
+        queue_scenarios_query = (
+            queue_scenarios_query_request.queue
+            if queue_scenarios_query_request.queue
+            else EvaluationQueueScenariosQuery(id=queue_id)
+        )
+
+        if queue_scenarios_query.id and queue_scenarios_query.id != queue_id:
+            raise HTTPException(
+                status_code=400,
+                detail="queue_id in path must match queue.id in request body",
+            )
+
+        queue_scenarios_query.id = queue_id
+
+        scenarios, windowing = await self.evaluations_service.query_queue_scenarios(
             project_id=UUID(request.state.project_id),
-            user_id=user_id,
+            user_id=queue_scenarios_query.user_id,
             #
             queue_id=queue_id,
+            #
+            scenario=queue_scenarios_query_request.scenario,
+            #
+            windowing=queue_scenarios_query_request.windowing,
         )
 
-        scenario_ids_response = EvaluationQueueScenarioIdsResponse(
-            count=len(scenario_ids),
-            scenario_ids=scenario_ids,
+        return EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+            windowing=windowing,
         )
-
-        return scenario_ids_response
 
     # -- helpers ---------------------------------------------------------------
 
@@ -2506,7 +2523,7 @@ class SimpleQueuesRouter:
             self.query_queue_scenarios,
             methods=["POST"],
             operation_id="query_simple_queue_scenarios",
-            response_model=SimpleQueueScenarioIdsResponse,
+            response_model=SimpleQueueScenariosResponse,
             response_model_exclude_none=True,
         )
 
@@ -2622,7 +2639,7 @@ class SimpleQueuesRouter:
 
     @intercept_exceptions()
     @suppress_exceptions(
-        default=SimpleQueueScenarioIdsResponse(), exclude=[HTTPException]
+        default=SimpleQueueScenariosResponse(), exclude=[HTTPException]
     )
     async def query_queue_scenarios(
         self,
@@ -2631,7 +2648,7 @@ class SimpleQueuesRouter:
         queue_id: UUID,
         #
         queue_scenarios_query_request: SimpleQueueScenariosQueryRequest,
-    ) -> SimpleQueueScenarioIdsResponse:
+    ) -> SimpleQueueScenariosResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2654,24 +2671,19 @@ class SimpleQueuesRouter:
 
         queue_scenarios_query.id = queue_id
 
-        scenarios = await self.simple_queues_service.query_scenarios(
+        scenarios, windowing = await self.simple_queues_service.query_scenarios(
             project_id=UUID(request.state.project_id),
             #
             queue=queue_scenarios_query,
             #
-            windowing=queue_scenarios_query_request.windowing,
-        )
-        scenario_ids = [scenario.id for scenario in scenarios if scenario.id]
-
-        windowing = compute_next_windowing(
-            entities=scenarios,
-            attribute="id",
+            scenario=queue_scenarios_query_request.scenario,
+            #
             windowing=queue_scenarios_query_request.windowing,
         )
 
-        return SimpleQueueScenarioIdsResponse(
-            count=len(scenario_ids),
-            scenario_ids=scenario_ids,
+        return SimpleQueueScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
             windowing=windowing,
         )
 

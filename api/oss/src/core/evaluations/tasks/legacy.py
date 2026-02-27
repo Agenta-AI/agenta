@@ -1852,7 +1852,7 @@ async def _evaluate_batch_items(
         )
         if not run:
             raise ValueError(f"Evaluation run with id {run_id} not found!")
-        if not run.flags or not run.flags.is_adhoc:
+        if not run.flags or not run.flags.is_queue:
             raise ValueError(
                 f"Evaluation run with id {run_id} is not configured for ad-hoc batching!"
             )

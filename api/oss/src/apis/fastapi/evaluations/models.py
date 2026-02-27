@@ -33,6 +33,7 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueCreate,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    EvaluationQueueScenariosQuery,
     #
     SimpleEvaluation,
     SimpleEvaluationCreate,
@@ -183,6 +184,8 @@ class EvaluationScenarioResponse(BaseModel):
 class EvaluationScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
+    #
+    windowing: Optional[Windowing] = None
 
 
 class EvaluationScenarioIdResponse(BaseModel):
@@ -325,6 +328,14 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
     scenario_ids: List[List[UUID]] = []
 
 
+class EvaluationQueueScenariosQueryRequest(BaseModel):
+    queue: Optional[EvaluationQueueScenariosQuery] = None
+    #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
 # - SIMPLE EVALUATIONS ---------------------------------------------------------
 
 
@@ -382,6 +393,8 @@ class SimpleQueueQueryRequest(BaseModel):
 class SimpleQueueScenariosQueryRequest(BaseModel):
     queue: Optional[SimpleQueueScenariosQuery] = None
     #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
@@ -410,8 +423,8 @@ class SimpleQueueIdResponse(BaseModel):
     queue_id: Optional[UUID] = None
 
 
-class SimpleQueueScenarioIdsResponse(BaseModel):
+class SimpleQueueScenariosResponse(BaseModel):
     count: int = 0
-    scenario_ids: List[UUID] = []
+    scenarios: List[EvaluationScenario] = []
     #
     windowing: Optional[Windowing] = None

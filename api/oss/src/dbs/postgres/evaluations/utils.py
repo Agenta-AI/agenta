@@ -92,7 +92,7 @@ def _make_run_flags(
         if _step.type == "input":
             _references = _step.references or dict()
 
-            if flags.is_adhoc and not _references:
+            if flags.is_queue and not _references:
                 step_key = (_step.key or "").lower()
 
                 if "query" in step_key:

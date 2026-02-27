@@ -15,7 +15,7 @@ export type FlagKey =
     | "is_live"
     | "is_active"
     | "is_closed"
-    | "is_adhoc"
+    | "is_queue"
     | "has_queries"
     | "has_testsets"
     | "has_evaluators"
@@ -27,7 +27,7 @@ export const FLAG_LABELS: Record<FlagKey, string> = {
     is_live: "Live",
     is_active: "Active",
     is_closed: "Closed",
-    is_adhoc: "Ad-hoc",
+    is_queue: "Queue",
     has_queries: "Has queries",
     has_testsets: "Has testsets",
     has_evaluators: "Has evaluators",

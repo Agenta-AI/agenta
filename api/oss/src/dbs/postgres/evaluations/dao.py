@@ -1186,6 +1186,51 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             return scenario_ids
 
     @suppress_exceptions(default=[])
+    async def query_scenario_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+    ) -> List[UUID]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationScenarioDBE.id).filter(
+                EvaluationScenarioDBE.project_id == project_id,
+            )
+
+            if scenario is not None:
+                if scenario.ids is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.id.in_(scenario.ids),
+                    )
+
+                if scenario.run_id is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.run_id == scenario.run_id,
+                    )
+
+                if scenario.run_ids is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.run_id.in_(scenario.run_ids),
+                    )
+
+                if scenario.status is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.status == scenario.status,
+                    )
+
+                if scenario.statuses is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.status.in_(scenario.statuses),
+                    )
+
+            stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
+
+            res = await session.execute(stmt)
+
+            return list(res.scalars().all())
+
+    @suppress_exceptions(default=[])
     async def query_scenarios(
         self,
         *,

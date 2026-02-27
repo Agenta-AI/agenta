@@ -69,6 +69,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueScenariosQuery,
     SimpleQueueData,
     SimpleQueueKind,
+    SimpleQueueSettings,
 )
 from oss.src.core.evaluations.types import CURRENT_VERSION
 from oss.src.core.tracing.dtos import (
@@ -91,7 +92,12 @@ from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.applications.services import ApplicationsService
 
-from oss.src.core.evaluations.utils import filter_scenario_ids
+from oss.src.core.evaluations.utils import (
+    filter_scenario_ids,
+    paginate_ids,
+    next_windowing_from_ids,
+    flatten_dedup_ids,
+)
 
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
@@ -556,6 +562,19 @@ class EvaluationsService:
         return await self.evaluations_dao.delete_scenarios(
             project_id=project_id,
             scenario_ids=scenario_ids,
+        )
+
+    async def query_scenario_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+    ) -> List[UUID]:
+        return await self.evaluations_dao.query_scenario_ids(
+            project_id=project_id,
+            #
+            scenario=scenario,
         )
 
     async def query_scenarios(
@@ -1474,16 +1493,13 @@ class EvaluationsService:
             queue.data.scenario_ids if queue.data and use_queue_scenario_ids else None
         )
 
-        scenarios = await self.query_scenarios(
+        run_scenario_ids = await self.query_scenario_ids(
             project_id=project_id,
             scenario=EvaluationScenarioQuery(
                 run_id=queue.run_id,
                 ids=queue_scenario_ids,
             ),
         )
-
-        run_scenario_ids = [scenario.id for scenario in scenarios]
-        run_scenario_ids = [id for id in run_scenario_ids if id is not None]
 
         queue_user_ids = queue.data.user_ids if queue.data else None
 
@@ -1504,6 +1520,57 @@ class EvaluationsService:
         )
 
         return user_scenario_ids
+
+    async def query_queue_scenarios(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID] = None,
+        #
+        queue_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[EvaluationScenario], Optional[Windowing]]:
+        assigned_by_repeat = await self.fetch_queue_scenarios(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            queue_id=queue_id,
+        )
+
+        all_ids = flatten_dedup_ids(assigned_by_repeat)
+
+        if scenario and (scenario.status or scenario.statuses):
+            # Filter IDs by status after resolving assignment — fetch IDs for status match
+            status_filtered_ids = await self.query_scenario_ids(
+                project_id=project_id,
+                scenario=EvaluationScenarioQuery(
+                    ids=all_ids,
+                    status=scenario.status,
+                    statuses=scenario.statuses,
+                ),
+            )
+            all_ids = [id_ for id_ in all_ids if id_ in set(status_filtered_ids)]
+
+        paged_ids, has_more = paginate_ids(ids=all_ids, windowing=windowing)
+
+        if not paged_ids:
+            return [], None
+
+        scenarios = await self.fetch_scenarios(
+            project_id=project_id,
+            scenario_ids=paged_ids,
+        )
+
+        next_windowing = next_windowing_from_ids(
+            paged_ids=paged_ids,
+            windowing=windowing,
+            has_more=has_more,
+        )
+
+        return scenarios, next_windowing
 
 
 class SimpleEvaluationsService:
@@ -3037,6 +3104,14 @@ class SimpleQueuesService:
         if not run or not run.id:
             return None
 
+        settings: Optional[SimpleQueueSettings] = (
+            queue.data.settings if queue.data else None
+        )
+        is_sequential = bool(
+            settings
+            and (settings.batch_size is not None or settings.batch_offset is not None)
+        )
+
         created_queue = await self.evaluations_service.create_queue(
             project_id=project_id,
             user_id=user_id,
@@ -3046,7 +3121,7 @@ class SimpleQueuesService:
                 description=queue.description,
                 #
                 flags=EvaluationQueueFlags(
-                    is_sequential=False,
+                    is_sequential=is_sequential,
                 ),
                 tags=queue.tags,
                 meta=queue.meta,
@@ -3056,6 +3131,8 @@ class SimpleQueuesService:
                 data=EvaluationQueueData(
                     user_ids=queue_user_ids,
                     step_keys=annotation_step_keys,
+                    batch_size=settings.batch_size if settings else None,
+                    batch_offset=settings.batch_offset if settings else None,
                 ),
                 #
                 run_id=run.id,
@@ -3271,17 +3348,19 @@ class SimpleQueuesService:
         #
         queue: Optional[SimpleQueueScenariosQuery] = None,
         #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationScenario]:
+    ) -> Tuple[List[EvaluationScenario], Optional[Windowing]]:
         if not queue or not queue.id:
-            return []
+            return [], None
 
         evaluation_queue = await self.evaluations_service.fetch_queue(
             project_id=project_id,
             queue_id=queue.id,
         )
         if not evaluation_queue:
-            return []
+            return [], None
 
         query_user_ids: List[UUID] = []
         if queue and queue.user_id:
@@ -3328,32 +3407,43 @@ class SimpleQueuesService:
                 )
             )
 
-        assigned_scenario_ids: List[UUID] = []
-        seen_scenario_ids = set()
-        for repeat_ids in assigned_scenario_ids_by_repeat:
-            for scenario_id in repeat_ids:
-                if scenario_id in seen_scenario_ids:
-                    continue
-                seen_scenario_ids.add(scenario_id)
-                assigned_scenario_ids.append(scenario_id)
+        all_ids = flatten_dedup_ids(assigned_scenario_ids_by_repeat)
 
-        if not assigned_scenario_ids:
-            return []
+        if not all_ids:
+            return [], None
 
-        scenario_query = EvaluationScenarioQuery(
-            run_id=evaluation_queue.run_id,
-            ids=assigned_scenario_ids,
-        )
+        # Apply status filtering after assignment (preserves assignment order)
+        if scenario and (scenario.status or scenario.statuses):
+            status_filtered_ids = await self.evaluations_service.query_scenario_ids(
+                project_id=project_id,
+                scenario=EvaluationScenarioQuery(
+                    ids=all_ids,
+                    status=scenario.status,
+                    statuses=scenario.statuses,
+                ),
+            )
+            all_ids = [id_ for id_ in all_ids if id_ in set(status_filtered_ids)]
 
-        scenarios = await self.evaluations_service.query_scenarios(
+        if not all_ids:
+            return [], None
+
+        paged_ids, has_more = paginate_ids(ids=all_ids, windowing=windowing)
+
+        if not paged_ids:
+            return [], None
+
+        scenarios = await self.evaluations_service.fetch_scenarios(
             project_id=project_id,
-            #
-            scenario=scenario_query,
-            #
-            windowing=windowing,
+            scenario_ids=paged_ids,
         )
 
-        return scenarios
+        next_windowing = next_windowing_from_ids(
+            paged_ids=paged_ids,
+            windowing=windowing,
+            has_more=has_more,
+        )
+
+        return scenarios, next_windowing
 
     async def _make_run_data(
         self,
@@ -3561,6 +3651,16 @@ class SimpleQueuesService:
                 kind=kind,
                 assignments=assignments,
                 repeats=repeats,
+                settings=SimpleQueueSettings(
+                    batch_size=queue.data.batch_size if queue.data else None,
+                    batch_offset=queue.data.batch_offset if queue.data else None,
+                )
+                if queue.data
+                and (
+                    queue.data.batch_size is not None
+                    or queue.data.batch_offset is not None
+                )
+                else None,
             ),
             #
             run_id=queue.run_id,

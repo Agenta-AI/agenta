@@ -1,4 +1,4 @@
-"""Add is_adhoc to evaluation run flags
+"""Add is_queue to evaluation run flags
 
 Revision ID: d7e8f9a0b1c2
 Revises: e5f6a1b2c3d4
@@ -25,8 +25,8 @@ def upgrade() -> None:
             """
             UPDATE evaluation_runs
             SET flags = CASE
-                WHEN flags IS NULL THEN '{"is_adhoc": false}'::jsonb
-                WHEN NOT (flags ? 'is_adhoc') THEN flags || '{"is_adhoc": false}'::jsonb
+                WHEN flags IS NULL THEN '{"is_queue": false}'::jsonb
+                WHEN NOT (flags ? 'is_queue') THEN flags || '{"is_queue": false}'::jsonb
                 ELSE flags
             END
             """
@@ -41,8 +41,8 @@ def downgrade() -> None:
         sa.text(
             """
             UPDATE evaluation_runs
-            SET flags = flags - 'is_adhoc'
-            WHERE flags ? 'is_adhoc'
+            SET flags = flags - 'is_queue'
+            WHERE flags ? 'is_queue'
             """
         )
     )
