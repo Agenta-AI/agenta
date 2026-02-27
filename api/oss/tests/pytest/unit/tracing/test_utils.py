@@ -98,7 +98,7 @@ def test_initialize_ag_attributes_handles_non_dict_unsupported_payload():
 
     assert parsed["ag"]["data"]["inputs"] == {"prompt": "hello"}
     assert isinstance(parsed["ag"]["metrics"], dict)
-    assert parsed["ag"]["unsupported"]["_invalid_unsupported"] == "oops"
+    assert parsed["ag"]["unsupported"]["_unsupported"] == "oops"
 
 
 def test_initialize_ag_attributes_handles_non_dict_ag_payload():
@@ -107,7 +107,26 @@ def test_initialize_ag_attributes_handles_non_dict_ag_payload():
     assert isinstance(parsed["ag"]["type"], dict)
     assert isinstance(parsed["ag"]["data"], dict)
     assert isinstance(parsed["ag"]["metrics"], dict)
-    assert parsed["ag"]["unsupported"]["_invalid_ag"] == "bad-ag-payload"
+    assert parsed["ag"]["unsupported"]["_invalid"] == "bad-ag-payload"
+
+
+def test_initialize_ag_attributes_normalizes_legacy_invalid_keys():
+    attributes = {
+        "ag": {
+            "unsupported": {
+                "_invalid_ag": "legacy-bad-ag",
+                "_invalid_unsupported": "legacy-bad-unsupported",
+            }
+        }
+    }
+
+    parsed = initialize_ag_attributes(attributes)
+    unsupported = parsed["ag"]["unsupported"]
+
+    assert unsupported["_invalid"] == "legacy-bad-ag"
+    assert unsupported["_unsupported"] == "legacy-bad-unsupported"
+    assert "_invalid_ag" not in unsupported
+    assert "_invalid_unsupported" not in unsupported
 
 
 def test_parse_span_from_request_falls_back_for_invalid_trace_and_span_type_values():
