@@ -1,6 +1,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    Editor as EditorWrapper,
+    EditorProvider,
+    useLexicalComposerContext,
+    ON_CHANGE_LANGUAGE,
+    TOGGLE_MARKDOWN_VIEW,
+    SearchPlugin,
+} from "@agenta/ui"
+import {
     ArrowDownIcon,
     ArrowUpIcon,
     CopyIcon,
@@ -17,13 +25,6 @@ import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import EditorWrapper, {
-    EditorProvider,
-    useLexicalComposerContext,
-} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
