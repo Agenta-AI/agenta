@@ -343,7 +343,7 @@ export const TraceSpanDrillInView = memo(
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
         const spanEntityData = useAtomValue(traceSpan.selectors.data(spanId))
-        const spanData = spanDataOverride ?? spanEntityData
+        const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
         const textViewerId = useId().replace(/:/g, "")
 
         const {
