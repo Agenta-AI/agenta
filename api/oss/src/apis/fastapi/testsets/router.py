@@ -1364,6 +1364,10 @@ class TestsetsRouter:
             "windowing": _to_plain_dict(testset_revision_retrieve_request.windowing),
         }
 
+        # NOTE: Uses `is False` (not `is not True`) because testset defaults
+        # include data — only an explicit False means "no data requested",
+        # so it's safe to cache. This differs from queries which use `is not True`
+        # because query defaults exclude trace data.
         include_testcase_ids_off = (
             testset_revision_retrieve_request.include_testcase_ids is False
         )

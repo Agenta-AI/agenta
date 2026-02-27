@@ -15,8 +15,8 @@ from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     OTelLink,
     OTelLinks,
-    OTelTraceTree,
     SimpleTraceLinks,
+    Trace,
     TracingQuery,
 )
 
@@ -89,7 +89,7 @@ def first_link(links: Optional[OTelLinks]) -> Optional[Link]:
     return Link(trace_id=link.trace_id, span_id=link.span_id)
 
 
-def extract_root_span(trace: Optional[OTelTraceTree]) -> Optional[OTelFlatSpan]:
+def extract_root_span(trace: Optional[Trace]) -> Optional[OTelFlatSpan]:
     if not trace or not trace.spans:
         return None
 
@@ -127,7 +127,7 @@ def parse_named_links(links: Optional[OTelLinks]) -> Dict[str, Link]:
     }
 
 
-def parse_simple_trace(trace: Optional[OTelTraceTree]) -> Optional[ParsedSimpleTrace]:
+def parse_simple_trace(trace: Optional[Trace]) -> Optional[ParsedSimpleTrace]:
     root_span = extract_root_span(trace)
     if root_span is None:
         return None

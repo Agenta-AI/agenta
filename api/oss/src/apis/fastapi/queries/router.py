@@ -962,6 +962,10 @@ class QueriesRouter:
             "windowing": _to_plain_dict(query_revision_retrieve_request.windowing),
         }
 
+        # NOTE: Uses `is not True` (not `is False`) because query defaults
+        # exclude traces — both None and False mean "no trace data requested",
+        # so it's safe to cache. This differs from testsets which use `is False`
+        # because testset defaults include data.
         include_trace_ids_off = (
             query_revision_retrieve_request.include_trace_ids is not True
         )
