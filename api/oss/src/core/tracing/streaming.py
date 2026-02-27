@@ -61,7 +61,9 @@ def deserialize_span(
     project_id = UUID(hex=data["project_id"])
     user_id = UUID(hex=data["user_id"])
 
-    span_payload = data["span"]
+    span_payload = data.get("span") or data.get("span_dto")
+    if span_payload is None:
+        raise KeyError("Neither 'span' nor 'span_dto' found in serialized data")
     span_dto = OTelFlatSpan(**span_payload)
 
     return (organization_id, project_id, user_id, span_dto)
