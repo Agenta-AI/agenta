@@ -17,6 +17,7 @@ dependencies = [
     # Observability
     "agenta>=0.80.0",
     "openinference-instrumentation-litellm>=0.1.28",
+    "deepeval>=3.8.8",
 ]
 
 [build-system]
