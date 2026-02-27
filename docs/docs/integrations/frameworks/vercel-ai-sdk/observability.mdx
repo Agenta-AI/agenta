@@ -1,0 +1,251 @@
+---
+title: Tracing and Observability for Vercel AI SDK with Agenta
+sidebar_label: Vercel AI SDK Tracing
+description: Send traces from your Vercel AI SDK (TypeScript) applications to Agenta using built-in OpenTelemetry support. No additional instrumentation library needed.
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+Learn how to send traces from your [Vercel AI SDK](https://sdk.vercel.ai/) applications to **Agenta** for complete observability into model performance, token usage, and debugging.
+
+> **What is Agenta?** [Agenta](https://agenta.ai) is an open-source LLMOps platform for building reliable LLM applications. It offers observability, evaluation, and prompt management capabilities for AI applications.
+
+> **What is Vercel AI SDK?** The [Vercel AI SDK](https://sdk.vercel.ai/) is a TypeScript toolkit for building AI-powered applications. It provides a unified API for calling LLM providers (OpenAI, Anthropic, Google, etc.) with built-in streaming, tool calling, and structured outputs.
+
+## How it works
+
+The Vercel AI SDK has **built-in OpenTelemetry support**. When you pass `experimental_telemetry: { isEnabled: true }` to any generation call (`generateText`, `streamText`, etc.), the SDK automatically creates OTel spans with model info, prompts, responses, and token usage.
+
+You just need to configure a standard OpenTelemetry `NodeTracerProvider` with an OTLP exporter pointing at Agenta. No extra instrumentation library required.
+
+**Spans produced per `generateText` call:**
+- `ai.generateText` — outer span covering the full call (prompt, response, tokens)
+- `ai.generateText.doGenerate` — inner span for the individual provider request
+
+## Setup Guide
+
+### 1. Install dependencies
+
+```bash
+npm install ai @ai-sdk/openai @opentelemetry/sdk-trace-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/resources @opentelemetry/semantic-conventions dotenv
+```
+
+**Package overview:**
+- `ai` — The Vercel AI SDK
+- `@ai-sdk/openai` — OpenAI provider for the AI SDK (swap for `@ai-sdk/anthropic`, `@ai-sdk/google`, etc.)
+- `@opentelemetry/sdk-trace-node` — OTel tracing SDK for Node.js
+- `@opentelemetry/exporter-trace-otlp-proto` — OTLP exporter (protobuf format)
+- `@opentelemetry/resources` and `@opentelemetry/semantic-conventions` — Resource metadata
+
+### 2. Configure OpenTelemetry instrumentation
+
+Create a file called `instrumentation.js` (or `.ts`) that sets up the tracer provider:
+
+```javascript
+import "dotenv/config";
+
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
+import { Resource } from "@opentelemetry/resources";
+import { SimpleSpanProcessor } from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+
+const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai";
+const AGENTA_API_KEY = process.env.AGENTA_API_KEY;
+
+if (!AGENTA_API_KEY) {
+    console.error("AGENTA_API_KEY environment variable is required");
+    process.exit(1);
+}
+
+const exporter = new OTLPTraceExporter({
+    url: `${AGENTA_HOST}/api/otlp/v1/traces`,
+    headers: {
+        Authorization: `ApiKey ${AGENTA_API_KEY}`,
+    },
+});
+
+const provider = new NodeTracerProvider({
+    resource: new Resource({
+        [ATTR_SERVICE_NAME]: "my-ai-app",
+    }),
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+});
+
+provider.register();
+```
+
+:::info Exporter URL
+The OTLP endpoint for Agenta is `{AGENTA_HOST}/api/otlp/v1/traces`. For Agenta Cloud, use `https://cloud.agenta.ai/api/otlp/v1/traces`.
+:::
+
+### 3. Build your application
+
+Use `generateText` or `streamText` with `experimental_telemetry` enabled:
+
+```javascript
+import "dotenv/config";
+import "./instrumentation.js"; // Must be imported before ai SDK
+
+import { openai } from "@ai-sdk/openai";
+import { generateText } from "ai";
+import { trace } from "@opentelemetry/api";
+
+async function generateStory() {
+    const result = await generateText({
+        model: openai("gpt-4o-mini"),
+        messages: [
+            { role: "system", content: "You are a helpful assistant." },
+            {
+                role: "user",
+                content: "Write a two-sentence story about a robot learning to paint.",
+            },
+        ],
+        experimental_telemetry: {
+            isEnabled: true,
+            functionId: "generate-story", // becomes the trace name
+            metadata: {
+                userId: "user-123",
+                environment: "development",
+            },
+        },
+    });
+
+    return result.text;
+}
+
+async function main() {
+    const story = await generateStory();
+    console.log(story);
+
+    // Flush spans before exit
+    const tracerProvider = trace.getTracerProvider();
+    if (tracerProvider && typeof tracerProvider.forceFlush === "function") {
+        await tracerProvider.forceFlush();
+    }
+}
+
+main();
+```
+
+### 4. Configure environment
+
+Create a `.env` file:
+
+```
+AGENTA_HOST=https://cloud.agenta.ai
+AGENTA_API_KEY=your_agenta_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+### 5. Run
+
+```bash
+node --import ./instrumentation.js app.js
+```
+
+## What Agenta captures
+
+Agenta automatically extracts and displays the following from Vercel AI SDK traces:
+
+| Panel | Data shown |
+|-------|-----------|
+| **Inputs** | Prompt messages (system, user, assistant) |
+| **Outputs** | Generated text, tool call results |
+| **Model** | Model ID, provider, actual model used |
+| **Token Usage** | Prompt tokens, completion tokens, total |
+| **Settings** | Temperature, top_p, max_tokens, etc. |
+| **Latency** | Start/end timestamps per span |
+
+## Key concepts
+
+### `experimental_telemetry` options
+
+```javascript
+experimental_telemetry: {
+    isEnabled: true,           // Enable OTel span creation
+    functionId: "my-function", // Becomes the trace/span name in Agenta
+    metadata: {                // Attached as span attributes
+        userId: "user-123",   // Mapped to user ID in Agenta
+        sessionId: "sess-456", // Mapped to session ID in Agenta
+    },
+    recordInputs: true,        // Record prompt data (default: true)
+    recordOutputs: true,       // Record response data (default: true)
+}
+```
+
+### Streaming support
+
+`streamText` works the same way:
+
+```javascript
+import { streamText } from "ai";
+
+const result = streamText({
+    model: openai("gpt-4o-mini"),
+    messages: [{ role: "user", content: "Tell me a joke" }],
+    experimental_telemetry: { isEnabled: true },
+});
+
+for await (const chunk of result.textStream) {
+    process.stdout.write(chunk);
+}
+```
+
+### Tool calling
+
+Tool calls are automatically traced as child spans:
+
+```javascript
+import { generateText, tool } from "ai";
+import { z } from "zod";
+
+const result = await generateText({
+    model: openai("gpt-4o-mini"),
+    messages: [{ role: "user", content: "What's the weather in Berlin?" }],
+    tools: {
+        getWeather: tool({
+            description: "Get weather for a city",
+            parameters: z.object({ city: z.string() }),
+            execute: async ({ city }) => ({
+                temperature: 22,
+                condition: "sunny",
+            }),
+        }),
+    },
+    experimental_telemetry: { isEnabled: true },
+});
+```
+
+Each tool call appears as a separate `ai.toolCall` span with its inputs and outputs.
+
+### Multiple providers
+
+The AI SDK works with any provider. Just swap the model:
+
+```javascript
+import { anthropic } from "@ai-sdk/anthropic";
+import { google } from "@ai-sdk/google";
+
+// Anthropic
+await generateText({
+    model: anthropic("claude-3-5-sonnet-20241022"),
+    // ...
+});
+
+// Google
+await generateText({
+    model: google("gemini-2.0-flash"),
+    // ...
+});
+```
+
+All providers emit the same `ai.*` span attributes, so Agenta displays them identically.
+
+## Next Steps
+
+- Explore the full [Vercel AI SDK documentation](https://sdk.vercel.ai/docs)
+- Learn about [Agenta's observability features](/observability/overview)
+- Set up [evaluation](/evaluation/concepts) to test your AI application's quality
