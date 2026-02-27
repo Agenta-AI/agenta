@@ -2272,7 +2272,7 @@ class SimpleEvaluationsService:
                     return None
 
                 application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.slug),
+                    str(application_revision.name),
                     application_revision.id,
                 )
 
