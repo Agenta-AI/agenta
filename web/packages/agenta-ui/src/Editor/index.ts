@@ -54,7 +54,10 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
 } from "./plugins/code"
-export {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
+export {
+    $getEditorCodeAsString,
+    constructJsonFromSchema,
+} from "./plugins/code/plugins/RealTimeValidationPlugin"
 export {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 
