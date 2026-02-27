@@ -365,7 +365,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         value = data_dict.get(key, None)
         # OTel attributes are primitives, so JSON-encoded dicts/lists arrive as strings.
         # Parse them back for all fields EXCEPT outputs (which can legitimately be a plain string).
-        if key != "outputs" and isinstance(value, str):
+        if key not in ("inputs", "outputs") and isinstance(value, str):
             try:
                 parsed = loads(value)
                 if isinstance(parsed, (dict, list)):
