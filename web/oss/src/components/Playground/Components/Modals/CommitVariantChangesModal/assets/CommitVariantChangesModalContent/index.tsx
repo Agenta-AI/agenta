@@ -4,8 +4,8 @@ import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import DiffView from "@/oss/components/Editor/DiffView"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
@@ -21,6 +21,9 @@ import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntit
 
 import {CommitVariantChangesModalContentProps} from "../types"
 
+const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+    ssr: false,
+})
 const {Text} = Typography
 
 const CommitVariantChangesModalContent = ({
