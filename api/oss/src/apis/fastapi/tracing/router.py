@@ -7,8 +7,6 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
-from oss.src.core.tracing.dtos import ListOperator, ComparisonOperator, Condition
-
 from oss.src.apis.fastapi.tracing.utils import (
     parse_query_from_params_request,
     parse_query_from_body_request,
@@ -43,7 +41,6 @@ from oss.src.apis.fastapi.tracing.models import (
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils.trees import (
     traces_to_trace_map,
-    get_span_from_trace,
 )
 
 # TYPE_CHECKING to avoid circular import at runtime
@@ -57,10 +54,7 @@ from oss.src.core.tracing.dtos import (
     Span,
     OTelTraceTree,
     TracingQuery,
-    Filtering,
     Focus,
-    Format,
-    LogicalOperator,
     MetricSpec,
     QueryFocusConflictError,
     FilteringException,
@@ -880,66 +874,18 @@ class SpansRouter:
                 ),
             )
 
-        if trace_id_values:
-            query = TracingQuery(
-                formatting={"focus": Focus.SPAN, "format": Format.AGENTA},
-                filtering=Filtering(
-                    operator=LogicalOperator.AND,
-                    conditions=[
-                        Condition(
-                            field="trace_id",
-                            value=(
-                                trace_id_values[0]
-                                if len(trace_id_values) == 1
-                                else trace_id_values
-                            ),
-                            operator=(
-                                ComparisonOperator.IS
-                                if len(trace_id_values) == 1
-                                else ListOperator.IN
-                            ),
-                        )
-                    ],
-                ),
-            )
-        else:
-            filtering = Filtering(
-                operator=LogicalOperator.AND,
-                conditions=[
-                    Condition(
-                        field="span_id",
-                        value=(
-                            span_id_values[0]
-                            if len(span_id_values) == 1
-                            else span_id_values
-                        ),
-                        operator=(
-                            ComparisonOperator.IS
-                            if len(span_id_values) == 1
-                            else ListOperator.IN
-                        ),
-                    )
-                ],
-            )
-
-            query = TracingQuery(
-                formatting={"focus": Focus.SPAN, "format": Format.AGENTA},
-                filtering=filtering,
-            )
-
         try:
-            spans = await self.service.query_spans(
+            spans = await self.service.fetch_spans(
                 project_id=UUID(request.state.project_id),
-                query=query,
+                trace_ids=trace_id_values,
+                span_ids=span_id_values,
             )
         except FilteringException as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-        filtered_spans = self._spans_from_list(spans, span_id_values)
-
         return SpansResponse(
-            count=len(filtered_spans),
-            spans=filtered_spans,
+            count=len(spans),
+            spans=spans,
         )
 
     @intercept_exceptions()
@@ -960,13 +906,13 @@ class SpansRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
-            trace = await self.service.fetch_trace(
+            span = await self.service.fetch_span(
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
+                span_id=span_id,
             )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
-        span = get_span_from_trace(trace, span_id=span_id)
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         return SpanResponse(
             count=1 if span else 0,

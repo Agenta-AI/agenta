@@ -7,6 +7,7 @@ from oss.src.utils.common import is_ee
 
 from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.utils.parsing import (
+    parse_span_id_to_uuid,
     parse_span_id_from_uuid,
     parse_spans_from_request,
     parse_spans_into_response,
@@ -32,6 +33,7 @@ from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     OTelSpan,
     OTelTraceTree,
+    Span,
     Spans,
     TracingQuery,
     Bucket,
@@ -40,6 +42,7 @@ from oss.src.core.tracing.dtos import (
     MetricSpec,
     MetricsBucket,
     QueryFocusConflictError,
+    FilteringException,
     #
     Trace,
     Traces,
@@ -585,6 +588,59 @@ class TracingService:
             return spans_or_traces
         return []
 
+    async def fetch_spans(
+        self,
+        *,
+        project_id: UUID,
+        trace_ids: Optional[List[str]] = None,
+        span_ids: Optional[List[str]] = None,
+    ) -> Spans:
+        if not trace_ids and not span_ids:
+            return []
+
+        try:
+            normalized_trace_ids = (
+                [UUID(parse_trace_id_to_uuid(trace_id)) for trace_id in trace_ids]
+                if trace_ids
+                else None
+            )
+            normalized_span_ids = (
+                [UUID(parse_span_id_to_uuid(span_id)) for span_id in span_ids]
+                if span_ids
+                else None
+            )
+        except (TypeError, ValueError) as e:
+            raise FilteringException(str(e)) from e
+
+        spans = await self.fetch(
+            project_id=project_id,
+            trace_ids=normalized_trace_ids,
+            span_ids=normalized_span_ids,
+        )
+
+        spans_or_traces = parse_spans_into_response(
+            spans,
+            focus=Focus.SPAN,
+            format=Format.AGENTA,
+        )
+        if isinstance(spans_or_traces, list):
+            return spans_or_traces
+        return []
+
+    async def fetch_span(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: str,
+        span_id: str,
+    ) -> Optional[Span]:
+        spans = await self.fetch_spans(
+            project_id=project_id,
+            trace_ids=[trace_id],
+            span_ids=[span_id],
+        )
+        return spans[0] if spans else None
+
     async def query_traces(
         self,
         *,
@@ -643,13 +699,15 @@ class TracingService:
         *,
         project_id: UUID,
         #
-        trace_ids: List[UUID],
+        trace_ids: Optional[List[UUID]] = None,
+        span_ids: Optional[List[UUID]] = None,
     ) -> List[OTelFlatSpan]:
-        """Fetch all spans for the given trace IDs."""
+        """Fetch spans by trace IDs and/or span IDs."""
         return await self.tracing_dao.fetch(
             project_id=project_id,
             #
             trace_ids=trace_ids,
+            span_ids=span_ids,
         )
 
     async def fetch_traces(

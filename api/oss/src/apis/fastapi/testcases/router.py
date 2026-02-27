@@ -170,10 +170,11 @@ class TestcasesRouter:
 
         testset_id = testcases_query_request.testset_id
         testcase_ids = testcases_query_request.testcase_ids
+        testset_revision_ref = testcases_query_request.testset_revision_ref
 
         # If any ref is provided, resolve the revision to get its testcase_ids
         if (
-            testcases_query_request.testset_revision_ref
+            testset_revision_ref
             or testcases_query_request.testset_variant_ref
             or testcases_query_request.testset_ref
         ):
@@ -182,7 +183,7 @@ class TestcasesRouter:
                 #
                 testset_ref=testcases_query_request.testset_ref,
                 testset_variant_ref=testcases_query_request.testset_variant_ref,
-                testset_revision_ref=testcases_query_request.testset_revision_ref,
+                testset_revision_ref=testset_revision_ref,
                 #
                 include_testcase_ids=True,
                 include_testcases=False,
@@ -196,6 +197,15 @@ class TestcasesRouter:
                 testcase_ids = testset_revision.data.testcase_ids
             else:
                 return TestcasesResponse()
+
+        if not testcase_ids and not testset_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "At least one filter is required: testcase_ids, testset_id, "
+                    "testset_ref/testset_variant_ref/testset_revision_ref."
+                ),
+            )
 
         testcases = await self.testcases_service.query_testcases(
             project_id=UUID(request.state.project_id),

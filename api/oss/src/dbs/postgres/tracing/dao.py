@@ -740,17 +740,21 @@ class TracingDAO(TracingDAOInterface):
         *,
         project_id: UUID,
         #
-        trace_ids: List[UUID],
+        trace_ids: Optional[List[UUID]] = None,
+        span_ids: Optional[List[UUID]] = None,
     ) -> List[OTelFlatSpan]:
-        """Fetch all spans for the given trace IDs."""
-        if not trace_ids:
+        """Fetch spans by trace IDs and/or span IDs."""
+        if not trace_ids and not span_ids:
             return []
 
         async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.trace_id.in_(trace_ids),
-            )
+            stmt = select(SpanDBE).filter(SpanDBE.project_id == project_id)
+
+            if trace_ids:
+                stmt = stmt.filter(SpanDBE.trace_id.in_(trace_ids))
+
+            if span_ids:
+                stmt = stmt.filter(SpanDBE.span_id.in_(span_ids))
 
             stmt = stmt.order_by(SpanDBE.start_time.asc())
 

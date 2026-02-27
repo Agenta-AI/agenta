@@ -14,8 +14,8 @@ Status values:
 | ID | Finding | Categories | Severity | Action | Status |
 | --- | --- | --- | --- | --- | --- |
 | F-001 | `transfer` removed from API/service while migrations still call it | compatibility, functionality, api, migrations, testsets | P0 | Added migration-local `_transfer_deprecated_testset(...)` in OSS/EE migration files and replaced removed service call | DONE |
-| F-002 | `/preview/testcases/query` dropped legacy `testset_revision_id` | compatibility, correctness, api, testcases | P1 | TBD (awaiting your instruction) | TODO |
-| F-003 | `/preview/spans/{trace_id}/{span_id}` does not return nested child spans | correctness, tracing, spans, api | P1 | TBD (awaiting your instruction) | TODO |
+| F-002 | `/preview/testcases/query` dropped legacy `testset_revision_id` | compatibility, correctness, api, testcases | P1 | Migrated web callers to `testset_revision_ref.id`, removed legacy API shim, and added defensive 400 when no effective filters are provided | DONE |
+| F-003 | `/preview/spans/{trace_id}/{span_id}` does not return nested child spans | correctness, tracing, spans, api | P1 | Added core `fetch_spans` + `fetch_span` service methods and rewired endpoints to DAO-backed fetch path (`trace_id`/`span_id`), no tree traversal | DONE |
 | F-004 | `edit_trace()` ignores `trace_id` parameter | contract, correctness, tracing, service | P2 | TBD (awaiting your instruction) | TODO |
 | F-005 | `merge_specs()` returns empty list when both params and body provide specs | correctness, contract, tracing, analytics | P2 | TBD (awaiting your instruction) | TODO |
 | F-006 | B.2 testcase pagination semantics diverge from A.2/design | consistency, correctness, pagination, loadables, testsets | P2 | TBD (awaiting your instruction) | TODO |
