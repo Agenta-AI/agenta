@@ -1,0 +1,71 @@
+---
+id: delete-queue-evaluations-queues-queue-id-delete
+title: "Delete Queue"
+description: "Delete Queue"
+sidebar_label: "Delete Queue"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVU1v2zAM/SsBTxsgxFmxk08L2gAN2mFdm+0SBIFqM7E62VL1UTQz9N8Hyp9p0h52im0+UuR7T0wNju8tpGtYvHDpuROqsrBhoDSa+LbMIYUcJTrcPnv0uMUB2Xyx2zYi8u22gQIDzQ0v0aGh8jVUvERIoQMCA1FBCpq7AhgYfPbCYA6pMx4Z2KzAkkNagztoyrPOiGoPDHbKlNxBCt7HKk44SYCfVHiyzCGEDdWzWlUWLZW4mM3oJ0ebGaGpcUjhwWcZWrvzcnLfgoFBpiqHlSM411qKLM6ZPFnKqUdtaUMMOdGckCnfJLXdisrhHs2ovcuIYJDjjnvpIJ0FNpBBx1WHH7vI1McTB9YjKi8l0LRnOGAdSD0+YeZGnQxCR/gy78cPgfK+XlycsvWbS5HHpMnCGGX+n6ocHReSnoTD0p4CpMqOou8RMyKioztshrm5MfwwGvtWNQ1CYFDa/TlrddDvaC3fI/TF3odGMiYrigZytPaNDdrwMn4IDDL3Oipzosklcfnqzuo2XI115KZpv8WNxB8kahR6n4qrRoKPTHK9Wt2dFGz8cWyMq3jdJ9FK1Bq6Qg0bI64BV0AKyWhrJM3WSOrO/wEYWDQv3a7wRkIKhXPapkmSSeXzKd9j5fiUi4RrEV1vMfNGuENMmd8tb/BwjTxHA+l6MwY8kBUbcx3DekG4FjdIFLVbau5doYz42zimXVVFkxWi0Ds11nkem5vM75bAgMZoyJlNv0xn8JayIzDdIp5F03RnxzCwNyz08wMDLOMVAoe8/DYEqDOtrCt5Nar3RqGjXnoCyH2JllzE+xFPrlvp1jCSDtqlRQ9pv742DAplHWHr+pFb/GVkCPT52aMhgTYMXrgR/JHoWteQC0vPOaQ7Li2etNUvF/h03/r/8wTY+XY7EStSkHqlN2DwBw/jf5y4HYrOIXUbnmcZajdKPFlmZKXe11eL28VqASH8Aw0Pd6I=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Queue"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/evaluations/queues/{queue_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Queue
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"queue_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Queue Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"queue_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Queue Id"}},"type":"object","title":"EvaluationQueueIdResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

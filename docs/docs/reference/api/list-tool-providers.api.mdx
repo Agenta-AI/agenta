@@ -1,0 +1,71 @@
+---
+id: list-tool-providers
+title: "List Providers"
+description: "List Providers"
+sidebar_label: "List Providers"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV01v4zYQ/SvGnInIDfakU43sthskbY3G24sRGAw1lrilRC1Juesa/O/FkJJM2Wu3my7QS09xpPnie48zowM4XlrI17DSWll4ZqBbNNxJ3dwXkIOS1m2c1mrTGr2TBRoLDFpueI2O/snXB2h4jZDDtlNqU6DjUpGRbCCHTx2aPTAw+KmTBgvIt1xZZGBFhTWH/ABu35L3i9YKeQMMCtzyTrnR1EmnyOKHTqnZ2z6+988U1ba6sWgpzu18Tn8KtMLIlk4AOTx1QqC1207Nfu2NgYHQjcPGkTlvWyVFOHD20ZLPIamtNQSHkzGD0F106kuWjcMSDRxLvAsWyRHmnsERufwA0mEdfvBm/8s2wDdN8jvukxTWGdmUwACbriaehK5bbaUGBrzExnHibEhPJC77bA+yKcCznpzzgIPPz/TesyluaXlTR8/GJ02nFPgk/dskhGcRnqgluxmxOws8oHgt8n0SahZB9p4N5vrlIwo3Udk64Nif/gShO+640uUAVEj8Pwev4mCaYBp6VPo/wnbI8oD7/xYxwR2W2vTVjoc4jTc84MbwfdoBju5JG1g/ewZKl/q1RT6Sr2fQGfXaEB+MoghcfAsxLMSJDnjnqk1onHhJB5eukyZfukut3JA6Ti7TonPVUwh8BvvVCjtXzZ76gv51s0jE/1VVpJfm27WscQg+XxbiMpnXqQ6/UMOVTHacmt6T65vb2/Mh+xtXsghnnL0zRpvXT9i4PUwu3tRAaXFhil68CKOcr4D1qMXIbW3La53nJ7SWl4kWL5sGMGYrehs6ZdvF7WHUBj2gluM+J2HOaLkjLD///cQjbGL5vV0ioiNFkaHLUERtfTHZYPJ+tVqeBYz6mArjUVo3S4VYo6s07ZUlurBHugpyyFqDO4l/ZLRo2kxECWbj3pQBA4tmN+yboQlC5Vxr8ywTSnfFTRzEN1xmvJXhCloUnZFuH1wWy/sH3L9HTgOfrkFi8HTsWlOzkRLeyofj3Yy9RRv5Z9RMv+pW0csHqrc6ZXoRipstlvfAgI4R4ZnffHczh1PQJsZ0j7gIshlyx42DnaAwnp8aax0uETjk9ffHF1RZq62reZPEO+PoZKT2EJACs1Zx2SRjKPK3hp4/kkj4jAhTlDiEdPtlQIqstKVGBIfDC7f4wSjv6XH8UCCqCmn5i0o+FcLGcPp1seOqo7oC1TtuJPn0g7YaaO63DVgIga1LvM56EkUZxfnjuxV4/xcsLHy7
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Providers"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/tools/catalog/providers/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List Providers
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"full_details","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Full Details"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"providers":{"items":{"anyOf":[{"properties":{"key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"integrations_count":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Integrations Count"}},"type":"object","required":["key","name"],"title":"ToolCatalogProvider"},{"properties":{"key":{"type":"string","enum":["composio","agenta"],"title":"ToolProviderKind"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"integrations_count":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Integrations Count"},"integrations":{"anyOf":[{"items":{"properties":{"key":{"type":"string","title":"Key"},"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"categories":{"items":{"type":"string"},"type":"array","title":"Categories","default":[]},"logo":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Logo"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"actions_count":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Actions Count"},"auth_schemes":{"anyOf":[{"items":{"type":"string","enum":["oauth","api_key"],"title":"ToolAuthScheme"},"type":"array"},{"type":"null"}],"title":"Auth Schemes"}},"type":"object","required":["key","name"],"title":"ToolCatalogIntegration"},"type":"array"},{"type":"null"}],"title":"Integrations"}},"type":"object","required":["key","name"],"title":"ToolCatalogProviderDetails"}]},"type":"array","title":"Providers","default":[]}},"type":"object","title":"ToolCatalogProvidersResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
