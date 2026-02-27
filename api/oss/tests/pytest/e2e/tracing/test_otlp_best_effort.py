@@ -113,7 +113,7 @@ class TestOTLPBestEffortE2E:
         assert response.status_code == 200
         assert response.json().get("count") == 1
 
-    def test_json_strings_are_parsed_except_outputs(self):
+    def test_json_strings_are_parsed_for_dict_fields_only(self):
         base_url, api_key = _read_e2e_env()
 
         trace_id = uuid4().hex
@@ -152,7 +152,7 @@ class TestOTLPBestEffortE2E:
         span = next(iter(tree["spans"].values()))
         ag_data = span["attributes"]["ag"]["data"]
 
-        assert isinstance(ag_data["inputs"], dict)
+        assert isinstance(ag_data["inputs"], str)
         assert isinstance(ag_data["parameters"], dict)
         assert isinstance(ag_data["internals"], dict)
         assert isinstance(ag_data["outputs"], str)

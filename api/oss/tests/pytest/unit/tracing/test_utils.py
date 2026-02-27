@@ -5,7 +5,7 @@ from oss.src.apis.fastapi.tracing.utils import (
 from oss.src.core.tracing.dtos import OTelSpan, TraceType, SpanType
 
 
-def test_initialize_ag_attributes_parses_json_strings_for_ag_data_fields_except_outputs():
+def test_initialize_ag_attributes_parses_json_strings_for_dict_typed_ag_data_fields():
     attributes = {
         "ag": {
             "data": {
@@ -20,7 +20,7 @@ def test_initialize_ag_attributes_parses_json_strings_for_ag_data_fields_except_
     parsed = initialize_ag_attributes(attributes)
     ag_data = parsed["ag"]["data"]
 
-    assert ag_data["inputs"] == {"prompt": "hello"}
+    assert ag_data["inputs"] == '{"prompt": "hello"}'
     assert ag_data["parameters"] == {"temperature": 0.2}
     assert ag_data["internals"] == {"debug": True}
     assert ag_data["outputs"] == '{"answer": "raw-string"}'
@@ -38,6 +38,20 @@ def test_initialize_ag_attributes_keeps_ag_data_outputs_as_string():
     parsed = initialize_ag_attributes(attributes)
 
     assert parsed["ag"]["data"]["outputs"] == '{"answer": "do-not-parse"}'
+
+
+def test_initialize_ag_attributes_keeps_ag_data_inputs_as_string():
+    attributes = {
+        "ag": {
+            "data": {
+                "inputs": '{"prompt": "do-not-parse"}',
+            }
+        }
+    }
+
+    parsed = initialize_ag_attributes(attributes)
+
+    assert parsed["ag"]["data"]["inputs"] == '{"prompt": "do-not-parse"}'
 
 
 def test_initialize_ag_attributes_keeps_json_primitives_as_strings_for_non_outputs():
@@ -96,7 +110,7 @@ def test_initialize_ag_attributes_handles_non_dict_unsupported_payload():
 
     parsed = initialize_ag_attributes(attributes)
 
-    assert parsed["ag"]["data"]["inputs"] == {"prompt": "hello"}
+    assert parsed["ag"]["data"]["inputs"] == '{"prompt": "hello"}'
     assert isinstance(parsed["ag"]["metrics"], dict)
     assert parsed["ag"]["unsupported"]["_unsupported"] == "oops"
 

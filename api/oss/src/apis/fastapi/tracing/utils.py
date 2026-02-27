@@ -414,12 +414,12 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     cleaned_data = {}
     for key in AgDataAttributes.model_fields:
         value = data_dict.get(key, None)
-        # OTel attributes are primitives, so JSON-encoded dicts/lists arrive as strings.
-        # Parse them back for all fields EXCEPT outputs (which can legitimately be a plain string).
-        if key not in ("inputs", "outputs") and isinstance(value, str):
+        # OTel attributes are primitives, so JSON-encoded dicts arrive as strings.
+        # Parse only dict-typed fields; keep Any-typed fields (inputs/outputs) as-is.
+        if key in {"parameters", "internals"} and isinstance(value, str):
             try:
                 parsed = loads(value)
-                if isinstance(parsed, (dict, list)):
+                if isinstance(parsed, dict):
                     value = parsed
             except (ValueError, TypeError):
                 pass
