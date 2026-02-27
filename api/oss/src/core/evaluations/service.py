@@ -3050,7 +3050,7 @@ class SimpleQueuesService:
         if not queue.data:
             return None
 
-        if not queue.data.evaluator_steps:
+        if not queue.data.evaluators:
             return None
 
         kind = queue.data.kind
@@ -3069,7 +3069,7 @@ class SimpleQueuesService:
             #
             kind=kind,
             #
-            evaluator_steps=queue.data.evaluator_steps,
+            evaluator_steps=queue.data.evaluators,
             repeats=repeats,
         )
 
