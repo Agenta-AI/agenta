@@ -1,4 +1,4 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING, Any, Dict
 from uuid import UUID, uuid4
 from collections import defaultdict
 
@@ -46,6 +46,7 @@ from oss.src.core.queries.dtos import (
     QueryVariantQuery,
     #
     QueryRevision,
+    QueryRevisionData,
     QueryRevisionCreate,
     QueryRevisionEdit,
     QueryRevisionQuery,
@@ -72,6 +73,53 @@ class QueriesService:
         self.queries_dao = queries_dao
         self.tracing_service = tracing_service
 
+    @staticmethod
+    def _sanitize_persisted_query_revision_data(
+        data: Optional[Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Persist only canonical query revision fields."""
+        if data is None:
+            return None
+
+        try:
+            parsed = QueryRevisionData.model_validate(data)
+        except Exception:
+            return None
+
+        persisted_data: Dict[str, Any] = {}
+        if parsed.formatting is not None:
+            persisted_data["formatting"] = parsed.formatting
+        if parsed.filtering is not None:
+            persisted_data["filtering"] = parsed.filtering
+        if parsed.windowing is not None:
+            persisted_data["windowing"] = parsed.windowing
+
+        if not persisted_data:
+            return None
+
+        return QueryRevisionData(**persisted_data).model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+
+    @classmethod
+    def _sanitize_query_revision_payload(
+        cls,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if "data" not in payload:
+            return payload
+
+        sanitized_data = cls._sanitize_persisted_query_revision_data(
+            payload.get("data")
+        )
+        if sanitized_data is None:
+            payload.pop("data", None)
+        else:
+            payload["data"] = sanitized_data
+
+        return payload
+
     async def _populate_traces(
         self,
         project_id: UUID,
@@ -96,6 +144,8 @@ class QueriesService:
         if not query_revision.data or not self.tracing_service:
             return
 
+        # Opt-in semantics (asymmetric with testsets): both flags default False
+        # because executing a live trace filter is expensive and should be explicit.
         _include_ids = include_trace_ids is True
         _include_items = include_traces is True
 
@@ -548,9 +598,13 @@ class QueriesService:
         #
         query_revision_create: QueryRevisionCreate,
     ) -> Optional[QueryRevision]:
-        _revision_create = RevisionCreate(
-            **query_revision_create.model_dump(mode="json"),
+        revision_create_payload = self._sanitize_query_revision_payload(
+            query_revision_create.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _revision_create = RevisionCreate(**revision_create_payload)
 
         revision = await self.queries_dao.create_revision(
             project_id=project_id,
@@ -649,9 +703,13 @@ class QueriesService:
         #
         query_revision_edit: QueryRevisionEdit,
     ) -> Optional[QueryRevision]:
-        _query_revision_edit = RevisionEdit(
-            **query_revision_edit.model_dump(mode="json"),
+        revision_edit_payload = self._sanitize_query_revision_payload(
+            query_revision_edit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _query_revision_edit = RevisionEdit(**revision_edit_payload)
 
         revision = await self.queries_dao.edit_revision(
             project_id=project_id,
@@ -773,9 +831,13 @@ class QueriesService:
         #
         query_revision_commit: QueryRevisionCommit,
     ) -> Optional[QueryRevision]:
-        _revision_commit = RevisionCommit(
-            **query_revision_commit.model_dump(mode="json"),
+        revision_commit_payload = self._sanitize_query_revision_payload(
+            query_revision_commit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        _revision_commit = RevisionCommit(**revision_commit_payload)
 
         if not _revision_commit.artifact_id:
             if not _revision_commit.variant_id:

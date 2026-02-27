@@ -290,8 +290,7 @@ def merge_specs(
         return specs_body or []
     if not specs_body:
         return specs_params or []
-
-    return []
+    return specs_body or specs_params or []
 
 
 def parse_analytics_from_params_request(

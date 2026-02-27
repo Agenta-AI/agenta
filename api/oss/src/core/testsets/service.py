@@ -59,6 +59,41 @@ class TestsetsService:
         self.testsets_dao = testsets_dao
         self.testcases_service = testcases_service
 
+    @staticmethod
+    def _sanitize_persisted_testset_revision_data(
+        data: Optional[Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Persist only canonical testset revision fields (testcase_ids)."""
+        if data is None:
+            return None
+
+        try:
+            parsed = TestsetRevisionData.model_validate(data)
+        except Exception:
+            return None
+        if parsed.testcase_ids is None:
+            return None
+
+        return {"testcase_ids": parsed.testcase_ids}
+
+    @classmethod
+    def _sanitize_testset_revision_payload(
+        cls,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if "data" not in payload:
+            return payload
+
+        sanitized_data = cls._sanitize_persisted_testset_revision_data(
+            payload.get("data")
+        )
+        if sanitized_data is None:
+            payload.pop("data", None)
+        else:
+            payload["data"] = sanitized_data
+
+        return payload
+
     async def _populate_testcases(
         self,
         project_id: UUID,
@@ -86,7 +121,8 @@ class TestsetsService:
         if not testset_revision.data:
             return
 
-        # Resolve defaults: both are True unless explicitly set to False
+        # Opt-out semantics (asymmetric with queries): both flags default True
+        # to preserve legacy behaviour where retrieve always returned full content.
         _include_ids = include_testcase_ids is not False
         _include_items = include_testcases is not False
 
@@ -550,11 +586,13 @@ class TestsetsService:
         #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
-        revision_create = RevisionCreate(
-            **testset_revision_create.model_dump(
+        revision_create_payload = self._sanitize_testset_revision_payload(
+            testset_revision_create.model_dump(
                 mode="json",
-            ),
+                exclude_none=True,
+            )
         )
+        revision_create = RevisionCreate(**revision_create_payload)
 
         revision = await self.testsets_dao.create_revision(
             project_id=project_id,
@@ -665,11 +703,13 @@ class TestsetsService:
         #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
-        revision_edit = TestsetRevisionEdit(
-            **testset_revision_edit.model_dump(
+        revision_edit_payload = self._sanitize_testset_revision_payload(
+            testset_revision_edit.model_dump(
                 mode="json",
-            ),
+                exclude_none=True,
+            )
         )
+        revision_edit = TestsetRevisionEdit(**revision_edit_payload)
 
         revision = await self.testsets_dao.edit_revision(
             project_id=project_id,
@@ -847,9 +887,13 @@ class TestsetsService:
 
             testset_revision_commit.data.testcases = None
 
-        revision_commit = RevisionCommit(
-            **testset_revision_commit.model_dump(mode="json", exclude_none=True),
+        revision_commit_payload = self._sanitize_testset_revision_payload(
+            testset_revision_commit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        revision_commit = RevisionCommit(**revision_commit_payload)
 
         revision = await self.testsets_dao.commit_revision(
             project_id=project_id,

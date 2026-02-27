@@ -39,6 +39,7 @@ from oss.src.apis.fastapi.tracing.models import (
     UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.tracing.utils.parsing import parse_trace_id_to_uuid
 from oss.src.core.tracing.utils.trees import (
     traces_to_trace_map,
 )
@@ -468,12 +469,43 @@ class TracingRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            extracted_spans = TracingService._extract_single_trace_spans(
+                spans=trace_request.spans,
+                traces=trace_request.traces,
+            )
+            payload_trace_ids = TracingService._extract_trace_ids_from_spans(
+                extracted_spans
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        if len(payload_trace_ids) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Trace payload must contain exactly one trace_id.",
+            )
+
+        try:
+            normalized_path_trace_id = parse_trace_id_to_uuid(trace_id)
+            normalized_payload_trace_id = parse_trace_id_to_uuid(payload_trace_ids[0])
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400, detail="Invalid trace_id in path or payload."
+            ) from e
+
+        if normalized_path_trace_id != normalized_payload_trace_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Path trace_id '{trace_id}' does not match payload trace_id '{payload_trace_ids[0]}'.",
+            )
+
         try:
             links = await self.service.edit_trace(
                 organization_id=UUID(request.state.organization_id),
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
-                trace_id=trace_id,
                 spans=trace_request.spans,
                 traces=trace_request.traces,
                 sync=sync,
@@ -1195,6 +1227,12 @@ class TracesRouter:
         *,
         trace_id: str,
     ) -> TraceResponse:
+        if trace_id.lower() in {"query", "ingest"}:
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail=f"GET /preview/traces/{trace_id} is not supported.",
+            )
+
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,

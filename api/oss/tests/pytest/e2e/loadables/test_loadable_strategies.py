@@ -96,18 +96,23 @@ def mock_data(authed_api):
     # -- Traces (OTel ingestion) --------------------------------------------
 
     trace_ids = []
-    spans = []
+    traces = []
     for i in range(3):
         trace_id = uuid4().hex.ljust(32, "0")[:32]
         span_id = uuid4().hex.ljust(16, "0")[:16]
         trace_ids.append(trace_id)
-        spans.append(
+        traces.append(
             {
                 "trace_id": trace_id,
-                "span_id": span_id,
-                "span_name": f"loadable-test-span-{i}",
-                "attributes": {
-                    tag_key: "loadable_test_marker",
+                "spans": {
+                    f"loadable-test-span-{i}": {
+                        "trace_id": trace_id,
+                        "span_id": span_id,
+                        "span_name": f"loadable-test-span-{i}",
+                        "attributes": {
+                            tag_key: "loadable_test_marker",
+                        },
+                    }
                 },
             }
         )
@@ -115,7 +120,7 @@ def mock_data(authed_api):
     response = authed_api(
         "POST",
         "/preview/traces/ingest",
-        json={"spans": spans},
+        json={"traces": traces},
     )
     # Ingestion is asynchronous; 202 Accepted
     assert response.status_code == 202, response.text
@@ -188,10 +193,7 @@ class TestLoadableStrategies:
         Requires explicitly opting out of both: include_testcase_ids=false,
         include_testcases=false (testset default for both is true).
 
-        Status: RED — include_testcase_ids flag does not exist yet; the
-        extra field is silently ignored, so include_testcases=false alone
-        returns testcase_ids (A.1 behaviour), not the empty A.0.
-        Fix: add include_testcase_ids to TestsetRevisionRetrieveRequest.
+        Status: GREEN
         """
 
         # ACT -----------------------------------------------------------------
@@ -257,10 +259,7 @@ class TestLoadableStrategies:
         testcases are absent.
         Explicit flags: include_testcase_ids=true, include_testcases=false.
 
-        Status: RED — include_testcase_ids flag does not exist yet (silently
-        ignored); windowing not supported. include_testcases=false does return
-        IDs today but without pagination.
-        Fix: add include_testcase_ids + windowing to request model and service.
+        Status: GREEN
         """
 
         # ACT -----------------------------------------------------------------
@@ -291,9 +290,7 @@ class TestLoadableStrategies:
         [A.1] Query — revision endpoint executes the stored filter and returns
         data.trace_ids (paginated); traces are absent.
 
-        Status: RED — include_trace_ids flag not yet in QueryRevisionRetrieveRequest.
-        Fix: add include_trace_ids + windowing to request model; add service
-        logic to execute the stored filter and return IDs.
+        Status: GREEN
         """
 
         # ACT -----------------------------------------------------------------
@@ -325,9 +322,7 @@ class TestLoadableStrategies:
         Default behaviour (no flags): both include_testcase_ids and
         include_testcases default to true for testsets.
 
-        Status: RED — _populate_testcases clears testcase_ids when returning
-        testcases; windowing not supported.
-        Fix: stop clearing testcase_ids; add windowing to request and service.
+        Status: GREEN
         """
 
         # ACT — use default (no include flags); both default to true ----------
@@ -357,9 +352,7 @@ class TestLoadableStrategies:
         [A.2] Query — revision endpoint proxies to trace store and returns
         both data.trace_ids and data.traces (paginated).
 
-        Status: RED — include_traces flag not yet in QueryRevisionRetrieveRequest.
-        Fix: add include_traces + windowing to request model; add service
-        logic to execute the stored filter and return IDs + traces.
+        Status: GREEN
         """
 
         # ACT -----------------------------------------------------------------
@@ -384,6 +377,11 @@ class TestLoadableStrategies:
         assert data.get("traces") is not None
         assert len(data["traces"]) == 3
         assert len(data["trace_ids"]) == len(data["traces"])
+        assert all(
+            isinstance(trace.get("trace_id"), str)
+            and isinstance(trace.get("spans"), dict)
+            for trace in data["traces"]
+        )
         # ---------------------------------------------------------------------
 
     # -----------------------------------------------------------------------
@@ -482,11 +480,7 @@ class TestLoadableStrategies:
         [B.2] Testset — revision ref passed to the testcases record endpoint;
         the endpoint resolves the revision internally and returns testcases.
 
-        Status: RED — TestcasesQueryRequest only accepts flat testset_revision_id
-        (UUID); full ref objects (testset_revision_ref, testset_variant_ref,
-        testset_ref) are not supported.
-        Fix: add ref fields to TestcasesQueryRequest; service logic to
-        dereference and fetch testcases.
+        Status: GREEN
         """
 
         # ACT -----------------------------------------------------------------
@@ -913,3 +907,42 @@ class TestLoadableStrategiesEdgeCases:
         known_ids = {str(i) for i in mock_data["testcase_ids"]}
         assert returned_ids == known_ids
         # ---------------------------------------------------------------------
+
+    def test_edge_b2_testset_revision_ref_windowing_follows_revision_ids(
+        self, authed_api, mock_data
+    ):
+        """
+        [B.2] Testset — windowing on /preview/testcases/query with revision refs
+        follows revision testcase_ids order (A.2-equivalent), not created_at order.
+        """
+
+        page_1 = authed_api(
+            "POST",
+            "/preview/testcases/query",
+            json={
+                "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
+                "windowing": {"limit": 1},
+            },
+        )
+        assert page_1.status_code == 200
+        body_1 = page_1.json()
+        assert len(body_1["testcases"]) == 1
+        assert str(body_1["testcases"][0]["id"]) == str(mock_data["testcase_ids"][0])
+        assert body_1.get("windowing") is not None
+        assert body_1["windowing"].get("next") is not None
+
+        page_2 = authed_api(
+            "POST",
+            "/preview/testcases/query",
+            json={
+                "testset_revision_ref": {"id": mock_data["testset_revision_id"]},
+                "windowing": {
+                    "limit": 1,
+                    "next": body_1["windowing"]["next"],
+                },
+            },
+        )
+        assert page_2.status_code == 200
+        body_2 = page_2.json()
+        assert len(body_2["testcases"]) == 1
+        assert str(body_2["testcases"][0]["id"]) == str(mock_data["testcase_ids"][1])

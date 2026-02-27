@@ -236,6 +236,29 @@ class TracingService:
         if root_spans > 1:
             raise ValueError("Too many root spans")
 
+    @staticmethod
+    def _extract_trace_ids_from_spans(
+        spans: Dict[str, Union[OTelSpan, OTelFlatSpans]],
+    ) -> List[str]:
+        trace_ids: List[str] = []
+        seen = set()
+
+        for span in spans.values():
+            if isinstance(span, list):
+                span_items = span
+            else:
+                span_items = [span]
+
+            for span_item in span_items:
+                if not span_item or not span_item.trace_id:
+                    continue
+                if span_item.trace_id in seen:
+                    continue
+                seen.add(span_item.trace_id)
+                trace_ids.append(span_item.trace_id)
+
+        return trace_ids
+
     async def create_trace(
         self,
         *,
@@ -264,12 +287,10 @@ class TracingService:
         organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
-        trace_id: str,
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
         sync: bool = True,
     ) -> OTelLinks:
-        _ = trace_id
         extracted_spans = self._extract_single_trace_spans(spans=spans, traces=traces)
         self._validate_single_trace_roots(extracted_spans)
 
@@ -322,7 +343,8 @@ class TracingService:
             return specs_body or []
         if not specs_body:
             return specs_params or []
-        return []
+        # Follow the existing body-over-params precedence used by merge_* helpers.
+        return specs_body or specs_params or []
 
     @staticmethod
     def default_analytics_specs() -> List[MetricSpec]:

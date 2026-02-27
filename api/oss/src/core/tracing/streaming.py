@@ -35,7 +35,7 @@ def serialize_span(
         organization_id=organization_id.hex,
         project_id=project_id.hex,
         user_id=user_id.hex,
-        span_dto=span_dto.model_dump(mode="json", exclude_unset=True),
+        span=span_dto.model_dump(mode="json", exclude_unset=True),
     )
 
     span_bytes = dumps(data)
@@ -61,7 +61,7 @@ def deserialize_span(
     project_id = UUID(hex=data["project_id"])
     user_id = UUID(hex=data["user_id"])
 
-    span_payload = data.get("span_dto", data.get("span", {}))
+    span_payload = data["span"]
     span_dto = OTelFlatSpan(**span_payload)
 
     return (organization_id, project_id, user_id, span_dto)

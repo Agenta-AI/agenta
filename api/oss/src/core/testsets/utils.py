@@ -75,6 +75,9 @@ def json_array_to_json_object(
         if testcase_dedup_id_key is not None:
             testcase_data[testcase_dedup_id_key] = testcase_dedup_id
 
+        # Re-compute after mutating testcase_data: when testcase_id_str is not
+        # a valid UUID, _to_uuid falls back to hashing testcase_data, so the
+        # final ID must be derived from the data with dedup_id already injected.
         testcase_id = _to_uuid(testcase_id_str, testcase_data)
         transformed_data[testcase_id] = testcase_data
 
