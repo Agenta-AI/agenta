@@ -1458,6 +1458,8 @@ class EvaluationsService:
         #
         queue_id: UUID,
         #
+        use_queue_scenario_ids: bool = True,
+        #
     ) -> List[List[UUID]]:
         queue = await self.fetch_queue(
             project_id=project_id,
@@ -1467,7 +1469,9 @@ class EvaluationsService:
         if not queue:
             return []
 
-        queue_scenario_ids = queue.data.scenario_ids if queue.data else None
+        queue_scenario_ids = (
+            queue.data.scenario_ids if queue.data and use_queue_scenario_ids else None
+        )
 
         scenarios = await self.query_scenarios(
             project_id=project_id,
@@ -1950,7 +1954,17 @@ class SimpleEvaluationsService:
                 has_application_steps = bool(_evaluation.data.application_steps)
                 has_evaluator_steps = bool(_evaluation.data.evaluator_steps)
 
-                if has_testset_steps and has_application_steps and has_evaluator_steps:
+                if has_query_steps and has_evaluator_steps:
+                    await self.evaluations_worker.evaluate_batch_query.kiq(
+                        project_id=project_id,
+                        user_id=user_id,
+                        #
+                        run_id=run.id,
+                    )
+
+                elif (
+                    has_testset_steps and has_application_steps and has_evaluator_steps
+                ):
                     await self.evaluations_worker.evaluate_batch_testset.kiq(
                         project_id=project_id,
                         user_id=user_id,
@@ -3291,6 +3305,8 @@ class SimpleQueuesService:
                         user_id=query_user_id,
                         #
                         queue_id=queue.id,
+                        #
+                        use_queue_scenario_ids=False,
                     )
                 )
 
@@ -3312,6 +3328,8 @@ class SimpleQueuesService:
                     user_id=None,
                     #
                     queue_id=queue.id,
+                    #
+                    use_queue_scenario_ids=False,
                 )
             )
 

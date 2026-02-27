@@ -148,6 +148,35 @@ class EvaluationsWorker:
             return result
 
         @self.broker.task(
+            task_name="evaluations.queries.batch",
+            retry_on_error=False,
+            max_retries=0,
+        )
+        async def evaluate_batch_query(
+            *,
+            project_id: UUID,
+            user_id: UUID,
+            #
+            run_id: UUID,
+        ) -> Any:
+            """One-shot query evaluation task for non-live runs."""
+            log.info("[TASK] Starting evaluate_batch_query")
+
+            result = await evaluate_live_query_impl(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                run_id=run_id,
+                #
+                newest=None,
+                oldest=None,
+                #
+                use_windowing=True,
+            )
+            log.info("[TASK] Completed evaluate_batch_query")
+            return result
+
+        @self.broker.task(
             task_name="evaluations.invocations.batch",
             retry_on_error=False,
             max_retries=0,
@@ -232,6 +261,7 @@ class EvaluationsWorker:
         # Store task references for external access
         self.evaluate_batch_testset = evaluate_batch_testset
         self.evaluate_live_query = evaluate_live_query
+        self.evaluate_batch_query = evaluate_batch_query
         self.evaluate_batch_invocation = evaluate_batch_invocation
         self.evaluate_batch_traces = evaluate_batch_traces
         self.evaluate_batch_testcases = evaluate_batch_testcases

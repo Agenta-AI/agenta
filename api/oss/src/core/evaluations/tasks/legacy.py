@@ -66,9 +66,6 @@ from oss.src.core.evaluations.utils import (
 log = get_module_logger(__name__)
 
 
-# ------------------------------------------------------------------------------
-
-
 async def setup_evaluation(
     *,
     project_id: UUID,
@@ -2229,7 +2226,6 @@ async def _evaluate_batch_items(
                         run_id=run_id,
                         status=EvaluationStatus.RUNNING,
                         data=EvaluationQueueData(
-                            scenario_ids=[s.id for s in scenarios if s.id],
                             step_keys=human_step_keys,
                         ),
                     ),
