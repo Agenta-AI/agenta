@@ -27,6 +27,24 @@ export const shippedFeatures: ShippedFeature[] = [
   // Integration: FFA500
   // Security: 000000
   {
+    id: "tool-integrations",
+    title: "Tool Integrations in the Playground",
+    description:
+      "Connect 150+ external tools (Gmail, Slack, Notion, Google Sheets, GitHub) to your prompts directly from the playground. Authenticate with OAuth, attach tool actions, and execute tool calls with one click.",
+    changelogPath: "/docs/changelog/tool-integrations",
+    shippedAt: "2026-02-27",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
     id: "ai-prompt-refinement",
     title: "AI-Powered Prompt Refinement in the Playground",
     description:
