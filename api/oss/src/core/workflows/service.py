@@ -810,6 +810,8 @@ class WorkflowsService:
         workflow_variant_ref: Optional[Reference] = None,
         workflow_revision_ref: Optional[Reference] = None,
         #
+        workflow_revision: Optional["WorkflowRevision"] = None,
+        #
         max_depth: int = 10,
         max_embeds: int = 100,
         error_policy: str = "exception",
@@ -822,12 +824,17 @@ class WorkflowsService:
         Resolves embedded workflow and environment references within the
         workflow revision's configuration data.
 
+        When `workflow_revision` is provided, skips the fetch step and resolves
+        its data inline. Only revision.data is used — id and other metadata are
+        ignored. Use this when the caller already holds the revision (e.g. SDK).
+
         Args:
             project_id: Project scope
             user_id: User performing resolution
-            workflow_ref: Workflow reference
-            workflow_variant_ref: Variant reference
-            workflow_revision_ref: Revision reference
+            workflow_ref: Workflow reference (mutually exclusive with workflow_revision)
+            workflow_variant_ref: Variant reference (mutually exclusive with workflow_revision)
+            workflow_revision_ref: Revision reference (mutually exclusive with workflow_revision)
+            workflow_revision: Revision to resolve inline (skips fetch when set)
             max_depth: Maximum nesting depth for embeds
             max_embeds: Maximum total embeds allowed
             error_policy: How to handle errors (exception, placeholder, keep)
@@ -839,7 +846,28 @@ class WorkflowsService:
         Raises:
             Various embed resolution errors based on error_policy
         """
-        # Fetch the workflow revision
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if workflow_revision is not None:
+            # Inline mode: resolve the provided revision's data without fetching
+            if not workflow_revision.data:
+                return None
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=workflow_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            workflow_revision.data = WorkflowRevisionData(**resolved_data)
+            return (workflow_revision, resolution_info)
+
+        # Stored-revision mode: fetch by reference then resolve
         revision = await self.fetch_workflow_revision(
             project_id=project_id,
             #
@@ -852,10 +880,6 @@ class WorkflowsService:
 
         if not revision or not revision.data:
             return None
-
-        # Use embeds service for resolution
-        if not self.embeds_service:
-            raise RuntimeError("EmbedsService not initialized")
 
         (
             revision_data,

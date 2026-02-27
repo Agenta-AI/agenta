@@ -120,8 +120,6 @@ class WorkflowRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    #
-    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class WorkflowRevisionCommitRequest(BaseModel):
@@ -158,6 +156,8 @@ class WorkflowRevisionResolveRequest(BaseModel):
     workflow_ref: Optional[Reference] = None
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
+    #
+    workflow_revision: Optional[WorkflowRevision] = None
     #
     max_depth: Optional[int] = 10
     max_embeds: Optional[int] = 100

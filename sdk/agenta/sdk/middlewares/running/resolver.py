@@ -149,11 +149,11 @@ async def resolve_handler(
 
 async def resolve_embeds(
     *,
-    configuration: Dict[str, Any],
+    parameters: Dict[str, Any],
     credentials: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Resolve @ag.embed references in configuration by calling the API.
+    Resolve @ag.embed references in parameters by calling the API.
 
     This function calls the API resolution endpoint to resolve any embedded
     references in the configuration parameters.
@@ -161,11 +161,11 @@ async def resolve_embeds(
     Uses internal defaults for max_depth, max_embed_count, and error_policy.
 
     Args:
-        configuration: Configuration dict that may contain embeds
+        parameters: Parameters dict that may contain embeds
         credentials: API key for authentication
 
     Returns:
-        Resolved configuration dict with embeds inlined
+        Resolved parameters dict with embeds inlined
 
     Raises:
         Exception: If resolution fails (based on internal error policy)
@@ -176,58 +176,41 @@ async def resolve_embeds(
     try:
         if not ag.async_api:
             log.warning("No backend client available - skipping embeds resolution")
-            return configuration
+            return parameters
 
-        # Try using Fern-generated client first
-        try:
-            response = await ag.async_api.workflows.resolve_workflow_revision(
-                workflow_revision={"data": configuration},
-                max_depth=max_depth,
-                max_embeds=max_embed_count,
-                error_policy=error_policy,
+        api_url = ag.async_api._client_wrapper._base_url
+
+        headers = {}
+        if credentials:
+            headers["Authorization"] = f"Secret {credentials}"
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{api_url}/preview/workflows/revisions/resolve",
+                headers=headers,
+                json={
+                    "workflow_revision": {"data": {"parameters": parameters}},
+                    "max_depth": max_depth,
+                    "max_embeds": max_embed_count,
+                    "error_policy": error_policy,
+                },
+                timeout=30.0,
             )
 
-            if response and hasattr(response, "workflow_revision"):
-                return response.workflow_revision.get("data", configuration)
+            response.raise_for_status()
+            result = response.json()
 
-        except AttributeError:
-            # Fern client doesn't have resolve method yet, fall back to HTTP
-            log.debug("Falling back to HTTP for embeds resolution")
-            api_url = ag.async_api._client_wrapper._base_url
+            revision = result.get("workflow_revision")
+            if revision and revision.get("data"):
+                return revision["data"].get("parameters", parameters)
 
-            headers = {}
-            if credentials:
-                headers["Authorization"] = f"Secret {credentials}"
-
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{api_url}/preview/workflows/revisions/resolve",
-                    headers=headers,
-                    json={
-                        "workflow_revision_ref": {"data": configuration},
-                        "max_depth": max_depth,
-                        "max_embeds": max_embed_count,
-                        "error_policy": error_policy,
-                    },
-                    timeout=30.0,
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                if (
-                    "workflow_revision" in result
-                    and "data" in result["workflow_revision"]
-                ):
-                    return result["workflow_revision"]["data"]
-
-        return configuration
+        return parameters
 
     except Exception as e:
         log.error(f"Failed to resolve embeds: {e}")
         if error_policy == "exception":
             raise
-        return configuration
+        return parameters
 
 
 class ResolverMiddleware:
@@ -279,7 +262,7 @@ class ResolverMiddleware:
             try:
                 log.info("Resolving embeds in configuration parameters")
                 resolved_params = await resolve_embeds(
-                    configuration=configuration.parameters,
+                    parameters=configuration.parameters,
                     credentials=request.credentials,
                 )
                 configuration.parameters = resolved_params

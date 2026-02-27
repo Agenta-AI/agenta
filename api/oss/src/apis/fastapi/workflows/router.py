@@ -994,34 +994,6 @@ class WorkflowsRouter:
             windowing=workflow_revision_query_request.windowing,
         )
 
-        # Optionally resolve embeds for all revisions if requested
-        if workflow_revisions and workflow_revision_query_request.resolve:
-            for revision in workflow_revisions:
-                if not revision or not revision.data:
-                    continue
-
-                try:
-                    resolved = await self.workflows_service.resolve_workflow_revision(
-                        project_id=UUID(request.state.project_id),
-                        user_id=UUID(request.state.user_id),
-                        workflow_revision_ref=Reference(id=revision.id),
-                        max_depth=10,
-                        max_embeds=100,
-                        error_policy=ErrorPolicy.EXCEPTION,
-                        include_archived=workflow_revision_query_request.include_archived,
-                    )
-
-                    if resolved:
-                        resolved_revision, _ = resolved
-                        if resolved_revision and resolved_revision.data:
-                            revision.data = resolved_revision.data
-
-                except Exception as e:
-                    log.error(
-                        f"Failed to resolve embeds for revision {revision.id}: {e}"
-                    )
-                    # Continue with next revision
-
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,
@@ -1198,6 +1170,8 @@ class WorkflowsRouter:
             workflow_ref=workflow_revision_resolve_request.workflow_ref,
             workflow_variant_ref=workflow_revision_resolve_request.workflow_variant_ref,
             workflow_revision_ref=workflow_revision_resolve_request.workflow_revision_ref,
+            #
+            workflow_revision=workflow_revision_resolve_request.workflow_revision,
             #
             max_depth=workflow_revision_resolve_request.max_depth or 10,
             max_embeds=workflow_revision_resolve_request.max_embeds or 100,
