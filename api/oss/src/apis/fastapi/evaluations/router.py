@@ -2418,6 +2418,48 @@ class SimpleEvaluationsRouter:
 
         evaluation.data.evaluator_steps = resolved
 
+    async def _unresolve_evaluation_response(
+        self,
+        *,
+        project_id: UUID,
+        evaluation: SimpleEvaluation,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator revision IDs -> artifact IDs on outbound responses.
+
+        The service/DB layer stores revision IDs in evaluator_steps.
+        The frontend expects the artifact IDs it originally wrote.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not evaluation.data or not evaluation.data.evaluator_steps:
+            return
+
+        evaluator_steps = evaluation.data.evaluator_steps
+        evaluators_service = self.simple_evaluations_service.evaluators_service
+
+        if isinstance(evaluator_steps, list):
+            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
+
+        resolved: dict[UUID, str] = {}
+
+        for revision_id, origin in evaluator_steps.items():
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_revision_ref=Reference(id=revision_id),
+            )
+
+            if evaluator_revision is None or evaluator_revision.evaluator_id is None:
+                resolved[revision_id] = origin
+                continue
+
+            resolved[evaluator_revision.evaluator_id] = origin
+
+        evaluation.data.evaluator_steps = resolved
+
 
 class SimpleQueuesRouter:
     def __init__(
@@ -2693,45 +2735,3 @@ class SimpleQueuesRouter:
             count=1 if queue else 0,
             queue=queue,
         )
-
-    async def _unresolve_evaluation_response(
-        self,
-        *,
-        project_id: UUID,
-        evaluation: SimpleEvaluation,
-        jit: bool = True,
-    ) -> None:
-        """Resolve evaluator revision IDs → artifact IDs on outbound responses.
-
-        The service/DB layer stores revision IDs in evaluator_steps.
-        The frontend expects the artifact IDs it originally wrote.
-        Controlled by jit (defaults to True).
-        """
-        if not jit:
-            return
-
-        if not evaluation.data or not evaluation.data.evaluator_steps:
-            return
-
-        evaluator_steps = evaluation.data.evaluator_steps
-        evaluators_service = self.simple_evaluations_service.evaluators_service
-
-        if isinstance(evaluator_steps, list):
-            evaluator_steps = {eid: "auto" for eid in evaluator_steps}
-
-        resolved: dict[UUID, str] = {}
-
-        for revision_id, origin in evaluator_steps.items():
-            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                #
-                evaluator_revision_ref=Reference(id=revision_id),
-            )
-
-            if evaluator_revision is None or evaluator_revision.evaluator_id is None:
-                resolved[revision_id] = origin
-                continue
-
-            resolved[evaluator_revision.evaluator_id] = origin
-
-        evaluation.data.evaluator_steps = resolved

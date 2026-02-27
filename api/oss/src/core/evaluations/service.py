@@ -2734,7 +2734,7 @@ class SimpleEvaluationsService:
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
     ):
-        run_flags = await self._make_evaluation_run_flags(
+        run_flags = EvaluationRunQueryFlags(
             is_closed=is_closed,
             is_live=is_live,
             is_active=is_active,

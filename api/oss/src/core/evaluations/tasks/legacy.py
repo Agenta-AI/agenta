@@ -988,6 +988,7 @@ async def evaluate_batch_testset(
         # ----------------------------------------------------------------------
 
         run_has_errors = 0
+        run_has_pending = False
         run_status = EvaluationStatus.SUCCESS
 
         # run evaluators -------------------------------------------------------
@@ -998,6 +999,7 @@ async def evaluate_batch_testset(
             invocation_step_key = invocation_steps_keys[0]
 
             scenario_has_errors = 0
+            scenario_has_pending = False
             scenario_status = EvaluationStatus.SUCCESS
 
             # skip the iteration if error in the invocation --------------------
@@ -1069,9 +1071,15 @@ async def evaluate_batch_testset(
                 # run the evaluators if no error in the invocation -------------
                 for jdx in range(nof_annotations):
                     annotation_step_key = annotation_steps_keys[jdx]
+                    annotation_step = annotation_steps[jdx]
 
                     step_has_errors = 0
                     step_status = EvaluationStatus.SUCCESS
+
+                    if annotation_step.origin in {"human", "custom"}:
+                        scenario_has_pending = True
+                        run_has_pending = True
+                        continue
 
                     references: Dict[str, Any] = {
                         **evaluator_references[annotation_step_key],
@@ -1329,11 +1337,17 @@ async def evaluate_batch_testset(
                         )
             # ------------------------------------------------------------------
 
+            final_scenario_status = (
+                EvaluationStatus.PENDING
+                if scenario_status == EvaluationStatus.SUCCESS and scenario_has_pending
+                else scenario_status
+            )
+
             scenario_edit = EvaluationScenarioEdit(
                 id=scenario.id,
                 tags=scenario.tags,
                 meta=scenario.meta,
-                status=scenario_status,
+                status=final_scenario_status,
             )
 
             scenario = await evaluations_service.edit_scenario(
@@ -1371,6 +1385,14 @@ async def evaluate_batch_testset(
                         exc_info=True,
                     )
         # ----------------------------------------------------------------------
+
+        if run_status != EvaluationStatus.FAILURE:
+            if run_has_errors:
+                run_status = EvaluationStatus.ERRORS
+            elif run_has_pending:
+                run_status = EvaluationStatus.RUNNING
+            else:
+                run_status = EvaluationStatus.SUCCESS
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(
