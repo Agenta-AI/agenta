@@ -1602,7 +1602,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
-            is_adhoc=False,
+            is_queue=False,
         )
 
         if not evaluation.data:
@@ -1626,7 +1626,7 @@ class SimpleEvaluationsService:
                 is_closed=False,
                 is_live=evaluation.flags.is_live,
                 is_active=False,
-                is_adhoc=evaluation.flags.is_adhoc,
+                is_queue=evaluation.flags.is_queue,
             )
 
             if not run_flags:
@@ -1728,7 +1728,7 @@ class SimpleEvaluationsService:
             is_closed=False,
             is_live=False,
             is_active=True,
-            is_adhoc=False,
+            is_queue=False,
         )
 
         if not evaluation.id:
@@ -1804,7 +1804,7 @@ class SimpleEvaluationsService:
                 is_closed=_evaluation.flags.is_closed,
                 is_live=_evaluation.flags.is_live,
                 is_active=_evaluation.flags.is_active,
-                is_adhoc=_evaluation.flags.is_adhoc,
+                is_queue=_evaluation.flags.is_queue,
             )
 
             run_data = await self._make_evaluation_run_data(
@@ -1914,7 +1914,7 @@ class SimpleEvaluationsService:
             is_closed=flags.get("is_closed"),
             is_live=flags.get("is_live"),
             is_active=flags.get("is_active"),
-            is_adhoc=flags.get("is_adhoc"),
+            is_queue=flags.get("is_queue"),
             #
             has_queries=flags.get("has_queries"),
             has_testsets=flags.get("has_testsets"),
@@ -2096,6 +2096,48 @@ class SimpleEvaluationsService:
 
         return _evaluation
 
+    async def _ensure_human_annotation_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> None:
+        """Create an EvaluationQueue for human annotation steps if none exists for this run.
+
+        Queue creation is the service's responsibility — tasks must not create structural
+        objects. This is called before dispatching batch evaluation tasks so that any
+        human annotation steps are immediately queryable as a queue.
+        """
+        if not run.id or not run.data or not run.data.steps:
+            return
+
+        human_step_keys = [
+            step.key
+            for step in run.data.steps
+            if step.type == "annotation" and step.origin == "human" and step.key
+        ]
+
+        if not human_step_keys:
+            return
+
+        existing_queues = await self.evaluations_service.query_queues(
+            project_id=project_id,
+            queue=EvaluationQueueQuery(run_id=run.id),
+        )
+        if any(q.run_id == run.id for q in existing_queues):
+            return
+
+        await self.evaluations_service.create_queue(
+            project_id=project_id,
+            user_id=user_id,
+            queue=EvaluationQueueCreate(
+                run_id=run.id,
+                status=EvaluationStatus.RUNNING,
+                data=EvaluationQueueData(step_keys=human_step_keys),
+            ),
+        )
+
     async def evaluate_batch_traces(
         self,
         *,
@@ -2114,13 +2156,22 @@ class SimpleEvaluationsService:
             )
             return False
 
-        run = await self.fetch(project_id=project_id, evaluation_id=run_id)
-        if not run or not run.flags or not run.flags.is_adhoc:
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.flags or not run.flags.is_queue:
             log.warning(
-                "[EVAL] trace batch dispatch requires ad-hoc evaluation",
+                "[EVAL] trace batch dispatch requires a queue evaluation run",
                 run_id=run_id,
             )
             return False
+
+        await self._ensure_human_annotation_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
 
         await self.evaluations_worker.evaluate_batch_traces.kiq(
             project_id=project_id,
@@ -2149,13 +2200,22 @@ class SimpleEvaluationsService:
             )
             return False
 
-        run = await self.fetch(project_id=project_id, evaluation_id=run_id)
-        if not run or not run.flags or not run.flags.is_adhoc:
+        run = await self.evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if not run or not run.flags or not run.flags.is_queue:
             log.warning(
-                "[EVAL] testcase batch dispatch requires ad-hoc evaluation",
+                "[EVAL] testcase batch dispatch requires a queue evaluation run",
                 run_id=run_id,
             )
             return False
+
+        await self._ensure_human_annotation_queue(
+            project_id=project_id,
+            user_id=user_id,
+            run=run,
+        )
 
         await self.evaluations_worker.evaluate_batch_testcases.kiq(
             project_id=project_id,
@@ -2778,7 +2838,7 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
-        is_adhoc: Optional[bool] = None,
+        is_queue: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2790,7 +2850,7 @@ class SimpleEvaluationsService:
             is_closed=is_closed or False,
             is_live=is_live or False,
             is_active=is_active or False,
-            is_adhoc=is_adhoc or False,
+            is_queue=is_queue or False,
             has_queries=has_queries or False,
             has_testsets=has_testsets or False,
             has_evaluators=has_evaluators or False,
@@ -2805,7 +2865,7 @@ class SimpleEvaluationsService:
         is_closed: Optional[bool] = None,
         is_live: Optional[bool] = None,
         is_active: Optional[bool] = None,
-        is_adhoc: Optional[bool] = None,
+        is_queue: Optional[bool] = None,
         has_queries: Optional[bool] = None,
         has_testsets: Optional[bool] = None,
         has_evaluators: Optional[bool] = None,
@@ -2820,7 +2880,7 @@ class SimpleEvaluationsService:
             is_closed=is_closed,
             is_live=is_live,
             is_active=is_active,
-            is_adhoc=is_adhoc,
+            is_queue=is_queue,
             has_queries=has_queries,
             has_testsets=has_testsets,
             has_evaluators=has_evaluators,
@@ -3090,7 +3150,7 @@ class SimpleQueuesService:
                     is_live=False,
                     is_active=True,
                     is_closed=False,
-                    is_adhoc=True,
+                    is_queue=True,
                 ),
                 tags=queue.tags,
                 meta=queue.meta,
@@ -3134,7 +3194,7 @@ class SimpleQueuesService:
                     batch_size=settings.batch_size if settings else None,
                     batch_offset=settings.batch_offset if settings else None,
                 ),
-                #
+                # is_queue
                 run_id=run.id,
             ),
         )
@@ -3194,7 +3254,7 @@ class SimpleQueuesService:
         if query and query.kind is not None:
             run_query = EvaluationRunQuery(
                 flags=EvaluationRunQueryFlags(
-                    is_adhoc=True,
+                    is_queue=True,
                     has_queries=query.kind == SimpleQueueKind.TRACES,
                     has_testsets=query.kind == SimpleQueueKind.TESTCASES,
                 ),
@@ -3584,7 +3644,7 @@ class SimpleQueuesService:
         return run_data, annotation_step_keys
 
     def _get_kind(self, run: EvaluationRun) -> Optional[SimpleQueueKind]:
-        if not run.flags or not run.flags.is_adhoc:
+        if not run.flags or not run.flags.is_queue:
             return None
 
         if run.flags.has_queries and not run.flags.has_testsets:

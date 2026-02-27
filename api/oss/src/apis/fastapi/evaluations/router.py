@@ -101,6 +101,7 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluation,
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
+    SimpleQueueCreate,
     SimpleQueueScenariosQuery,
     EvaluationQueueScenariosQuery,
 )
@@ -2562,6 +2563,11 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        await self._resolve_queue_request(
+            project_id=UUID(request.state.project_id),
+            queue=queue_create_request.queue,
+        )
+
         queue = await self.simple_queues_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2573,6 +2579,59 @@ class SimpleQueuesRouter:
             count=1 if queue else 0,
             queue=queue,
         )
+
+    # -- helpers ---------------------------------------------------------------
+
+    async def _resolve_queue_request(
+        self,
+        *,
+        project_id: UUID,
+        queue: SimpleQueueCreate,
+        jit: bool = True,
+    ) -> None:
+        """Resolve evaluator artifact IDs → revision IDs on inbound queue create requests.
+
+        The frontend sends evaluator artifact IDs in queue.data.evaluators.
+        The service/DB layer (SimpleQueuesService._make_run_data) expects revision IDs.
+        Controlled by jit (defaults to True).
+        """
+        if not jit:
+            return
+
+        if not queue.data or not queue.data.evaluators:
+            return
+
+        evaluators = queue.data.evaluators
+        evaluators_service = self.simple_queues_service.evaluators_service
+
+        if isinstance(evaluators, list):
+            evaluators = {eid: "auto" for eid in evaluators}
+
+        resolved: dict[UUID, str] = {}
+
+        for evaluator_id, origin in evaluators.items():
+            evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_revision_ref=Reference(id=evaluator_id),
+            )
+
+            if evaluator_revision is None:
+                evaluator_revision = await evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_ref=Reference(id=evaluator_id),
+                )
+
+            if evaluator_revision is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Could not resolve evaluator revision for evaluator {evaluator_id}",
+                )
+
+            resolved[evaluator_revision.id] = origin
+
+        queue.data.evaluators = resolved
 
     @intercept_exceptions()
     @suppress_exceptions(default=SimpleQueuesResponse(), exclude=[HTTPException])
