@@ -8,7 +8,13 @@ import {getProjectValues} from "@/oss/state/project"
 import {calculateIntervalFromDuration, tracingToGeneration} from "../lib/helpers"
 import {GenerationDashboardData, TracingDashboardData} from "../types"
 
-export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, appId: string) => {
+dayjs.extend(utc)
+
+export const fetchAllPreviewTraces = async (
+    params: Record<string, any> = {},
+    appId: string,
+    signal?: AbortSignal,
+) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
@@ -38,6 +44,7 @@ export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, ap
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload),
+        signal,
     })
 }
 
@@ -159,13 +166,16 @@ export const fetchGenerationsDashboardData = async (
         })
     }
 
-    dayjs.extend(utc)
     let startTime: string
     let endTime: string | undefined
 
     if (options.range.type === "custom" && options.range.customRange) {
         startTime = options.range.customRange.startTime || ""
         endTime = options.range.customRange.endTime || undefined
+
+        if (!startTime) {
+            throw new Error("Custom range startTime is required")
+        }
     } else {
         startTime = options.range.sorted
         endTime = undefined // implied "now" for standard ranges
@@ -173,7 +183,18 @@ export const fetchGenerationsDashboardData = async (
 
     const startDayjs = dayjs(startTime)
     const endDayjs = endTime ? dayjs(endTime) : dayjs()
-    const durationMin = endDayjs.diff(startDayjs, "minute")
+
+    if (!startDayjs.isValid()) {
+        throw new Error("Invalid startTime for tracing analytics query")
+    }
+    if (endTime && !endDayjs.isValid()) {
+        throw new Error("Invalid endTime for tracing analytics query")
+    }
+    if (endDayjs.isBefore(startDayjs)) {
+        throw new Error("endTime must be greater than or equal to startTime")
+    }
+
+    const durationMin = Math.max(1, endDayjs.diff(startDayjs, "minute"))
     const interval = calculateIntervalFromDuration(durationMin)
 
     // Determine rangeString for formatting ticks to maintain compatibility
