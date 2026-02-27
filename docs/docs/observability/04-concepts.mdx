@@ -70,7 +70,7 @@ You can instrument your application using standard OpenTelemetry SDKs. Agenta ac
 
 ### Auto-Instrumentation Compatibility
 
-Agenta works with auto-instrumentation from popular libraries, even if they are not listed in our integrations. We support semantic conventions from [OpenInference](https://github.com/Arize-ai/openinference), [OpenLLMetry](https://github.com/traceloop/openllmetry), and [PydanticAI](/observability/integrations/pydanticai).
+Agenta works with auto-instrumentation from popular libraries, even if they are not listed in our integrations. We support semantic conventions from [OpenInference](https://github.com/Arize-ai/openinference), [OpenLLMetry](https://github.com/traceloop/openllmetry), and [PydanticAI](/integrations/frameworks/pydanticai/observability).
 
 When these libraries send spans to Agenta, we automatically translate their conventions to our format. No extra configuration is needed. This means that if you have any package that auto-instruments using these conventions, it will work with Agenta.
 
@@ -160,4 +160,4 @@ The Agenta UI understands LLM-specific data. Chat messages are formatted nicely.
 
 - [Get started with Python SDK](/observability/quickstart-python)
 - [Learn about tracing with OpenTelemetry](/observability/trace-with-opentelemetry/getting-started)
-- [Explore integrations](/observability/integrations/openai) for popular LLM frameworks
+- [Explore integrations](/integrations/llm-providers/openai/observability) for popular LLM frameworks
