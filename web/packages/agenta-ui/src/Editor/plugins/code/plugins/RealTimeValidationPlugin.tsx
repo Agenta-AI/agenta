@@ -2,7 +2,7 @@ import {$getRoot, $isTabNode, LexicalEditor} from "lexical"
 
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
-import {$isCodeLineNode} from "../nodes/CodeLineNode"
+import {$getAllCodeLines} from "../utils/segmentUtils"
 
 /** Simplified JSON Schema type for constructJsonFromSchema */
 interface JsonSchemaProperty {
@@ -108,37 +108,35 @@ export function removeNewlinesAndTabs(input: string): string {
  * @param editor - The Lexical editor instance
  * @returns The editor content as a plain string with newlines
  */
-export function $getEditorCodeAsString(editor?: LexicalEditor): string {
+export function $getEditorCodeAsString(_editor?: LexicalEditor): string {
     const root = $getRoot()
     let result = ""
 
     for (const block of root.getChildren()) {
         if (!$isCodeBlockNode(block)) continue
 
-        for (const line of block.getChildren()) {
-            if (!$isCodeLineNode(line)) continue
-
-            const parts: string[] = []
+        for (const line of $getAllCodeLines(block)) {
+            let lineText = ""
             for (const child of line.getChildren()) {
                 if ($isTabNode(child)) {
                     // Convert tabs to 2 spaces for YAML compatibility
-                    parts.push("  ")
+                    lineText += "  "
                 } else if ($isCodeHighlightNode(child)) {
                     const text = child.getTextContent()
                     if (text !== "\u200B") {
-                        parts.push(text)
+                        lineText += text
                     }
                 } else {
                     // Handle other node types (LongTextNode, Base64Node, etc.)
                     // by calling getTextContent() which returns the full value
                     const text = child.getTextContent()
                     if (text && text !== "\u200B") {
-                        parts.push(text)
+                        lineText += text
                     }
                 }
             }
 
-            result += parts.join("") + "\n"
+            result += lineText + "\n"
         }
     }
 
