@@ -1,3 +1,188 @@
+# Code Review: `feature/annotation-queue-v2` (Merged, P0-P3)
+
+## Context
+- Merged from:
+  - `docs/design/annotation-queue-v2/claude-CR.md`
+  - `docs/design/annotation-queue-v2/codex-CR.md`
+- Review window: post-merge from `main` (includes checks at `HEAD` commit `6684ca742` from source review notes).
+- Scope: ad-hoc evaluation queues, batch trace/testcase evaluation, assignment/inbox behavior, API + worker wiring.
+
+## Executive Summary
+The branch is mostly additive and introduces a practical `SimpleQueuesService` API surface, worker tasks, and queue assignment persistence improvements (`user_ids` array + GIN index).  
+However, there are **two P0 correctness blockers**: a flag-query over-filtering regression and continued auto-invocation of human evaluator steps in standard batch testset runs. These should be fixed before merge.
+
+## Priority Scale
+- **P0**: Merge blocker, correctness/data integrity/security risk.
+- **P1**: High priority; fix in this release cycle.
+- **P2**: Important follow-up; does not block merge if mitigated/known.
+- **P3**: Low-risk cleanup, hardening, or UX consistency.
+
+## Priority Summary
+- **P0**: 2
+- **P1**: 3
+- **P2**: 6
+- **P3**: 2
+
+## Findings
+
+### 1. [P0] Query flags are over-constrained (`None -> False`)
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:1823`
+  - `api/oss/src/core/evaluations/service.py:2693`
+  - `api/oss/src/dbs/postgres/evaluations/dao.py:678`
+- **What**:
+  - Query path builds flags through `EvaluationRunFlags` defaults.
+  - Omitted query flags become explicit `false` values.
+  - DAO uses `flags.contains(...)`, so omitted filters become hard filters.
+- **Impact**:
+  - `simple/evaluations/query` and queue-related queries can silently drop valid runs.
+- **Fix**:
+  - Use optional query-flags DTO (`EvaluationRunQueryFlags`) and serialize with `exclude_none=True`.
+
+### 2. [P0] Human evaluator steps are still auto-invoked in standard batch testset runs
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:1953`
+  - `api/oss/src/core/evaluations/tasks/legacy.py:1070`
+  - RFC requirement reference: `docs/design/annotation-queue-v2/rfc-v2.md:150`
+- **What**:
+  - Non-live runs with testset/app/evaluator steps dispatch to `evaluate_batch_testset`.
+  - Task path iterates annotation steps and invokes workflows without gating on `step.origin`.
+- **Impact**:
+  - Human evaluators can execute as automated workflows instead of being queued as pending assignments.
+- **Fix**:
+  - Mirror the origin-based branching used in `_evaluate_batch_items` and create pending queue items for human/custom origins.
+
+### 3. [P1] Existing queue is not updated when adding new traces/testcases
+- **Where**:
+  - `api/oss/src/core/evaluations/tasks/legacy.py` (`_evaluate_batch_items`)
+- **What**:
+  - If queue already exists for run, code does not append new scenario IDs into existing queue data.
+- **Impact**:
+  - `queue.data.scenario_ids` becomes stale; assignment filtering can miss newly added scenarios.
+- **Fix**:
+  - Update existing queue via `edit_queue` with merged scenario IDs.
+
+### 4. [P1] `start()` dispatch change may skip expected live-query topology
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py` (`SimpleEvaluationsService.start`)
+- **What**:
+  - Prior live-query dispatch path was removed from this branch of logic.
+  - Some run topologies now fall into warning-only unsupported path.
+- **Impact**:
+  - Previously executable paths may now not dispatch.
+- **Fix**:
+  - Reintroduce explicit `query_steps` dispatch where intended or document intentional removal.
+
+### 5. [P2] `add_traces` / `add_testcases` return stale pre-dispatch queue snapshot
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py` (`SimpleQueuesService.add_traces`, `add_testcases`)
+- **What**:
+  - Queue/run fetched before enqueuing worker task, then returned unchanged.
+- **Impact**:
+  - API response may show outdated counts/status.
+- **Fix**:
+  - Re-fetch after dispatch or clearly document eventual-consistency response contract.
+
+### 6. [P2] `repeats` semantics can diverge from assignment matrix capacity
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:2978`
+  - `api/oss/src/core/evaluations/service.py:3041`
+  - `api/oss/src/core/evaluations/service.py:1483`
+- **What**:
+  - Run data persists `repeats`, but queue assignment matrix is not expanded to match repeat count.
+- **Impact**:
+  - API can report `repeats > 1` while only one repeat is effectively assignable.
+- **Fix**:
+  - Normalize assignment matrix to repeat count at create-time and enforce shape invariants.
+
+### 7. [P2] Assignment union type is ambiguous (`List[List[UUID]] | List[UUID]`)
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py` (`SimpleQueuesService._normalize_assignments`)
+- **What**:
+  - Pydantic union resolution can produce ambiguous coercion for flat vs nested array payloads.
+- **Impact**:
+  - Client intent may be misinterpreted.
+- **Fix**:
+  - Prefer one canonical shape (`List[List[UUID]]`) or add explicit discriminator.
+
+### 8. [P2] Trace fetch retry loop is expensive and swallows broad exceptions
+- **Where**:
+  - `api/oss/src/core/evaluations/utils.py:139-163`
+- **What**:
+  - Up to 15 retries x 1s per scenario with broad `except Exception: pass`.
+- **Impact**:
+  - Large batches can stall worker throughput; diagnostic signal is lost.
+- **Fix**:
+  - Use lower retry budget + backoff + warning-level logging for retry failures.
+
+### 9. [P1] RFC v2 must-have scope remains incomplete
+- **Where**:
+  - Required list: `docs/design/annotation-queue-v2/rfc-v2.md:413`
+  - API surface: `api/oss/src/apis/fastapi/evaluations/router.py:2416`
+  - Web references:
+    - `web/oss/src/components/EvaluationRunsTablePOC/constants.ts:16`
+    - `web/oss/src/lib/hooks/usePreviewEvaluations/index.ts:39`
+- **What**:
+  - Missing inbox UI, annotation assignment integration, testset write-back/export endpoint, and full create-payload parity with RFC source shape.
+- **Impact**:
+  - Feature set is partial relative to stated must-have milestone.
+
+### 10. [P2] Queue query defaults to project-wide scope (not user inbox semantics)
+- **Where**:
+  - `api/oss/src/apis/fastapi/evaluations/router.py:2519`
+  - `api/oss/src/core/evaluations/service.py:3083`
+- **What**:
+  - `query_queues` does not default `user_id` to current request user.
+- **Impact**:
+  - Broader queue visibility than inbox-first expectation.
+
+### 11. [P3] Flag inference relies on fragile source-step key naming
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py` (`SimpleQueuesService._make_run_data`)
+  - `api/oss/src/dbs/postgres/evaluations/utils.py` (`_make_run_flags`)
+- **What**:
+  - Empty references and key-substring heuristics (`"query"` in step key) drive flag inference.
+- **Impact**:
+  - Renaming keys can silently alter flags.
+
+### 12. [P3] `SimpleQueuesService.query()` hardcodes `is_sequential=False`
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py` (`SimpleQueuesService.query`)
+- **Impact**:
+  - Sequential queues are excluded from this endpoint behavior unless intentionally out of scope.
+
+### 13. [P2] Migration chain should be re-verified after rebase/merge
+- **Where**:
+  - `d7e8f9a0b1c2_add_is_adhoc_to_evaluation_run_flags.py`
+  - `e9f0a1b2c3d4_add_user_ids_to_evaluation_queues.py`
+- **What**:
+  - `down_revision` continuity must match current graph.
+- **Impact**:
+  - Broken chain blocks `alembic upgrade head`.
+
+## Positive Notes
+- Clean additive implementation overall (no destructive refactors in reviewed scope).
+- `SimpleQueuesService` and router wiring are clear and permission checks are consistently applied.
+- Worker registration in `EvaluationsWorker` is structured and dependency injection is coherent.
+- `user_ids` denormalization + migration and GIN indexing are appropriate for queue-assignee filtering.
+- `filter_scenario_ids` logic (sequential/round-robin paths) and helper utilities are generally strong.
+
+## Noted as Already Resolved in Source Review
+- DAO project-scope filter overwrite issue is not present in current code.
+- `close_run` / `close_runs` set `is_closed = True` correctly.
+
+## Validation Notes
+- `ruff check` on changed backend evaluation/entrypoint files passed (per source review).
+- Full tests were not run in source review notes.
+
+## Merge Recommendation
+- **Block merge on P0 findings #1 and #2.**
+- Address P1 #3 and #4 next for core runtime correctness.
+- Track remaining P1/P2/P3 issues as scoped follow-ups if timeline requires phased delivery.
+
+
+## Appendix A (Verbatim): `claude-CR.md`
+
 # Code Review: `feature/annotation-queue-v2`
 
 **Reviewer:** Claude Opus 4.6
@@ -258,3 +443,80 @@ Migration `d7e8f9a0b1c2` declares `down_revision = "c2d3e4f5a6b7"`. This must ma
 | LOW | 3 | Key-name convention fragility; hardcoded sequential filter; migration chain |
 
 **Recommendation:** The HIGH issue should be fixed before merging — it will cause incorrect query results for any evaluation/queue list that uses flag filters. The MEDIUM queue-not-updated issue should also be addressed as it breaks the core "add items to queue" flow. The rest can be tracked as follow-ups.
+
+
+## Appendix B (Verbatim): `codex-CR.md`
+
+# Code Review: `feature/annotation-queue-v2` (Post-main merge)
+
+## Context
+- Reviewed at `HEAD` commit: `6684ca742`.
+- Compared implementation against `origin/main` and `docs/design/annotation-queue-v2/*`.
+- Focus: completeness, soundness, consistency, correctness, security, functionality, compatibility.
+
+## Findings
+
+### 1. [HIGH] Human evaluators are still auto-invoked in standard eval runs
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:1953`
+  - `api/oss/src/core/evaluations/tasks/legacy.py:1070`
+- **What**:
+  - Non-live runs with `testset + application + evaluators` dispatch to `evaluate_batch_testset`.
+  - `evaluate_batch_testset` iterates all annotation steps and invokes workflows without checking `step.origin`.
+- **Why it matters**:
+  - RFC v2 marks this as a required fix (`docs/design/annotation-queue-v2/rfc-v2.md:150`).
+  - Human steps should be queued/pending, not executed as auto workflows.
+- **Impact**:
+  - Human evaluator runs can still fail/be misclassified instead of producing queue tasks.
+
+### 2. [HIGH] `simple/evaluations/query` likely over-filters and drops valid runs
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:1823`
+  - `api/oss/src/core/evaluations/service.py:2693`
+  - `api/oss/src/dbs/postgres/evaluations/dao.py:678`
+- **What**:
+  - Query path builds flags through `EvaluationRunFlags` defaults (`None -> False`) in `_make_evaluation_run_flags`.
+  - DAO applies `flags.contains(run_flags)` on the full false-filled payload.
+- **Why it matters**:
+  - Omitted filters become hard filters like `has_queries=false`, `has_testsets=false`, `has_evaluators=false`.
+- **Impact**:
+  - Backward-compat regression for listing simple evaluations.
+
+### 3. [MEDIUM] Repeat semantics are inconsistent (`repeats` can exceed assignment matrix)
+- **Where**:
+  - `api/oss/src/core/evaluations/service.py:2978`
+  - `api/oss/src/core/evaluations/service.py:3041`
+  - `api/oss/src/core/evaluations/service.py:1483`
+- **What**:
+  - `repeats` is stored on run data, but queue assignment matrix (`queue.data.user_ids`) is not expanded to match.
+  - Assignment logic keys off `queue.data.user_ids` shape.
+- **Impact**:
+  - API can report `repeats > 1` while only one repeat is actually assignable.
+
+### 4. [MEDIUM] RFC v2 must-have scope is still incomplete on this branch
+- **Where**:
+  - RFC must-have list: `docs/design/annotation-queue-v2/rfc-v2.md:413`
+  - Implemented API surface: `api/oss/src/apis/fastapi/evaluations/router.py:2416`
+  - Web changes: `web/oss/src/components/EvaluationRunsTablePOC/constants.ts:16`, `web/oss/src/lib/hooks/usePreviewEvaluations/index.ts:39`
+- **What**:
+  - No inbox UI implementation.
+  - No frontend queue-assignment wiring to annotation UI.
+  - No write-back/export endpoint for testset annotations.
+  - Convenience create flow does not match RFC source payload shape (`source.type + trace_ids/testset_revision_id`).
+
+### 5. [LOW] Queue query defaults to project-wide scope, not current-user inbox semantics
+- **Where**:
+  - `api/oss/src/apis/fastapi/evaluations/router.py:2519`
+  - `api/oss/src/core/evaluations/service.py:3083`
+- **What**:
+  - `query_queues` does not default `user_id` to `request.state.user_id`.
+- **Impact**:
+  - Behavior mismatch with inbox expectation; broader-than-expected queue lists.
+
+## Noted as resolved in current HEAD
+- DAO project-scope filter overwrite issue is **not present** in current code (`stmt = stmt.filter(...)` chaining is intact).
+- `close_run` / `close_runs` correctly set `is_closed = True` in current DAO.
+
+## Validation
+- `ruff check` on changed backend evaluation/entrypoint files: **passed**.
+- Per repository instruction, tests were **not run**.
