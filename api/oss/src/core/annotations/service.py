@@ -691,7 +691,6 @@ class AnnotationsService:
             organization_id=organization_id,
             project_id=project_id,
             user_id=user_id,
-            trace_id=annotation.trace_id,
             spans=[
                 OTelFlatSpan(
                     trace_id=annotation.trace_id,
