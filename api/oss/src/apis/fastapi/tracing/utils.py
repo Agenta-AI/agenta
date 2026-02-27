@@ -394,10 +394,6 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         unsupported = {}
     elif isinstance(unsupported_raw, dict):
         unsupported = unsupported_raw
-        if "_invalid_ag" in unsupported and "_invalid" not in unsupported:
-            unsupported["_invalid"] = unsupported.pop("_invalid_ag")
-        if "_invalid_unsupported" in unsupported and "_unsupported" not in unsupported:
-            unsupported["_unsupported"] = unsupported.pop("_invalid_unsupported")
     else:
         unsupported = {"_unsupported": unsupported_raw}
 
