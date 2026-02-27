@@ -2689,9 +2689,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     )
 
                 if queue.flags is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.flags.contains(queue.flags),
+                    queue_flags = queue.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
                     )
+
+                    if queue_flags:
+                        stmt = stmt.filter(
+                            EvaluationQueueDBE.flags.contains(queue_flags),
+                        )
 
                 if queue.tags is not None:
                     stmt = stmt.filter(

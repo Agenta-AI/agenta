@@ -44,6 +44,7 @@ from oss.src.core.evaluations.types import (
     # EVALUATION QUEUE
     EvaluationQueue,
     EvaluationQueueFlags,
+    EvaluationQueueQueryFlags,
     EvaluationQueueCreate,
     EvaluationQueueData,
     EvaluationQueueEdit,
@@ -1668,7 +1669,7 @@ class SimpleEvaluationsService:
             return None
 
         if not evaluation.flags:
-            log.info("")
+            log.info("[EVAL] [failure] missing simple evaluation flags")
             return None
 
         if not evaluation.data:
@@ -2184,7 +2185,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query_revision or not query_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query revision",
                         id=query_revision_ref.id,
                     )
@@ -2199,7 +2200,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query variant",
                         id=query_variant_ref.id,
                     )
@@ -2214,7 +2215,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not query:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find query",
                         id=query_ref.id,
                     )
@@ -2269,14 +2270,14 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset_revision or not testset_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset revision",
                         id=testset_revision_ref.id,
                     )
                     return None
 
                 if not testset_revision.data or not testset_revision.data.testcases:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid testset revision",
                         id=testset_revision_ref.id,
                     )
@@ -2291,7 +2292,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset variant",
                         id=testset_variant_ref.id,
                     )
@@ -2306,7 +2307,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not testset:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find testset",
                         id=testset_ref.id,
                     )
@@ -2339,7 +2340,7 @@ class SimpleEvaluationsService:
                 testcases[step_key] = testset_revision.data.testcases
 
                 if any(not testcase.data for testcase in testcases[step_key]):
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid testset revision",
                         id=testset_revision_ref.id,
                     )
@@ -2368,7 +2369,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not application_revision:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application revision",
                         id=application_revision_ref.id,
                     )
@@ -2386,7 +2387,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not application_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application variant",
                         id=application_variant_ref.id,
                     )
@@ -2400,7 +2401,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not application:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find application",
                         id=application_ref.id,
                     )
@@ -2460,14 +2461,14 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator_revision or not evaluator_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator revision",
                         id=evaluator_revision_ref.id,
                     )
                     return None
 
                 if not evaluator_revision.data:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] invalid evaluator revision",
                         id=evaluator_revision_ref.id,
                     )
@@ -2484,7 +2485,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator_variant:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator variant",
                         id=evaluator_variant_ref.id,
                     )
@@ -2499,7 +2500,7 @@ class SimpleEvaluationsService:
                 )
 
                 if not evaluator:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] could not find evaluator",
                         id=evaluator_ref.id,
                     )
@@ -3146,7 +3147,7 @@ class SimpleQueuesService:
                 name=query.name if query else None,
                 description=query.description if query else None,
                 #
-                flags=EvaluationQueueFlags(is_sequential=False),
+                flags=EvaluationQueueQueryFlags(),
                 tags=query.tags if query else None,
                 meta=query.meta if query else None,
                 #
@@ -3501,28 +3502,6 @@ class SimpleQueuesService:
 
         if run.flags.has_testsets and not run.flags.has_queries:
             return SimpleQueueKind.TESTCASES
-
-        if run.data and run.data.steps:
-            has_input = any(step.type == "input" for step in run.data.steps)
-            has_invocation = any(step.type == "invocation" for step in run.data.steps)
-
-            # Backward compatibility for older ad-hoc trace runs.
-            if has_invocation and not has_input:
-                return SimpleQueueKind.TRACES
-
-            if has_input and not has_invocation:
-                input_step_keys = [
-                    (step.key or "").lower()
-                    for step in run.data.steps
-                    if step.type == "input"
-                ]
-                if any("query" in step_key for step_key in input_step_keys):
-                    return SimpleQueueKind.TRACES
-
-                if any("testset" in step_key for step_key in input_step_keys):
-                    return SimpleQueueKind.TESTCASES
-
-                return SimpleQueueKind.TESTCASES
 
         return None
 

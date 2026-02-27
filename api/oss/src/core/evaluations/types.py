@@ -383,6 +383,10 @@ class EvaluationQueueFlags(BaseModel):
     is_sequential: bool = False
 
 
+class EvaluationQueueQueryFlags(BaseModel):
+    is_sequential: Optional[bool] = None
+
+
 class EvaluationQueueData(BaseModel):
     user_ids: Optional[List[List[UUID]]] = None
     scenario_ids: Optional[List[UUID]] = None
@@ -446,7 +450,7 @@ class EvaluationQueueEdit(Identifier, Header, Metadata):
 
 
 class EvaluationQueueQuery(Header, Metadata):
-    flags: Optional[EvaluationQueueFlags] = None  # type: ignore
+    flags: Optional[EvaluationQueueQueryFlags] = None  # type: ignore
 
     user_id: Optional[UUID] = None
     user_ids: Optional[List[UUID]] = None

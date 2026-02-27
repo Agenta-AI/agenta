@@ -12,10 +12,10 @@ Status values: `todo`, `in_progress`, `blocked`, `done`, `wontfix`.
 | [x] | F-006 | backend, data-model, assignment-repeats | P2 | Keep simple queue repeats at least assignment-lane count and use defensive max when parsing to tolerate divergence | done | CR#6 |
 | [x] | F-007 | backend, typing, validation | P2 | Canonicalize assignments to a single shape (`List[List[UUID]]`) and remove flat-list union ambiguity | done | CR#7; PR comments 2863204877, 2863204888 |
 | [x] | F-008 | backend, resiliency, retries, logging | P2 | Reduce trace fetch retries and add warning-level terminal failure logging (no silent swallow on final retry) | done | CR#8 |
-| [ ] | F-010 | backend, access-scope, inbox-semantics | P2 | Keep project-wide query behavior by default when no `user_id/user_ids` filter is provided (intentional product choice) | wontfix | CR#10 |
-| [ ] | F-011 | backend, flag-inference, maintainability | P3 | TBD (tell Codex what to do) | todo | CR#11; PR comment 2863204817 |
-| [ ] | F-012 | backend, queue-query, filtering | P3 | TBD (tell Codex what to do) | todo | CR#12 |
+| [x] | F-010 | backend, access-scope, inbox-semantics | P2 | Keep project-wide query behavior by default when no `user_id/user_ids` filter is provided (intentional product choice) | wontfix | CR#10 |
+| [x] | F-011 | backend, flag-inference, maintainability | P3 | Make source type explicit for input steps/runs; keep substring logic as legacy fallback | done | CR#11; PR comment 2863204817 |
+| [x] | F-012 | backend, queue-query, filtering | P3 | Remove hardcoded `is_sequential=False` queue filter; default queue flags to `None` (no flag filter unless explicitly provided) | done | CR#12 |
 | [x] | F-013 | migrations, release-safety | P2 | Re-link migration chain to single-head graph in OSS+EE (`Heads: ['e9f0a1b2c3d4']`) | done | CR#13 |
-| [ ] | F-014 | backend, tracing, data-correctness | P1 | Defer root-span cleanup to follow-up PR (no change in this PR) | wontfix | PR comment 2863204733 |
-| [ ] | F-015 | backend, observability, log-quality | P3 | TBD (tell Codex what to do) | todo | PR comment 2863204794 |
+| [x] | F-014 | backend, tracing, data-correctness | P1 | Defer root-span cleanup to follow-up PR (no change in this PR) | wontfix | PR comment 2863204733 |
+| [x] | F-015 | backend, observability, log-quality | P3 | Log cleanup: replace `log.warn` with `log.warning` and remove empty/noisy log line | done | PR comment 2863204794 |
 | [x] | F-016 | backend, router-structure, runtime-breakage | P0 | Move `_unresolve_evaluation_response` back under `SimpleEvaluationsRouter` | done | PR comment 2863235645 |
