@@ -1138,6 +1138,14 @@ class TracesRouter:
         trace_request: TraceRequest,
         sync: bool = True,
     ) -> TraceIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
         traces = self._extract_single_trace_map(trace_request)
         if not traces:
             raise HTTPException(status_code=400, detail="Missing trace")

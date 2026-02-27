@@ -13,7 +13,7 @@ Status values:
 
 | ID | Finding | Categories | Severity | Action | Status |
 | --- | --- | --- | --- | --- | --- |
-| F-001 | `transfer` removed from API/service while migrations still call it | compatibility, functionality, api, migrations, testsets | P0 | TBD (awaiting your instruction) | TODO |
+| F-001 | `transfer` removed from API/service while migrations still call it | compatibility, functionality, api, migrations, testsets | P0 | Added migration-local `_transfer_deprecated_testset(...)` in OSS/EE migration files and replaced removed service call | DONE |
 | F-002 | `/preview/testcases/query` dropped legacy `testset_revision_id` | compatibility, correctness, api, testcases | P1 | TBD (awaiting your instruction) | TODO |
 | F-003 | `/preview/spans/{trace_id}/{span_id}` does not return nested child spans | correctness, tracing, spans, api | P1 | TBD (awaiting your instruction) | TODO |
 | F-004 | `edit_trace()` ignores `trace_id` parameter | contract, correctness, tracing, service | P2 | TBD (awaiting your instruction) | TODO |
@@ -29,7 +29,7 @@ Status values:
 | F-014 | `_populate_traces` output shape may be inconsistent (list of single-key trace dicts) | consistency, contract, queries, tracing | P2 | TBD (awaiting your instruction) | TODO |
 | F-015 | Testset retrieve caching concern around windowed IDs/cache key serialization | caching, pagination, testsets, performance | P2 | Verify on current HEAD, then close if confirmed fixed | DONE |
 | F-016 | `TracesRouter` path route `/{trace_id}` may swallow mistaken `GET /query`/`GET /ingest` | routing, correctness, api, tracing | P2 | TBD (awaiting your instruction) | TODO |
-| F-017 | Missing EE permission check in `TracesRouter.create_trace` | security, authorization, ee, tracing | P0 | TBD (awaiting your instruction) | TODO |
+| F-017 | Missing EE permission check in `TracesRouter.create_trace` | security, authorization, ee, tracing | P0 | Added `is_ee()` + `check_action_access(..., Permission.EDIT_SPANS)` guard in `create_trace` | DONE |
 
 ## Dedup Notes
 
