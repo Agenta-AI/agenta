@@ -1,7 +1,7 @@
 """Add is_adhoc to evaluation run flags
 
 Revision ID: d7e8f9a0b1c2
-Revises: c2d3e4f5a6b7
+Revises: e5f6a1b2c3d4
 Create Date: 2026-02-26 12:00:00
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "d7e8f9a0b1c2"
-down_revision: Union[str, None] = "c2d3e4f5a6b7"
+down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

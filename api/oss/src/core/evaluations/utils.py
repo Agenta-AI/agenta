@@ -2,10 +2,13 @@ from typing import List, Tuple, Dict, Optional
 from uuid import UUID
 from asyncio import sleep
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.tracing.dtos import OTelSpansTree
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
+
+log = get_module_logger(__name__)
 
 
 def filter_scenario_ids(
@@ -141,10 +144,11 @@ async def fetch_trace(
     request,
     #
     trace_id: str,
-    max_retries: int = 15,
+    max_retries: int = 5,
     delay: float = 1.0,
 ) -> Optional[OTelSpansTree]:
     for attempt in range(max_retries):
+        had_exception = False
         try:
             response = await tracing_router.fetch_trace(
                 request=request,
@@ -154,10 +158,23 @@ async def fetch_trace(
             if response and response.traces:
                 return next(iter(response.traces.values()), None)
 
-        except Exception:
-            pass
+        except Exception:  # pylint: disable=broad-exception-caught
+            had_exception = True
+            if attempt == max_retries - 1:
+                log.warning(
+                    "[EVAL] [trace] fetch failed after retries",
+                    trace_id=trace_id,
+                    attempts=max_retries,
+                    exc_info=True,
+                )
 
         if attempt < max_retries - 1:
             await sleep(delay)
+        elif not had_exception:
+            log.warning(
+                "[EVAL] [trace] empty trace response after retries",
+                trace_id=trace_id,
+                attempts=max_retries,
+            )
 
     return None

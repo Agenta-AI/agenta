@@ -3192,7 +3192,7 @@ class SimpleQueuesService:
         queue_id: UUID,
         #
         trace_ids: List[str],
-    ) -> Optional[SimpleQueue]:
+    ) -> Optional[UUID]:
         queue = await self.evaluations_service.fetch_queue(
             project_id=project_id,
             queue_id=queue_id,
@@ -3221,10 +3221,7 @@ class SimpleQueuesService:
         if not ok:
             return None
 
-        return self._parse_queue(
-            queue=queue,
-            run=run,
-        )
+        return queue.id
 
     async def add_testcases(
         self,
@@ -3235,7 +3232,7 @@ class SimpleQueuesService:
         queue_id: UUID,
         #
         testcase_ids: List[UUID],
-    ) -> Optional[SimpleQueue]:
+    ) -> Optional[UUID]:
         queue = await self.evaluations_service.fetch_queue(
             project_id=project_id,
             queue_id=queue_id,
@@ -3264,10 +3261,7 @@ class SimpleQueuesService:
         if not ok:
             return None
 
-        return self._parse_queue(
-            queue=queue,
-            run=run,
-        )
+        return queue.id
 
     async def query_scenarios(
         self,
@@ -3546,23 +3540,24 @@ class SimpleQueuesService:
         if kind is None:
             return None
 
-        assignments: Optional[List[List[UUID]] | List[UUID]] = None
+        assignments: Optional[List[List[UUID]]] = None
         repeats: Optional[int] = None
         if queue.data and queue.data.user_ids:
-            normalized_assignments = [
+            assignments = [
                 [UUID(str(user_id)) for user_id in repeat_user_ids]
                 for repeat_user_ids in queue.data.user_ids
             ]
-            assignments = (
-                normalized_assignments[0]
-                if len(normalized_assignments) == 1
-                else normalized_assignments
-            )
 
-        if run and run.data and run.data.repeats and run.data.repeats > 1:
-            repeats = run.data.repeats
-        elif queue.data and queue.data.user_ids and len(queue.data.user_ids) > 1:
-            repeats = len(queue.data.user_ids)
+        run_repeats = (
+            run.data.repeats if run and run.data and run.data.repeats else None
+        )
+        assignment_lanes = len(assignments) if assignments else 0
+        if run_repeats and assignment_lanes:
+            repeats = max(run_repeats, assignment_lanes)
+        elif run_repeats and run_repeats > 1:
+            repeats = run_repeats
+        elif assignment_lanes > 1:
+            repeats = assignment_lanes
 
         return SimpleQueue(
             id=queue.id,
@@ -3595,7 +3590,7 @@ class SimpleQueuesService:
     def _normalize_assignments(
         self,
         *,
-        assignments: Optional[List[List[UUID]] | List[UUID]],
+        assignments: Optional[List[List[UUID]]],
     ) -> Optional[List[List[UUID]]]:
         if assignments is None:
             return None
@@ -3603,11 +3598,7 @@ class SimpleQueuesService:
         if len(assignments) == 0:
             return None
 
-        first_item = assignments[0]
-        if isinstance(first_item, list):
-            return [
-                [UUID(str(user_id)) for user_id in repeat_user_ids]
-                for repeat_user_ids in assignments
-            ]
-
-        return [[UUID(str(user_id)) for user_id in assignments]]
+        return [
+            [UUID(str(user_id)) for user_id in repeat_user_ids]
+            for repeat_user_ids in assignments
+        ]

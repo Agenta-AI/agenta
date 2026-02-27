@@ -521,7 +521,7 @@ class SimpleQueueData(BaseModel):
 
     repeats: Optional[int] = None
 
-    assignments: Optional[Union[List[List[UUID]], List[UUID]]] = None
+    assignments: Optional[List[List[UUID]]] = None
 
 
 class SimpleQueue(Identifier, Lifecycle, Header, Metadata):

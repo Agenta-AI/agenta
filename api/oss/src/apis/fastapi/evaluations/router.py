@@ -86,6 +86,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     SimpleQueueTestcasesCreateRequest,
     SimpleQueueResponse,
     SimpleQueuesResponse,
+    SimpleQueueIdResponse,
     SimpleQueueScenarioIdsResponse,
 )
 from oss.src.apis.fastapi.evaluations.utils import (
@@ -2514,7 +2515,7 @@ class SimpleQueuesRouter:
             self.add_queue_traces,
             methods=["POST"],
             operation_id="add_simple_queue_traces",
-            response_model=SimpleQueueResponse,
+            response_model=SimpleQueueIdResponse,
             response_model_exclude_none=True,
         )
 
@@ -2523,7 +2524,7 @@ class SimpleQueuesRouter:
             self.add_queue_testcases,
             methods=["POST"],
             operation_id="add_simple_queue_testcases",
-            response_model=SimpleQueueResponse,
+            response_model=SimpleQueueIdResponse,
             response_model_exclude_none=True,
         )
 
@@ -2682,7 +2683,7 @@ class SimpleQueuesRouter:
         queue_id: UUID,
         #
         queue_traces_create_request: SimpleQueueTracesCreateRequest,
-    ) -> SimpleQueueResponse:
+    ) -> SimpleQueueIdResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2691,7 +2692,7 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        queue = await self.simple_queues_service.add_traces(
+        queue_id = await self.simple_queues_service.add_traces(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -2700,9 +2701,9 @@ class SimpleQueuesRouter:
             trace_ids=queue_traces_create_request.trace_ids,
         )
 
-        return SimpleQueueResponse(
-            count=1 if queue else 0,
-            queue=queue,
+        return SimpleQueueIdResponse(
+            count=1 if queue_id else 0,
+            queue_id=queue_id,
         )
 
     @intercept_exceptions()
@@ -2713,7 +2714,7 @@ class SimpleQueuesRouter:
         queue_id: UUID,
         #
         queue_testcases_create_request: SimpleQueueTestcasesCreateRequest,
-    ) -> SimpleQueueResponse:
+    ) -> SimpleQueueIdResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -2722,7 +2723,7 @@ class SimpleQueuesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        queue = await self.simple_queues_service.add_testcases(
+        queue_id = await self.simple_queues_service.add_testcases(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -2731,7 +2732,7 @@ class SimpleQueuesRouter:
             testcase_ids=queue_testcases_create_request.testcase_ids,
         )
 
-        return SimpleQueueResponse(
-            count=1 if queue else 0,
-            queue=queue,
+        return SimpleQueueIdResponse(
+            count=1 if queue_id else 0,
+            queue_id=queue_id,
         )

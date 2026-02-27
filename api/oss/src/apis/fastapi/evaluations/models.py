@@ -405,6 +405,11 @@ class SimpleQueuesResponse(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class SimpleQueueIdResponse(BaseModel):
+    count: int = 0
+    queue_id: Optional[UUID] = None
+
+
 class SimpleQueueScenarioIdsResponse(BaseModel):
     count: int = 0
     scenario_ids: List[UUID] = []
