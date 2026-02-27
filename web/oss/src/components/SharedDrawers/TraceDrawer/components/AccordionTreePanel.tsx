@@ -22,7 +22,7 @@ import EditorWrapper, {
     useLexicalComposerContext,
 } from "@/oss/components/Editor/Editor"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -247,21 +247,9 @@ const LanguageAwareViewer = ({
 
 const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
-    const previousModeRef = useRef<boolean | null>(null)
 
     useEffect(() => {
-        if (previousModeRef.current === null) {
-            if (isMarkdownView) {
-                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            }
-            previousModeRef.current = isMarkdownView
-            return
-        }
-
-        if (previousModeRef.current !== isMarkdownView) {
-            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            previousModeRef.current = isMarkdownView
-        }
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
     }, [editor, isMarkdownView])
 
     return null
@@ -281,11 +269,11 @@ const TextModeViewer = ({
             id={editorId}
             initialValue={value}
             showToolbar={false}
-            enableTokens
+            enableTokens={false}
             readOnly
             className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
-            <MarkdownModeSync isMarkdownView={mode === "markdown"} />
+            <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
                 initialValue={value}
                 disabled

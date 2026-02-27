@@ -7,7 +7,7 @@ import yaml from "js-yaml"
 import {ChatMessageEditor, ChatMessageList} from "@/oss/components/ChatMessageEditor"
 import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
 import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {
@@ -39,15 +39,12 @@ function MarkdownViewState({
     return <>{children(isMarkdownView)}</>
 }
 
-function MarkdownViewSync({editorId, isMarkdownView}: {editorId: string; isMarkdownView: boolean}) {
+function MarkdownViewSync({isMarkdownView}: {isMarkdownView: boolean}) {
     const [editor] = useLexicalComposerContext()
-    const currentMarkdownView = useAtomValue(markdownViewAtom(editorId))
 
     useEffect(() => {
-        if (currentMarkdownView !== isMarkdownView) {
-            editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-        }
-    }, [currentMarkdownView, editor, isMarkdownView])
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+    }, [editor, isMarkdownView])
 
     return null
 }
@@ -1140,15 +1137,12 @@ function renderFieldContentByMode({
             id={editorId}
             initialValue={textValue}
             showToolbar={false}
-            enableTokens
+            enableTokens={false}
         >
             <EditorMarkdownToggleExposer
                 onToggleReady={(toggleFn) => registerMarkdownToggle(fieldKey, toggleFn)}
             />
-            <MarkdownViewSync
-                editorId={editorId}
-                isMarkdownView={selectedViewMode === "markdown"}
-            />
+            <MarkdownViewSync isMarkdownView={selectedViewMode === "text"} />
             <SharedEditor
                 id={editorId}
                 initialValue={textValue}
