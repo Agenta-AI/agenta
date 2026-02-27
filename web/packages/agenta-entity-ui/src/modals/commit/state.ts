@@ -87,11 +87,10 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
  */
 export const commitModalCanProceedAtom = atom((get): boolean => {
     const entity = get(commitModalEntityAtom)
-    const message = get(commitModalMessageAtom)
     const canCommit = get(commitModalCanCommitAtom)
     const isLoading = get(commitModalLoadingAtom)
 
-    return entity !== null && message.trim().length > 0 && canCommit && !isLoading
+    return entity !== null && canCommit && !isLoading
 })
 
 /**

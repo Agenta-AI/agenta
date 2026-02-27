@@ -10,6 +10,7 @@ interface VariantDetailsProps {
     showLatestTag?: boolean
     isLatest?: boolean
     onDiscardDraft?: () => void
+    hideDiscard?: boolean
 }
 
 const VariantDetails = ({
@@ -20,6 +21,7 @@ const VariantDetails = ({
     showLatestTag = true,
     isLatest = false,
     onDiscardDraft,
+    hideDiscard = false,
 }: VariantDetailsProps) => {
     const draftMenuItems: MenuProps["items"] = [
         {
@@ -49,13 +51,17 @@ const VariantDetails = ({
                 ))}
 
             {hasChanges ? (
-                <Dropdown
-                    trigger={["click"]}
-                    menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
-                    placement="bottomLeft"
-                >
-                    <DraftTag className="cursor-pointer" />
-                </Dropdown>
+                hideDiscard ? (
+                    <DraftTag />
+                ) : (
+                    <Dropdown
+                        trigger={["click"]}
+                        menu={{items: draftMenuItems, onClick: onDraftMenuClick}}
+                        placement="bottomLeft"
+                    >
+                        <DraftTag className="cursor-pointer" />
+                    </Dropdown>
+                )
             ) : (
                 isLatest &&
                 showLatestTag && (

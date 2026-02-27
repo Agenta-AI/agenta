@@ -11,6 +11,7 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React from "react"
 
 import {atom, useAtomValue} from "jotai"
 
@@ -27,7 +28,6 @@ import {
     type EntitySelectionCoreOptions,
 } from "../useEntitySelectionCore"
 import {buildPathItem, useLevelData, type LevelQueryState} from "../utilities"
-import React from "react"
 
 // ============================================================================
 // TYPES

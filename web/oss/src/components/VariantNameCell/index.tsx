@@ -23,6 +23,7 @@ interface VariantNameCellProps {
     showStable?: boolean
     revision?: Rev
     revisionName?: string | null
+    hideDiscard?: boolean
 }
 
 const VariantNameCell = memo(
@@ -32,6 +33,7 @@ const VariantNameCell = memo(
         revisionName,
         showBadges = false,
         showStable = false,
+        hideDiscard = false,
     }: VariantNameCellProps) => {
         const currentRevisionId = revisionId || (revision?.id ?? "")
         const resolvedRevision = useAtomValue(
@@ -91,6 +93,7 @@ const VariantNameCell = memo(
                 hasChanges={isDirty}
                 isLatest={isLatestRevision}
                 onDiscardDraft={handleDiscardDraft}
+                hideDiscard={hideDiscard}
             />
         )
     },

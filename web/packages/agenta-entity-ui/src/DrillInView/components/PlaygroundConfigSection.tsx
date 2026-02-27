@@ -555,6 +555,7 @@ function PlaygroundConfigSection({
                                             </Button>
                                         </div>
                                         <SelectLLMProviderBase
+                                            showGroup
                                             options={[
                                                 ...(llmProviderConfig?.extraOptionGroups ?? []),
                                                 ...promptModelInfo.modelOptions,

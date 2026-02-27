@@ -42,6 +42,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                     <VariantNameCell
                         revisionId={record.deployedAppVariantRevisionId as any}
                         showBadges={false}
+                        hideDiscard
                     />
                 ),
             },
