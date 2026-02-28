@@ -1662,10 +1662,6 @@ async def _evaluate_batch_items(
                     exc_info=True,
                 )
 
-        # TODO: run_status computed per-batch is unreliable for multi-batch ad-hoc runs
-        # (a later successful batch can overwrite ERRORS from an earlier batch).
-        # Run status on SimpleQueues is effectively meaningless until we implement
-        # an aggregate status derived from all scenarios across all batches.
         if run_has_errors:
             run_status = EvaluationStatus.ERRORS
         elif run_has_pending:
@@ -1682,6 +1678,26 @@ async def _evaluate_batch_items(
 
     if not run:
         return
+
+    # For ad-hoc/queue runs (multiple independent batches writing to the same run),
+    # re-fetch the current stored status and never downgrade it to a less severe state.
+    # This prevents a later successful batch from overwriting ERRORS from an earlier one.
+    if run.flags and run.flags.is_queue and run_status != EvaluationStatus.FAILURE:
+        _severity = {
+            EvaluationStatus.FAILURE: 4,
+            EvaluationStatus.ERRORS: 3,
+            EvaluationStatus.RUNNING: 2,
+            EvaluationStatus.SUCCESS: 1,
+            EvaluationStatus.PENDING: 0,
+        }
+        current_run = await evaluations_service.fetch_run(
+            project_id=project_id,
+            run_id=run_id,
+        )
+        if current_run and current_run.status:
+            stored_severity = _severity.get(current_run.status, 0)
+            if stored_severity > _severity.get(run_status, 0):
+                run_status = current_run.status
 
     try:
         if run_status != EvaluationStatus.FAILURE:

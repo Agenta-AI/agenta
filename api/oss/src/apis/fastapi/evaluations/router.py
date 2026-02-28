@@ -2605,7 +2605,8 @@ class SimpleQueuesRouter:
         evaluators_service = self.simple_queues_service.evaluators_service
 
         if isinstance(evaluators, list):
-            evaluators = {eid: "auto" for eid in evaluators}
+            # List form means human annotation (per SimpleQueueData.evaluators docstring)
+            evaluators = {eid: "human" for eid in evaluators}
 
         resolved: dict[UUID, str] = {}
 
