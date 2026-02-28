@@ -33,36 +33,36 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 - [x] P1-21 | category: Reliability | severity: P1 | action: Stop swallowing delivery persistence errors in webhook task path | status: done
 - [x] P1-22 | category: Correctness/Reliability | severity: P1 | action: Enforce delivery idempotency with unique `(project_id, subscription_id, event_id)` and DAO upsert | status: done
 - [x] P1-23 | category: Correctness | severity: P1 | action: Preserve existing flags on edit when incoming flags are omitted | status: done
-- [ ] P2-1 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-2 | category: Security | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-3 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-4 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-5 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-6 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-7 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-8 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-9 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-10 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-11 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-12 | category: Completeness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-13 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-14 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-15 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-16 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-17 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-18 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-19 | category: Consistency | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-20 | category: Quality | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-21 | category: Quality | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P2-22 | category: Correctness | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] P3-1 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-2 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-3 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-4 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-5 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-6 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-7 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-8 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [ ] P2-1 | category: Security | severity: P2 | action: Use dedicated `StandardProviderKind` for webhook secrets instead of `OPENAI` | status: todo
+- [x] P2-2 | category: Security | severity: P2 | action: Already fixed — `test_webhook` returns `WebhookDelivery` DTO, no secret | status: done
+- [ ] P2-3 | category: Correctness | severity: P2 | action: Replace `UUID(int=0)` sentinel with proper nullable `created_by_id` for system deliveries | status: todo
+- [x] P2-4 | category: Correctness | severity: P2 | action: Already fixed — `user_id` explicitly discarded in `deserialize_event` | status: done
+- [ ] P2-5 | category: Correctness | severity: P2 | action: Simplify `_resolve_secret` fallback chain; fail explicitly on missing secret | status: todo
+- [x] P2-6 | category: Completeness | severity: P2 | action: Make `organization_id` optional in `publish_event` (callers don't have it in OSS) | status: done
+- [x] P2-7 | category: Completeness | severity: P2 | action: Already fixed — typed domain exceptions in `core/webhooks/exceptions.py` | status: done
+- [ ] P2-8 | category: Completeness | severity: P2 | action: `fetch_delivery` in interface/DAO but not exposed in service — low impact, available if needed | status: todo
+- [x] P2-9 | category: Completeness | severity: P2 | action: Already fixed — `test_webhook` returns typed `WebhookDelivery` DTO | status: done
+- [x] P2-10 | category: Completeness | severity: P2 | action: Not applicable — events are system-generated, archival not relevant | status: done
+- [x] P2-11 | category: Completeness | severity: P2 | action: Removed dead `circuit_breaker.py` (never wired into delivery pipeline) | status: done
+- [x] P2-12 | category: Completeness | severity: P2 | action: Removed unused retry scheduling constants from config and `calculate_next_retry_at` from utils | status: done
+- [ ] P2-13 | category: Consistency | severity: P2 | action: Add `status_code`/`response_model_exclude_none` to route registrations | status: todo
+- [ ] P2-14 | category: Consistency | severity: P2 | action: Add `*` keyword-only separator to router handler signatures | status: todo
+- [x] P2-15 | category: Consistency | severity: P2 | action: Webhooks DAO uses shared `apply_windowing`; events DAO uses custom logic by design (P1-8) | status: done
+- [x] P2-16 | category: Consistency | severity: P2 | action: Already fixed — single header path uses `X-Agenta-Event-Type` consistently | status: done
+- [ ] P2-17 | category: Consistency | severity: P2 | action: Add `ix_webhook_subscriptions_project_id_deleted_at` to DBE `__table_args__` | status: todo
+- [ ] P2-18 | category: Consistency | severity: P2 | action: Remove redundant `ix_events_project_id` standalone index | status: todo
+- [ ] P2-19 | category: Consistency | severity: P2 | action: Align interface style — both should use `Protocol` or both `NotImplementedError` | status: todo
+- [ ] P2-20 | category: Quality | severity: P2 | action: Extract duplicated cache key construction to shared utility | status: todo
+- [ ] P2-21 | category: Quality | severity: P2 | action: Worker-written deliveries don't invalidate delivery query cache | status: todo
+- [ ] P2-22 | category: Correctness | severity: P2 | action: DAO should filter `status.message` or remove it from query contract | status: todo
+- [ ] P3-1 | category: Quality/Nit | severity: P3 | action: Make webhook config env-configurable | status: todo
+- [x] P3-2 | category: Quality/Nit | severity: P3 | action: Removed — circuit breaker was dead code (P2-11) | status: done
+- [ ] P3-3 | category: Quality/Nit | severity: P3 | action: Make `WebhookDeliveryData.url` non-optional | status: todo
+- [ ] P3-4 | category: Quality/Nit | severity: P3 | action: Consider `is_active=True` as default for new subscriptions | status: todo
+- [x] P3-5 | category: Quality/Nit | severity: P3 | action: Removed — `calculate_next_retry_at` was dead code (P2-12) | status: done
+- [ ] P3-6 | category: Quality/Nit | severity: P3 | action: Fix URL typing to avoid `type: ignore[arg-type]` | status: todo
+- [ ] P3-7 | category: Quality/Nit | severity: P3 | action: Fix "parenthesis" typo in worker comment | status: todo
+- [ ] P3-8 | category: Quality/Nit | severity: P3 | action: Deduplicate `EventKey` type alias between worker and dispatcher | status: todo
 - [ ] P3-9 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
 - [ ] P3-10 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
 
