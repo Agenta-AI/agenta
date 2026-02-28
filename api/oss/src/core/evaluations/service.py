@@ -1506,6 +1506,9 @@ class EvaluationsService:
         if not queue_user_ids:
             return [run_scenario_ids]
 
+        if user_id is None:
+            return [run_scenario_ids]
+
         is_sequential = queue.flags and queue.flags.is_sequential or False
         batch_size = queue.data.batch_size if queue.data else None
         batch_offset = queue.data.batch_offset if queue.data else None
