@@ -1284,9 +1284,16 @@ def build_numeric_continuous_blocks(
         (cont_minmax.c.vmax_opt.isnot(None), cast(cont_minmax.c.vmax_opt, Numeric)),
         else_=cont_minmax.c.vmax,
     )
-    chosen_bins = case(
-        (cont_minmax.c.bins_opt.isnot(None), cast(cont_minmax.c.bins_opt, Integer)),
-        else_=cast(func.ceil(func.sqrt(cast(cont_minmax.c.n, Numeric))), Integer),
+    # Guard against bins <= 0 (pre-existing: MetricSpec.bins has no lower bound).
+    chosen_bins = func.greatest(
+        case(
+            (
+                cont_minmax.c.bins_opt.isnot(None),
+                cast(cont_minmax.c.bins_opt, Integer),
+            ),
+            else_=cast(func.ceil(func.sqrt(cast(cont_minmax.c.n, Numeric))), Integer),
+        ),
+        literal(1, type_=Integer),
     )
 
     cont_bins = (
@@ -1399,15 +1406,10 @@ def build_numeric_continuous_blocks(
         .render_derived(name="cont_bin_series")
     )
 
+    # Reuse the widths computed in step 7 for interval boundaries.
     bin_width = case(
-        (is_edge_aligned, (cont_bins.c.vmax - cont_bins.c.vmin) / cont_bins.c.bins),
-        else_=case(
-            (
-                cont_bins.c.bins > 1,
-                (cont_bins.c.vmax - cont_bins.c.vmin) / (cont_bins.c.bins - 1),
-            ),
-            else_=cast(0, Numeric),
-        ),
+        (is_edge_aligned, edge_width),
+        else_=center_width,
     )
 
     interval_start = case(
