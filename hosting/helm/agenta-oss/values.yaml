@@ -430,22 +430,40 @@ ingress:
   #    hosts:
   #      - agenta.example.com
   annotations: {}
+  # Ingress paths — controls how traffic is routed to each backend.
+  # The defaults use Prefix pathType, which works with Traefik.
+  #
+  # For NGINX Ingress Controller, override with regex capture groups:
+  #   paths:
+  #     api:
+  #       path: /api/(.*)
+  #       pathType: ImplementationSpecific
+  #     services:
+  #       path: /services/(.*)
+  #       pathType: ImplementationSpecific
+  #     web:
+  #       path: /(.*)
+  #       pathType: ImplementationSpecific
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/use-regex: "true"
+  #     nginx.ingress.kubernetes.io/rewrite-target: /$1
+  paths:
+    api:
+      path: /api
+      pathType: Prefix
+    services:
+      path: /services
+      pathType: Prefix
+    web:
+      path: /
+      pathType: Prefix
   # Path prefix stripping for /api and /services is REQUIRED — the backend
-  # services expect requests without the prefix. The API and Services
-  # deployments set SCRIPT_NAME (which FastAPI reads as root_path) so that
-  # generated OpenAPI docs and redirect URLs include the prefix, but the
-  # actual routing inside the app uses the stripped path.
+  # services expect requests without the prefix.
   #
   # Traefik — set the annotation and add the Middleware via extraObjects:
   #   annotations:
   #     traefik.ingress.kubernetes.io/router.middlewares: <namespace>-strip-prefixes@kubernetescrd
   #   (see extraObjects below for the matching Middleware resource)
-  #
-  # NGINX Ingress Controller:
-  #   className: nginx
-  #   annotations:
-  #     nginx.ingress.kubernetes.io/use-regex: "true"
-  #     nginx.ingress.kubernetes.io/rewrite-target: /$1
 
 # =================================================================
 # Extra Objects — arbitrary Kubernetes resources managed by this release.
