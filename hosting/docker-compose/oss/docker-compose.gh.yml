@@ -50,6 +50,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/api
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -95,6 +96,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -131,6 +134,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -160,6 +165,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -215,6 +222,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             - SCRIPT_NAME=/services
+            - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
