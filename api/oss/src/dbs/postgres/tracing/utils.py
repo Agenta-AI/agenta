@@ -1344,31 +1344,47 @@ def build_numeric_continuous_blocks(
         else_=cast(0, Numeric),
     )
 
-    # width_bucket requires lo < hi.  When all values are identical
-    # (vmin == vmax) or when the computed bin width is zero, we use an
-    # absolute epsilon floor so the upper bound always exceeds the lower.
+    # width_bucket requires lo < hi.  We only add epsilon when vmin == vmax
+    # (degenerate single-value case).  For the normal case we keep wb_hi ==
+    # vmax so that internal bin boundaries stay exact, and clamp the overflow
+    # bucket (bins+1, where values == vmax land) back to the last bin via
+    # LEAST.  This preserves the original [start, end) half-open semantics
+    # and avoids shifting boundary values for integer-valued metrics.
     _ABS_EPS = cast(literal(1e-9), Numeric)
 
-    _edge_eps = func.greatest(edge_width * _ABS_EPS, _ABS_EPS)
-    _center_eps = func.greatest(center_width * _ABS_EPS, _ABS_EPS)
+    _is_degenerate = cont_bins.c.vmin == cont_bins.c.vmax
 
     wb_lo = case(
         (is_edge_aligned, cont_bins.c.vmin),
         else_=cont_bins.c.vmin - center_width / 2,
     )
     wb_hi = case(
-        (is_edge_aligned, cont_bins.c.vmax + _edge_eps),
-        else_=cont_bins.c.vmax + center_width / 2 + _center_eps,
+        (
+            is_edge_aligned,
+            case(
+                (_is_degenerate, cont_bins.c.vmax + _ABS_EPS),
+                else_=cont_bins.c.vmax,
+            ),
+        ),
+        else_=case(
+            (_is_degenerate, cont_bins.c.vmax + _ABS_EPS),
+            else_=cont_bins.c.vmax + center_width / 2,
+        ),
     )
 
     cont_bucketed = (
         select(
             cont_raw.c.timestamp,
             cont_raw.c.idx,
-            func.width_bucket(
-                cont_raw.c.value,
-                wb_lo,
-                wb_hi,
+            # Clamp overflow bucket (bins+1) to the last bin so that values
+            # exactly equal to vmax are counted in bin N, not lost.
+            func.least(
+                func.width_bucket(
+                    cont_raw.c.value,
+                    wb_lo,
+                    wb_hi,
+                    cont_bins.c.bins,
+                ),
                 cont_bins.c.bins,
             ).label("bin"),
         ).select_from(
