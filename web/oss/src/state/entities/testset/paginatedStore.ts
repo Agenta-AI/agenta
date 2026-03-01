@@ -195,13 +195,9 @@ async function fetchTestsetsPage({
     }
 
     try {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/testsets/query`,
-            queryPayload,
-            {
-                params: {project_id: meta.projectId},
-            },
-        )
+        const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
+            params: {project_id: meta.projectId},
+        })
 
         const data = response.data
         const testsets = data?.testsets ?? []

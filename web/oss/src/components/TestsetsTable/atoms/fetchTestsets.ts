@@ -83,13 +83,9 @@ export const fetchTestsetsWindow = async ({
 
     try {
         // Use /testsets/query - returns Testset metadata without testcases
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/testsets/query`,
-            queryPayload,
-            {
-                params: {project_id: projectId},
-            },
-        )
+        const response = await axios.post(`${getAgentaApiUrl()}/testsets/query`, queryPayload, {
+            params: {project_id: projectId},
+        })
 
         const data = response.data
         const testsets = data?.testsets ?? []

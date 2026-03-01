@@ -412,10 +412,7 @@ const usePreviewEvaluations = ({
             })
 
             // 3. Invoke preview run endpoint (include project for backend routing)
-            const response = await axios.post(
-                `/evaluations/runs/?project_id=${projectId}`,
-                params,
-            )
+            const response = await axios.post(`/evaluations/runs/?project_id=${projectId}`, params)
 
             // 4. Refresh preview runs list and return created run
             await evaluationRunsState.mutate()

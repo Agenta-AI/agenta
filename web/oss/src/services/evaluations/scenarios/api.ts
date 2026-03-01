@@ -85,10 +85,9 @@ export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
         const newRunStatus = hasErrors ? "errors" : "success"
 
         // Fetch the existing run data first to preserve all fields
-        const runResponse = await axios.post(
-            `/evaluations/runs/query?project_id=${projectId}`,
-            {run: {ids: [runId]}},
-        )
+        const runResponse = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
+            run: {ids: [runId]},
+        })
 
         const existingRun = runResponse.data?.runs?.[0]
         if (!existingRun) return

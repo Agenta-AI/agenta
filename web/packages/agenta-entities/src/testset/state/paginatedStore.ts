@@ -76,7 +76,7 @@ interface FetchTestsetsWindowResponse {
 }
 
 /**
- * Fetch testsets window from API using the preview/testsets/query endpoint
+ * Fetch testsets window from API using the testsets/query endpoint
  */
 async function fetchTestsetsWindow(
     params: FetchTestsetsWindowParams,

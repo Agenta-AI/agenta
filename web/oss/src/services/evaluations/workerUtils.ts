@@ -13,23 +13,20 @@ export async function updateScenarioStatusRemote(
 ): Promise<void> {
     try {
         // 1. Query results to validate scenario context (scenarios GET is deprecated)
-        const res = await fetch(
-            `${apiUrl}/evaluations/results/query?project_id=${projectId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwt}`,
-                },
-                body: JSON.stringify({
-                    result: {
-                        scenario_ids: [scenarioId],
-                        ...(runId ? {run_ids: [runId]} : {}),
-                    },
-                    windowing: {},
-                }),
+        const res = await fetch(`${apiUrl}/evaluations/results/query?project_id=${projectId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${jwt}`,
             },
-        )
+            body: JSON.stringify({
+                result: {
+                    scenario_ids: [scenarioId],
+                    ...(runId ? {run_ids: [runId]} : {}),
+                },
+                windowing: {},
+            }),
+        })
         let scenarioFull: any | null = null
         if (res.ok) {
             // We no longer rely on the scenario payload; server requires id for PATCH
@@ -79,24 +76,21 @@ export async function upsertScenarioStep(params: {
         references = {},
     } = params
     try {
-        const res = await fetch(
-            `${apiUrl}/evaluations/results/query?project_id=${projectId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwt}`,
-                },
-                body: JSON.stringify({
-                    result: {
-                        run_ids: [runId],
-                        scenario_ids: [scenarioId],
-                        step_keys: [key],
-                    },
-                    windowing: {},
-                }),
+        const res = await fetch(`${apiUrl}/evaluations/results/query?project_id=${projectId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${jwt}`,
             },
-        )
+            body: JSON.stringify({
+                result: {
+                    run_ids: [runId],
+                    scenario_ids: [scenarioId],
+                    step_keys: [key],
+                },
+                windowing: {},
+            }),
+        })
         if (res.ok) {
             const data = await res.json()
             const list = Array.isArray(data.results)

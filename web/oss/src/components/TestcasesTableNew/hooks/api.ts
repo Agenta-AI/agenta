@@ -11,10 +11,9 @@ export const PAGE_SIZE = 50
  * Fetch revision metadata from API (no testcases - just metadata)
  */
 export async function fetchRevision(projectId: string, revisionId: string) {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/testsets/revisions/${revisionId}`,
-        {params: {project_id: projectId, include_testcases: true}},
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${revisionId}`, {
+        params: {project_id: projectId, include_testcases: true},
+    })
     return response.data?.testset_revision
 }
 

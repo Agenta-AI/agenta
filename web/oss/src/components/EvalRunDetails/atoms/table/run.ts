@@ -148,13 +148,9 @@ const ensureEvaluatorRevisions = async ({
             }
 
             try {
-                const response = await axios.post(
-                    `/evaluators/revisions/retrieve`,
-                    payload,
-                    {
-                        params: {project_id: projectId},
-                    },
-                )
+                const response = await axios.post(`/evaluators/revisions/retrieve`, payload, {
+                    params: {project_id: projectId},
+                })
                 const revision =
                     response?.data?.revision ?? response?.data?.data ?? response?.data ?? null
                 const revisionPayload =
@@ -267,14 +263,10 @@ const ensureEvaluatorRevisions = async ({
                 patchedRun,
             })
         }
-        await axios.patch(
-            `/evaluations/runs/${encodeURIComponent(runId)}`,
-            {run: patchedRun},
-            {
-                params: {project_id: projectId},
-                _ignoreError: true,
-            } as any,
-        )
+        await axios.patch(`/evaluations/runs/${encodeURIComponent(runId)}`, {run: patchedRun}, {
+            params: {project_id: projectId},
+            _ignoreError: true,
+        } as any)
         if (process.env.NODE_ENV !== "production") {
             console.debug("[EvalRunDetails2] Run patch successful", {
                 runId,
