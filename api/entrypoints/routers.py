@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +54,7 @@ from oss.src.dbs.postgres.environments.dbes import (
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.clickhouse.tracing.dao import ClickHouseTracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -217,7 +219,11 @@ if ee and is_ee():
 
 secrets_dao = SecretsDAO()
 
-tracing_dao = TracingDAO()
+tracing_backend = os.getenv("TRACING_BACKEND", "postgres").lower()
+if tracing_backend == "clickhouse":
+    tracing_dao = ClickHouseTracingDAO()
+else:
+    tracing_dao = TracingDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,

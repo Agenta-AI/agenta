@@ -1,4 +1,5 @@
 import sys
+import os
 
 from redis.asyncio import Redis
 from taskiq.cli.worker.run import run_worker
@@ -28,6 +29,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowRevisionDBE,
 )
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.clickhouse.tracing.dao import ClickHouseTracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -72,7 +74,12 @@ broker = RedisStreamBroker(
 # EVALS -------------------------------------------------------------------
 # Instantiate workers (analogous to router instantiation in routers.py)
 
-tracing_dao = TracingDAO()
+tracing_backend = os.getenv("TRACING_BACKEND", "postgres").lower()
+if tracing_backend == "clickhouse":
+    tracing_dao = ClickHouseTracingDAO()
+    log.info("[EVAL] Using ClickHouse tracing backend")
+else:
+    tracing_dao = TracingDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,
