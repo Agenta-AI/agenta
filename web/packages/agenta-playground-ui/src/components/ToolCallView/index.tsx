@@ -30,10 +30,7 @@ function getStringField(record: UnknownRecord | undefined, key: string): string 
     return typeof value === "string" ? value : undefined
 }
 
-function getWrappedStringField(
-    record: UnknownRecord | undefined,
-    key: string,
-): string | undefined {
+function getWrappedStringField(record: UnknownRecord | undefined, key: string): string | undefined {
     const direct = getStringField(record, key)
     if (direct) return direct
     const wrapped = record?.[key]

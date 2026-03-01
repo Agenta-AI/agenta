@@ -421,4 +421,4 @@ export {
 // HELPERS (Public)
 // ============================================================================
 
-export {buildAssistantMessage, buildToolMessages, buildUserMessage} from "./helpers/messageFactory"
+export {buildAssistantMessage, buildUserMessage} from "./helpers/messageFactory"

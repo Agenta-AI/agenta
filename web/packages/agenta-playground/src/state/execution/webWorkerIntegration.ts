@@ -16,7 +16,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 
 import {outputConnectionsAtom} from "../atoms/connections"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
-import {clearSessionResponsesAtom} from "../chat"
+import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 
 import {handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
@@ -182,14 +182,31 @@ export const triggerExecutionAtom = atom(
         const sessionId = `sess:${rootEntityId}`
         const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
-        // For chat re-runs, clear previous assistant/tool responses for this
-        // session from the current turn onward before starting a new run.
+        // Clear previous responses for re-runs, but preserve history for
+        // tool continuations so the LLM can consume the tool result context.
         if (isChat) {
-            set(clearSessionResponsesAtom, {
-                loadableId,
-                sessionId,
-                afterUserMessageId: logicalRowId,
-            })
+            const flatIds = get(messageIdsAtomFamily(loadableId))
+            const flatById = get(messagesByIdAtomFamily(loadableId))
+            const userIdx = flatIds.indexOf(logicalRowId)
+
+            let isToolContinuation = false
+            if (userIdx >= 0) {
+                for (let i = flatIds.length - 1; i > userIdx; i--) {
+                    const msg = flatById[flatIds[i]]
+                    if (msg?.sessionId === sessionId) {
+                        isToolContinuation = msg.role === "tool"
+                        break
+                    }
+                }
+            }
+
+            if (!isToolContinuation) {
+                set(clearSessionResponsesAtom, {
+                    loadableId,
+                    sessionId,
+                    afterUserMessageId: logicalRowId,
+                })
+            }
         }
 
         // Determine which node is the target (if any)

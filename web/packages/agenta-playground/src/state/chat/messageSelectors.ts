@@ -367,24 +367,24 @@ export const messageCountWithContextAtom = atom((get) => {
 /**
  * Index of child messages grouped by `parentId:sessionId`.
  *
- * Enables O(1) lookup of assistant/tool messages for a given turn+session,
- * replacing O(N) linear scans in assistantForTurn / toolsForTurn selectors.
+ * Enables O(1) lookup of assistant/tool message sequences for a given
+ * turn+session, replacing O(N) linear scans in turn-level selectors.
  */
 export const childMessageIndexWithContextAtom = atom((get) => {
     const ids = get(messageIdsWithContextAtom) as string[]
     const byId = get(messagesByIdWithContextAtom) as Record<string, ChatMessage>
 
-    const index: Record<string, {assistant: ChatMessage | null; tools: ChatMessage[]}> = {}
+    const index: Record<string, {assistants: ChatMessage[]; tools: ChatMessage[]}> = {}
 
     for (const mid of ids) {
         const m = byId[mid]
         if (!m || !m.parentId || m.sessionId === SHARED_SESSION_ID) continue
 
         const key = `${m.parentId}:${m.sessionId}`
-        if (!index[key]) index[key] = {assistant: null, tools: []}
+        if (!index[key]) index[key] = {assistants: [], tools: []}
 
         if (m.role === "assistant") {
-            index[key].assistant = m
+            index[key].assistants.push(m)
         } else if (m.role === "tool") {
             index[key].tools.push(m)
         }

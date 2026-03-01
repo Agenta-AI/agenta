@@ -26,10 +26,6 @@ const unwrapArray = (value: unknown): unknown[] | undefined => {
     return Array.isArray(unwrapped) ? unwrapped : undefined
 }
 
-const unwrapRecord = (value: unknown): Record<string, unknown> | null => {
-    return asRecord(unwrapValue(value))
-}
-
 /**
  * Extract a plain string value from a potentially PropertyNode-wrapped value.
  * Handles both `"text"` and `{value: "text"}` shapes for backward compat
@@ -65,13 +61,18 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
     const raw = response?.data
     const rawRec = asRecord(raw)
     const inner = rawRec ? (rawRec.data ?? rawRec) : raw
-    const innerRec = asRecord(inner)
+    const innerRec = asRecord(inner) || resultRecord
+
+    const role = unwrapString(innerRec?.role) ?? "assistant"
     const content = innerRec ? (innerRec.content ?? innerRec.data) : undefined
 
     // Preserve tool_calls so subsequent tool messages have a valid predecessor
     const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
     const toolCallsArr = unwrapArray(toolCalls)
     const normalizedToolCalls = toolCallsArr && toolCallsArr.length > 0 ? toolCallsArr : undefined
+
+    const toolCallId = unwrapString(innerRec?.tool_call_id ?? innerRec?.toolCallId)
+    const name = unwrapString(innerRec?.name)
 
     let finalText: string | undefined
     if (typeof content === "string") {
@@ -88,73 +89,22 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
         finalText = texts.join("\n\n")
     }
 
-    if (finalText !== undefined) {
-        const msg: SimpleChatMessage = {
-            id: generateId(),
-            role: "assistant",
-            content: finalText,
-        }
-        if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls
-        return msg
-    }
-
-    // Fallback: try to extract content from inner object
-    const fallbackContent = innerRec
-        ? (unwrapString(innerRec.content) ?? unwrapString(innerRec.data)) || ""
-        : ""
+    const fallbackContent =
+        finalText ??
+        (innerRec ? (unwrapString(innerRec.content) ?? unwrapString(innerRec.data)) : "") ??
+        ""
 
     const msg: SimpleChatMessage = {
         id: generateId(),
-        role: "assistant",
+        role,
         content: fallbackContent,
     }
-    if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls
+
+    if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls as any
+    if (toolCallId) msg.tool_call_id = toolCallId
+    if (name) msg.name = name
+
     return msg
-}
-
-export function buildToolMessages(testResult: unknown): SimpleChatMessage[] {
-    try {
-        const resultRec = asRecord(testResult)
-        const responseRec = asRecord(resultRec?.response)
-        const raw = responseRec?.data
-        if (!raw) return []
-        const rawRec = asRecord(raw)
-        const inner = rawRec && rawRec.data !== undefined ? unwrapValue(rawRec.data) : raw
-        const innerRec = asRecord(inner)
-
-        const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
-        const toolCallsArray = unwrapArray(toolCalls)
-        if (!toolCallsArray || toolCallsArray.length === 0) return []
-
-        return toolCallsArray
-            .map((toolCall, index: number): SimpleChatMessage | null => {
-                const toolCallRec = unwrapRecord(toolCall)
-                const functionRec = unwrapRecord(toolCallRec?.function)
-                const functionCallRec = unwrapRecord(toolCallRec?.function_call)
-                const name =
-                    unwrapString(functionRec?.name) ||
-                    unwrapString(toolCallRec?.name) ||
-                    `tool_${index + 1}`
-                const toolCallId =
-                    unwrapString(toolCallRec?.id) ||
-                    unwrapString(toolCallRec?.__id) ||
-                    unwrapString(toolCallRec?.tool_call_id) ||
-                    unwrapString(toolCallRec?.toolCallId) ||
-                    unwrapString(toolCallRec?.toolCallID) ||
-                    unwrapString(functionCallRec?.id)
-
-                return {
-                    id: generateId(),
-                    role: "tool",
-                    name,
-                    tool_call_id: toolCallId,
-                    content: "",
-                }
-            })
-            .filter((msg): msg is SimpleChatMessage => msg !== null)
-    } catch {
-        return []
-    }
 }
 
 export function buildUserMessage(init?: {role?: string; content?: unknown}): SimpleChatMessage {

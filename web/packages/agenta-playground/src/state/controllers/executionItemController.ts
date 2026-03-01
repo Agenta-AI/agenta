@@ -78,6 +78,7 @@ import {
     aggregatedHeaderDataAtom,
     assistantForTurnAtomFamily,
     toolsForTurnAtomFamily,
+    assistantsForTurnAtomFamily,
     rerunFromTurnAtom,
     runAllWithContextAtom,
     runRowAtom,
@@ -233,6 +234,10 @@ export const executionItemController = {
         /** Tool messages for a specific turn and session */
         toolsForTurn: (params: {turnId: string; sessionId: string}) =>
             toolsForTurnAtomFamily(params),
+
+        /** All assistant messages for a specific turn and session (chronological) */
+        assistantsForTurn: (params: {turnId: string; sessionId: string}) =>
+            assistantsForTurnAtomFamily(params),
     },
 
     /**

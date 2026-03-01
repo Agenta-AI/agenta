@@ -7,5 +7,6 @@ export {
     useDrillInUI,
     defaultShowMessage,
     type DrillInUIComponents,
+    type GatewayToolsBridge,
     type DrillInUIProviderProps,
 } from "./DrillInUIContext"

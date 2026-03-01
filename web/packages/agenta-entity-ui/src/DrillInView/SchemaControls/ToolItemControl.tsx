@@ -20,7 +20,6 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
-import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"

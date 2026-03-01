@@ -39,7 +39,9 @@ const GatewayToolAssistantActions: React.FC<ChatTurnAssistantActionsProps> = ({
 
     const messageOverride = useMemo(
         () =>
-            currentResult ? (executionItemController.helpers.buildAssistantMessage(currentResult) as any) : null,
+            currentResult
+                ? (executionItemController.helpers.buildAssistantMessage(currentResult) as any)
+                : null,
         [currentResult],
     )
 
