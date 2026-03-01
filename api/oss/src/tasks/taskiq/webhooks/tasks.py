@@ -22,8 +22,9 @@ from uuid import UUID
 import httpx
 
 from oss.src.core.shared.dtos import Status
-from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES, WEBHOOK_TIMEOUT
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
+    WEBHOOK_MAX_RETRIES,
+    WEBHOOK_TIMEOUT,
     WebhookDeliveryCreate,
     WebhookDeliveryData,
     WebhookDeliveryResponseInfo,
@@ -118,7 +119,7 @@ async def deliver_webhook(
 ) -> None:
     """Deliver a webhook payload to a single subscriber endpoint."""
     base_data = WebhookDeliveryData(
-        url=url,  # type: ignore[arg-type]
+        url=url,
         event_type=event_type,
         payload=payload,
     )

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
     WebhookSubscription,
     WebhookSubscriptionCreate,
     WebhookSubscriptionEdit,
@@ -400,12 +400,11 @@ class WebhooksDAO(WebhooksDAOInterface):
                 )
 
             if delivery:
-                if delivery.status is not None:
-                    if delivery.status.code is not None:
-                        stmt = stmt.filter(
-                            WebhookDeliveryDBE.status["code"].astext
-                            == str(delivery.status.code),
-                        )
+                if delivery.status is not None and delivery.status.code is not None:
+                    stmt = stmt.filter(
+                        WebhookDeliveryDBE.status["code"].astext
+                        == str(delivery.status.code),
+                    )
 
                 if delivery.subscription_id is not None:
                     stmt = stmt.filter(

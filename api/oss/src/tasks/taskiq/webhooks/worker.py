@@ -4,8 +4,8 @@ from uuid import UUID
 from taskiq import AsyncBroker, Context, TaskiqDepends
 
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
-from oss.src.core.webhooks.tasks import deliver_webhook as deliver_webhook_impl
-from oss.src.core.webhooks.config import WEBHOOK_MAX_RETRIES
+from oss.src.tasks.taskiq.webhooks.tasks import deliver_webhook as deliver_webhook_impl
+from oss.src.core.webhooks.types import WEBHOOK_MAX_RETRIES
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)

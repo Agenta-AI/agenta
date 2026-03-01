@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
     WebhookDelivery,
     WebhookDeliveryCreate,
     WebhookDeliveryQuery,

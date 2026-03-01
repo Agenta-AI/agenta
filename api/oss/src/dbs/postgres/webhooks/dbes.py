@@ -32,6 +32,11 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
             "project_id",
             "created_at",
         ),
+        Index(
+            "ix_webhook_subscriptions_project_id_deleted_at",
+            "project_id",
+            "deleted_at",
+        ),
     )
 
     secret = relationship(

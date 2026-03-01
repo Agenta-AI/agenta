@@ -13,13 +13,15 @@ from oss.src.core.events.types import EventType, RequestType
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
-    StandardProviderDTO,
-    StandardProviderSettingsDTO,
+    WebhookProviderDTO,
+    WebhookProviderSettingsDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
+    WEBHOOK_TEST_MAX_ATTEMPTS,
+    WEBHOOK_TEST_POLL_INTERVAL_MS,
     WebhookDelivery,
     WebhookDeliveryCreate,
     WebhookDeliveryQuery,
@@ -27,10 +29,6 @@ from oss.src.core.webhooks.dtos import (
     WebhookSubscriptionCreate,
     WebhookSubscriptionEdit,
     WebhookSubscriptionQuery,
-)
-from oss.src.core.webhooks.config import (
-    WEBHOOK_TEST_MAX_ATTEMPTS,
-    WEBHOOK_TEST_POLL_INTERVAL_MS,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.core.webhooks.exceptions import (
@@ -77,13 +75,14 @@ class WebhooksService:
                 secret_id=secret_id,
                 project_id=project_id,
             )
-            data = secret_dto.data if secret_dto else None
-            provider = getattr(data, "provider", None) or (
-                data.get("provider") if isinstance(data, dict) else None
-            )
-            if isinstance(provider, dict):
-                return provider.get("key")
-            return getattr(provider, "key", None)
+            if secret_dto is None:
+                log.warning(f"Webhook secret {secret_id} not found in vault")
+                return None
+            key = secret_dto.data.provider.key
+            if not key:
+                log.warning(f"Webhook secret {secret_id} has no key value")
+                return None
+            return key
         except Exception as e:
             log.warning(f"Failed to resolve webhook secret {secret_id}: {e}")
             return None
@@ -113,10 +112,9 @@ class WebhooksService:
                     "description": "Webhook signing secret",
                 },
                 secret=SecretDTO(
-                    kind=SecretKind.PROVIDER_KEY,
-                    data=StandardProviderDTO(
-                        kind=StandardProviderKind.OPENAI,
-                        provider=StandardProviderSettingsDTO(key=secret_value),
+                    kind=SecretKind.WEBHOOK_PROVIDER,
+                    data=WebhookProviderDTO(
+                        provider=WebhookProviderSettingsDTO(key=secret_value),
                     ),
                 ),
             ),
@@ -327,6 +325,17 @@ class WebhooksService:
         return result
 
     # --- deliveries ---------------------------------------------------------- #
+
+    async def fetch_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: UUID,
+    ) -> Optional[WebhookDelivery]:
+        return await self.dao.fetch_delivery(
+            project_id=project_id,
+            delivery_id=delivery_id,
+        )
 
     async def create_delivery(
         self,

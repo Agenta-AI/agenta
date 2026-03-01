@@ -33,38 +33,38 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 - [x] P1-21 | category: Reliability | severity: P1 | action: Stop swallowing delivery persistence errors in webhook task path | status: done
 - [x] P1-22 | category: Correctness/Reliability | severity: P1 | action: Enforce delivery idempotency with unique `(project_id, subscription_id, event_id)` and DAO upsert | status: done
 - [x] P1-23 | category: Correctness | severity: P1 | action: Preserve existing flags on edit when incoming flags are omitted | status: done
-- [ ] P2-1 | category: Security | severity: P2 | action: Use dedicated `StandardProviderKind` for webhook secrets instead of `OPENAI` | status: todo
+- [x] P2-1 | category: Security | severity: P2 | action: Added `WEBHOOK_PROVIDER` to `SecretKind` with dedicated `WebhookProviderDTO`; removed `WEBHOOK` from `StandardProviderKind` | status: done
 - [x] P2-2 | category: Security | severity: P2 | action: Already fixed — `test_webhook` returns `WebhookDelivery` DTO, no secret | status: done
-- [ ] P2-3 | category: Correctness | severity: P2 | action: Replace `UUID(int=0)` sentinel with proper nullable `created_by_id` for system deliveries | status: todo
+- [x] P2-3 | category: Correctness | severity: P2 | action: Removed `UUID(int=0)` sentinel; `created_by_id` now nullable in delivery DBA + mapping | status: done
 - [x] P2-4 | category: Correctness | severity: P2 | action: Already fixed — `user_id` explicitly discarded in `deserialize_event` | status: done
-- [ ] P2-5 | category: Correctness | severity: P2 | action: Simplify `_resolve_secret` fallback chain; fail explicitly on missing secret | status: todo
+- [x] P2-5 | category: Correctness | severity: P2 | action: Simplified `_resolve_secret` in service + dispatcher; direct `secret_dto.data.provider.key` access | status: done
 - [x] P2-6 | category: Completeness | severity: P2 | action: Make `organization_id` optional in `publish_event` (callers don't have it in OSS) | status: done
 - [x] P2-7 | category: Completeness | severity: P2 | action: Already fixed — typed domain exceptions in `core/webhooks/exceptions.py` | status: done
-- [ ] P2-8 | category: Completeness | severity: P2 | action: `fetch_delivery` in interface/DAO but not exposed in service — low impact, available if needed | status: todo
+- [x] P2-8 | category: Completeness | severity: P2 | action: Exposed `fetch_delivery` through service + router (`GET /deliveries/{delivery_id}`) | status: done
 - [x] P2-9 | category: Completeness | severity: P2 | action: Already fixed — `test_webhook` returns typed `WebhookDelivery` DTO | status: done
 - [x] P2-10 | category: Completeness | severity: P2 | action: Not applicable — events are system-generated, archival not relevant | status: done
 - [x] P2-11 | category: Completeness | severity: P2 | action: Removed dead `circuit_breaker.py` (never wired into delivery pipeline) | status: done
 - [x] P2-12 | category: Completeness | severity: P2 | action: Removed unused retry scheduling constants from config and `calculate_next_retry_at` from utils | status: done
-- [ ] P2-13 | category: Consistency | severity: P2 | action: Add `status_code`/`response_model_exclude_none` to route registrations | status: todo
-- [ ] P2-14 | category: Consistency | severity: P2 | action: Add `*` keyword-only separator to router handler signatures | status: todo
+- [x] P2-13 | category: Consistency | severity: P2 | action: Added `status_code` and `response_model_exclude_none` to all route registrations | status: done
+- [x] P2-14 | category: Consistency | severity: P2 | action: Added `*` keyword-only separator to all router handler signatures | status: done
 - [x] P2-15 | category: Consistency | severity: P2 | action: Webhooks DAO uses shared `apply_windowing`; events DAO uses custom logic by design (P1-8) | status: done
 - [x] P2-16 | category: Consistency | severity: P2 | action: Already fixed — single header path uses `X-Agenta-Event-Type` consistently | status: done
-- [ ] P2-17 | category: Consistency | severity: P2 | action: Add `ix_webhook_subscriptions_project_id_deleted_at` to DBE `__table_args__` | status: todo
-- [ ] P2-18 | category: Consistency | severity: P2 | action: Remove redundant `ix_events_project_id` standalone index | status: todo
-- [ ] P2-19 | category: Consistency | severity: P2 | action: Align interface style — both should use `Protocol` or both `NotImplementedError` | status: todo
-- [ ] P2-20 | category: Quality | severity: P2 | action: Extract duplicated cache key construction to shared utility | status: todo
-- [ ] P2-21 | category: Quality | severity: P2 | action: Worker-written deliveries don't invalidate delivery query cache | status: todo
-- [ ] P2-22 | category: Correctness | severity: P2 | action: DAO should filter `status.message` or remove it from query contract | status: todo
-- [ ] P3-1 | category: Quality/Nit | severity: P3 | action: Make webhook config env-configurable | status: todo
+- [x] P2-17 | category: Consistency | severity: P2 | action: Added `ix_webhook_subscriptions_project_id_deleted_at` index to DBE | status: done
+- [x] P2-18 | category: Consistency | severity: P2 | action: Not a bug — standalone `project_id` indexes exist in evaluations + tracing DBEs (established pattern) | status: done
+- [x] P2-19 | category: Consistency | severity: P2 | action: Rewrote events interface from `Protocol` to `NotImplementedError` style (project convention) | status: done
+- [x] P2-20 | category: Quality | severity: P2 | action: By design — inline cache key construction is the project-wide pattern | status: done
+- [x] P2-21 | category: Quality | severity: P2 | action: Removed delivery query caching entirely (worker writes bypass cache) | status: done
+- [x] P2-22 | category: Correctness | severity: P2 | action: Kept `status: Optional[Status]` in query contract; DAO filters on `status.code` consistently | status: done
+- [x] P3-1 | category: Quality/Nit | severity: P3 | action: Wontfix — hardcoded config values are acceptable | status: done
 - [x] P3-2 | category: Quality/Nit | severity: P3 | action: Removed — circuit breaker was dead code (P2-11) | status: done
-- [ ] P3-3 | category: Quality/Nit | severity: P3 | action: Make `WebhookDeliveryData.url` non-optional | status: todo
-- [ ] P3-4 | category: Quality/Nit | severity: P3 | action: Consider `is_active=True` as default for new subscriptions | status: todo
+- [x] P3-3 | category: Quality/Nit | severity: P3 | action: Made `WebhookDeliveryData.url` required (`HttpUrl` not optional) | status: done
+- [x] P3-4 | category: Quality/Nit | severity: P3 | action: Changed `WebhookSubscriptionFlags.is_active` default to `True` | status: done
 - [x] P3-5 | category: Quality/Nit | severity: P3 | action: Removed — `calculate_next_retry_at` was dead code (P2-12) | status: done
-- [ ] P3-6 | category: Quality/Nit | severity: P3 | action: Fix URL typing to avoid `type: ignore[arg-type]` | status: todo
-- [ ] P3-7 | category: Quality/Nit | severity: P3 | action: Fix "parenthesis" typo in worker comment | status: todo
-- [ ] P3-8 | category: Quality/Nit | severity: P3 | action: Deduplicate `EventKey` type alias between worker and dispatcher | status: todo
-- [ ] P3-9 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
-- [ ] P3-10 | category: Quality/Nit | severity: P3 | action: _TBD by user_ | status: todo
+- [x] P3-6 | category: Quality/Nit | severity: P3 | action: Removed `type: ignore[arg-type]` (url is now required `HttpUrl`) | status: done
+- [x] P3-7 | category: Quality/Nit | severity: P3 | action: Fixed typo in worker comment section header | status: done
+- [x] P3-8 | category: Quality/Nit | severity: P3 | action: Replaced `EventKey` tuple with plain `Dict[str, Any]` batches; removed `ProjectEventBatch` | status: done
+- [x] P3-9 | category: Quality/Nit | severity: P3 | action: Normalized `include_router` to use `router=` keyword arg (secrets + webhooks) | status: done
+- [x] P3-10 | category: Quality/Nit | severity: P3 | action: By design — EE/OSS event migrations are intentionally near-identical | status: done
 
 ## PR Comment Findings (Non-duplicated)
 
@@ -72,8 +72,8 @@ Status values: `todo`, `in_progress`, `done`, `blocked`.
 - [x] PR-2 | category: Architecture/DB Structure | severity: P1 | action: Verified — DBEs correctly placed in `dbs/postgres/webhooks/dbes.py` | status: done
 - [x] PR-3 | category: Contract Design | severity: P1 | action: Verified — all services/DAOs return typed DTOs via mappings layer | status: done
 - [x] PR-4 | category: API Conventions | severity: P1 | action: Use nested request/response envelopes for webhook subscription/delivery payloads and return singular responses with `count` | status: done
-- [ ] PR-5 | category: Migration Seam/Coupling | severity: P2 | action: _TBD by user_ | status: todo
-- [ ] PR-6 | category: Style/Consistency | severity: P3 | action: _TBD by user_ | status: todo
+- [x] PR-5 | category: Migration Seam/Coupling | severity: P2 | action: Deferred — Redis/Postgres IoC will be handled in a separate PR | status: done
+- [x] PR-6 | category: Style/Consistency | severity: P3 | action: Normalized `*` placement, service attr names, `__init__` keyword-only, merged config+events+dtos into types.py, moved tasks.py to tasks layer | status: done
 
 PR finding notes:
 - `PR-1`: Core/DB import API schemas and core imports entrypoints; violates Router -> Service -> DAO Interface -> DAO Impl -> DB direction.

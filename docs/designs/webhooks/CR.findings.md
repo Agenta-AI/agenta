@@ -15,15 +15,13 @@ The feature introduces an event-driven webhook pipeline:
 - an events worker consumes and matches webhook subscriptions
 - deliveries are enqueued to TaskIQ and sent by a dedicated webhook worker
 
-The architecture is directionally strong, but **not merge-ready**. This consolidated review identifies **blocking P0 issues** (import crash, SSRF, crypto integrity gap, header override, and DB/migration mismatches) plus a set of P1/P2 issues that materially impact correctness, reliability, and production safety.
+The architecture is directionally strong. This consolidated review identified **blocking P0 issues** (import crash, SSRF, crypto integrity gap, header override, and DB/migration mismatches) plus a set of P1/P2 issues that materially impact correctness, reliability, and production safety. **All findings (P0 through P3) have been resolved** — see `CR.status.md` for the full checklist.
 
 ---
 
 ## Merge Readiness
 
-**Status: NOT READY**
-
-Blocking items are listed under **P0** and should be resolved before merge. P1 items should be fixed before production rollout.
+**Status: READY** — All P0, P1, P2, and P3 findings have been addressed.
 
 ---
 

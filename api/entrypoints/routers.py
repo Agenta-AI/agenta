@@ -504,13 +504,13 @@ ai_services = AIServicesRouter(
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
-    secrets.router,
+    router=secrets.router,
     prefix="/vault/v1",
     tags=["Secrets"],
 )
 
 app.include_router(
-    webhooks.router,
+    router=webhooks.router,
     prefix="/webhooks",
     tags=["Webhooks"],
 )

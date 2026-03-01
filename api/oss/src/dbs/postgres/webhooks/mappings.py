@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Status
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
     WebhookDelivery,
     WebhookDeliveryCreate,
     WebhookDeliveryData,
@@ -140,7 +140,7 @@ def map_delivery_dto_to_dbe_create(
     dbe_kwargs = dict(
         project_id=project_id,
         #
-        created_by_id=user_id or UUID(int=0),
+        created_by_id=user_id,
         #
         status=delivery.status.model_dump(
             mode="json",

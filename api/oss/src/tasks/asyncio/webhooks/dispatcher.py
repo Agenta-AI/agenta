@@ -8,14 +8,14 @@ The dispatcher is intentionally self-contained so it can be extracted into
 its own consumer process later without changing its internal logic.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid_compat
 
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
-from oss.src.core.webhooks.dtos import (
+from oss.src.core.webhooks.types import (
     WebhookSubscription,
     WebhookSubscriptionQuery,
     WebhookSubscriptionQueryFlags,
@@ -26,9 +26,6 @@ from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-# EventKey matches the type used in EventsWorker.process_batch
-EventKey = Tuple[Optional[UUID], UUID]
 
 
 class WebhooksDispatcher:
@@ -63,13 +60,18 @@ class WebhooksDispatcher:
                 secret_id=secret_id,
                 project_id=project_id,
             )
-            data = secret_dto.data if secret_dto else None
-            provider = getattr(data, "provider", None) or (
-                data.get("provider") if isinstance(data, dict) else None
-            )
-            if isinstance(provider, dict):
-                return provider.get("key")
-            return getattr(provider, "key", None)
+            if secret_dto is None:
+                log.warning(
+                    f"[WEBHOOKS DISPATCHER] Secret {secret_id} not found in vault"
+                )
+                return None
+            key = secret_dto.data.provider.key
+            if not key:
+                log.warning(
+                    f"[WEBHOOKS DISPATCHER] Secret {secret_id} has no key value"
+                )
+                return None
+            return key
         except Exception as e:
             log.warning(
                 f"[WEBHOOKS DISPATCHER] Failed to resolve secret {secret_id}: {e}"
@@ -144,12 +146,13 @@ class WebhooksDispatcher:
 
     async def dispatch(
         self,
-        messages_by_key: Dict[EventKey, list],
+        batches: List[Dict[str, Any]],
     ) -> None:
         """Fan out TaskIQ delivery tasks for all (event, subscription) matches."""
         enqueue_failures = 0
 
-        for (_, project_id), msgs in messages_by_key.items():
+        for project_batch in batches:
+            project_id = project_batch["project_id"]
             try:
                 subscriptions = await self._get_subscriptions(project_id)
             except Exception as e:
@@ -157,10 +160,10 @@ class WebhooksDispatcher:
                     f"[WEBHOOKS DISPATCHER] Failed to load subscriptions "
                     f"for project {project_id}: {e}"
                 )
-                enqueue_failures += len(msgs)
+                enqueue_failures += len(project_batch["events"])
                 continue
 
-            for msg in msgs:
+            for msg in project_batch["events"]:
                 event = msg.event
                 event_type = event.event_type.value
                 target_subscription_id = None

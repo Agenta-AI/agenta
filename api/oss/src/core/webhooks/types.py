@@ -1,9 +1,10 @@
+from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, HttpUrl
 
-from oss.src.core.webhooks.events import WebhookEventType
+from oss.src.core.events.types import EventType
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -13,11 +14,39 @@ from oss.src.core.shared.dtos import (
 )
 
 
+# --- CONFIGURATION --------------------------------------------------------- #
+
+WEBHOOK_MAX_RETRIES = 5
+
+WEBHOOK_TIMEOUT = 10.0  # seconds per request
+
+WEBHOOK_TEST_POLL_INTERVAL_MS = 500
+WEBHOOK_TEST_MAX_ATTEMPTS = 20
+
+
+# --- WEBHOOK EVENT TYPES --------------------------------------------------- #
+
+
+class WebhookEventType(str, Enum):
+    """Subscribable event types — a strict subset of EventType.
+
+    Values are derived from EventType so the strings stay in sync.
+    To add a new subscribable event type, it must first exist in EventType.
+    """
+
+    ENVIRONMENTS_REVISIONS_COMMITTED = EventType.ENVIRONMENTS_REVISIONS_COMMITTED.value
+    WEBHOOKS_SUBSCRIPTIONS_TESTED = EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED.value
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [e.value for e in cls]
+
+
 # --- WEBHOOK SUBSCRIPTIONS -------------------------------------------------- #
 
 
 class WebhookSubscriptionFlags(BaseModel):
-    is_active: bool = False
+    is_active: bool = True
     is_valid: bool = False
 
 
@@ -67,7 +96,7 @@ class WebhookDeliveryResponseInfo(BaseModel):
 
 
 class WebhookDeliveryData(BaseModel):
-    url: Optional[HttpUrl] = None
+    url: HttpUrl
 
     event_type: Optional[WebhookEventType] = None
 

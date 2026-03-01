@@ -15,9 +15,10 @@ if is_ee():
 class EventsRouter:
     def __init__(
         self,
+        *,
         events_service: EventsService,
     ):
-        self.service = events_service
+        self.events_service = events_service
 
         self.router = APIRouter()
 
@@ -35,6 +36,7 @@ class EventsRouter:
     async def query_events(
         self,
         request: Request,
+        *,
         query_request: EventQueryRequest,
     ) -> EventsQueryResponse:
         if is_ee():
@@ -45,7 +47,7 @@ class EventsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        events = await self.service.query(
+        events = await self.events_service.query(
             project_id=UUID(request.state.project_id),
             #
             event=query_request.event,

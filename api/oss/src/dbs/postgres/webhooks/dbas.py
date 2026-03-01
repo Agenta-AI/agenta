@@ -41,6 +41,11 @@ class WebhookDeliveryDBA(
 ):
     __abstract__ = True
 
+    created_by_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
     subscription_id = Column(
         UUID(as_uuid=True),
         nullable=False,

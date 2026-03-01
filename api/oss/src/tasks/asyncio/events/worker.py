@@ -1,12 +1,11 @@
 import os
-from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from redis.asyncio import Redis
 
 from oss.src.core.events.service import EventsService
-from oss.src.core.events.streaming import EventMessage, deserialize_event
+from oss.src.core.events.streaming import deserialize_event
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
@@ -17,8 +16,6 @@ if is_ee():
 
 if TYPE_CHECKING:
     from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
-
-EventKey = Tuple[Optional[UUID], UUID]
 
 
 class EventsWorker:
@@ -79,52 +76,60 @@ class EventsWorker:
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
-    ) -> Tuple[int, List[bytes], Dict[EventKey, List[EventMessage]]]:
-        messages_by_key: Dict[EventKey, List[EventMessage]] = defaultdict(list)
+    ) -> Tuple[int, List[bytes], List[Dict[str, Any]]]:
+        groups: Dict[UUID, Dict[str, Any]] = {}
         processed_ids: List[bytes] = []
 
         for msg_id, data in batch:
             try:
                 payload = data[b"data"]
                 msg = deserialize_event(payload=payload)
-                key: EventKey = (msg.organization_id, msg.project_id)
-                messages_by_key[key].append(msg)
+                group = groups.get(msg.project_id)
+                if group is None:
+                    group = {
+                        "organization_id": msg.organization_id,
+                        "project_id": msg.project_id,
+                        "events": [],
+                    }
+                    groups[msg.project_id] = group
+                group["events"].append(msg)
                 processed_ids.append(msg_id)
             except Exception as e:
                 log.error(f"[EVENTS] Failed to deserialize message {msg_id!r}: {e}")
                 # ACK unprocessable messages to prevent PEL buildup
                 processed_ids.append(msg_id)
 
+        batches = list(groups.values())
         total_ingested = 0
 
-        for (organization_id, project_id), msgs in messages_by_key.items():
-            if organization_id and is_ee():
+        for project_batch in batches:
+            if project_batch["organization_id"] and is_ee():
                 try:
                     allowed, _, _ = await check_entitlements(
-                        organization_id=organization_id,
+                        organization_id=project_batch["organization_id"],
                         key=Flag.ACCESS,
                         use_cache=True,
                     )
                 except Exception as e:
                     log.error(
-                        f"[EVENTS] Entitlements check failed for org {organization_id}: {e}"
+                        f"[EVENTS] Entitlements check failed for org {project_batch['organization_id']}: {e}"
                     )
                     continue
 
                 if not allowed:
                     log.warning(
                         "[EVENTS] Access denied by entitlements, dropping org batch",
-                        org_id=str(organization_id),
-                        batch_size=len(msgs),
+                        organization_id=str(project_batch["organization_id"]),
+                        batch_size=len(project_batch["events"]),
                     )
                     continue
 
             total_ingested += await self.service.ingest(
-                project_id=project_id,
-                events=[msg.to_event() for msg in msgs],
+                project_id=project_batch["project_id"],
+                events=[msg.to_event() for msg in project_batch["events"]],
             )
 
-        return total_ingested, processed_ids, messages_by_key
+        return total_ingested, processed_ids, batches
 
     async def run(self):
         log.info(
@@ -141,15 +146,13 @@ class EventsWorker:
                 if not batch:
                     continue
 
-                ingested, processed_ids, messages_by_key = await self.process_batch(
-                    batch
-                )
+                ingested, processed_ids, batches = await self.process_batch(batch)
 
-                # --- webhook dispatch parenthesis ---
+                # --- webhook dispatch ---
                 dispatch_ok = True
-                if self.webhooks_dispatcher and messages_by_key:
+                if self.webhooks_dispatcher and batches:
                     try:
-                        await self.webhooks_dispatcher.dispatch(messages_by_key)
+                        await self.webhooks_dispatcher.dispatch(batches)
                     except Exception as e:
                         log.error(
                             f"[EVENTS] Webhook dispatch error: {e}", exc_info=True
