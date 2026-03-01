@@ -1308,19 +1308,126 @@ def build_numeric_continuous_blocks(
     ).cte("cont_bins")
 
     # -------------------------------------------------
-    # 7. Bin series & intervals (precompute is_last_bin)
+    # 7. Assign each row a bin via width_bucket (O(1) per row)
     # -------------------------------------------------
+    # width_bucket(value, vmin, vmax, bins) returns 1..bins for values
+    # in [vmin, vmax).  Values exactly equal to vmax land in bin (bins+1),
+    # so we nudge the upper bound by a tiny epsilon to keep them inside.
+    # This replaces the previous generate_series + nested-loop-join approach
+    # which was O(N * sqrt(N)).
+
+    # To handle edge vs center alignment:
+    #   edge=True  (default): bins span [vmin, vmax] evenly.
+    #   edge=False:           bin centers span [vmin, vmax]; edges extend
+    #                         by half a bin-width on each side.
+    # In both cases width_bucket operates on an adjusted range so that the
+    # bin assignment is correct.
+
+    is_edge_aligned = cont_bins.c.edge.is_(None) | cont_bins.c.edge.is_(True)
+
+    # For edge-aligned: range is [vmin, vmax], width = (vmax-vmin)/bins
+    # For center-aligned: range is [vmin - w/2, vmax + w/2]
+    #   where w = (vmax-vmin)/(bins-1)
+    edge_width = (cont_bins.c.vmax - cont_bins.c.vmin) / cont_bins.c.bins
+    center_width = case(
+        (
+            cont_bins.c.bins > 1,
+            (cont_bins.c.vmax - cont_bins.c.vmin) / (cont_bins.c.bins - 1),
+        ),
+        else_=cast(0, Numeric),
+    )
+
+    # width_bucket requires lo < hi.  When all values are identical
+    # (vmin == vmax) or when the computed bin width is zero, we use an
+    # absolute epsilon floor so the upper bound always exceeds the lower.
+    _ABS_EPS = cast(literal(1e-9), Numeric)
+
+    _edge_eps = func.greatest(edge_width * _ABS_EPS, _ABS_EPS)
+    _center_eps = func.greatest(center_width * _ABS_EPS, _ABS_EPS)
+
+    wb_lo = case(
+        (is_edge_aligned, cont_bins.c.vmin),
+        else_=cont_bins.c.vmin - center_width / 2,
+    )
+    wb_hi = case(
+        (is_edge_aligned, cont_bins.c.vmax + _edge_eps),
+        else_=cont_bins.c.vmax + center_width / 2 + _center_eps,
+    )
+
+    cont_bucketed = (
+        select(
+            cont_raw.c.timestamp,
+            cont_raw.c.idx,
+            func.width_bucket(
+                cont_raw.c.value,
+                wb_lo,
+                wb_hi,
+                cont_bins.c.bins,
+            ).label("bin"),
+        ).select_from(
+            cont_raw.join(
+                cont_bins,
+                (cont_raw.c.timestamp == cont_bins.c.timestamp)
+                & (cont_raw.c.idx == cont_bins.c.idx),
+            )
+        )
+    ).cte("cont_bucketed")
+
+    # -------------------------------------------------
+    # 8. Bin counts via GROUP BY (O(N) scan)
+    # -------------------------------------------------
+    cont_bin_counts = (
+        select(
+            cont_bucketed.c.timestamp,
+            cont_bucketed.c.idx,
+            cont_bucketed.c.bin,
+            func.count().label("count"),
+        ).group_by(
+            cont_bucketed.c.timestamp,
+            cont_bucketed.c.idx,
+            cont_bucketed.c.bin,
+        )
+    ).cte("cont_bin_counts")
+
+    # -------------------------------------------------
+    # 9. Full histogram with interval boundaries
+    # -------------------------------------------------
+    # Generate the full bin series so that empty bins appear in the output.
     cont_bin_series = (
         func.generate_series(1, cont_bins.c.bins)
         .table_valued("bin")
         .render_derived(name="cont_bin_series")
     )
 
-    is_edge_aligned = cont_bins.c.edge.is_(None) | cont_bins.c.edge.is_(True)
-
     bin_width = case(
         (is_edge_aligned, (cont_bins.c.vmax - cont_bins.c.vmin) / cont_bins.c.bins),
-        else_=(cont_bins.c.vmax - cont_bins.c.vmin) / (cont_bins.c.bins - 1),
+        else_=case(
+            (
+                cont_bins.c.bins > 1,
+                (cont_bins.c.vmax - cont_bins.c.vmin) / (cont_bins.c.bins - 1),
+            ),
+            else_=cast(0, Numeric),
+        ),
+    )
+
+    interval_start = case(
+        (cont_bin_series.c.bin == literal(1, Integer), cont_bins.c.vmin),
+        else_=case(
+            (
+                is_edge_aligned,
+                cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width,
+            ),
+            else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
+            - (bin_width / 2),
+        ),
+    )
+    interval_end = case(
+        (cont_bin_series.c.bin == cont_bins.c.bins, cont_bins.c.vmax),
+        else_=case(
+            (is_edge_aligned, cont_bins.c.vmin + cont_bin_series.c.bin * bin_width),
+            else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
+            + (bin_width / 2),
+        ),
     )
 
     bin_intervals = (
@@ -1328,63 +1435,11 @@ def build_numeric_continuous_blocks(
             cont_bins.c.timestamp,
             cont_bins.c.idx,
             cont_bin_series.c.bin,
-            (cont_bin_series.c.bin == cont_bins.c.bins).label("is_last_bin"),
-            case(
-                (cont_bin_series.c.bin == literal(1, Integer), cont_bins.c.vmin),
-                else_=case(
-                    (
-                        is_edge_aligned,
-                        cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width,
-                    ),
-                    else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
-                    - (bin_width / 2),
-                ),
-            ).label("interval_start"),
-            case(
-                (cont_bin_series.c.bin == cont_bins.c.bins, cont_bins.c.vmax),
-                else_=case(
-                    (
-                        is_edge_aligned,
-                        cont_bins.c.vmin + cont_bin_series.c.bin * bin_width,
-                    ),
-                    else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
-                    + (bin_width / 2),
-                ),
-            ).label("interval_end"),
+            interval_start.label("interval_start"),
+            interval_end.label("interval_end"),
         ).select_from(cont_bins.join(cont_bin_series, literal(True)))
     ).cte("bin_intervals")
 
-    # -------------------------------------------------
-    # 8. Bin counts (use is_last_bin for <= on last bin)
-    # -------------------------------------------------
-    cont_bin_counts = (
-        select(
-            cont_raw.c.timestamp,
-            cont_raw.c.idx,
-            bin_intervals.c.bin,
-            func.count().label("count"),
-        )
-        .select_from(
-            cont_raw.join(
-                bin_intervals,
-                (cont_raw.c.timestamp == bin_intervals.c.timestamp)
-                & (cont_raw.c.idx == bin_intervals.c.idx)
-                & (cont_raw.c.value >= bin_intervals.c.interval_start)
-                & case(
-                    (
-                        bin_intervals.c.is_last_bin,
-                        cont_raw.c.value <= bin_intervals.c.interval_end,
-                    ),
-                    else_=(cont_raw.c.value < bin_intervals.c.interval_end),
-                ),
-            )
-        )
-        .group_by(cont_raw.c.timestamp, cont_raw.c.idx, bin_intervals.c.bin)
-    ).cte("cont_bin_counts")
-
-    # -------------------------------------------------
-    # 9. Full histogram (includes empty bins)
-    # -------------------------------------------------
     full_hist = (
         select(
             bin_intervals.c.timestamp,
