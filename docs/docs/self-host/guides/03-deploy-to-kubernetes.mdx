@@ -69,6 +69,18 @@ helm install agenta hosting/helm/agenta-oss \
 `secrets.postgresPassword` and `postgresql.auth.password` must match. The first is used by the application pods; the second is used by the Bitnami PostgreSQL subchart to set the database password.
 :::
 
+:::warning Release name and PostgreSQL secret
+The chart wires the Bitnami PostgreSQL subchart to read the password from a shared secret. By default, this secret is named `agenta-pgauth`, which assumes you install with the release name `agenta`. If you use a different release name, you must override the secret name to match:
+
+```bash
+helm install myrelease hosting/helm/agenta-oss \
+  --set global.postgresql.auth.existingSecret=myrelease-agenta-oss-pgauth \
+  ...
+```
+
+Otherwise the PostgreSQL pod will fail to find the password secret and will not start.
+:::
+
 :::caution Security note
 The `--set` approach is convenient for testing but exposes secrets in shell history and in `helm get values` output. For production, use a `values.yaml` file with restricted permissions or `secrets.existingSecret` to reference a pre-existing Kubernetes Secret. See [Secrets](#secrets) for details.
 :::
@@ -250,6 +262,16 @@ The chart creates an Ingress resource with three path rules:
 | `ingress.host` | Hostname | `""` |
 | `ingress.tls` | TLS configuration | `[]` |
 | `ingress.annotations` | Ingress annotations | `{}` |
+
+:::info Ingress class name
+The chart defaults to `ingress.className: "traefik"`. If your cluster uses a different ingress controller, override this value to match. For example, with the NGINX Ingress Controller:
+
+```bash
+--set ingress.className=nginx
+```
+
+You can check which ingress classes are available in your cluster with `kubectl get ingressclass`.
+:::
 
 ### Path Prefix Stripping
 
