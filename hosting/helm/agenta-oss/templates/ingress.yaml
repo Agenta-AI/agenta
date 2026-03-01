@@ -24,8 +24,8 @@ spec:
       http:
         paths:
           {{- if .Values.api.enabled }}
-          - path: /api
-            pathType: Prefix
+          - path: {{ .Values.ingress.paths.api.path }}
+            pathType: {{ .Values.ingress.paths.api.pathType }}
             backend:
               service:
                 name: {{ include "agenta.fullname" . }}-api
@@ -33,8 +33,8 @@ spec:
                   name: http
           {{- end }}
           {{- if .Values.services.enabled }}
-          - path: /services
-            pathType: Prefix
+          - path: {{ .Values.ingress.paths.services.path }}
+            pathType: {{ .Values.ingress.paths.services.pathType }}
             backend:
               service:
                 name: {{ include "agenta.fullname" . }}-services
@@ -42,8 +42,8 @@ spec:
                   name: http
           {{- end }}
           {{- if .Values.web.enabled }}
-          - path: /
-            pathType: Prefix
+          - path: {{ .Values.ingress.paths.web.path }}
+            pathType: {{ .Values.ingress.paths.web.pathType }}
             backend:
               service:
                 name: {{ include "agenta.fullname" . }}-web

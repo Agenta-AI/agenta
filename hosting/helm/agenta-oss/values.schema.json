@@ -212,7 +212,16 @@
         "className": { "type": "string" },
         "host": { "type": "string" },
         "tls": { "type": "array" },
-        "annotations": { "type": "object" }
+        "annotations": { "type": "object" },
+        "paths": {
+          "type": "object",
+          "description": "Ingress path configuration per backend. Override paths and pathType for different ingress controllers (e.g. regex capture groups for NGINX).",
+          "properties": {
+            "api": { "$ref": "#/$defs/ingressPath" },
+            "services": { "$ref": "#/$defs/ingressPath" },
+            "web": { "$ref": "#/$defs/ingressPath" }
+          }
+        }
       }
     },
     "extraObjects": {
@@ -230,6 +239,18 @@
           "enum": ["Always", "IfNotPresent", "Never"]
         }
       }
+    },
+    "ingressPath": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "URL path pattern for this backend." },
+        "pathType": {
+          "type": "string",
+          "enum": ["Prefix", "Exact", "ImplementationSpecific"],
+          "description": "Kubernetes pathType. Use ImplementationSpecific with regex paths for NGINX."
+        }
+      },
+      "required": ["path", "pathType"]
     },
     "resources": {
       "type": "object",
