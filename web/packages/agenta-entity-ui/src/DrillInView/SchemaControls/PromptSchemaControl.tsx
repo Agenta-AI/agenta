@@ -35,7 +35,7 @@ import {
     normalizeMessages,
 } from "./schemaUtils"
 import {ToolItemControl} from "./ToolItemControl"
-import {ToolSelectorPopover} from "./ToolSelectorPopover"
+import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
 
 export interface PromptSchemaControlProps {
@@ -323,12 +323,29 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     // Handle add tool (from ToolSelectorPopover)
-    // No agenta_metadata is injected — ToolItemControl infers builtin status
-    // via inferBuiltinToolInfo which matches against TOOL_SPECS payloads.
+    // Preserve tool source metadata so the card renderer can recover the
+    // richer gateway/builtin header presentation after serialization.
     const handleAddTool = useCallback(
-        (newTool: ToolObj) => {
+        (newTool: ToolObj, meta?: ToolSelectionMeta) => {
             const currentTools = getToolsArray()
-            setToolsValue([...currentTools, newTool])
+            if (!newTool || typeof newTool !== "object" || Array.isArray(newTool)) {
+                setToolsValue([...currentTools, newTool])
+                return
+            }
+
+            const nextTool = meta
+                ? {
+                      ...(newTool as Record<string, unknown>),
+                      agenta_metadata: {
+                          ...(((newTool as Record<string, unknown>).agenta_metadata as
+                              | Record<string, unknown>
+                              | undefined) ?? {}),
+                          ...meta,
+                      },
+                  }
+                : newTool
+
+            setToolsValue([...currentTools, nextTool])
         },
         [getToolsArray, setToolsValue],
     )

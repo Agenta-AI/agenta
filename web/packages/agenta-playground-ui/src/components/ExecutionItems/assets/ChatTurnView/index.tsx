@@ -262,7 +262,25 @@ const ChatTurnView = ({
             ),
         [displayedAssistantMessage, displayAssistantValue, toolMessages.length],
     )
-    const isRerunning = isRunning && hasAssistantContent
+    const hasPendingToolContinuation = useMemo(() => {
+        if (toolMessages.length === 0) return false
+
+        const assistantHasToolCalls = assistantMessages.some((msg) => {
+            const toolCalls = (msg as {tool_calls?: unknown[]}).tool_calls
+            return Array.isArray(toolCalls) && toolCalls.length > 0
+        })
+
+        const fallbackHasToolCalls = Array.isArray(
+            (fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls,
+        )
+            ? ((fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls
+                  ?.length ?? 0) > 0
+            : false
+
+        return assistantHasToolCalls || fallbackHasToolCalls
+    }, [assistantMessages, fallbackAssistantMessage, toolMessages.length])
+    const isToolContinuationRunning = isRunning && hasPendingToolContinuation
+    const isRerunning = isRunning && hasAssistantContent && !isToolContinuationRunning
 
     // Chain nodes for downstream evaluator results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -326,9 +344,7 @@ const ChatTurnView = ({
                             {assistantMessages.map((msg, idx) => {
                                 const isLastAssistant = idx === assistantMessages.length - 1
                                 const hasToolCalls =
-                                    Array.isArray(
-                                        (msg as {tool_calls?: unknown[]}).tool_calls,
-                                    ) &&
+                                    Array.isArray((msg as {tool_calls?: unknown[]}).tool_calls) &&
                                     ((msg as {tool_calls?: unknown[]}).tool_calls?.length ?? 0) > 0
 
                                 return (
@@ -361,10 +377,14 @@ const ChatTurnView = ({
                                                   />
                                               ))
                                             : null}
+                                        {idx === 0 && isToolContinuationRunning ? (
+                                            <TypingIndicator />
+                                        ) : null}
                                         {isLastAssistant &&
                                         hasToolCalls &&
                                         ChatTurnAssistantActions &&
-                                        entityId ? (
+                                        entityId &&
+                                        !isToolContinuationRunning ? (
                                             <ChatTurnAssistantActions
                                                 rowId={turnId}
                                                 entityId={entityId}
@@ -406,12 +426,16 @@ const ChatTurnView = ({
                                       )?.tool_calls?.length ?? 0)
                                     : 0
                                 return ChatTurnAssistantActions && entityId && hasToolCalls > 0 ? (
-                                    <ChatTurnAssistantActions
-                                        rowId={turnId}
-                                        entityId={entityId}
-                                        currentResult={currentResult}
-                                        onRun={run}
-                                    />
+                                    isToolContinuationRunning ? (
+                                        <TypingIndicator />
+                                    ) : (
+                                        <ChatTurnAssistantActions
+                                            rowId={turnId}
+                                            entityId={entityId}
+                                            currentResult={currentResult}
+                                            onRun={run}
+                                        />
+                                    )
                                 ) : null
                             })()}
                         </>

@@ -52,12 +52,19 @@ type ActivePane =
     | {kind: "connection"; connectionId: string}
     | null
 
+export interface ToolSelectionMeta {
+    source: "builtin" | "custom" | "gateway"
+    provider?: string
+    providerLabel?: string
+    toolCode?: string
+    toolLabel?: string
+    integrationKey?: string
+    connectionSlug?: string
+}
+
 export interface ToolSelectorPopoverProps {
     /** Called when a tool is selected (either builtin, gateway, or custom) */
-    onAddTool: (
-        tool: ToolObj,
-        meta?: {source: string; provider?: string; toolCode?: string},
-    ) => void
+    onAddTool: (tool: ToolObj, meta?: ToolSelectionMeta) => void
     /** Remove function tool by name (used for custom/gateway toggle) */
     onRemoveTool?: (toolName: string) => void
     /** Remove a builtin tool payload (used for builtin toggle) */
@@ -574,6 +581,9 @@ function GatewayActionsPane({
                     source: "gateway",
                     provider: connection.provider_key,
                     toolCode: action.key,
+                    toolLabel: action.key,
+                    integrationKey: connection.integration_key,
+                    connectionSlug: connection.slug,
                 })
             } catch (error) {
                 console.error("Failed to add gateway tool action", error)

@@ -21,6 +21,27 @@ export type ToolObj = {
     [k: string]: unknown
 } | null
 
+export interface GatewayToolParsed {
+    provider: string
+    integration: string
+    action: string
+    connection: string
+}
+
+// Gateway tools are encoded as function names:
+// tools__{provider}__{integration}__{action}__{connection}
+// Double-underscore is the segment separator because dots are not allowed.
+export function parseGatewayFunctionName(name: string | undefined): GatewayToolParsed | null {
+    if (!name) return null
+    const parts = name.split("__")
+    if (parts.length !== 5 || parts[0] !== "tools") return null
+
+    const [, provider, integration, action, connection] = parts
+    if (!provider || !integration || !action || !connection) return null
+
+    return {provider, integration, action, connection}
+}
+
 // ============================================================================
 // PROVIDER METADATA
 // ============================================================================
