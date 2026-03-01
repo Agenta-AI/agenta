@@ -39,6 +39,8 @@ spec:
               containerPort: {{ .Values.web.port }}
               protocol: TCP
           env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
             - name: AGENTA_LICENSE
               value: "oss"
             - name: AGENTA_WEB_URL
