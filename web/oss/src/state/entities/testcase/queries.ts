@@ -152,7 +152,7 @@ export async function fetchTestcasesPage(
     cursor: string | null,
 ): Promise<TestcasesPage> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testcases/query`,
+        `${getAgentaApiUrl()}/testcases/query`,
         {
             testset_revision_id: revisionId,
             windowing: {

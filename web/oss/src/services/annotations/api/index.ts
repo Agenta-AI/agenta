@@ -20,7 +20,7 @@ export const queryAllAnnotations = async (
 ): Promise<AnnotationsResponse> => {
     const projectId = ensureProjectId()
     const base = getBaseUrl()
-    const url = new URL(`${base}/preview/annotations/query`)
+    const url = new URL(`${base}/annotations/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     const body = queries && Object.keys(queries).length > 0 ? queries : {}
     return fetchJson(url, {method: "POST", body: JSON.stringify(body)})
@@ -30,7 +30,7 @@ export const createAnnotation = async (annotationPayload: AnnotationDto) => {
     const {projectId} = getProjectValues()
 
     return await axios.post(
-        `${getAgentaApiUrl()}/preview/annotations/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/annotations/?project_id=${projectId}`,
         annotationPayload,
     )
 }
@@ -47,7 +47,7 @@ export const updateAnnotation = async ({
     const {projectId} = getProjectValues()
 
     return await axios.patch(
-        `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/annotations/${traceId}/${spanId}?project_id=${projectId}`,
         payload,
     )
 }
@@ -69,7 +69,7 @@ export const fetchAnnotation = async ({
         } else {
             axios
                 .get(
-                    `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+                    `${getAgentaApiUrl()}/annotations/${traceId}/${spanId}?project_id=${projectId}`,
                     {signal},
                 )
                 .then((response) => {
@@ -83,6 +83,6 @@ export const deleteAnnotation = async ({traceId, spanId}: {traceId: string; span
     const {projectId} = getProjectValues()
 
     return await axios.delete(
-        `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/annotations/${traceId}/${spanId}?project_id=${projectId}`,
     )
 }

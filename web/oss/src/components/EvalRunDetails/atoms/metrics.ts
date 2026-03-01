@@ -694,7 +694,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                         }
 
                         const response = await axios.post(
-                            `/preview/evaluations/metrics/query`,
+                            `/evaluations/metrics/query`,
                             {
                                 metrics: {
                                     ...metricPayload,
@@ -876,7 +876,7 @@ export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: strin
                 if (!projectId || !effectiveRunId) return null
 
                 const response = await axios.post(
-                    `/preview/evaluations/metrics/query`,
+                    `/evaluations/metrics/query`,
                     {
                         metrics: {
                             run_ids: [effectiveRunId],
@@ -920,7 +920,7 @@ export const triggerMetricsRefresh = async ({
         // Refresh scenario-level metrics if scenarioId is provided
         if (scenarioId) {
             await axios.post(
-                `/preview/evaluations/metrics/refresh`,
+                `/evaluations/metrics/refresh`,
                 {
                     metrics: {
                         run_id: runId,
@@ -932,7 +932,7 @@ export const triggerMetricsRefresh = async ({
         }
         // Refresh run-level metrics (without scenario_id)
         await axios.post(
-            `/preview/evaluations/metrics/refresh`,
+            `/evaluations/metrics/refresh`,
             {
                 metrics: {
                     run_id: runId,

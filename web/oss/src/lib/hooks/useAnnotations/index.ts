@@ -31,7 +31,7 @@ const useAnnotations = ({
 
     const swrKey = waitUntil
         ? null
-        : [`/preview/annotations/?project_id=${projectId}`, JSON.stringify(queries)]
+        : [`/annotations/?project_id=${projectId}`, JSON.stringify(queries)]
 
     const swr = useSWR(swrKey, fetcher, {
         revalidateOnFocus: false,

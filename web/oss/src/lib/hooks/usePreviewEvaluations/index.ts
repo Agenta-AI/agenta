@@ -128,7 +128,7 @@ interface PreviewEvaluationsQueryState {
 import {searchQueryAtom} from "./states/queryFilterAtoms"
 import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
-const SCENARIOS_ENDPOINT = "/preview/evaluations/scenarios/"
+const SCENARIOS_ENDPOINT = "/evaluations/scenarios/"
 
 /**
  * Custom hook to manage and enrich preview evaluation runs.
@@ -361,10 +361,10 @@ const usePreviewEvaluations = ({
                 const allTestcases: PreviewTestcase[] = []
                 let cursor: string | null = null
 
-                // Paginate through /preview/testcases/query until no more pages
+                // Paginate through /testcases/query until no more pages
                 do {
                     const response = await axios.post(
-                        "/preview/testcases/query",
+                        "/testcases/query",
                         {
                             testset_revision_id: revision.id,
                             windowing: {
@@ -412,10 +412,7 @@ const usePreviewEvaluations = ({
             })
 
             // 3. Invoke preview run endpoint (include project for backend routing)
-            const response = await axios.post(
-                `/preview/evaluations/runs/?project_id=${projectId}`,
-                params,
-            )
+            const response = await axios.post(`/evaluations/runs/?project_id=${projectId}`, params)
 
             // 4. Refresh preview runs list and return created run
             await evaluationRunsState.mutate()
@@ -495,7 +492,7 @@ const usePreviewEvaluations = ({
                 )
                 // 7. Invoke the /results endpoint
                 await axios
-                    .post(`/preview/evaluations/results/?project_id=${projectId}`, {
+                    .post(`/evaluations/results/?project_id=${projectId}`, {
                         results: allSteps,
                     })
                     // .then((res) => {

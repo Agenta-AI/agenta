@@ -62,7 +62,7 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
 
                         try {
                             const response = await axios.post(
-                                `/preview/annotations/query`,
+                                `/annotations/query`,
                                 {annotation_links: annotationLinks},
                                 {
                                     params: {project_id: projectId},

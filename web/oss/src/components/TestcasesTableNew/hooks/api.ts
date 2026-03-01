@@ -11,15 +11,14 @@ export const PAGE_SIZE = 50
  * Fetch revision metadata from API (no testcases - just metadata)
  */
 export async function fetchRevision(projectId: string, revisionId: string) {
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/${revisionId}`,
-        {params: {project_id: projectId, include_testcases: true}},
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets/revisions/${revisionId}`, {
+        params: {project_id: projectId, include_testcases: true},
+    })
     return response.data?.testset_revision
 }
 
 /**
- * Fetch paginated testcases using /preview/testcases/query endpoint
+ * Fetch paginated testcases using /testcases/query endpoint
  * Uses testset_revision_id to fetch testcases for a specific revision
  */
 export async function fetchTestcasesPage(
@@ -28,7 +27,7 @@ export async function fetchTestcasesPage(
     cursor: string | null,
 ): Promise<TestcasesPage> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testcases/query`,
+        `${getAgentaApiUrl()}/testcases/query`,
         {
             testset_revision_id: revisionId,
             windowing: {
@@ -58,7 +57,7 @@ export async function fetchTestcasesPage(
  */
 export async function fetchTestsetName(projectId: string, testsetId: string): Promise<string> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/query`,
+        `${getAgentaApiUrl()}/testsets/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 1},
@@ -77,7 +76,7 @@ export async function fetchRevisionsByTestsetId(
     testsetId: string,
 ): Promise<{id: string; version: number; created_at: string}[]> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100},

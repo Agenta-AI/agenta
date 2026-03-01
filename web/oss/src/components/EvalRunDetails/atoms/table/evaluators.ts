@@ -178,7 +178,7 @@ const evaluatorFetchBatcher = createBatchFetcher<EvaluatorFetchRequest, Evaluato
                     payload.evaluator = {flags}
                 }
 
-                const response = await axios.post(`/preview/simple/evaluators/query`, payload, {
+                const response = await axios.post(`/simple/evaluators/query`, payload, {
                     params: {project_id: projectId},
                 })
                 const rawEvaluators = Array.isArray(response?.data?.evaluators)

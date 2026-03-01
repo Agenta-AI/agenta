@@ -134,7 +134,7 @@ async function fetchRevisionsForCascader(
     testsetId: string,
 ): Promise<RevisionListItem[]> {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+        `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
             testset_refs: [{id: testsetId}],
             windowing: {limit: 100, order: "descending"},

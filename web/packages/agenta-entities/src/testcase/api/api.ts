@@ -38,7 +38,7 @@ export async function fetchTestcase(params: TestcaseDetailParams): Promise<Testc
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testcases/query`,
+            `${getAgentaApiUrl()}/testcases/query`,
             {testcase_ids: [testcaseId]},
             {params: {project_id: projectId}},
         )
@@ -84,7 +84,7 @@ export async function fetchTestcasesBatch(
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testcases/query`,
+            `${getAgentaApiUrl()}/testcases/query`,
             {testcase_ids: testcaseIds},
             {params: {project_id: projectId}},
         )
@@ -142,7 +142,7 @@ export async function fetchTestcasesPage(params: TestcaseListParams): Promise<Te
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testcases/query`,
+            `${getAgentaApiUrl()}/testcases/query`,
             {
                 testset_revision_id: revisionId,
                 windowing: {
@@ -223,7 +223,7 @@ export async function fetchTestcasesRaw(
     },
 ): Promise<TestcasesResponse | null> {
     try {
-        const response = await axios.post(`${getAgentaApiUrl()}/preview/testcases/query`, query, {
+        const response = await axios.post(`${getAgentaApiUrl()}/testcases/query`, query, {
             params: {project_id: projectId},
         })
 

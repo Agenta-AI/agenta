@@ -10,7 +10,7 @@ import {getProjectValues} from "@/oss/state/project"
 
 import {queryStepResults} from "../results/api"
 
-const RESULTS_ENDPOINT = "/preview/evaluations/results/"
+const RESULTS_ENDPOINT = "/evaluations/results/"
 
 export interface InvocationReferences {
     application?: {id: string}
@@ -270,7 +270,7 @@ const updateScenarioStatus = async (
     const {projectId} = getProjectValues()
 
     try {
-        await axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+        await axios.patch(`/evaluations/scenarios/?project_id=${projectId}`, {
             scenarios: [{id: scenarioId, status}],
         })
     } catch (error) {
@@ -288,7 +288,7 @@ const _checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
     try {
         // Query all scenarios for this run
         const scenariosResponse = await axios.post(
-            `/preview/evaluations/scenarios/query?project_id=${projectId}`,
+            `/evaluations/scenarios/query?project_id=${projectId}`,
             {
                 scenario: {run_ids: [runId]},
                 windowing: {limit: 1000}, // Get all scenarios
@@ -351,7 +351,7 @@ const _checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
             : EvaluationStatus.FINISHED
 
         // Update run status
-        await axios.patch(`/preview/evaluations/runs/${runId}?project_id=${projectId}`, {
+        await axios.patch(`/evaluations/runs/${runId}?project_id=${projectId}`, {
             run: {id: runId, status: runStatus},
         })
 

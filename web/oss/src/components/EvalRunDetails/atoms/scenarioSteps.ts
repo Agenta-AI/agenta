@@ -64,7 +64,7 @@ export const scenarioStepsBatcherFamily = atomFamily(({runId}: {runId?: string |
                     }
 
                     const response = await axios.post<{results?: any[]; steps?: any[]}>(
-                        `/preview/evaluations/results/query?project_id=${projectId}`,
+                        `/evaluations/results/query?project_id=${projectId}`,
                         {
                             result: {
                                 run_id: effectiveRunId,
