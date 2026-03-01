@@ -54,7 +54,7 @@ export * from "./presentational"
 // ============================================================================
 
 export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "./EnhancedModal"
-export {ModalFooter, type ModalFooterProps, ModalContent, type ModalContentProps} from "./modal"
+export {ModalContent, ModalFooter, type ModalContentProps, type ModalFooterProps} from "./modal"
 
 // ============================================================================
 // ACTION COMPONENTS
@@ -68,11 +68,18 @@ export {
 
 export {
     DropdownButton,
-    type DropdownButtonProps,
     type DropdownButtonOption,
     type DropdownButtonOptionStatus,
+    type DropdownButtonProps,
 } from "./DropdownButton"
 
 export {DraftTag, type DraftTagProps} from "./DraftTag"
 export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
-export {SyncStateTag, type SyncStateTagProps, type SyncState} from "./SyncStateTag"
+export {SyncStateTag, type SyncState, type SyncStateTagProps} from "./SyncStateTag"
+
+// ============================================================================
+// SCROLL COMPONENTS
+// ============================================================================
+
+export {default as ScrollSentinel} from "./ScrollSentinel"
+export {default as ScrollToTopButton} from "./ScrollToTopButton"

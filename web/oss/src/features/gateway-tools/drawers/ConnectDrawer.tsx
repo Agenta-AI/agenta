@@ -8,7 +8,7 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {createConnection, fetchConnection} from "@/oss/services/tools/api"
 
-import {generateDefaultSlug, randomAlphanumeric} from "../utils/slugify"
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 
 const DEFAULT_PROVIDER = "composio"
 

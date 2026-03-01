@@ -17,8 +17,8 @@ import {
     Form,
     Input,
     message,
-    Spin,
     Segmented,
+    Spin,
     Tag,
     Typography,
 } from "antd"
@@ -27,13 +27,12 @@ import Image from "next/image"
 
 import type {ActionItem} from "@/oss/services/tools/api/types"
 
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import ResultViewer from "../components/ResultViewer"
-import SchemaForm from "../components/SchemaForm"
 import type {SchemaFormHandle} from "../components/SchemaForm"
-import ScrollSentinel from "../components/ScrollSentinel"
-import ScrollToTopButton from "../components/ScrollToTopButton"
+import SchemaForm from "../components/SchemaForm"
 import {useActionDetail} from "../hooks/useActionDetail"
-import {useCatalogActions, actionsSearchAtom} from "../hooks/useCatalogActions"
+import {actionsSearchAtom, useCatalogActions} from "../hooks/useCatalogActions"
 import {useDebouncedAtomSearch} from "../hooks/useDebouncedAtomSearch"
 import {useIntegrationDetail} from "../hooks/useIntegrationDetail"
 import {useToolExecution} from "../hooks/useToolExecution"

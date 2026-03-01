@@ -1,6 +1,7 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import type {MenuProps} from "antd"
 import {
     Badge,
     Button,
@@ -14,16 +15,14 @@ import {
     Tag,
     Typography,
 } from "antd"
-import type {MenuProps} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
 import type {ConnectionItem, IntegrationItem} from "@/oss/services/tools/api/types"
 
-import ScrollSentinel from "../components/ScrollSentinel"
-import ScrollToTopButton from "../components/ScrollToTopButton"
-import {useCatalogActions, actionsSearchAtom} from "../hooks/useCatalogActions"
-import {useCatalogIntegrations, integrationsSearchAtom} from "../hooks/useCatalogIntegrations"
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {actionsSearchAtom, useCatalogActions} from "../hooks/useCatalogActions"
+import {integrationsSearchAtom, useCatalogIntegrations} from "../hooks/useCatalogIntegrations"
 import {useDebouncedAtomSearch} from "../hooks/useDebouncedAtomSearch"
 import {useIntegrationConnections} from "../hooks/useIntegrationConnections"
 import {catalogDrawerOpenAtom, executionDrawerAtom} from "../state/atoms"

@@ -4,8 +4,8 @@ import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
 
-import {isGatewayToolSlug} from "@/oss/features/gateway-tools/utils/toolSlug"
 import {executeToolCall} from "@/oss/services/tools/api"
+import {isGatewayToolSlug} from "@agenta/shared/utils"
 
 export interface GatewayToolPayloadInfo {
     name?: string
