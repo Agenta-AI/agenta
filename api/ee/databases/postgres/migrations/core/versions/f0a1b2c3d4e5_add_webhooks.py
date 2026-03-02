@@ -20,6 +20,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # -- EXTEND secretkind_enum ------------------------------------------------
+    op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'WEBHOOK_PROVIDER'")
+
     # -- WEBHOOK SUBSCRIPTIONS --------------------------------------------------
     op.create_table(
         "webhook_subscriptions",
