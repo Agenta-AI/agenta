@@ -6,12 +6,8 @@ import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
-import {DropdownButton, HeightCollapse} from "@agenta/ui/components"
-import {
-    CollapsibleGroupHeader,
-    EnhancedButton,
-    RunButton,
-} from "@agenta/ui/components/presentational"
+import {HeightCollapse} from "@agenta/ui/components"
+import {CollapsibleGroupHeader, EnhancedButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,
@@ -26,7 +22,7 @@ import {
 } from "@phosphor-icons/react"
 import {Tag} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
 import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
@@ -47,6 +43,8 @@ import {
     ensureNodeCardKeyframes,
     type NodeStatus,
 } from "../../../shared/NodeResultCard"
+
+import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
 
 interface Props {
     rowId: string
@@ -373,23 +371,7 @@ const SingleView = ({
         | null
     const isChain = (nodes?.length ?? 0) > 1
 
-    // Resolve human-readable names for each node from runnableBridge
-    const nodeNamesAtom = useMemo(
-        () =>
-            atom((get) => {
-                if (!nodes) return {} as Record<string, string>
-                const names: Record<string, string> = {}
-                for (const node of nodes) {
-                    const data = get(runnableBridge.dataForType(node.entityType, node.entityId))
-                    if (data?.name) {
-                        names[node.id] = data.name
-                    }
-                }
-                return names
-            }),
-        [nodes],
-    )
-    const nodeNames = useAtomValue(nodeNamesAtom)
+    const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 
     // Per-step execution action
     const runRowStepAction = useSetAtom(executionItemController.actions.runRowStep)
@@ -417,14 +399,8 @@ const SingleView = ({
         if (!activeId) return null
         const activeNode = sortedNodes.find((n) => n.entityId === activeId)
         if (!activeNode) return null
-        const resolvedName = nodeNames[activeNode.id]
-        return (
-            resolvedName ||
-            (activeNode.label && !/^[0-9a-f]{8}-/.test(activeNode.label)
-                ? activeNode.label
-                : activeNode.entityType.charAt(0).toUpperCase() + activeNode.entityType.slice(1))
-        )
-    }, [chainStatus.activeEntityId, sortedNodes, nodeNames])
+        return getNodeLabel(activeNode)
+    }, [chainStatus.activeEntityId, getNodeLabel, sortedNodes])
 
     // Whether the primary entity has a successful run (gates downstream step execution)
     const hasSuccessfulRun = chainStatus.statuses[entityId] === "success"
@@ -433,14 +409,8 @@ const SingleView = ({
     const primaryNodeLabel = useMemo(() => {
         const primary = sortedNodes[0]
         if (!primary) return "Output"
-        const resolvedName = nodeNames[primary.id]
-        return (
-            resolvedName ||
-            (primary.label && !/^[0-9a-f]{8}-/.test(primary.label)
-                ? primary.label
-                : primary.entityType.charAt(0).toUpperCase() + primary.entityType.slice(1))
-        )
-    }, [sortedNodes, nodeNames])
+        return getNodeLabel(primary)
+    }, [getNodeLabel, sortedNodes])
 
     // Build dropdown options for per-step execution
     const stepOptions: DropdownButtonOption[] = useMemo(() => {
@@ -448,22 +418,16 @@ const SingleView = ({
         return sortedNodes.map((node, index) => {
             const isDownstream = index > 0
             const canRun = isDownstream ? hasSuccessfulRun : true
-            const resolvedName = nodeNames[node.id]
-            const nodeLabel =
-                resolvedName ||
-                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                    ? node.label
-                    : node.entityType.charAt(0).toUpperCase() + node.entityType.slice(1))
             return {
                 key: node.entityId,
-                label: `Run ${nodeLabel}`,
+                label: `Run ${getNodeLabel(node)}`,
                 icon: <PlayIcon size={14} />,
                 disabled: !canRun,
                 status: (chainStatus.statuses[node.entityId] ??
                     "idle") as DropdownButtonOptionStatus,
             }
         })
-    }, [isChain, sortedNodes, hasSuccessfulRun, nodeNames, chainStatus.statuses])
+    }, [chainStatus.statuses, getNodeLabel, hasSuccessfulRun, isChain, sortedNodes])
 
     // Run the full chain — triggers execution from the primary entity.
     // The chain runner handles the full topological order internally.
@@ -642,32 +606,17 @@ const SingleView = ({
                                 : "group-hover/header:opacity-100",
                         )}
                     />
-                    {isChain ? (
-                        <DropdownButton
-                            label={
-                                chainStatus.isBusy
-                                    ? runningStepLabel
-                                        ? `Running ${runningStepLabel}...`
-                                        : "Running..."
-                                    : "Run"
-                            }
-                            icon={<PlayIcon size={14} />}
-                            size="small"
-                            options={stepOptions}
-                            onClick={chainStatus.isBusy ? cancelRow : handleRunChain}
-                            onOptionSelect={handleStepSelect}
-                            loading={chainStatus.isBusy}
-                        />
-                    ) : !isBusy ? (
-                        <RunButton
-                            onClick={runRow}
-                            disabled={!!isRunning}
-                            className="flex"
-                            data-tour="run-button"
-                        />
-                    ) : (
-                        <RunButton isCancel onClick={cancelRow} className="flex" />
-                    )}
+                    <ExecutionRowRunControl
+                        showDropdown={isChain}
+                        stepOptions={stepOptions}
+                        isBusy={chainStatus.isBusy}
+                        isRunning={!!isRunning}
+                        runningStepLabel={runningStepLabel}
+                        onRun={handleRunChain}
+                        onCancel={cancelRow}
+                        onOptionSelect={handleStepSelect}
+                        dataTour="run-button"
+                    />
                 </div>
             )}
 
@@ -783,19 +732,12 @@ const SingleView = ({
                             )
                             if (!downstreamNodes?.length) return null
                             return downstreamNodes.map((node) => {
-                                const resolvedName = nodeNames[node.id]
-                                const label =
-                                    resolvedName ||
-                                    (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                        ? node.label
-                                        : node.entityType.charAt(0).toUpperCase() +
-                                          node.entityType.slice(1))
                                 return (
                                     <DownstreamNodeCard
                                         key={node.entityId}
                                         rowId={rowId}
                                         node={node}
-                                        nodeName={label}
+                                        nodeName={getNodeLabel(node)}
                                         rootEntityId={entityId}
                                     />
                                 )
@@ -817,19 +759,12 @@ const SingleView = ({
                     {nodes
                         ?.filter((n) => n.depth > 0 && n.entityId !== entityId)
                         .map((node) => {
-                            const resolvedName = nodeNames[node.id]
-                            const label =
-                                resolvedName ||
-                                (node.label && !/^[0-9a-f]{8}-/.test(node.label)
-                                    ? node.label
-                                    : node.entityType.charAt(0).toUpperCase() +
-                                      node.entityType.slice(1))
                             return (
                                 <StepCollapsedSummary
                                     key={node.entityId}
                                     rowId={rowId}
                                     entityId={`${entityId}:${node.entityId}`}
-                                    stepName={label}
+                                    stepName={getNodeLabel(node)}
                                     icon={<ExamIcon size={12} />}
                                 />
                             )

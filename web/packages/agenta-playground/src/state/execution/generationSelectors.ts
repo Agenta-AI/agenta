@@ -617,18 +617,24 @@ export const runRowAtom = atom(null, (get, set, params: {rowId: string; entityId
  */
 export const runRowStepAtom = atom(
     null,
-    (get, set, params: {rowId: string; entityId: string; targetNodeId: string}) => {
-        const {rowId, targetNodeId: targetEntityId} = params
+    (get, set, params: {rowId: string; entityId?: string; targetNodeId: string}) => {
+        const {rowId, entityId, targetNodeId: targetEntityId} = params
         const nodes = get(playgroundNodesAtom)
-        const rootNode = nodes.find((n) => n.depth === 0)
-        if (!rootNode) return
-
         const targetNode = nodes.find((n) => n.entityId === targetEntityId)
-        set(triggerExecutionAtom, {
-            executionId: rootNode.entityId,
-            step: {id: rowId},
-            targetNodeId: targetNode?.id,
-        })
+        if (!targetNode) return
+
+        const rootNodes = nodes.filter((n) => n.depth === 0)
+        const executionRoots = entityId
+            ? rootNodes.filter((n) => n.entityId === entityId)
+            : rootNodes
+
+        for (const rootNode of executionRoots) {
+            set(triggerExecutionAtom, {
+                executionId: rootNode.entityId,
+                step: {id: rowId},
+                targetNodeId: targetNode.id,
+            })
+        }
     },
 )
 
