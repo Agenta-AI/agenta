@@ -58,8 +58,6 @@ const WorkflowDeleteContent = ({
     onClose: () => void
 }) => {
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
-    const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
-    const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
     const [isMutating, setIsMutating] = useState(false)
 
     const entityId = revisionIds[0]
@@ -87,13 +85,11 @@ const WorkflowDeleteContent = ({
                 }
             }
 
-            // Remove deleted entities from the playground selection
-            // so the UI doesn't show stale nodes for archived revisions.
-            for (const id of revisionIds) {
-                removeEntity(id)
-            }
-
-            await invalidatePlaygroundQueries()
+            // Selection cleanup (removing deleted ID + finding replacement)
+            // is handled by onRevisionDeleted in workflowEntityBridge.ts,
+            // which runs inside deleteRevision. No need to call removeEntity
+            // here — doing so would clear the selection before the replacement
+            // is resolved, causing an empty playground flash.
 
             message.success("Deleted workflow successfully")
             onClose()
@@ -102,7 +98,7 @@ const WorkflowDeleteContent = ({
         } finally {
             setIsMutating(false)
         }
-    }, [revisionIds, deleteRevision, removeEntity, invalidatePlaygroundQueries, onClose])
+    }, [revisionIds, deleteRevision, onClose])
 
     return (
         <section className="flex flex-col gap-5">
