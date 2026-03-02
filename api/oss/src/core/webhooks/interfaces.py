@@ -63,22 +63,13 @@ class WebhooksDAOInterface:
     ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 
-    async def archive_subscription(
+    async def delete_subscription(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
+        #
         subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        raise NotImplementedError
-
-    async def unarchive_subscription(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
+    ) -> bool:
         raise NotImplementedError
 
     async def set_subscription_validity(

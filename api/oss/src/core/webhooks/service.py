@@ -258,71 +258,28 @@ class WebhooksService:
 
         return result
 
-    async def archive_subscription(
+    async def delete_subscription(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        result = await self.dao.archive_subscription(
+    ) -> bool:
+        deleted = await self.dao.delete_subscription(
             project_id=project_id,
-            user_id=user_id,
             subscription_id=subscription_id,
         )
-        if result is None:
-            return None
 
-        if result.secret_id:
-            secret_value = await self._resolve_secret(
-                project_id=project_id,
-                secret_id=result.secret_id,
+        if deleted:
+            await invalidate_cache(
+                namespace="webhooks", project_id=str(project_id), key="subscriptions"
             )
-            result = self._with_secret(result, secret_value)
-
-        await invalidate_cache(
-            namespace="webhooks", project_id=str(project_id), key="subscriptions"
-        )
-        await invalidate_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{subscription_id}",
-        )
-
-        return result
-
-    async def unarchive_subscription(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        result = await self.dao.unarchive_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription_id=subscription_id,
-        )
-        if result is None:
-            return None
-
-        if result.secret_id:
-            secret_value = await self._resolve_secret(
-                project_id=project_id,
-                secret_id=result.secret_id,
+            await invalidate_cache(
+                namespace="webhooks",
+                project_id=str(project_id),
+                key=f"subscription:{subscription_id}",
             )
-            result = self._with_secret(result, secret_value)
 
-        await invalidate_cache(
-            namespace="webhooks", project_id=str(project_id), key="subscriptions"
-        )
-        await invalidate_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{subscription_id}",
-        )
-
-        return result
+        return deleted
 
     # --- deliveries ---------------------------------------------------------- #
 

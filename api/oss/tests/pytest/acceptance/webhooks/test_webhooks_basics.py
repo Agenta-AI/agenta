@@ -144,7 +144,7 @@ class TestWebhooksSubscriptionsBasics:
         assert response.status_code == 400
         # ----------------------------------------------------------------------
 
-    def test_archive_webhook_subscription(self, authed_api):
+    def test_delete_webhook_subscription(self, authed_api):
         # ARRANGE --------------------------------------------------------------
         create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
         assert create_resp.status_code == 200
@@ -152,50 +152,19 @@ class TestWebhooksSubscriptionsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api("POST", f"/webhooks/{subscription_id}/archive")
+        response = authed_api("DELETE", f"/webhooks/{subscription_id}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        body = response.json()
-        assert body["count"] == 1
-        assert body["subscription"]["deleted_at"] is not None
+        assert response.status_code == 204
+
+        fetch_resp = authed_api("GET", f"/webhooks/{subscription_id}")
+        assert fetch_resp.status_code == 404
         # ----------------------------------------------------------------------
 
-    def test_unarchive_webhook_subscription(self, authed_api):
-        # ARRANGE --------------------------------------------------------------
-        create_resp = authed_api("POST", "/webhooks/", json=_subscription_payload())
-        assert create_resp.status_code == 200
-        subscription_id = create_resp.json()["subscription"]["id"]
-
-        archive_resp = authed_api("POST", f"/webhooks/{subscription_id}/archive")
-        assert archive_resp.status_code == 200
-        assert archive_resp.json()["subscription"]["deleted_at"] is not None
-        # ----------------------------------------------------------------------
-
+    def test_delete_webhook_subscription_not_found(self, authed_api):
         # ACT ------------------------------------------------------------------
-        response = authed_api("POST", f"/webhooks/{subscription_id}/unarchive")
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        body = response.json()
-        assert body["count"] == 1
-        assert body["subscription"].get("deleted_at") is None
-        # ----------------------------------------------------------------------
-
-    def test_archive_webhook_subscription_not_found(self, authed_api):
-        # ACT ------------------------------------------------------------------
-        response = authed_api("POST", f"/webhooks/{uuid4()}/archive")
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 404
-        # ----------------------------------------------------------------------
-
-    def test_unarchive_webhook_subscription_not_found(self, authed_api):
-        # ACT ------------------------------------------------------------------
-        response = authed_api("POST", f"/webhooks/{uuid4()}/unarchive")
+        response = authed_api("DELETE", f"/webhooks/{uuid4()}")
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------

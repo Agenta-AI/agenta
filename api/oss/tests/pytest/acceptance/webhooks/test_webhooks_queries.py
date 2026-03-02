@@ -51,16 +51,11 @@ def mock_data(authed_api):
     assert resp_b.status_code == 200
     sub_b = resp_b.json()["subscription"]
 
-    # Archive sub_b so we have one active and one archived
-    arch_resp = authed_api("POST", f"/webhooks/{sub_b['id']}/archive")
-    assert arch_resp.status_code == 200
-
     # Verify setup via marker-scoped query
     query_resp = authed_api(
         "POST",
         "/webhooks/query",
         json={
-            "include_archived": True,
             "subscription": {"tags": {"_marker": marker}},
         },
     )
@@ -80,32 +75,12 @@ def mock_data(authed_api):
 
 
 class TestWebhooksSubscriptionsQueries:
-    def test_query_non_archived_subscriptions(self, authed_api, mock_data):
+    def test_query_subscriptions(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
             "/webhooks/query",
             json={
-                "subscription": {"tags": {"_marker": mock_data["_marker"]}},
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        body = response.json()
-        # Only the active (non-archived) subscription should be returned
-        assert body["count"] == 1
-        assert body["subscriptions"][0]["id"] == mock_data["subscriptions"][0]["id"]
-        # ----------------------------------------------------------------------
-
-    def test_query_all_subscriptions_including_archived(self, authed_api, mock_data):
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/webhooks/query",
-            json={
-                "include_archived": True,
                 "subscription": {"tags": {"_marker": mock_data["_marker"]}},
             },
         )
@@ -128,7 +103,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {
                     "tags": {"_marker": marker},
                     "flags": {"is_active": True},
@@ -149,7 +123,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {
                     "tags": {"_marker": marker},
                     "flags": {"is_active": False},
@@ -173,7 +146,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {"tags": {"_marker": marker, "kind": "A"}},
             },
         )
@@ -211,7 +183,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1},
             },
@@ -231,7 +202,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1, "next": first_id},
             },
@@ -252,7 +222,6 @@ class TestWebhooksSubscriptionsQueries:
             "POST",
             "/webhooks/query",
             json={
-                "include_archived": True,
                 "subscription": {"tags": {"_marker": marker}},
                 "windowing": {"limit": 1, "next": last_id},
             },

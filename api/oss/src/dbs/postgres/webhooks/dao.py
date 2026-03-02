@@ -129,18 +129,15 @@ class WebhooksDAO(WebhooksDAOInterface):
                 subscription_dbe=subscription_dbe,
             )
 
-    async def archive_subscription(
+    async def delete_subscription(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
         subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
+    ) -> bool:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
                 WebhookSubscriptionDBE.project_id == project_id,
-                #
                 WebhookSubscriptionDBE.id == subscription_id,
             )
 
@@ -149,53 +146,12 @@ class WebhooksDAO(WebhooksDAOInterface):
             subscription_dbe = result.scalar_one_or_none()
 
             if not subscription_dbe:
-                return None
+                return False
 
-            subscription_dbe.deleted_at = datetime.now(timezone.utc)
-            subscription_dbe.deleted_by_id = user_id
-            subscription_dbe.updated_by_id = user_id
-
+            await session.delete(subscription_dbe)
             await session.commit()
 
-            await session.refresh(subscription_dbe)
-
-            return map_subscription_dbe_to_dto(
-                subscription_dbe=subscription_dbe,
-            )
-
-    async def unarchive_subscription(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.project_id == project_id,
-                #
-                WebhookSubscriptionDBE.id == subscription_id,
-            )
-
-            result = await session.execute(stmt)
-
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return None
-
-            subscription_dbe.deleted_at = None
-            subscription_dbe.deleted_by_id = None
-            subscription_dbe.updated_by_id = user_id
-
-            await session.commit()
-
-            await session.refresh(subscription_dbe)
-
-            return map_subscription_dbe_to_dto(
-                subscription_dbe=subscription_dbe,
-            )
+            return True
 
     async def set_subscription_validity(
         self,
