@@ -76,32 +76,10 @@ def _merge_headers(
     return merged
 
 
-async def _record_delivery(
-    *,
-    dao: WebhooksDAOInterface,
-    project_id: UUID,
-    delivery_id: UUID,
-    subscription_id: UUID,
-    event_id: UUID,
-    status: Status,
-    data: WebhookDeliveryData,
-) -> None:
-    await dao.create_delivery(
-        project_id=project_id,
-        user_id=None,
-        delivery=WebhookDeliveryCreate(
-            id=delivery_id,
-            subscription_id=subscription_id,
-            event_id=event_id,
-            status=status,
-            data=data,
-        ),
-    )
-
-
 async def deliver_webhook(
     *,
     project_id: UUID,
+    #
     delivery_id: UUID,
     subscription_id: UUID,
     event_id: UUID,
@@ -129,14 +107,16 @@ async def deliver_webhook(
     try:
         validate_webhook_url(url)
     except ValueError as e:
-        await _record_delivery(
-            dao=dao,
+        await dao.create_delivery(
             project_id=project_id,
-            delivery_id=delivery_id,
-            subscription_id=subscription_id,
-            event_id=event_id,
-            status=Status(code=400, message="failed"),
-            data=base_data.model_copy(update={"error": str(e)}),
+            user_id=None,
+            delivery=WebhookDeliveryCreate(
+                id=delivery_id,
+                subscription_id=subscription_id,
+                event_id=event_id,
+                status=Status(code=400, message="failed"),
+                data=base_data.model_copy(update={"error": str(e)}),
+            ),
         )
         return
 
@@ -176,60 +156,72 @@ async def deliver_webhook(
             status_code=response.status_code,
             body=response.text[:2000],
         )
+
         final_data = base_data.model_copy(update={"response": response_info})
 
         if response.is_success:
             # 2xx — record success, task done
-            await _record_delivery(
-                dao=dao,
+            await dao.create_delivery(
                 project_id=project_id,
-                delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                event_id=event_id,
-                status=Status(code=response.status_code, message="success"),
-                data=final_data,
+                user_id=None,
+                delivery=WebhookDeliveryCreate(
+                    id=delivery_id,
+                    subscription_id=subscription_id,
+                    event_id=event_id,
+                    status=Status(code=response.status_code, message="success"),
+                    data=final_data,
+                ),
             )
             return
 
         if _is_retryable(response.status_code):
             # 5xx — retry; record only on final attempt
             is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+
             if is_last_attempt:
-                await _record_delivery(
-                    dao=dao,
+                await dao.create_delivery(
                     project_id=project_id,
-                    delivery_id=delivery_id,
-                    subscription_id=subscription_id,
-                    event_id=event_id,
-                    status=Status(code=response.status_code, message="failed"),
-                    data=final_data,
+                    user_id=None,
+                    delivery=WebhookDeliveryCreate(
+                        id=delivery_id,
+                        subscription_id=subscription_id,
+                        event_id=event_id,
+                        status=Status(code=response.status_code, message="failed"),
+                        data=final_data,
+                    ),
                 )
             response.raise_for_status()  # triggers TaskIQ retry
 
         else:
             # 1xx / 3xx / 4xx — permanent failure, no retry
-            await _record_delivery(
-                dao=dao,
+            await dao.create_delivery(
                 project_id=project_id,
-                delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                event_id=event_id,
-                status=Status(code=response.status_code, message="failed"),
-                data=final_data,
+                user_id=None,
+                delivery=WebhookDeliveryCreate(
+                    id=delivery_id,
+                    subscription_id=subscription_id,
+                    event_id=event_id,
+                    status=Status(code=response.status_code, message="failed"),
+                    data=final_data,
+                ),
             )
 
     except httpx.TimeoutException as e:
         is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+
         if is_last_attempt:
-            await _record_delivery(
-                dao=dao,
+            await dao.create_delivery(
                 project_id=project_id,
-                delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                event_id=event_id,
-                status=Status(code=0, message="failed"),
-                data=base_data.model_copy(update={"error": f"Timeout: {e}"}),
+                user_id=None,
+                delivery=WebhookDeliveryCreate(
+                    id=delivery_id,
+                    subscription_id=subscription_id,
+                    event_id=event_id,
+                    status=Status(code=0, message="failed"),
+                    data=base_data.model_copy(update={"error": f"Timeout: {e}"}),
+                ),
             )
+
         raise
 
     except httpx.HTTPStatusError:
@@ -238,14 +230,18 @@ async def deliver_webhook(
 
     except Exception as e:
         is_last_attempt = retry_count >= WEBHOOK_MAX_RETRIES
+
         if is_last_attempt:
-            await _record_delivery(
-                dao=dao,
+            await dao.create_delivery(
                 project_id=project_id,
-                delivery_id=delivery_id,
-                subscription_id=subscription_id,
-                event_id=event_id,
-                status=Status(code=0, message="failed"),
-                data=base_data.model_copy(update={"error": str(e)}),
+                user_id=None,
+                delivery=WebhookDeliveryCreate(
+                    id=delivery_id,
+                    subscription_id=subscription_id,
+                    event_id=event_id,
+                    status=Status(code=0, message="failed"),
+                    data=base_data.model_copy(update={"error": str(e)}),
+                ),
             )
+
         raise
