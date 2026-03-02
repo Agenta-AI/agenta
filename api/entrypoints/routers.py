@@ -682,14 +682,32 @@ app.include_router(
 )
 
 app.include_router(
+    router=environments.router,
+    prefix="/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
     router=simple_environments.router,
     prefix="/preview/simple/environments",
     tags=["Environments"],
 )
 
 app.include_router(
+    router=simple_environments.router,
+    prefix="/simple/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
     router=tools.router,
     prefix="/preview/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
+    router=tools.router,
+    prefix="/tools",
     tags=["Tools"],
 )
 
