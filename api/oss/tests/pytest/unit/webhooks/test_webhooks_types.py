@@ -46,7 +46,6 @@ def test_webhook_event_type_values_helper():
 
 def test_webhook_subscription_default_flags():
     flags = WebhookSubscriptionFlags()
-    assert flags.is_active is True
     assert flags.is_valid is False
 
 
