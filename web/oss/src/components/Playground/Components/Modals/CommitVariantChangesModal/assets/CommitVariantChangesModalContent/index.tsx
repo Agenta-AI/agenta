@@ -1,8 +1,17 @@
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowRight} from "@phosphor-icons/react"
-import {Checkbox, Input, Radio, RadioChangeEvent, Select, Tag, Tooltip, Typography} from "antd"
+import {
+    Checkbox,
+    Input,
+    Radio,
+    RadioChangeEvent,
+    Select,
+    Skeleton,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -26,6 +35,82 @@ const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => modu
 })
 const {Text} = Typography
 
+// ============================================================================
+// Diff computation helpers (pure functions, no React)
+// ============================================================================
+
+const LEGACY_KEYS = new Set([
+    "system_prompt",
+    "user_prompt",
+    "prompt_template",
+    "temperature",
+    "model",
+    "max_tokens",
+    "top_p",
+    "frequency_penalty",
+    "presence_penalty",
+    "input_keys",
+    "template_format",
+])
+
+function stripLegacyFields(params: Record<string, any> | undefined): any {
+    if (!params || typeof params !== "object") return params
+    if (Array.isArray(params)) return params.map(stripLegacyFields)
+
+    const result = {...params}
+    const hasStructuredPrompt = result.messages || result.llm_config
+
+    if (hasStructuredPrompt) {
+        for (const key of LEGACY_KEYS) {
+            delete result[key]
+        }
+    }
+
+    for (const [key, value] of Object.entries(result)) {
+        if (value && typeof value === "object") {
+            result[key] = stripLegacyFields(value)
+        }
+    }
+
+    return result
+}
+
+interface DiffData {
+    original: string
+    modified: string
+}
+
+function computeDiffStrings(originalParams: any, modifiedParams: any): DiffData {
+    const strippedOriginal = stripAgentaMetadataDeep(originalParams)
+    const strippedModified = stripAgentaMetadataDeep(modifiedParams)
+
+    const sanitizedOriginal = stripLegacyFields(strippedOriginal as any)
+    const sanitizedModified = stripLegacyFields(strippedModified as any)
+
+    return {
+        original: JSON.stringify(sanitizedOriginal ?? {}),
+        modified: JSON.stringify(sanitizedModified ?? {}),
+    }
+}
+
+/**
+ * Schedule a callback at low priority — uses `requestIdleCallback` when
+ * available (lets the browser finish the modal open transition first),
+ * falls back to a 0ms setTimeout (next macrotask) otherwise.
+ */
+function scheduleIdleCallback(callback: () => void): () => void {
+    if (typeof requestIdleCallback !== "undefined") {
+        const id = requestIdleCallback(callback, {timeout: 300})
+        return () => cancelIdleCallback(id)
+    }
+    const id = setTimeout(callback, 0)
+    return () => clearTimeout(id)
+}
+
+// ============================================================================
+// Component
+// ============================================================================
+
 const CommitVariantChangesModalContent = ({
     variantId,
     note,
@@ -41,13 +126,16 @@ const CommitVariantChangesModalContent = ({
 }: CommitVariantChangesModalContentProps) => {
     // Use molecule-backed variant for single source of truth (merged data = serverData + draft)
     const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
-    // Get serverData (initial state) - this is the baseline before any edits
-    const serverData = useAtomValue(
-        useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
-    ) as any
     const latestRevisionForVariant = useAtomValue(
         newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
     ) as any
+    // Get original (server) ag_config through the SAME transformation pipeline as modified,
+    // so both sides have identical key ordering and only actual content changes appear in the diff.
+    const stableAtomParam = useMemo(
+        () => ({revisionId: variantId, useStableParams: true}),
+        [variantId],
+    )
+    const originalAgConfig = useAtomValue(transformedPromptsAtomFamily(stableAtomParam))?.ag_config
     // Get current (modified) ag_config - includes local edits via molecule
     const currentAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
     const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
@@ -67,15 +155,32 @@ const CommitVariantChangesModalContent = ({
     // Snapshot target revision on first render so it doesn't shift while the modal is open
     const settledTargetRevisionRef = useRef<number | null>(null)
 
-    // Snapshot diff content using refs (no re-renders, computed on first mount)
-    const initialOriginalRef = useRef<string | null>(null)
-    const initialModifiedRef = useRef<string | null>(null)
+    // ---- Deferred diff computation ----
+    // Diff data is computed at low priority (requestIdleCallback) so the
+    // modal open transition is not blocked. The data won't change while
+    // the modal is open, so we compute once and store the result.
+    const [diffData, setDiffData] = useState<DiffData | null>(null)
+    const diffComputedRef = useRef(false)
 
-    // Reset refs when the target variant changes
+    const modifiedParams =
+        commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
+
+    useEffect(() => {
+        if (diffComputedRef.current || !variant || !originalAgConfig) return
+
+        diffComputedRef.current = true
+        const cancel = scheduleIdleCallback(() => {
+            setDiffData(computeDiffStrings(originalAgConfig, modifiedParams))
+        })
+
+        return cancel
+    }, [variant, originalAgConfig, modifiedParams])
+
+    // Reset when the target variant changes
     useEffect(() => {
         settledTargetRevisionRef.current = null
-        initialOriginalRef.current = null
-        initialModifiedRef.current = null
+        diffComputedRef.current = false
+        setDiffData(null)
     }, [variantId])
 
     // Guard against undefined variant during commit invalidation (after all hooks)
@@ -97,75 +202,6 @@ const CommitVariantChangesModalContent = ({
         settledTargetRevisionRef.current = Number(latestRevisionForVariant?.revision ?? 0) + 1
     }
     const targetRevision = settledTargetRevisionRef.current
-    // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
-    // variant comes from moleculeBackedVariantAtomFamily which merges serverData + draft
-    const modifiedParams =
-        commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
-    // Use serverData.parameters as the original (initial state before edits)
-    // Unwrap ag_config if present (serverData.parameters may have { ag_config: {...} })
-    const rawOriginalParams = serverData?.parameters
-    const originalParams = rawOriginalParams?.ag_config ?? rawOriginalParams
-
-    // Strip legacy flat fields that are superseded by the structured prompt format.
-    // Both server data and transformed output may contain these; they should not
-    // appear in the diff since the structured prompt (messages + llm_config) is
-    // the canonical representation.
-    const legacyKeys = new Set([
-        "system_prompt",
-        "user_prompt",
-        "prompt_template",
-        "temperature",
-        "model",
-        "max_tokens",
-        "top_p",
-        "frequency_penalty",
-        "presence_penalty",
-        "input_keys",
-        "template_format",
-    ])
-
-    const stripLegacyFields = (params: Record<string, any> | undefined): any => {
-        if (!params || typeof params !== "object") return params
-        if (Array.isArray(params)) return params.map(stripLegacyFields)
-
-        const result = {...params}
-
-        // Check if THIS object has structured prompt fields (messages or llm_config)
-        const hasStructuredPrompt = result.messages || result.llm_config
-
-        if (hasStructuredPrompt) {
-            for (const key of legacyKeys) {
-                delete result[key]
-            }
-        }
-
-        // Recurse into nested objects
-        for (const [key, value] of Object.entries(result)) {
-            if (value && typeof value === "object") {
-                result[key] = stripLegacyFields(value)
-            }
-        }
-
-        return result
-    }
-
-    const strippedOriginal = stripAgentaMetadataDeep(originalParams)
-    const strippedModified = stripAgentaMetadataDeep(modifiedParams)
-
-    const sanitizedOriginalParams = stripLegacyFields(strippedOriginal as any)
-    const sanitizedModifiedParams = stripLegacyFields(strippedModified as any)
-
-    // Compute snapshot lazily on first render after mount
-    if (variant && initialOriginalRef.current === null && initialModifiedRef.current === null) {
-        try {
-            initialOriginalRef.current = JSON.stringify(sanitizedOriginalParams ?? {})
-            if (modifiedParams !== undefined) {
-                initialModifiedRef.current = JSON.stringify(sanitizedModifiedParams ?? {})
-            }
-        } catch {
-            // Keep refs null; we will fall back to live values below
-        }
-    }
 
     const environmentOptions = (
         Object.keys(deploymentStatusColors) as (keyof typeof deploymentStatusColors)[]
@@ -173,12 +209,6 @@ const CommitVariantChangesModalContent = ({
         value: env,
         label: <EnvironmentTagLabel environment={env} />,
     }))
-
-    // Ensure DiffView gets strings even when params are undefined
-    const originalForDiff =
-        initialOriginalRef.current ?? JSON.stringify(sanitizedOriginalParams ?? {})
-    const modifiedForDiff =
-        initialModifiedRef.current ?? JSON.stringify(sanitizedModifiedParams ?? {})
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-6 md:flex-row">
@@ -196,7 +226,7 @@ const CommitVariantChangesModalContent = ({
                             >
                                 <span className="inline-flex items-center gap-1">
                                     As a new version
-                                    <Tooltip title="Creates a new version within this variant’s history.">
+                                    <Tooltip title="Creates a new version within this variant's history.">
                                         <span className="text-[#64748B]">ⓘ</span>
                                     </Tooltip>
                                 </span>
@@ -320,15 +350,21 @@ const CommitVariantChangesModalContent = ({
                     <Text className="text-sm font-medium text-[#0F172A]">Changes preview</Text>
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
-                    <DiffView
-                        original={originalForDiff}
-                        modified={modifiedForDiff}
-                        language="json"
-                        className="h-full min-h-0 rounded-lg border border-[#E2E8F0]"
-                        computeOnMountOnly
-                        showErrors={true}
-                        enableFolding
-                    />
+                    {diffData ? (
+                        <DiffView
+                            original={diffData.original}
+                            modified={diffData.modified}
+                            language="json"
+                            className="h-full min-h-0 rounded-lg border border-[#E2E8F0]"
+                            computeOnMountOnly
+                            showErrors={true}
+                            enableFolding
+                        />
+                    ) : (
+                        <div className="p-4">
+                            <Skeleton active paragraph={{rows: 8}} />
+                        </div>
+                    )}
                 </div>
             </section>
         </div>
