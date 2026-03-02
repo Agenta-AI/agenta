@@ -74,7 +74,7 @@ class TestsetsService:
         if parsed.testcase_ids is None:
             return None
 
-        return {"testcase_ids": parsed.testcase_ids}
+        return {"testcase_ids": [str(id) for id in parsed.testcase_ids]}
 
     @classmethod
     def _sanitize_testset_revision_payload(
