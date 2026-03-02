@@ -10,6 +10,8 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
 
+import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
+
 import {ExecutionRowRunControl, usePlaygroundNodeLabels} from "./shared"
 
 interface Props {
@@ -189,6 +191,11 @@ const ComparisonLayout = ({
         },
         [runRowStepAction, rowId],
     )
+    const providers = usePlaygroundUIOptional()
+    const SyncStateTagSlot = providers?.renderSyncStateTag
+    const loadableId = useAtomValue(
+        useMemo(() => playgroundController.selectors.loadableId(), []),
+    ) as string | null
 
     if (inputOnly && variableIds.length === 0) {
         return null
@@ -258,6 +265,10 @@ const ComparisonLayout = ({
 
             {!inputOnly ? (
                 <div className={clsx("h-[48px] flex items-center px-4")}>
+                    {SyncStateTagSlot && loadableId && (
+                        <SyncStateTagSlot rowId={rowId} loadableId={loadableId} />
+                    )}
+                    <div className="flex-1" />
                     <ExecutionRowRunControl
                         showDropdown={hasDownstreamNodes}
                         stepOptions={stepOptions}
