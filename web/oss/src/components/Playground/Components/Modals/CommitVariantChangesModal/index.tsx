@@ -160,6 +160,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }}
             commitModes={commitModes}
             defaultCommitMode="version"
+            modeLabel={newVariantName || undefined}
             renderModeContent={({mode}) => (
                 <div className="flex flex-col gap-3">
                     {mode === "variant" && (

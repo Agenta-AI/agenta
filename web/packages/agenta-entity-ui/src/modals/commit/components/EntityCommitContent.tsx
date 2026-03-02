@@ -41,6 +41,8 @@ export interface EntityCommitContentProps {
     selectedMode?: string
     onModeChange?: (mode: string) => void
     extraContent?: React.ReactNode
+    /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
+    modeLabel?: string
 }
 
 /**
@@ -63,6 +65,7 @@ export function EntityCommitContent({
     selectedMode,
     onModeChange,
     extraContent,
+    modeLabel,
 }: EntityCommitContentProps) {
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const message = useAtomValue(commitModalMessageAtom)
@@ -128,19 +131,51 @@ export function EntityCommitContent({
                 {context?.versionInfo && (
                     <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
                         <Text className={textColors.secondary}>
-                            This will create a new revision of{" "}
+                            {selectedMode === "variant"
+                                ? "This will create a new variant from "
+                                : "This will create a new revision of "}
                             <span className="font-medium">{entityName}</span>.
                         </Text>
-                        <div className="mt-2 flex items-center gap-2 text-sm">
-                            <Text className="font-medium">Version</Text>
-                            <VersionBadge
-                                version={context.versionInfo.currentVersion}
-                                variant="chip"
-                            />
-                            <span className={textColors.tertiary}>→</span>
-                            <span className="rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
-                                v{context.versionInfo.targetVersion}
+                        <div className="mt-2 flex items-center gap-2 min-w-0">
+                            <span className="flex items-center gap-1 min-w-0">
+                                <span
+                                    className={cn("truncate", textColors.secondary)}
+                                    title={entityName}
+                                >
+                                    {entityName}
+                                </span>
+                                <VersionBadge
+                                    version={context.versionInfo.currentVersion}
+                                    variant="chip"
+                                    className="shrink-0"
+                                />
                             </span>
+                            <span className={cn("shrink-0", textColors.tertiary)}>→</span>
+                            {selectedMode === "variant" ? (
+                                <span className="flex items-center gap-1 min-w-0">
+                                    <span
+                                        className="truncate text-blue-7"
+                                        title={modeLabel || "new variant"}
+                                    >
+                                        {modeLabel || "new variant"}
+                                    </span>
+                                    <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                        v1
+                                    </span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1 min-w-0">
+                                    <span
+                                        className={cn("truncate", textColors.secondary)}
+                                        title={entityName}
+                                    >
+                                        {entityName}
+                                    </span>
+                                    <span className="shrink-0 rounded bg-blue-1 px-1.5 py-0.5 text-xs font-medium text-blue-7">
+                                        v{context.versionInfo.targetVersion}
+                                    </span>
+                                </span>
+                            )}
                         </div>
                         {changesDescription.length > 0 && (
                             <div className={cn("mt-2 text-xs", textColors.tertiary)}>

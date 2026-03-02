@@ -306,6 +306,8 @@ export interface EntityCommitModalProps {
     renderModeContent?: (params: {mode?: string}) => ReactNode
     /** Additional submit guard from caller (e.g. requires variant name or environment) */
     canSubmit?: (params: {mode?: string}) => boolean
+    /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
+    modeLabel?: string
 }
 
 // ============================================================================

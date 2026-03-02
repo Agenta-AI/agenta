@@ -112,6 +112,7 @@ export function EntityCommitModal({
     renderModeContent,
     canSubmit,
     commitMessageRequired = false,
+    modeLabel,
 }: EntityCommitModalProps) {
     const internalOpen = useAtomValue(commitModalOpenAtom)
     const context = useAtomValue(commitModalContextAtom)
@@ -310,6 +311,7 @@ export function EntityCommitModal({
                 selectedMode={selectedMode}
                 onModeChange={setSelectedMode}
                 extraContent={renderModeContent?.({mode: selectedMode})}
+                modeLabel={modeLabel}
             />
         </EnhancedModal>
     )
