@@ -141,22 +141,27 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         # Parse OTel spans into internal spans
         # -------------------------------------------------------------------- #
-        spans = None
-        try:
-            spans = [parse_from_otel_span_dto(s) for s in otel_spans]
-            spans = [s for s in spans if s is not None]
-        except Exception:
-            log.error(
-                "Failed to parse spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
-            )
-            for otel_span in otel_spans:
-                log.error(
-                    "Span: [%s] %s",
-                    UUID(otel_span.context.trace_id[2:]),
-                    otel_span,
+        spans = []
+        for idx, otel_span in enumerate(otel_spans):
+            try:
+                span = parse_from_otel_span_dto(otel_span)
+                if span is not None:
+                    spans.append(span)
+                else:
+                    log.warning(
+                        "Skipping OTEL span from project %s: parser returned None (index=%s)",
+                        request.state.project_id,
+                        idx,
+                    )
+            except Exception:
+                log.warning(
+                    "Skipping malformed OTEL span from project %s (index=%s)",
+                    request.state.project_id,
+                    idx,
+                    exc_info=True,
                 )
+
+        if otel_spans and not spans:
             err_status = ProtoStatus(message="Failed to parse OTEL span.")
             return Response(
                 content=err_status.SerializeToString(),
