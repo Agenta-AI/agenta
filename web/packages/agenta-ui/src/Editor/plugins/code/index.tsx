@@ -33,14 +33,14 @@ import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/Ini
 
 export const store = createStore()
 
+import PropertyClickPlugin from "./extensions/propertyClick"
 import {$createBase64Node, isBase64String, parseBase64String} from "./nodes/Base64Node"
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {$createLongTextNode, isLongTextString, parseLongTextString} from "./nodes/LongTextNode"
-import PropertyClickPlugin from "./plugins/PropertyClickPlugin"
-import {$getEditorCodeAsString} from "./plugins/RealTimeValidationPlugin"
+import {$getEditorCodeAsString} from "./utils/editorCodeUtils"
 import {showEditorLoadingOverlay} from "./utils/loadingOverlay"
 import {$wrapLinesInSegments, $getAllCodeLines, $getLineCount} from "./utils/segmentUtils"
 import {tokenizeCodeLine} from "./utils/tokenizer"

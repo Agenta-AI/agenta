@@ -4,8 +4,8 @@ import {defineExtension} from "lexical"
 import {ENTER_KEY_UPDATE_TAG, HIGHLIGHT_ONLY_UPDATE_TAG} from "../core/highlight/updateTags"
 import {createCodeModelOutput} from "../core/model/store"
 import {setCurrentEditorId, setValidationContext} from "../core/validation/context"
-import {$getEditorCodeAsString} from "../plugins/RealTimeValidationPlugin"
 import type {CodeLanguage} from "../types"
+import {$getEditorCodeAsString} from "../utils/editorCodeUtils"
 import {$getActiveLanguage} from "../utils/language"
 
 const DEFAULT_MODEL_PUBLISH_DELAY_MS = 40
