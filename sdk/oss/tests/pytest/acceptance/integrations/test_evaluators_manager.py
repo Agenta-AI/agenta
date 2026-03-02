@@ -19,7 +19,7 @@ import pytest
 
 from agenta.sdk.managers import evaluators
 
-pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
+pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
 def _evaluator_handler(prediction: str, reference: str) -> float:

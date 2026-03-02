@@ -36,15 +36,15 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 
 ## Status Matrix
 
-Test folder structure is now **standardized** across all components with `manual/`, `legacy/`, and `pytest/`|`playwright/` containing `e2e/`, `unit/`, and `utils/` subdirectories.
+Test folder structure is now **standardized** across all components with `manual/`, `legacy/`, and `pytest/`|`playwright/` containing `acceptance/`, `integration/`, `unit/`, and `utils/` subdirectories.
 
-| Component | Unit Tests | E2E Tests | Manual Tests | CI |
-|-----------|-----------|-----------|--------------|-----|
-| **API** | Structure ready (.gitkeep) | ✅ 155 tests across 7 domains | ✅ HTTP files, scripts | Linting only |
-| **SDK** | ✅ 22 tests (tracing decorators) | ✅ 66 tests (SDK against live API) | ✅ Workflow tests, imports | Linting only |
-| **Web** | ✅ Jotai atom tests (colocated) | ✅ Playwright feature suites | ✅ Data layer tests (manual) | Linting only |
-| **Services** | Structure ready (.gitkeep) | Structure ready (.gitkeep) | ✅ smoke.http | N/A |
-| **Docs** | N/A | Planned (link checking, build) | N/A | N/A |
+| Component | Unit Tests | Integration Tests | Acceptance Tests | Manual Tests | CI |
+|-----------|-----------|------------------|-----------------|--------------|-----|
+| **API** | Structure ready | Structure ready | ✅ 155 tests across 7 domains | ✅ HTTP files, scripts | Linting only |
+| **SDK** | ✅ 22 tests (tracing decorators) | Structure ready | ✅ 66 tests (SDK against live API) | ✅ Workflow tests, imports | Linting only |
+| **Web** | ✅ Jotai atom tests (colocated) | Structure ready | ✅ Playwright feature suites | ✅ Data layer tests (manual) | Linting only |
+| **Services** | Structure ready | Structure ready | Structure ready | ✅ smoke.http | N/A |
+| **Docs** | N/A | N/A | Planned (link checking, build) | N/A | N/A |
 
 ---
 
@@ -62,7 +62,7 @@ AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
 python -m pytest oss/tests/pytest/ -v -m coverage_smoke
 
 # Run specific domain
-python -m pytest oss/tests/pytest/e2e/workflows/ -v
+python -m pytest oss/tests/pytest/acceptance/workflows/ -v
 
 # Run with dimension filters
 python -m pytest oss/tests/pytest/ -v -m "coverage_smoke and path_happy"
@@ -78,13 +78,13 @@ AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
   poetry run pytest tests/pytest/ -v
 
 # Run unit tests only (no external deps)
-poetry run pytest tests/pytest/unit/ -v
+poetry run pytest oss/tests/pytest/unit/ -v
 
-# Run E2E tests only (requires running API)
-poetry run pytest tests/pytest/e2e/ -v -m e2e
+# Run acceptance tests only (requires running API)
+poetry run pytest oss/tests/pytest/acceptance/ -v -m acceptance
 
 # Run with dimension filters
-poetry run pytest tests/pytest/e2e/ -v -m "coverage_smoke and cost_free"
+poetry run pytest oss/tests/pytest/acceptance/ -v -m "coverage_smoke and cost_free"
 ```
 
 ### Web Tests
@@ -96,16 +96,16 @@ cd web/tests
 AGENTA_WEB_URL=http://localhost:10180 \
 TESTMAIL_NAMESPACE=<your-namespace> \
 TESTMAIL_API_KEY=<your-key> \
-  npx playwright test ../oss/tests/playwright/e2e/smoke.spec.ts
+  npx playwright test ../oss/tests/playwright/acceptance/smoke.spec.ts
 
 # Run smoke tests (EE)
 AGENTA_WEB_URL=http://localhost:10180 \
 TESTMAIL_NAMESPACE=<your-namespace> \
 TESTMAIL_API_KEY=<your-key> \
-  npx playwright test ../ee/tests/playwright/e2e/smoke.spec.ts
+  npx playwright test ../ee/tests/playwright/acceptance/smoke.spec.ts
 
-# Run all E2E tests for a specific feature (OSS)
-npx playwright test ../oss/tests/playwright/e2e/settings/
+# Run all acceptance tests for a specific feature (OSS)
+npx playwright test ../oss/tests/playwright/acceptance/settings/
 
 # Run with tag filters (requires AGENTA_LICENSE when using default testDir)
 AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke"

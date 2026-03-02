@@ -68,8 +68,18 @@ export interface DrillInFieldHeaderProps {
     isMarkdownView?: boolean
     /** Callback when markdown view is toggled */
     onToggleMarkdownView?: () => void
+    /** Available content view modes for this field */
+    viewModeOptions?: {value: string; label: string}[]
+    /** Current content view mode */
+    viewMode?: string
+    /** Callback when content view mode changes */
+    onViewModeChange?: (mode: string) => void
     /** Whether to show collapse toggle (default: true) */
     showCollapse?: boolean
+    /** Show collapse toggle in the header (default: true) */
+    showCollapseToggle?: boolean
+    /** Show drill-in action button in the header (default: true) */
+    showDrillInButton?: boolean
     /** Injectable message display function (for clipboard notifications) */
     showMessage?: (content: string, type?: "success" | "error" | "info") => void
 
@@ -131,6 +141,15 @@ export interface DrillInFieldHeaderProps {
         onPressEnter?: () => void
         autoFocus?: boolean
     }>
+    /** Custom select component */
+    Select?: React.ComponentType<{
+        size?: "small"
+        value: string
+        options: {value: string; label: string}[]
+        onChange: (value: string) => void
+        className?: string
+        popupMatchSelectWidth?: boolean
+    }>
 }
 
 /**
@@ -171,6 +190,35 @@ const DefaultButton = ({
  * Default tooltip implementation (no-op, just renders children)
  */
 const DefaultTooltip = ({children}: {title?: string; children: ReactNode}) => <>{children}</>
+
+/**
+ * Default select implementation using native HTML
+ */
+const DefaultSelect = ({
+    value,
+    options,
+    onChange,
+    className,
+}: {
+    size?: "small"
+    value: string
+    options: {value: string; label: string}[]
+    onChange: (value: string) => void
+    className?: string
+    popupMatchSelectWidth?: boolean
+}) => (
+    <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`h-6 text-xs border border-gray-300 rounded px-1 bg-white ${className ?? ""}`}
+    >
+        {options.map((option) => (
+            <option key={option.value} value={option.value}>
+                {option.label}
+            </option>
+        ))}
+    </select>
+)
 
 /**
  * Default icons using Phosphor icons
@@ -344,6 +392,11 @@ const DrillInFieldHeader = memo(
         isMarkdownView = false,
         onToggleMarkdownView,
         showCollapse = true,
+        showCollapseToggle,
+        showDrillInButton = true,
+        viewModeOptions,
+        viewMode,
+        onViewModeChange,
         showMessage,
         // Icons
         caretDownIcon = defaultIcons.caretDown,
@@ -362,9 +415,11 @@ const DrillInFieldHeader = memo(
         Tooltip = DefaultTooltip,
         Popover,
         Input,
+        Select = DefaultSelect,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
         const [popoverOpen, setPopoverOpen] = useState(false)
+        const shouldShowCollapse = showCollapseToggle ?? showCollapse
 
         const handleCopy = useCallback(() => {
             const valueToCopy = typeof value === "string" ? value : JSON.stringify(value, null, 2)
@@ -393,7 +448,7 @@ const DrillInFieldHeader = memo(
         return (
             <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
                 <div className="flex items-center gap-2">
-                    {showCollapse ? (
+                    {shouldShowCollapse ? (
                         <button
                             type="button"
                             onClick={onToggleCollapse}
@@ -419,6 +474,19 @@ const DrillInFieldHeader = memo(
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {viewModeOptions &&
+                        viewModeOptions.length > 1 &&
+                        viewMode &&
+                        onViewModeChange && (
+                            <Select
+                                size="small"
+                                value={viewMode}
+                                options={viewModeOptions}
+                                onChange={onViewModeChange}
+                                className="min-w-[126px]"
+                                popupMatchSelectWidth={false}
+                            />
+                        )}
                     {showCopyButton && (
                         <Tooltip title={copiedField === name ? "Copied" : "Copy"}>
                             <Button
@@ -452,7 +520,7 @@ const DrillInFieldHeader = memo(
                             />
                         </Tooltip>
                     )}
-                    {expandable && onDrillIn && (
+                    {showDrillInButton && expandable && onDrillIn && (
                         <Button
                             type="text"
                             size="small"
