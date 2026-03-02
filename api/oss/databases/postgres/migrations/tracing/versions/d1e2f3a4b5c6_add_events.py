@@ -36,7 +36,9 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
-        sa.Column("created_by_id", sa.UUID(), nullable=True),
+        sa.Column(
+            "created_by_id", sa.UUID(), nullable=True
+        ),  # nullable: events are system-generated, not user-created
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.Column("request_id", sa.UUID(), nullable=False),

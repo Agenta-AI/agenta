@@ -96,7 +96,9 @@ class EventsWorker:
                 processed_ids.append(msg_id)
             except Exception as e:
                 log.error(f"[EVENTS] Failed to deserialize message {msg_id!r}: {e}")
-                # ACK unprocessable messages to prevent PEL buildup
+                # Intentionally ACK unprocessable messages: a malformed message will
+                # never succeed on retry, so keeping it in the PEL would block the
+                # consumer indefinitely. Drop and log — wontfix by design.
                 processed_ids.append(msg_id)
 
         batches = list(groups.values())
@@ -122,6 +124,9 @@ class EventsWorker:
                         organization_id=str(project_batch["organization_id"]),
                         batch_size=len(project_batch["events"]),
                     )
+                    # Intentionally drop and ACK: events for an org that isn't
+                    # entitled will never become processable in this batch. Keeping
+                    # them in the PEL would block the consumer — wontfix by design.
                     continue
 
             total_ingested += await self.service.ingest(
