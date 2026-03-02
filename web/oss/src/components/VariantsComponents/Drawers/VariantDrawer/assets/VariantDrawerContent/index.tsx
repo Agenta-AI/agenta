@@ -5,6 +5,7 @@ import {
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {UserAuthorLabel} from "@agenta/entities/shared"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -12,7 +13,6 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {useRouter} from "next/router"
 
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
@@ -292,8 +292,11 @@ const VariantDrawerContent = ({
                 </div>
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>
-                    {/* Pass the revision id so selector can resolve modifiedBy correctly */}
-                    <UserAvatarTag variantId={(selectedVariant as any)?.id} />
+                    <UserAuthorLabel
+                        userId={(selectedVariant as any)?.modifiedById}
+                        fallback={(selectedVariant as any)?.modifiedBy ?? "-"}
+                        showPrefix={false}
+                    />
                 </div>
 
                 {commitMsg && (
