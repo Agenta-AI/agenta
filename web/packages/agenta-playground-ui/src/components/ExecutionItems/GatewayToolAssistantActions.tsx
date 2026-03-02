@@ -13,11 +13,16 @@ function toolCallIdOf(message: ChatMessage | null | undefined): string | undefin
     return typeof id === "string" && id.length > 0 ? id : undefined
 }
 
-const GatewayToolAssistantActions: React.FC<ChatTurnAssistantActionsProps> = ({
+interface GatewayToolAssistantActionsProps extends ChatTurnAssistantActionsProps {
+    onExecuteToolCall: (params: {data: any}) => Promise<{call?: {data?: any}}>
+}
+
+const GatewayToolAssistantActions: React.FC<GatewayToolAssistantActionsProps> = ({
     rowId,
     entityId,
     currentResult,
     onRun,
+    onExecuteToolCall,
 }) => {
     const sessionId = `sess:${entityId}`
 
@@ -98,6 +103,7 @@ const GatewayToolAssistantActions: React.FC<ChatTurnAssistantActionsProps> = ({
                 toolPayloads={toolPayloads}
                 onUpdateToolResponse={handleUpdateToolResponse}
                 onExecuteAndSendToChat={onRun}
+                onExecuteToolCall={onExecuteToolCall}
             />
         </div>
     )

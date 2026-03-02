@@ -4,7 +4,6 @@ import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
 
-import {executeToolCall} from "@/oss/services/tools/api"
 import {isGatewayToolSlug} from "@agenta/shared/utils"
 
 export interface GatewayToolPayloadInfo {
@@ -17,12 +16,14 @@ interface Props {
     toolPayloads: GatewayToolPayloadInfo[]
     onUpdateToolResponse: (callId: string | undefined, resultStr: string, toolName?: string) => void
     onExecuteAndSendToChat?: () => void
+    onExecuteToolCall: (params: {data: any}) => Promise<{call?: {data?: any}}>
 }
 
 const GatewayToolExecuteButton: React.FC<Props> = ({
     toolPayloads,
     onUpdateToolResponse,
     onExecuteAndSendToChat,
+    onExecuteToolCall,
 }) => {
     const [executingId, setExecutingId] = useState<string | null>(null)
 
@@ -33,7 +34,7 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
             setExecutingId(execId)
 
             try {
-                const response = await executeToolCall({
+                const response = await onExecuteToolCall({
                     data: {
                         id: toolCallId,
                         type: "function",
@@ -55,7 +56,7 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
                 setExecutingId(null)
             }
         },
-        [onExecuteAndSendToChat, onUpdateToolResponse],
+        [onExecuteAndSendToChat, onUpdateToolResponse, onExecuteToolCall],
     )
 
     const gatewayPayloads = toolPayloads.filter((p) => isGatewayToolSlug(p.name || ""))

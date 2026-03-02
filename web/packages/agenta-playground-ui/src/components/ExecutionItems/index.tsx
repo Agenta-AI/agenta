@@ -4,13 +4,13 @@ import {runnableBridge} from "@agenta/entities/runnable"
 import {executionController} from "@agenta/playground"
 import {useAtomValue} from "jotai"
 
-import ExecutionHeader from "../ExecutionHeader"
 import type {ExecutionHeaderProps} from "../ExecutionHeader"
+import ExecutionHeader from "../ExecutionHeader"
 
-import ChatMode from "./assets/ChatMode"
 import type {ChatModeProps} from "./assets/ChatMode"
-import CompletionMode from "./assets/CompletionMode"
+import ChatMode from "./assets/ChatMode"
 import type {CompletionModeProps} from "./assets/CompletionMode"
+import CompletionMode from "./assets/CompletionMode"
 
 export interface PlaygroundGenerationsProps {
     entityId: string
@@ -86,8 +86,10 @@ export default PlaygroundGenerations
 // Re-export sub-components (canonical names only)
 export {default as ChatMode} from "./assets/ChatMode"
 export type {ChatModeProps} from "./assets/ChatMode"
+export {default as ChatTurnView} from "./assets/ChatTurnView"
 export {default as CompletionMode} from "./assets/CompletionMode"
 export type {CompletionModeProps} from "./assets/CompletionMode"
 export {default as ExecutionRow} from "./assets/ExecutionRow"
 export type {ExecutionRowProps} from "./assets/ExecutionRow"
-export {default as ChatTurnView} from "./assets/ChatTurnView"
+export {default as GatewayToolAssistantActions} from "./GatewayToolAssistantActions"
+export {default as GatewayToolExecuteButton} from "./GatewayToolExecuteButton"
