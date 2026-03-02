@@ -458,8 +458,8 @@ const SelectVariant = ({
                                 renderParentTitle={renderParentTitle}
                                 renderChildTitle={renderChildTitle}
                                 renderSelectedLabel={renderSelectedLabel}
+                                popupMinWidth={280}
                                 maxHeight={400}
-                                width={280}
                             />
                         )}
                     </div>

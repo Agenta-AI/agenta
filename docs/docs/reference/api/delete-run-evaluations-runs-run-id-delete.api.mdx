@@ -1,0 +1,71 @@
+---
+id: delete-run-evaluations-runs-run-id-delete
+title: "Delete Run"
+description: "Delete Run"
+sidebar_label: "Delete Run"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVctu2zAQ/BVjTy1A2G7Qk041EgMxkqKBk/ZiGAYjrS2mFMnwEcQV+O/FUk/HSQ89SSJnl7szw1UNnh8cZBtYvnAZuBdaOdgy0AZt+loVkEGBEj3ubFA7HHD07XZpVRS7XQMCBoZbXqFHS4lrULxCyKCBAQOhIAPDfQkMLD4HYbGAzNuADFxeYsUhq8EfDUU5b4U6AIO9thX3kEEIKYsXXhJgHdRkVUCMW8rmjFYOHSW4mM/pUaDLrTBUMGRwH/IcndsHOVm3YGCQa+VReYJzY6TIU3+zJ0cx9agoY4kXL5oTch2aoLZWoTwe0I6Ku0wIBgXueZAesnlkHRF0mDr+2CeO/t1tZD1CBSmBej3rn3UQ/fiEuR9VMUi7DmpV9I3HSFFfLy7OefrFpShSyGRprbb/T1KBngtJb8Jj5c4BUucnux+RMiKhIzpuh665tfw4avpWNwVCZFC5w3uW6qDf0Tl+QOiTfQxNZEweaDeSk01oDNBur9JCZJD711GaM0UuictX/65qw5XYJG6a8lvcSPhBokahj6m4aiT4l0WuHx7uzhI2/jg1xlW65JN1UFQY+lIP8yFdfV9CBrPRlJjRlJjVjesjMHBoX7rZEKyEDErvjctms1zqUEz5AZXnUy5m3IjkdYd5sMIfU8jibnWDx2vkBVrINtsx4J5M2NjqFNZLwY24QSKnnUqL4EttxZ/GK+1wKpuomCTe67HCi1TcZHG3AgbURkPLfPplOoe3ZJ2A6f7wPNmlOzttA3vDQt8/MMAqXR7wyKtvwwZVZrTzFVejfCfanFTSt0+umxnJRboX6dy6FW0DI9EgjSl6ZO242jIotfOEq+tH7vCnlTHS8nNAS9JsGbxwK/gjEbWpoRCO3gvI9lw6PCupHyjwad16/vME2PuldvIp0o7qpC9g8BuPw78lzYOyc0bdbi7yHI0fhZ2NL7JQ7+Wr5e3yYQkx/gVN4Gty
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Run"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/evaluations/runs/{run_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Run
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"run_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Run Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"run_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Run Id"}},"type":"object","title":"EvaluationRunIdResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

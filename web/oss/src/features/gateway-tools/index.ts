@@ -22,5 +22,4 @@ export {useConnectionsQuery} from "./hooks/useConnectionsQuery"
 export {useIntegrationDetail} from "./hooks/useIntegrationDetail"
 export {buildToolSlug, useToolExecution} from "./hooks/useToolExecution"
 
-// Prompt integration atoms (OSS playground prompt editor wiring)
 export {removePromptToolByNameAtomFamily} from "./prompt/atoms"

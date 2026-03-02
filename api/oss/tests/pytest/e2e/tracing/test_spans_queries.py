@@ -1,3 +1,4 @@
+import time
 from uuid import uuid4
 
 import pytest
@@ -140,6 +141,282 @@ def mock_data(authed_api):
     _mock_data = {"spans": spans, "trace_id": trace_id}
 
     return _mock_data
+
+
+@pytest.fixture(scope="class")
+def string_comparison_data(authed_api):
+    trace_ids = [uuid4().hex, uuid4().hex, uuid4().hex]
+    name_prefix = f"string_cmp_{uuid4().hex[:8]}"
+    now = int(time.time())
+
+    spans = [
+        {
+            "trace_id": trace_ids[0],
+            "span_id": "1111111111111111",
+            "span_name": f"{name_prefix}_jan_15",
+            "span_kind": "SPAN_KIND_SERVER",
+            "start_time": now - 180,
+            "end_time": now - 120,
+            "status_code": "STATUS_CODE_OK",
+            "attributes": {
+                "tags": {
+                    "created_at": "2024-01-15T10:30:00Z",
+                },
+            },
+        },
+        {
+            "trace_id": trace_ids[1],
+            "span_id": "2222222222222222",
+            "span_name": f"{name_prefix}_jan_20",
+            "span_kind": "SPAN_KIND_SERVER",
+            "start_time": now - 120,
+            "end_time": now - 60,
+            "status_code": "STATUS_CODE_OK",
+            "attributes": {
+                "tags": {
+                    "created_at": "2024-01-20T10:30:00Z",
+                },
+            },
+        },
+        {
+            "trace_id": trace_ids[2],
+            "span_id": "3333333333333333",
+            "span_name": f"{name_prefix}_jan_25",
+            "span_kind": "SPAN_KIND_SERVER",
+            "start_time": now - 60,
+            "end_time": now,
+            "status_code": "STATUS_CODE_OK",
+            "attributes": {
+                "tags": {
+                    "created_at": "2024-01-25T10:30:00Z",
+                },
+            },
+        },
+    ]
+
+    response = authed_api(
+        "POST",
+        "/tracing/spans/ingest",
+        json={"spans": spans},
+    )
+
+    assert response.status_code == 202
+    response = response.json()
+    assert response["count"] == 3
+
+    wait_response = wait_for_response(
+        authed_api,
+        "POST",
+        "/tracing/spans/query",
+        json={
+            "focus": "span",
+            "filter": {
+                "conditions": [
+                    {
+                        "field": "span_name",
+                        "operator": "startswith",
+                        "value": name_prefix,
+                    }
+                ]
+            },
+        },
+        condition_fn=lambda r: r.json().get("count", 0) >= 3,
+    )
+
+    assert wait_response.status_code == 200
+    assert wait_response.json().get("count", 0) >= 3
+
+    return {"name_prefix": name_prefix, "spans": spans}
+
+
+def _span_names(response_json):
+    return {span["span_name"] for span in response_json.get("spans", [])}
+
+
+class TestSpanStringComparisonOperators:
+    @pytest.mark.coverage_smoke
+    @pytest.mark.path_happy
+    def test_string_gt_operator(self, authed_api, string_comparison_data):
+        name_prefix = string_comparison_data["name_prefix"]
+
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "span_name",
+                            "operator": "startswith",
+                            "value": name_prefix,
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "gt",
+                            "value": "2024-01-15T10:30:00Z",
+                        },
+                    ]
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 2
+        assert _span_names(body) == {
+            f"{name_prefix}_jan_20",
+            f"{name_prefix}_jan_25",
+        }
+
+    @pytest.mark.coverage_smoke
+    @pytest.mark.path_happy
+    def test_string_gte_operator(self, authed_api, string_comparison_data):
+        name_prefix = string_comparison_data["name_prefix"]
+
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "span_name",
+                            "operator": "startswith",
+                            "value": name_prefix,
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "gte",
+                            "value": "2024-01-20T10:30:00Z",
+                        },
+                    ]
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 2
+        assert _span_names(body) == {
+            f"{name_prefix}_jan_20",
+            f"{name_prefix}_jan_25",
+        }
+
+    @pytest.mark.coverage_smoke
+    @pytest.mark.path_happy
+    def test_string_lt_operator(self, authed_api, string_comparison_data):
+        name_prefix = string_comparison_data["name_prefix"]
+
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "span_name",
+                            "operator": "startswith",
+                            "value": name_prefix,
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "lt",
+                            "value": "2024-01-25T10:30:00Z",
+                        },
+                    ]
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 2
+        assert _span_names(body) == {
+            f"{name_prefix}_jan_15",
+            f"{name_prefix}_jan_20",
+        }
+
+    @pytest.mark.coverage_smoke
+    @pytest.mark.path_happy
+    def test_string_lte_operator(self, authed_api, string_comparison_data):
+        name_prefix = string_comparison_data["name_prefix"]
+
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "conditions": [
+                        {
+                            "field": "span_name",
+                            "operator": "startswith",
+                            "value": name_prefix,
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "lte",
+                            "value": "2024-01-15T10:30:00Z",
+                        },
+                    ]
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+        assert _span_names(body) == {f"{name_prefix}_jan_15"}
+
+    @pytest.mark.coverage_smoke
+    @pytest.mark.path_happy
+    def test_string_range_query(self, authed_api, string_comparison_data):
+        name_prefix = string_comparison_data["name_prefix"]
+
+        response = authed_api(
+            "POST",
+            "/tracing/spans/query",
+            json={
+                "focus": "span",
+                "filter": {
+                    "operator": "and",
+                    "conditions": [
+                        {
+                            "field": "span_name",
+                            "operator": "startswith",
+                            "value": name_prefix,
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "gte",
+                            "value": "2024-01-15T10:30:00Z",
+                        },
+                        {
+                            "field": "attributes",
+                            "key": "tags.created_at",
+                            "operator": "lt",
+                            "value": "2024-01-25T10:30:00Z",
+                        },
+                    ],
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 2
+        assert _span_names(body) == {
+            f"{name_prefix}_jan_15",
+            f"{name_prefix}_jan_20",
+        }
 
 
 class TestSpansQueries:

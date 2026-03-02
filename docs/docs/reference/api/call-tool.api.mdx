@@ -1,0 +1,71 @@
+---
+id: call-tool
+title: "Call Tool"
+description: "Call a tool action with a connection."
+sidebar_label: "Call Tool"
+hide_title: true
+hide_table_of_contents: true
+api: eJydV81u2zgQfhVizqqdDXrSab1pFzWaNEHi3YthBGNpbLOhRJWknHgNAfsQfcJ9ksWQskz/F8khsEnOzMeZbz6O1+BwbiEdw0hrZWGSQE42M7JyUpeQwg0qJVA4rZXAjBfFq3QLgSLTZUl+pQcJ6IoM8pdhDilkqNQz20AChn7UZN0fOl9BuoZMl45Kxx+xqpTMvFX/u+Vwa7DZggrkT5Vhn06S5W85uiOrMuf/blURpGCdkeUcEnDSKV4Y5tAk7e7pUyNe52vPsFYOUpjVpb8WG3efD0KXWJx1+433mwTQzOuCSueNNpuDbrHpEIKefqfMtRmThnIuiw8Te5lEyLVWXJ8/NyD3i3cnjdHGivuKysFQbC4juDypWLPvRHSum95FNDKHKCdHoHziMu3DaMMzH545tBVoDK6EdFSI//79KSq0lnKxJDNFJwsxM7oQbkHi9vbuMihPjSNYDnA8BiYKKpekdEU+9qvByvpgBl9FBNVniaM3cThnavILttKlDVS4vrryFN0J9lRnGVk7q5V4bA9D8l72M5RT7MdydT+DdHxIxZk2BTKj61pyK3QnylopaCb7nWIdutru+tyN6GRB1mFRHWN+Fy5HRx/4aNxlnWXUkqegn4Pq27XhTObv9nHDtk0CBVmL83e7uWvNQ+qyF2cwe7ezp62HS4TfVmHXnot3GKJJOvE8VVaj1Vkte+T9WCK9tDPKTUs/n1dibknhn5LAtKgNTpnctEcuJiOGsPW8pwePZGvlLqmTaAlxVJSmmL0IpyNdOkz1EayHKI7oUtCHrTD5J3Ywp9KhkDmVTrpVIkJ/JgLL3KM4gvyyWnopOaKWnUg1XvE+Xl8fatrfqGTuFUt85pfl/YKWk0PpJY0fAXt4QOlsZ/cXWkqWjuZkAuXbNf/QRFW41QGg7347P0fAqLsvjRA+GWKjTLKsahe/9kO/wLR3b5GbA4p4yr9dpjznJsBvz0Xl3JYoVOh0Kj6FEpzj7JfR6OHAYeBHQW6hedSrtGWTCt0CUuhXhpaSXvtMStvPwjNsySzJWF++2ihIYeFcZdN+P1O6znvomd5D2cdKelW0lNVGupU3GTwMv9LqC2FOBtLxJD7wxAQLlNk91qUZK/mV+OJhYoNB7RbayH+wHZkkM3sRrPhmTN3H7cz6+Q2LKsjjRkZZ6yIShDCz7RAWD41t0A1bG8+Pmd4ZBkOfDx6GkADnKTTbVe+33tWBVuwc5ubDzEVxwjYke2nuEgwJUOE7Dxxh8ft2g5FxLQuMcXvNHoVBfgdINMj/8m+ENlPM8X6lUPou9EDXLX/G0PIHwtti+ZKtYC2YaOkY1uspWvrLqKbh5R81GabJJIElGolTzumYJWCxIcwaXmi1fVI+tBP/ElUdCLKnW6wpwWKQZVS5s2cnUS883D+NIIFp+1On8CMKGOTr8P8U/C8ltg7vLq+tQWE5r/0cAsEn//0PXIGpUw==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Call Tool"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/tools/call"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Call a tool action with a connection.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"data":{"properties":{"id":{"type":"string","title":"Id"},"type":{"type":"string","title":"Type","default":"function"},"function":{"properties":{"name":{"type":"string","title":"Name"},"arguments":{"title":"Arguments"}},"type":"object","required":["name","arguments"],"title":"ToolCallFunction","description":"Mirrors OpenAI function call: {name, arguments}."}},"type":"object","required":["id","function"],"title":"ToolCallData","description":"OpenAI tool_calls array item — passed verbatim from the LLM."}},"type":"object","required":["data"],"title":"ToolCall","description":"Request envelope — wraps the raw OpenAI tool call."}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"call":{"properties":{"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"status":{"anyOf":[{"properties":{"timestamp":{"type":"string","format":"date-time","title":"Timestamp"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"},"code":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Code"},"message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Message"},"stacktrace":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Stacktrace"}},"type":"object","required":["timestamp"],"title":"Status"},{"type":"null"}]},"data":{"anyOf":[{"properties":{"role":{"type":"string","title":"Role","default":"tool"},"tool_call_id":{"type":"string","title":"Tool Call Id"},"content":{"type":"string","title":"Content"}},"type":"object","required":["tool_call_id","content"],"title":"ToolResultData","description":"OpenAI tool message — passed verbatim back to the LLM."},{"type":"null"}]}},"type":"object","title":"ToolResult","description":"Response envelope with Agenta identity, status, and the OpenAI tool message."}},"type":"object","required":["call"],"title":"ToolCallResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

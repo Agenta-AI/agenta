@@ -304,6 +304,10 @@ For nested attributes, use dot notation:
 
 **`btwn`**: Between (inclusive, provide array `[min, max]`)
 
+`gt`, `gte`, `lt`, and `lte` can also be used for lexicographic comparisons on string values (for example `span_name`, `status_message`, or string attributes).
+
+For datetime strings, use a consistent ISO 8601 format (for example `2024-01-15T10:30:00Z`) so ordering is reliable.
+
 Example filtering by duration:
 
 ```json
@@ -323,6 +327,30 @@ Example using between:
   "key": "ag.metrics.unit.duration",
   "operator": "btwn",
   "value": [500, 2000]
+}
+```
+
+Example filtering a string datetime attribute:
+
+```json
+{
+  "filter": {
+    "operator": "and",
+    "conditions": [
+      {
+        "field": "attributes",
+        "key": "tags.created_at",
+        "operator": "gte",
+        "value": "2024-01-15T00:00:00Z"
+      },
+      {
+        "field": "attributes",
+        "key": "tags.created_at",
+        "operator": "lt",
+        "value": "2024-01-20T00:00:00Z"
+      }
+    ]
+  }
 }
 ```
 

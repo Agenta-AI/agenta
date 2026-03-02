@@ -1,0 +1,71 @@
+---
+id: delete-scenarios-evaluations-scenarios-delete
+title: "Delete Scenarios"
+description: "Delete Scenarios"
+sidebar_label: "Delete Scenarios"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1lW1v2jAQx78KutemUNqyLa/GVqShdVrVdnuDUHU4F/CWxKkfujKU7z6dHZpQ2k6aNN7gh7uz/bv/XbbgcGUhmcP0HnOPTunSwkKArsiE2SyFBFLKydGtlVSiUdreUmvdWb2NdiDA0J0n6z7odAPJFqQuHZWOh1hVuZLBdfDD6pLXrFxTgTyqDB/sFNm4HiPfqjTMlaMiDNymIkjAOqPKFQjItCnQQQLeqxRqsTNAY3ADApxyOc+vm4C9WWqhbu308gdJ19xbGUqZyN7pizZIS2oXbpbaq/hgqDlqG8UZT2HBVrq08VWj4ZD/UrLSqIrj8M28lGRt5vPeVWMM4l+5Se2jU/M8VTpakemA+BgsBKSUoc8dJMNa/GfcncPmi+fY/4VvA6UOhE9Ho0OG3zFXaXDsTY3R5t8BpuRQ5XsM9g1yLfd2sdx8zSCZP2VVi4Mk1IuXgV3oeEFmWtjVc+x3pl/IWlxRS/9l0wCjd8O7tQBVVj6Ko9mehYVagHQPnTAHefnILB/cX+uG2cTrN3ad2mlTFDP0MorzmILXhPLp5ubyIGDUx74wzkNb6u3kxFosyK1129pAQIVuDQkMOq1t8NjaBiDAkrknY0OWvckhgbVzlU0GA5lrnx7hikqHR6gGWCmoF+whvVFuE1wml7PPtPlEmJIJJdAxuGYdRmXtmz1mAyv1mZhPiQXPJ96ttVG/o1w4q3yf6MUAWOFXbROePmBR5XTYVOdwkuHbs2x82j97c/ymf3o2HvWXJ5nsj+S78Uk2HmOGY1gE4WS6q5tJeG9vcjkDAUwmwh4eHR8N4WkK9oy5KlEGEe6eE7ZBPAH7iBQEUBFKEhxh8b7d4MdW2roCy068ZzK+d59HrqzoQZWjCjUXTt82UphDRwrQtkces6bX2nIvg+12iZa+mbyuefnOk+GMLwTco1G4ZFhzBrje5X4LP2mzq6jS9UNpsnnuY66fdCruItFjIiVV7lXbRUfc59OL6c0UBCybD3GhU/Yy+IuLFn9BAsAf+/jGZBvXtpBjufLcXhKIUfn3BwMNzSg=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Scenarios"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/evaluations/scenarios/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Scenarios
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"scenario_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Scenario Ids"}},"type":"object","required":["scenario_ids"],"title":"EvaluationScenarioIdsRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"scenario_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Scenario Ids","default":[]}},"type":"object","title":"EvaluationScenarioIdsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

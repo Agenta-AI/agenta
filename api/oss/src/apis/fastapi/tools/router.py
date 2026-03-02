@@ -504,7 +504,10 @@ class ToolsRouter:
                     action_key=action.key,
                     full_details=full_details,
                 )
-                if action_response.action:
+                if (
+                    isinstance(action_response, ToolCatalogActionResponse)
+                    and action_response.action
+                ):
                     items.append(action_response.action)
                     continue
 
@@ -954,7 +957,8 @@ class ToolsRouter:
             if not connection.provider_connection_id:
                 raise ConnectionNotFoundError(
                     connection_slug=connection_slug,
-                    detail="Connection has no provider connection ID.",
+                    provider_key=provider_key,
+                    integration_key=integration_key,
                 )
 
         except ConnectionNotFoundError as e:
