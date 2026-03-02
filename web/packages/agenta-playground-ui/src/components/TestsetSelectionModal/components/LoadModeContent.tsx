@@ -1,8 +1,8 @@
 /**
  * LoadModeContent Component
  *
- * Handles the "load" mode of TestsetSelectionModal.
- * Allows initial connection to a testset with import/replace options.
+ * Unified content component for TestsetSelectionModal.
+ * Handles both "load" (initial connection) and "edit" (modify selection) modes.
  * Also handles "create" mode (Build in UI) with name/commit inputs
  * and a Create & Load footer button.
  */
@@ -10,13 +10,14 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {testcase} from "@agenta/entities"
+import {loadableController} from "@agenta/entities/loadable"
 import {testcasePaginatedStore} from "@agenta/entities/testcase"
 import {TestcaseTable} from "@agenta/entity-ui"
 import {Divider} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useTestsetSelection} from "../hooks/useTestsetSelection"
-import type {PreviewPanelRenderProps, TestsetSelectionPayload} from "../types"
+import type {PreviewPanelRenderProps, TestsetSelectionMode, TestsetSelectionPayload} from "../types"
 
 import {SelectionSummary} from "./SelectionSummary"
 import {TestsetSelectionPreview} from "./TestsetSelectionPreview"
@@ -27,6 +28,8 @@ export interface LoadModeContentProps {
     connectedRevisionId?: string
     onConfirm: (payload: TestsetSelectionPayload) => void
     onCancel: () => void
+    /** Modal mode: 'load' for initial connection, 'edit' for modifying selection (default: 'load') */
+    mode?: TestsetSelectionMode
     /** Selection mode: 'single' for radio-style, 'multiple' for checkboxes (default: 'multiple') */
     selectionMode?: "single" | "multiple"
     /** Optional render prop for the create card */
@@ -54,9 +57,11 @@ export interface LoadModeContentProps {
 }
 
 export function LoadModeContent({
+    loadableId: _loadableId,
     connectedRevisionId,
     onConfirm,
     onCancel,
+    mode = "load",
     selectionMode = "multiple",
     renderCreateCard,
     renderPreviewPanel,
@@ -64,12 +69,25 @@ export function LoadModeContent({
     hasWarning,
     onCreateAndLoad,
 }: LoadModeContentProps) {
-    // Testset/revision selection
-    const {selectedRevisionId, selectedTestsetId, setSelection, revisionInfo} =
-        useTestsetSelection()
+    const isEditMode = mode === "edit"
+
+    // Get playground rows to preselect when connecting/importing from a testset
+    const preselectedIds = useAtomValue(
+        useMemo(() => loadableController.selectors.displayRowIds(_loadableId), [_loadableId]),
+    )
+
+    // Testset/revision selection (edit mode starts with connectedRevisionId)
+    const {selectedRevisionId, selectedTestsetId, setSelection, revisionInfo} = useTestsetSelection(
+        isEditMode ? connectedRevisionId : undefined,
+        undefined,
+        preselectedIds,
+    )
 
     // Testcase search term (used by default preview panel)
     const [testcaseSearchTerm, setTestcaseSearchTerm] = useState("")
+
+    // ===================== Edit Mode =====================
+    const isViewingConnected = (selectedRevisionId ?? undefined) === connectedRevisionId
 
     // ===================== Create Mode State =====================
     const [isCreateMode, setIsCreateMode] = useState(false)
@@ -82,7 +100,6 @@ export function LoadModeContent({
     } | null>(null)
 
     const handleBuildInUI = useCallback(() => {
-        // Save current selection before entering create mode
         setPreviousSelection({
             revisionId: selectedRevisionId,
             testsetId: selectedTestsetId,
@@ -90,7 +107,6 @@ export function LoadModeContent({
         setIsCreateMode(true)
         setNewTestsetName("")
         setNewTestsetCommitMessage("")
-        // Set revision to "new" so the preview panel initializes an empty editable table
         setSelection("new", "")
     }, [setSelection, selectedRevisionId, selectedTestsetId])
 
@@ -98,7 +114,6 @@ export function LoadModeContent({
         setIsCreateMode(false)
         setNewTestsetName("")
         setNewTestsetCommitMessage("")
-        // Restore previous selection
         if (previousSelection) {
             setSelection(previousSelection.revisionId, previousSelection.testsetId)
             setPreviousSelection(null)
@@ -112,21 +127,19 @@ export function LoadModeContent({
     const commitSelectionDraft = useSetAtom(testcase.actions.commitSelectionDraft)
     const discardSelectionDraft = useSetAtom(testcase.actions.discardSelectionDraft)
 
-    // Get current selection from entity layer
+    const draftKey = selectedRevisionId ?? "local"
+
     const currentSelection = useAtomValue(
-        useMemo(
-            () => testcase.atoms.currentSelection(selectedRevisionId ?? "local"),
-            [selectedRevisionId],
-        ),
+        useMemo(() => testcase.atoms.currentSelection(draftKey), [draftKey]),
     )
 
     // Get paginated rows
     const paginatedParams = useMemo(
         () => ({
-            scopeId: `testcase-selection-${selectedRevisionId ?? "local"}`,
+            scopeId: `testcase-selection-${draftKey}`,
             pageSize: 100,
         }),
-        [selectedRevisionId],
+        [draftKey],
     )
     const stateAtom = useMemo(
         () => testcasePaginatedStore.selectors.state(paginatedParams),
@@ -141,7 +154,6 @@ export function LoadModeContent({
     // ===================== Handlers =====================
     const handleSelectionChange = useCallback(
         (selectedIds: string[]) => {
-            const draftKey = selectedRevisionId ?? "local"
             if (selectionMode === "single") {
                 const latestId = selectedIds[selectedIds.length - 1]
                 setSelectionDraft(draftKey, latestId ? [latestId] : [])
@@ -149,7 +161,7 @@ export function LoadModeContent({
                 setSelectionDraft(draftKey, selectedIds)
             }
         },
-        [selectedRevisionId, setSelectionDraft, selectionMode],
+        [draftKey, setSelectionDraft, selectionMode],
     )
 
     const handleConfirm = useCallback(async () => {
@@ -166,7 +178,7 @@ export function LoadModeContent({
 
                 if (result.success) {
                     setIsCreateMode(false)
-                    onCancel() // Close the modal after successful creation
+                    onCancel()
                 }
             } finally {
                 setIsCreating(false)
@@ -174,28 +186,53 @@ export function LoadModeContent({
             return
         }
 
-        // Normal load flow
-        const draftKey = selectedRevisionId ?? "local"
-        commitSelectionDraft(draftKey)
+        if (isEditMode) {
+            // Edit mode: discard draft (never commit) and build payload
+            discardSelectionDraft(draftKey)
 
-        const payload: TestsetSelectionPayload = {
-            revisionId: selectedRevisionId ?? "local",
-            selectedTestcaseIds: currentSelection,
-            testsetName: revisionInfo?.testsetName,
-            testsetId: revisionInfo?.testsetId,
-            revisionVersion: revisionInfo?.version,
-            importMode: "replace",
+            let testcases: Record<string, unknown>[] | undefined
+            if (!isViewingConnected) {
+                testcases = currentSelection.map((id) => {
+                    const data = testcase.get.data(id)
+                    return data ? {...data} : {id}
+                })
+            }
+
+            const payload: TestsetSelectionPayload = {
+                revisionId: draftKey,
+                selectedTestcaseIds: currentSelection,
+                importMode: isViewingConnected ? "replace" : "import",
+                testcases,
+            }
+
+            onConfirm(payload)
+        } else {
+            // Load mode: commit draft and build payload with metadata
+            commitSelectionDraft(draftKey)
+
+            const payload: TestsetSelectionPayload = {
+                revisionId: selectedRevisionId ?? "local",
+                selectedTestcaseIds: currentSelection,
+                testsetName: revisionInfo?.testsetName,
+                testsetId: revisionInfo?.testsetId,
+                revisionVersion: revisionInfo?.version,
+                importMode: "replace",
+            }
+
+            onConfirm(payload)
         }
-
-        onConfirm(payload)
     }, [
         isCreateMode,
         onCreateAndLoad,
         newTestsetName,
         newTestsetCommitMessage,
-        selectedRevisionId,
+        isEditMode,
+        draftKey,
         currentSelection,
+        isViewingConnected,
+        discardSelectionDraft,
         commitSelectionDraft,
+        selectedRevisionId,
         onConfirm,
         onCancel,
         revisionInfo,
@@ -206,12 +243,20 @@ export function LoadModeContent({
             handleExitCreateMode()
             return
         }
-        const draftKey = selectedRevisionId ?? "local"
         discardSelectionDraft(draftKey)
         onCancel()
-    }, [isCreateMode, handleExitCreateMode, selectedRevisionId, discardSelectionDraft, onCancel])
+    }, [isCreateMode, handleExitCreateMode, draftKey, discardSelectionDraft, onCancel])
 
-    const isSelectionDisabled = selectedRevisionId === connectedRevisionId
+    const isSelectionDisabled = !isEditMode && selectedRevisionId === connectedRevisionId
+
+    // Derive confirm text based on mode
+    const confirmText = isEditMode
+        ? isViewingConnected
+            ? "Update Selection"
+            : "Import Selected"
+        : "Load Selected"
+
+    const totalCount = paginatedRows.length
 
     // Build render props for custom preview panel
     const previewPanelProps: PreviewPanelRenderProps = useMemo(
@@ -245,16 +290,20 @@ export function LoadModeContent({
                     selectedTestsetId={selectedTestsetId}
                     onSelect={(revisionId, testsetId) => setSelection(revisionId, testsetId)}
                     disabledChildIds={
-                        connectedRevisionId ? new Set([connectedRevisionId]) : undefined
+                        !isEditMode && connectedRevisionId
+                            ? new Set([connectedRevisionId])
+                            : undefined
                     }
-                    renderCreateCard={renderCreateCard}
-                    onBuildInUI={handleBuildInUI}
-                    isCreateMode={isCreateMode}
-                    onExitCreateMode={handleExitCreateMode}
-                    newTestsetName={newTestsetName}
-                    onTestsetNameChange={setNewTestsetName}
-                    newTestsetCommitMessage={newTestsetCommitMessage}
-                    onCommitMessageChange={setNewTestsetCommitMessage}
+                    {...(!isEditMode && {
+                        renderCreateCard,
+                        onBuildInUI: handleBuildInUI,
+                        isCreateMode,
+                        onExitCreateMode: handleExitCreateMode,
+                        newTestsetName,
+                        onTestsetNameChange: setNewTestsetName,
+                        newTestsetCommitMessage,
+                        onCommitMessageChange: setNewTestsetCommitMessage,
+                    })}
                 />
 
                 <Divider type="vertical" className="my-0 mx-8 h-auto self-stretch" />
@@ -269,7 +318,7 @@ export function LoadModeContent({
                     >
                         <TestcaseTable
                             config={{
-                                scopeId: `load-mode-${selectedRevisionId ?? "none"}`,
+                                scopeId: `${mode}-mode-${draftKey}`,
                                 revisionId: selectedRevisionId,
                             }}
                             selectable
@@ -286,11 +335,11 @@ export function LoadModeContent({
             <div className="flex-shrink-0 pt-4">
                 <SelectionSummary
                     selectedCount={currentSelection.length}
-                    totalCount={paginatedRows.length}
+                    totalCount={totalCount}
                     onConfirm={handleConfirm}
                     onCancel={handleCancel}
                     confirmDisabled={isCreateMode ? false : currentSelection.length === 0}
-                    confirmText="Load Selected"
+                    confirmText={confirmText}
                     disabled={isSelectionDisabled}
                     warningMessage={warningMessage}
                     hasWarning={hasWarning}

@@ -35,6 +35,7 @@ import type {RevisionInfo, UseTestsetSelectionReturn} from "../types"
 export function useTestsetSelection(
     initialRevisionId?: string,
     initialTestsetId?: string,
+    preselectedIds: string[] = [],
 ): UseTestsetSelectionReturn {
     // Track selected revision ID - initialized from props on mount
     const [selectedRevisionId, setSelectedRevisionId] = useState<string | null>(
@@ -95,12 +96,12 @@ export function useTestsetSelection(
             // Set revision context using molecule action
             setRevisionContext(revisionId)
 
-            // Initialize selection draft to empty - user must manually select testcases
+            // Initialize selection draft with preselected testcases
             if (revisionId) {
-                initSelectionDraft(revisionId, [])
+                initSelectionDraft(revisionId, preselectedIds)
             }
         },
-        [setRevisionContext, initSelectionDraft],
+        [setRevisionContext, initSelectionDraft, preselectedIds],
     )
 
     return {

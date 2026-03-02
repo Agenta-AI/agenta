@@ -67,6 +67,8 @@ export interface EntityCommitModalProps {
     canSubmit?: (params: {mode?: string}) => boolean
     /** Whether a commit message is required to proceed. Defaults to false. */
     commitMessageRequired?: boolean
+    /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
+    modeLabel?: string
 }
 
 /**

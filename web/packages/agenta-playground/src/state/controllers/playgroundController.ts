@@ -845,9 +845,6 @@ const invalidateQueriesAtom = atom(null, async () => {
                 ),
         ),
     )
-    console.log(
-        `[invalidateQueries] all refetches done: ${(performance.now() - _t0).toFixed(0)}ms`,
-    )
 
     // Bump the revision cache version so cache-derived atoms re-evaluate
     const bridge = getRunnableBridge()
