@@ -54,11 +54,11 @@ log = get_module_logger(__name__)
 class WebhooksService:
     def __init__(
         self,
-        dao: WebhooksDAOInterface,
+        webhooks_dao: WebhooksDAOInterface,
         vault_service: VaultService,
         webhooks_worker: Optional["WebhooksWorker"] = None,
     ):
-        self.dao = dao
+        self.dao = webhooks_dao
         self.vault_service = vault_service
         self.webhooks_worker = webhooks_worker
 

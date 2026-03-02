@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "f0a1b2c3d4e5"
-down_revision: Union[str, None] = "a0b1c2d3e4f5"
+down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -62,7 +62,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["secret_id"], ["secrets.id"], ondelete="SET NULL"),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("project_id", "id"),
     )
 
     op.create_index(
@@ -107,7 +107,7 @@ def upgrade() -> None:
         sa.Column("created_by_id", sa.UUID(), nullable=True),
         sa.Column("updated_by_id", sa.UUID(), nullable=True),
         sa.Column("deleted_by_id", sa.UUID(), nullable=True),
-        sa.PrimaryKeyConstraint("id"),
+        sa.PrimaryKeyConstraint("project_id", "id"),
     )
 
     op.create_index(

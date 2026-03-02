@@ -20,11 +20,11 @@ import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
 import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
 import oss.src.dbs.postgres.users.dbes  # noqa: F401
 import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
+import oss.src.dbs.postgres.webhooks.dbes  # noqa: F401
 
 import ee.src.dbs.postgres.meters.dbes  # noqa: F401
 import ee.src.dbs.postgres.organizations.dbes  # noqa: F401
 import ee.src.dbs.postgres.subscriptions.dbes  # noqa: F401
-import oss.src.dbs.postgres.webhooks.dbes  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
