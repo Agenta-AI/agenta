@@ -18,18 +18,16 @@ down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-request_type_enum = sa.Enum("unknown", name="requesttype")
-
 
 def upgrade() -> None:
-    request_type_enum.create(op.get_bind(), checkfirst=True)
-
     op.create_table(
         "events",
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("request_id", sa.UUID(), nullable=False),
         sa.Column("event_id", sa.UUID(), nullable=False),
-        sa.Column("request_type", request_type_enum, nullable=False),
+        sa.Column(
+            "request_type", sa.Enum("UNKNOWN", name="requesttype"), nullable=False
+        ),
         sa.Column("event_type", sa.String(), nullable=False),
         sa.Column("timestamp", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("status_code", sa.String(), nullable=True),
@@ -123,4 +121,4 @@ def downgrade() -> None:
     op.drop_index("ix_events_project_id_request_id", table_name="events")
     op.drop_index("ix_events_project_id", table_name="events")
     op.drop_table("events")
-    request_type_enum.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS requesttype;")
