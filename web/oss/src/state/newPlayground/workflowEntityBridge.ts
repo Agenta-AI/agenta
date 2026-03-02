@@ -43,12 +43,7 @@ const findAdjacentId = (ids: string[], targetId: string) => {
 }
 
 const getRevisionVariantId = (revisionId: string) => {
-    const workflow = workflowMolecule.get.data(revisionId) as
-        | ({workflow_variant_id?: string | null; variant_id?: string | null} & Record<
-              string,
-              unknown
-          >)
-        | null
+    const workflow = workflowMolecule.get.data(revisionId)
     return workflow?.workflow_variant_id ?? workflow?.variant_id ?? null
 }
 
