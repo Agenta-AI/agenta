@@ -811,6 +811,7 @@ const restoreLocalTestsetAtom = atom(null, (get, set, localTestset: SnapshotLoca
  * revision cache version so cache-derived atoms re-evaluate.
  */
 const invalidateQueriesAtom = atom(null, async () => {
+    const _t0 = performance.now()
     const {queryClient} = await import("@agenta/shared/api")
 
     const queryKeys = [
@@ -827,12 +828,25 @@ const invalidateQueriesAtom = atom(null, async () => {
     await Promise.all(
         queryKeys.map((queryKey) => queryClient.invalidateQueries({queryKey, exact: false})),
     )
+    console.log(
+        `[invalidateQueries] invalidate (mark stale): ${(performance.now() - _t0).toFixed(0)}ms`,
+    )
 
     // Refetch with type: 'all' to bypass cache
+    const _t1 = performance.now()
     await Promise.all(
         queryKeys.map((queryKey) =>
-            queryClient.refetchQueries({queryKey, type: "all", exact: false}),
+            queryClient
+                .refetchQueries({queryKey, type: "all", exact: false})
+                .then(() =>
+                    console.log(
+                        `[invalidateQueries] refetch [${queryKey[0]}]: ${(performance.now() - _t1).toFixed(0)}ms`,
+                    ),
+                ),
         ),
+    )
+    console.log(
+        `[invalidateQueries] all refetches done: ${(performance.now() - _t0).toFixed(0)}ms`,
     )
 
     // Bump the revision cache version so cache-derived atoms re-evaluate
