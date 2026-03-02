@@ -80,6 +80,23 @@ interface DiffData {
     modified: string
 }
 
+/** Recursively sort object keys so JSON.stringify produces a canonical form. */
+function sortKeysDeep(obj: unknown): unknown {
+    if (Array.isArray(obj)) return obj.map(sortKeysDeep)
+    if (obj && typeof obj === "object") {
+        return Object.keys(obj as Record<string, unknown>)
+            .sort()
+            .reduce(
+                (acc, key) => {
+                    acc[key] = sortKeysDeep((obj as Record<string, unknown>)[key])
+                    return acc
+                },
+                {} as Record<string, unknown>,
+            )
+    }
+    return obj
+}
+
 function computeDiffStrings(originalParams: any, modifiedParams: any): DiffData {
     const strippedOriginal = stripAgentaMetadataDeep(originalParams)
     const strippedModified = stripAgentaMetadataDeep(modifiedParams)
@@ -88,8 +105,8 @@ function computeDiffStrings(originalParams: any, modifiedParams: any): DiffData 
     const sanitizedModified = stripLegacyFields(strippedModified as any)
 
     return {
-        original: JSON.stringify(sanitizedOriginal ?? {}),
-        modified: JSON.stringify(sanitizedModified ?? {}),
+        original: JSON.stringify(sortKeysDeep(sanitizedOriginal) ?? {}),
+        modified: JSON.stringify(sortKeysDeep(sanitizedModified) ?? {}),
     }
 }
 
