@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, List, Dict
+from typing import Optional, Union, Tuple, List
 from json import loads
 from datetime import datetime
 
@@ -7,9 +7,6 @@ from fastapi import Query
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.dtos import (
-    OTelSpan,
-    OTelFlatSpans,
-    OTelTraceTree,
     Formatting,
     Windowing,
     Filtering,
@@ -19,25 +16,9 @@ from oss.src.core.tracing.dtos import (
     MetricSpec,
 )
 
-from oss.src.core.tracing.utils.attributes import (
-    REFERENCE_KEYS as CORE_REFERENCE_KEYS,
-    initialize_ag_attributes as core_initialize_ag_attributes,
-)
-from oss.src.core.tracing.utils.hashing import (
-    extract_references_and_links_from_span as core_extract_references_and_links_from_span,
-    make_hash_id as core_make_hash_id,
-)
-from oss.src.core.tracing.utils.parsing import (
-    _parse_span_from_request as core_parse_span_from_request,
-    _parse_span_into_response as core_parse_span_into_response,
-    parse_timestamp_to_datetime,
-    parse_spans_from_request as core_parse_spans_from_request,
-    parse_spans_into_response as core_parse_spans_into_response,
-)
+from oss.src.core.tracing.utils.parsing import parse_timestamp_to_datetime
 
 log = get_module_logger(__name__)
-
-REFERENCE_KEYS = CORE_REFERENCE_KEYS
 
 # --- PARSE QUERY DTO ---
 
@@ -210,50 +191,6 @@ def merge_queries(
         windowing=_parse_windowing(),
         filtering=_parse_filtering(),
     )
-
-
-# --- PARSE SPANS ---
-
-
-def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
-    return core_initialize_ag_attributes(attributes)
-
-
-def extract_references_and_links_from_span(span: OTelSpan) -> Tuple[Dict, Dict]:
-    return core_extract_references_and_links_from_span(span)
-
-
-def make_hash_id(
-    *,
-    references: Optional[Dict[str, Dict[str, str]]] = None,
-    links: Optional[Dict[str, Dict[str, str]]] = None,
-) -> str:
-    return core_make_hash_id(references=references, links=links)
-
-
-def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
-    return core_parse_span_from_request(raw_span)
-
-
-def parse_spans_from_request(
-    spans: Dict[str, Union[OTelSpan, OTelFlatSpans]],
-) -> Optional[OTelFlatSpans]:
-    return core_parse_spans_from_request(spans)
-
-
-def _parse_span_into_response(
-    span_dto: OTelSpan,
-    marshall: Optional[bool] = False,
-) -> Optional[OTelSpan]:
-    return core_parse_span_into_response(span_dto, marshall=marshall)
-
-
-def parse_spans_into_response(
-    span_dtos: OTelFlatSpans,
-    focus: Focus = Focus.TRACE,
-    format: Format = Format.AGENTA,
-) -> Optional[Union[OTelFlatSpans, OTelTraceTree]]:
-    return core_parse_spans_into_response(span_dtos, focus=focus, format=format)
 
 
 # -- ANALYTICS

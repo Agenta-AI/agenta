@@ -20,7 +20,7 @@ import pytest
 
 from agenta.sdk.managers import testsets
 
-pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
+pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
 async def test_testsets_upsert_fetch_edit_list_retrieve(

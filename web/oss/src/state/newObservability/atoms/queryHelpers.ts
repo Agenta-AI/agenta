@@ -1,3 +1,5 @@
+import Papa from "papaparse"
+
 import {
     normalizeReferenceValue,
     parseReferenceKey,
@@ -9,13 +11,38 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
 } from "@/oss/services/tracing/lib/helpers"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {TraceSpan, TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface Condition {
     field: string
     operator: string
     value?: any
     key?: string
+}
+
+type ExportRow = Record<string, string | number | null | undefined>
+
+const EXPORT_PROGRESS_THROTTLE_MS = 300
+const DEFAULT_EXPORT_PAGE_SIZE = 500
+const MAX_EMPTY_PAGES = 3
+const MAX_EXPORT_ROWS = 20_000
+const EXPORT_PAGE_DELAY_MS = 100
+const CSV_UNPARSE_OPTIONS = {header: false, escapeFormulae: true}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const throwIfAborted = (signal?: AbortSignal) => {
+    if (signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError")
+    }
+}
+
+const getTraceExportKey = (trace: TraceSpan | TraceSpanNode): string => {
+    if (trace.trace_id && trace.span_id) {
+        return `${trace.trace_id}:${trace.span_id}`
+    }
+
+    return `${trace.trace_id || ""}:${trace.parent_id || ""}:${trace.start_time || ""}`
 }
 
 export const buildAnnotationConditions = (value: any, operator: string): Condition[] => {
@@ -244,6 +271,7 @@ export const executeTraceQuery = async ({
     isHasAnnotationSelected,
     hasAnnotationConditions,
     hasAnnotationOperator,
+    signal,
 }: {
     params: Record<string, any>
     pageParam?: {newest?: string}
@@ -251,6 +279,7 @@ export const executeTraceQuery = async ({
     isHasAnnotationSelected: number
     hasAnnotationConditions: Condition[]
     hasAnnotationOperator?: string
+    signal?: AbortSignal
 }) => {
     const windowParams = {...params}
     let data: any = []
@@ -270,7 +299,7 @@ export const executeTraceQuery = async ({
         firstParams.filter = annotationOnlyFilter
         if (pageParam?.newest) firstParams.newest = pageParam.newest
 
-        const data1 = await fetchAllPreviewTraces(firstParams, appId)
+        const data1 = await fetchAllPreviewTraces(firstParams, appId, signal)
 
         // page size for pagination decision
         const countEntries = (container: unknown) => {
@@ -307,7 +336,7 @@ export const executeTraceQuery = async ({
 
         if (shouldExcludeAnnotations && traceIds.length === 0 && spanIds.length === 0) {
             if (pageParam?.newest) windowParams.newest = pageParam.newest
-            data = await fetchAllPreviewTraces(windowParams, appId)
+            data = await fetchAllPreviewTraces(windowParams, appId, signal)
         } else {
             // STEP 2: not paginated
             const extraConditions: Condition[] = shouldExcludeAnnotations
@@ -332,12 +361,12 @@ export const executeTraceQuery = async ({
             }
             secondParams.filter = mergeConditions(originalFilter, extraConditions)
 
-            data = await fetchAllPreviewTraces(secondParams, appId)
+            data = await fetchAllPreviewTraces(secondParams, appId, signal)
         }
     } else {
         // normal flow
         if (pageParam?.newest) windowParams.newest = pageParam.newest
-        data = await fetchAllPreviewTraces(windowParams, appId)
+        data = await fetchAllPreviewTraces(windowParams, appId, signal)
     }
 
     // transform to tree
@@ -364,7 +393,11 @@ export const executeTraceQuery = async ({
 
         if (times.length) {
             const minVal = times.reduce((min, cur) => (cur < min ? cur : min))
-            const cursorDate = new Date(minVal)
+            // Bump by +1ms so the backend's strict-less-than filter
+            // (`start_time < newest`) still includes traces at this exact
+            // timestamp. The dedup set in fetchAllTracesForExport handles
+            // any resulting overlap.
+            const cursorDate = new Date(minVal + 1)
             const lowerBound =
                 params.oldest && typeof params.oldest === "string"
                     ? Date.parse(params.oldest)
@@ -385,5 +418,118 @@ export const executeTraceQuery = async ({
         traceCount: (data as any)?.count ?? 0,
         nextCursor,
         annotationPageSize,
+    }
+}
+
+export const fetchAllTracesForExport = async ({
+    params,
+    appId,
+    isHasAnnotationSelected,
+    hasAnnotationConditions,
+    hasAnnotationOperator,
+    formatRow,
+    headers,
+    onProgress,
+    signal,
+    pageSize = DEFAULT_EXPORT_PAGE_SIZE,
+}: {
+    params: Record<string, any>
+    appId: string
+    isHasAnnotationSelected: number
+    hasAnnotationConditions: Condition[]
+    hasAnnotationOperator?: string
+    formatRow: (trace: TraceSpan | TraceSpanNode) => ExportRow
+    headers: string[]
+    onProgress?: (rowCount: number) => void
+    signal?: AbortSignal
+    pageSize?: number
+}): Promise<{csvParts: BlobPart[]; rowCount: number; limitReached: boolean}> => {
+    const exportParams = {...params, size: pageSize}
+
+    if (!exportParams.newest) {
+        exportParams.newest = new Date().toISOString()
+    }
+
+    const csvHeader = Papa.unparse({fields: headers, data: []})
+    const csvParts: BlobPart[] = [csvHeader]
+    const seen = new Set<string>()
+
+    let rowCount = 0
+    let cursor: string | undefined
+    let lastProgressUpdate = 0
+    let emptyPageCount = 0
+    let limitReached = false
+
+    while (true) {
+        throwIfAborted(signal)
+
+        const result = await executeTraceQuery({
+            params: exportParams,
+            pageParam: cursor ? {newest: cursor} : undefined,
+            appId,
+            isHasAnnotationSelected,
+            hasAnnotationConditions,
+            hasAnnotationOperator,
+            signal,
+        })
+
+        const rows: ExportRow[] = []
+
+        const collectSpans = (node: TraceSpan | TraceSpanNode) => {
+            const key = getTraceExportKey(node)
+            if (seen.has(key)) return
+            // Stop collecting if we've hit the limit
+            if (rowCount + rows.length >= MAX_EXPORT_ROWS) return
+            rows.push(formatRow(node))
+            seen.add(key)
+
+            const children = (node as TraceSpanNode).children
+            if (children && Array.isArray(children)) {
+                for (const child of children) {
+                    collectSpans(child)
+                }
+            }
+        }
+
+        for (const trace of result.traces) {
+            collectSpans(trace)
+        }
+
+        if (rows.length > 0) {
+            csvParts.push("\r\n", Papa.unparse({fields: headers, data: rows}, CSV_UNPARSE_OPTIONS))
+            rowCount += rows.length
+            emptyPageCount = 0
+        } else {
+            emptyPageCount++
+        }
+
+        const now = Date.now()
+        if (now - lastProgressUpdate >= EXPORT_PROGRESS_THROTTLE_MS) {
+            onProgress?.(rowCount)
+            lastProgressUpdate = now
+        }
+
+        // Check if we hit the row limit
+        if (rowCount >= MAX_EXPORT_ROWS) {
+            limitReached = true
+            break
+        }
+
+        if (!result.nextCursor) break
+        // Safety: if cursor isn't advancing (all rows already seen), stop
+        if (emptyPageCount >= MAX_EMPTY_PAGES) break
+
+        // Throttle requests to reduce API load
+        await delay(EXPORT_PAGE_DELAY_MS)
+
+        cursor = result.nextCursor
+    }
+
+    onProgress?.(rowCount)
+
+    return {
+        csvParts,
+        rowCount,
+        limitReached,
     }
 }

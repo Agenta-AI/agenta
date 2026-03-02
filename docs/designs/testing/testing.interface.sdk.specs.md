@@ -71,13 +71,13 @@ Multiple legacy test suites covering annotations, baggage, custom workflows, deb
 
 ---
 
-## Unit / E2E split
+## Unit / Integration / Acceptance split
 
-The SDK follows the same universal structure as all interfaces: `utils/`, `unit/`, `e2e/`. The dividing line is whether a test needs the backend running.
+The SDK follows the same universal structure as all interfaces: `utils/`, `unit/`, `integration/`, `acceptance/`. The dividing line is what the test depends on.
 
-### E2E (requires backend)
+### Acceptance (requires full running system)
 
-E2E tests validate the SDK against the real system. They exercise the HTTP client layer, serialization, and API contract end-to-end.
+Acceptance tests validate the SDK against the full running system. They exercise the HTTP client layer, serialization, and API contract end-to-end.
 
 **Domains:**
 
@@ -112,12 +112,12 @@ Unit tests run without the system. Anything that can be tested in isolation belo
 
 ## Target state
 
-### E2E
+### Acceptance
 
 Organize by domain:
 
 ```
-sdk/tests/pytest/e2e/
+sdk/oss/tests/pytest/acceptance/
   observability/              # OTLP, trace sending, span capture
   evaluations/                # Evaluation flows, metrics
   integrations/               # Secrets, entities, webhooks, events
@@ -131,7 +131,7 @@ sdk/tests/pytest/e2e/
 Expand beyond tracing decorators:
 
 ```
-sdk/tests/pytest/unit/
+sdk/oss/tests/pytest/unit/
   test_tracing_decorators.py  # Existing: workflow decorators
   test_workflow_decorators.py  # Route creation, parameter parsing
   test_managers.py             # Manager method logic (mock HTTP)
@@ -181,28 +181,28 @@ Integration tests must force-reinitialize the SDK per test function to avoid sta
 ## Running tests
 
 ```bash
-# All SDK tests (unit + E2E, E2E skips if no credentials)
-cd sdk && pytest tests/pytest/ -v
+# All SDK tests (unit + acceptance, acceptance skips if no credentials)
+cd sdk && pytest oss/tests/pytest/ -v
 
 # Unit tests only
-cd sdk && pytest tests/pytest/unit/ -v
+cd sdk && pytest oss/tests/pytest/unit/ -v
 
-# E2E tests only (requires credentials)
-AGENTA_API_KEY=... AGENTA_HOST=... cd sdk && pytest tests/pytest/e2e/ -v
+# Acceptance tests only (requires credentials)
+AGENTA_API_KEY=... AGENTA_HOST=... cd sdk && pytest oss/tests/pytest/acceptance/ -v
 
-# Specific E2E domain
-AGENTA_API_KEY=... cd sdk && pytest tests/pytest/e2e/observability/ -v
+# Specific acceptance domain
+AGENTA_API_KEY=... cd sdk && pytest oss/tests/pytest/acceptance/observability/ -v
 
 # Specific test class
-cd sdk && pytest tests/pytest/unit/test_tracing_decorators.py::TestGeneratorTracing -v
+cd sdk && pytest oss/tests/pytest/unit/test_tracing_decorators.py::TestGeneratorTracing -v
 
 # With coverage
-cd sdk && pytest tests/pytest/unit/ --cov=agenta.sdk --cov-report=html
+cd sdk && pytest oss/tests/pytest/unit/ --cov=agenta.sdk --cov-report=html
 ```
 
 ---
 
 ## References
 
-- `sdk/tests/unit/README.md` — Quick start for SDK unit tests
-- `sdk/tests/unit/TESTING_PATTERNS.md` — Detailed testing patterns and module-specific guidance
+- `sdk/oss/tests/pytest/unit/README.md` — Quick start for SDK unit tests
+- `sdk/oss/tests/pytest/unit/TESTING_PATTERNS.md` — Detailed testing patterns and module-specific guidance
