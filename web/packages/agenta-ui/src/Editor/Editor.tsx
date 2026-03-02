@@ -1073,7 +1073,6 @@ const Editor = ({
                         onPropertyClick={onPropertyClick}
                         loadingFallback={loadingFallback}
                         disableLongText={disableLongText}
-                        decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
                         disableCodeFoldingPlugin={disableCodeFoldingPlugin}
                         disableIndentationPlugin={disableIndentationPlugin}
                         useNativeCodeNodes={useNativeCodeNodes}
