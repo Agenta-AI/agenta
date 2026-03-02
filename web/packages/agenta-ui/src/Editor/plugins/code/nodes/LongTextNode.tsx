@@ -4,7 +4,7 @@
  * A custom Lexical node for rendering long text strings in a collapsed/truncated view.
  * Shows a preview with character count and allows viewing the full content via drill-in.
  */
-import React, {useCallback, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {TextAlignLeft, ArrowSquareOut} from "@phosphor-icons/react"
@@ -18,7 +18,6 @@ import {
     Spread,
 } from "lexical"
 
-import {copyToClipboard} from "../../../../utils/copyToClipboard"
 import {useDrillInContext} from "../context/DrillInContext"
 
 const {Text} = Typography
@@ -78,6 +77,34 @@ function formatCharCount(count: number): string {
 }
 
 /**
+ * Decode escaped JSON string characters (e.g. "\n", "\t") for display-only rendering.
+ * Falls back to the raw value if decoding fails.
+ */
+function decodeEscapedJsonString(value: string): string {
+    let decoded = value
+
+    // Decode common escaped control chars for display.
+    // We do at most two passes to support both "\n" and "\\n" source encodings
+    // while keeping this inexpensive for long strings.
+    for (let i = 0; i < 2; i += 1) {
+        const next = decoded
+            .replace(/\\\\r\\\\n/g, "\r\n")
+            .replace(/\\\\n/g, "\n")
+            .replace(/\\\\r/g, "\r")
+            .replace(/\\\\t/g, "\t")
+            .replace(/\\r\\n/g, "\r\n")
+            .replace(/\\n/g, "\n")
+            .replace(/\\r/g, "\r")
+            .replace(/\\t/g, "\t")
+
+        if (next === decoded) break
+        decoded = next
+    }
+
+    return decoded
+}
+
+/**
  * Serialized form of LongTextNode
  */
 export type SerializedLongTextNode = Spread<
@@ -93,20 +120,26 @@ export type SerializedLongTextNode = Spread<
  */
 function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: string}) {
     useLexicalComposerContext() // Ensure we're in a Lexical context
-    const {enabled: drillInEnabled} = useDrillInContext()
+    const {enabled: drillInEnabled, decodeEscapedJsonStrings} = useDrillInContext()
     const [copied, setCopied] = useState(false)
     const [expanded, setExpanded] = useState(false)
     const [popoverOpen, setPopoverOpen] = useState(false)
-    const parsed = parseLongTextString(`"${fullValue}"`)
+    const parsed = useMemo(
+        () =>
+            parseLongTextString(
+                `"${decodeEscapedJsonStrings ? decodeEscapedJsonString(fullValue) : fullValue}"`,
+            ),
+        [fullValue, decodeEscapedJsonStrings],
+    )
     const spanRef = React.useRef<HTMLSpanElement>(null)
 
     const handleCopy = useCallback(async () => {
-        const success = await copyToClipboard(parsed.fullValue)
-        if (success) {
+        try {
+            await navigator.clipboard.writeText(parsed.fullValue)
             setCopied(true)
             message.success("Copied to clipboard")
             setTimeout(() => setCopied(false), 2000)
-        } else {
+        } catch {
             message.error("Failed to copy")
         }
     }, [parsed.fullValue])
@@ -212,7 +245,7 @@ function LongTextComponent({fullValue, nodeKey}: {fullValue: string; nodeKey: st
                 {/* The text itself - also clickable to collapse */}
                 <span
                     ref={spanRef}
-                    className="token token-string cursor-pointer hover:opacity-70 transition-opacity"
+                    className="token token-string whitespace-pre-wrap break-words cursor-pointer hover:opacity-70 transition-opacity"
                     data-lexical-longtext="true"
                     data-node-key={nodeKey}
                     onClick={handleCollapse}

@@ -1,5 +1,32 @@
 # Testing Principles
 
+## Test type taxonomy
+
+**1) Unit tests** — Test a piece of code in isolation. All dependencies are mocked/faked. The full system is not running. This is white-box testing.
+
+- Backend: test apis, core, dbs, utils, etc., separately — each with mocks/fakes/stubs for their dependencies.
+- Frontend: test hooks, components, views, and utils separately — each with mocks/fakes/stubs for their dependencies.
+
+**2) Integration tests** — Test an adapter implementation against a real dependency. Relevant dependencies are real. Part of the system may be running.
+
+- Backend: test DAO against Postgres, test utils against Redis, test runner against Daytona, test gateway against Composio, etc.
+- Frontend: test hooks against Agenta, test X against PostHog, etc.
+
+**3) Acceptance tests** — Test the full system through a public interface. All dependencies are real. The full system is running. This is black-box testing. (This includes contract, functional, performance, security, usability, reliability, compatibility.)
+
+- Backend: Use the API as an API user.
+- Frontend: Use the web app as a web user.
+
+**Rule of thumb:**
+
+```
+Unit       = code in isolation
+Integration = adapter implementation against a real dependency
+Acceptance  = full system through a public interface
+```
+
+---
+
 ## Architecture context
 
 The Agenta API follows a ports-and-adapters (hexagonal) architecture with inversion of control:
@@ -16,7 +43,7 @@ Dependencies flow inward:
 - Adapters implement ports and depend on infrastructure (SQLAlchemy session/engine).
 - The composition root wires concrete implementations.
 
-This architecture applies most directly to the API. The principles of boundary isolation, mocking at seams, and E2E for real-dependency validation are universal across all components.
+This architecture applies most directly to the API. The principles of boundary isolation, mocking at seams, and acceptance/integration tests for real-dependency validation are universal across all components.
 
 ## Test pyramid
 
@@ -25,9 +52,7 @@ The target test pyramid has four layers, from fastest/most-isolated to slowest/m
 1. **Utils/helpers** (pure unit) — Parsing, formatting, validators, normalizers. No dependencies, no mocking needed. Direct function calls, table-driven tests.
 2. **Core/business logic** (unit, mock ports) — Domain services tested with fake/mock implementations of their ports. Tests invariants, orchestration, domain error mapping.
 3. **Adapter unit** (unit, mock infrastructure) — Outbound adapters (DAO -> mock session) and inbound adapters (router -> mock services). Tests the adapter's own logic in isolation.
-4. **E2E/system** (real dependencies) — Full stack with real DB, real wiring. Validates cross-layer integration, infrastructure-specific semantics.
-
-No separate "integration test" layer exists for the API. The gap between unit and E2E is intentional.
+4. **Acceptance/system** (real dependencies) — Full stack with real DB, real wiring. Validates cross-layer integration, infrastructure-specific semantics.
 
 ## Boundaries vs dimensions vs interfaces
 
@@ -37,13 +62,13 @@ These are three orthogonal axes of the testing strategy:
 - **Dimensions** describe *how* tests are filtered or categorized (markers, tags). See [testing.dimensions.specs.md](testing.dimensions.specs.md).
 - **Interfaces** describe *what system surface* is being tested (API, SDK, Web). See [testing.interfaces.specs.md](testing.interfaces.specs.md).
 
-A single test can be described along all three axes: it tests at the E2E boundary, is tagged as `coverage_smoke` and `path_happy`, and exercises the API interface.
+A single test can be described along all three axes: it tests at the acceptance boundary, is tagged as `coverage_smoke` and `path_happy`, and exercises the API interface.
 
 ## Key strategic decisions
 
 1. **Unit tests use mocks/fakes, not running infrastructure.** No running Postgres, no running web servers, no DB emulators at the unit level.
-2. **One E2E suite per component.** Each interface (API, SDK, Web) has one E2E test suite that runs against real dependencies.
-3. **No separate integration test layer for the API.** The API strategy explicitly drops DAO-to-real-Postgres component tests. E2E is the only "real dependency" validation.
+2. **One acceptance suite per component.** Each interface (API, SDK, Web) has one acceptance test suite that runs against the full system.
+3. **Integration tests are for adapter implementations.** Test a DAO against real Postgres, a Redis client against real Redis — not full system flows.
 4. **Fakes preferred over mocks.** When Core behavior depends on persistence state (create-then-fetch, idempotency, sequences), in-memory fake implementations of ports are preferred over mock objects. Mocks are reserved for interaction-only assertions (called once, called with specific args).
 
 ## Tradeoff summary
@@ -88,4 +113,4 @@ Does the test need to verify state-dependent behavior?
 - Core tests mock ports (DAO interfaces, clock, id generators). Core tests never couple to SQLAlchemy types or HTTP DTOs.
 - DAO tests mock AsyncSession. Statements may optionally be compiled with the Postgres dialect for assertion.
 - Router tests mock Core services. FastAPI dependency overrides are used to inject test doubles.
-- E2E tests use real DI wiring. No mocking.
+- Acceptance tests use real DI wiring. No mocking.

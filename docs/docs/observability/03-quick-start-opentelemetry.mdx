@@ -25,13 +25,14 @@ Install OpenTelemetry packages, OpenAI, and the OpenInference instrumentation fo
 ```bash
 npm install @opentelemetry/api \
   @opentelemetry/sdk-trace-node \
+  @opentelemetry/sdk-trace-base \
   @opentelemetry/exporter-trace-otlp-proto \
   @opentelemetry/instrumentation \
   @opentelemetry/resources \
   @opentelemetry/semantic-conventions \
   @arizeai/openinference-instrumentation-openai \
   @arizeai/openinference-semantic-conventions \
-  openai
+  openai dotenv
 ```
 
 
@@ -52,6 +53,8 @@ Create an `instrumentation.js` file to configure OpenTelemetry:
 ```javascript
 // instrumentation.js
 // highlight-start
+import "dotenv/config";
+
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -63,11 +66,15 @@ import OpenAI from "openai";
 // highlight-end
 
 // highlight-start
+// Get Agenta configuration from environment variables
+const AGENTA_HOST = process.env.AGENTA_HOST || "https://cloud.agenta.ai";
+const AGENTA_API_KEY = process.env.AGENTA_API_KEY;
+
 // Configure the OTLP exporter to send traces to Agenta
 const otlpExporter = new OTLPTraceExporter({
-  url: `${process.env.AGENTA_HOST}/api/otlp/v1/traces`,
+  url: `${AGENTA_HOST}/api/otlp/v1/traces`,
   headers: {
-    Authorization: `ApiKey ${process.env.AGENTA_API_KEY}`,
+    Authorization: `ApiKey ${AGENTA_API_KEY}`,
   },
 });
 // highlight-end
@@ -96,7 +103,7 @@ registerInstrumentations({
 });
 // highlight-end
 
-console.log("👀 OpenTelemetry instrumentation initialized");
+console.log("✅ OpenTelemetry instrumentation initialized");
 ```
 
 ### 4. Instrument Your Application
@@ -106,8 +113,10 @@ Create your application file `app.js`:
 ```javascript
 // app.js
 // highlight-start
-import OpenAI from "openai";
+import "dotenv/config";
+
 import { trace } from "@opentelemetry/api";
+import OpenAI from "openai";
 // highlight-end
 
 const openai = new OpenAI({
@@ -134,12 +143,12 @@ async function generate() {
       // Set inputs
       span.setAttribute("ag.data.inputs", JSON.stringify({
         messages: messages,
-        model: "gpt-3.5-turbo"
+        model: "gpt-4o-mini"
       }));
       // highlight-end
       
       const response = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: messages,
       });
 
@@ -160,11 +169,21 @@ async function generate() {
 }
 
 async function main() {
-  const result = await generate();
-  console.log(result);
-  
-  // Flush traces before exit
-  await trace.getTracerProvider().forceFlush();
+  try {
+    const result = await generate();
+    console.log("\n" + result);
+
+    console.log("\nFlushing traces...");
+    // Ensure traces are flushed before exit
+    const tracerProvider = trace.getTracerProvider();
+    if (tracerProvider && typeof tracerProvider.forceFlush === "function") {
+      await tracerProvider.forceFlush();
+    }
+    console.log("Done!");
+  } catch (error) {
+    console.error("Error:", error.message);
+    process.exit(1);
+  }
 }
 
 main();
@@ -237,6 +256,13 @@ After running your application, log in to your Agenta dashboard and navigate to 
   alt="OpenTelemetry traces in Agenta"
   loading="lazy"
 />
+
+## Troubleshooting
+
+- **Some spans arrive, others are missing**: Agenta uses best-effort ingestion. A malformed span in a batch is skipped so valid spans can still be stored.
+- **`ag.data.*` values look wrong**: for OpenTelemetry JS/TS, send structured fields as JSON strings. Agenta parses dict-typed fields (`ag.data.parameters`, `ag.data.internals`), while `ag.data.inputs` and `ag.data.outputs` are kept as strings.
+- **`ag.data.outputs` stays a string**: this is expected. Outputs can legitimately be plain text (for example, raw LLM completion content), so outputs are not force-parsed as JSON.
+- **No traces appear after a successful OTLP response**: verify `AGENTA_HOST`, `AGENTA_API_KEY`, and the OTLP endpoint (`/api/otlp/v1/traces`). Then check API logs for per-span parsing warnings.
 
 ## Next Steps
 

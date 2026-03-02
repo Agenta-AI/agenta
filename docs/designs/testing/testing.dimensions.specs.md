@@ -152,7 +152,7 @@ The full tag syntax mapping from `testTags.ts`:
 
 - **Dimension application:** Dimensions apply primarily to E2E tests. Unit tests generally do not need dimension markers.
 - **`coverage` semantics:** Running with `coverage_full` (or no coverage filter) means all tests run. `full` is not a separate tier to mark individually -- it means "no filter applied."
-- **`scope` in API/SDK:** Handled via directory structure (e.g., `pytest/e2e/workflows/`, `pytest/e2e/evaluations/`) rather than explicit markers. Web uses explicit `@scope:` tags.
+- **`scope` in API/SDK:** Handled via directory structure (e.g., `pytest/acceptance/workflows/`, `pytest/acceptance/evaluations/`) rather than explicit markers. Web uses explicit `@scope:` tags.
 - **`license` has dual usage:** Tests are organized structurally by folder (`oss/tests/` vs `ee/tests/`) for clarity. Explicit markers (`@pytest.mark.license_oss` / `@license:oss` tags) enable filtering when testing against remote environments where the folder structure doesn't indicate the remote server's license (e.g., running local tests against a remote staging server). Use markers when targeting specific remote license environments.
 - **Interface-specific values:** Some shared dimensions have interface-specific values:
   - `coverage`: API/SDK use `smoke`/`full`; Web adds `sanity`/`light`

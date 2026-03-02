@@ -27,3 +27,15 @@ If conflicts, trust script.
 ## Logs
 General:  `docker compose logs -f --tail=200`
 Specific: `docker compose -p <project> logs -f --tail=200 <service>`
+
+## Variables (per worktree)
+
+```bash
+AGENTA_WEB_URL=
+AGENTA_API_URL=
+AGENTA_SERVICES_URL=
+COMPOSE_PROJECT_NAME=
+TRAEFIK_PORT=
+TRAEFIK_UI_PORT=
+POSTGRES_PORT=
+```

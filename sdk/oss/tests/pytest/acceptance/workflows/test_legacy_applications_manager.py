@@ -21,7 +21,7 @@ import pytest
 
 from agenta.sdk.managers import applications
 
-pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
+pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
 def _legacy_application_handler(prompt: str) -> str:

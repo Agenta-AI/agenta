@@ -212,6 +212,7 @@ export {
     DrillInProvider,
     // Markdown utilities
     TOGGLE_MARKDOWN_VIEW,
+    SET_MARKDOWN_VIEW,
     ON_CHANGE_COMMAND,
     $convertToMarkdownStringCustom,
     PLAYGROUND_TRANSFORMERS,

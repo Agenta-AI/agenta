@@ -1,26 +1,27 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
     Editor as EditorWrapper,
     EditorProvider,
+    DrillInProvider,
     useLexicalComposerContext,
     ON_CHANGE_LANGUAGE,
-    TOGGLE_MARKDOWN_VIEW,
+    SET_MARKDOWN_VIEW,
     SearchPlugin,
 } from "@agenta/ui"
 import {
     ArrowDownIcon,
     ArrowUpIcon,
+    CaretUpDown,
     CopyIcon,
     DownloadIcon,
     FileTextIcon,
     MagnifyingGlassIcon,
-    MarkdownLogoIcon,
-    TextAaIcon,
     XIcon,
 } from "@phosphor-icons/react"
-import {ButtonProps, Collapse, Input, Radio, Space, theme} from "antd"
+import {Button, Collapse, Dropdown, Input, Radio, Space, theme} from "antd"
 import yaml from "js-yaml"
+import JSON5 from "json5"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
@@ -38,7 +39,95 @@ type AccordionTreePanelProps = {
     bgColor?: string
     fullEditorHeight?: boolean
     enableSearch?: boolean
+    viewModePreset?: "default" | "message"
 } & React.ComponentProps<typeof Collapse>
+
+type PanelViewMode = "json" | "yaml" | "rendered-json" | "text" | "markdown"
+
+const PANEL_VIEW_MODE_LABELS: Record<PanelViewMode, string> = {
+    json: "JSON",
+    yaml: "YAML",
+    "rendered-json": "Rendered JSON",
+    text: "Text",
+    markdown: "Markdown",
+}
+
+const getDefaultPanelViewMode = (availableModes: PanelViewMode[]): PanelViewMode => {
+    if (availableModes.includes("rendered-json")) return "rendered-json"
+    return availableModes[0] ?? "json"
+}
+
+const normalizeEscapedLineBreaks = (value: string): string =>
+    value.replaceAll("\\r\\n", "\n").replaceAll("\\n", "\n")
+
+const parseStructuredJson = (value: string): unknown | null => {
+    const tryParseJson = (input: string): unknown | null => {
+        try {
+            return JSON.parse(input)
+        } catch {
+            return null
+        }
+    }
+
+    const toStructured = (parsed: unknown): unknown | null => {
+        if (parsed && typeof parsed === "object") return parsed
+        if (typeof parsed !== "string") return null
+
+        const nested = tryParseJson(parsed.trim())
+        if (nested && typeof nested === "object") return nested
+        return null
+    }
+
+    let candidate = value.trim()
+    if (!candidate) return null
+
+    const fencedMatch = candidate.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+    if (fencedMatch?.[1]) {
+        candidate = fencedMatch[1].trim()
+    }
+
+    const strictParsed = toStructured(tryParseJson(candidate))
+    if (strictParsed !== null) return strictParsed
+
+    try {
+        return toStructured(JSON5.parse(candidate))
+    } catch {
+        return null
+    }
+}
+
+const renderStringifiedJson = (value: unknown): {value: unknown; didRender: boolean} => {
+    if (typeof value === "string") {
+        const parsed = parseStructuredJson(value)
+        if (parsed === null) return {value, didRender: false}
+        const nested = renderStringifiedJson(parsed)
+        return {value: nested.value, didRender: true}
+    }
+
+    if (Array.isArray(value)) {
+        let didRender = false
+        const rendered = value.map((item) => {
+            const next = renderStringifiedJson(item)
+            if (next.didRender) didRender = true
+            return next.value
+        })
+        return {value: rendered, didRender}
+    }
+
+    if (value && typeof value === "object") {
+        let didRender = false
+        const rendered = Object.fromEntries(
+            Object.entries(value).map(([key, nestedValue]) => {
+                const next = renderStringifiedJson(nestedValue)
+                if (next.didRender) didRender = true
+                return [key, next.value]
+            }),
+        )
+        return {value: rendered, didRender}
+    }
+
+    return {value, didRender: false}
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     collapseContainer: ({bgColor}: {bgColor?: string}) => ({
@@ -61,6 +150,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-collapse-header": {
             alignItems: "center !important",
             height: 42,
+            backgroundColor: `${theme.colorBgContainer} !important`,
         },
         "& .ant-collapse-panel": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
@@ -108,7 +198,7 @@ const LanguageAwareViewer = ({
     searchProps,
 }: {
     initialValue: string
-    language: "json" | "yaml"
+    language: "json" | "yaml" | "rendered-json"
     searchProps?: {
         searchTerm: string
         currentResultIndex: number
@@ -124,8 +214,10 @@ const LanguageAwareViewer = ({
     )
 
     useEffect(() => {
-        if (language === "json" || language === "yaml") {
-            changeLanguage(language)
+        if (language === "json" || language === "rendered-json") {
+            changeLanguage("json")
+        } else {
+            changeLanguage("yaml")
         }
         editor.setEditable(false)
     }, [language, changeLanguage, editor])
@@ -142,10 +234,10 @@ const LanguageAwareViewer = ({
         ]
     }, [searchProps])
 
-    return (
+    const editorNode = (
         <EditorWrapper
             initialValue={initialValue}
-            language={language as "json" | "yaml"}
+            language={language === "rendered-json" ? "json" : language}
             codeOnly={true}
             showToolbar={false}
             enableTokens={false}
@@ -155,25 +247,64 @@ const LanguageAwareViewer = ({
             additionalCodePlugins={additionalPlugins}
         />
     )
+
+    if (language === "rendered-json") {
+        return (
+            <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: true}}>
+                {editorNode}
+            </DrillInProvider>
+        )
+    }
+
+    return editorNode
 }
 
-const MarkdownToggleButton = ({...props}: ButtonProps) => {
+const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {
     const [editor] = useLexicalComposerContext()
-    const [markdownView, setMarkdownView] = useState(false)
 
+    useLayoutEffect(() => {
+        editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+    }, [editor, isMarkdownView])
+
+    useEffect(() => {
+        const frameId = requestAnimationFrame(() => {
+            editor.dispatchCommand(SET_MARKDOWN_VIEW, isMarkdownView)
+        })
+        return () => cancelAnimationFrame(frameId)
+    }, [editor, isMarkdownView])
+
+    return null
+}
+
+const TextModeViewer = ({
+    editorId,
+    value,
+    mode,
+}: {
+    editorId: string
+    value: string
+    mode: "text" | "markdown"
+}) => {
     return (
-        <EnhancedButton
-            icon={!markdownView ? <TextAaIcon size={14} /> : <MarkdownLogoIcon size={14} />}
-            type="text"
-            onClick={() => {
-                setMarkdownView((prev) => !prev)
-                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            }}
-            tooltipProps={{
-                title: !markdownView ? "Preview text" : "Preview markdown",
-            }}
-            {...props}
-        />
+        <EditorProvider
+            id={editorId}
+            initialValue={value}
+            showToolbar={false}
+            enableTokens={false}
+            readOnly
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+        >
+            <MarkdownModeSync isMarkdownView={mode === "text"} />
+            <EditorWrapper
+                initialValue={value}
+                disabled
+                codeOnly={false}
+                showToolbar={false}
+                boundHeight={false}
+                noProvider
+                readOnly
+            />
+        </EditorProvider>
     )
 }
 
@@ -184,12 +315,13 @@ const AccordionTreePanel = ({
     bgColor,
     fullEditorHeight = false,
     enableSearch = false,
+    viewModePreset = "default",
     ...props
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
     const classes = useStyles({bgColor, theme: token})
-    const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
     const editorRef = useRef<HTMLDivElement>(null)
+    const textViewerId = useId().replace(/:/g, "")
 
     // Search State
     const [isSearchOpen, setIsSearchOpen] = useState(false)
@@ -207,12 +339,12 @@ const AccordionTreePanel = ({
         setCurrentResultIndex((prev) => (prev - 1 + resultCount) % resultCount)
     }
 
-    const closeSearch = () => {
+    const closeSearch = useCallback(() => {
         setIsSearchOpen(false)
         setSearchTerm("")
         setResultCount(0)
         setCurrentResultIndex(0)
-    }
+    }, [])
 
     const {
         data: sanitizedValue,
@@ -221,11 +353,71 @@ const AccordionTreePanel = ({
     } = useMemo(() => {
         return sanitizeDataWithBlobUrls(incomingValue)
     }, [incomingValue])
+
     const isStringValue = typeof sanitizedValue === "string"
+    const isObjectOrArrayValue = sanitizedValue !== null && typeof sanitizedValue === "object"
+    const parsedStructuredString = useMemo(
+        () => (isStringValue ? parseStructuredJson(sanitizedValue) : null),
+        [isStringValue, sanitizedValue],
+    )
+
+    const renderedJsonSource = useMemo(() => {
+        if (isStringValue) {
+            return parsedStructuredString ?? sanitizedValue
+        }
+        return sanitizedValue
+    }, [isStringValue, parsedStructuredString, sanitizedValue])
+
+    const renderedJsonResult = useMemo(() => {
+        return renderStringifiedJson(renderedJsonSource)
+    }, [renderedJsonSource])
+
+    const availableViewModes = useMemo<PanelViewMode[]>(() => {
+        if (viewModePreset === "message") {
+            const modes: PanelViewMode[] = ["text", "markdown"]
+            if (
+                (isStringValue && parsedStructuredString !== null) ||
+                (!isStringValue && isObjectOrArrayValue)
+            ) {
+                modes.push("rendered-json")
+            }
+            return modes
+        }
+
+        if (isStringValue) {
+            if (parsedStructuredString !== null) {
+                const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
+                modes.push("text", "markdown")
+                return modes
+            }
+            return ["text", "markdown"]
+        }
+
+        const modes: PanelViewMode[] = ["json", "yaml", "rendered-json"]
+        return modes
+    }, [viewModePreset, isStringValue, isObjectOrArrayValue, parsedStructuredString])
+    const [panelViewMode, setPanelViewMode] = useState<PanelViewMode>(() =>
+        getDefaultPanelViewMode(availableViewModes),
+    )
+
+    useEffect(() => {
+        if (!availableViewModes.includes(panelViewMode)) {
+            setPanelViewMode(getDefaultPanelViewMode(availableViewModes))
+        }
+    }, [availableViewModes, panelViewMode])
+
+    const isCodeMode =
+        panelViewMode === "json" || panelViewMode === "yaml" || panelViewMode === "rendered-json"
+
+    useEffect(() => {
+        if (!isCodeMode) {
+            closeSearch()
+        }
+    }, [isCodeMode, closeSearch])
 
     useEffect(() => {
         closeSearch()
-    }, [sanitizedValue])
+    }, [sanitizedValue, closeSearch])
 
     const downloadFile = useCallback((url: string) => {
         const link = document.createElement("a")
@@ -234,23 +426,66 @@ const AccordionTreePanel = ({
         link.click()
     }, [])
 
-    const yamlOutput = useMemo(() => {
-        if (
-            segmentedValue === "yaml" &&
-            sanitizedValue &&
-            typeof sanitizedValue === "object" &&
-            Object.keys(sanitizedValue).length
-        ) {
-            try {
-                const jsonObject = JSON.parse(getStringOrJson(sanitizedValue))
-                return yaml.dump(jsonObject)
-            } catch (error: any) {
-                console.error("Failed to convert JSON to YAML:", error)
-                return `Error: Failed to convert JSON to YAML. Please ensure the data is valid. (${error?.message})`
+    const jsonOutput = useMemo(() => {
+        if (panelViewMode !== "json") return ""
+
+        if (isStringValue) {
+            if (parsedStructuredString !== null) {
+                return sanitizedValue
             }
+            return JSON.stringify(sanitizedValue) ?? ""
         }
-        return ""
-    }, [segmentedValue, sanitizedValue])
+
+        return getStringOrJson(sanitizedValue)
+    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
+
+    const yamlOutput = useMemo(() => {
+        if (panelViewMode !== "yaml") return ""
+
+        const yamlSource = isStringValue ? parsedStructuredString : sanitizedValue
+        if (yamlSource === null || yamlSource === undefined) return ""
+
+        try {
+            return yaml.dump(yamlSource, {lineWidth: 120})
+        } catch (error: any) {
+            console.error("Failed to convert value to YAML:", error)
+            return `Error: Failed to convert content to YAML. (${error?.message || "Unknown error"})`
+        }
+    }, [panelViewMode, isStringValue, parsedStructuredString, sanitizedValue])
+
+    const renderedJsonOutput = useMemo(() => {
+        if (panelViewMode !== "rendered-json") return ""
+        const next = JSON.stringify(renderedJsonResult.value, null, 2)
+        return next ?? "null"
+    }, [panelViewMode, renderedJsonResult.value])
+
+    const textOutput = useMemo(() => {
+        if (typeof sanitizedValue === "string") {
+            return parsedStructuredString !== null
+                ? normalizeEscapedLineBreaks(sanitizedValue)
+                : sanitizedValue
+        }
+        return getStringOrJson(sanitizedValue)
+    }, [parsedStructuredString, sanitizedValue])
+
+    const viewModeMenuItems = useMemo(
+        () =>
+            availableViewModes.map((mode) => ({
+                key: mode,
+                label: PANEL_VIEW_MODE_LABELS[mode],
+                onClick: () => setPanelViewMode(mode),
+            })),
+        [availableViewModes],
+    )
+
+    const copyText =
+        panelViewMode === "yaml"
+            ? yamlOutput
+            : panelViewMode === "rendered-json"
+              ? renderedJsonOutput
+              : panelViewMode === "json"
+                ? jsonOutput
+                : textOutput
 
     const collapse = (
         <div className="relative">
@@ -313,19 +548,7 @@ const AccordionTreePanel = ({
                                     overflowY: "auto",
                                 }}
                             >
-                                {isStringValue ? (
-                                    <div className="p-2">
-                                        <EditorWrapper
-                                            initialValue={sanitizedValue as string}
-                                            disabled
-                                            codeOnly={false}
-                                            showToolbar={false}
-                                            boundHeight={false}
-                                            noProvider
-                                            readOnly
-                                        />
-                                    </div>
-                                ) : (
+                                {isCodeMode ? (
                                     <EditorProvider
                                         codeOnly={true}
                                         enableTokens={false}
@@ -337,11 +560,13 @@ const AccordionTreePanel = ({
                                     >
                                         <LanguageAwareViewer
                                             initialValue={
-                                                segmentedValue === "json"
-                                                    ? getStringOrJson(sanitizedValue)
-                                                    : yamlOutput
+                                                panelViewMode === "yaml"
+                                                    ? yamlOutput
+                                                    : panelViewMode === "rendered-json"
+                                                      ? renderedJsonOutput
+                                                      : jsonOutput
                                             }
-                                            language={segmentedValue}
+                                            language={panelViewMode}
                                             searchProps={
                                                 isSearchOpen
                                                     ? {
@@ -353,12 +578,18 @@ const AccordionTreePanel = ({
                                             }
                                         />
                                     </EditorProvider>
+                                ) : (
+                                    <TextModeViewer
+                                        editorId={`accordion-${textViewerId}`}
+                                        value={textOutput}
+                                        mode={panelViewMode as "text" | "markdown"}
+                                    />
                                 )}
                             </div>
                         ),
                         extra: (
                             <Space size={8} onClick={(e) => e.stopPropagation()}>
-                                {enableSearch && !isStringValue && (
+                                {enableSearch && isCodeMode && (
                                     <EnhancedButton
                                         icon={<MagnifyingGlassIcon size={14} />}
                                         type={isSearchOpen ? "primary" : "text"}
@@ -367,25 +598,39 @@ const AccordionTreePanel = ({
                                         tooltipProps={{title: "Search"}}
                                     />
                                 )}
-                                {enableFormatSwitcher && !isStringValue && (
-                                    <Radio.Group
-                                        value={segmentedValue}
-                                        onChange={(e) =>
-                                            setSegmentedValue(e.target.value as "json" | "yaml")
-                                        }
-                                        size="small"
-                                    >
-                                        <Radio.Button value="json">JSON</Radio.Button>
-                                        <Radio.Button value="yaml">YAML</Radio.Button>
-                                    </Radio.Group>
-                                )}
-                                {isStringValue && <MarkdownToggleButton size="small" />}
+                                {enableFormatSwitcher &&
+                                    availableViewModes.length > 1 &&
+                                    (availableViewModes.length === 2 &&
+                                    availableViewModes[0] === "json" &&
+                                    availableViewModes[1] === "yaml" ? (
+                                        <Radio.Group
+                                            value={panelViewMode}
+                                            onChange={(e) =>
+                                                setPanelViewMode(e.target.value as PanelViewMode)
+                                            }
+                                            size="small"
+                                        >
+                                            <Radio.Button value="json">JSON</Radio.Button>
+                                            <Radio.Button value="yaml">YAML</Radio.Button>
+                                        </Radio.Group>
+                                    ) : (
+                                        <Dropdown
+                                            trigger={["click"]}
+                                            menu={{
+                                                items: viewModeMenuItems,
+                                                selectable: true,
+                                                selectedKeys: [panelViewMode],
+                                            }}
+                                            overlayStyle={{minWidth: 168}}
+                                        >
+                                            <Button size="small" type="text">
+                                                {PANEL_VIEW_MODE_LABELS[panelViewMode]}
+                                                <CaretUpDown size={14} />
+                                            </Button>
+                                        </Dropdown>
+                                    ))}
                                 <CopyButton
-                                    text={
-                                        segmentedValue === "json"
-                                            ? getStringOrJson(sanitizedValue)
-                                            : yamlOutput
-                                    }
+                                    text={copyText}
                                     icon={true}
                                     buttonText={null}
                                     stopPropagation
@@ -400,20 +645,6 @@ const AccordionTreePanel = ({
             />
         </div>
     )
-
-    if (isStringValue) {
-        return (
-            <EditorProvider
-                initialValue={sanitizedValue as string}
-                disabled
-                showToolbar={false}
-                className={classes.editor}
-                readOnly
-            >
-                {collapse}
-            </EditorProvider>
-        )
-    }
 
     return (
         <>

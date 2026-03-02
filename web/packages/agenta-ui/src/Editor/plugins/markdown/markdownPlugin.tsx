@@ -1,4 +1,4 @@
-import {useEffect, useCallback} from "react"
+import {useEffect, useLayoutEffect, useCallback} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
@@ -29,7 +29,7 @@ import {
 import {markdownViewAtom} from "../../state/assets/atoms"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
-import {TOGGLE_MARKDOWN_VIEW} from "./commands"
+import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -83,32 +83,51 @@ const MarkdownPlugin = ({id}: {id: string}) => {
     const [, setMarkdownView] = useAtom(markdownViewAtom(id))
     const [editor] = useLexicalComposerContext()
 
+    // Core handler: when nextMarkdownView is provided, explicitly set to that state;
+    // when omitted, toggle the current state.
+    const handleSetMarkdownView = useCallback(
+        (nextMarkdownView?: boolean) => {
+            editor.update(() => {
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                const isCurrentlyMarkdown =
+                    $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+
+                // If explicit target matches current state, nothing to do
+                if (nextMarkdownView !== undefined && nextMarkdownView === isCurrentlyMarkdown) {
+                    return
+                }
+
+                if (isCurrentlyMarkdown) {
+                    // markdown → rich text
+                    $convertFromMarkdownString(
+                        firstChild.getTextContent(),
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                    setMarkdownView(false)
+                } else {
+                    // rich text → markdown
+                    const markdown = $convertToMarkdownStringCustom(
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                    const codeNode = $createCodeNode("markdown")
+                    codeNode.append($createTextNode(markdown))
+                    root.clear().append(codeNode)
+                    codeNode.selectStart()
+                    setMarkdownView(true)
+                }
+            })
+        },
+        [editor, setMarkdownView],
+    )
+
     const handleMarkdownToggle = useCallback(() => {
-        editor.update(() => {
-            const root = $getRoot()
-            const firstChild = root.getFirstChild()
-            if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
-                $convertFromMarkdownString(
-                    firstChild.getTextContent(),
-                    PLAYGROUND_TRANSFORMERS,
-                    undefined,
-                    true,
-                )
-                setMarkdownView(false)
-            } else {
-                const markdown = $convertToMarkdownStringCustom(
-                    PLAYGROUND_TRANSFORMERS,
-                    undefined,
-                    true,
-                )
-                const codeNode = $createCodeNode("markdown")
-                codeNode.append($createTextNode(markdown))
-                root.clear().append(codeNode)
-                codeNode.selectStart()
-                setMarkdownView(true)
-            }
-        })
-    }, [editor, setMarkdownView])
+        handleSetMarkdownView()
+    }, [handleSetMarkdownView])
 
     useEffect(() => {
         return editor.registerCommand(
@@ -120,6 +139,18 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             COMMAND_PRIORITY_HIGH,
         )
     }, [editor, handleMarkdownToggle])
+
+    // SET_MARKDOWN_VIEW: explicit state (true = markdown source, false = rich text)
+    useLayoutEffect(() => {
+        return editor.registerCommand(
+            SET_MARKDOWN_VIEW,
+            (nextMarkdownView) => {
+                handleSetMarkdownView(nextMarkdownView)
+                return true
+            },
+            COMMAND_PRIORITY_HIGH,
+        )
+    }, [editor, handleSetMarkdownView])
 
     useEffect(() => {
         return editor.registerCommand(
@@ -246,6 +277,18 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             })
         })
     }, [editor])
+
+    // Sync markdown view atom to match the actual editor state on mount.
+    // This ensures external readers (e.g. MarkdownViewState) see the correct
+    // state immediately, even when the editor was hydrated with markdown content.
+    useLayoutEffect(() => {
+        editor.getEditorState().read(() => {
+            const root = $getRoot()
+            const firstChild = root.getFirstChild()
+            const isMarkdown = $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+            setMarkdownView(isMarkdown)
+        })
+    }, [editor, setMarkdownView])
 
     return (
         <>

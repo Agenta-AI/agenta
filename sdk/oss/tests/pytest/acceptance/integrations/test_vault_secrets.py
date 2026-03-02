@@ -21,7 +21,7 @@ from agenta.client.backend.types import (
 )
 
 
-pytestmark = [pytest.mark.e2e]
+pytestmark = [pytest.mark.acceptance]
 
 
 class TestAccessControlPermissions:

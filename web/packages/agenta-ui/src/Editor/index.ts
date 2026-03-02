@@ -65,7 +65,7 @@ export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 export {tryParsePartialJson, safeJson5Parse} from "@agenta/shared/utils"
 
 // Markdown utilities
-export {TOGGLE_MARKDOWN_VIEW} from "./plugins/markdown/commands"
+export {TOGGLE_MARKDOWN_VIEW, SET_MARKDOWN_VIEW} from "./plugins/markdown/commands"
 export {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 export {
     $convertToMarkdownStringCustom,
