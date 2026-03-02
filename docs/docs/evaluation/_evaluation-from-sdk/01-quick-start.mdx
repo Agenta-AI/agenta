@@ -29,41 +29,51 @@ pip install -U agenta
 ## Quick example
 
 ```python
+import asyncio
 import agenta as ag
-from agenta.client.api import AgentaApi
+from agenta.sdk.evaluations import aevaluate
 
-# Initialize the SDK
-client = AgentaApi(
-    base_url="https://cloud.agenta.ai/api",
-    api_key="your-api-key"
+ag.init(host="https://cloud.agenta.ai", api_key="your-api-key")
+
+@ag.application(
+    slug="capital_finder",
+    name="Capital Finder",
 )
-
-# Create a test set
-test_set = client.testsets.create_testset(
-    request={
-        "name": "my_test_set",
-        "csvdata": [
-            {"input": "Hello", "expected": "Hi there!"},
-            {"input": "How are you?", "expected": "I'm doing well!"}
-        ]
+async def capital_finder(country: str):
+    capitals = {
+        "Germany": "Berlin",
+        "France": "Paris",
     }
+    return capitals.get(country, "Unknown")
+
+@ag.evaluator(
+    slug="exact_match",
+    name="Exact Match",
 )
+async def exact_match(expected: str, outputs: str):
+    return {
+        "score": 1.0 if outputs == expected else 0.0,
+        "success": outputs == expected,
+    }
 
-# Run evaluation
-evaluation = client.evaluations.create_evaluation(
-    app_id="your-app-id",
-    variant_ids=["variant-id"],
-    testset_id=test_set.id,
-    evaluators_configs=["evaluator-config-id"]
-)
+async def run():
+    testset = await ag.testsets.acreate(
+        name="my_test_set",
+        data=[
+            {"country": "Germany", "expected": "Berlin"},
+            {"country": "France", "expected": "Paris"},
+        ],
+    )
 
-# Check status
-status = client.evaluations.fetch_evaluation_status(evaluation.id)
-print(f"Evaluation status: {status}")
+    result = await aevaluate(
+        testsets=[testset.id],
+        applications=[capital_finder],
+        evaluators=[exact_match],
+    )
+    return result
 
-# Get results when complete
-results = client.evaluations.fetch_evaluation_results(evaluation.id)
-print(results)
+result = asyncio.run(run())
+print(result)
 ```
 
 ## Next steps

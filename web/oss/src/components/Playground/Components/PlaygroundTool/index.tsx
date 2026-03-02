@@ -1,18 +1,23 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {Input, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
+import Image from "next/image"
 import {v4 as uuidv4} from "uuid"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    moleculeBackedPromptsAtomFamily,
+    moleculeBackedVariantAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
+import {useIntegrationDetail} from "@/oss/features/gateway-tools/hooks/useIntegrationDetail"
 import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import toolsSpecs from "../PlaygroundVariantConfigPrompt/assets/tools.specs.json"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import SharedEditor from "../SharedEditor"
@@ -75,6 +80,94 @@ function stableStringify(input: any): string {
 
 function deepEqual(a: any, b: any): boolean {
     return stableStringify(a) === stableStringify(b)
+}
+
+function formatBuiltinLabel(value: string): string {
+    return value
+        .split("_")
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(" ")
+}
+
+function inferBuiltinLabel(toolObj: ToolObj): string | undefined {
+    if (!toolObj || typeof toolObj !== "object") return undefined
+    const typeValue = (toolObj as any).type
+    if (typeof typeValue === "string" && typeValue !== "function") {
+        return formatBuiltinLabel(typeValue)
+    }
+    const keys = Object.keys(toolObj).filter((key) => key !== "type" && key !== "function")
+    if (keys.length === 0) return undefined
+    return formatBuiltinLabel(keys[0])
+}
+
+function inferIsBuiltinTool(toolObj: ToolObj): boolean {
+    if (!toolObj || typeof toolObj !== "object") return false
+    const keys = Object.keys(toolObj)
+    if (keys.length === 0) return false
+    const typeValue = (toolObj as any).type
+    const hasFunction = typeValue === "function" || "function" in (toolObj as any)
+    if (hasFunction) return false
+    if (typeof typeValue === "string") return true
+    return keys.some((key) => key !== "type")
+}
+
+interface BuiltinToolInfo {
+    providerKey?: string
+    toolCode?: string
+}
+
+function matchesToolPayload(toolObj: ToolObj, payload: Record<string, any>): boolean {
+    if (!toolObj || typeof toolObj !== "object" || !payload) return false
+    const toolObjAny = toolObj as any
+    if (typeof payload.type === "string" && toolObjAny.type === payload.type) return true
+    if (typeof payload.name === "string" && toolObjAny.name === payload.name) return true
+    // Single-key existence check for provider-specific keys (e.g. Google's {code_execution: {}}).
+    // Exclude common fields like "type" and "name" because they appear across providers and
+    // would cause false positives (e.g. Anthropic tools matching OpenAI's web_search spec).
+    const payloadKeys = Object.keys(payload)
+    if (
+        payloadKeys.length === 1 &&
+        payloadKeys[0] !== "type" &&
+        payloadKeys[0] !== "name" &&
+        payloadKeys[0] in toolObjAny
+    )
+        return true
+    return false
+}
+
+function inferBuiltinToolInfo(toolObj: ToolObj): BuiltinToolInfo | undefined {
+    if (!toolObj || typeof toolObj !== "object") return undefined
+    const specs = toolsSpecs as Record<string, Record<string, any>>
+    for (const [providerKey, tools] of Object.entries(specs)) {
+        for (const [toolCode, toolSpec] of Object.entries(tools)) {
+            const payloads = Array.isArray(toolSpec) ? toolSpec : [toolSpec]
+            for (const payload of payloads) {
+                if (matchesToolPayload(toolObj, payload as Record<string, any>)) {
+                    return {providerKey, toolCode}
+                }
+            }
+        }
+    }
+    return undefined
+}
+
+interface GatewayToolParsed {
+    provider: string
+    integration: string
+    action: string
+    connection: string
+}
+
+// Parse gateway tool slug: tools__{provider}__{integration}__{action}__{connection}
+// Segments may contain single underscores (e.g. CREATE_EMAIL_DRAFT); only __ is a separator.
+function parseGatewayFunctionName(name: string | undefined): GatewayToolParsed | null {
+    if (!name) return null
+    const parts = name.split("__")
+    if (parts.length !== 5 || parts[0] !== "tools") return null
+    const [, provider, integration, action, connection] = parts
+    if (!provider || !integration || !action || !connection) return null
+    return {provider, integration, action, connection}
 }
 
 function toToolObj(value: unknown): ToolObj {
@@ -167,6 +260,7 @@ function ToolHeader(props: {
     builtinProviderLabel?: string
     builtinToolLabel?: string
     builtinIcon?: React.FC<{className?: string}>
+    builtinIconUrl?: string
 }) {
     const {
         name,
@@ -180,6 +274,7 @@ function ToolHeader(props: {
         builtinProviderLabel,
         builtinToolLabel,
         builtinIcon: BuiltinIcon,
+        builtinIconUrl,
     } = props
 
     return (
@@ -188,11 +283,22 @@ function ToolHeader(props: {
                 {isBuiltinTool ? (
                     <div className="flex items-center gap-1">
                         <div className="flex items-center">
-                            {BuiltinIcon && (
+                            {builtinIconUrl ? (
+                                <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
+                                    <Image
+                                        src={builtinIconUrl}
+                                        alt={builtinProviderLabel || ""}
+                                        width={16}
+                                        height={16}
+                                        className="h-4 w-4 object-contain"
+                                        unoptimized
+                                    />
+                                </span>
+                            ) : BuiltinIcon ? (
                                 <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
                                     <BuiltinIcon className="h-4 w-4" />
                                 </span>
-                            )}
+                            ) : null}
                             {builtinProviderLabel && (
                                 <Typography.Text>{builtinProviderLabel}</Typography.Text>
                             )}
@@ -271,7 +377,20 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
 }) => {
     const editorIdRef = useRef(uuidv4())
     const isReadOnly = Boolean(disabled)
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(() => {
+        // Custom/inline tools start expanded; builtin and gateway tools start minimized
+        const source = (baseProperty as any)?.__source
+        if (source === "builtin") return true
+        const fnName = (() => {
+            try {
+                const obj = typeof value === "string" ? JSON5.parse(value) : value
+                return (obj as any)?.function?.name ?? ""
+            } catch {
+                return ""
+            }
+        })()
+        return parseGatewayFunctionName(fnName) !== null
+    })
 
     const builtinMeta = useMemo(() => {
         const agentaMetadata =
@@ -322,10 +441,36 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         ),
     )
 
-    useAtomValue(variantByRevisionIdAtomFamily(variantId))
-    const appUriInfo = useAtomValue(appUriInfoAtom)
+    const inferredBuiltinTool = useMemo(() => inferIsBuiltinTool(toolObj), [toolObj])
+    const isBuiltinTool = builtinMeta?.isBuiltinTool || inferredBuiltinTool
+    const inferredToolInfo = useMemo(() => inferBuiltinToolInfo(toolObj), [toolObj])
+    const fallbackToolLabel = useMemo(() => inferBuiltinLabel(toolObj), [toolObj])
+    const fallbackProvider = inferredToolInfo?.providerKey
+        ? TOOL_PROVIDERS_META[inferredToolInfo.providerKey]
+        : undefined
+    const fallbackIcon =
+        fallbackProvider?.iconKey != null ? LLMIconMap[fallbackProvider.iconKey] : undefined
+
+    // Gateway tool detection — parse display info from the function name (survives reload)
+    const gatewayParsed = useMemo(
+        () => parseGatewayFunctionName((toolObj as any)?.function?.name),
+        [(toolObj as any)?.function?.name],
+    )
+    const {integration: gatewayIntegration} = useIntegrationDetail(gatewayParsed?.integration ?? "")
+
+    // Builtin and gateway tools have non-editable schemas; only custom/inline tools are editable
+    const isSchemaReadOnly = isReadOnly || isBuiltinTool || Boolean(gatewayParsed)
+
+    // Use molecule-backed atoms for single source of truth
+    useAtomValue(moleculeBackedVariantAtomFamily(variantId))
+    const entityData = useAtomValue(
+        useMemo(() => legacyAppRevisionEntityWithBridgeAtomFamily(variantId), [variantId]),
+    )
     const setPrompts = useSetAtom(
-        useMemo(() => promptsAtomFamily(variantId), [variantId, appUriInfo?.routePath]),
+        useMemo(
+            () => moleculeBackedPromptsAtomFamily(variantId),
+            [variantId, entityData?.routePath],
+        ),
     )
 
     const deleteMessage = useCallback(() => {
@@ -337,16 +482,19 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         }
         setPrompts((prevPrompts: any[] = []) => {
             return prevPrompts.map((prompt: any) => {
-                const toolsArr = prompt?.llmConfig?.tools?.value
+                // Use whichever key the prompt has (entity uses llm_config, OSS uses llmConfig)
+                const configKey = prompt?.llm_config ? "llm_config" : "llmConfig"
+                const llm = prompt?.[configKey]
+                const toolsArr = llm?.tools?.value
                 if (Array.isArray(toolsArr)) {
                     const updatedTools = toolsArr.filter((tool: any) => tool.__id !== id)
                     if (updatedTools.length !== toolsArr.length) {
                         return {
                             ...prompt,
-                            llmConfig: {
-                                ...prompt.llmConfig,
+                            [configKey]: {
+                                ...llm,
                                 tools: {
-                                    ...prompt.llmConfig?.tools,
+                                    ...llm?.tools,
                                     value: updatedTools,
                                 },
                             },
@@ -362,7 +510,7 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
         <PlaygroundVariantPropertyControlWrapper
             className={clsx(
                 "w-full max-w-full overflow-y-auto flex [&_>_div]:!w-auto [&_>_div]:!grow !my-0",
-                {"[_.agenta-shared-editor]:w-full": isReadOnly},
+                {"[_.agenta-shared-editor]:w-full": isSchemaReadOnly},
             )}
         >
             <EditorProvider
@@ -377,10 +525,10 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                     editorProps={{
                         codeOnly: true,
                         noProvider: true,
-                        validationSchema: builtinMeta?.isBuiltinTool ? undefined : TOOL_SCHEMA,
+                        validationSchema: isBuiltinTool ? undefined : TOOL_SCHEMA,
                     }}
                     handleChange={(e) => {
-                        if (isReadOnly) return
+                        if (isSchemaReadOnly) return
                         onEditorChange(e)
                     }}
                     syncWithInitialValueChanges
@@ -391,7 +539,8 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                             ? "[&_.agenta-editor-wrapper]:h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0"
                             : "[&_.agenta-editor-wrapper]:h-fit",
                     ])}
-                    state={isReadOnly ? "readOnly" : "filled"}
+                    state={isSchemaReadOnly ? "readOnly" : "filled"}
+                    disabled={isSchemaReadOnly}
                     header={
                         <ToolHeader
                             idForActions={editorIdRef.current}
@@ -402,10 +551,26 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                             minimized={minimized}
                             onToggleMinimize={() => setMinimized((v) => !v)}
                             onDelete={deleteMessage}
-                            isBuiltinTool={builtinMeta?.isBuiltinTool}
-                            builtinProviderLabel={builtinMeta?.providerLabel}
-                            builtinToolLabel={builtinMeta?.toolLabel}
-                            builtinIcon={builtinMeta?.Icon}
+                            isBuiltinTool={isBuiltinTool || Boolean(gatewayParsed)}
+                            builtinProviderLabel={
+                                gatewayParsed
+                                    ? gatewayParsed.integration
+                                    : (builtinMeta?.providerLabel ??
+                                      (fallbackProvider?.label || inferredToolInfo?.providerKey))
+                            }
+                            builtinToolLabel={
+                                gatewayParsed
+                                    ? `${gatewayParsed.action} / ${gatewayParsed.connection}`
+                                    : (builtinMeta?.toolLabel ??
+                                      inferredToolInfo?.toolCode ??
+                                      fallbackToolLabel)
+                            }
+                            builtinIcon={
+                                gatewayParsed ? undefined : (builtinMeta?.Icon ?? fallbackIcon)
+                            }
+                            builtinIconUrl={
+                                gatewayParsed ? (gatewayIntegration?.logo ?? undefined) : undefined
+                            }
                         />
                     }
                 />

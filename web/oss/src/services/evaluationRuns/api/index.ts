@@ -1,6 +1,6 @@
 import {getDefaultStore} from "jotai"
 
-import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
@@ -69,12 +69,13 @@ const buildInputStep = (testset?: Testset) => {
         testset: {id: testset.id},
     }
 
+    if (testset.revisionId) {
+        references.testset_revision = {id: testset.revisionId}
+    }
+
     // TODO: after new testsets
     // if (testset.variantId) {
     //     references.testset_variant = {id: testset.variantId}
-    // }
-    // if (testset.revisionId) {
-    //     references.testset_revision = {id: testset.revisionId}
     // }
 
     return {
@@ -261,12 +262,12 @@ const buildMappings = (
             step: {key: testsetKey, path: "data.variantId"},
         })
     }
-    if (testset?.revisionId !== undefined) {
-        mappings.push({
-            column: {kind: "testset", name: "testset_revision_id"},
-            step: {key: testsetKey, path: "data.revisionId"},
-        })
-    }
+    // if (testset?.revisionId !== undefined) {
+    //     mappings.push({
+    //         column: {kind: "testset", name: "testset_revision_id"},
+    //         step: {key: testsetKey, path: "data.revisionId"},
+    //     })
+    // }
 
     // Evaluator output mappings generated dynamically per evaluator
     if (evaluators && evaluators.length > 0) {

@@ -1,17 +1,20 @@
-import {useEffect, useMemo, useState, type FC} from "react"
+import {useMemo, useState, type FC} from "react"
 
-import {GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
+import {GearSix, Plus} from "@phosphor-icons/react"
 import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
+import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
+import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {useUpdateWorkspaceName, useWorkspaceMembers} from "@/oss/state/workspace"
+import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
@@ -22,8 +25,9 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {updateWorkspaceName} = useUpdateWorkspaceName()
     const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {hasRBAC} = useEntitlements()
+    const {canInviteMembers} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
@@ -34,14 +38,6 @@ const WorkspaceManage: FC = () => {
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
-    const workspace = selectedOrg?.default_workspace
-
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [workspaceNameInput, setWorkspaceNameInput] = useState(workspace?.name || "")
-
-    useEffect(() => {
-        setWorkspaceNameInput(workspace?.name || "")
-    }, [workspace?.name])
 
     const columns = useMemo(
         () =>
@@ -71,8 +67,11 @@ const WorkspaceManage: FC = () => {
                         dataIndex: ["user", "email"],
                         key: "email",
                         title: "Email",
+                        render: (_, member) => (
+                            <span className="font-mono text-xs">{member.user?.email}</span>
+                        ),
                     },
-                    isDemo()
+                    isEE() && hasRBAC
                         ? {
                               dataIndex: "roles",
                               key: "role",
@@ -121,17 +120,19 @@ const WorkspaceManage: FC = () => {
                         fixed: "right",
                         align: "center",
                         render: (_, member) => {
+                            const isSelf =
+                                member.user?.id === signedInUser?.id ||
+                                member.user?.email === signedInUser?.email
+                            const isOwner = member.user?.id === selectedOrg?.owner_id
                             return (
                                 <Actions
                                     member={member}
-                                    hidden={
-                                        member.user.email === signedInUser?.email ||
-                                        member.user.id === selectedOrg?.owner
-                                    }
+                                    hidden={!isSelf && isOwner}
+                                    selfMenu={isSelf}
                                     organizationId={organizationId!}
                                     workspaceId={workspaceId!}
                                     onResendInvite={(data: any) => {
-                                        if (!isDemo() && data.uri) {
+                                        if (!isEmailInvitationsEnabled() && data.uri) {
                                             setInvitedUserData(data)
                                             setIsInvitedUserLinkModalOpen(true)
                                         }
@@ -145,60 +146,19 @@ const WorkspaceManage: FC = () => {
         [selectedOrg?.id],
     )
 
-    const handleSaveWorkspaceName = async () => {
-        if (!workspaceId || !organizationId) return
-
-        await updateWorkspaceName({
-            organizationId,
-            workspaceId,
-            name: workspaceNameInput,
-            onSuccess: () => {
-                // Only handle UI state - workspace data is updated by the mutation atom
-                setIsEditingName(false)
-            },
-        })
-    }
-
     return (
         <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 group">
-                {!isEditingName ? (
-                    <>
-                        <Typography.Text className="font-medium" data-cy="workspace-name">
-                            {workspace?.name}
-                        </Typography.Text>
-                        <Button
-                            type="text"
-                            size="small"
-                            className="opacity-0 group-hover:opacity-100"
-                            icon={<PencilSimple size={14} />}
-                            onClick={() => setIsEditingName(true)}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <Input
-                            value={workspaceNameInput}
-                            onChange={(e) => setWorkspaceNameInput(e.target.value)}
-                            className="w-[250px]"
-                            autoFocus
-                        />
-                        <Button type="primary" size="small" onClick={handleSaveWorkspaceName}>
-                            Save
-                        </Button>
-                        <Button
-                            size="small"
-                            onClick={() => {
-                                setIsEditingName(false)
-                                setWorkspaceNameInput(workspace?.name || "")
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                    </>
+            <div className="flex items-center gap-2">
+                {canInviteMembers && (
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} className="mt-0.2" />}
+                        onClick={() => setIsInviteModalOpen(true)}
+                    >
+                        Invite Members
+                    </Button>
                 )}
-            </div>
-            <div className="flex items-center justify-between gap-2">
+
                 <Input.Search
                     placeholder="Search"
                     className="w-[400px]"
@@ -206,14 +166,6 @@ const WorkspaceManage: FC = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
-
-                <Button
-                    type="primary"
-                    icon={<Plus size={14} className="mt-0.2" />}
-                    onClick={() => setIsInviteModalOpen(true)}
-                >
-                    Invite members
-                </Button>
             </div>
 
             <Spin spinning={loading}>
@@ -233,13 +185,13 @@ const WorkspaceManage: FC = () => {
                 onCancel={() => setIsInviteModalOpen(false)}
                 workspaceId={workspaceId!}
                 onSuccess={(data) => {
-                    if (!isDemo() && data?.uri) {
+                    if (!isEmailInvitationsEnabled() && data?.uri) {
                         setInvitedUserData(data)
                         setIsInvitedUserLinkModalOpen(true)
                     }
                 }}
             />
-            {!isDemo() && (
+            {!isEmailInvitationsEnabled() && (
                 <InvitedUserLinkModal
                     open={isInvitedUserLinkModalOpen}
                     onCancel={() => {

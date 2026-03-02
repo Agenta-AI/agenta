@@ -14,15 +14,15 @@ import {
 import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
 
 import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
 import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 
-import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
+import {GenerationComparisonChatOutputCellProps, GenerationComparisonChatOutputProps} from "./types"
 
 // No local schema plumbing; PromptMessageConfig derives structure internally
 
@@ -84,6 +84,7 @@ const GenerationComparisonChatOutputCell = ({
 
                         <div className="flex flex-col gap-2">
                             <TurnMessageAdapter
+                                variantId={variantId}
                                 rowId={turnId as string}
                                 kind="user"
                                 className="w-full"

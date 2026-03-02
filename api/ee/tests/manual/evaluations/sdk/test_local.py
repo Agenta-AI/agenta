@@ -4,22 +4,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import agenta as ag
+import agenta as ag  # noqa: E402
 
 ag.init()
 
-from agenta.sdk.models.workflows import (
+from agenta.sdk.models.workflows import (  # noqa: E402
     WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
 )
-from agenta.sdk.decorators.running import workflow
-from agenta.sdk.decorators.tracing import instrument
-from agenta.sdk.workflows import builtin
+from agenta.sdk.decorators.running import workflow  # noqa: E402
+from agenta.sdk.decorators.tracing import instrument  # noqa: E402
+from agenta.sdk.workflows import builtin  # noqa: E402
 
 print("-----------------------------------------------------------------------")
 
-from agenta.sdk.workflows.handlers import echo_v0
+from agenta.sdk.workflows.handlers import echo_v0  # noqa: E402
 
 
 @instrument(annotate=True)

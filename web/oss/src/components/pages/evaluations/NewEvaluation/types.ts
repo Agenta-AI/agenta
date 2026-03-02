@@ -4,7 +4,7 @@ import {ModalProps} from "antd"
 
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {LLMRunRateLimit, Evaluator, EvaluatorConfig, testset} from "@/oss/lib/Types"
+import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
 
 export interface NewEvaluationAppOption {
     label: string
@@ -32,12 +32,18 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     evaluationType: "auto" | "human"
     activePanel: string | null
     selectedTestsetId: string
+    selectedTestsetRevisionId: string
+    selectedTestsetName: string
+    selectedTestsetVersion: number | null
     selectedVariantRevisionIds: string[]
     selectedEvalConfigs: string[]
     evaluationName: string
     preview?: boolean
     isLoading?: boolean
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetRevisionId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetName: Dispatch<SetStateAction<string>>
+    setSelectedTestsetVersion: Dispatch<SetStateAction<number | null>>
     onSuccess?: () => void
     handlePanelChange: (key: string | string[]) => void
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
@@ -48,13 +54,14 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     variants?: EnhancedVariant[]
     variantsLoading?: boolean
     evaluators: Evaluator[] | EvaluatorDto<"response">[]
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     advanceSettings: LLMRunRateLimitWithCorrectAnswer
     setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
     appOptions: NewEvaluationAppOption[]
     selectedAppId: string
     onSelectApp: (value: string) => void
     appSelectionDisabled?: boolean
+    allowTestsetAutoAdvance?: boolean
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
     onSelectTemplate?: (evaluator: Evaluator) => void
     /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
@@ -72,18 +79,25 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
-    testsets: testset[]
+    testsets?: testset[]
     selectedTestsetId: string
+    selectedTestsetRevisionId?: string
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
+    setSelectedTestsetRevisionId?: Dispatch<SetStateAction<string>>
+    selectedTestsetName?: string
+    setSelectedTestsetName?: Dispatch<SetStateAction<string>>
+    selectedTestsetVersion?: number | null
+    setSelectedTestsetVersion?: Dispatch<SetStateAction<number | null>>
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedVariantRevisionIds: string[]
     /** Selected variant objects - used to extract input variables for testset compatibility checks */
     selectedVariants?: EnhancedVariant[]
+    allowAutoAdvance?: boolean
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
-    evaluatorConfigs: EvaluatorConfig[]
+    evaluatorConfigs: SimpleEvaluator[]
     evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>

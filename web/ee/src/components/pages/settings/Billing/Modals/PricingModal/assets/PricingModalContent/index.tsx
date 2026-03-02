@@ -1,8 +1,8 @@
 import {useCallback, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Spin, Typography} from "antd"
 
-import {message} from "@/oss/components/AppMessageContext"
 import useURL from "@/oss/hooks/useURL"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {Plan} from "@/oss/lib/Types"

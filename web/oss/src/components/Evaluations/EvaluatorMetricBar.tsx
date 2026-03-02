@@ -1,3 +1,5 @@
+import {memo} from "react"
+
 import {Tooltip} from "antd"
 import clsx from "clsx"
 
@@ -81,111 +83,118 @@ const resolveSegments = (stats?: BasicStats): {label: string; value: number}[] =
     return []
 }
 
-const EvaluatorMetricBar = ({
-    stats,
-    segments: explicitSegments,
-    width = BASE_BAR_WIDTH,
-    className,
-}: EvaluatorMetricBarProps) => {
-    const segments =
-        (explicitSegments && explicitSegments.length ? explicitSegments : undefined) ??
-        resolveSegments(stats)
-    if (!segments.length) {
-        return null
-    }
+const EvaluatorMetricBar = memo(
+    ({
+        stats,
+        segments: explicitSegments,
+        width = BASE_BAR_WIDTH,
+        className,
+    }: EvaluatorMetricBarProps) => {
+        const segments =
+            (explicitSegments && explicitSegments.length ? explicitSegments : undefined) ??
+            resolveSegments(stats)
+        if (!segments.length) {
+            return null
+        }
 
-    const total = segments.reduce((sum, entry) => sum + entry.value, 0)
-    if (!total || !Number.isFinite(total) || total <= 0) {
-        return null
-    }
+        const total = segments.reduce((sum, entry) => sum + entry.value, 0)
+        if (!total || !Number.isFinite(total) || total <= 0) {
+            return null
+        }
 
-    const normalized = segments
-        .map((entry) => ({
-            label: entry.label,
-            value: entry.value,
-            ratio: entry.value / total,
-            percent: (entry.value / total) * 100,
-        }))
-        .sort((a, b) => b.ratio - a.ratio)
+        const normalized = segments
+            .map((entry) => ({
+                label: entry.label,
+                value: entry.value,
+                ratio: entry.value / total,
+                percent: (entry.value / total) * 100,
+            }))
+            .sort((a, b) => b.ratio - a.ratio)
 
-    const booleanCandidates = new Set(
-        [
-            ...normalized.map((entry) => entry.label?.toString().toLowerCase()),
-            ...((Array.isArray((stats as any)?.unique) ? (stats as any).unique : []) as any[]).map(
-                (val) => val?.toString().toLowerCase(),
-            ),
-        ].filter(Boolean),
-    )
-
-    // Always enforce deterministic ordering for boolean categories: [true, false]
-    const isBoolean = booleanCandidates.has("true") || booleanCandidates.has("false")
-    const displaySegments = (() => {
-        if (!isBoolean) return [...normalized]
-        const byKey = new Map(
-            normalized.map((e) => [e.label?.toString().toLowerCase(), e] as const),
+        const booleanCandidates = new Set(
+            [
+                ...normalized.map((entry) => entry.label?.toString().toLowerCase()),
+                ...(
+                    (Array.isArray((stats as any)?.unique) ? (stats as any).unique : []) as any[]
+                ).map((val) => val?.toString().toLowerCase()),
+            ].filter(Boolean),
         )
-        const trueSeg =
-            byKey.get("true") ?? ({label: "true", value: 0, ratio: 0, percent: 0} as const)
-        const falseSeg =
-            byKey.get("false") ?? ({label: "false", value: 0, ratio: 0, percent: 0} as const)
-        return [trueSeg, falseSeg]
-    })()
 
-    if (!displaySegments.length) {
-        return null
-    }
+        // Always enforce deterministic ordering for boolean categories: [true, false]
+        const isBoolean = booleanCandidates.has("true") || booleanCandidates.has("false")
+        const displaySegments = (() => {
+            if (!isBoolean) return [...normalized]
+            const byKey = new Map(
+                normalized.map((e) => [e.label?.toString().toLowerCase(), e] as const),
+            )
+            const trueSeg =
+                byKey.get("true") ?? ({label: "true", value: 0, ratio: 0, percent: 0} as const)
+            const falseSeg =
+                byKey.get("false") ?? ({label: "false", value: 0, ratio: 0, percent: 0} as const)
+            return [trueSeg, falseSeg]
+        })()
 
-    const legendEntries = displaySegments.slice(0, Math.min(2, displaySegments.length))
+        if (!displaySegments.length) {
+            return null
+        }
 
-    return (
-        <div className={clsx("flex flex-col gap-1 justify-center items-center w-full", className)}>
+        const legendEntries = displaySegments.slice(0, Math.min(2, displaySegments.length))
+
+        return (
             <div
-                className="flex w-full h-1.5 overflow-hidden rounded-full bg-gray-200"
-                style={{width: "100%", maxWidth: width}}
+                className={clsx(
+                    "flex flex-col gap-1 justify-center items-center w-full",
+                    className,
+                )}
             >
-                {displaySegments.map((entry, index) => (
-                    <Tooltip
-                        key={`${entry.label}-${index}`}
-                        title={`${entry.label}: ${Formatter.format(entry.percent)}%`}
-                    >
+                <div
+                    className="flex w-full h-1.5 overflow-hidden rounded-full bg-gray-200"
+                    style={{width: "100%", maxWidth: width}}
+                >
+                    {displaySegments.map((entry, index) => (
+                        <Tooltip
+                            key={`${entry.label}-${index}`}
+                            title={`${entry.label}: ${Formatter.format(entry.percent)}%`}
+                        >
+                            <div
+                                className={clsx("h-full transition-[width] duration-200 ease-out", {
+                                    "rounded-l-full": index === 0,
+                                    "rounded-r-full": index === displaySegments.length - 1,
+                                })}
+                                style={{
+                                    width: `${entry.ratio * 100}%`,
+                                    backgroundColor: getSegmentColor(entry.label, index),
+                                }}
+                            />
+                        </Tooltip>
+                    ))}
+                </div>
+                <div
+                    className="flex w-full items-center justify-between gap-1 gap-y-1 text-[11px] leading-tight text-gray-600"
+                    style={{width: "100%", maxWidth: width}}
+                >
+                    {legendEntries.map((entry, index) => (
                         <div
-                            className={clsx("h-full transition-[width] duration-200 ease-out", {
-                                "rounded-l-full": index === 0,
-                                "rounded-r-full": index === displaySegments.length - 1,
-                            })}
-                            style={{
-                                width: `${entry.ratio * 100}%`,
-                                backgroundColor: getSegmentColor(entry.label, index),
-                            }}
-                        />
-                    </Tooltip>
-                ))}
+                            key={`${entry.label}-legend-${index}`}
+                            className="flex items-center gap-1.5"
+                            style={{color: getLabelColor(entry.label, index)}}
+                        >
+                            <span
+                                className="h-2 w-2 rounded-full"
+                                style={{
+                                    backgroundColor: getSegmentColor(entry.label, index),
+                                }}
+                            />
+                            <span className="font-medium max-w-[5rem] truncate">{entry.label}</span>
+                            <span className="text-[10px] text-gray-500">
+                                {Formatter.format(entry.percent)}%
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
-            <div
-                className="flex w-full items-center justify-between gap-1 gap-y-1 text-[11px] leading-tight text-gray-600"
-                style={{width: "100%", maxWidth: width}}
-            >
-                {legendEntries.map((entry, index) => (
-                    <div
-                        key={`${entry.label}-legend-${index}`}
-                        className="flex items-center gap-1.5"
-                        style={{color: getLabelColor(entry.label, index)}}
-                    >
-                        <span
-                            className="h-2 w-2 rounded-full"
-                            style={{
-                                backgroundColor: getSegmentColor(entry.label, index),
-                            }}
-                        />
-                        <span className="font-medium max-w-[5rem] truncate">{entry.label}</span>
-                        <span className="text-[10px] text-gray-500">
-                            {Formatter.format(entry.percent)}%
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
-}
+        )
+    },
+)
 
 export default EvaluatorMetricBar

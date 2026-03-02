@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {generationResultAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
@@ -33,6 +34,11 @@ const GenerationComparisonCompletionOutput = ({
         [inlineResult, resultHash],
     )
 
+    const {currentResult, repetitionProps} = useRepetitionResult({
+        rowId,
+        variantId,
+        result,
+    })
     return (
         <>
             {variantIndex === 0 ? (
@@ -62,11 +68,16 @@ const GenerationComparisonCompletionOutput = ({
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
                     {isRunning ? (
                         <TypingIndicator />
-                    ) : result ? (
-                        result.error ? (
-                            <ErrorPanel result={result} />
+                    ) : currentResult ? (
+                        currentResult.error ? (
+                            <ErrorPanel result={currentResult} />
                         ) : (
-                            <GenerationResponsePanel result={result} />
+                            <GenerationResponsePanel
+                                result={currentResult}
+                                repetitionProps={repetitionProps}
+                                rowId={rowId}
+                                variantId={variantId}
+                            />
                         )
                     ) : (
                         <ClickRunPlaceholder />

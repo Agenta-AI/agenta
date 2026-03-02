@@ -1,30 +1,40 @@
-# Workflow with a chain of prompts
+# Chain of Prompts
 
-This is the code for the workflow with a chain of prompts. You can find the tutorial [here](https://agenta.ai/docs/custom-workflows/quick-start).
+A custom workflow that chains two prompts: summarize a blog post, then write a tweet from the summary.
 
-To get started:
+See the full tutorial: [Custom Workflows Quick Start](https://docs.agenta.ai/custom-workflows/quick-start)
 
-1. Create a new environment
+## Setup
 
-```bash
-uv venv
-source .venv/bin/activate
-uv pip install -r requirements.txt
-```
-
-2. Set the environment variables:
+1. Install dependencies:
 
 ```bash
-export OPENAI_API_KEY=<your-openai-api-key>
-export AGENTA_API_KEY=<your-agenta-api-key>
+pip install -r requirements.txt
 ```
 
-3. Run the application:
+2. Copy `.env.example` to `.env` and fill in your keys:
 
 ```bash
-python cop.py
+cp .env.example .env
 ```
 
-The server will start at http://localhost:8000
-You can connect it to Agenta directly to run the playground. To use evaluation, you need to make it accessible from the internet (using ngrok or any other tunneling service).
+3. Start the server:
 
+```bash
+uvicorn main:application --host 0.0.0.0 --port 8000 --reload
+```
+
+4. Expose with ngrok:
+
+```bash
+ngrok http 8000
+```
+
+5. In Agenta, create a new custom workflow application and provide the ngrok URL.
+
+## Files
+
+- `app.py` - Workflow code with Agenta decorators
+- `main.py` - Entry point for uvicorn
+- `requirements.txt` - Dependencies
+- `.env.example` - Environment variables template

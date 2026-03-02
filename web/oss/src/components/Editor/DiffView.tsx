@@ -322,7 +322,6 @@ const DiffView: React.FC<DiffViewProps> = ({
                 key={diffKey}
                 initialValue=""
                 language={processedContent.language}
-                validationSchema={{}}
                 additionalCodePlugins={[
                     <DiffHighlightPlugin
                         key="diff-highlight"

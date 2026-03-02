@@ -1,8 +1,20 @@
 [
     {
-        "id": "changelog-2024-12-16-pdf-support",
-        "title": "PDF Support in Playground",
-        "description": "You can now upload and test PDFs directly in the playground.",
-        "link": "https://agenta.ai/docs/changelog/pdf-support-in-playground"
+        "id": "changelog-2026-02-27-tool-integrations",
+        "title": "Tool Integrations in Playground",
+        "description": "Connect Gmail, Slack, Notion, and 150+ tools to your prompts. Execute tool calls from the playground.",
+        "link": "https://agenta.ai/docs/changelog/tool-integrations"
+    },
+    {
+        "id": "changelog-2026-02-25-refine-ai",
+        "title": "AI Prompt Refinement",
+        "description": "Refine prompts with AI in the playground. Describe what to improve and get a refined version.",
+        "link": "https://agenta.ai/docs/changelog/refine-ai"
+    },
+    {
+        "id": "changelog-2026-02-17-enterprise-compliance",
+        "title": "Enterprise Compliance Features",
+        "description": "Multi-org support, SSO, domain verification, and a US region.",
+        "link": "https://agenta.ai/docs/changelog/enterprise-compliance-features"
     }
 ]

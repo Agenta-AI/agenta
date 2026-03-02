@@ -2,10 +2,10 @@ import json
 from pathlib import Path
 from typing import Optional, Type, TypeVar, Dict, Any, Union
 
-import yaml
 from pydantic import BaseModel
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.lazy import _load_yaml
 from agenta.sdk.managers.shared import SharedManager
 from agenta.sdk.contexts.routing import RoutingContext
 
@@ -173,6 +173,8 @@ class ConfigManager:
             ValidationError: If the loaded configuration data doesn't match the schema.
         """
         file_path = Path(filename)
+
+        yaml = _load_yaml()
 
         with open(file_path, "r", encoding="utf-8") as file:
             parameters = yaml.safe_load(file)

@@ -10,6 +10,7 @@ class App(UniversalBaseModel):
     app_id: str
     app_name: str
     app_type: typing.Optional[str] = None
+    folder_id: typing.Optional[str] = None
     updated_at: str
 
     if IS_PYDANTIC_V2:

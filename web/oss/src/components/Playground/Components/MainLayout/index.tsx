@@ -1,24 +1,19 @@
-import React from "react"
-import {memo, useCallback, useEffect, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {Typography, Button, Splitter} from "antd"
+import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
-import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
-import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
+import {chatTurnIdsAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
+import {appChatModeAtom, displayedVariantsAtom, isComparisonViewAtom} from "../../state/atoms"
 import {
-    displayedVariantsAtom,
-    isComparisonViewAtom,
-    appChatModeAtom,
-    selectedVariantsAtom,
-} from "../../state/atoms"
+    playgroundAppStatusAtom,
+    playgroundAppStatusLoadingAtom,
+} from "../../state/atoms/playgroundAppAtoms"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -27,6 +22,9 @@ import PlaygroundGenerations from "../PlaygroundGenerations"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
+const PlaygroundFocusDrawer = dynamic(() => import("../Drawers/FocusDrawer"), {
+    ssr: false,
+})
 
 import ComparisonVariantConfigSkeleton from "./assets/ComparisonVariantConfigSkeleton"
 import ComparisonVariantNavigationSkeleton from "./assets/ComparisonVariantNavigationSkeleton"
@@ -37,14 +35,6 @@ interface MainLayoutProps extends BaseContainerProps {
 }
 
 const SplitterPanel = Splitter.Panel
-
-const arraysEqual = (a: string[], b: string[]) => {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i += 1) {
-        if (a[i] !== b[i]) return false
-    }
-    return true
-}
 
 const GenerationComparisonRenderer = memo(() => {
     // Variables rows (inputs) and logical chat turn ids
@@ -73,12 +63,12 @@ const GenerationComparisonRenderer = memo(() => {
 const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
     const isComparisonView = useAtomValue(isComparisonViewAtom)
     const displayedVariants = useAtomValue(displayedVariantsAtom)
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
-    const revisionList = useAtomValue(revisionListAtom)
-    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
+    const isChatApp = useAtomValue(appChatModeAtom)
+    const chatTurnIds = useAtomValue(chatTurnIdsAtom) as string[]
+    const chatTurnsById = useAtomValue(chatTurnsByIdAtom) as Record<string, any>
 
-    const appStatus = useAtomValue(appStatusAtom)
-    const appStatusLoading = useAtomValue(appStatusLoadingAtom)
+    const appStatus = useAtomValue(playgroundAppStatusAtom)
+    const appStatusLoading = useAtomValue(playgroundAppStatusLoadingAtom)
 
     const hasDisplayedVariantIds = displayedVariants && displayedVariants.length > 0
 
@@ -89,44 +79,13 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     const shouldShowGenerationSkeleton = appStatusLoading || (isLoading && !hasDisplayedVariantIds)
     const notReachable = !appStatusLoading && !appStatus
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {generationPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
+    const lastAutoScrollKeyRef = useRef<string>("")
 
-    useEffect(() => {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[PlaygroundMainView] state", {
-                displayedVariants,
-                isComparisonView,
-                shouldShowVariantConfigSkeleton,
-                shouldShowGenerationSkeleton,
-                appStatus,
-                appStatusLoading,
-            })
-        }
-    }, [
-        displayedVariants,
-        isComparisonView,
-        shouldShowVariantConfigSkeleton,
-        shouldShowGenerationSkeleton,
-        appStatus,
-        appStatusLoading,
-    ])
-
-    useEffect(() => {
-        if (appStatusLoading) return
-        if (!Array.isArray(revisionList) || revisionList.length === 0) return
-
-        const revisionIds = new Set(revisionList.map((revision) => revision?.id).filter(Boolean))
-        const validSelection = selectedVariants.filter((id) => revisionIds.has(id))
-        const nextSelection =
-            validSelection.length > 0 ? validSelection : [revisionList[0]?.id].filter(Boolean)
-
-        if (nextSelection.length === 0 || arraysEqual(nextSelection, selectedVariants)) return
-
-        setSelectedVariants(nextSelection)
-        void writePlaygroundSelectionToQuery(nextSelection)
-    }, [appStatusLoading, revisionList, selectedVariants, setSelectedVariants])
+    // Selection validation and default selection are now handled imperatively
+    // by playgroundSyncAtom (store.sub subscriptions in playground.ts)
 
     const handleScroll = useCallback(
         (index: number) => {
@@ -138,6 +97,65 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         },
         [variantRefs],
     )
+
+    const chatAutoScrollKey = useMemo(() => {
+        if (!isChatApp) return ""
+
+        const revisionIds = (displayedVariants || []) as string[]
+        const rows = (chatTurnIds || []).map((turnId) => {
+            const turn = chatTurnsById?.[turnId]
+            const userId = turn?.userMessage?.__id ?? ""
+
+            const perRevision = revisionIds.map((revisionId) => {
+                const assistant = turn?.assistantMessageByRevision?.[revisionId]
+                const assistantId = assistant?.__id ?? ""
+                const toolResponses = turn?.toolResponsesByRevision?.[revisionId]
+                const toolSig = Array.isArray(toolResponses)
+                    ? toolResponses
+                          .map((msg: any) => {
+                              const id = msg?.__id ?? ""
+                              const callId =
+                                  msg?.toolCallId?.value ?? msg?.tool_call_id?.value ?? ""
+                              return `${id}:${callId}`
+                          })
+                          .join(",")
+                    : ""
+
+                return `${revisionId}:${assistantId}:${toolSig}`
+            })
+
+            return `${turnId}:${userId}:${perRevision.join(";")}`
+        })
+
+        return rows.join("|")
+    }, [isChatApp, displayedVariants, chatTurnIds, chatTurnsById])
+
+    useEffect(() => {
+        if (!isChatApp || !generationPanelRef) return
+        if (!chatAutoScrollKey) return
+        if (chatAutoScrollKey === lastAutoScrollKeyRef.current) return
+
+        const behavior = lastAutoScrollKeyRef.current ? "smooth" : "auto"
+        const scrollToBottom = () => {
+            // Direct assignment is the most reliable way to force-bottom after layout shifts.
+            generationPanelRef.scrollTop = generationPanelRef.scrollHeight
+            generationPanelRef.scrollTo({
+                top: generationPanelRef.scrollHeight,
+                behavior,
+            })
+        }
+
+        // Run after at least one extra frame so newly mounted editors/tool blocks
+        // are measured before we scroll.
+        const frame = requestAnimationFrame(() => {
+            scrollToBottom()
+            requestAnimationFrame(scrollToBottom)
+        })
+
+        lastAutoScrollKeyRef.current = chatAutoScrollKey
+
+        return () => cancelAnimationFrame(frame)
+    }, [isChatApp, generationPanelRef, chatAutoScrollKey])
 
     return notReachable ? (
         <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
@@ -157,7 +175,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter
                     key={`${isComparisonView ? "comparison" : "single"}-splitter`}
-                    className="h-full"
+                    className="h-full playground-splitter"
                     orientation={isComparisonView ? "vertical" : "horizontal"}
                 >
                     <SplitterPanel
@@ -275,6 +293,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                         </section>
                     </SplitterPanel>
                 </Splitter>
+                <PlaygroundFocusDrawer />
             </div>
         </main>
     )

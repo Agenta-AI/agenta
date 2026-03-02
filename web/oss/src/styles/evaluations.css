@@ -36,20 +36,60 @@
     margin-inline-end: 0;
 }
 
+.compare-runs-popover-overlay .ant-popover-inner-content {
+    padding: 0;
+}
+
+.compare-runs-header {
+    padding: 8px;
+    border-bottom: 1px solid #eaeff5;
+}
+
 .compare-runs-list .ant-list-item {
-    border: none !important;
-    padding: 8px 4px;
+    padding: 0;
+}
+
+.compare-runs-popover .ant-input-affix-wrapper {
+    border: none;
+    box-shadow: none;
+    padding-inline: 0;
+    background: transparent;
+}
+
+.compare-runs-popover .ant-input-affix-wrapper:focus,
+.compare-runs-popover .ant-input-affix-wrapper-focused,
+.compare-runs-popover .ant-input-affix-wrapper:focus-within {
+    border: none;
+    box-shadow: none;
+}
+
+.compare-runs-popover .ant-input {
+    padding-inline: 0;
+    border: none;
+    box-shadow: none;
+    outline: none;
+    background: transparent;
+}
+
+.compare-runs-popover .ant-input:focus {
+    border: none;
+    box-shadow: none;
+    outline: none;
 }
 
 .compare-run-row {
+    width: 100%;
     cursor: pointer;
     flex-direction: column;
     gap: 4px;
-    border-radius: 6px;
 }
 
 .compare-run-row:hover {
     background: #f9fafb;
+}
+
+.compare-run-row--selected {
+    background: #f5f7fa;
 }
 
 .compare-run-row__main {
@@ -139,7 +179,6 @@
 .metadata-summary-table .ant-table,
 .metadata-summary-table .ant-table-container,
 .metadata-summary-table .ant-table-content {
-    border: none !important;
     box-shadow: none !important;
 }
 
@@ -151,23 +190,42 @@
 .metadata-summary-table .ant-table-tbody > tr > td {
     border-bottom: 1px solid #eaeff5;
     border-inline: none;
+    height: 48px;
+    padding: 0 16px;
+    vertical-align: middle;
 }
 
 .metadata-summary-table .ant-table-tbody > tr > td:first-of-type {
     border-right: 1px solid #eaeff5;
 }
 
+.metadata-summary-table .ant-table .ant-table-content {
+    border-radius: inherit !important;
+}
 .metadata-summary-table .ant-table-tbody > tr:last-child > td {
-    border-bottom: none;
+    border-bottom: 1px solid #eaeff5;
+}
+
+.metadata-summary-table .ant-tag {
+    margin-inline-end: 0;
+    margin-bottom: 0;
 }
 
 .agenta-scenario-table .ant-table-tbody > tr > td {
     padding: 0 !important;
     vertical-align: top;
-    background-color: #fff;
+    background-color: inherit;
 }
 
 .agenta-scenario-table .scenario-row--comparison .ant-table-cell {
+    background-color: inherit !important;
+}
+
+.agenta-scenario-table .scenario-row .ant-table-cell {
+    background-color: inherit !important;
+}
+
+.agenta-scenario-table .scenario-row:hover > .ant-table-cell {
     background-color: inherit !important;
 }
 
@@ -219,6 +277,43 @@
 
 .agenta-scenario-table--row-large {
     --scenario-row-height: 280px;
+}
+
+/* Testcase table row height control */
+.agenta-testcase-table .ant-table-tbody > tr > td {
+    padding: 0 !important;
+    vertical-align: top;
+    background-color: #fff;
+}
+
+.testcase-table-cell {
+    width: 100%;
+    height: var(--testcase-row-height, 160px);
+    min-height: var(--testcase-row-height, 160px);
+    max-height: var(--testcase-row-height, 160px);
+    padding: var(--testcase-cell-padding, 12px);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: var(--testcase-cell-gap, 8px);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Testcase row height variants */
+.agenta-testcase-table--row-small {
+    --testcase-row-height: 80px;
+    --testcase-cell-padding: 8px;
+    --testcase-cell-gap: 4px;
+}
+
+.agenta-testcase-table--row-medium {
+    --testcase-row-height: 160px;
+}
+
+.agenta-testcase-table--row-large {
+    --testcase-row-height: 280px;
 }
 
 .scenario-table-text {

@@ -1,0 +1,71 @@
+---
+id: update-user-username
+title: "Update User Username"
+description: "Update User Username"
+sidebar_label: "Update User Username"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVdtu00AQ/RVrXnETkxYofiJApUYFUbUJL1FUbexJsmXt3e6lbbD872h2ndhuaFXIQy6zM8cz55ydVCAVama5LCc5pOBUzizeOIPav5WsQIhB451DYz/LfAtpBZksLZaWvjKlBM88wPDWyJJiJttgweib0gRvORr6tQekunL7YwXpvAK7VQgpGKt5uYY63kdKJwTUixgst4ICs119HQMWjIv/BTrzxXXcjJvfMD9LH6Dz3JAVjS3EkOOKOWEhhVEyen+UjI5Gp1FynCan6bvjwfHJ6ccPJ2+SJE0SqOt4hymXt5hZ6M8ScKGmPGKYa8whtdqhDxglSxOYGyUJfeRoMs0VkQ0pXLssQ2NWTkRXTTLEr9am9o89GY0OgX8ywXNfFp1pLfU/oD5RPEfbyMQtFuYwQcisd/oKNXlpcY0a6kVLL9OabTvsfpOhQdK4MOuXxP2OxrC191RIeT7VkxFN6bSOgZfKBds0xxMfqGPI7GMH5kD6L8Tlo/2rPVobzD03of0mr+PgVqKg0PNUfA0SvOTF8+n08gAw+KNvjGDYiLwbzdrtUKDdSNoeNH8MitkNpDBUWq64wGFnjxjU96iNF9hpASlsrFUmHQ4zIV0+YGssLRswPmSK+ytrMHOa260vGV9OLnB7jixHDel80U24JgsGU/XT9kIwxS+QqAk7CMbObqTmv4NTSFDqJ1TR7GTuq3bxnT2yQgnsL7LWJM1CagPd3fKKXUHPX8mun8aejGh8OYEYiLYgQjJ4O0jgqTS9ZLqtLPPm3M3qj6mrHut7vjsDWGTFp/aAmFDS2IKVHbxnnNDraU88uX2oBOP+PvoOqsYlc2hcQq3tcBYxbKSxdFpVS2ZwpkVdU/jOoSYrLGK4Z5qzJRE1p0Ww2Zmigl+43d2y0h7560rpwgUTPNletFlCxTjLUNkXcxcds1/OphDDsvlLLGROJZo90C1mD5ACxCA9Fd6UPlaBYOXa0b5JIUDS6w+qfIjJ
+sidebar_class_name: "put api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Update User Username"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/profile/username"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Update User Username
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"username":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Username"},"email":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Email"},"updated_at":{"type":"string","title":"Updated At","default":"2026-02-28 03:08:53.348974+00:00"}},"type":"object","title":"UserUpdate"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

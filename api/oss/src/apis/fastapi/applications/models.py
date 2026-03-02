@@ -11,6 +11,8 @@ from oss.src.core.applications.dtos import (
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
+    ApplicationFork,
+    ApplicationRevisionsLog,
     #
     ApplicationVariant,
     ApplicationVariantCreate,
@@ -23,9 +25,10 @@ from oss.src.core.applications.dtos import (
     ApplicationRevisionQuery,
     ApplicationRevisionCommit,
     #
-    LegacyApplication,
-    LegacyApplicationCreate,
-    LegacyApplicationEdit,
+    SimpleApplication,
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
+    SimpleApplicationQuery,
 )
 
 # APPLICATIONS -----------------------------------------------------------------
@@ -57,6 +60,14 @@ class ApplicationResponse(BaseModel):
 class ApplicationsResponse(BaseModel):
     count: int = 0
     applications: List[Application] = []
+
+
+class ApplicationForkRequest(BaseModel):
+    application: ApplicationFork
+
+
+class ApplicationRevisionsLogRequest(BaseModel):
+    application: ApplicationRevisionsLog
 
 
 # APPLICATION VARIANTS ---------------------------------------------------------
@@ -134,22 +145,32 @@ class ApplicationRevisionsResponse(BaseModel):
     application_revisions: List[ApplicationRevision] = []
 
 
-# LEGACY APPLICATIONS ----------------------------------------------------------
+# SIMPLE APPLICATIONS ----------------------------------------------------------
 
 
-class LegacyApplicationCreateRequest(BaseModel):
-    application: LegacyApplicationCreate
+class SimpleApplicationCreateRequest(BaseModel):
+    application: SimpleApplicationCreate
 
 
-class LegacyApplicationEditRequest(BaseModel):
-    application: LegacyApplicationEdit
+class SimpleApplicationEditRequest(BaseModel):
+    application: SimpleApplicationEdit
 
 
-class LegacyApplicationResponse(BaseModel):
+class SimpleApplicationQueryRequest(BaseModel):
+    application: Optional[SimpleApplicationQuery] = None
+    #
+    application_refs: Optional[List[Reference]] = None
+    #
+    include_archived: Optional[bool] = False
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleApplicationResponse(BaseModel):
     count: int = 0
-    application: Optional[LegacyApplication] = None
+    application: Optional[SimpleApplication] = None
 
 
-class LegacyApplicationsResponse(BaseModel):
+class SimpleApplicationsResponse(BaseModel):
     count: int = 0
-    applications: List[LegacyApplication] = []
+    applications: List[SimpleApplication] = []

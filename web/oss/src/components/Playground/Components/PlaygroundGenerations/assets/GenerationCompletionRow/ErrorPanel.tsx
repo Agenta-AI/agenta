@@ -5,8 +5,26 @@ import SharedEditor from "../../../SharedEditor"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
 
 export default function ErrorPanel({result}: {result: any}) {
-    const errorText =
+    let errorText =
         typeof result?.error === "string" ? result.error : String(result?.error ?? "Error")
+
+    if (
+        errorText === "An unknown error occurred" ||
+        errorText === "Unknown error" ||
+        errorText === "Error"
+    ) {
+        const detail =
+            typeof result?.metadata?.rawError?.detail === "string"
+                ? result.metadata.rawError.detail
+                : undefined
+        if (detail) {
+            errorText = detail
+        }
+        const retryAfter = result?.metadata?.retryAfter
+        if (retryAfter) {
+            errorText = `${errorText} Retry after ${retryAfter}s.`
+        }
+    }
     return (
         <SharedEditor
             initialValue={errorText}

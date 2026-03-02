@@ -1,8 +1,6 @@
 import os
 from typing import List, Dict
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-import litellm
 from litellm import embedding, completion, rerank
 import agenta as ag
 from pydantic import BaseModel, Field
@@ -31,7 +29,7 @@ class Config(BaseModel):
     system_prompt: str = Field(default=system_prompt)
     user_prompt: str = Field(default=user_prompt)
     embedding_model: str = MCField(default="openai", choices=["openai", "cohere"])
-    llm_model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
+    llm_model: str = MCField(default="gpt-5", choices=supported_llm_models)
     top_k: int = Field(default=10, ge=1, le=25)
     rerank_top_k: int = Field(default=3, ge=1, le=10)
     use_rerank: bool = Field(default=True)

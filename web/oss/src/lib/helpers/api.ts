@@ -9,3 +9,13 @@ export const getAgentaApiUrl = () => {
 
     return apiUrl
 }
+
+export const getAgentaWebUrl = () => {
+    const webUrl = getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")
+
+    if (!webUrl && typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}`
+    }
+
+    return webUrl
+}

@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useEffect, useState} from "react"
 
 import {ImageBroken} from "@phosphor-icons/react"
 
@@ -17,6 +17,7 @@ const ImageWithFallback = ({src, alt, fallback, ...props}: ImageWithFallbackProp
         return fallback ?? <ImageBroken size={48} className="text-[#D61010]" />
     }
 
+    // eslint-disable-next-line @next/next/no-img-element
     return <img src={src} alt={alt} onError={() => setHasError(true)} {...props} />
 }
 

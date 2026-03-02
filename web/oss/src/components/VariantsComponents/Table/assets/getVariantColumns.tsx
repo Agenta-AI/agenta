@@ -2,21 +2,21 @@ import {memo, useCallback} from "react"
 
 import {GearSix} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {openDeleteVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
+import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
+import {
+    openDeleteVariantModalAtom,
+    type OpenDeleteVariantModalPayload,
+} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
 import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
-
-const store = getDefaultStore()
 
 const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
     const fallbackName =
@@ -43,19 +43,14 @@ const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
-    const modelFromStore = store.get(modelNameByRevisionIdAtomFamily(record.id))
     const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
-    const inlineModel =
+    const name =
         (record.modelName as string | undefined) ||
         (inlineConfig && typeof inlineConfig === "object"
             ? (inlineConfig as any)?.model
             : undefined)
 
-    const name = [modelFromStore, inlineModel].find(
-        (value) => typeof value === "string" && value.trim().length > 0 && value !== "-",
-    )
-
-    return <div>{name || "-"}</div>
+    return <div>{(typeof name === "string" && name.trim()) || "-"}</div>
 })
 
 const CommitNotesCell = memo(({record}: {record: EnhancedVariant}) => {
@@ -83,13 +78,18 @@ const ActionCell = memo(
         const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
 
         const resolveDeletionTargets = useCallback(
-            (r: EnhancedVariant) => {
+            (r: EnhancedVariant): OpenDeleteVariantModalPayload => {
                 const selection = Array.from(new Set((selectedRowKeys || []).map(String)))
                 const recordKey = String((r as any)._revisionId ?? (r as any)._id ?? (r as any).id)
                 const recordSelected = selection.includes(recordKey)
+                const isGroupedParentRow = Boolean((r as any)._isParentRow)
+                const variantId = String((r as any).variantId ?? "")
 
                 if (recordSelected && selection.length > 0) {
-                    return selection
+                    return {
+                        revisionIds: selection,
+                        forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                    }
                 }
 
                 const childKeys = ((r as any).children || [])
@@ -97,10 +97,16 @@ const ActionCell = memo(
                     .filter((id: string | null | undefined) => Boolean(id))
 
                 if (childKeys.length > 0) {
-                    return Array.from(new Set([recordKey, ...childKeys]))
+                    return {
+                        revisionIds: Array.from(new Set([recordKey, ...childKeys])),
+                        forceVariantIds: variantId ? [variantId] : [],
+                    }
                 }
 
-                return [recordKey]
+                return {
+                    revisionIds: [recordKey],
+                    forceVariantIds: isGroupedParentRow && variantId ? [variantId] : [],
+                }
             },
             [selectedRowKeys],
         )

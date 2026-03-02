@@ -87,7 +87,7 @@ class Slug(BaseModel):
     @field_validator("slug")
     def check_url_safety(cls, v):
         if v is not None:
-            if not match(r"^[a-zA-Z0-9_-]+$", v):
+            if not match(r"^[a-zA-Z0-9_.\-]+$", v):
                 raise ValueError("'slug' must be URL-safe.")
         return v
 

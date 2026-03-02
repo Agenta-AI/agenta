@@ -1,12 +1,12 @@
 import React, {useCallback} from "react"
 
+import {generateId} from "@agenta/shared/utils"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import AddButton from "@/oss/components/Playground/assets/AddButton"
 import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
@@ -35,7 +35,7 @@ const GenerationCompletion = ({
 
     // Ensure is handled at MainLayout level to avoid write-on-render here
     return (
-        <div className={clsx(["flex flex-col", {"gap-2": viewType === "single"}], className)}>
+        <div className={clsx(["flex flex-col"], className)}>
             {viewType === "comparison" ? (
                 <GenerationCompletionRow
                     variantId={variantId}
@@ -60,7 +60,7 @@ const GenerationCompletion = ({
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >
-                    <AddButton size="small" label="Testcase" onClick={handleAddNewRow} />
+                    <AddButton size="small" label="Test case" onClick={handleAddNewRow} />
                 </div>
             ) : null}
         </div>

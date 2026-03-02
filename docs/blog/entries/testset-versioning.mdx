@@ -1,0 +1,103 @@
+---
+title: "Test Set Versioning and New Test Set UI"
+slug: testset-versioning
+date: 2026-01-20
+tags: [v0.74.0]
+description: "Track test set changes with versioning and link evaluations to specific versions. Plus a completely rebuilt test set UI that scales to hundreds of thousands of rows."
+---
+
+# Test Set Versioning and New Test Set UI
+
+## Overview
+
+When you compare evaluation results from last week to today, how do you know the test data didn't change? You don't. Until now.
+
+Test set versioning tracks every change to your test sets. Each edit, upload, or programmatic update creates a new version. Evaluations link to specific versions, so you can trust your comparisons.
+
+We also rebuilt the test set UI from scratch. It handles hundreds of thousands of rows without slowing down. Editing is faster, especially for chat messages and complex JSON data.
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/hh1OHhzak6Q"
+    title="Test Set Versioning Demo"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## Test Set Versioning
+
+Every change to a test set creates a new version. You can see the version history, compare versions, and revert to previous versions.
+
+**What gets versioned:**
+- Adding, editing, or deleting test cases
+- Uploading new data (CSV, JSON)
+- Programmatic updates via SDK or API
+- Column changes
+
+**Evaluation linking:**
+When you run an evaluation, it links to the specific test set version used. This means:
+- You can compare evaluations knowing they used the same test data
+- If someone updates the test set, your historical evaluations still reference the original version
+- You can filter evaluations by test set version
+
+**Programmatic versioning:**
+Upload test sets via the SDK or API. The system detects changes and creates new versions automatically.
+
+```python
+import agenta as ag
+
+# Upload a test set - creates a new version if content changed
+testset = ag.testsets.upload(
+    name="my-test-set",
+    data=test_cases,  # Your test case data
+)
+
+# The testset object includes version information
+print(f"Version: {testset.version}")
+```
+
+## New Test Set UI
+
+The test set view is completely rebuilt. It uses virtualized rendering, so it stays fast with large datasets.
+
+**What's new:**
+- **Scale**: Handle 100,000+ rows without performance issues
+- **JSON support**: View and edit complex JSON directly. Toggle between raw JSON and formatted views
+- **String or JSON columns**: Choose how each column stores data. Use JSON for structured data like chat messages
+
+**Chat message editing:**
+Test cases with chat messages (like `[{"role": "user", "content": "..."}]`) now have a dedicated editor. Add, remove, or reorder messages. Edit content with proper formatting.
+
+**Upload options:**
+- Upload CSV or JSON files
+- Create test sets in the UI
+- Create programmatically via SDK
+- Add spans from observability to test sets
+
+## Traceability
+
+Everything connects. When you view a trace in observability:
+- See which test case it came from
+- See which test set version
+- Filter traces by test case or test set
+
+When you view an evaluation:
+- See the exact test set version used
+- Compare only evaluations that used the same version
+- Navigate to the test set to see the data
+
+## Getting Started
+
+Test set versioning is automatic. Any change creates a new version.
+
+To use versioned test sets in evaluations:
+1. Create or upload a test set
+2. Make your edits (each save creates a version)
+3. Run an evaluation (it links to the current version)
+4. Later, compare evaluations knowing they used the same test data
+
+For programmatic access, check the [test sets documentation](/evaluation/evaluation-from-sdk/managing-testsets).

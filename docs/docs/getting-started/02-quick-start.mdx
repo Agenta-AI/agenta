@@ -388,7 +388,7 @@ fetchConfigs();
 
 ## Step 7: Integrating with Your Application: Adding Observability
 
-Agenta is built on top of **OpenTelemetry** and is compatible with a number of semantic conventions in the ecosystem ([OpenLLMetry](https://github.com/traceloop/openllmetry), [OpenInference](https://github.com/Arize-ai/openinference), [Logfire](https://logfire.ai/)). It comes therefore with built-in auto-instrumentation support for all major LLM frameworks and SDKs such as [OpenAI](/observability/integrations/openai), [LiteLLM](/observability/integrations/litellm), [LangChain](/observability/integrations/langchain).
+Agenta is built on top of **OpenTelemetry** and is compatible with a number of semantic conventions in the ecosystem ([OpenLLMetry](https://github.com/traceloop/openllmetry), [OpenInference](https://github.com/Arize-ai/openinference), [Logfire](https://logfire.ai/)). It comes therefore with built-in auto-instrumentation support for all major LLM frameworks and SDKs such as [OpenAI](/integrations/llm-providers/openai/observability), [LiteLLM](/integrations/llm-providers/litellm/observability), [LangChain](/integrations/frameworks/langchain/observability).
 
 To add instrumentation to our application, let's use the auto-instrumentation support for OpenAI. We are going to use the OpenLLMetry library to auto-instrument the OpenAI client.
 

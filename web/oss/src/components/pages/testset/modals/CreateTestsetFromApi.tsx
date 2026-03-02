@@ -73,11 +73,21 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
 
-    const uploadURI = `${getAgentaApiUrl()}/testsets/upload`
-    const jsonURI = `${getAgentaApiUrl()}/testsets`
+    const uploadURI = `${getAgentaApiUrl()}/preview/simple/testsets/upload`
+    const jsonURI = `${getAgentaApiUrl()}/preview/simple/testsets/`
 
     const params = `{
-    "name": "testset_name",}`
+    "testset": {
+        "slug": "your-testset-slug",
+        "name": "your_testset_name",
+        "data": {
+            "testcases": [
+                {"data": {"column1": "value1", "column2": "value2"}},
+                {"data": {"column1": "value3", "column2": "value4"}}
+            ]
+        }
+    }
+}`
 
     const jsonCodeSnippets: Record<string, string> = {
         python: pythonCode(jsonURI, params),
@@ -116,7 +126,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     </Radio.Group>
                 </div>
 
-                <Text>Use this endpoint to create a new Testset for your App using JSON</Text>
+                <Text>Use these endpoints to create a testset via JSON or upload a file</Text>
 
                 <div>
                     <Tabs

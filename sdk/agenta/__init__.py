@@ -7,46 +7,43 @@ from .sdk import assets as assets
 
 # evaluations
 from .sdk import testsets as testsets
-from .sdk import tracer
-from .sdk.agenta_init import AgentaSingleton, Config
+from .sdk.agenta_init import AgentaSingleton
 from .sdk.agenta_init import init as _init
-from .sdk.context.running import workflow_mode_enabled
+from .sdk.context.running import workflow_mode_enabled  # noqa: F401
 from .sdk.decorators.running import (
-    application,
-    evaluator,
-    workflow,
+    application,  # noqa: F401
+    evaluator,  # noqa: F401
+    workflow,  # noqa: F401
 )
-from .sdk.decorators.serving import app, route
-from .sdk.decorators.tracing import instrument
-from .sdk.litellm import litellm as callbacks
-from .sdk.managers.apps import AppManager
-from .sdk.managers.config import ConfigManager
-from .sdk.managers.deployment import DeploymentManager
-from .sdk.managers.secrets import SecretsManager
-from .sdk.managers.variant import VariantManager
-from .sdk.managers.vault import VaultManager
-from .sdk.tracing import Tracing, get_tracer
-from .sdk.tracing.conventions import Reference
+from .sdk.decorators.serving import app, route, create_app  # noqa: F401
+from .sdk.decorators.tracing import instrument  # noqa: F401
+from .sdk.managers.apps import AppManager  # noqa: F401
+from .sdk.managers.config import ConfigManager  # noqa: F401
+from .sdk.managers.deployment import DeploymentManager  # noqa: F401
+from .sdk.managers.secrets import SecretsManager  # noqa: F401
+from .sdk.managers.variant import VariantManager  # noqa: F401
+from .sdk.managers.vault import VaultManager  # noqa: F401
+from .sdk.tracing import Tracing, get_tracer  # noqa: F401
+from .sdk.tracing.conventions import Reference  # noqa: F401
 from .sdk.types import (
-    BinaryParam,
-    DictInput,
-    FileInputURL,
-    FloatParam,
-    GroupedMultipleChoiceParam,
-    IntParam,
-    MCField,
-    MessagesInput,
-    MultipleChoice,
-    MultipleChoiceParam,
-    Prompt,
-    PromptTemplate,
-    TextParam,
+    BinaryParam,  # noqa: F401
+    DictInput,  # noqa: F401
+    FileInputURL,  # noqa: F401
+    FloatParam,  # noqa: F401
+    GroupedMultipleChoiceParam,  # noqa: F401
+    IntParam,  # noqa: F401
+    MCField,  # noqa: F401
+    MessagesInput,  # noqa: F401
+    MultipleChoice,  # noqa: F401
+    MultipleChoiceParam,  # noqa: F401
+    Prompt,  # noqa: F401
+    PromptTemplate,  # noqa: F401
+    TextParam,  # noqa: F401
 )
-from .sdk.utils.costs import calculate_token_usage
-from .sdk.utils.logging import get_module_logger
-from .sdk.utils.preinit import PreInitObject
+from .sdk.utils.costs import calculate_token_usage  # noqa: F401
+from .sdk.utils.logging import get_module_logger  # noqa: F401
+from .sdk.utils.preinit import PreInitObject  # noqa: F401
 
-config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
 types = client_types
@@ -56,6 +53,14 @@ async_api = AsyncAgentaApi
 
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
 tracer = get_tracer(tracing)
+
+
+def __getattr__(name: str):
+    if name == "callbacks":
+        from .sdk.litellm import litellm as callbacks
+
+        return callbacks
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 def init(

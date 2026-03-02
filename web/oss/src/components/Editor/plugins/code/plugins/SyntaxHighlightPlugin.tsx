@@ -14,10 +14,17 @@ import {
     $getNodeByKey,
     RangeSelection,
     COMMAND_PRIORITY_LOW,
+    LexicalNode,
 } from "lexical"
 
 import {INITIAL_CONTENT_COMMAND} from "../../../commands/InitialContentCommand"
 import {store, editorStateAtom} from "../index"
+import {
+    $createBase64Node,
+    $isBase64Node,
+    isBase64String,
+    parseBase64String,
+} from "../nodes/Base64Node"
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {
     $createCodeHighlightNode,
@@ -26,6 +33,12 @@ import {
 } from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$isCodeTabNode} from "../nodes/CodeTabNode"
+import {
+    $createLongTextNode,
+    $isLongTextNode,
+    isLongTextString,
+    parseLongTextString,
+} from "../nodes/LongTextNode"
 import {createLogger} from "../utils/createLogger"
 import {getDiffRange} from "../utils/getDiffRange"
 import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
@@ -192,12 +205,14 @@ interface SyntaxHighlightPluginProps {
     editorId: string
     schema?: any
     debug?: boolean
+    disableLongText?: boolean
 }
 
 export function SyntaxHighlightPlugin({
     editorId,
     schema,
     debug = false,
+    disableLongText = false,
 }: SyntaxHighlightPluginProps) {
     const [editor] = useLexicalComposerContext()
 
@@ -275,23 +290,41 @@ export function SyntaxHighlightPlugin({
             const tokens = tokenizeCodeLine(text, language)
             log("🎨 [SyntaxHighlightPlugin] Tokens after tokenization", tokens)
 
-            // Get existing highlight nodes and their token information
-            const highlightChildren = children.filter($isCodeHighlightNode)
+            // Get existing highlight nodes and base64 nodes and their token information
+            const highlightChildren = children.filter(
+                (child): child is CodeHighlightNode =>
+                    $isCodeHighlightNode(child) || $isBase64Node(child),
+            )
             const existingTokens = highlightChildren.map((n) => ({
                 content: n.getTextContent(),
-                type: n.getHighlightType(),
-                hasValidationError: n.hasValidationError(),
-                validationMessage: n.getValidationMessage(),
+                type: $isBase64Node(n) ? "base64" : n.getHighlightType(),
+                hasValidationError: $isCodeHighlightNode(n) ? n.hasValidationError() : false,
+                validationMessage: $isCodeHighlightNode(n) ? n.getValidationMessage() : null,
             }))
 
             // Check if new tokens match existing ones to avoid unnecessary updates
             // This optimization prevents re-rendering when content hasn't changed
             // Now includes validation state comparison to detect validation context changes
+            // Also considers base64 tokens which may have different type representation
             const tokenMatch =
                 tokens.length === existingTokens.length &&
                 tokens.every((t, i) => {
                     const existing = existingTokens[i]
                     if (!existing) return false
+
+                    // Check if both are base64 (existing is base64 node, new is string token with base64 content)
+                    const newIsBase64 = t.type === "string" && isBase64String(t.content)
+                    const existingIsBase64 = existing.type === "base64"
+                    if (newIsBase64 && existingIsBase64) {
+                        return t.content === existing.content
+                    }
+
+                    // Check if both are long text (existing is longtext node, new is string token with long text content)
+                    const newIsLongText = t.type === "string" && isLongTextString(t.content)
+                    const existingIsLongText = existing.type === "longtext"
+                    if (newIsLongText && existingIsLongText) {
+                        return t.content === existing.content
+                    }
 
                     return t.content === existing.content && t.type === existing.type
                 })
@@ -323,14 +356,49 @@ export function SyntaxHighlightPlugin({
                     const selection = $getSelection()
                     if (!$isRangeSelection(selection)) return
                     $updateAndRetainSelection(lineNode.getKey(), selection.clone(), () => {
-                        // Separate tabs from highlight nodes
+                        // Separate tabs from highlight/base64 nodes
                         // Tabs need to be preserved in their positions
                         const current = lineNode.getChildren()
                         const tabs = current.filter($isCodeTabNode)
-                        const highlights = current.filter($isCodeHighlightNode)
+                        const highlights = current.filter(
+                            (child) =>
+                                $isCodeHighlightNode(child) ||
+                                $isBase64Node(child) ||
+                                $isLongTextNode(child),
+                        )
 
                         // Create new highlight nodes from tokens (pure syntax highlighting)
-                        const newHighlights = tokens.map(({content, type}) => {
+                        // Check for base64 strings and long text strings and create special nodes for them
+                        const newHighlights: LexicalNode[] = tokens.map(({content, type}) => {
+                            // Check if this is a base64 string token - create Base64Node for collapsed display
+                            if (type === "string" && isBase64String(content)) {
+                                const parsed = parseBase64String(content)
+                                return $createBase64Node(parsed.fullValue, parsed.mimeType, type)
+                            }
+
+                            // Check if this is a long text string - create LongTextNode for truncated display
+                            // Skip if disableLongText is true
+                            // ALSO skip if user is currently typing in this text (has active selection in this line)
+                            if (
+                                type === "string" &&
+                                !disableLongText &&
+                                isLongTextString(content)
+                            ) {
+                                // Check if the current selection is within this line
+                                // If user is actively typing, keep as regular text node for better UX
+                                const currentSelection = $getSelection()
+                                const isUserTypingInLine =
+                                    $isRangeSelection(currentSelection) &&
+                                    currentSelection.anchor.getNode().getParent() === lineNode
+
+                                // Only convert to LongTextNode if user is NOT actively typing in this line
+                                if (!isUserTypingInLine) {
+                                    const parsed = parseLongTextString(content)
+                                    return $createLongTextNode(parsed.fullValue, type)
+                                }
+                                // Otherwise fall through to create regular CodeHighlightNode
+                            }
+
                             const node = $createCodeHighlightNode(
                                 content,
                                 type,
@@ -458,11 +526,13 @@ export function SyntaxHighlightPlugin({
                 }
 
                 // Check if any bracket-related nodes were mutated
+                let _shouldAnalyzeBrackets = false
                 for (const [nodeKey, mutation] of mutatedNodes) {
                     log(`  → Node ${nodeKey}: ${mutation}`)
 
                     // If a node was destroyed, we need to re-analyze brackets
                     if (mutation === "destroyed") {
+                        _shouldAnalyzeBrackets = true
                         log("🚨 Node destroyed - triggering bracket re-analysis")
                     }
                 }

@@ -1,14 +1,15 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 from datetime import datetime
 
 from taskiq import AsyncBroker
 
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.apis.fastapi.testsets.router import TestsetsService
 
+from oss.src.core.applications.services import ApplicationsService
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluations.service import EvaluationsService
 
@@ -37,11 +38,12 @@ class EvaluationsWorker:
         broker: AsyncBroker,
         #
         tracing_router: TracingRouter,
-        simple_testsets_router: SimpleTestsetsRouter,
-        simple_evaluators_router: SimpleEvaluatorsRouter,
+        simple_evaluators_service: SimpleEvaluatorsService,
         #
+        testsets_service: TestsetsService,
         queries_service: QueriesService,
         workflows_service: WorkflowsService,
+        applications_service: ApplicationsService,
         evaluations_service: EvaluationsService,
     ):
         """
@@ -53,12 +55,13 @@ class EvaluationsWorker:
         self.broker = broker
         #
         self.tracing_router = tracing_router
-        self.simple_testsets_router = simple_testsets_router
-        self.simple_evaluators_router = simple_evaluators_router
-        #
+        self.testsets_service = testsets_service
         self.queries_service = queries_service
         self.workflows_service = workflows_service
+        self.applications_service = applications_service
         self.evaluations_service = evaluations_service
+        #
+        self.simple_evaluators_service = simple_evaluators_service
 
         self._register_tasks()
 
@@ -76,12 +79,6 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
-            #
-            testset_id: str,
-            revision_id: str,
-            autoeval_ids: Optional[List[str]],
-            #
-            run_config: Dict[str, int],
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
@@ -97,19 +94,14 @@ class EvaluationsWorker:
                 #
                 run_id=run_id,
                 #
-                testset_id=testset_id,
-                revision_id=revision_id,
-                autoeval_ids=autoeval_ids,
-                #
-                run_config=run_config,
-                #
                 tracing_router=self.tracing_router,
-                simple_testsets_router=self.simple_testsets_router,
-                simple_evaluators_router=self.simple_evaluators_router,
-                #
+                testsets_service=self.testsets_service,
                 queries_service=self.queries_service,
                 workflows_service=self.workflows_service,
+                applications_service=self.applications_service,
                 evaluations_service=self.evaluations_service,
+                #
+                simple_evaluators_service=self.simple_evaluators_service,
             )
             log.info("[TASK] Completed evaluate_batch_testset")
             return result

@@ -2,7 +2,7 @@
 # dependencies = ["agenta", "langchain", "langgraph", "langchain-openai", "langchain-community", "llama-index", "openinference-instrumentation-langchain"]
 # ///
 import agenta as ag
-from typing import TypedDict, Dict, Any
+from typing import TypedDict, Dict
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from llama_index.core import SimpleDirectoryReader

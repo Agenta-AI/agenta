@@ -28,6 +28,11 @@ class OrganizationMemberDB(Base):
         UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
     )
+    role = Column(
+        String,
+        nullable=False,
+        server_default="member",
+    )
 
     user = relationship(
         "oss.src.models.db_models.UserDB",

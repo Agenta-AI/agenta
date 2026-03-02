@@ -13,6 +13,8 @@ export interface SharedEditorProps extends BaseContainerProps {
     state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
     placeholder?: string
     initialValue: any
+    /** Controlled value - when provided, editor syncs with this value (for undo/redo support) */
+    value?: string
     editorClassName?: string
     description?: string
     withTooltip?: boolean
@@ -25,7 +27,14 @@ export interface SharedEditorProps extends BaseContainerProps {
     noProvider?: boolean
     debug?: boolean
     isTool?: boolean
+    propertyId?: string
+    baseProperty?: any
+    variantId?: string
     handleChange?: (value: string) => void
 
     syncWithInitialValueChanges?: boolean
+    /** Disable debouncing for immediate updates (useful for undo/redo with history tracking) */
+    disableDebounce?: boolean
+    /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
+    onPropertyClick?: (path: string) => void
 }

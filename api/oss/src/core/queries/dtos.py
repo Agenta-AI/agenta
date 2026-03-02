@@ -10,7 +10,6 @@ from oss.src.core.shared.dtos import (
     Slug,
     Lifecycle,
     Header,
-    Flags,
     Tags,
     Meta,
     Windowing,
@@ -64,20 +63,34 @@ class QueryRevisionIdAlias(AliasConfig):
     )
 
 
-class Query(Artifact):
+# flags ------------------------------------------------------------------------
+
+
+class QueryFlags(BaseModel):
     pass
+
+
+class QueryQueryFlags(BaseModel):
+    pass
+
+
+# queries ----------------------------------------------------------------------
+
+
+class Query(Artifact):
+    flags: Optional[QueryFlags] = None
 
 
 class QueryCreate(ArtifactCreate):
-    pass
+    flags: Optional[QueryFlags] = None
 
 
 class QueryEdit(ArtifactEdit):
-    pass
+    flags: Optional[QueryFlags] = None
 
 
 class QueryQuery(ArtifactQuery):
-    pass
+    flags: Optional[QueryQueryFlags] = None
 
 
 class QueryVariant(
@@ -211,18 +224,21 @@ class SimpleQuery(
     Lifecycle,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
     data: Optional[QueryRevisionData] = None
+
+    variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
 
 
 class SimpleQueryCreate(
     Slug,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
@@ -233,7 +249,7 @@ class SimpleQueryEdit(
     Identifier,
     Header,
 ):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
@@ -241,6 +257,6 @@ class SimpleQueryEdit(
 
 
 class SimpleQueryQuery(BaseModel):
-    flags: Optional[Flags] = None
+    flags: Optional[QueryQueryFlags] = None
     tags: Optional[Tags] = None
     meta: Optional[Meta] = None

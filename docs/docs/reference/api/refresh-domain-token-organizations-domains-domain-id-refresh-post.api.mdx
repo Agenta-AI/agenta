@@ -1,0 +1,74 @@
+---
+id: refresh-domain-token-organizations-domains-domain-id-refresh-post
+title: "Refresh Domain Token"
+description: "Refresh the verification token for an unverified domain."
+sidebar_label: "Refresh Domain Token"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVk1v4zYQ/SvEnFpAa6XBHgqdamzabrBtYyTeXhzDmIhji7sSqSWpJF5B/70YUnKkOHGL3HpKzPng8M17M2rB485BtoIru0OtvqNXRjtYJyDJ5VbV/BsyuKatJVcIX5C4J6u2Kg+uwpuvpMXWWIFaNDraSAppKlR6dqtv9e+kyaInJ1BoeuhDUEthyZF3Ien7n98VprGCHmtl9+JBaWkeZrd6WSgnlBONo21TioeCdPA3Vu2UxrLPVqCLoSRnkICp+UZl9KWEDGwsfhNr2oSIjRk/uDe5zeCj5GYzhNXGeUigRosVebKMVwsaK4IMDv6QgGKkavQFJGDpW8PVQOZtQwm4vKAKIWvB72sOdN4qvYMEvPIlH1yETOJSQtetOYGrjXbkOOb87Iz/THty0+Q5OcewXPfOkEButCft2R3ruuz7lH5xHNOO6qgto+RVvEHJU7VxUQm4stmd8rphe5f00LSAen+1DWBNI7rkcKKbsgR+7pDjL47tntHvbakuRim6BLZloHoLKKXiQywXIwhim/pc5u4L5X70tN9CcJdAIM9bK1qG4C6B3BJ6khv0L+G5NbZiC0j09M6rikaVfIihYu45UVPLUaLXanox5alCP8e0/SVjqWxOE2U8RiKVjzF9ksYKgm4Cr3raTDs/dG3AfYLc5PXHVa5frirKbCSY54MuGkRlJJVxsA3DDLqO3/P+/PxYjH9jqWR89q/WGvt2JUryqMqgSU+VO3YoTT6x/gcmKu1pRxa69VM/0Frcj1r3h4kFcscrd1Lof5JzuAs6jS6vuwYwxJKtHU/IuomUHwZLOGBF+MdRmiP9fWAsH/2/8omxieX3fiMWPLUoduh1KC5iC166bHD5uFwujhJGflTkC8N757A4fAEZpJONk/YbJ20PG6RL+43DkiB7P2yaxpaQQeF97bI0zUvTyBnuSHucoUqxVkG6jvLGKr8PIfPF5SfafySUZCFbrccON8y7yKSp2wF9rNUn2g+KzGDe+MLYvvJhzxUxqgtd3ZpxU+ehODFfXEIC/IwokbPZT7OzI8FNnFkymAeGDHcHM2t9gsLh/ZAAVUEv4AmrX54MXBl3oEI9yjd8yPTbdtmPlWfr5iDd/9uHT99B1kpal6iCmgN0bc/D1WRQ8mjtmQgJZOOvmYGM6wQKJnK2gra9Q0efbdl1fPytIct8Wydwj1bhHXd/1YJUjv+XkG2xdHQC3R+ue+3+KF4rfuCkZkLeY9nwL0jgK+0nn19htBUD49vePs9zqv0o8mgSszQOil1c3Syh6/4Bp/bUZA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Refresh Domain Token"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/{domain_id}/refresh"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Refresh the verification token for an unverified domain.
+
+Generates a new token and resets the 48-hour expiry window.
+This is useful when the original token has expired.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Token"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","token","created_at","updated_at","organization_id"],"title":"OrganizationDomainResponse","description":"Response model for a domain."}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

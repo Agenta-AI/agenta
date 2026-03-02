@@ -68,7 +68,7 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
 
-                stmt = select(self.BlobDBE).filter(
+                stmt = stmt.filter(
                     self.BlobDBE.id == blob.id,  # type: ignore
                 )
 
@@ -244,7 +244,7 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.project_id == project_id,  # type: ignore
                 )
 
-                stmt = select(self.BlobDBE).filter(
+                stmt = stmt.filter(
                     self.BlobDBE.id.in_(blob_ids),  # type: ignore
                 )
 
@@ -443,16 +443,17 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.tags.contains(blob_query.tags),  # type: ignore
                 )
 
-            if blob_query.meta:
-                stmt = stmt.filter(
-                    self.BlobDBE.meta.contains(blob_query.meta),  # type: ignore
-                )
+            # meta is JSON (not JSONB) — containment (@>) is not supported
+            # if blob_query.meta:
+            #     stmt = stmt.filter(
+            #         self.BlobDBE.meta.contains(blob_query.meta),
+            #     )
 
             if windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=self.BlobDBE,
-                    attribute="created_at",  # UUID4
+                    attribute="created_at",  # Blob IDs are content-hashed (UUID5), use timestamp for ordering
                     order="ascending",  # data-style
                     windowing=windowing,
                 )
@@ -463,6 +464,24 @@ class BlobsDAO(BlobsDAOInterface):
 
             if not blob_dbes:
                 return []
+
+            # If blob_ids were provided, preserve their order in the result
+            if blob_query.blob_ids:
+                _blobs = {
+                    blob_dbe.id: map_dbe_to_dto(  # type: ignore
+                        DTO=Blob,
+                        dbe=blob_dbe,  # type: ignore
+                    )
+                    for blob_dbe in blob_dbes
+                }
+
+                blobs = [
+                    _blobs[blob_id]
+                    for blob_id in blob_query.blob_ids
+                    if blob_id in _blobs
+                ]
+
+                return blobs
 
             blobs = [
                 map_dbe_to_dto(

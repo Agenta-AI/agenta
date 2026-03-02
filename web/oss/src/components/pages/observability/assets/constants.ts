@@ -1,32 +1,34 @@
 import {
+    ArrowBendRightDownIcon,
+    ArrowBendRightUpIcon,
+    Chats,
+    CoinsIcon,
     Download,
     Gear,
-    LineSegments,
-    Sparkle,
-    ArrowBendRightDownIcon,
-    MagnifyingGlassIcon,
-    LightningIcon,
-    ArrowBendRightUpIcon,
     GearFineIcon,
-    SpinnerIcon,
-    TreeViewIcon,
-    TreeStructureIcon,
-    CoinsIcon,
-    TimerIcon,
-    PlusCircleIcon,
-    WarningOctagonIcon,
+    LightningIcon,
+    LineSegments,
+    MagnifyingGlassIcon,
     PencilIcon,
+    PlusCircleIcon,
+    Sparkle,
+    SpinnerIcon,
+    TimerIcon,
+    TreeStructureIcon,
+    TreeViewIcon,
+    WarningOctagonIcon,
 } from "@phosphor-icons/react"
 
 import {FilterMenuNode} from "@/oss/components/Filters/types"
 import {SpanCategory} from "@/oss/services/tracing/types"
 
 import {
-    STRING_EQU_AND_CONTAINS_OPS,
-    STRING_SEARCH_OPS,
-    NUM_OPS,
-    STRING_EQU_OPS,
     COLLECTION_MEMBERSHIP_OPS,
+    NUM_OPS,
+    STRING_COMPARISON_OPS,
+    STRING_EQU_AND_CONTAINS_OPS,
+    STRING_EQU_OPS,
+    STRING_SEARCH_OPS,
 } from "./utils"
 
 export const FILTER_COLUMNS: FilterMenuNode[] = [
@@ -182,6 +184,26 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                 field: "span_name",
                 type: "string",
                 value: "span_name",
+                operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
+            },
+        ],
+    },
+    {
+        kind: "group",
+        label: "Session",
+        icon: Chats,
+        children: [
+            {
+                kind: "leaf",
+                label: "ID",
+                displayLabel: "Session ID",
+                field: "attributes.ag.session.id",
+                type: "string",
+                value: "attributes.ag.session.id",
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
                 valueInput: {
                     kind: "text",
@@ -613,6 +635,7 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             {value: "endswith", label: "ends with"},
             {value: "in", label: "in"},
             {value: "not_in", label: "not in"},
+            ...STRING_COMPARISON_OPS,
         ],
         valueInput: {kind: "text", placeholder: "Value"},
     },

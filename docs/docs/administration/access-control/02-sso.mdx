@@ -1,0 +1,269 @@
+---
+title: Single Sign-On (SSO)
+description: Configure SSO with OIDC providers like Okta, Azure AD, and Google Workspace
+slug: /administration/access-control/sso
+---
+
+# Single Sign-On (SSO)
+
+Single Sign-On enables your organization to centralize authentication through your existing identity provider (IdP) such as Okta, Azure AD, or Google Workspace.
+
+:::info[Plan availability]
+SSO is available on **Business** and **Enterprise** plans. You can upgrade from your billing settings or see options at https://agenta.ai/pricing.
+:::
+
+## Why Use SSO?
+
+SSO provides team benefits:
+
+- **Centralized access control**: Manage access through your IdP
+- **Improved security**: Enforce your organization's authentication policies
+- **Better compliance**: Meet audit and compliance requirements
+- **User convenience**: One set of credentials for all applications
+- **Immediate deprovisioning**: Revoke access instantly when employees leave
+
+## Supported Protocols
+
+Agenta currently supports **OpenID Connect (OIDC)** for SSO (with SAML/SCIM coming soon). This works with most enterprise identity providers:
+
+- Okta
+- Azure Active Directory (Entra ID)
+- Google Workspace
+- Auth0
+- OneLogin
+- Any OIDC-compliant provider
+
+## Setting Up SSO
+
+### Prerequisites
+
+Before configuring SSO:
+
+1. Business or Enterprise plan subscription
+2. Owner or Admin role (organization)
+3. Admin access to your identity provider
+4. OIDC application credentials from your IdP
+
+### Step 1: Configure Your Identity Provider
+
+Create an OIDC application in your IdP with these settings:
+
+| Setting | Value |
+|---------|-------|
+| **Application Type** | Web Application |
+| **Grant Type** | Authorization Code |
+| **Redirect URI** | `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:{provider_slug}` |
+| **Scopes** | `openid`, `email`, `profile` |
+
+You'll need these values from your IdP:
+- **Issuer URL**: Your IdP's issuer endpoint
+- **Client ID**: Application/Client ID
+- **Client Secret**: Application/Client Secret
+
+### Step 2: Add Provider in Agenta
+
+1. Navigate to **Settings** → **Access & Security** → **SSO Providers**
+2. Click **"Add Provider"**
+3. Enter the provider details:
+   - Provider slu (e.g., "okta", "azure", "google")
+   - Issuer URL
+   - Client ID
+   - Client Secret
+   - Scopes (default: `openid email profile`)
+4. Click **"Save"**
+
+### Step 3: Test and Enable
+
+1. Click **"Enable"** on your provider
+2. Agenta validates the OIDC configuration
+3. If validation succeeds, the provider is active
+4. Test by signing in with SSO
+
+### Step 4: Enable SSO for Your Organization
+
+1. Navigate to **Settings** → **Access & Security** → **Authentication**
+2. Enable **"Allow SSO"**
+3. Save changes
+
+Users can now sign in using SSO.
+
+## SSO Enforcement
+
+### Gradual Rollout
+
+We recommend a phased approach to SSO adoption:
+
+#### Phase 1: SSO Available (Optional)
+
+```
+allow_email: true
+allow_social: true
+allow_sso: true
+```
+
+- SSO is available as an option
+- Users can choose any authentication method
+- Good for testing
+
+#### Phase 2: SSO Encouraged
+
+- Same settings as Phase 1
+- Communicate to users: "Please start using SSO"
+- Monitor adoption
+
+#### Phase 3: SSO Required
+
+```
+allow_email: false
+allow_social: false
+allow_sso: true
+```
+
+- Only SSO authentication allowed
+- Email and social sign-in disabled
+
+:::warning[Prevent Lockout]
+Always ensure at least one authentication method is available. Consider keeping a backup admin account with email access (`allow_root: true`) until SSO is fully tested.
+:::
+
+## Multiple SSO Providers
+
+Organizations can configure multiple SSO providers:
+
+**Use cases:**
+- Regional identity providers
+- Backup providers for redundancy
+- Different providers for different user groups
+
+Users choose which provider to authenticate with when signing in.
+
+## Provider-Specific Guides
+
+### Okta
+
+1. **Create Application**
+   - Applications → Create App Integration
+   - Sign-in method: OIDC
+   - Application type: Web Application
+
+2. **Configure Settings**
+   - Sign-in redirect URI: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:okta`
+   - Sign-out redirect URI: `https://{region}.cloud.agenta.ai`
+   - Assignments: Assign users/groups
+
+3. **Get Credentials**
+   - Copy Client ID
+   - Copy Client Secret
+   - Issuer URL: `https://{your-domain}.okta.com`
+
+### Azure AD (Entra ID)
+
+1. **Register Application**
+   - Azure Portal → App registrations → New registration
+   - Supported account types: Choose appropriate option
+   - Redirect URI: Web, `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:azure`
+
+2. **Configure Authentication**
+   - Add platform: Web
+   - Add redirect URIs
+
+3. **Get Credentials**
+   - Copy Application (client) ID
+   - Certificates & secrets → New client secret
+   - Issuer URL: `https://login.microsoftonline.com/{tenant-id}/v2.0`
+
+### Google Workspace
+
+1. **Create OAuth Client**
+   - Google Cloud Console → APIs & Services → Credentials
+   - Create OAuth client ID
+   - Application type: Web application
+
+2. **Configure Settings**
+   - Authorized redirect URIs: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:google`
+
+3. **Get Credentials**
+   - Copy Client ID
+   - Copy Client Secret
+   - Issuer URL: `https://accounts.google.com`
+
+## Troubleshooting
+
+### "Unable to reach issuer URL"
+
+**Causes:**
+- Incorrect issuer URL
+- Network/firewall blocking connection
+- IdP is down
+
+**Solutions:**
+- Verify the issuer URL in your IdP configuration
+- Ensure the URL is accessible from Agenta's servers
+- Check your IdP's status page
+
+### "Redirect URI mismatch"
+
+**Cause:** The redirect URI in Agenta doesn't match your IdP configuration
+
+**Solution:**
+1. Check the exact redirect URI format
+2. Update your IdP to match: `https://{region}.cloud.agenta.ai/auth/callback/sso:{organization_slug}:{provider_slug}`
+3. Ensure no trailing slashes or typos
+
+### "Invalid client credentials"
+
+**Causes:**
+- Wrong Client ID or Secret
+- Credentials have been rotated
+- Application disabled in IdP
+
+**Solutions:**
+- Verify credentials in your IdP
+- Regenerate and update if needed
+- Ensure the application is enabled
+
+### Users can't sign in with SSO
+
+**Causes:**
+- SSO not enabled for organization
+- Provider not active
+- User not assigned in IdP
+
+**Solutions:**
+- Enable "Allow SSO" in organization settings
+- Ensure provider is enabled and validated
+- Assign user to the application in your IdP
+
+## Security Best Practices
+
+1. **Rotate credentials regularly**: Update Client Secret periodically
+2. **Use strong IdP policies**: Enforce MFA in your identity provider
+3. **Monitor sign-ins**: Review authentication logs
+4. **Test before enforcing**: Verify SSO works before disabling other methods
+5. **Have a backup plan**: Keep emergency access method available
+
+## FAQ
+
+### Can I use SAML instead of OIDC?
+
+Currently, only OIDC is supported. SAML support will be added in the future.
+
+
+### Can I use SCIM along with SSO?
+
+Currently, only SCIM is not supported. SCIM support will be added in the future.
+
+### What happens if my IdP goes down?
+
+Users won't be able to authenticate via SSO. If SSO is the only allowed method, users will be locked out until the IdP is restored. Consider keeping admin access on, on a separate non-personal account (`allow_root: true`) if this is important to you.
+
+### Can users still use email/password after SSO is enabled?
+
+Yes, unless you explicitly disable email authentication. To enforce SSO-only, set `allow_email: false` and `allow_social: false`.
+
+### How do I rotate SSO credentials?
+
+1. Generate new credentials in your IdP
+2. Update the provider configuration in Agenta
+3. Test that SSO still works
+4. Revoke old credentials in your IdP

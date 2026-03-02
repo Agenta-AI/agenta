@@ -46,6 +46,13 @@ export const STRING_SEARCH_OPS: {value: FilterConditions; label: string}[] = [
     // {value: "like", label: "like"},
 ]
 
+export const STRING_COMPARISON_OPS: {value: FilterConditions; label: string}[] = [
+    {value: "gt", label: ">"},
+    {value: "lt", label: "<"},
+    {value: "gte", label: ">="},
+    {value: "lte", label: "<="},
+]
+
 export const NUM_OPS: {value: FilterConditions; label: string}[] = [
     {value: "eq", label: "="},
     {value: "neq", label: "!="},

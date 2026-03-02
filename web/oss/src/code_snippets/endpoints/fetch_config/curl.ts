@@ -6,14 +6,10 @@ export default function cURLCode(appName: string, env_name: string, apiKey: stri
 -H "Authorization: ApiKey ${apiKey}" \\
 -d '{
     "environment_ref": {
-        "slug": "${env_name}",
-        "version": null,
-        "id": null
+        "slug": "${env_name}"
     },
     "application_ref": {
-        "slug": "${appName}",
-        "version": null,
-        "id": null
+        "slug": "${appName}"
     }
 }'
 `

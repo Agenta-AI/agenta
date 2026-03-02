@@ -14,13 +14,15 @@ import type {SelectVariantSectionProps} from "../types"
 const VariantsTable = dynamic(() => import("@/oss/components/VariantsComponents/Table"), {
     ssr: false,
 })
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
+const NoResultsFound = dynamic(
+    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
+    {
+        ssr: false,
+    },
+)
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
-    selectedTestsetId,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
@@ -46,6 +48,10 @@ const SelectVariantSection = ({
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
+            if (evaluationType === "auto") {
+                setSelectedVariantRevisionIds(selectedRowKeys as string[])
+                return
+            }
             const selectedId = selectedRowKeys[0] as string | undefined
             if (selectedId) {
                 setSelectedVariantRevisionIds([selectedId])
@@ -54,7 +60,7 @@ const SelectVariantSection = ({
                 setSelectedVariantRevisionIds([])
             }
         },
-        [setSelectedVariantRevisionIds, handlePanelChange],
+        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds],
     )
 
     const onRowClick = useCallback(
@@ -62,9 +68,21 @@ const SelectVariantSection = ({
             const _record = record as EnhancedVariant & {
                 children: EnhancedVariant[]
             }
+            if (evaluationType === "auto") {
+                const nextSelected = selectedVariantRevisionIds.includes(_record.id)
+                    ? selectedVariantRevisionIds.filter((id) => id !== _record.id)
+                    : [...selectedVariantRevisionIds, _record.id]
+                setSelectedVariantRevisionIds(nextSelected)
+                return
+            }
             onSelectVariant([_record.id])
         },
-        [selectedVariantRevisionIds, onSelectVariant],
+        [
+            evaluationType,
+            onSelectVariant,
+            selectedVariantRevisionIds,
+            setSelectedVariantRevisionIds,
+        ],
     )
 
     const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
@@ -82,7 +100,7 @@ const SelectVariantSection = ({
             <VariantsTable
                 showStableName
                 rowSelection={{
-                    type: "radio",
+                    type: evaluationType === "auto" ? "checkbox" : "radio",
                     selectedRowKeys: selectedVariantRevisionIds,
                     onChange: (selectedRowKeys) => {
                         onSelectVariant(selectedRowKeys)

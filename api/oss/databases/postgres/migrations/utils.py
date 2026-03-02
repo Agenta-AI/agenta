@@ -2,7 +2,7 @@ import os
 import subprocess
 import tempfile
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from sqlalchemy.exc import ProgrammingError
@@ -13,8 +13,8 @@ from oss.src.utils.env import env
 # Config (can override via env)
 POSTGRES_URI = (
     os.getenv("POSTGRES_URI")
-    or env.POSTGRES_URI_CORE
-    or env.POSTGRES_URI_TRACING
+    or env.postgres.uri_core
+    or env.postgres.uri_tracing
     or "postgresql+asyncpg://username:password@localhost:5432/agenta_oss"
 )
 DB_PROTOCOL = POSTGRES_URI.split("://")[0]  # .replace("+asyncpg", "")

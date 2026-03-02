@@ -1,21 +1,236 @@
 {
     "$schema": "https://turbo.build/schema.json",
     "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!**/*.md",
+                "!**/*.test.ts",
+                "!**/*.test.tsx",
+                "!**/*.spec.ts",
+                "!**/*.spec.tsx"
+            ],
+            "outputs": [".next/**", "!.next/cache/**"],
+            "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
+        },
         "dev": {
-            "cache": false
+            "cache": false,
+            "persistent": true
         },
         "lint": {
-            "cache": false
+            "dependsOn": ["^lint"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "**/*.ts",
+                "**/*.tsx",
+                "**/*.js",
+                "**/*.jsx",
+                ".eslintrc*",
+                "eslint.config.*"
+            ],
+            "outputs": []
         },
         "lint:fix": {
+            "dependsOn": ["^lint:fix"],
             "cache": false
         },
-        "@agenta/ee#build": {
-            "outputs": [".next/**"]
+        "types:check": {
+            "dependsOn": ["^types:check"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "**/*.ts",
+                "**/*.tsx",
+                "tsconfig.json"
+            ],
+            "outputs": []
+        },
+        "@agenta/shared#build": {
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/ui#build": {
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/entities#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/ui#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/entity-ui#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/ui#build", "@agenta/entities#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/playground#build": {
+            "dependsOn": ["@agenta/shared#build", "@agenta/entities#build"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
+        "@agenta/playground-ui#build": {
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
         },
         "@agenta/oss#build": {
-            "outputs": [".next/**"]
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build",
+                "@agenta/playground-ui#build"
+            ],
+            "inputs": [
+                "src/**",
+                "public/**",
+                "next.config.ts",
+                "tailwind.config.ts",
+                "postcss.config.mjs",
+                "tsconfig.json"
+            ],
+            "outputs": [".next/**", "!.next/cache/**"],
+            "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
+        },
+        "@agenta/ee#build": {
+            "dependsOn": [
+                "@agenta/oss#build",
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/playground#build",
+                "@agenta/playground-ui#build"
+            ],
+            "inputs": [
+                "src/**",
+                "public/**",
+                "next.config.ts",
+                "tailwind.config.ts",
+                "postcss.config.mjs",
+                "tsconfig.json"
+            ],
+            "outputs": [".next/**", "!.next/cache/**"],
+            "env": ["NODE_ENV", "NEXT_PUBLIC_*"]
+        },
+        "@agenta/shared#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/entities#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/entity-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/playground#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/playground-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx"],
+            "outputs": []
+        },
+        "@agenta/oss#lint": {
+            "dependsOn": [
+                "@agenta/shared#lint",
+                "@agenta/ui#lint",
+                "@agenta/entities#lint",
+                "@agenta/entity-ui#lint",
+                "@agenta/playground#lint",
+                "@agenta/playground-ui#lint"
+            ],
+            "inputs": [
+                "src/**/*.ts",
+                "src/**/*.tsx",
+                ".eslintrc*",
+                "eslint.config.*"
+            ],
+            "outputs": []
+        },
+        "@agenta/ee#lint": {
+            "dependsOn": ["@agenta/oss#lint"],
+            "inputs": [
+                "src/**/*.ts",
+                "src/**/*.tsx",
+                ".eslintrc*",
+                "eslint.config.*"
+            ],
+            "outputs": []
+        },
+        "@agenta/shared#types:check": {
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/ui#types:check": {
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/entities#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/entity-ui#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/ui#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/playground#types:check": {
+            "dependsOn": ["@agenta/shared#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/playground-ui#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/playground#types:check"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/oss#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/playground#types:check",
+                "@agenta/playground-ui#types:check"
+            ],
+            "inputs": [
+                "src/**",
+                "next.config.ts",
+                "tsconfig.json"
+            ],
+            "outputs": []
+        },
+        "@agenta/ee#types:check": {
+            "dependsOn": ["@agenta/oss#types:check"],
+            "inputs": [
+                "src/**",
+                "next.config.ts",
+                "tsconfig.json"
+            ],
+            "outputs": []
         }
     },
-    "globalDependencies": ["*/**/tsconfig.json"]
+    "globalDependencies": ["tsconfig.json", "package.json", "pnpm-lock.yaml"],
+    "globalEnv": ["CI", "NODE_ENV"]
 }

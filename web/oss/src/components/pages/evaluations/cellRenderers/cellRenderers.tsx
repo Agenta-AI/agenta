@@ -1,6 +1,6 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
-import {type ICellRendererParams} from "@ag-grid-community/core"
+import {message} from "@agenta/ui/app-message"
 import {
     CopyOutlined,
     FullscreenExitOutlined,
@@ -14,7 +14,6 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {useDurationCounter} from "@/oss/hooks/useDurationCounter"
 import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 import {
@@ -26,6 +25,24 @@ import {
 } from "@/oss/lib/Types"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
+
+/**
+ * Cell renderer params interface (replaces ag-grid ICellRendererParams)
+ */
+interface ICellRendererParams<TData = any> {
+    value: any
+    data?: TData
+    api: {
+        getSizesForCurrentTheme: () => {rowHeight: number}
+        onRowHeightChanged: () => void
+    }
+    node: {
+        id: string | undefined
+        rowHeight: number | null | undefined
+        setRowHeight: (height: number) => void
+        addEventListener: (event: string, callback: () => void) => void
+    }
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     statusCell: {

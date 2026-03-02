@@ -31,13 +31,22 @@ class ProjectScopeDBA:
     )
 
 
+class FolderScopeDBA:
+    __abstract__ = True
+
+    folder_id = Column(
+        UUID(as_uuid=True),
+        nullable=True,
+    )
+
+
 class LegacyLifecycleDBA:
     __abstract__ = True
 
     created_at = Column(
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
-        nullable=False,
+        nullable=True,
     )
     updated_at = Column(
         TIMESTAMP(timezone=True),
@@ -190,4 +199,13 @@ class CommitDBA:
         TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
+    )
+
+
+class StatusDBA:
+    __abstract__ = True
+
+    status = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
     )

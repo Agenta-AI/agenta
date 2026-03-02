@@ -91,6 +91,8 @@ const appReferenceBatchFetcher = createBatchFetcher<
 export interface TestsetReference {
     id: string
     name?: string | null
+    revisionId?: string | null
+    revisionVersion?: number | null
 }
 
 export interface VariantConfigReference {
@@ -570,7 +572,7 @@ export const appReferenceAtomFamily = atomFamily(
 
             return {
                 queryKey: [
-                    "evaluation-runs-table",
+                    "entity-reference",
                     "app",
                     projectId ?? "none",
                     appId ?? "none",
@@ -597,7 +599,7 @@ export const previewTestsetReferenceAtomFamily = atomFamily(
         atomWithQuery<TestsetReference | null>(() => {
             return {
                 queryKey: [
-                    "evaluation-runs-table",
+                    "entity-reference",
                     "preview-testset",
                     projectId ?? "none",
                     testsetId ?? "none",
@@ -621,7 +623,7 @@ export const variantConfigAtomFamily = atomFamily(
         atomWithQuery<VariantConfigReference | null>(() => {
             return {
                 queryKey: [
-                    "evaluation-runs-table",
+                    "entity-reference",
                     "variant-config",
                     projectId ?? "none",
                     revisionId ?? "none",
@@ -645,7 +647,7 @@ export const evaluatorReferenceAtomFamily = atomFamily(
         atomWithQuery<EvaluatorReference | null>(() => {
             return {
                 queryKey: [
-                    "evaluation-runs-table",
+                    "entity-reference",
                     "evaluator-ref",
                     projectId ?? "none",
                     slug ?? "none",

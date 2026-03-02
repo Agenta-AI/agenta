@@ -17,14 +17,13 @@ import {memo, useCallback, useMemo} from "react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
+import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/enum"
 
 import {closeHumanEvaluatorDrawerAtom, humanEvaluatorDrawerOpenAtom} from "./state"
 
-const AnnotateDrawer = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/AnnotateDrawer"),
-    {ssr: false},
-)
+const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/AnnotateDrawer"), {
+    ssr: false,
+})
 
 interface CreateHumanEvaluatorDrawerProps {
     /** Callback after successful evaluator creation. Called with the evaluator slug. */

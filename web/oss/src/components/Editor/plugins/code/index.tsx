@@ -24,15 +24,19 @@ import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/Ini
 
 export const store = createStore()
 
+import {DrillInProvider} from "./context/DrillInContext"
+import {$createBase64Node, isBase64String, parseBase64String} from "./nodes/Base64Node"
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
+import {$createLongTextNode, isLongTextString, parseLongTextString} from "./nodes/LongTextNode"
 import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
 import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
 import {ClosingBracketIndentationPlugin} from "./plugins/ClosingBracketIndentationPlugin"
 import {GlobalErrorIndicatorPlugin} from "./plugins/GlobalErrorIndicatorPlugin"
 import {IndentationPlugin} from "./plugins/IndentationPlugin"
+import PropertyClickPlugin from "./plugins/PropertyClickPlugin"
 import {$getEditorCodeAsString} from "./plugins/RealTimeValidationPlugin"
 import {SyntaxHighlightPlugin} from "./plugins/SyntaxHighlightPlugin"
 import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
@@ -40,7 +44,11 @@ import {tryParsePartialJson} from "./tryParsePartialJson"
 import {createLogger} from "./utils/createLogger"
 import {tokenizeCodeLine} from "./utils/tokenizer"
 
+export {PropertyClickPlugin}
+
 export const TOGGLE_FORM_VIEW = createCommand<void>("TOGGLE_FORM_VIEW")
+
+export const DRILL_IN_TO_PATH = createCommand<{path: string}>("DRILL_IN_TO_PATH")
 
 export const ON_CHANGE_LANGUAGE = createCommand<{
     language: string
@@ -95,9 +103,14 @@ function getTokenValidation(
  * @param text The input text to highlight.
  * @param language The language to use for highlighting.
  * @param validationSchema Optional schema for validation during node creation.
+ * @param disableLongText If true, disable long text node truncation (show full strings)
  * @returns An array of highlighted code line nodes.
  */
-export function createHighlightedNodes(text: string, language: "json" | "yaml"): CodeLineNode[] {
+export function createHighlightedNodes(
+    text: string,
+    language: "json" | "yaml",
+    disableLongText?: boolean,
+): CodeLineNode[] {
     // For JSON, avoid splitting on \n inside string values
     if (language === "json") {
         try {
@@ -123,18 +136,38 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
                 }
                 const tokens = tokenizeCodeLine(content, language)
                 tokens.forEach((token) => {
-                    const {shouldHaveError, expectedMessage} = getTokenValidation(
-                        token.content.trim(),
-                        token.type,
-                        language,
-                    )
-                    const highlightNode = $createCodeHighlightNode(
-                        token.content,
-                        token.type,
-                        shouldHaveError,
-                        expectedMessage,
-                    )
-                    codeLine.append(highlightNode)
+                    // Check if this is a base64 string token
+                    if (token.type === "string" && isBase64String(token.content)) {
+                        const parsed = parseBase64String(token.content)
+                        const base64Node = $createBase64Node(
+                            parsed.fullValue,
+                            parsed.mimeType,
+                            token.type,
+                        )
+                        codeLine.append(base64Node)
+                    } else if (
+                        token.type === "string" &&
+                        !disableLongText &&
+                        isLongTextString(token.content)
+                    ) {
+                        // Check if this is a long text string token
+                        const parsed = parseLongTextString(token.content)
+                        const longTextNode = $createLongTextNode(parsed.fullValue, token.type)
+                        codeLine.append(longTextNode)
+                    } else {
+                        const {shouldHaveError, expectedMessage} = getTokenValidation(
+                            token.content.trim(),
+                            token.type,
+                            language,
+                        )
+                        const highlightNode = $createCodeHighlightNode(
+                            token.content,
+                            token.type,
+                            shouldHaveError,
+                            expectedMessage,
+                        )
+                        codeLine.append(highlightNode)
+                    }
                 })
                 codeLineNodes.push(codeLine)
             })
@@ -156,18 +189,34 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
         }
         const tokens = tokenizeCodeLine(content, language)
         tokens.forEach((token) => {
-            const {shouldHaveError, expectedMessage} = getTokenValidation(
-                token.content.trim(),
-                token.type,
-                language,
-            )
-            const highlightNode = $createCodeHighlightNode(
-                token.content,
-                token.type,
-                shouldHaveError,
-                expectedMessage,
-            )
-            codeLine.append(highlightNode)
+            // Check if this is a base64 string token
+            if (token.type === "string" && isBase64String(token.content)) {
+                const parsed = parseBase64String(token.content)
+                const base64Node = $createBase64Node(parsed.fullValue, parsed.mimeType, token.type)
+                codeLine.append(base64Node)
+            } else if (
+                token.type === "string" &&
+                !disableLongText &&
+                isLongTextString(token.content)
+            ) {
+                // Check if this is a long text string token
+                const parsed = parseLongTextString(token.content)
+                const longTextNode = $createLongTextNode(parsed.fullValue, token.type)
+                codeLine.append(longTextNode)
+            } else {
+                const {shouldHaveError, expectedMessage} = getTokenValidation(
+                    token.content.trim(),
+                    token.type,
+                    language,
+                )
+                const highlightNode = $createCodeHighlightNode(
+                    token.content,
+                    token.type,
+                    shouldHaveError,
+                    expectedMessage,
+                )
+                codeLine.append(highlightNode)
+            }
         })
         codeLineNodes.push(codeLine)
     })
@@ -189,6 +238,8 @@ function InsertInitialCodeBlockPlugin({
     validationSchema,
     additionalCodePlugins = [],
     editorId,
+    onPropertyClick,
+    disableLongText = false,
 }: {
     debug?: boolean
     initialValue: string
@@ -196,6 +247,8 @@ function InsertInitialCodeBlockPlugin({
     validationSchema: any
     additionalCodePlugins?: React.ReactNode[]
     editorId: string
+    onPropertyClick?: (path: string) => void
+    disableLongText?: boolean
 }) {
     const [editor] = useLexicalComposerContext()
 
@@ -228,16 +281,18 @@ function InsertInitialCodeBlockPlugin({
 
                             root.append(existingCodeBlock)
                             line.selectStart()
-                        } else if (hasFocus && editor.isEditable()) {
+                        } else if (hasFocus && editor.isEditable() && !payload.forceUpdate) {
                             // Don't update if editor has focus and is editable (user is typing)
                             // But allow updates for read-only editors (like diff view)
+                            // Also allow forceUpdate for undo/redo operations
                             return
                         }
 
                         // Default processing for JSON/YAML content
                         const currentTextValue = $getEditorCodeAsString()
                         log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
-                        if (currentTextValue) {
+                        // Skip semantic equality check if forceUpdate is true (for undo/redo)
+                        if (currentTextValue && !payload.forceUpdate) {
                             try {
                                 const currentObjectValue = JSON5.parse(currentTextValue)
                                 const incomingObjectValue =
@@ -328,6 +383,7 @@ function InsertInitialCodeBlockPlugin({
                             const highlightedNodes = createHighlightedNodes(
                                 value,
                                 payload.language as "json" | "yaml",
+                                disableLongText,
                             )
                             highlightedNodes.forEach((node) => {
                                 existingCodeBlock.append(node)
@@ -436,7 +492,7 @@ function InsertInitialCodeBlockPlugin({
                     }
 
                     existingCodeBlock.clear()
-                    const newNodes = createHighlightedNodes(newText, newLanguage)
+                    const newNodes = createHighlightedNodes(newText, newLanguage, disableLongText)
                     newNodes.forEach((n) => existingCodeBlock.append(n))
                     existingCodeBlock.setLanguage(newLanguage)
 
@@ -533,19 +589,45 @@ function InsertInitialCodeBlockPlugin({
     }, [])
 
     useEffect(() => {
-        // For JSON/YAML content, use semantic comparison
+        // For JSON content, use semantic comparison. YAML should be treated as raw text.
         if (prevInitialRef.current) {
-            if (
-                isEqual(
-                    safeJson5Parse(prevInitialRef.current as string),
-                    safeJson5Parse(initialValue),
-                )
-            ) {
-                return // no semantic change
+            if (language === "json") {
+                if (
+                    isEqual(
+                        safeJson5Parse(prevInitialRef.current as string),
+                        safeJson5Parse(initialValue),
+                    )
+                ) {
+                    return // no semantic change
+                }
+            } else if (prevInitialRef.current === initialValue) {
+                return
             }
         }
 
         prevInitialRef.current = initialValue
+
+        // Check if this is an external update (undo/redo) by comparing with current editor content
+        // If the incoming value differs from what's in the editor, force the update
+        let forceUpdate = false
+        editor.getEditorState().read(() => {
+            const currentEditorContent = $getEditorCodeAsString()
+            if (currentEditorContent) {
+                try {
+                    const currentParsed = safeJson5Parse(currentEditorContent)
+                    const incomingParsed = safeJson5Parse(initialValue)
+                    // If editor content differs from incoming value, this is an external update
+                    if (!isEqual(currentParsed, incomingParsed)) {
+                        forceUpdate = true
+                    }
+                } catch {
+                    // If parsing fails, compare as strings
+                    if (currentEditorContent.trim() !== initialValue.trim()) {
+                        forceUpdate = true
+                    }
+                }
+            }
+        })
 
         // Dispatch event to allow other plugins to handle the content
         let defaultPrevented = false
@@ -556,25 +638,36 @@ function InsertInitialCodeBlockPlugin({
                 defaultPrevented = true
             },
             isDefaultPrevented: () => defaultPrevented,
+            forceUpdate,
         }
 
-        log("INITIAL VALUE CHANGED", {initialValue})
+        log("INITIAL VALUE CHANGED", {initialValue, forceUpdate})
         editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
     }, [initialValue, language])
 
+    const drillInContextValue = {enabled: Boolean(onPropertyClick)}
+
     return (
-        <>
+        <DrillInProvider value={drillInContextValue}>
             <AutoFormatAndValidateOnPastePlugin />
             <IndentationPlugin />
             <ClosingBracketIndentationPlugin />
             <AutoCloseBracketsPlugin />
             <GlobalErrorIndicatorPlugin editorId={editorId} />
-            <SyntaxHighlightPlugin editorId={editorId} schema={validationSchema} debug={debug} />
+            <SyntaxHighlightPlugin
+                editorId={editorId}
+                schema={validationSchema}
+                debug={debug}
+                disableLongText={disableLongText}
+            />
+            {onPropertyClick && (
+                <PropertyClickPlugin onPropertyClick={onPropertyClick} language={language} />
+            )}
             {additionalCodePlugins?.map((plugin, index) => (
                 <Fragment key={index}>{plugin}</Fragment>
             ))}
             <VerticalNavigationPlugin />
-        </>
+        </DrillInProvider>
     )
 }
 

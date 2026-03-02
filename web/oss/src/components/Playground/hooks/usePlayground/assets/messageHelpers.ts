@@ -1,10 +1,12 @@
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
+
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {
     createObjectFromMetadata,
     extractObjectSchemaFromMetadata,
 } from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
-import {generateId, toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
+import {toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
 
 import {isObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/metadata"
 import type {
@@ -48,7 +50,7 @@ export const createMessageFromSchema = (
                 !Array.isArray(baseValue) &&
                 "value" in baseValue
             ) {
-                ;(baseValue as any).value = ""
+                ;(baseValue as any).value = "user"
             }
 
             const jsonValue = json?.[key] ?? json?.[toSnakeCase(key)]

@@ -1,7 +1,7 @@
+import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 

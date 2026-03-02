@@ -5,40 +5,28 @@ description: "Learn how to retrieve and analyze evaluation results using the SDK
 sidebar_position: 6
 ---
 
-<!-- TODO: Replace with new SDK evaluation content -->
-
 ## Fetching overall results
 
-As soon as the evaluation is done, we can fetch the overall results:
+`aevaluate()` returns the run, scenarios, and metrics in a single object. You can inspect the metrics directly:
 
 ```python
-response = client.evaluations.fetch_evaluation_results('667d98fbd1812781f7e3761a')
-
-results = [
-    (evaluator["evaluator_config"]["name"], evaluator["result"])
-    for evaluator in response["results"]
-]
-print(results)
+metrics = result["metrics"]
+print(metrics)
 ```
 
 ## Fetching detailed results
 
-Get detailed results for each test case:
+Use the built-in display helper to render a detailed report:
 
 ```python
-detailed_results = client.evaluations.fetch_evaluation_scenarios(
-    evaluations_ids='667d98fbd1812781f7e3761a'
-)
-print(detailed_results)
+import asyncio
+from agenta.sdk.evaluations import display
+
+async def main():
+    await display(result)
+
+asyncio.run(main())
 ```
-
-## Analyzing results
-
-<!-- TODO: Add content for analyzing results -->
-
-## Exporting results
-
-<!-- TODO: Add content for exporting results -->
 
 ## Next steps
 

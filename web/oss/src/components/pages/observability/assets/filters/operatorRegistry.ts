@@ -38,10 +38,10 @@ export const OPERATORS: OperatorDef[] = [
     // numeric
     {id: "eq", label: "=", forTypes: ["number"], valueShape: "single"},
     {id: "neq", label: "!=", forTypes: ["number"], valueShape: "single"},
-    {id: "gt", label: ">", forTypes: ["number"], valueShape: "single"},
-    {id: "lt", label: "<", forTypes: ["number"], valueShape: "single"},
-    {id: "gte", label: ">=", forTypes: ["number"], valueShape: "single"},
-    {id: "lte", label: "<=", forTypes: ["number"], valueShape: "single"},
+    {id: "gt", label: ">", forTypes: ["number", "string"], valueShape: "single"},
+    {id: "lt", label: "<", forTypes: ["number", "string"], valueShape: "single"},
+    {id: "gte", label: ">=", forTypes: ["number", "string"], valueShape: "single"},
+    {id: "lte", label: "<=", forTypes: ["number", "string"], valueShape: "single"},
 ]
 
 export const getOperator = (id: FilterConditions) => OPERATORS.find((o) => o.id === id)!

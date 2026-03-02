@@ -4,8 +4,9 @@ import {Badge, Space, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {Variant} from "@/oss/lib/shared/variant"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
+import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
+
+import type {VariantStatusInfo} from "../types"
 
 export const statusMap: Record<string, {badge: string}> = {
     production: {badge: "#73D13D"},
@@ -14,12 +15,12 @@ export const statusMap: Record<string, {badge: string}> = {
 }
 
 const EnvironmentStatus: FC<{
-    variant: Pick<Variant, "deployedIn"> & {id?: string}
+    variant: Pick<VariantStatusInfo, "deployedIn" | "id">
     className?: string
 }> = ({variant, className}) => {
     // Fallback to deployment atom if deployedIn is not embedded on the variant
     const fallbackDeployedIn = useAtomValue(
-        revisionDeploymentAtomFamily((variant as any)?.id || ""),
+        playgroundRevisionDeploymentAtomFamily(variant?.id || ""),
     ) as any[]
 
     const deployedIn =

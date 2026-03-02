@@ -1,9 +1,8 @@
+import {message} from "@agenta/ui/app-message"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Tag, type TagProps, Tooltip} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
-
-import {message} from "@/oss/components/AppMessageContext"
 
 import {getReferenceToneColors, type ReferenceTone} from "./referenceColors"
 
@@ -76,7 +75,7 @@ const ReferenceTag = ({
                     aria-label="Open link"
                     size={14}
                     className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 cursor-pointer"
-                    style={{color: toneColors?.text ?? "#2563eb"}}
+                    style={{color: toneColors?.text ?? "currentColor"}}
                     onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()

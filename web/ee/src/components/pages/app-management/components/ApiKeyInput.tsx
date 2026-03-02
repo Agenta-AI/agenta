@@ -1,8 +1,8 @@
 import {useMemo, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Button, Input, Space, Typography} from "antd"
 
-import {message} from "@/oss/components/AppMessageContext"
 import {createApiKey} from "@/oss/services/apiKeys/api"
 import {fetchAllProjects} from "@/oss/services/project"
 import {useOrgData} from "@/oss/state/org"

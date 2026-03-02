@@ -69,19 +69,19 @@ const useBlockNavigation = (
                     blocking.current = false
                 },
                 onCancel: async () => {
-                    if (props.current.onCancel) {
-                        const res = await props.current.onCancel()
-                        if (res) {
-                            Router.push(newRoute)
-                        } else {
-                        }
-                    } else {
-                        Router.push(newRoute)
+                    // Cancel just closes the modal and stays on page
+                    opened.current = false
+                },
+                onThirdButton: async () => {
+                    // Third button (e.g., "Discard changes") navigates without saving
+                    if (props.current.onThirdButton) {
+                        await props.current.onThirdButton()
                     }
+                    Router.push(newRoute)
                     opened.current = false
                     blocking.current = false
                 },
-                cancellable: false,
+                cancellable: true,
             })
 
             //block NextJS navigation until user confirms or cancels

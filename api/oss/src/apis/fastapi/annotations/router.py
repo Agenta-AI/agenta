@@ -1,12 +1,11 @@
 from typing import Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Request, Response, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Link,
@@ -165,7 +164,7 @@ class AnnotationsRouter:
         return annotation_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnnotationResponse())
+    @suppress_exceptions(default=AnnotationResponse(), exclude=[HTTPException])
     async def fetch_annotation(
         self,
         request: Request,
@@ -183,6 +182,7 @@ class AnnotationsRouter:
 
         annotation = await self.annotations_service.fetch(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             trace_id=trace_id,
             span_id=span_id,
@@ -263,7 +263,7 @@ class AnnotationsRouter:
         return annotation_link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=AnnotationsResponse())
+    @suppress_exceptions(default=AnnotationsResponse(), exclude=[HTTPException])
     async def query_annotations(
         self,
         request: Request,
@@ -280,6 +280,7 @@ class AnnotationsRouter:
 
         annotations = await self.annotations_service.query(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
             annotation_query=annotation_query_request.annotation,
             #

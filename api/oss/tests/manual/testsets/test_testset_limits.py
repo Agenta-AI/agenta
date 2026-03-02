@@ -1,8 +1,10 @@
 import requests
 from pathlib import Path
 
-API_URL = "http://localhost:80/api/testsets/upload"
+# Use the preview endpoint for testset upload
+API_URL = "http://localhost:80/api/preview/simple/testsets/upload"
 API_KEY = "ApiKey xxx.xxx"  # Replace with your actual key
+PROJECT_ID = "xxx"  # Replace with your actual project ID
 TESTSET_DIR = Path("testsets")
 FILES = [
     ("testset_1000.json", "testset_1000_json"),
@@ -22,10 +24,13 @@ for file_name, testset_name in FILES:
         files = {"file": file}
         data = {
             "testset_name": testset_name,
-            "upload_type": "JSON" if file_path.suffix == ".json" else "CSV",
+            "file_type": "json" if file_path.suffix == ".json" else "csv",
         }
         response = requests.post(
-            API_URL, files=files, data=data, headers={"Authorization": API_KEY}
+            f"{API_URL}?project_id={PROJECT_ID}",
+            files=files,
+            data=data,
+            headers={"Authorization": API_KEY},
         )
     print(f"{file_path.name} → {response.status_code}")
     try:

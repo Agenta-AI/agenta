@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 rag_evaluator_settings_template = {
     "question_key": {
         "label": "Question Key",
@@ -298,6 +301,44 @@ evaluators = [
         "name": "Code Evaluation",
         "key": "auto_custom_code_run",
         "direct_use": False,
+        "settings_presets": [
+            {
+                "key": "python_default",
+                "name": "Exact Match (Python)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "python",
+                    "correct_answer_key": "correct_answer",
+                    "version": "2",
+                    "code": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
+                },
+                "description": "Exact match evaluator implemented in Python.",
+            },
+            {
+                "key": "javascript_default",
+                "name": "Exact Match (JavaScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "javascript",
+                    "correct_answer_key": "correct_answer",
+                    "version": "2",
+                    "code": 'function evaluate(inputs, outputs, trace) {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in JavaScript.",
+            },
+            {
+                "key": "typescript_default",
+                "name": "Exact Match (TypeScript)",
+                "values": {
+                    "requires_llm_api_keys": False,
+                    "runtime": "typescript",
+                    "correct_answer_key": "correct_answer",
+                    "version": "2",
+                    "code": 'function evaluate(\n  inputs: Record<string, any>,\n  outputs: any,\n  trace: Record<string, any>\n): number {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
+                },
+                "description": "Exact match evaluator implemented in TypeScript.",
+            },
+        ],
         "settings_template": {
             "requires_llm_api_keys": {
                 "label": "Requires LLM API Key(s)",
@@ -310,9 +351,17 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict, Union, Any\n\ndef evaluate(\n    app_params: Dict[str, str],\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]], # output of the llm app\n    correct_answer: str # contains the testset row \n) -> float:\n    if output in correct_answer:\n        return 1.0\n    else:\n        return 0.0\n",
+                "default": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
                 "description": "Code for evaluating submissions",
                 "required": True,
+            },
+            "runtime": {
+                "label": "Runtime",
+                "type": "multiple_choice",
+                "default": "python",
+                "options": ["python", "javascript", "typescript"],
+                "advanced": True,
+                "description": "Runtime environment used to execute the evaluator code.",
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
@@ -323,8 +372,14 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
             },
+            "version": {
+                "label": "Version",
+                "type": "hidden",
+                "default": "2",
+                "description": "The version of the evaluator interface",
+            },
         },
-        "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
+        "description": "Code Evaluation allows you to write your own evaluator in Python, JavaScript, or TypeScript. You can access inputs, outputs, and full trace data (spans, latency, token usage).",
         "oss": True,
         "tags": ["custom"],
     },
@@ -332,6 +387,7 @@ evaluators = [
         "name": "JSON Field Match",
         "key": "field_match_test",
         "direct_use": False,
+        "archived": True,  # Deprecated - use json_multi_field_match instead
         "settings_template": {
             "json_field": {
                 "label": "JSON Field",
@@ -350,6 +406,33 @@ evaluators = [
             },
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
+        "requires_testcase": "always",
+        "requires_trace": "always",
+        "oss": True,
+        "tags": ["classifiers"],
+    },
+    {
+        "name": "JSON Multi-Field Match",
+        "key": "json_multi_field_match",
+        "direct_use": False,
+        "settings_template": {
+            "fields": {
+                "label": "Fields to Compare",
+                "type": "fields_tags_editor",  # Custom type - tag-based add/remove editor
+                "required": True,
+                "description": "Add fields to compare using dot notation for nested paths (e.g., user.name)",
+            },
+            "correct_answer_key": {
+                "label": "Expected Answer Column",
+                "default": "correct_answer",
+                "type": "string",
+                "required": True,
+                "description": "Column name containing the expected JSON object",
+                "ground_truth_key": True,
+                "advanced": True,  # Hidden in advanced section
+            },
+        },
+        "description": "Compares configured fields in expected JSON against LLM output. Each field becomes a separate metric (0 or 1), with an aggregate_score showing the percentage of matching fields. Useful for entity extraction validation.",
         "requires_testcase": "always",
         "requires_trace": "always",
         "oss": True,
@@ -734,31 +817,101 @@ evaluators = [
         "oss": True,
         "tags": ["similarity"],
     },
-    {
-        "name": "RAG Faithfulness",
-        "key": "rag_faithfulness",
-        "direct_use": False,
-        "archived": True,
-        "requires_llm_api_keys": True,
-        "settings_template": rag_evaluator_settings_template,
-        "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "tags": ["rag"],
-    },
-    {
-        "name": "RAG Context Relevancy",
-        "key": "rag_context_relevancy",
-        "direct_use": False,
-        "archived": True,
-        "requires_llm_api_keys": True,
-        "settings_template": rag_evaluator_settings_template,
-        "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
-        "tags": ["rag"],
-    },
+    # {
+    #     "name": "RAG Faithfulness",
+    #     "key": "rag_faithfulness",
+    #     "direct_use": False,
+    #     "archived": True,
+    #     "requires_llm_api_keys": True,
+    #     "settings_template": rag_evaluator_settings_template,
+    #     "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
+    #     "requires_testcase": "always",
+    #     "requires_trace": "always",
+    #     "tags": ["rag"],
+    # },
+    # {
+    #     "name": "RAG Context Relevancy",
+    #     "key": "rag_context_relevancy",
+    #     "direct_use": False,
+    #     "archived": True,
+    #     "requires_llm_api_keys": True,
+    #     "settings_template": rag_evaluator_settings_template,
+    #     "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
+    #     "requires_testcase": "always",
+    #     "requires_trace": "always",
+    #     "tags": ["rag"],
+    # },
 ]
+
+
+_SUCCESS_ONLY_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+    },
+    "required": ["success"],
+    "additionalProperties": False,
+}
+
+_SCORE_AND_SUCCESS_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "score": {"type": "number"},
+        "success": {"type": "boolean"},
+    },
+    "required": [],
+    "additionalProperties": False,
+}
+
+_FIXED_OUTPUT_SCHEMA_BY_KEY = {
+    "auto_custom_code_run": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "field_match_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_json_diff": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_semantic_similarity": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_webhook_test": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_exact_match": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_json": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_similarity_match": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_regex_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_starts_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_ends_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_any": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_all": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_levenshtein_distance": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+}
+
+
+def _extract_auto_ai_critique_default_outputs_schema():
+    for evaluator in evaluators:
+        if evaluator.get("key") != "auto_ai_critique":
+            continue
+
+        settings_template = evaluator.get("settings_template") or {}
+        json_schema_field = settings_template.get("json_schema") or {}
+        default_value = json_schema_field.get("default") or {}
+        schema = default_value.get("schema")
+
+        return deepcopy(schema) if isinstance(schema, dict) else None
+
+    return None
+
+
+_auto_ai_critique_outputs_schema = _extract_auto_ai_critique_default_outputs_schema()
+if _auto_ai_critique_outputs_schema is not None:
+    _FIXED_OUTPUT_SCHEMA_BY_KEY["auto_ai_critique"] = _auto_ai_critique_outputs_schema
+
+for evaluator in evaluators:
+    evaluator_key = evaluator.get("key")
+    outputs_schema = (
+        _FIXED_OUTPUT_SCHEMA_BY_KEY.get(evaluator_key)
+        if isinstance(evaluator_key, str)
+        else None
+    )
+    if outputs_schema is not None:
+        evaluator["outputs_schema"] = deepcopy(outputs_schema)
 
 
 def get_all_evaluators():
@@ -769,3 +922,29 @@ def get_all_evaluators():
         List[dict]: A list of evaluator dictionaries.
     """
     return evaluators
+
+
+def get_builtin_evaluators():
+    """
+    Returns a list of LegacyEvaluator models.
+
+    This is used by migrations and services that need typed evaluator objects.
+
+    Returns:
+        List[LegacyEvaluator]: A list of LegacyEvaluator model instances.
+    """
+    from oss.src.models.api.evaluation_model import LegacyEvaluator
+
+    return [LegacyEvaluator(**evaluator_dict) for evaluator_dict in evaluators]
+
+
+# Pre-built list for backwards compatibility
+# Lazy initialization to avoid circular imports
+_BUILTIN_EVALUATORS = None
+
+
+def _get_cached_builtin_evaluators():
+    global _BUILTIN_EVALUATORS
+    if _BUILTIN_EVALUATORS is None:
+        _BUILTIN_EVALUATORS = get_builtin_evaluators()
+    return _BUILTIN_EVALUATORS

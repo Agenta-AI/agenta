@@ -10,6 +10,156 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### [Tool Integrations in the Playground](/changelog/tool-integrations)
+
+_27 February 2026_
+
+**v0.87.0**
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="420"
+    src="https://www.youtube.com/embed/nEbwJhdTQds"
+    title="Tool Integrations in the Playground"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+You can now connect 150+ external tools to your prompts directly from the playground. Browse integrations like Gmail, Slack, Notion, Google Sheets, and GitHub. Authenticate with OAuth, attach tool actions to your prompt, and execute tool calls with one click. Use Google Sheets or Notion as data sources for RAG, send emails from your prompt, or automate developer workflows.
+
+---
+
+### [AI-Powered Prompt Refinement in the Playground](/changelog/refine-ai)
+
+_25 February 2026_
+
+**v0.84.0**
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="420"
+    src="https://www.youtube.com/embed/V2hHC8hZEeE"
+    title="AI-Powered Prompt Refinement"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+You can now refine prompts with AI directly in the playground. Click the wand icon on any prompt, describe what you want to improve in plain English, and get back a refined version with a summary of changes. Each refinement builds on the last, so you can iterate. Toggle diff view to see exactly what changed, edit the result before applying, or use the quick "Optimize using best practices" shortcut.
+
+---
+
+### [Enterprise Compliance Features](/changelog/enterprise-compliance-features)
+
+_17 February 2026_
+
+**v0.83.0**
+
+Agenta has new enterprise features. You can now create separate organizations for different teams or clients, each with its own billing, projects, and roles. We added SSO with any OIDC provider (Okta, Azure AD, Auth0, OneLogin, Google Workspace). You can enforce SSO-only for an org and disable password login. Domain verification lets you claim your company domain so new users with matching emails join automatically. We also launched a US region for customers who need their data to stay in the United States.
+
+SSO, and domain verification are on Business and Enterprise plans. The US region is on all plans.
+
+---
+
+### [Folders for Prompt Organization](/changelog/prompt-folders)
+
+_4 February 2026_
+
+**v0.82.0**
+
+<div style={{display: "flex", justifyContent: "center", marginTop: "20px", marginBottom: "20px", flexDirection: "column", alignItems: "center"}}>
+  <iframe
+    width="100%"
+    height="420"
+    src="https://www.youtube.com/embed/2oy6ymnOq7I"
+    title="Folders for Prompt Organization"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+Prompts multiply fast when you're building agents or managing multiple use cases. Finding the right one becomes guesswork.
+
+You can now create folders and subfolders to organize prompts. Drag prompts between folders, create nested hierarchies, and search across everything. Folder URLs are shareable.
+
+---
+
+### [Onboarding Widget and Guided Walkthroughs](/changelog/onboarding-widget-walkthroughs)
+
+_29 January 2026_
+
+**v0.81.1**
+
+New users now get an onboarding widget with guided walkthroughs. The widget appears in the sidebar and walks you through key features like the playground, evaluations, and observability. Each tour highlights UI elements as you go, so you learn by doing. Track your progress and revisit walkthroughs anytime.
+
+---
+
+### [Navigation Links from Traces to App/Environment/Variant](/changelog/trace-navigation-links)
+
+_28 January 2026_
+
+**v0.81.0**
+
+You can now click directly from any trace to the application, variant, or environment that generated it. Links appear in both the trace table and drawer view. This makes debugging faster since you can jump straight to the configuration that produced a specific output.
+
+To enable navigation links, store references in your traces using the Python SDK (`ag.tracing.store_refs()`) or OpenTelemetry span attributes. See the [reference prompt versions guide](/observability/trace-with-python-sdk/reference-prompt-versions) for details.
+
+---
+
+### [Test Set Versioning and New Test Set UI](/changelog/testset-versioning)
+
+_20 January 2026_
+
+**v0.74.0**
+
+Test sets now have versioning. Every edit, upload, or programmatic update creates a new version. Evaluations link to specific versions, so you can compare results knowing they used the same test data.
+
+The test set UI is completely rebuilt. It handles hundreds of thousands of rows without slowing down. Editing is much easier, especially for chat messages. You can view and edit complex JSON directly, toggle between raw and formatted views, and choose whether columns store strings or JSON.
+
+---
+
+### [Playground UX Improvements](/changelog/playground-ux-improvements-jan-2026)
+
+_13 January 2026_
+
+**v0.73.0**
+
+Three quality-of-life improvements to the Playground: You can now see provider costs per million tokens directly in the model selection dropdown. You can run evaluations directly from the Playground without navigating to the evaluation menu. And you can collapse test cases to navigate large test sets more easily.
+
+---
+
+### [Chat Sessions in Observability](/changelog/chat-sessions-observability)
+
+_9 January 2026_
+
+**v0.73.0**
+
+You can now track multi-turn conversations with chat sessions. All traces with the same session ID are automatically grouped together, letting you analyze complete conversations instead of individual requests.
+
+The new session browser shows key metrics like total cost, latency, and token usage per conversation. Open any session to see all traces with their parent-child relationships. This makes debugging chatbots and AI assistants much easier. Add session tracking with one line of code using either our Python SDK or OpenTelemetry.
+
+**Minor improvements:**
+
+- Added time filtering to the analytics dashboard. You can now view metrics for the last 6 hours, 24 hours, 7 days, or 30 days.
+- Added the ability to batch delete multiple traces at once. Select traces using checkboxes and delete them in a single operation.
+
+---
+
+### [JSON Multi-Field Match Evaluator](/changelog/json-multi-field-match)
+
+_31 December 2025_
+
+**v0.73.0**
+
+The new JSON Multi-Field Match evaluator validates multiple fields between JSON objects. Configure any number of field paths using dot notation, JSON Path, or JSON Pointer formats. Each field gets its own score (0 or 1), and an aggregate score shows the percentage of matching fields. This evaluator is ideal for entity extraction tasks like validating extracted names, emails, and addresses. The UI automatically detects fields from your test data for quick setup. This replaces the old JSON Field Match evaluator, which only supported single fields.
+
+---
 
 ### [PDF Support in the Playground](/changelog/pdf-support-in-playground)
 
@@ -315,7 +465,7 @@ Watch the video below and read the [post](/changelog/multiple-metrics-in-human-e
 
 ---
 
-### [DSPy Integration](/observability/integrations/dspy)
+### [DSPy Integration](/integrations/frameworks/dspy/observability)
 
 _29 August 2025_
 
@@ -331,7 +481,7 @@ We've added DSPy integration to Agenta. You can now trace and debug your DSPy ap
   loading="lazy"
 />
 
-[**View the full DSPy integration →**](/observability/integrations/dspy)
+[**View the full DSPy integration →**](/integrations/frameworks/dspy/observability)
 
 ---
 
@@ -837,7 +987,7 @@ This release is one of our biggest yet—one changelog hardly does it justice.
 We’ve had observability in beta for a while, but now it’s been completely rewritten,
 with a brand-new UI and fully **open-source code**.
 
-The new [Observability SDK](/observability/overview) is compatible with [OpenTelemetry (Otel)](https://opentelemetry.io/) and [gen-ai semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). This means you get a lot of integrations right out of the box, like [LangChain](/observability/integrations/langchain), [OpenAI](/observability/integrations/openai), and more.
+The new [Observability SDK](/observability/overview) is compatible with [OpenTelemetry (Otel)](https://opentelemetry.io/) and [gen-ai semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). This means you get a lot of integrations right out of the box, like [LangChain](/integrations/frameworks/langchain/observability), [OpenAI](/integrations/llm-providers/openai/observability), and more.
 
 We’ll publish a full blog post soon, but here’s a quick look at what the new observability offers:
 
@@ -845,7 +995,7 @@ We’ll publish a full blog post soon, but here’s a quick look at what the new
 
 - The web UI lets you filter traces by name, cost, and other attributes—you can even search through them easily.
 
-- The SDK is Otel-compatible, and we’ve already tested integrations for [OpenAI](/observability/integrations/openai), [LangChain](/observability/integrations/langchain), [LiteLLM](/observability/integrations/litellm), and [Instructor](/observability/integrations/instructor), with guides available for each. In most cases, adding a few lines of code will have you seeing traces directly in Agenta.
+- The SDK is Otel-compatible, and we’ve already tested integrations for [OpenAI](/integrations/llm-providers/openai/observability), [LangChain](/integrations/frameworks/langchain/observability), [LiteLLM](/integrations/llm-providers/litellm/observability), and [Instructor](/integrations/libraries/instructor/observability), with guides available for each. In most cases, adding a few lines of code will have you seeing traces directly in Agenta.
 
 **Next: Prompt Management**
 

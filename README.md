@@ -191,7 +191,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-54-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-59-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -270,6 +270,13 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/VahantSharma"><img src="https://avatars.githubusercontent.com/u/172914890?v=4?s=100" width="100px;" alt="Vahant Sharma"/><br /><sub><b>Vahant Sharma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=VahantSharma" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/muzman123"><img src="https://avatars.githubusercontent.com/u/66068301?v=4?s=100" width="100px;" alt="Muhammad Muzammil"/><br /><sub><b>Muhammad Muzammil</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=muzman123" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/CyrusNamjoo"><img src="https://avatars.githubusercontent.com/u/209579763?v=4?s=100" width="100px;" alt="Sirous Namjoo"/><br /><sub><b>Sirous Namjoo</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=CyrusNamjoo" title="Documentation">📖</a> <a href="#example-CyrusNamjoo" title="Examples">💡</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/adityadewan22-hub"><img src="https://avatars.githubusercontent.com/u/225586510?v=4?s=100" width="100px;" alt="adityadewan22-hub"/><br /><sub><b>adityadewan22-hub</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=adityadewan22-hub" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/majiayu000"><img src="https://avatars.githubusercontent.com/u/19658300?v=4?s=100" width="100px;" alt="lif"/><br /><sub><b>lif</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=majiayu000" title="Code">💻</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://karimkohel.com"><img src="https://avatars.githubusercontent.com/u/46066647?v=4?s=100" width="100px;" alt="karim kohel"/><br /><sub><b>karim kohel</b></sub></a><br /><a href="#example-karimkohel" title="Examples">💡</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=karimkohel" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Vishesh-Paliwal"><img src="https://avatars.githubusercontent.com/u/142072830?v=4?s=100" width="100px;" alt="Vishesh Paliwal"/><br /><sub><b>Vishesh Paliwal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Vishesh-Paliwal" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/aviu16"><img src="https://avatars.githubusercontent.com/u/162624394?v=4?s=100" width="100px;" alt="Eve"/><br /><sub><b>Eve</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=aviu16" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

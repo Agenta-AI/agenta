@@ -1,4 +1,4 @@
-from typing import Union, Text, Dict, Any
+from typing import Union, Text, Dict, Any, Optional
 
 from agenta.sdk.workflows.runners import get_runner
 
@@ -29,19 +29,28 @@ def execute_code_safely(
     output: Union[dict, str],
     correct_answer: Any,  # for backward compatibility reasons
     code: Text,
+    runtime: Optional[str] = None,
+    templates: Optional[Dict[str, str]] = None,
+    *,
+    version: str = "1",
+    trace: Optional[Dict[str, Any]] = None,
 ) -> Union[float, None]:
     """
-    Execute the provided Python code safely.
+    Execute the provided code safely.
 
-    Uses the configured runner (local RestrictedPython or remote Daytona)
+    Uses the configured runner (local or remote Daytona)
     based on the AGENTA_SERVICES_SANDBOX_RUNNER environment variable.
 
     Args:
-        - app_params (Dict[str, Any]): The parameters of the app variant.
+        - app_params (Dict[str, Any]): The parameters of the app variant. (v1 only)
         - inputs (Dict[str, Any]): Inputs to be used during code execution.
         - output (Union[dict, str]): The output of the app variant after being called.
-        - correct_answer (Any): The correct answer (or target) of the app variant.
-        - code (Text): The Python code to be executed.
+        - correct_answer (Any): The correct answer (or target) of the app variant. (v1 only)
+        - code (Text): The code to be executed.
+        - runtime (Optional[str]): Runtime environment (python, javascript, typescript). None = python.
+        - templates (Optional[Dict[str, str]]): Wrapper templates keyed by runtime.
+        - version (str): Evaluator interface version ("1" = legacy, "2" = new).
+        - trace (Optional[Dict[str, Any]]): Full trace data (v2 only).
 
     Returns:
         - (float): Result of the execution if successful. Should be between 0 and 1.
@@ -52,4 +61,14 @@ def execute_code_safely(
     if _runner is None:
         _runner = get_runner()
 
-    return _runner.run(code, app_params, inputs, output, correct_answer)
+    return _runner.run(
+        code,
+        app_params,
+        inputs,
+        output,
+        correct_answer,
+        runtime,
+        templates,
+        version=version,
+        trace=trace,
+    )

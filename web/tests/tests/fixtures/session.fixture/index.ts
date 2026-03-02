@@ -9,8 +9,10 @@ const workerState: SessionState = {
     isAuthenticated: false,
 }
 
-export interface SessionTestType<T = {}>
-    extends TestType<SessionFixtures & T, SessionWorkerFixtures> {
+export interface SessionTestType<T = {}> extends TestType<
+    SessionFixtures & T,
+    SessionWorkerFixtures
+> {
     describeWithSession: (title: string, callback: () => void) => void
 }
 

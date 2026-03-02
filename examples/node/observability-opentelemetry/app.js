@@ -1,6 +1,8 @@
 // app.js
-import OpenAI from "openai";
+import 'dotenv/config';
+
 import { trace } from "@opentelemetry/api";
+import OpenAI from "openai";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -27,11 +29,11 @@ async function generate() {
             // Stores the input parameters as JSON
             span.setAttribute("ag.data.inputs", JSON.stringify({
                 messages: messages,
-                model: "gpt-3.5-turbo"
+                model: "gpt-5"
             }));
 
             const response = await openai.chat.completions.create({
-                model: "gpt-3.5-turbo",
+                model: "gpt-5",
                 messages: messages,
             });
 

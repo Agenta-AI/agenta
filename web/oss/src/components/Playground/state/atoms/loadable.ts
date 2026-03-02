@@ -1,33 +1,42 @@
-import {loadable, atomFamily, selectAtom} from "jotai/utils"
+import {atom} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
 
-import {variantsQueryAtom, variantRevisionsQueryFamily} from "@/oss/state/variant/atoms/fetcher"
+import {appsListAtom, revisionsListAtomFamily} from "./variants"
 
 /**
- * Phase 6.1: Non-Suspending Query Atoms
+ * Non-Suspending Query Atoms
  * Loadable wrappers to prevent UI blocking during data fetching
  */
 
-// Non-suspending variant of variantsQueryAtom
-export const variantsLoadableAtom = loadable(variantsQueryAtom)
-
-// Lightweight selectors for status-only subscriptions
-export const variantsIsLoadingAtom = selectAtom(variantsLoadableAtom, (v) => v.state === "loading")
-export const variantsHasDataAtom = selectAtom(variantsLoadableAtom, (v) => v.state === "hasData")
-export const variantsErrorAtom = selectAtom(
-    variantsLoadableAtom,
-    (v) => (v.state === "hasError" ? v.error : null),
+export const appsListLoadingAtom = selectAtom(
+    appsListAtom,
+    (state) => state.isPending ?? false,
     Object.is,
 )
 
-// Loadable revisions per variant
-export const variantRevisionsLoadableFamily = atomFamily((variantId: string) =>
-    loadable(variantRevisionsQueryFamily(variantId)),
+export const appsListHasDataAtom = selectAtom(
+    appsListAtom,
+    (state) => (state.data?.length ?? 0) > 0,
+    Object.is,
 )
 
-/**
- * Phase 6.3: Optimistic UI Updates
- * Atoms for immediate UI updates with error rollback
- */
+export const revisionsListLoadingAtomFamily = atomFamily((variantId: string) =>
+    atom((get) => {
+        const listAtom = revisionsListAtomFamily(variantId)
+        if (!listAtom) return false
+        const state = get(listAtom)
+        return (state as any)?.isPending ?? false
+    }),
+)
+
+export const revisionsListHasDataAtomFamily = atomFamily((variantId: string) =>
+    atom((get) => {
+        const listAtom = revisionsListAtomFamily(variantId)
+        if (!listAtom) return false
+        const state = get(listAtom)
+        return ((state as any)?.data?.length ?? 0) > 0
+    }),
+)
 
 export interface VariantUpdate {
     variantId: string

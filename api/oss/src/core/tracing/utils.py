@@ -22,20 +22,13 @@ from oss.src.core.tracing.dtos import (
     OTelSpanKind,
     OTelStatusCode,
     OTelSpan,
-    OTelReference,
     OTelFlatSpan,
-    OTelLink,
     OTelFlatSpans,
     TracingQuery,
     FilteringException,
     Filtering,
     Condition,
-    ComparisonOperator,
-    NumericOperator,
     StringOperator,
-    ListOperator,
-    DictOperator,
-    ExistenceOperator,
     Fields,
     TraceType,
     SpanType,
@@ -636,7 +629,7 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                     "total": total_cost,
                 }
 
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 log.warn(
                     "Failed to calculate costs",
                     model=model,
@@ -1151,14 +1144,14 @@ def _parse_enum_field_condition(condition: Condition, enum: type) -> None:
 
 
 def _parse_string_field_condition(condition: Condition) -> None:
-    if condition.operator not in _C_OPS + _S_OPS + _L_OPS + _E_OPS:
+    if condition.operator not in _C_OPS + _N_OPS + _S_OPS + _L_OPS + _E_OPS:
         raise FilteringException(
-            "'status_message' only supports comparison, string, list, and existence operators.",
+            "'status_message' only supports comparison, numeric, string, list, and existence operators.",
         )
 
-    if condition.operator in _S_OPS + _L_OPS and condition.value is None:
+    if condition.operator in _N_OPS + _S_OPS + _L_OPS and condition.value is None:
         raise FilteringException(
-            "'status_message' value is required and thus never null for string and list operators.",
+            "'status_message' value is required and thus never null for numeric, string, and list operators.",
         )
 
     if condition.operator in _E_OPS and condition.value is not None:

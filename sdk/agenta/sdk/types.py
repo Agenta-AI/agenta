@@ -3,13 +3,37 @@ from dataclasses import dataclass
 from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator, AliasChoices
+from pydantic import Field, model_validator, AliasChoices
 
 from starlette.responses import StreamingResponse
 
 
-from agenta.sdk.assets import supported_llm_models
-from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
+from agenta.sdk.assets import supported_llm_models, model_metadata
+from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
+
+
+# SDK-internal types for inline trace responses.
+# These are defined locally since they are SDK-internal models not exposed by the API.
+
+
+class AgentaNodeDto(BaseModel):
+    """SDK-internal type for inline trace node representation.
+
+    This type accepts arbitrary fields via extra="allow" since it's
+    constructed from span dictionaries with dynamic keys.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AgentaNodesResponse(BaseModel):
+    """SDK-internal type for inline trace response."""
+
+    version: str
+    nodes: List[AgentaNodeDto] = []
+    count: Optional[int] = None
+
+    model_config = ConfigDict(extra="allow")
 
 
 @dataclass
@@ -23,7 +47,11 @@ def MCField(  # pylint: disable=invalid-name
 ) -> Field:
     # Pydantic 2.12+ no longer allows post-creation mutation of field properties
     if isinstance(choices, dict):
-        json_extra = {"choices": choices, "x-parameter": "grouped_choice"}
+        json_extra = {
+            "choices": choices,
+            "x-parameter": "grouped_choice",
+            "x-model-metadata": model_metadata,
+        }
     elif isinstance(choices, list):
         json_extra = {"choices": choices, "x-parameter": "choice"}
     else:
@@ -492,17 +520,10 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
+from typing import Any, Dict, Iterable, Tuple, Optional  # noqa: E402
 
-# --- Optional dependency: python-jsonpath (provides JSONPath + JSON Pointer) ---
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
+from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath  # noqa: E402
+
 
 # ========= Scheme detection =========
 
@@ -545,7 +566,8 @@ def resolve_dot_notation(expr: str, data: dict) -> object:
 
 
 def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
+    json_path, _ = _load_jsonpath()
+    if json_path is None:
         raise ImportError("python-jsonpath is required for json-path ($...)")
 
     if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
@@ -555,15 +577,16 @@ def resolve_json_path(expr: str, data: dict) -> object:
         )
 
     # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
+    results = json_path.findall(expr, data)  # always returns a list
     return results[0] if len(results) == 1 else results
 
 
 def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
     """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
+    _, json_pointer = _load_jsonpath()
+    if json_pointer is None:
         raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
+    return json_pointer(expr).resolve(data)
 
 
 def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
@@ -577,8 +600,6 @@ def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
 
 
 # ========= Placeholder & coercion helpers =========
-
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
 
 
 def extract_placeholders(template: str) -> Iterable[str]:
@@ -613,30 +634,12 @@ def build_replacements(
     return replacements, unresolved
 
 
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
-
-
 def missing_lib_hints(unreplaced: set) -> Optional[str]:
     """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
+    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced):
+        json_path, json_pointer = _load_jsonpath()
+        if json_path is None or json_pointer is None:
+            return "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
     return None
 
 
@@ -688,10 +691,11 @@ class PromptTemplate(BaseModel):
                 return content.format(**kwargs)
 
             elif self.template_format == "jinja2":
-                from jinja2 import Template, TemplateError
+                SandboxedEnvironment, TemplateError = _load_jinja2()
+                env = SandboxedEnvironment()
 
                 try:
-                    return Template(content).render(**kwargs)
+                    return env.from_string(content).render(**kwargs)
                 except TemplateError as e:
                     raise TemplateFormatError(
                         f"Jinja2 template error in content: '{content}'. Error: {str(e)}",
@@ -705,11 +709,13 @@ class PromptTemplate(BaseModel):
                     original_placeholders, kwargs
                 )
 
-                result = apply_replacements(content, replacements)
-
-                truly_unreplaced = compute_truly_unreplaced(
-                    original_placeholders, result
+                result, successfully_replaced = apply_replacements_with_tracking(
+                    content, replacements
                 )
+
+                # Only the placeholders that were NOT successfully replaced are errors
+                # This avoids false positives when substituted values contain {{...}} patterns
+                truly_unreplaced = original_placeholders - successfully_replaced
                 if truly_unreplaced:
                     hint = missing_lib_hints(truly_unreplaced)
                     suffix = f" Hint: {hint}" if hint else ""

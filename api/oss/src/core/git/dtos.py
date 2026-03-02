@@ -13,25 +13,26 @@ from oss.src.core.shared.dtos import (
     Metadata,
     Data,
     Commit,
+    FolderScope,
 )
 
 
 # artifacts --------------------------------------------------------------------
 
 
-class Artifact(Identifier, Slug, Lifecycle, Header, Metadata):
+class Artifact(Identifier, Slug, Lifecycle, Header, Metadata, FolderScope):
     pass
 
 
-class ArtifactCreate(Slug, Header, Metadata):
+class ArtifactCreate(Slug, Header, Metadata, FolderScope):
     pass
 
 
-class ArtifactEdit(Identifier, Header, Metadata):
+class ArtifactEdit(Identifier, Header, Metadata, FolderScope):
     pass
 
 
-class ArtifactQuery(Header, Metadata):
+class ArtifactQuery(Header, Metadata, FolderScope):
     pass
 
 
@@ -90,6 +91,7 @@ class RevisionCommit(Slug, Header, Metadata):
 
     artifact_id: Optional[UUID] = None
     variant_id: Optional[UUID] = None
+    revision_id: Optional[UUID] = None
 
 
 class RevisionsLog(BaseModel):

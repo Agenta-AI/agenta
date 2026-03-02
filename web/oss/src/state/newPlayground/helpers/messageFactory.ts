@@ -1,7 +1,8 @@
+import {getAllMetadata, getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {generateId} from "@agenta/shared/utils"
+
 import {hashResponse} from "@/oss/components/Playground/assets/hash"
 import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 export function buildAssistantMessage(messageSchema: any | undefined, testResult: any) {
     // If we have a schema (from user message or generic), build via schema helper
@@ -40,7 +41,18 @@ export function buildAssistantMessage(messageSchema: any | undefined, testResult
             return createdMsg
         }
 
-        return createMessageFromSchema(messageSchema, inner)
+        const createdMsg = createMessageFromSchema(messageSchema, inner)
+        // Preserve tool_calls even when the schema doesn't have a toolCalls property
+        const tc = (inner as any)?.tool_calls ?? (inner as any)?.toolCalls
+        if (
+            createdMsg &&
+            Array.isArray(tc) &&
+            tc.length > 0 &&
+            !(createdMsg as any).toolCalls?.value
+        ) {
+            ;(createdMsg as any).toolCalls = {value: tc}
+        }
+        return createdMsg
     }
 
     const fallbackContent = testResult?.error
@@ -83,12 +95,18 @@ export function buildToolMessages(messageSchema: any | undefined, testResult: an
                 const _pickValue = rawResponse !== undefined ? rawResponse : rawArgs
                 void _pickValue
 
-                return createMessageFromSchema(messageSchema, {
+                const node = createMessageFromSchema(messageSchema, {
                     role: "tool",
                     name,
                     toolCallId,
                     content: "",
                 })
+                // Ensure toolCallId is always accessible for matching in handleUpdateToolResponse,
+                // regardless of whether the Message schema includes this property.
+                if (node && toolCallId && !(node as any).toolCallId?.value) {
+                    ;(node as any).toolCallId = {value: toolCallId}
+                }
+                return node
             })
             .filter(Boolean)
     } catch {
@@ -112,7 +130,9 @@ export function buildUserMessage(
             const found = entries.find(([, v]) => v?.title === "Message" && v?.type === "object")
             const messageMetaId = found?.[0]
             if (messageMetaId) messageSchema = getMetadataLazy(messageMetaId)
-        } catch {}
+        } catch {
+            // getAllMetadata not available yet
+        }
     }
 
     if (messageSchema) {

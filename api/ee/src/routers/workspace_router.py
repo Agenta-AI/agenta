@@ -5,15 +5,14 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter
-from ee.src.utils.permissions import check_rbac_permission
+from ee.src.utils.permissions import check_action_access
 from ee.src.services import workspace_manager, db_manager_ee
-from ee.src.services.selectors import get_user_org_and_workspace_id
 
 from ee.src.models.api.workspace_models import (
     UserRole,
-    Permission,
     WorkspaceRole,
 )
+from ee.src.models.shared_models import Permission
 
 router = APIRouter()
 
@@ -41,10 +40,14 @@ async def get_all_workspace_permissions() -> List[Permission]:
     try:
         workspace_permissions = await workspace_manager.get_all_workspace_permissions()
         return sorted(workspace_permissions)
-    except Exception as e:
+    except Exception:
+        log.error(
+            "Unexpected error while fetching workspace permissions",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while fetching workspace permissions.",
         )
 
 
@@ -71,14 +74,11 @@ async def assign_role_to_user(
     """
 
     try:
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
         project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
+            permission=Permission.MODIFY_USER_ROLES,
         )
         if not has_permission:
             return JSONResponse(
@@ -100,10 +100,14 @@ async def assign_role_to_user(
         return create_user_role
     except HTTPException as ex:
         raise ex
-    except Exception as e:
+    except Exception:
+        log.error(
+            "Unexpected error while assigning role to user",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while assigning role to user.",
         )
 
 
@@ -134,14 +138,11 @@ async def unassign_role_from_user(
 
     """
     try:
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
         project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
-            role=WorkspaceRole.WORKSPACE_ADMIN,
+            permission=Permission.MODIFY_USER_ROLES,
         )
         if not has_permission:
             return JSONResponse(
@@ -166,8 +167,12 @@ async def unassign_role_from_user(
         return delete_user_role
     except HTTPException as ex:
         raise ex
-    except Exception as e:
+    except Exception:
+        log.error(
+            "Unexpected error while unassigning role from user",
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail="An internal error occurred while unassigning role from user.",
         )

@@ -15,6 +15,7 @@ import {
     selectedNodeAtom,
     DEFAULT_SORT,
     limitAtom,
+    autoRefreshAtom,
 } from "../atoms/controls"
 import {
     tracesQueryAtom,
@@ -40,6 +41,7 @@ export const useObservability = () => {
     )
     const [selectedNode, setSelectedNode] = useAtom(selectedNodeAtom)
     const [limit] = useAtom(limitAtom)
+    const [autoRefresh, setAutoRefresh] = useAtom(autoRefreshAtom)
 
     const [
         {
@@ -139,5 +141,7 @@ export const useObservability = () => {
         activeTraceIndex,
         activeTrace,
         selectedItem,
+        autoRefresh,
+        setAutoRefresh,
     }
 }

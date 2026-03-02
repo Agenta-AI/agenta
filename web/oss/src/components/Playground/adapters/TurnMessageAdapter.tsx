@@ -1,4 +1,4 @@
-import React, {ComponentProps, useCallback, useMemo, useRef, useState} from "react"
+import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -12,8 +12,11 @@ import MessageImageList from "@/oss/components/Playground/Components/Shared/Mess
 import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMessageContentHandlers"
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"
 import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
+import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {chatTurnsByIdFamilyAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {runChatTurnAtom} from "@/oss/state/newPlayground/chat/actions"
+import {responseByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
+import {openPlaygroundFocusDrawerAtom} from "@/oss/state/playgroundFocusDrawerAtom"
 
 import {createToolCallPayloads, ToolCallViewHeader} from "../Components/ToolCallView"
 
@@ -31,6 +34,16 @@ interface Props {
     messageOptionProps?: Partial<ComponentProps<typeof TurnMessageHeaderOptions>>
     toolCallsView?: {title?: string; json: string} | null
     toolIndex?: number
+    messageOverride?: any
+    isJSON?: boolean
+    isTool?: boolean
+    messageProps?: any
+    editorType?: string
+    handleRerun?: (args: any) => void
+    resultHashes?: string[]
+    repetitionProps?: any
+    hideRerun?: boolean
+    hideExpandResults?: boolean
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -53,11 +66,24 @@ const TurnMessageAdapter: React.FC<Props> = ({
     handleRerun: propsHandleRerun,
     resultHashes: propsResultHashes,
     toolIndex = 0,
+    messageOverride,
+    repetitionProps,
+    hideRerun,
+    hideExpandResults,
 }) => {
+    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
+    const isComparisonView = useAtomValue(isComparisonViewAtom)
     const editorIdRef = useRef(uuidv4())
     const turn = useAtomValue(chatTurnsByIdFamilyAtom(rowId)) as any
     const setTurn = useSetAtom(chatTurnsByIdFamilyAtom(rowId))
-    const [minimized, setMinimized] = useState(false)
+    const setResponse = useSetAtom(
+        useMemo(
+            () => responseByRowRevisionAtomFamily({rowId, revisionId: variantId}),
+            [rowId, variantId],
+        ),
+    )
+    const [minimized, setMinimized] = useState(() => kind === "tool")
+    const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
     const toolMessage = useMemo(() => {
         if (!turn) return null
@@ -66,12 +92,15 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return messages[toolIndex] || null
     }, [turn, variantId, toolIndex])
     const msg = useMemo(() => {
+        if (messageOverride) return messageOverride
         const t = turn
-        if (!t) return null
-        if (kind === "assistant") return t?.assistantMessageByRevision?.[variantId] || null
+        if (kind === "assistant") {
+            const m = t?.assistantMessageByRevision?.[variantId] || null
+            return m
+        }
         if (kind === "tool") return toolMessage
         return t?.userMessage || null
-    }, [turn, variantId, kind, toolMessage])
+    }, [turn, variantId, kind, toolMessage, messageOverride])
 
     const {baseImageProperties, baseFileProperties, baseRoleProperty, computedText} =
         useMessageContentProps(msg as any)
@@ -114,25 +143,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const {addUploadSlot, updateTextContent, removeUploadItem} = useMessageContentHandlers()
     const effectiveDisabled = Boolean(disabled)
 
-    const deleteMessage = useCallback(() => {
-        if (isToolKind) return
-        const msgId = (msg as any)?.__id
-        if (!msgId) return
-        setTurn((draft: any) => {
-            if (!draft) return
-            if (kind === "assistant") {
-                const cur = draft?.assistantMessageByRevision?.[variantId]
-                if (cur && cur.__id === msgId) {
-                    draft.assistantMessageByRevision[variantId] = null
-                }
-            } else {
-                if (draft.userMessage && draft.userMessage.__id === msgId) {
-                    draft.userMessage = null
-                }
-            }
-        })
-    }, [setTurn, kind, variantId, msg, rowId, turn, isToolKind])
-
     // Shared helper to get and assign the current target message node (user/assistant)
     const getTarget = useCallback(
         (draft: any) => {
@@ -162,13 +172,47 @@ const TurnMessageAdapter: React.FC<Props> = ({
             }
             return {target, assign}
         },
-        [kind, variantId, isToolKind, toolMessage],
+        [kind, variantId, isToolKind, toolIndex],
     )
+
+    const deleteMessage = useCallback(() => {
+        if (isToolKind) {
+            setTurn((draft: any) => {
+                if (!draft) return
+                const {assign} = getTarget(draft)
+                assign(null)
+            })
+            return
+        }
+        const msgId = (msg as any)?.__id
+        if (!msgId) return
+        setTurn((draft: any) => {
+            if (!draft) return
+            if (kind === "assistant") {
+                const cur = draft?.assistantMessageByRevision?.[variantId]
+                // When messageOverride is used (e.g., from result/error), the __id won't match
+                // the stored message. In that case, delete if there's any assistant message.
+                if (messageOverride) {
+                    draft.assistantMessageByRevision[variantId] = null
+                } else if (cur && cur.__id === msgId) {
+                    draft.assistantMessageByRevision[variantId] = null
+                }
+            } else {
+                if (draft.userMessage && draft.userMessage.__id === msgId) {
+                    draft.userMessage = null
+                }
+            }
+        })
+        // Also clear the response that generates the messageOverride
+        if (kind === "assistant" && messageOverride) {
+            setResponse(null)
+        }
+    }, [setTurn, kind, variantId, msg, isToolKind, messageOverride, setResponse, getTarget])
 
     const onChangeRole = useCallback(
         (v: string) => {
             if (isToolKind) return
-            if (!turn || !msg) return
+            if (!msg) return
             setTurn((draft: any) => {
                 const {target, assign} = getTarget(draft)
                 if (!target || !target.role || typeof target.role !== "object") return
@@ -176,12 +220,11 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 assign(updated)
             })
         },
-        [turn, msg, getTarget, setTurn, isToolKind],
+        [msg, getTarget, setTurn, isToolKind],
     )
 
     const onChangeText = useCallback(
         (v: string) => {
-            // if (isToolKind) return
             setTurn((draft: any) => {
                 const {target, assign} = getTarget(draft)
                 if (!target) return
@@ -190,7 +233,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 assign({...target, content})
             })
         },
-        [getTarget, rowId, updateTextContent, setTurn, isToolKind],
+        [getTarget, rowId, kind, updateTextContent, setTurn],
     )
 
     const onAddUploadSlot = useCallback(() => {
@@ -204,7 +247,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             const content = target.content || {__id: `content-${rowId}-${kind}`, value: []}
             assign({...target, content: {...content, value: result}})
         })
-    }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
+    }, [addUploadSlot, setTurn, getTarget, rowId, kind, isToolKind])
 
     const onAddDocumentSlot = useCallback(() => {
         if (isToolKind) return
@@ -221,7 +264,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             const content = target.content || {__id: `content-${rowId}-${kind}`, value: []}
             assign({...target, content: {...content, value: result}})
         })
-    }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
+    }, [addUploadSlot, setTurn, getTarget, rowId, kind, isToolKind])
 
     const onRemoveUploadItem = useCallback(
         (propertyId: string) => {
@@ -272,7 +315,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (isToolKind) return
         const logicalId = String(rowId)
         const messageId = (msg as any)?.__id as string | undefined
-        // 1) prune message if applicable
+        // 1) Clear response cache FIRST to prevent stale data display
+        setResponse(null)
+        // 2) prune message and tool responses if applicable
         setTurn((draft: any) => {
             if (!draft) return
             if (!draft.assistantMessageByRevision) draft.assistantMessageByRevision = {}
@@ -284,9 +329,18 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 // Rerunning a user message should clear any assistant response on this row/revision
                 draft.assistantMessageByRevision[variantId] = null
             }
+            // Clear tool responses for this revision
+            if (draft.toolResponsesByRevision && variantId in draft.toolResponsesByRevision) {
+                delete draft.toolResponsesByRevision[variantId]
+                // Clean up empty object
+                if (Object.keys(draft.toolResponsesByRevision).length === 0) {
+                    delete draft.toolResponsesByRevision
+                }
+            }
         })
+        // 3) Trigger rerun
         rerun({turnId: logicalId, variantId, messageId})
-    }, [rerun, rowId, variantId, msg, kind, setTurn, isToolKind])
+    }, [rerun, rowId, variantId, msg, kind, setTurn, setResponse, isToolKind])
 
     const resultHashes = useMemo(() => {
         try {
@@ -349,6 +403,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return createToolCallPayloads(msg?.toolCalls?.value)
     }, [kind, msg])
 
+    useEffect(() => {
+        const shouldAutoMinimize = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
+        if (!shouldAutoMinimize || autoMinimizedRef.current) return
+        setMinimized(true)
+        autoMinimizedRef.current = true
+    }, [isToolKind, kind, toolPayloads.length])
+
     return toolPayloads?.length ? (
         toolPayloads.map((p) => (
             <div
@@ -382,7 +443,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     onChangeText={onChangeText}
                     state={"readOnly"}
                     headerBottom={
-                        toolCallsView ? <ToolCallViewHeader className="mt-2" {...p} /> : null
+                        p.name || p.callId ? (
+                            <ToolCallViewHeader className="mt-2" name={p.name} callId={p.callId} />
+                        ) : null
                     }
                     headerRight={
                         <TurnMessageHeaderOptions
@@ -393,6 +456,12 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             text={p?.json ?? editorText}
                             minimized={minimized}
                             allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
+                            repetitionProps={!isComparisonView ? repetitionProps : undefined}
+                            onViewAllRepeats={
+                                hideExpandResults
+                                    ? undefined
+                                    : () => openFocusDrawer({rowId: rowId, variantId})
+                            }
                             uploadCount={
                                 Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                             }
@@ -400,11 +469,20 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                 Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
                             }
                             actions={{
-                                onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                                onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                                onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                                onAddUploadSlot:
+                                    isToolKind || messageOptionProps?.allowFileUpload === false
+                                        ? undefined
+                                        : onAddUploadSlot,
+                                onAddDocumentSlot:
+                                    isToolKind || messageOptionProps?.allowFileUpload === false
+                                        ? undefined
+                                        : onAddDocumentSlot,
+                                onRerun:
+                                    isToolKind || hideRerun
+                                        ? undefined
+                                        : (propsHandleRerun ?? handleRerun),
                                 onMinimize: () => setMinimized((c) => !c),
-                                onDelete: isToolKind ? undefined : deleteMessage,
+                                onDelete: deleteMessage,
                             }}
                         >
                             {headerRight}
@@ -455,6 +533,12 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         text={editorText}
                         minimized={minimized}
                         allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
+                        repetitionProps={!isComparisonView ? repetitionProps : undefined}
+                        onViewAllRepeats={
+                            hideExpandResults
+                                ? undefined
+                                : () => openFocusDrawer({rowId: rowId, variantId})
+                        }
                         uploadCount={
                             Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                         }
@@ -462,11 +546,20 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
                         }
                         actions={{
-                            onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                            onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                            onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                            onAddUploadSlot:
+                                isToolKind || messageOptionProps?.allowFileUpload === false
+                                    ? undefined
+                                    : onAddUploadSlot,
+                            onAddDocumentSlot:
+                                isToolKind || messageOptionProps?.allowFileUpload === false
+                                    ? undefined
+                                    : onAddDocumentSlot,
+                            onRerun:
+                                isToolKind || hideRerun
+                                    ? undefined
+                                    : (propsHandleRerun ?? handleRerun),
                             onMinimize: () => setMinimized((c) => !c),
-                            onDelete: isToolKind ? undefined : deleteMessage,
+                            onDelete: deleteMessage,
                         }}
                     >
                         {headerRight}

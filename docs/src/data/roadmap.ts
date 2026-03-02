@@ -25,6 +25,123 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+  // Security: 000000
+  {
+    id: "tool-integrations",
+    title: "Tool Integrations in the Playground",
+    description:
+      "Connect 150+ external tools (Gmail, Slack, Notion, Google Sheets, GitHub) to your prompts directly from the playground. Authenticate with OAuth, attach tool actions, and execute tool calls with one click.",
+    changelogPath: "/docs/changelog/tool-integrations",
+    shippedAt: "2026-02-27",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
+    id: "ai-prompt-refinement",
+    title: "AI-Powered Prompt Refinement in the Playground",
+    description:
+      "Refine prompts with AI directly in the playground. Describe what you want to improve and get a refined version with an explanation of the changes.",
+    changelogPath: "/docs/changelog/refine-ai",
+    shippedAt: "2026-02-25",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "enterprise-compliance",
+    title: "Enterprise Compliance Features",
+    description:
+      "Multi-organization support, SSO with any OIDC provider, domain verification with auto-join, and a US region.",
+    changelogPath: "/docs/changelog/enterprise-compliance-features",
+    shippedAt: "2026-02-17",
+    labels: [
+      {
+        name: "Security",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "prompt-folders",
+    title: "Folders for Prompt Organization",
+    description:
+      "Create folders and subfolders to organize prompts. Drag prompts between folders and search across everything.",
+    changelogPath: "/docs/changelog/prompt-folders",
+    shippedAt: "2026-02-04",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "trace-linking",
+    title: "Navigation Links from Traces to App/Environment/Variant",
+    description:
+      "Clickable links in observability traces to navigate to the application, variant, version, and environment used in each trace. Jump directly to the configuration that generated a specific trace.",
+    changelogPath: "/docs/changelog/trace-navigation-links",
+    shippedAt: "2026-01-28",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "date-range-filtering",
+    title: "Date Range Filtering in Metrics Dashboard",
+    description:
+      "Filter traces by date range in the metrics dashboard. View metrics for the last 6 hours, 24 hours, 7 days, or 30 days.",
+    changelogPath: "/docs/changelog/chat-sessions-observability",
+    shippedAt: "2026-01-09",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "testset-versioning",
+    title: "Test Set Versioning and New UI",
+    description:
+      "Track test set changes with versioning. Every edit creates a new version. Evaluations link to specific versions for reliable comparisons. Plus a rebuilt UI that scales to 100K+ rows with inline editing for chat messages and JSON.",
+    changelogPath: "/docs/changelog/testset-versioning",
+    shippedAt: "2026-01-20",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "chat-session-view",
+    title: "Chat Sessions in Observability",
+    description:
+      "Track multi-turn conversations with session grouping. All traces with the same session ID are automatically grouped together, showing complete conversation flows with cost, latency, and token metrics per session.",
+    changelogPath: "/docs/changelog/chat-sessions-observability",
+    shippedAt: "2026-01-09",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
   {
     id: "pdf-support-playground",
     title: "PDF Support in the Playground",
@@ -295,37 +412,11 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "chat-session-view",
-    title: "Chat Session View in Observability",
+    id: "navigation-in-the-playground",
+    title: "Improving Navigation between Testsets in the Playground",
     description:
-      "Display entire chat sessions in one consolidated view. Currently, each trace in a chat session appears in a separate tab. This feature will group traces by session ID and show the complete conversation in a single view.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3052",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-  {
-    id: "trace-linking",
-    title: "Navigation Links from Traces to App/Environment/Variant",
-    description:
-      "Add clickable links in the observability trace and drawer view to navigate to the application, variant, version, and environment used in each trace. Makes it easy to jump directly to the configuration that generated a specific trace.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2699",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-  {
-    id: "prompt-folders",
-    title: "Folders for Prompt Organization",
-    description:
-      "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
+      "We are making it easy to use and navigate in the playground with large testsets.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
     labels: [
       {
         name: "Playground",
@@ -339,35 +430,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     description:
       "Create reusable prompt snippets that can be referenced across multiple prompts. Reference specific versions or always use the latest version to maintain consistency across prompt variants.",
     githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2858",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "date-range-filtering",
-    title: "Date Range Filtering in Metrics Dashboard",
-    description:
-      "We are adding the ability to filter traces by date range in the metrics dashboard.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2774",
-    labels: [
-      {
-        name: "Observability",
-        color: "DE74FF",
-      },
-    ],
-  },
-];
-
-export const plannedFeatures: PlannedFeature[] = [
-  {
-    id: "ai-prompt-refinement",
-    title: "AI-Powered Prompt Refinement in the Playground",
-    description:
-      "Analyze prompts and suggest improvements based on best practices. Identify issues, propose refined versions, and allow users to accept, modify, or reject suggestions.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2861",
     labels: [
       {
         name: "Playground",
@@ -393,44 +455,66 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "navigation-in-the-playground",
-    title: "Improving Navigation between Testsets in the Playground",
+    id: "evaluators-in-playground",
+    title: "Running Evaluators in the Playground",
     description:
-      "We are making it easy to use and navigate in the playground with large testsets  .",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2731",
+      "Run evaluators directly in the playground to get immediate quality feedback on prompt changes. Evaluate outputs inline as you iterate on prompts. Scores, pass/fail results, and evaluator reasoning appear right next to the LLM response.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3702",
     labels: [
       {
         name: "Playground",
         color: "BCFF78",
       },
-    ],
-  },
-  {
-    id: "appending-single-test-cases",
-    title: "Appending Single Testcases in the Playground",
-    description:
-      "Using testcases from different testsets is not possible right now in the Playground. We are adding the ability to append a single testcase to a testset.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2732",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "test-set-view",
-    title: "Improving Testset View",
-    description:
-      "We are reworking the testset view to make it easier to visualize and edit testsets.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2733",
-    labels: [
       {
         name: "Evaluation",
         color: "86B7FF",
       },
     ],
   },
+
+  {
+    id: "agents-from-ui",
+    title: "Creating Agents from the UI",
+    description:
+      "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3705",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "deployment-webhooks",
+    title: "Webhooks for Deployment Linked to CI",
+    description:
+      "Trigger CI/CD pipelines automatically when you deploy a prompt version. Connect Agenta deployments to your existing CI workflows so that deploying a new version kicks off automated tests, approval gates, or release processes.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3706",
+    labels: [
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+];
+
+export const plannedFeatures: PlannedFeature[] = [
+  {
+    id: "trace-usage-limits",
+    title: "Usage Limits for Traces (Hard and Soft Caps)",
+    description:
+      "Set usage limits for traces at the project level. Configure a hard cap to stop accepting new traces once the limit is reached, or a soft cap to receive an alert while continuing to accept traces. Gives teams cost predictability and control in production.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3784",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+
   {
     id: "prompt-caching-sdk",
     title: "Prompt Caching in the SDK",
@@ -443,19 +527,7 @@ export const plannedFeatures: PlannedFeature[] = [
       },
     ],
   },
-  {
-    id: "test-set-versioning",
-    title: "Testset Versioning",
-    description:
-      "We are adding the ability to version testsets. This is useful for correctly comparing evaluation results.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2735",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
+
   {
     id: "tagging",
     title: "Tagging Traces, Testsets, Evaluations and Prompts",

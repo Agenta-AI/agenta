@@ -1,21 +1,21 @@
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {atom} from "jotai"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
-import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
+import {
+    isComparisonViewAtom,
+    moleculeBackedPromptsAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
 import PromptMessageConfig from "../../../PromptMessageConfig"
 import GenerationChatTurnNormalized from "../GenerationChatTurnNormalized"
@@ -29,8 +29,10 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
     const turnIds = useAtomValue(generationRowIdsAtom)
 
-    // Config messages (read-only, single view only)
-    const prompts = useAtomValue(variantId ? promptsAtomFamily(variantId) : atom([])) as any[]
+    // Config messages (read-only, single view only) - use molecule-backed prompts
+    const prompts = useAtomValue(
+        variantId ? moleculeBackedPromptsAtomFamily(variantId) : atom([]),
+    ) as any[]
     const configMessages = (prompts || []).flatMap((p: any) => p?.messages?.value || [])
 
     return (

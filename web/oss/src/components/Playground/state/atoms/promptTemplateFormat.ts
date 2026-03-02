@@ -2,7 +2,7 @@ import {produce} from "immer"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {updateVariantPropertyEnhancedMutationAtom} from "./propertyMutations"
 
@@ -50,7 +50,8 @@ const DEFAULT_TEMPLATE_FORMAT: PromptTemplateFormat = "curly"
 export const promptTemplateFormatAtomFamily = atomFamily((revisionId: string) =>
     atom<PromptTemplateFormat, PromptTemplateFormat>(
         (get) => {
-            const prompts = get(promptsAtomFamily(revisionId))
+            // Use molecule-backed prompts for single source of truth
+            const prompts = get(moleculeBackedPromptsAtomFamily(revisionId))
             if (!Array.isArray(prompts) || prompts.length === 0) {
                 return DEFAULT_TEMPLATE_FORMAT
             }
@@ -71,7 +72,8 @@ export const promptTemplateFormatAtomFamily = atomFamily((revisionId: string) =>
             return firstNonDefault ?? DEFAULT_TEMPLATE_FORMAT
         },
         (get, set, nextFormat) => {
-            const prompts = get(promptsAtomFamily(revisionId))
+            // Use molecule-backed prompts for single source of truth
+            const prompts = get(moleculeBackedPromptsAtomFamily(revisionId))
             if (!Array.isArray(prompts) || prompts.length === 0) {
                 return
             }
@@ -90,7 +92,7 @@ export const promptTemplateFormatAtomFamily = atomFamily((revisionId: string) =>
                 }
             })
 
-            set(promptsAtomFamily(revisionId), (prev: any) =>
+            set(moleculeBackedPromptsAtomFamily(revisionId), (prev: any) =>
                 produce(prev ?? [], (draft: any[]) => {
                     draft.forEach((prompt: any) => {
                         const node = getTemplateFormatNode(prompt)

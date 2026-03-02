@@ -74,6 +74,8 @@ export const usePlaygroundScrollSync = ({enabled}: ScrollSyncOptions) => {
     }, [enabled, configPanelRef, generationPanelRef])
 
     return {
+        configPanelRef,
+        generationPanelRef,
         setConfigPanelRef,
         setGenerationPanelRef,
     }

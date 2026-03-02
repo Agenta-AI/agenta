@@ -23,7 +23,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router, human_evaluation_router
+from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
@@ -44,6 +44,11 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowVariantDBE,
     WorkflowRevisionDBE,
 )
+from oss.src.dbs.postgres.environments.dbes import (
+    EnvironmentArtifactDBE,
+    EnvironmentVariantDBE,
+    EnvironmentRevisionDBE,
+)
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -63,16 +68,20 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
-from oss.src.core.applications.service import LegacyApplicationsService
+from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.services import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.environments.service import EnvironmentsService
+from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
@@ -82,24 +91,32 @@ from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.queries.router import QueriesRouter
 from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
-from oss.src.apis.fastapi.applications.router import LegacyApplicationsRouter
+from oss.src.apis.fastapi.applications.router import ApplicationsRouter
+from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
+from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+
+from oss.src.core.ai_services.service import AIServicesService
+from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.core.tools.providers.composio import ComposioToolsAdapter
+from oss.src.core.tools.registry import ToolsGatewayRegistry
+from oss.src.core.tools.service import ToolsService
+from oss.src.apis.fastapi.tools.router import ToolsRouter
 
 
 from oss.src.routers import (
     admin_router,
     app_router,
     environment_router,
-    evaluators_router,
-    testset_router,
     user_profile,
     variants_router,
-    bases_router,
     configs_router,
     health_router,
     permissions_router,
@@ -112,6 +129,9 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+import oss.src.core.evaluations.tasks.live  # noqa: F401
+import oss.src.core.evaluations.tasks.legacy  # noqa: F401
+import oss.src.core.evaluations.tasks.batch  # noqa: F401
 
 from redis.asyncio import Redis
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
@@ -119,7 +139,7 @@ from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 import agenta as ag
 
 ag.init(
-    api_url=env.AGENTA_API_URL,
+    api_url=env.agenta.api_url,
 )
 
 ee = None
@@ -128,6 +148,8 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+init_supertokens()
 
 
 @asynccontextmanager
@@ -148,6 +170,9 @@ async def lifespan(*args, **kwargs):
 
     yield
 
+    for adapter in _composio_adapters.values():
+        await adapter.close()
+
 
 app = FastAPI(
     lifespan=lifespan,
@@ -156,8 +181,13 @@ app = FastAPI(
 )
 # MIDDLEWARE -------------------------------------------------------------------
 
-app.middleware("http")(authentication_middleware)
 
+if is_ee():
+    from ee.src.services.throttling_service import throttling_middleware
+
+    app.middleware("http")(throttling_middleware)
+
+app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
 
 app.add_middleware(
@@ -211,8 +241,16 @@ workflows_dao = GitDAO(
     RevisionDBE=WorkflowRevisionDBE,
 )
 
+environments_dao = GitDAO(
+    ArtifactDBE=EnvironmentArtifactDBE,
+    VariantDBE=EnvironmentVariantDBE,
+    RevisionDBE=EnvironmentRevisionDBE,
+)
+
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
+
+tools_dao = ToolsDAO()
 
 # SERVICES ---------------------------------------------------------------------
 
@@ -225,8 +263,8 @@ tracing_service = TracingService(
 )
 
 # Redis client and TracingWorker for publishing spans to Redis Streams
-if env.REDIS_URI_DURABLE:
-    redis_client = Redis.from_url(env.REDIS_URI_DURABLE, decode_responses=False)
+if env.redis.uri_durable:
+    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
     tracing_worker = TracingWorker(
         service=tracing_service,
         redis_client=redis_client,
@@ -257,7 +295,6 @@ simple_queries_service = SimpleQueriesService(
     queries_service=queries_service,
 )
 
-legacy_applications_service = LegacyApplicationsService()
 folders_service = FoldersService(
     folders_dao=folders_dao,
 )
@@ -266,12 +303,28 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
+simple_applications_service = SimpleApplicationsService(
+    applications_service=applications_service,
+)
+
 evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
+)
+
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
+simple_environments_service = SimpleEnvironmentsService(
+    environments_service=environments_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -284,13 +337,31 @@ evaluations_service = EvaluationsService(
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
-    queries_service=queries_service,
     testsets_service=testsets_service,
+    queries_service=queries_service,
+    applications_service=applications_service,
     evaluators_service=evaluators_service,
     evaluations_service=evaluations_service,
-    simple_testsets_service=simple_testsets_service,
-    simple_evaluators_service=simple_evaluators_service,
     evaluations_worker=evaluations_worker,
+)
+
+# Tools adapter + service
+_composio_adapters = {}
+if env.composio.enabled:
+    _composio_adapters["composio"] = ComposioToolsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+else:
+    log.warning("Composio not enabled — set COMPOSIO_API_KEY to activate gateway tools")
+
+tools_adapter_registry = ToolsGatewayRegistry(
+    adapters=_composio_adapters,
+)
+
+tools_service = ToolsService(
+    tools_dao=tools_dao,
+    adapter_registry=tools_adapter_registry,
 )
 
 # ROUTERS ----------------------------------------------------------------------
@@ -310,6 +381,7 @@ tracing = TracingRouter(
 
 testcases = TestcasesRouter(
     testcases_service=testcases_service,
+    testsets_service=testsets_service,
 )
 
 testsets = TestsetsRouter(
@@ -328,8 +400,12 @@ simple_queries = SimpleQueriesRouter(
     simple_queries_service=simple_queries_service,
 )
 
-legacy_applications = LegacyApplicationsRouter(
-    legacy_applications_service=legacy_applications_service,
+applications = ApplicationsRouter(
+    applications_service=applications_service,
+)
+
+simple_applications = SimpleApplicationsRouter(
+    simple_applications_service=simple_applications_service,
 )
 
 folders = FoldersRouter(
@@ -348,6 +424,14 @@ simple_evaluators = SimpleEvaluatorsRouter(
     simple_evaluators_service=simple_evaluators_service,
 )
 
+environments = EnvironmentsRouter(
+    environments_service=environments_service,
+)
+
+simple_environments = SimpleEnvironmentsRouter(
+    simple_environments_service=simple_environments_service,
+)
+
 evaluations = EvaluationsRouter(
     evaluations_service=evaluations_service,
     queries_service=queries_service,
@@ -357,9 +441,14 @@ simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+tools = ToolsRouter(
+    tools_service=tools_service,
+)
+
 invocations_service = InvocationsService(
-    legacy_applications_service=legacy_applications_service,
     tracing_router=tracing,
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
 )
 
 annotations_service = AnnotationsService(
@@ -374,6 +463,13 @@ invocations = InvocationsRouter(
 
 annotations = AnnotationsRouter(
     annotations_service=annotations_service,
+)
+
+# AI SERVICES ------------------------------------------------------------------
+
+ai_services_service = AIServicesService.from_env()
+ai_services = AIServicesRouter(
+    ai_services_service=ai_services_service,
 )
 
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
@@ -391,10 +487,19 @@ app.include_router(
 )
 
 app.include_router(
+    router=auth_router,
+    prefix="/auth",
+    tags=["Auth"],
+)
+
+## DEPRECATED
+app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
     tags=["Deprecated"],
+    include_in_schema=False,
 )
+## DEPRECATED
 
 app.include_router(
     router=tracing.router,
@@ -404,25 +509,59 @@ app.include_router(
 
 app.include_router(
     router=invocations.router,
+    prefix="/invocations",
+    tags=["Invocations"],
+)
+
+app.include_router(
+    router=invocations.router,
     prefix="/preview/invocations",
     tags=["Invocations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/annotations",
+    tags=["Annotations"],
 )
 
 app.include_router(
     router=annotations.router,
     prefix="/preview/annotations",
     tags=["Annotations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testcases.router,
+    prefix="/testcases",
+    tags=["Testcases"],
 )
 
 app.include_router(
     router=testcases.router,
     prefix="/preview/testcases",
     tags=["Testcases"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testsets.router,
+    prefix="/testsets",
+    tags=["Testsets"],
 )
 
 app.include_router(
     router=testsets.router,
     prefix="/preview/testsets",
+    tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_testsets.router,
+    prefix="/simple/testsets",
     tags=["Testsets"],
 )
 
@@ -430,11 +569,25 @@ app.include_router(
     router=simple_testsets.router,
     prefix="/preview/simple/testsets",
     tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=queries.router,
+    prefix="/queries",
+    tags=["Queries"],
 )
 
 app.include_router(
     router=queries.router,
     prefix="/preview/queries",
+    tags=["Queries"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queries.router,
+    prefix="/simple/queries",
     tags=["Queries"],
 )
 
@@ -442,6 +595,7 @@ app.include_router(
     router=simple_queries.router,
     prefix="/preview/simple/queries",
     tags=["Queries"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -451,20 +605,66 @@ app.include_router(
 )
 
 app.include_router(
-    router=legacy_applications.router,
-    prefix="/preview/legacy/applications",
+    router=applications.router,
+    prefix="/applications",
     tags=["Applications"],
+)
+
+app.include_router(
+    router=applications.router,
+    prefix="/preview/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/simple/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/preview/simple/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=workflows.router,
+    prefix="/workflows",
+    tags=["Workflows"],
 )
 
 app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
     tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=ai_services.router,
+    prefix="/ai/services",
+    tags=["AI Services"],
+)
+
+app.include_router(
+    router=evaluators.router,
+    prefix="/evaluators",
+    tags=["Evaluators"],
 )
 
 app.include_router(
     router=evaluators.router,
     prefix="/preview/evaluators",
+    tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluators.router,
+    prefix="/simple/evaluators",
     tags=["Evaluators"],
 )
 
@@ -472,6 +672,25 @@ app.include_router(
     router=simple_evaluators.router,
     prefix="/preview/simple/evaluators",
     tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=environments.router,
+    prefix="/preview/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/preview/simple/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=tools.router,
+    prefix="/preview/tools",
+    tags=["Tools"],
 )
 
 app.include_router(
@@ -482,7 +701,20 @@ app.include_router(
 
 app.include_router(
     router=evaluations.router,
+    prefix="/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=evaluations.router,
     prefix="/preview/evaluations",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluations.router,
+    prefix="/simple/evaluations",
     tags=["Evaluations"],
 )
 
@@ -490,18 +722,7 @@ app.include_router(
     router=simple_evaluations.router,
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
-)
-
-app.include_router(
-    evaluation_router.router,
-    prefix="/evaluations",
-    tags=["Evaluations"],
-)
-
-app.include_router(
-    human_evaluation_router.router,
-    prefix="/human-evaluations",
-    tags=["Human-Evaluations"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -551,27 +772,9 @@ app.include_router(
 )
 
 app.include_router(
-    evaluators_router.router,
-    prefix="/evaluators",
-    tags=["Evaluators"],
-)
-
-app.include_router(
-    testset_router.router,
-    prefix="/testsets",
-    tags=["Testsets"],
-)
-
-app.include_router(
     environment_router.router,
     prefix="/environments",
     tags=["Environments"],
-)
-
-app.include_router(
-    bases_router.router,
-    prefix="/bases",
-    tags=["Bases"],
 )
 
 app.include_router(
@@ -599,12 +802,5 @@ app.include_router(
 )
 
 # ------------------------------------------------------------------------------
-
-
-import oss.src.core.evaluations.tasks.live
-import oss.src.core.evaluations.tasks.legacy
-import oss.src.core.evaluations.tasks.batch
-
-
 if ee and is_ee():
     app = ee.extend_app_schema(app)

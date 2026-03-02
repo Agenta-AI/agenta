@@ -1,9 +1,6 @@
 import requests
 import re
-import sys
-from urllib.parse import urlparse
-from pydantic import BaseModel, Field
-from typing import Annotated
+from pydantic import BaseModel
 import agenta as ag
 from agenta.sdk.types import MCField
 import litellm
@@ -29,7 +26,7 @@ Please provide a critique of the changes made in this file.
 class Config(BaseModel):
     system_prompt: str = prompt_system
     user_prompt: str = prompt_user
-    model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
+    model: str = MCField(default="gpt-5", choices=supported_llm_models)
 
 
 @ag.instrument()

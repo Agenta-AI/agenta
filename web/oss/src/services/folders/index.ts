@@ -55,10 +55,17 @@ export async function deleteFolder(folderId: string): Promise<FolderIdResponse> 
     return data as FolderIdResponse
 }
 
-export async function queryFolders(payload: FolderQueryRequest = {}): Promise<FoldersResponse> {
+export async function queryFolders(
+    payload: FolderQueryRequest = {},
+    projectIdOverride?: string | null,
+): Promise<FoldersResponse> {
     const {projectId} = getProjectValues()
+    const effectiveProjectId = projectIdOverride ?? projectId
+    if (!effectiveProjectId) {
+        throw new Error("[folders] Missing projectId for queryFolders")
+    }
     const {data} = await axios.post(
-        `${getAgentaApiUrl()}/folders/query?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/folders/query?project_id=${effectiveProjectId}`,
         payload,
     )
     return data as FoldersResponse

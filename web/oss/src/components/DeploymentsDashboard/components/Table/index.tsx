@@ -5,7 +5,7 @@ import {Table, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import Image from "next/image"
 
-import EmptyComponent from "@/oss/components/EmptyComponent"
+import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"

@@ -19,6 +19,7 @@ export interface BaseSchema extends Base {
     const?: unknown
     enum?: unknown[]
     key?: string
+    "x-model-metadata"?: Record<string, unknown>
 }
 
 export interface BaseSchemaProperties extends BaseSchema {

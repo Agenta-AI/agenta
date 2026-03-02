@@ -26,7 +26,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         textTransform: "capitalize",
     },
     container: {
-        "& .ant-modal-body": {
+        "& .ant-modal-container": {
             height: 600,
             overflow: "auto",
         },
@@ -86,6 +86,7 @@ const SelectDeployVariantModal = ({
             }}
             okText="Deploy"
             width={1200}
+            height={600}
             className={classes.container}
             {...props}
         >

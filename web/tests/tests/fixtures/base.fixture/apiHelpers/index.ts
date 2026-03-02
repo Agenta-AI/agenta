@@ -48,7 +48,7 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     await page.goto("/apps")
-    await page.waitForURL("/apps")
+    await page.waitForURL("**/apps")
 
     const appsResponse = await waitForApiResponse<ListAppsItem[]>(page, {
         route: "/api/apps",
@@ -83,12 +83,13 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 }
 
 export const getTestsets = async (page: Page) => {
-    // 2. Fetch testsets from API
-    const testsetsResponse = await waitForApiResponse<testset[]>(page, {
-        route: "/api/testsets",
-        method: "GET",
+    // 2. Fetch testsets from API using preview endpoint
+    const testsetsResponse = await waitForApiResponse<{testsets: testset[]}>(page, {
+        route: "/api/preview/testsets/query",
+        method: "POST",
     })
-    const testsets = await testsetsResponse
+    const response = await testsetsResponse
+    const testsets = response.testsets
     expect(testsets.length).toBeGreaterThan(0)
 
     return testsets

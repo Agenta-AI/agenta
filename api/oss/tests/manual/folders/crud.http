@@ -1,5 +1,5 @@
 @host = http://localhost
-@token = change-me-auth
+@token = replace-me
 @api_url = {{host}}/api
 @folders_url = {{api_url}}/folders
 @apps_url = {{api_url}}/apps

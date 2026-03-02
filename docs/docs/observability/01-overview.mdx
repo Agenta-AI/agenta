@@ -1,5 +1,5 @@
 ---
-title: "Overview"
+title: "LLM Observability Overview"
 sidebar_label: "Overview"
 description: "Complete guide to LLM observability with Agenta - monitor costs, performance, and trace every request with automatic instrumentation for your AI applications"
 sidebar_position: 2
@@ -8,10 +8,14 @@ sidebar_position: 2
 ```mdx-code-block
 import CustomDocCard from '@site/src/components/CustomDocCard';
 import clsx from 'clsx';
-import Image from "@theme/IdealImage";
+import { Stream } from '@cloudflare/stream-react';
 ```
 
 Observability is the practice of monitoring and understanding the behavior of your LLM application. With Agenta, you can add a few lines of code to start tracking all inputs, outputs, and metadata of your application.
+
+<Stream controls src="bef869beb65a269388b806a79cd77109" height="400px" />
+
+<br />
 
 This allows you to:
 
@@ -20,13 +24,6 @@ This allows you to:
 - **Find Edge Cases**: Identify latency spikes and cost increases. Understand performance bottlenecks to optimize your app's speed and cost-effectiveness.
 - **Track Costs and Latency Over Time**: Monitor how your app's expenses and response times change.
 - **Compare App Versions**: Compare the behavior in production of different versions of your application to see which performs better.
-
-<Image
-  style={{ display: "block", margin: "10 auto" }}
-  img={require("/images/observability/observability-mockup.png")}
-  alt="Illustration of observability"
-  loading="lazy"
-/>
 
 ## Observability in Agenta
 
@@ -73,7 +70,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/openai",
+      href: "/integrations/llm-providers/openai/observability",
       label: "OpenAI",
       description:
         "Learn how to instrument your OpenAI application with Agenta",
@@ -86,7 +83,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/litellm",
+      href: "/integrations/llm-providers/litellm/observability",
       label: "LiteLLM",
       description: "Learn how to instrument your LiteLLM application with Agenta",
     }}
@@ -100,7 +97,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/langchain",
+      href: "/integrations/frameworks/langchain/observability",
       label: "LangChain",
       description:
         "Learn how to instrument your LangChain application with Agenta",
@@ -113,7 +110,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/instructor",
+      href: "/integrations/libraries/instructor/observability",
       label: "Instructor",
       description: "Learn how to instrument your Instructor application with Agenta",
     }}
@@ -127,7 +124,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/llamaindex",
+      href: "/integrations/frameworks/llamaindex/observability",
       label: "LlamaIndex",
       description: "Learn how to instrument your LlamaIndex application with Agenta",
     }}
@@ -139,7 +136,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/langgraph",
+      href: "/integrations/frameworks/langgraph/observability",
       label: "LangGraph",
       description: "Learn how to instrument your LangGraph application with Agenta",
     }}
@@ -153,7 +150,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/openai-agents",
+      href: "/integrations/frameworks/openai-agents/observability",
       label: "OpenAI Agents",
       description: "Learn how to instrument your OpenAI Agents application with Agenta",
     }}
@@ -165,7 +162,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/pydanticai",
+      href: "/integrations/frameworks/pydanticai/observability",
       label: "PydanticAI",
       description: "Learn how to instrument your PydanticAI application with Agenta",
     }}
@@ -179,7 +176,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/dspy",
+      href: "/integrations/frameworks/dspy/observability",
       label: "DSPy",
       description: "Learn how to instrument your DSPy application with Agenta",
     }}
@@ -191,7 +188,7 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
   <CustomDocCard
     item={{
       type: "link",
-      href: "/observability/integrations/agno",
+      href: "/integrations/frameworks/agno/observability",
       label: "Agno",
       description: "Learn how to instrument your Agno application with Agenta",
     }}

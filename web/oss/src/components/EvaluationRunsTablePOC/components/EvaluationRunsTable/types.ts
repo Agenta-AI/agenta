@@ -19,4 +19,5 @@ export interface EvaluationRunsTableProps {
     /** @deprecated Use tabs prop instead. Additional content to render in the header row */
     headerExtra?: React.ReactNode
     manageContextOverrides?: boolean
+    hideOnboardingVideos?: boolean
 }

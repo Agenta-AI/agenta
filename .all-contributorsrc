@@ -512,6 +512,52 @@
         "doc",
         "example"
       ]
+    },
+    {
+      "login": "adityadewan22-hub",
+      "name": "adityadewan22-hub",
+      "avatar_url": "https://avatars.githubusercontent.com/u/225586510?v=4",
+      "profile": "https://github.com/adityadewan22-hub",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "majiayu000",
+      "name": "lif",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19658300?v=4",
+      "profile": "https://github.com/majiayu000",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "karimkohel",
+      "name": "karim kohel",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46066647?v=4",
+      "profile": "http://karimkohel.com",
+      "contributions": [
+        "example",
+        "doc"
+      ]
+    },
+    {
+      "login": "Vishesh-Paliwal",
+      "name": "Vishesh Paliwal",
+      "avatar_url": "https://avatars.githubusercontent.com/u/142072830?v=4",
+      "profile": "https://github.com/Vishesh-Paliwal",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "aviu16",
+      "name": "Eve",
+      "avatar_url": "https://avatars.githubusercontent.com/u/162624394?v=4",
+      "profile": "https://github.com/aviu16",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

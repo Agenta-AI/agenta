@@ -7,7 +7,7 @@ import {loadable} from "jotai/utils"
 import {
     queryReferenceLookupAtomFamily,
     type EvaluationQueryConfigurationResult,
-} from "@/oss/components/EvalRunDetails2/atoms/query"
+} from "@/oss/components/EvalRunDetails/atoms/query"
 import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
 
 import {summarizeQueryFilters} from "../../utils/querySummary"

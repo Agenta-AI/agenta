@@ -7,7 +7,7 @@ import {ResizableTitle} from "@/oss/components/EnhancedUIs/Table/assets/CustomCe
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
 
-const DEFAULT_MIN_WIDTH = 80
+const DEFAULT_MIN_WIDTH = 48
 
 type ColumnEntry<RowType> = ColumnsType<RowType>[number]
 type ColumnWithChildren<RowType> = ColumnType<RowType> & {children?: ColumnsType<RowType>}

@@ -2,7 +2,7 @@ import React, {createContext, useContext, useMemo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type PromptsMap = Record<string, any[] | undefined>
 
@@ -24,6 +24,7 @@ export const PromptsSourceProvider = ({
 export function usePromptsSource(revisionId: string): any[] {
     const ctx = useContext(PromptsSourceContext)
     const provided = ctx?.promptsByRevision?.[revisionId]
-    const prompts = useAtomValue(promptsAtomFamily(revisionId)) as any[]
+    // Use molecule-backed prompts for single source of truth
+    const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(revisionId)) as any[]
     return (provided as any[]) ?? prompts ?? []
 }

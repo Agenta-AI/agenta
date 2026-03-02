@@ -18,7 +18,7 @@ import type {FormInstance} from "antd"
 import {atom} from "jotai"
 import {atomWithReset, atomWithStorage, RESET} from "jotai/utils"
 
-import type {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
+import type {Evaluator, SimpleEvaluator, Variant} from "@/oss/lib/Types"
 import {stringStorage} from "@/oss/state/utils/stringStorage"
 
 // ================================================================
@@ -84,7 +84,7 @@ export const playgroundIsCloneModeAtom = atom((get) => get(playgroundSessionAtom
  * - In edit mode: loaded from existing config
  * - In clone mode: copied from source config (with cleared name)
  */
-export const playgroundEditValuesAtom = atomWithReset<EvaluatorConfig | null>(null)
+export const playgroundEditValuesAtom = atomWithReset<SimpleEvaluator | null>(null)
 
 // ================================================================
 // FORM STATE
@@ -95,7 +95,7 @@ export const playgroundEditValuesAtom = atomWithReset<EvaluatorConfig | null>(nu
  * Allows DebugSection to read form values for running the evaluator
  *
  * This is set by ConfigureEvaluator when the form mounts
- * and read by DebugSection to get current settings_values
+ * and read by DebugSection to get current parameters
  */
 export const playgroundFormRefAtom = atom<FormInstance | null>(null)
 
@@ -115,6 +115,11 @@ export const playgroundSelectedVariantAtom = atomWithReset<Variant | null>(null)
  * Used to load testcases for testing
  */
 export const playgroundSelectedTestsetIdAtom = atomWithReset<string>("")
+
+/**
+ * Selected testset revision ID
+ */
+export const playgroundSelectedRevisionIdAtom = atomWithReset<string>("")
 
 /**
  * Selected testcase data from the testset
@@ -174,7 +179,7 @@ export const initPlaygroundAtom = atom(
         set,
         payload: {
             evaluator: Evaluator
-            existingConfig?: EvaluatorConfig | null
+            existingConfig?: SimpleEvaluator | null
             mode?: PlaygroundMode
         },
     ) => {
@@ -221,7 +226,7 @@ export const resetPlaygroundAtom = atom(null, (get, set) => {
  *
  * @param savedConfig - The config returned from the API
  */
-export const commitPlaygroundAtom = atom(null, (get, set, savedConfig: EvaluatorConfig) => {
+export const commitPlaygroundAtom = atom(null, (get, set, savedConfig: SimpleEvaluator) => {
     // Update edit values with saved config
     set(playgroundEditValuesAtom, savedConfig)
 
@@ -275,7 +280,7 @@ export const openEvaluatorDrawerAtom = atom(
         set,
         payload: {
             evaluator: Evaluator
-            existingConfig?: EvaluatorConfig | null
+            existingConfig?: SimpleEvaluator | null
             mode?: PlaygroundMode
         },
     ) => {

@@ -1,20 +1,11 @@
 import {atom} from "jotai"
 
-import {updateVariantPromptKeys} from "@/oss/lib/shared/variant/inputHelpers"
-import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {
-    appUriInfoAtom,
-    getEnhancedRevisionById,
-    getSpecLazy,
-} from "@/oss/state/variant/atoms/fetcher"
+import {moleculePropertyUpdateAtom} from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {revisionListAtom} from "../../../../state/variant/selectors/variant"
-import {findPropertyById, findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
-import type {EnhancedVariantPropertyMutationParams, ConfigValue} from "../types"
+import type {EnhancedVariantPropertyMutationParams} from "../types"
 
 import {selectedVariantsAtom} from "./core"
+import {revisionListAtom} from "./variants"
 
 // Re-export the type for external use
 export type {ConfigValue} from "../types"
@@ -22,27 +13,13 @@ export type {ConfigValue} from "../types"
 /**
  * Enhanced Variant Property Mutations
  *
- * These mutations properly handle nested property structures that we discovered
- * during the PromptMessageConfig migration, where property values can be stored
- * in nested structures like property.content.value instead of property.value
+ * These mutations route property updates through the legacyAppRevision molecule,
+ * which serves as the single source of truth for revision state.
+ *
+ * Flow:
+ * 1. Resolve target revision ID from variantId
+ * 2. Route update to molecule.reducers.updateProperty via moleculePropertyUpdateAtom
  */
-
-/**
- * Helper function to update property value with proper nested structure handling
- */
-function updatePropertyValue(property: any, value: ConfigValue) {
-    if (!property) return
-
-    // Handle nested property structures (e.g., property.content.value)
-    if (property?.content && typeof property.content === "object" && "value" in property.content) {
-        ;(property.content as any).value = value
-    } else {
-        // Direct property value assignment
-        if (property && typeof property === "object") {
-            ;(property as any).value = value
-        }
-    }
-}
 
 /**
  * Parameter update mutation with fallback handling
@@ -86,9 +63,11 @@ export const parameterUpdateMutationAtom = atom(
 )
 
 /**
- * Enhanced property update mutation that handles nested property structures
- * This mutation properly handles cases where property values are stored in
- * nested structures like property.content.value instead of property.value
+ * Enhanced property update mutation that routes updates through the molecule.
+ *
+ * This mutation:
+ * 1. Resolves the target revision ID from variantId
+ * 2. Routes update to molecule.reducers.updateProperty (single source of truth)
  */
 export const updateVariantPropertyEnhancedMutationAtom = atom(
     null,
@@ -161,108 +140,22 @@ export const updateVariantPropertyEnhancedMutationAtom = atom(
             return
         }
 
-        // Provide an Immer recipe to leverage promptsAtomFamily seeding logic on first write
-        let didUpdate = false
-        const tryUpdate = (draft: any) => {
-            // Prefer generic object search to handle prompt structures
-            const prop =
-                findPropertyInObject(draft ?? {}, propertyId) ??
-                // Fallback: try variant-like search if shape matches
-                findPropertyById(draft, propertyId)
-
-            if (!prop) return
-
-            updatePropertyValue(prop, value)
-            didUpdate = true
-
-            // Keep prompt keys up-to-date if the helper applies on this shape
-            updateVariantPromptKeys(draft)
-        }
-
-        // First call ensures local prompts are seeded if absent
-        set(promptsAtomFamily(targetRevisionId), (draft: any) => {
-            tryUpdate(draft)
-            if (didUpdate && process.env.NODE_ENV === "development") {
-                console.debug("[Prompts][Mut] updated node", {propertyId, value})
-            }
-        })
-
-        // If the property wasn't found during seeding, try once more against the freshly seeded cache
-        if (!didUpdate) {
-            set(promptsAtomFamily(targetRevisionId), (draft: any) => {
-                tryUpdate(draft)
-                if (didUpdate && process.env.NODE_ENV === "development") {
-                    console.debug("[Prompts][Mut] updated node (2)", {propertyId, value})
-                }
+        // Route update through molecule (single source of truth)
+        if (process.env.NODE_ENV === "development") {
+            console.debug("[Params][Mut] Using molecule for update", {
+                targetRevisionId,
+                propertyId,
             })
         }
 
-        // If still not updated (not a prompt), try custom properties local cache
-        if (!didUpdate) {
-            const variant = getEnhancedRevisionById(get as any, targetRevisionId)
-            const routePath = get(appUriInfoAtom)?.routePath
-            const spec = getSpecLazy()
-            if (process.env.NODE_ENV === "development") {
-                console.debug("[Params][Mut] try custom props", {
-                    targetRevisionId,
-                    hasVariant: !!variant,
-                    hasSpec: !!spec,
-                    routePath,
-                })
-            }
-            set(
-                customPropertiesAtomFamily({
-                    variant: variant as any,
-                    routePath,
-                    revisionId: targetRevisionId,
-                }),
-                (draft: Record<string, any> | undefined) => {
-                    // Seed from derived spec if local cache is empty
-                    if (!draft || Object.keys(draft).length === 0) {
-                        const seeded =
-                            variant && spec
-                                ? deriveCustomPropertiesFromSpec(
-                                      variant as any,
-                                      spec as any,
-                                      routePath,
-                                  )
-                                : {}
-                        if (process.env.NODE_ENV === "development") {
-                            console.debug("[Params][Mut] seeded from spec", {
-                                keys: Object.keys(seeded || {}),
-                            })
-                        }
+        set(moleculePropertyUpdateAtom, {
+            revisionId: targetRevisionId,
+            propertyId,
+            value,
+        })
 
-                        if (!draft) {
-                            draft = seeded
-                        } else {
-                            Object.keys(draft).forEach((key) => delete draft[key])
-                            Object.assign(draft, seeded)
-                        }
-                    }
-
-                    const values = Object.values(draft || {}) as any[]
-                    const node = values.find((n) => n?.__id === propertyId)
-                    if (process.env.NODE_ENV === "development") {
-                        console.debug("[Params][Mut] node lookup", {
-                            found: !!node,
-                            propertyId,
-                            total: values.length,
-                        })
-                    }
-                    if (node) {
-                        updatePropertyValue(node, value)
-                        didUpdate = true
-                        if (process.env.NODE_ENV === "development") {
-                            console.debug("[CustomProps][Mut] updated node", {
-                                propertyId,
-                                value,
-                            })
-                        }
-                    }
-                    return draft
-                },
-            )
+        if (process.env.NODE_ENV === "development") {
+            console.debug("[Params][Mut] Updated via molecule", {propertyId, value})
         }
     },
 )

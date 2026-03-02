@@ -5,7 +5,6 @@ from fastapi import Request, FastAPI
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.tracing.propagation import extract
-
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)

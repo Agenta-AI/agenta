@@ -1,5 +1,5 @@
 @host = http://localhost
-@token = change-me
+@token = replace-me
 @base_url = {{host}}/api/preview/workflows
 
 ###

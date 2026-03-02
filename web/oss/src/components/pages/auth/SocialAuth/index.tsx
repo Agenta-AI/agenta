@@ -1,7 +1,6 @@
 import {useRef} from "react"
 
-import {GithubOutlined, GoogleOutlined} from "@ant-design/icons"
-import {Button, Divider} from "antd"
+import {Button} from "antd"
 import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
@@ -9,21 +8,27 @@ import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 import {SocialAuthProps} from "../assets/types"
 
-const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAuthProps) => {
+const SocialAuth = ({
+    authErrorMsg,
+    isLoading,
+    setIsLoading,
+    disabled,
+    providers,
+}: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
 
-    const googleSignInClicked = async () => {
+    const providerSignInClicked = async (providerId: string) => {
         try {
             if (disabled || isLoading || inFlight.current) return
             inFlight.current = true
             setIsLoading(true)
 
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
-                thirdPartyId: "google",
+                thirdPartyId: providerId,
                 frontendRedirectURI: `${
                     getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
-                }/auth/callback/google`,
+                }/auth/callback/${providerId}`,
             })
             await router.push(authUrl)
         } catch (err) {
@@ -33,53 +38,29 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
         }
     }
 
-    const githubSignInClicked = async () => {
-        try {
-            if (disabled || isLoading || inFlight.current) return
-            inFlight.current = true
-            setIsLoading(true)
+    const hasAnyProvider = providers.length > 0
 
-            const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
-                thirdPartyId: "github",
-                frontendRedirectURI: `${
-                    getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
-                }/auth/callback/github`,
-            })
-            await router.push(authUrl)
-        } catch (err) {
-            authErrorMsg(err)
-            setIsLoading(false)
-            inFlight.current = false
-        }
+    if (!hasAnyProvider) {
+        return null
     }
 
     return (
         <>
             <div className="flex flex-col gap-2">
-                <Button
-                    icon={<GoogleOutlined />}
-                    size="large"
-                    className="w-full"
-                    onClick={googleSignInClicked}
-                    loading={isLoading}
-                    disabled={disabled}
-                >
-                    Continue with Google
-                </Button>
-
-                <Button
-                    icon={<GithubOutlined />}
-                    size="large"
-                    className="w-full"
-                    onClick={githubSignInClicked}
-                    loading={isLoading}
-                    disabled={disabled}
-                >
-                    Continue with Github
-                </Button>
+                {providers.map((provider) => (
+                    <Button
+                        key={provider.id}
+                        icon={provider.icon}
+                        size="large"
+                        className="w-full"
+                        onClick={() => providerSignInClicked(provider.id)}
+                        loading={isLoading}
+                        disabled={disabled}
+                    >
+                        Continue with {provider.label}
+                    </Button>
+                ))}
             </div>
-
-            <Divider className="!m-0">or</Divider>
         </>
     )
 }

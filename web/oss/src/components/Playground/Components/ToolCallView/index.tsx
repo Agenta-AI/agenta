@@ -3,8 +3,8 @@ import React, {useMemo} from "react"
 import clsx from "clsx"
 import JSON5 from "json5"
 
+import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
 interface ToolCallViewProps {
     // Raw result.response.data from worker or API

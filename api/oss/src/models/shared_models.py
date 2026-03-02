@@ -3,6 +3,14 @@ from pydantic import BaseModel, Field
 from typing import Any, Dict, Optional
 
 
+class OrganizationFlags(BaseModel):
+    is_demo: bool = False
+
+
+class OrganizationQueryFlags(BaseModel):
+    is_demo: Optional[bool] = None
+
+
 class ConfigDB(BaseModel):
     config_name: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
@@ -53,16 +61,6 @@ class EvaluationScenarioOutput(BaseModel):
     result: Result
     cost: Optional[float] = None
     latency: Optional[float] = None
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: Any
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: Any
 
 
 class AppType(str, enum.Enum):

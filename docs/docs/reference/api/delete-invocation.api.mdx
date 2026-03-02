@@ -5,7 +5,7 @@ description: "Delete Invocation"
 sidebar_label: "Delete Invocation"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9Vclu2zAQ/RVjTi1ARG7Qk041GgMxkqJB4vZiGMFEGltMKIohR25dQf9ekFodJ0GbAj1p4azvzTxWwLh1EK9goXdFgiwL7WAtoDBkw9cihRhSUsR0K3sbEGDQYk5M1rtXoDEniIEtJnQrUxAgNcRgkDMQYOmxlJZSiNmWJMAlGeUIcQW8N97PsZV6CwJYsvI/lj7QZJFCXYs+ujOo/yY46v3XTSjvMI0P2f7RpVJQr4fENwZ1k3ftQztTaEfORzudTv0jJZdYaQIMMdyUSULObUo1uW6NQUBSaCbNoQZjlGxQi+6d96lGFRrrkWbZZEiKsnFqi5OaaUt2BMvnYCEgpQ2WiiGe1h6MjpdbJfXDYeeHGToE/xUcMTD9xlBjgjuj4u6eEh61e+nbOY7ymsswyN6556SuvdPH09NjCr+jkmnwmMytLezb+UuJUSr/Jplyd2ygiuTg9A+A62agXg9No7W4H8PUrWUtIHfb1/bqCzmHW4I+2MumAYzJ0p8+B/iwdqvQV5O6tRsRPcDboPtyG2cNfK+xe75cXh0FbLg9JPUsSNZkMZasnDgrBj0LIsYZxBAZSztJP6Jhk1xUdRNeR1W7NjUIcGR3neiVVkEMGbNxcRQlqijTE9ySZjxBGaGRYeIdJaWVvA8us6vFBe3PCVOyEK/WY4MbP1bNoBya9RyhkRfkIWsFcVZyVlj5q+swyGLWeNVBGTZFcG/hm4XiJrOrBQjwbTRgTU8+nEzhKYQHxn4jMAkb0eUOxyCeoND3DwIoD+sATJh/Gg58ZaZwnKMexXuOsYOCehSYfnJkFMow8CF91VK5gpZKGMuiA+Evh/5qijsZXAvICsfer6ru0NE3q+ra/34syXrG1gJ2aCXeefxWFaTS+fcU4g0qR0cl9soB767bBXk/AfF86R2r2lO6Q1X6LxDwQPvxXerV4D/m7cAJipN1k1q1p7MkIcMjvyOB9CPdr9rZ/HK+nENd/wYx6Nzq
+api: eJy9VVtP2zAU/ivVedoki3ZoT3laBZWoYBqCbi9VhYxz2hgcx9hORRf5v0/HuVNAu0h7SmKf6/d956QCz3cOkjUs9b4Q3MtCO9gwKAza+LVMIYEUFXq8k50NMDDc8hw9WnKvQPMcIQFvucA7mQIDqSEBw30GDCw+ldJiCom3JTJwIsOcQ1KBPxjyc95KvQMGXnpFBysKNFmmEALrojvD9Z8E5/rwbRvLG6ehkM2JLpWCsOkT3xqu67wbCu1MoR06inY6m9EjRSesNBGGBG5LIdC5bakmN40xMBCF9qh9rMEYJWvUpg+OfKpBhcYS0l7WGURR1k5NcVJ73KEdwHIWLRikuOWl8pDMAoHR8nKnpH4cdz7O0CL4r+Cwnum/DDUkuDUq7h9Q+EG7V9TOcZT3XHohk3PHSQjk9Pn09JjCH1zJNHpMFtYW9u/5S9FzqehNeszdsYEqxOj2N4BrNRA2fdPcWn4YwtSOZWCQu917c/UVneM7hC7Y26YRjMmKbqPITFlrswOaDgID4Z8HYY4IOSMsn/2rPPeju47Y1OU3dgOx9BTVDL0NxXlNwXsKuVitro8C1voYC+M8rr3Jcrj2cvRZ0e/EuAh9BglM+yl006qdjjCtmpELwMCh3bcLs7QKEsi8Ny6ZToUqyvSE71B7fsLllBsZp8WhKK30h+gyv15e4uECeYoWkvVmaHBLkqxFNjbriOFGXiJB1SzTeemzwsqfbWdxpWa1V4iEb4sh3/NY3GR+vQQG1EYN0uzk08kMXkI3MqZp4iKKp80dr4G9QKHrHxhgHkcJPPL8S39BlZnC+ZzrQbzXmBoV1KFAUpwaxWUclpi+aihcDxapA0a/k+5nlrSLc8MgK5wn66q65w6/WxUCHT+VaImnDYM9t5LfE2rrClLp6D2FZMuVw6PCul0DH26acfg4AfZ6wS2Xmojcc1XSFzB4xMPw70v74z/mbcGJOypr9Vk1t3Mh0PiB39FKJSF3g3W+uFqsFhDCL+CO7O4=
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -28,7 +28,7 @@ import Heading from "@theme/Heading";
 
 <MethodEndpoint
   method={"delete"}
-  path={"/preview/invocations/{trace_id}/{span_id}"}
+  path={"/invocations/{trace_id}/{span_id}"}
   context={"endpoint"}
 >
   
@@ -62,7 +62,7 @@ Delete Invocation
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"invocation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"InvocationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"invocation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"InvocationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

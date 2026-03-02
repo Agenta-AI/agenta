@@ -1,5 +1,6 @@
+import {generateId} from "@agenta/shared/utils"
+
 import {hashMetadata} from "../../../../../components/Playground/assets/hash"
-import {generateId} from "../../stringUtils"
 import type {ArraySchema, ArrayMetadata, ConfigMetadata} from "../types"
 
 import {createMetadata} from "./metadata"

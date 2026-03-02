@@ -58,6 +58,31 @@ class TestcasesService:
         project_id: UUID,
         #
         testcase_ids: Optional[List[UUID]] = None,
+    ) -> List[Testcase]:
+        blobs = await self.testcases_dao.fetch_blobs(
+            project_id=project_id,
+            #
+            blob_ids=testcase_ids or [],
+        )
+
+        if not blobs:
+            return []
+
+        _testcases = [
+            Testcase(
+                **blob.model_dump(mode="json"),
+            )
+            for blob in blobs
+        ]
+
+        return _testcases
+
+    async def query_testcases(
+        self,
+        *,
+        project_id: UUID,
+        #
+        testcase_ids: Optional[List[UUID]] = None,
         #
         testset_id: Optional[UUID] = None,
         #

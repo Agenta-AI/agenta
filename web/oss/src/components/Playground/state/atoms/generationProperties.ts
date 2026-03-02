@@ -2,14 +2,14 @@
  * Generation-related atoms and selectors
  * Scope: chat/completion rows, history, results, and generation-derived data.
  */
+import {generateId} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai/utils"
 
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {generationLogicalTurnIdsAtom as chatLogicalIdsAtom} from "@/oss/state/generation/compat"
-import {runStatusByRowRevisionAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
+import {inputRowIdsAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 import {rowResponsesForDisplayAtomFamily} from "@/oss/state/generation/selectors"
 import {
     loadingByRowRevisionAtomFamily,
@@ -126,47 +126,50 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
         }),
 )
 
-export const generationInputRowIdsAtom = selectAtom(
-    atom((get) => {
-        const isChat = get(appChatModeAtom)
+let _prevInputRowIds: string[] = []
+export const generationInputRowIdsAtom = atom((get) => {
+    const isChat = get(appChatModeAtom)
 
-        if (isChat === undefined) return []
-        if (isChat) return ["row-__default__"]
+    if (isChat === undefined) return _prevInputRowIds
 
-        if (!get(inputRowIdsAtom).length) {
-            Promise.resolve().then(() => {
-                const store = getDefaultStore()
-                if ((store.get(inputRowIdsAtom) || []).length === 0) {
-                    store.set(inputRowIdsAtom, [`row-${generateId()}`])
-                }
-            })
-        }
+    if (isChat) {
+        const next = ["row-__default__"]
+        if (!isEqual(next, _prevInputRowIds)) _prevInputRowIds = next
+        return _prevInputRowIds
+    }
 
-        return get(inputRowIdsAtom)
-    }),
-    (ids) => ids,
-    isEqual,
-)
+    if (!get(inputRowIdsAtom).length) {
+        Promise.resolve().then(() => {
+            const store = getDefaultStore()
+            if ((store.get(inputRowIdsAtom) || []).length === 0) {
+                store.set(inputRowIdsAtom, [`row-${generateId()}`])
+            }
+        })
+    }
+
+    const next = get(inputRowIdsAtom)
+    if (!isEqual(next, _prevInputRowIds)) _prevInputRowIds = next
+    return _prevInputRowIds
+})
 /**
  * Atom for generation row IDs based on chat vs input mode
  * Used by MainLayout for rendering GenerationComparisonOutput and PlaygroundGenerations
- * PERFORMANCE OPTIMIZATION: Use selectAtom to prevent re-renders during local mutations
+ * NOTE: Using plain atom with manual dedup instead of selectAtom because upstream
+ * chatTurnIdsAtom uses getDefaultStore().set() side-effects inside its reader which
+ * selectAtom doesn't properly track for re-evaluation.
  */
-export const generationRowIdsAtom = selectAtom(
-    atom((get) => {
-        const isChat = get(appChatModeAtom)
-        if (isChat) {
-            const logicalIds = ((get(chatLogicalIdsAtom) as string[]) || []).filter(Boolean)
-
-            return logicalIds
-        }
-
-        const ids = (get(inputRowIdsAtom) as string[]) || []
-        return ids
-    }),
-    (ids) => ids,
-    isEqual,
-)
+let _prevRowIds: string[] = []
+export const generationRowIdsAtom = atom((get) => {
+    const isChat = get(appChatModeAtom)
+    let next: string[]
+    if (isChat) {
+        next = ((get(chatLogicalIdsAtom) as string[]) || []).filter(Boolean)
+    } else {
+        next = (get(inputRowIdsAtom) as string[]) || []
+    }
+    if (!isEqual(next, _prevRowIds)) _prevRowIds = next
+    return _prevRowIds
+})
 
 /**
  * Derived: visible trace node IDs for the current Playground view

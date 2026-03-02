@@ -23,6 +23,7 @@ paths = [
 regexes = [
   # ------------------------------------------------------------ FALSE POSITIVES
   '''is_completion=True''',
+  '''is_valid=true''',
   '''YOUR_API_KEY''',
   '''_SECRET_KEY''',
   # ------------------------------------------------------------ PUBLIC KEYS

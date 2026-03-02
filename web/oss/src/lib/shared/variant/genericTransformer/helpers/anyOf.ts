@@ -6,7 +6,7 @@ import type {
     CompoundMetadata,
 } from "../types"
 
-import {createBaseMetadata, createMetadata} from "./metadata"
+import {createMetadata} from "./metadata"
 import {processObjectSchema} from "./objects"
 import {isSchema} from "./schema"
 
@@ -81,12 +81,15 @@ export function processAnyOfSchema(schema: SchemaProperty): ConfigMetadata {
     // ----- Generic mixed union handling -----
     const nonNullSchemas = schema.anyOf.filter((s) => !("type" in s && s.type === "null"))
 
-    // If there is only one meaningful branch, fall back to previous behaviour
+    // If there is only one meaningful branch, use full metadata creation to preserve
+    // nested structure (e.g., itemMetadata for arrays)
     if (nonNullSchemas.length === 1) {
+        const fullMetadata = createMetadata(nonNullSchemas[0])
         return {
-            ...createBaseMetadata(nonNullSchemas[0]),
-            title: schema.title ?? nonNullSchemas[0].title,
-            description: schema.description ?? nonNullSchemas[0].description,
+            ...fullMetadata,
+            title: schema.title ?? nonNullSchemas[0].title ?? fullMetadata.title,
+            description:
+                schema.description ?? nonNullSchemas[0].description ?? fullMetadata.description,
             nullable: schema.anyOf.length !== nonNullSchemas.length,
         }
     }

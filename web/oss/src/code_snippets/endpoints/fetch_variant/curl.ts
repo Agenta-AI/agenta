@@ -1,23 +1,21 @@
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+
 export const buildCurlSnippet = (
     appSlug: string,
     variantSlug: string,
     variantVersion: number,
     apiKey: string,
 ) => {
-    return `# Fetch configuration by variant
-curl -X POST "https://cloud.agenta.ai/api/variants/configs/fetch" \\
+    return `curl -X POST "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/variants/configs/fetch" \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Authorization: ApiKey ${apiKey}" \\
   -d '{
     "variant_ref": {
       "slug": "${variantSlug}",
-      "version": ${variantVersion},
-      "id": null
+      "version": ${variantVersion}
     },
     "application_ref": {
-      "slug": "${appSlug}",
-      "version": null,
-      "id": null
+      "slug": "${appSlug}"
     }
   }'
 `

@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Tuple
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -64,21 +64,29 @@ class TestsetRevisionIdAlias(AliasConfig):
     )
 
 
-class TestsetLog(
+class TestsetRevisionsLog(
     RevisionsLog,
+    TestsetIdAlias,
     TestsetVariantIdAlias,
     TestsetRevisionIdAlias,
 ):
+    testset_id: Optional[UUID] = None
     testset_variant_id: Optional[UUID] = None
 
     def model_post_init(self, _context) -> None:
+        sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
         sync_alias("testset_revision_id", "revision_id", self)
 
 
 class TestsetFlags(BaseModel):
-    has_testcases: Optional[bool] = None
-    has_traces: Optional[bool] = None
+    """Placeholder for testset-level flags.
+
+    This model is intentionally empty but kept as a dedicated type so that:
+    - existing references to `flags: Optional[TestsetFlags]` remain valid, and
+    - structured flags can be added here in the future without breaking the
+      surrounding DTOs.
+    """
 
 
 class Testset(Artifact):
@@ -168,24 +176,62 @@ class TestsetRevisionQuery(RevisionQuery):
     flags: Optional[TestsetFlags] = None
 
 
+class TestsetRevisionDeltaColumns(BaseModel):
+    """Column-level operations applied to ALL testcases in the revision."""
+
+    # Add columns: array of column names to add
+    add: Optional[List[str]] = None
+    # Remove columns: array of column names to remove
+    remove: Optional[List[str]] = None
+    # Replace columns: array of (old column name, new column name) to replace
+    replace: Optional[List[Tuple[str, str]]] = None
+
+
+class TestsetRevisionDeltaRows(BaseModel):
+    """Row-level operations applied to testcases in the revision."""
+
+    # Add rows: array of testcases to add
+    add: Optional[List[Testcase]] = None
+    # Remove rows: array of testcase IDs to remove
+    remove: Optional[List[UUID]] = None
+    # Replace rows: array of testcases to replace
+    replace: Optional[List[Testcase]] = None
+
+
+class TestsetRevisionDelta(BaseModel):
+    """Operations to apply to a testset revision."""
+
+    # Row-level operations
+    rows: Optional[TestsetRevisionDeltaRows] = None
+    # Column-level operations
+    columns: Optional[TestsetRevisionDeltaColumns] = None
+
+
 class TestsetRevisionCommit(
     RevisionCommit,
     TestsetIdAlias,
     TestsetVariantIdAlias,
+    TestsetRevisionIdAlias,
 ):
     flags: Optional[TestsetFlags] = None
 
     data: Optional[TestsetRevisionData] = None
+    delta: Optional[TestsetRevisionDelta] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
+        sync_alias("testset_revision_id", "revision_id", self)
 
 
 class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore
 
     data: Optional[TestsetRevisionData] = None
+
+    # Revision ID for navigation after creation
+    revision_id: Optional[UUID] = None
+    variant_id: Optional[UUID] = None
 
 
 class SimpleTestsetCreate(Slug, Header, Metadata):
@@ -200,5 +246,5 @@ class SimpleTestsetEdit(Identifier, Header, Metadata):
     data: Optional[TestsetRevisionData] = None
 
 
-class SimpleTestsetQuery(Metadata):
+class SimpleTestsetQuery(Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore

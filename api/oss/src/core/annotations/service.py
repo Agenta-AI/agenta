@@ -24,7 +24,6 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Condition,
     Filtering,
-    OTelReference,
     OTelLink,
     LogicalOperator,
     ComparisonOperator,
@@ -34,8 +33,6 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     SimpleEvaluatorData,
 )
 
@@ -233,6 +230,7 @@ class AnnotationsService:
 
         annotation = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -243,6 +241,7 @@ class AnnotationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         trace_id: str,
         span_id: Optional[str] = None,
@@ -254,6 +253,7 @@ class AnnotationsService:
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -278,6 +278,7 @@ class AnnotationsService:
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -418,6 +419,7 @@ class AnnotationsService:
 
         annotation = await self._fetch_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             annotation_link=annotation_link,
         )
@@ -451,6 +453,7 @@ class AnnotationsService:
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         annotation_query: Optional[AnnotationQuery] = None,
         #
@@ -490,6 +493,7 @@ class AnnotationsService:
 
         annotations = await self._query_annotation(
             project_id=project_id,
+            user_id=user_id,
             #
             flags=annotation_flags,
             tags=annotation_tags,

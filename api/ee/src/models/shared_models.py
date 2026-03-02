@@ -47,10 +47,20 @@ class Permission(str, Enum):
     RUN_SERVICE = "run_service"
 
     # Vault Secret
-    CREATE_SECRET = "create_secret"
     VIEW_SECRET = "view_secret"
-    UPDATE_SECRET = "update_secret"
-    DELETE_SECRET = "delete_secret"
+    EDIT_SECRET = "edit_secret"
+
+    # Tracing/Spans
+    VIEW_SPANS = "view_spans"
+    EDIT_SPANS = "edit_spans"
+
+    # Folders
+    VIEW_FOLDERS = "view_folders"
+    EDIT_FOLDERS = "edit_folders"
+
+    # API Keys
+    VIEW_API_KEYS = "view_api_keys"
+    EDIT_API_KEYS = "edit_api_keys"
 
     # App environment deployment
     VIEW_APP_ENVIRONMENT_DEPLOYMENT = "view_app_environment_deployment"
@@ -102,6 +112,11 @@ class Permission(str, Enum):
     VIEW_EVALUATORS = "view_evaluators"
     EDIT_EVALUATORS = "edit_evaluators"
 
+    # Environments
+    VIEW_ENVIRONMENTS = "view_environments"
+    EDIT_ENVIRONMENTS = "edit_environments"
+    DEPLOY_ENVIRONMENTS = "deploy_environments"
+
     # Queries
     VIEW_QUERIES = "view_queries"
     EDIT_QUERIES = "edit_queries"
@@ -134,6 +149,11 @@ class Permission(str, Enum):
     VIEW_EVALUATION_QUEUES = "view_evaluation_queues"
     EDIT_EVALUATION_QUEUES = "edit_evaluation_queues"
 
+    # Tools
+    VIEW_TOOLS = "view_tools"
+    EDIT_TOOLS = "edit_tools"
+    RUN_TOOLS = "run_tools"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -148,8 +168,21 @@ class Permission(str, Enum):
             #
             cls.VIEW_WORKFLOWS,
             cls.VIEW_EVALUATORS,
+            cls.VIEW_QUERIES,
             cls.VIEW_TESTSETS,
             cls.VIEW_ANNOTATIONS,
+            cls.VIEW_INVOCATIONS,
+            cls.VIEW_SPANS,
+            cls.VIEW_FOLDERS,
+            cls.VIEW_API_KEYS,
+            cls.VIEW_ENVIRONMENTS,
+            cls.VIEW_EVALUATION_RUNS,
+            cls.VIEW_EVALUATION_SCENARIOS,
+            cls.VIEW_EVALUATION_RESULTS,
+            cls.VIEW_EVALUATION_METRICS,
+            cls.VIEW_EVALUATION_QUEUES,
+            #
+            cls.VIEW_TOOLS,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
@@ -159,7 +192,6 @@ class Permission(str, Enum):
                 for p in cls
                 if p
                 not in [
-                    cls.DELETE_SECRET,
                     cls.RESET_PASSWORD,
                     cls.DELETE_TESTSET,
                     cls.DELETE_WORKSPACE,
@@ -172,10 +204,11 @@ class Permission(str, Enum):
                     cls.ADD_USER_TO_WORKSPACE,
                     cls.ADD_USER_TO_ORGANIZATION,
                     cls.EDIT_BILLING,
+                    cls.DEPLOY_ENVIRONMENTS,
                 ]
             ],
             WorkspaceRole.DEPLOYMENT_MANAGER: VIEWER_PERMISSIONS
-            + [cls.DEPLOY_APPLICATION],
+            + [cls.DEPLOY_APPLICATION, cls.DEPLOY_ENVIRONMENTS, cls.EDIT_ENVIRONMENTS],
             WorkspaceRole.WORKSPACE_ADMIN: [
                 p
                 for p in cls

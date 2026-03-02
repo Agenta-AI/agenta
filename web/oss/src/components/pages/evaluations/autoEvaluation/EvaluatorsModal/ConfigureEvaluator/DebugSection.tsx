@@ -1,11 +1,4 @@
 /**
- * DebugSection - Test evaluator configuration
- *
- * This component handles testing evaluators by:
- * 1. Loading testcases from testsets
- * 2. Running a variant to generate output
- * 3. Running the evaluator on the output
- *
  * State is managed via atoms (see ./state/atoms.ts):
  * - playgroundSelectedTestcaseAtom: Selected testcase data
  * - playgroundSelectedVariantAtom: Selected variant for testing
@@ -15,11 +8,17 @@
  * - playgroundFormRefAtom: Form instance for reading settings
  *
  * Data fetching:
- * - Testsets: fetched internally via useTestsetsData()
  * - Variants: fetched internally via useAppVariantRevisions()
+ * - Apps: fetched internally via useAppsData()
+ *
+ * Data fetching:
+ * - Variants: fetched internally via useAppVariantRevisions()
+ * - Apps: fetched internally via useAppsData()
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {message} from "@agenta/ui/app-message"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -31,12 +30,14 @@ import {Button, Dropdown, Flex, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
+import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {message} from "@/oss/components/AppMessageContext"
+import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
+import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     extractChatMessages,
@@ -59,30 +60,30 @@ import {
 } from "@/oss/lib/transformers"
 import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    createEvaluatorDataMapping,
-    createEvaluatorRunExecution,
-} from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
+import {
+    invokeEvaluator,
+    mapWorkflowResponseToEvaluatorOutput,
+} from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {revision} from "@/oss/state/entities/testset"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
     transformedPromptsAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {useTestsetsData} from "@/oss/state/testset"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
     playgroundEvaluatorAtom,
+    playgroundEditValuesAtom,
     playgroundFormRefAtom,
     playgroundLastAppIdAtom,
     playgroundLastVariantIdAtom,
     playgroundSelectedTestcaseAtom,
-    playgroundSelectedTestsetIdAtom,
+    playgroundSelectedRevisionIdAtom,
     playgroundSelectedVariantAtom,
     playgroundTraceTreeAtom,
 } from "./state/atoms"
@@ -137,16 +138,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const LoadTestsetModal = dynamic(
+    () => import("@/oss/components/Playground/Components/Modals/LoadTestsetModal"),
+    {ssr: false},
+)
+
 const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
-
-    // Fetch testsets internally
-    const {testsets: fetchedTestsets} = useTestsetsData()
-    const testsets = fetchedTestsets ?? []
 
     // ================================================================
     // ATOMS - Read/write state from playground atoms
@@ -155,11 +157,12 @@ const DebugSection = () => {
     const setSelectedTestcase = useSetAtom(playgroundSelectedTestcaseAtom)
     const _selectedVariant = useAtomValue(playgroundSelectedVariantAtom)
     const setSelectedVariant = useSetAtom(playgroundSelectedVariantAtom)
-    const selectedTestset = useAtomValue(playgroundSelectedTestsetIdAtom)
-    const setSelectedTestset = useSetAtom(playgroundSelectedTestsetIdAtom)
+    const selectedRevisionId = useAtomValue(playgroundSelectedRevisionIdAtom)
+    const setSelectedRevisionId = useSetAtom(playgroundSelectedRevisionIdAtom)
     const traceTree = useAtomValue(playgroundTraceTreeAtom)
     const setTraceTree = useSetAtom(playgroundTraceTreeAtom)
     const selectedEvaluator = useAtomValue(playgroundEvaluatorAtom)
+    const evaluatorConfig = useAtomValue(playgroundEditValuesAtom)
     const form = useAtomValue(playgroundFormRefAtom)
     const [lastAppId, setLastAppId] = useAtom(playgroundLastAppIdAtom)
     const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
@@ -183,6 +186,31 @@ const DebugSection = () => {
         success: false,
         error: false,
     })
+
+    const handleEvaluatorTestsetData = useCallback(
+        (payload: LoadTestsetSelectionPayload | null) => {
+            const testcase = payload?.testcases?.[0]
+            if (!testcase) {
+                setSelectedRevisionId("")
+                setSelectedTestcase({testcase: null})
+                return
+            }
+
+            if (payload?.revisionId) {
+                setSelectedRevisionId(payload.revisionId)
+            }
+
+            const sanitized =
+                typeof testcase === "object"
+                    ? Object.fromEntries(
+                          Object.entries(testcase).filter(([key]) => !key.startsWith("__")),
+                      )
+                    : testcase
+
+            setSelectedTestcase({testcase: sanitized || null})
+        },
+        [setSelectedRevisionId, setSelectedTestcase],
+    )
 
     const defaultAppId = useMemo(() => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
@@ -266,13 +294,34 @@ const DebugSection = () => {
         if (v.variantId) setLastVariantId(v.variantId)
     }, [_selectedVariant, setLastAppId, setLastVariantId])
 
-    // Initialize testset selection when testsets are available
+    // Seed molecule with revision data so atoms like transformedPromptsAtomFamily work correctly
+    // This ensures the molecule has URI and parameters for schema-based prompts derivation
     useEffect(() => {
-        if (selectedTestset) return // Already have a selection
-        if (testsets?.length) {
-            setSelectedTestset(testsets[0]._id)
-        }
-    }, [testsets, selectedTestset, setSelectedTestset])
+        if (!selectedVariant?.id) return
+        if (!selectedVariant?.uri) return
+
+        // Check if molecule already has data
+        const currentData = legacyAppRevisionMolecule.get.serverData(selectedVariant.id)
+        if (currentData?.uri) return
+
+        // Seed molecule with revision data
+        legacyAppRevisionMolecule.set.serverData(selectedVariant.id, {
+            id: selectedVariant.id,
+            variantId: (selectedVariant as any).variantId,
+            variantName: (selectedVariant as any).variantName,
+            appId: (selectedVariant as any).appId,
+            uri: selectedVariant.uri,
+            revision: (selectedVariant as any).revision,
+            parameters: selectedVariant.parameters,
+            baseId: (selectedVariant as any).baseId,
+            baseName: (selectedVariant as any).baseName,
+            configName: (selectedVariant as any).configName,
+            commitMessage: (selectedVariant as any).commitMessage,
+            createdAt: (selectedVariant as any).createdAt,
+            updatedAt: (selectedVariant as any).updatedAt,
+            modifiedById: (selectedVariant as any).modifiedById,
+        })
+    }, [selectedVariant?.id, selectedVariant?.uri, selectedVariant?.parameters])
 
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
@@ -321,9 +370,27 @@ const DebugSection = () => {
         ),
     ) as any
 
-    const activeTestset = useMemo(() => {
-        return testsets?.find((item) => item._id === selectedTestset)
-    }, [selectedTestset, testsets])
+    const activeRevision = useAtomValue(
+        useMemo(
+            () =>
+                (selectedRevisionId
+                    ? (revision.selectors.data(selectedRevisionId) as any)
+                    : (atom(null) as any)) as any,
+            [selectedRevisionId],
+        ),
+    ) as any
+
+    const activeTestsetLabel = useMemo(() => {
+        if (!activeRevision) return null
+        const version =
+            typeof activeRevision.version === "number"
+                ? activeRevision.version
+                : parseInt(activeRevision.version || "0", 10)
+        return {
+            name: activeRevision.name || activeRevision.testset_id || null,
+            version: Number.isFinite(version) ? version : null,
+        }
+    }, [activeRevision])
 
     const isPlainObject = (value: unknown): value is Record<string, any> =>
         Boolean(value) && typeof value === "object" && !Array.isArray(value)
@@ -338,8 +405,8 @@ const DebugSection = () => {
             setEvalOutputStatus({success: false, error: false})
             setIsLoadingResult(true)
 
-            const settingsValues = form.getFieldValue("settings_values") || {}
-            let normalizedSettings = {...settingsValues}
+            const parameters = form.getFieldValue("parameters") || {}
+            let normalizedSettings = {...parameters}
 
             if (typeof normalizedSettings.json_schema === "string") {
                 try {
@@ -365,68 +432,114 @@ const DebugSection = () => {
                 return
             }
 
-            const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
+            const {testcaseObj} = mapTestcaseAndEvalValues(
                 normalizedSettings,
                 selectedTestcase.testcase,
             )
 
             let outputs = {}
 
-            if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
-                const mapResponse = await createEvaluatorDataMapping({
-                    inputs: baseResponseData,
-                    mapping: transformTraceKeysInSettings(evalMapObj),
-                })
-                outputs = {...outputs, ...mapResponse.outputs}
-            }
-
             if (Object.keys(testcaseObj).length) {
                 outputs = {...outputs, ...testcaseObj}
             }
 
-            if (!selectedEvaluator.key.startsWith("rag_")) {
-                const correctAnswerKey = settingsValues.correct_answer_key
-                const groundTruthKey =
-                    typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
-                        ? correctAnswerKey.split(".")[1]
-                        : correctAnswerKey
+            const parseVersion = (raw: unknown, fallback: number) => {
+                if (raw === undefined || raw === null) return fallback
+                const match = String(raw).match(/\d+(\.\d+)?/)
+                return match ? parseFloat(match[0]) : fallback
+            }
 
-                const normalizeCompact = (val: any) => {
-                    try {
-                        if (val === undefined || val === null) return ""
-                        const str = typeof val === "string" ? val : JSON.stringify(val)
-                        const parsed = safeJson5Parse(str)
-                        if (parsed && typeof parsed === "object") {
-                            return JSON.stringify(parsed)
-                        }
-                        return str
-                    } catch {
-                        return typeof val === "string" ? val : JSON.stringify(val)
+            const evaluatorVersion = parseVersion(parameters.version, 1)
+
+            const allowGroundTruthKey = !(
+                selectedEvaluator.key === "auto_custom_code_run" && evaluatorVersion >= 2
+            )
+
+            const correctAnswerKey = allowGroundTruthKey ? parameters.correct_answer_key : undefined
+            const groundTruthKey =
+                typeof correctAnswerKey === "string" && correctAnswerKey.startsWith("testcase.")
+                    ? correctAnswerKey.split(".")[1]
+                    : correctAnswerKey
+
+            const normalizeCompact = (val: any) => {
+                try {
+                    if (val === undefined || val === null) return ""
+                    const str = typeof val === "string" ? val : JSON.stringify(val)
+                    const parsed = safeJson5Parse(str)
+                    if (parsed && typeof parsed === "object") {
+                        return JSON.stringify(parsed)
                     }
-                }
-
-                const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
-                const ground_truth = normalizeCompact(rawGT)
-                const prediction = normalizeCompact(variantResult)
-
-                outputs = {
-                    ...outputs,
-                    ...selectedTestcase.testcase,
-                    ground_truth,
-                    [groundTruthKey]: ground_truth,
-                    prediction,
-                    ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+                    return str
+                } catch {
+                    return typeof val === "string" ? val : JSON.stringify(val)
                 }
             }
 
-            const runResponse = await createEvaluatorRunExecution(
-                selectedEvaluator.key,
-                {
-                    inputs: outputs,
-                    settings: transformTraceKeysInSettings(normalizedSettings),
-                },
-                {signal: controller.signal},
-            )
+            const hasValidGroundTruthKey =
+                typeof groundTruthKey === "string" && groundTruthKey.trim().length > 0
+
+            const rawGT = hasValidGroundTruthKey
+                ? selectedTestcase?.["testcase"]?.[groundTruthKey]
+                : undefined
+            const includeGroundTruth =
+                hasValidGroundTruthKey && rawGT !== undefined && rawGT !== null
+            const ground_truth = includeGroundTruth ? normalizeCompact(rawGT) : ""
+            const prediction = normalizeCompact(variantResult)
+
+            outputs = {
+                ...outputs,
+                ...selectedTestcase.testcase,
+                ...(includeGroundTruth ? {ground_truth, [groundTruthKey]: ground_truth} : {}),
+                prediction,
+                ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
+            }
+
+            const evaluatorKey = resolveEvaluatorKey(evaluatorConfig) || selectedEvaluator?.key
+            const evaluatorUri =
+                evaluatorConfig?.data?.uri ||
+                (evaluatorKey ? buildEvaluatorUri(evaluatorKey) : undefined)
+            const evaluatorUrl = evaluatorConfig?.data?.url
+
+            if (!evaluatorUri && !evaluatorUrl) {
+                setOutputResult(
+                    "Evaluator interface is missing (uri/url). Save the evaluator and try again.",
+                )
+                setEvalOutputStatus({success: false, error: true})
+                return
+            }
+
+            const evaluatorParameters = transformTraceKeysInSettings(normalizedSettings)
+            const parsedVariantOutput = safeParse(variantResult, variantResult)
+            const workflowOutputs =
+                variantResult !== ""
+                    ? parsedVariantOutput
+                    : (baseResponseData?.data ?? parsedVariantOutput)
+
+            const tracePayload = (() => {
+                const t = traceTree?.trace
+                if (!t) return undefined
+                if (typeof t === "string") {
+                    try {
+                        const parsed = safeJson5Parse(t)
+                        return parsed && typeof parsed === "object" ? parsed : undefined
+                    } catch {
+                        return undefined
+                    }
+                }
+                return t
+            })()
+
+            const workflowResponse = await invokeEvaluator({
+                uri: evaluatorUri,
+                url: evaluatorUrl,
+                evaluator: evaluatorConfig,
+                inputs: outputs,
+                outputs: workflowOutputs,
+                trace: tracePayload,
+                parameters: evaluatorParameters,
+                options: {signal: controller.signal},
+            })
+            const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
             setEvalOutputStatus({success: true, error: false})
 
             setOutputResult(getStringOrJson(runResponse.outputs))
@@ -756,8 +869,8 @@ const DebugSection = () => {
     }
 
     const testcaseEditorKey = useMemo(
-        () => `testcase-${selectedTestset}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
-        [selectedTestset, selectedTestcase.testcase],
+        () => `testcase-${selectedRevisionId}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
+        [selectedRevisionId, selectedTestcase.testcase],
     )
 
     const _variantOutputEditorKey = useMemo(
@@ -802,22 +915,28 @@ const DebugSection = () => {
                             Testcase
                         </Typography.Text>
 
-                        {activeTestset && selectedTestcase.testcase && (
+                        {activeTestsetLabel && selectedTestcase.testcase && (
                             <>
                                 <CheckCircleOutlined style={{color: "green"}} />
                                 <Typography.Text type="secondary">
-                                    loaded from {activeTestset.name}
+                                    <span className="inline-flex items-center gap-2">
+                                        <span>{activeTestsetLabel.name}</span>
+                                        {typeof activeTestsetLabel.version === "number" && (
+                                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md leading-none">
+                                                v{activeTestsetLabel.version}
+                                            </span>
+                                        )}
+                                    </span>
                                 </Typography.Text>
                             </>
                         )}
                     </Space>
 
-                    <Tooltip title={testsets?.length === 0 ? "No testset" : ""} placement="bottom">
+                    <Tooltip placement="bottom" title="">
                         <Button
                             size="small"
                             className="flex items-center gap-2"
                             onClick={() => setOpenTestcaseModal(true)}
-                            disabled={testsets?.length === 0}
                         >
                             <Database />
                             Load testcase
@@ -852,7 +971,6 @@ const DebugSection = () => {
                     />
                 </div>
             </div>
-
             <div className="flex flex-col">
                 <div className="flex items-center justify-between">
                     <Space size={5}>
@@ -1004,7 +1122,6 @@ const DebugSection = () => {
                     ]}
                 />
             </div>
-
             <div className="flex flex-col gap-1">
                 <Flex justify="space-between">
                     <Space size={5}>
@@ -1092,19 +1209,14 @@ const DebugSection = () => {
                     if ((v as any)?.variantId) setLastVariantId((v as any).variantId)
                 }}
                 selectedVariant={selectedVariant}
-                selectedTestsetId={selectedTestset}
+                selectedRevisionId={selectedRevisionId}
             />
-
-            {testsets && testsets.length > 0 && (
-                <EvaluatorTestcaseModal
-                    open={openTestcaseModal}
-                    onCancel={() => setOpenTestcaseModal(false)}
-                    testsets={testsets}
-                    setSelectedTestcase={setSelectedTestcase}
-                    selectedTestset={selectedTestset}
-                    setSelectedTestset={setSelectedTestset}
-                />
-            )}
+            <LoadTestsetModal
+                open={openTestcaseModal}
+                onCancel={() => setOpenTestcaseModal(false)}
+                setTestsetData={handleEvaluatorTestsetData}
+                selectionMode="single"
+            />
         </div>
     )
 }

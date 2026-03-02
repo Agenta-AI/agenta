@@ -14,7 +14,7 @@ import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/commo
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
-const UserAvatarTag = dynamic(() => import("@/oss/components/ui/UserAvatarTag"), {
+const UserAvatarTag = dynamic(() => import("@/oss/components/CustomUIs/UserAvatarTag"), {
     ssr: false,
 })
 

@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import {generateId} from "@agenta/shared/utils"
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
 import {Image as ImageIcon} from "@phosphor-icons/react"
 import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
@@ -7,7 +8,6 @@ import clsx from "clsx"
 
 import ImagePreview from "@/oss/components/Common/ImagePreview"
 import {dataUriToObjectUrl, isBase64} from "@/oss/lib/helpers/utils"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 import {isValidImageUrl} from "./assets/helpers"
 import {useStyles} from "./assets/styles"

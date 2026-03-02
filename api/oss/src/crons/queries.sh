@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-AGENTA_AUTH_KEY=$(tr '\0' '\n' < /proc/1/environ | grep ^AGENTA_AUTH_KEY= | cut -d= -f2-)
+AGENTA_AUTH_KEY=$(tr '\0' '\n' < /proc/1/environ | grep ^AGENTA_AUTH_KEY= | cut -d= -f2- || true)
+AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 TRIGGER_INTERVAL=$(awk 'NR==2 {split($1, a, "/"); print (a[2] ? a[2] : 1)}' /etc/cron.d/queries-cron)
 NOW_UTC=$(date -u "+%Y-%m-%dT%H:%M:00Z")
 MINUTE=$(date -u "+%M" | sed 's/^0*//')

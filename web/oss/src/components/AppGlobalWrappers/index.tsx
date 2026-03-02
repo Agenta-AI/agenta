@@ -1,19 +1,40 @@
 import {memo, useEffect} from "react"
 
+import {
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
+} from "@agenta/entities/appRevision/state"
+import {serviceSchemaMetadataWarmerAtom} from "@agenta/entities/legacyAppRevision"
+import {setUserAtoms} from "@agenta/entities/shared/user"
+// import {} from "@agenta/entity-ui/modals"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
+import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
+import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
+
+// Initialize user atoms for @agenta/entities shared user resolution
+// This enables UserAuthorLabel and other user resolution features
+setUserAtoms({
+    membersAtom: workspaceMembersAtom,
+    currentUserAtom: userAtom,
+})
+
+const EntityModalsProvider = dynamic(
+    () => import("@agenta/entity-ui/modals").then((m) => m.EntityModalsProvider),
+    {ssr: false},
+)
 
 const TraceDrawer = dynamic(
-    () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
+    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/TraceDrawer"),
     {ssr: false},
 )
 
 const EvalRunFocusDrawerPreview = dynamic(
-    () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
+    () => import("@/oss/components/EvalRunDetails/components/FocusDrawer"),
     {ssr: false},
 )
 
@@ -71,7 +92,12 @@ const DeleteVariantModalWrapper = dynamic(
 )
 
 const CustomWorkflowModalMount = dynamic(
-    () => import("@/oss/components/Modals/CustomWorkflowModalMount"),
+    () => import("@/oss/components/CustomWorkflow/CustomWorkflowModalMount"),
+    {ssr: false},
+)
+
+const OnboardingWidget = dynamic(
+    () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
     {ssr: false},
 )
 
@@ -160,8 +186,20 @@ const NavigationCommandListener = () => {
 
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
+
+    // Eagerly prefetch service schemas for completion/chat apps.
+    // These atoms use atomWithQuery — subscribing here triggers the fetch
+    // at app startup rather than waiting until a revision is selected.
+    useAtomValue(completionServiceSchemaAtom)
+    useAtomValue(chatServiceSchemaAtom)
+
+    // Pre-heat metadata for service schemas as soon as they resolve.
+    // This ensures UI controls have metadata available on first paint
+    // when a variant drawer opens, without waiting for per-revision derivation.
+    useAtomValue(serviceSchemaMetadataWarmerAtom)
+
     return (
-        <>
+        <EntityModalsProvider>
             <NavigationCommandListener />
             <TraceDrawer />
             <EvalRunFocusDrawerPreview />
@@ -176,7 +214,8 @@ const AppGlobalWrappers = () => {
             <DeploymentConfirmationModalWrapper />
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
-        </>
+            <OnboardingWidget />
+        </EntityModalsProvider>
     )
 }
 

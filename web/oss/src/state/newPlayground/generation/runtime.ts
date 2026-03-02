@@ -14,7 +14,7 @@ type RowRevisionKey = string | {rowId: string; revisionId: string}
 
 // Internal, string-keyed family to ensure stable caching
 const responseByRowRevisionAtomByKey = atomFamily((key: string) =>
-    atom<PlaygroundTestResult | null>(null),
+    atom<PlaygroundTestResult | PlaygroundTestResult[] | null>(null),
 )
 
 // Public family: accepts either string key or {rowId, revisionId}

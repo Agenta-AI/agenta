@@ -124,17 +124,17 @@ export default function Chat() {
                           ).length
                         }
                       />
-                      {message.parts
-                        .filter((part) => part.type === "source-url")
-                        .map((part, i) => (
-                          <SourcesContent key={`${message.id}-${i}`}>
+                      <SourcesContent>
+                        {message.parts
+                          .filter((part) => part.type === "source-url")
+                          .map((part, i) => (
                             <Source
                               key={`${message.id}-${i}`}
                               href={part.url}
                               title={part.url}
                             />
-                          </SourcesContent>
-                        ))}
+                          ))}
+                      </SourcesContent>
                     </Sources>
                   )}
 

@@ -1,0 +1,71 @@
+---
+id: create-application-variant
+title: "Create Application Variant"
+description: "Create Application Variant"
+sidebar_label: "Create Application Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWFlPI0cQ/iujekkijTHL4U1GihQvhyCbBAQseUAIlWd67N7tObYPwLHmv0fVPbeNOcJGUQQveHrq6P7q+KpnARqnCoIrGOe54CFqnqUKrn3Icibt03EEAYSSoWY32Ajd3KLkmGrwQbKvhin9IYvmECwgzFLNUk0/W/LDzypLaU2FM5Yg/colOdGcqZ5sbXutEI/sSjo/iSG4WoCe5wwCUFrydAo+xJlMUEMAxvAICr+WSI0QUFz7oLkWtNA6u3dMonCXyS+xyO5e0cmfpcnSA0rNYwz1ax6jNFl6iIUNbdt2F0yubkKjdJbQQ2l0kmWCYQqN1WPl7TkpHyIWoxEaghiFYoVPJtgtCoM6k49ZOagFVxuamQTTx4wcWaHVBsIZ6kePQjJL6oVfKWWTzyzUsDI3Di2gpKxCyXNa6iWPhdwbeG1Yfj4kF17CMFUe198pD1OvlccbK2JK+1kKHkYRJwUUp92a6KdOdfCW3TKbaGW1GQi5DI1A+f1vOGHiV5Wlg+M0N/oH6GPTTrmeMCwBuS5fL+iIhQ8J0/jCo7bOVa7wVLMpk13HyaS70kboMTwOjVgPh78ArlnyNCWUEudrUemqPg/R3wnJwocUE/ZEvJZs/EG6RS/LX2Zqv2Wi8EEJM32pqXPSfWKdXjr22LOctVKJGItLFhHxreKd1dzQsXvmSA8Kst/Y09Iwu6DyLFUua7c2N+lft22cmzBkSsVGeGelMPgv5c4wM2m79VVF0Bxjz0q0Gt8mcdBqyn2IL97I941838j3XyLfE6Ofwb5O+n9Nvw8CspZ/l7SeQcAvAfW/zcDuGhfdoH5i24tQs4Hmdj8Pe3GMGHljC5bJo2/h5JMzWzqJmGDfwMm+M1s6qeCazF+RKCqwPsxLqqjwelUvFVq1lwqwV/VSwVV7+ecjng+vtz3a07NGxlVs8CwD9ShX2LlwZ2trefK7RMEjR1kHUlpGfuHYFzGNXNhpwjXAvoDIws7b5zTw66LXM1u8k7kNWvZQ0xbt10Fq+qFSOGVNE31Y1ILhXdBbygJ7+yHxKpjVdSjU9y0zS0HZIyzv9aNzP2Hjtl/KtRKnCZGL0MNQ7LsQrMuSo4uL0yWDLj+6ieE6g9eeaS7rj2wJ07OMPsXlmaLnHPUMAhi28kUNyyFeDcEHxeQtk8pG20gBAcy0zlUwHIYiM9EGTlmqcQP5EHNuy0ax0Eiu51ZlfHr8kc2PGEZMQnB13RY4p3x0GdYVq6OCOf/ICCfHgzA2epZJ/pdLG4ou7cdpERCU6WfNZ8SDe0xywdZ8FuzfRWA7xh9349HOYPf9u/eDnd3R1mCyHYeDrfCn0XY8GmGMI+jdLZ6q1LkuPFWpvgG0Jn078PYH92axHMKbBTdUV1N2OZU2I1s9ZzTF1M2oetn15brcbX3FWbu8xjYdvPHpMfhAieMsbG6829hcHrvbwtS8MLRRqaJtX4Pfy7s648AHltjOBZph8kvzgnZGCV5eRkp7awujNyWVCUgtYJgL5LZJ2X0syprpXPnpSlFVDfhATWBGBRZcwWIxQcU+SVEUtPzVMEmlcV0qTAi2K+qSs6pIFvCFzasWlOqB7WUkLowril5rp7brNMZhyHK9Vva61QNOT84vwIdJ+cU9ySLSkXhHPQ7vIACgL/jugMHCrS1AYDo11I0DcDbp729n6Dj8
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Application Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/applications/variants/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create Application Variant
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"application_variant":{"properties":{"application_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Application Id"},"workflow_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workflow Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"properties":{"is_custom":{"type":"boolean","title":"Is Custom","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_human":{"type":"boolean","title":"Is Human","default":false},"is_chat":{"type":"boolean","title":"Is Chat","default":false}},"type":"object","title":"ApplicationFlags","description":"Application flags - is_evaluator=False means it's an application."},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Input)","type":"object"}],"title":"LabelJson-Input"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Input)","type":"object"},{"items":"circular(FullJson-Input)","type":"array"},{"type":"null"}],"title":"FullJson-Input"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"}},"type":"object","title":"ApplicationVariantCreate"}},"type":"object","required":["application_variant"],"title":"ApplicationVariantCreateRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"application_variant":{"anyOf":[{"properties":{"application_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Application Id"},"workflow_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workflow Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"properties":{"is_custom":{"type":"boolean","title":"Is Custom","default":false},"is_evaluator":{"type":"boolean","title":"Is Evaluator","default":false},"is_human":{"type":"boolean","title":"Is Human","default":false},"is_chat":{"type":"boolean","title":"Is Chat","default":false}},"type":"object","title":"ApplicationFlags","description":"Application flags - is_evaluator=False means it's an application."},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"ApplicationVariant"},{"type":"null"}]}},"type":"object","title":"ApplicationVariantResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

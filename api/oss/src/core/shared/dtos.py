@@ -1,8 +1,10 @@
 from typing import Optional
+from uuid import UUID
+from datetime import datetime
+
 from pydantic import BaseModel
 
-
-from agenta.sdk.models.shared import (
+from agenta.sdk.models.shared import (  # noqa: F401
     BoolJson,
     StringJson,
     FullJson,
@@ -39,6 +41,18 @@ from agenta.sdk.models.shared import (
     #
     Windowing,
 )
+
+
+class Status(BaseModel):
+    timestamp: datetime
+    type: Optional[str] = None
+    code: Optional[str] = None
+    message: Optional[str] = None
+    stacktrace: Optional[str] = None
+
+
+class FolderScope(BaseModel):
+    folder_id: Optional[UUID] = None
 
 
 class LegacyLifecycleDTO(BaseModel):

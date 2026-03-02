@@ -47,7 +47,15 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         const prompt = getPromptById(prompts, promptId)
         const llm = getLLMConfig(prompt) || {}
         const properties =
-            getEnhancedProperties(llm, ["tools", "toolChoice", "responseFormat", "stream"]) || []
+            getEnhancedProperties(llm, [
+                "tools",
+                "toolChoice",
+                "responseFormat",
+                "stream",
+                // Entity layer uses snake_case keys from the OpenAPI schema
+                "tool_choice",
+                "response_format",
+            ]) || []
         const ids = properties.map((p: any) => p?.__id).filter(Boolean)
 
         // Prefer enhanced model value; fallback to raw string

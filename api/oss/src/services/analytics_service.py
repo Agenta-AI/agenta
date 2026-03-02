@@ -13,9 +13,6 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-POSTHOG_API_KEY = env.POSTHOG_API_KEY
-POSTHOG_HOST = env.POSTHOG_HOST
-
 _EXCLUDED_PATHS = [
     r"^/health",
     r"^/docs",
@@ -47,12 +44,13 @@ ACTIVATION_EVENTS = {
 }
 
 
-if POSTHOG_API_KEY:
-    posthog.api_key = POSTHOG_API_KEY
-    posthog.host = POSTHOG_HOST
-    log.info("Agenta - PostHog URL: %s", POSTHOG_HOST)
+# Initialize PostHog only if enabled
+if env.posthog.enabled:
+    posthog.api_key = env.posthog.api_key
+    posthog.host = env.posthog.api_url
+    log.info("✓ PostHog enabled")
 else:
-    log.warn("PostHog API key not found in environment variables")
+    log.warn("✗ PostHog disabled")
 
 
 async def _set_activation_property(
@@ -65,15 +63,21 @@ async def _set_activation_property(
     Uses caching to ensure the property is only set once per user.
     Uses PostHog's $set_once to ensure idempotency.
     """
-    if not distinct_id or not env.POSTHOG_API_KEY:
+    if not distinct_id or not env.posthog.enabled:
+        return
+
+    project_id = getattr(request.state, "project_id", None)
+    user_id = getattr(request.state, "user_id", None)
+
+    if not project_id or not user_id:
         return
 
     # Check if we've already set this property for this user
     cache_key = {"property": property_name}
 
     already_set = await get_cache(
-        project_id=request.state.project_id,
-        user_id=request.state.user_id,
+        project_id=project_id,
+        user_id=user_id,
         namespace="posthog:activations",
         key=cache_key,
         retry=False,
@@ -85,8 +89,9 @@ async def _set_activation_property(
 
     try:
         # Set the property using PostHog's $set_once (idempotent)
-        posthog.identify(
+        posthog.capture(
             distinct_id=distinct_id,
+            event="$identify",
             properties={
                 "$set_once": {
                     property_name: True,
@@ -96,8 +101,8 @@ async def _set_activation_property(
 
         # Mark in cache that we've set this property
         await set_cache(
-            project_id=request.state.project_id,
-            user_id=request.state.user_id,
+            project_id=project_id,
+            user_id=user_id,
             namespace="posthog:activations",
             key=cache_key,
             value=True,
@@ -112,9 +117,10 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
     """
     Captures the 'oss_deployment_created' event in PostHog.
     This event is triggered when the first user signs up in an OSS instance.
+    No-op if PostHog is not configured.
     """
 
-    if is_oss() and env.POSTHOG_API_KEY:
+    if is_oss() and env.posthog.enabled:
         try:
             posthog.capture(
                 distinct_id=user_email,
@@ -130,7 +136,12 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
+    """Analytics middleware that no-ops if PostHog is disabled"""
     response = await call_next(request)
+
+    # Skip analytics if PostHog is not configured
+    if not env.posthog.enabled:
+        return response
 
     try:
         path = request.url.path
@@ -186,7 +197,10 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 properties["organization_name"] = request.state.organization_name
 
             # Check daily limits if the event is one of those to be limited per auth method
-            if event_name in LIMITED_EVENTS_PER_AUTH:
+            _project_id = getattr(request.state, "project_id", None)
+            _user_id = getattr(request.state, "user_id", None)
+
+            if event_name in LIMITED_EVENTS_PER_AUTH and _project_id and _user_id:
                 # --------------------------------------------------------------
                 today = datetime.now().strftime("%Y-%m-%d")
                 event_auth_key = f"{event_name}:{auth_method}"
@@ -198,8 +212,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 }
 
                 current_count = await get_cache(
-                    project_id=request.state.project_id,
-                    user_id=request.state.user_id,
+                    project_id=_project_id,
+                    user_id=_user_id,
                     namespace="posthog:analytics",
                     key=cache_key,
                     retry=False,
@@ -215,8 +229,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     return response
 
                 await set_cache(
-                    project_id=request.state.project_id,
-                    user_id=request.state.user_id,
+                    project_id=_project_id,
+                    user_id=_user_id,
                     namespace="posthog:analytics",
                     key=cache_key,
                     value=current_count + 1,
@@ -228,10 +242,10 @@ async def analytics_middleware(request: Request, call_next: Callable):
 
             try:
                 distinct_id = request.state.user_email
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
 
-            if distinct_id and env.POSTHOG_API_KEY:
+            if distinct_id and env.posthog.api_key:
                 posthog.capture(
                     distinct_id=distinct_id,
                     event=event_name,
@@ -316,14 +330,10 @@ def _get_event_name_from_path(
         return "evaluator_updated"
 
     elif method == "POST" and (
-        path == "/preview/evaluations/runs/"
-        or "/evaluations/preview/start" in path
-        or path == "/preview/simple/evaluations/"
+        path == "/preview/evaluations/runs/" or path == "/preview/simple/evaluations/"
     ):
         return "evaluation_created"
 
-    elif method == "POST" and "/human-evaluations" in path:
-        return "human_evaluation_created"
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->

@@ -32,18 +32,54 @@ class OrganizationDB(Base):
         unique=True,
         nullable=False,
     )
-    name = Column(String, default="agenta")
-    description = Column(
+    slug = Column(
         String,
-        default="The open-source LLM developer platform for cross-functional teams.",
+        unique=True,
+        nullable=True,
     )
-    type = Column(String, nullable=True)
-    owner = Column(String, nullable=True)  # TODO: deprecate and remove
+    #
+    name = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    #
+    flags = Column(JSONB, nullable=True)
+    tags = Column(JSONB, nullable=True)
+    meta = Column(JSONB, nullable=True)
+    #
+    owner_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    #
     created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
+    #
     updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=True,
+    )
+    deleted_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    updated_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    deleted_by_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
 
 
@@ -152,11 +188,6 @@ class AppDB(Base):
         UUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
-    )
-    folder_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("folders.id", ondelete="SET NULL"),
-        nullable=True,
     )
     folder_id = Column(
         UUID(as_uuid=True),
@@ -596,122 +627,6 @@ class APIKeyDB(Base):
         "oss.src.models.db_models.UserDB",
         backref="api_key_owner",
     )
-    project = relationship(
-        "oss.src.models.db_models.ProjectDB",
-    )
-
-
-class HumanEvaluationVariantDB(Base):
-    __tablename__ = "human_evaluation_variants"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    human_evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
-    )
-    variant_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
-    )
-    variant_revision_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
-    )
-
-    variant = relationship(
-        "oss.src.models.db_models.AppVariantDB",
-        backref="evaluation_variant",
-    )
-    variant_revision = relationship(
-        "oss.src.models.db_models.AppVariantRevisionsDB",
-        backref="evaluation_variant_revision",
-    )
-
-
-class HumanEvaluationDB(Base):
-    __tablename__ = "human_evaluations"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    status = Column(String)
-    evaluation_type = Column(String)
-    testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    testset = relationship(
-        "oss.src.models.db_models.TestsetDB",
-    )
-    evaluation_variant = relationship(
-        "oss.src.models.db_models.HumanEvaluationVariantDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="human_evaluation",
-    )
-    evaluation_scenario = relationship(
-        "oss.src.models.db_models.HumanEvaluationScenarioDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="evaluation_scenario",
-    )
-
-    project = relationship(
-        "oss.src.models.db_models.ProjectDB",
-    )
-
-
-class HumanEvaluationScenarioDB(Base):
-    __tablename__ = "human_evaluations_scenarios"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    project_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
-    )
-    inputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of HumanEvaluationScenarioInput
-    outputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of HumanEvaluationScenarioOutput
-    vote = Column(String)
-    score = Column(String)
-    correct_answer = Column(String)
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    is_pinned = Column(Boolean)
-    note = Column(String)
-
     project = relationship(
         "oss.src.models.db_models.ProjectDB",
     )

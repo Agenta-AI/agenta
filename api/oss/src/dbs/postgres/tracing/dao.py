@@ -1,24 +1,20 @@
-from typing import Any, Dict, Optional, List, cast as type_cast
+from typing import Tuple, Any, Dict, Optional, List, Literal, cast as type_cast
 from uuid import UUID
 from traceback import format_exc
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import cast, func, select, text, distinct
+from sqlalchemy import cast, func, select, text
 from sqlalchemy.types import Numeric, BigInteger
 from sqlalchemy.sql import Select, and_, or_
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy import distinct, text
-from sqlalchemy import Select, column
-from sqlalchemy.dialects.postgresql import dialect
-from sqlalchemy.future import select
-from sqlalchemy.sql.elements import ColumnElement, Label
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.dialects.postgresql import BIT
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.dtos import (
     OTelLink,
@@ -34,18 +30,15 @@ from oss.src.core.tracing.dtos import (
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
-from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.dbs.postgres.tracing.mappings import (
     map_span_dbe_to_link_dto,
-    map_span_dbe_to_span_dbe,
     map_span_dto_to_span_dbe,
     map_span_dbe_to_span_dto,
     map_buckets,
 )
 from oss.src.dbs.postgres.tracing.utils import (
-    DEBUG_ARGS,
     TIMEOUT_STMT,
     #
     combine,
@@ -77,43 +70,10 @@ class TracingDAO(TracingDAOInterface):
     def __init__(self):
         pass
 
-    ### CRUD on spans
+    ### SPANS
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
-    async def create_span(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        span_dto: OTelFlatSpan,
-    ) -> Optional[OTelLink]:
-        span_dbe = map_span_dto_to_span_dbe(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            span_dto=span_dto,
-        )
-
-        try:
-            async with engine.tracing_session() as session:
-                session.add(span_dbe)
-
-                await session.commit()
-
-                link_dto = map_span_dbe_to_link_dto(
-                    span_dbe=span_dbe,
-                )
-
-                return link_dto
-
-        except Exception as e:
-            check_entity_creation_conflict(e)
-
-            raise
-
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
-    async def create_spans(
+    @suppress_exceptions(default=[])
+    async def ingest(
         self,
         *,
         project_id: UUID,
@@ -121,420 +81,56 @@ class TracingDAO(TracingDAOInterface):
         #
         span_dtos: List[OTelFlatSpan],
     ) -> List[OTelLink]:
-        span_dbes = [
-            map_span_dto_to_span_dbe(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dto=span_dto,
-            )
-            for span_dto in span_dtos
-        ]
-
-        try:
-            async with engine.tracing_session() as session:
-                session.add_all(span_dbes)
-
-                await session.commit()
-
-                link_dtos = [
-                    map_span_dbe_to_link_dto(
-                        span_dbe=span_dbe,
-                    )
-                    for span_dbe in span_dbes
-                ]
-
-                return link_dtos
-
-        except Exception as e:
-            check_entity_creation_conflict(e)
-
-            raise
-
-    @suppress_exceptions()
-    async def read_span(
-        self,
-        *,
-        project_id: UUID,
-        #
-        span_id: UUID,
-    ) -> Optional[OTelFlatSpan]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id == span_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            result = await session.execute(stmt)
-
-            span_dbe = result.scalars().first()
-
-            if not span_dbe:
-                return None
-
-            span_dto = map_span_dbe_to_span_dto(
-                span_dbe=span_dbe,
-            )
-
-            return span_dto
-
-    @suppress_exceptions(default=[])
-    async def read_spans(
-        self,
-        *,
-        project_id: UUID,
-        #
-        span_ids: List[UUID],
-    ) -> List[OTelFlatSpan]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id.in_(span_ids),
-            )
-
-            stmt = stmt.limit(len(span_ids))
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            span_dtos = [
-                map_span_dbe_to_span_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            return span_dtos
-
-    @suppress_exceptions()
-    async def update_span(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        span_dto: OTelFlatSpan,
-    ) -> Optional[OTelLink]:
-        new_span_dbe = map_span_dto_to_span_dbe(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            span_dto=span_dto,
-        )
-
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id == new_span_dbe.span_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            result = await session.execute(stmt)
-
-            existing_span_dbe = result.scalars().first()
-
-            if not existing_span_dbe:
-                return None
-
-            map_span_dbe_to_span_dbe(
-                existing_span_dbe=existing_span_dbe,
-                new_span_dbe=new_span_dbe,
-                user_id=user_id,
-            )
-
-            await session.commit()
-
-            link_dto = map_span_dbe_to_link_dto(
-                span_dbe=new_span_dbe,
-            )
-
-            return link_dto
-
-    @suppress_exceptions(default=[])
-    async def update_spans(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        span_dtos: List[OTelFlatSpan],
-    ) -> List[OTelLink]:
-        new_span_dbes = [
-            map_span_dto_to_span_dbe(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dto=span_dto,
-            )
-            for span_dto in span_dtos
-        ]
-
-        span_ids = [span_dbe.span_id for span_dbe in new_span_dbes]
+        """Ingest spans using PostgreSQL INSERT ... ON CONFLICT ... DO UPDATE."""
+        if not span_dtos:
+            return []
 
         async with engine.tracing_session() as session:
             link_dtos: List[OTelLink] = []
 
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id.in_(span_ids),
-            )
-
-            stmt = stmt.limit(len(span_ids))
-
-            result = await session.execute(stmt)
-
-            existing_span_dbes = result.scalars().all()
-
-            if not existing_span_dbes:
-                return link_dtos
-
-            existing_span_dbes = {
-                span_dbe.span_id: span_dbe for span_dbe in existing_span_dbes
-            }
-
-            for new_span_dbe in new_span_dbes:
-                existing_span_dbe = existing_span_dbes.get(new_span_dbe.span_id)
-
-                if existing_span_dbe:
-                    map_span_dbe_to_span_dbe(
-                        existing_span_dbe=existing_span_dbe,
-                        new_span_dbe=new_span_dbe,
-                        user_id=user_id,
-                    )
-
-                    del existing_span_dbes[new_span_dbe.span_id]
-
-                else:
-                    session.add(new_span_dbe)
-
-                link_dto = map_span_dbe_to_link_dto(
-                    span_dbe=new_span_dbe,
+            for span_dto in span_dtos:
+                span_dbe = map_span_dto_to_span_dbe(
+                    project_id=project_id,
+                    user_id=user_id,
+                    span_dto=span_dto,
                 )
 
+                # PostgreSQL upsert: INSERT ... ON CONFLICT ... DO UPDATE
+                values = {
+                    c.name: getattr(span_dbe, c.name) for c in SpanDBE.__table__.columns
+                }
+
+                stmt = insert(SpanDBE).values(**values)
+
+                # On conflict on primary key (project_id, trace_id, span_id), update all fields
+                update_fields = {
+                    c.name: stmt.excluded[c.name]
+                    for c in SpanDBE.__table__.columns
+                    if c.name
+                    not in [
+                        "project_id",
+                        "trace_id",
+                        "span_id",
+                        "created_at",
+                        "created_by_id",
+                    ]
+                }
+                update_fields["updated_at"] = datetime.now(timezone.utc)
+                update_fields["updated_by_id"] = user_id
+
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["project_id", "trace_id", "span_id"],
+                    set_=update_fields,
+                )
+
+                await session.execute(stmt)
+
+                link_dto = map_span_dbe_to_link_dto(span_dbe=span_dbe)
                 link_dtos.append(link_dto)
 
-            for remaining_span_dbe in existing_span_dbes.values():
-                await session.delete(remaining_span_dbe)
-
             await session.commit()
 
             return link_dtos
-
-    @suppress_exceptions()
-    async def delete_span(
-        self,
-        *,
-        project_id: UUID,
-        # user_id: UUID,
-        #
-        span_id: UUID,
-    ) -> Optional[OTelLink]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id == span_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            result = await session.execute(stmt)
-
-            span_dbe = result.scalars().first()
-
-            if not span_dbe:
-                return None
-
-            link_dto = map_span_dbe_to_link_dto(
-                span_dbe=span_dbe,
-            )
-
-            await session.delete(span_dbe)
-
-            await session.commit()
-
-            return link_dto
-
-    @suppress_exceptions(default=[])
-    async def delete_spans(
-        self,
-        *,
-        project_id: UUID,
-        # user_id: UUID,
-        #
-        span_ids: List[UUID],
-    ) -> List[OTelLink]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.span_id.in_(span_ids),
-            )
-
-            stmt = stmt.limit(len(span_ids))
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            if not span_dbes:
-                return []
-
-            link_dtos = [
-                map_span_dbe_to_link_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            for span_dbe in span_dbes:
-                await session.delete(span_dbe)
-
-            await session.commit()
-
-            return link_dtos
-
-    ### .R.D on traces
-
-    @suppress_exceptions(default=[])
-    async def read_trace(
-        self,
-        *,
-        project_id: UUID,
-        #
-        trace_id: UUID,
-    ) -> List[OTelFlatSpan]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.trace_id == trace_id,
-            )
-
-            stmt = stmt.order_by(SpanDBE.start_time.asc())
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            if not span_dbes:
-                return []
-
-            span_dtos = [
-                map_span_dbe_to_span_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            return span_dtos
-
-    @suppress_exceptions(default=[])
-    async def read_traces(
-        self,
-        *,
-        project_id: UUID,
-        #
-        trace_ids: List[UUID],
-    ) -> List[OTelFlatSpan]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.trace_id.in_(trace_ids),
-            )
-
-            stmt = stmt.order_by(SpanDBE.start_time.asc())
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            if not span_dbes:
-                return []
-
-            span_dtos = [
-                map_span_dbe_to_span_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            return span_dtos
-
-    @suppress_exceptions(default=[])
-    async def delete_trace(
-        self,
-        *,
-        project_id: UUID,
-        # user_id: UUID,
-        #
-        trace_id: UUID,
-    ) -> List[OTelLink]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.trace_id == trace_id,
-            )
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            if not span_dbes:
-                return []
-
-            link_dtos = [
-                map_span_dbe_to_link_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            for span_dbe in span_dbes:
-                await session.delete(span_dbe)
-
-            await session.commit()
-
-            return link_dtos
-
-    @suppress_exceptions(default=[])
-    async def delete_traces(
-        self,
-        *,
-        project_id: UUID,
-        # user_id: UUID,
-        #
-        trace_ids: List[UUID],
-    ) -> List[OTelLink]:
-        async with engine.tracing_session() as session:
-            stmt = select(SpanDBE).filter(
-                SpanDBE.project_id == project_id,
-                SpanDBE.trace_id.in_(trace_ids),
-            )
-
-            result = await session.execute(stmt)
-
-            span_dbes = result.scalars().all()
-
-            if not span_dbes:
-                return []
-
-            link_dtos = [
-                map_span_dbe_to_link_dto(
-                    span_dbe=span_dbe,
-                )
-                for span_dbe in span_dbes
-            ]
-
-            for span_dbe in span_dbes:
-                await session.delete(span_dbe)
-
-            await session.commit()
-
-            return link_dtos
-
-    ### QUERY
 
     @suppress_exceptions(default=[])
     async def query(
@@ -693,217 +289,6 @@ class TracingDAO(TracingDAOInterface):
             if "QueryCanceledError" in str(e.orig):
                 raise Exception(  # pylint: disable=broad-exception-raised
                     "TracingQuery execution was cancelled due to timeout. "
-                    "Please try again with a smaller time interval."
-                ) from e
-
-            raise e
-
-        except Exception as e:
-            log.error(f"{type(e).__name__}: {e}")
-            log.error(format_exc())
-            raise e
-
-    ### ANALYTICS
-
-    @suppress_exceptions(default=[])
-    async def legacy_analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[Bucket]:
-        # DEBUGGING
-        # log.trace(query.model_dump(mode="json", exclude_none=True))
-        # ---------
-
-        (
-            oldest,
-            newest,
-            stride,
-            interval,
-            timestamps,
-        ) = parse_windowing(query.windowing)
-
-        try:
-            async with engine.tracing_session() as session:
-                await session.execute(TIMEOUT_STMT)
-
-                # BASE QUERY HELPERS
-                _count = func.count().label("count")  # pylint: disable=not-callable
-                _duration = None
-                _costs = None
-                _tokens = None
-                _timestamp = func.date_bin(
-                    text(f"'{stride}'"),
-                    SpanDBE.created_at,
-                    oldest,
-                ).label("timestamp")
-                # ------------------
-
-                # GROUPING
-                inc_or_cum = (
-                    "cumulative"
-                    if query.formatting and query.formatting.focus == Focus.TRACE
-                    else "incremental"
-                )
-
-                _duration = func.sum(
-                    cast(
-                        SpanDBE.attributes["ag"]["metrics"]["duration"][
-                            "cumulative"
-                        ].astext,
-                        Numeric,
-                    )
-                ).label("duration")
-
-                _costs = func.sum(
-                    cast(
-                        SpanDBE.attributes["ag"]["metrics"]["costs"][inc_or_cum][
-                            "total"
-                        ].astext,
-                        Numeric,
-                    )
-                ).label("costs")
-
-                _tokens = func.sum(
-                    cast(
-                        SpanDBE.attributes["ag"]["metrics"]["tokens"][inc_or_cum][
-                            "total"
-                        ].astext,
-                        Numeric,
-                    )
-                ).label("tokens")
-                # --------
-
-                # BASE QUERY
-                total_stmt = select(
-                    _count,
-                    _duration,
-                    _costs,
-                    _tokens,
-                    _timestamp,
-                ).select_from(SpanDBE)
-
-                errors_stmt = select(
-                    _count,
-                    _duration,
-                    _costs,
-                    _tokens,
-                    _timestamp,
-                ).select_from(SpanDBE)
-                # ----------
-
-                # WINDOWING
-                total_stmt = total_stmt.filter(
-                    SpanDBE.created_at >= oldest,
-                    SpanDBE.created_at < newest,
-                )
-
-                errors_stmt = errors_stmt.filter(
-                    SpanDBE.created_at >= oldest,
-                    SpanDBE.created_at < newest,
-                )
-                # ---------
-
-                # SCOPING
-                total_stmt = total_stmt.filter_by(
-                    project_id=project_id,
-                )
-
-                errors_stmt = errors_stmt.filter_by(
-                    project_id=project_id,
-                )
-                # -------
-
-                # TOTAL vs ERRORS
-                # ----------------
-
-                # FILTERING
-                # ---------
-                if query.filtering:
-                    operator = query.filtering.operator
-                    conditions = query.filtering.conditions
-
-                    total_stmt = total_stmt.filter(
-                        type_cast(
-                            ColumnElement[bool],
-                            combine(
-                                operator=operator,
-                                clauses=filter(conditions),
-                            ),
-                        )
-                    )
-
-                    errors_stmt = errors_stmt.filter(
-                        type_cast(
-                            ColumnElement[bool],
-                            combine(
-                                operator=operator,
-                                clauses=filter(
-                                    conditions
-                                    + [
-                                        Condition(
-                                            field="events",
-                                            operator=ListOperator.IN,
-                                            value=[{"name": "exception"}],
-                                        )
-                                    ]
-                                ),
-                            ),
-                        )
-                    )
-                # ---------
-
-                # GROUPING
-                if query.formatting and query.formatting.focus == Focus.TRACE:
-                    total_stmt = total_stmt.filter_by(
-                        parent_id=None,
-                    )
-
-                    errors_stmt = errors_stmt.filter_by(
-                        parent_id=None,
-                    )
-                # --------
-
-                # SORTING
-                total_stmt = total_stmt.group_by("timestamp")
-
-                errors_stmt = errors_stmt.group_by("timestamp")
-                # -------
-
-                # DEBUGGING
-                # log.trace(str(total_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
-                # log.trace(str(errors_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
-                # ---------
-
-                # QUERY EXECUTION
-                total_buckets = list((await session.execute(total_stmt)).all())
-                errors_buckets = list((await session.execute(errors_stmt)).all())
-                # ---------------
-
-                buckets = map_buckets(
-                    total_buckets=total_buckets,
-                    errors_buckets=errors_buckets,
-                    interval=interval,
-                    timestamps=timestamps,
-                )
-
-                # DEBUGGING
-                # log.trace(
-                #     [b.model_dump(mode="json", exclude_none=True) for b in buckets]
-                # )
-                # ---------
-
-            return buckets
-
-        except DBAPIError as e:
-            log.error(f"{type(e).__name__}: {e}")
-            log.error(format_exc())
-
-            if "AnalyticsCanceledError" in str(e.orig):
-                raise Exception(  # pylint: disable=broad-exception-raised
-                    "Analytics execution was cancelled due to timeout. "
                     "Please try again with a smaller time interval."
                 ) from e
 
@@ -1138,94 +523,454 @@ class TracingDAO(TracingDAOInterface):
 
         return buckets
 
-    ### SESSIONS AND USERS
+    @suppress_exceptions(default=[])
+    async def legacy_analytics(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> List[Bucket]:
+        # DEBUGGING
+        # log.trace(query.model_dump(mode="json", exclude_none=True))
+        # ---------
+
+        (
+            oldest,
+            newest,
+            stride,
+            interval,
+            timestamps,
+        ) = parse_windowing(query.windowing)
+
+        try:
+            async with engine.tracing_session() as session:
+                await session.execute(TIMEOUT_STMT)
+
+                # BASE QUERY HELPERS
+                _count = func.count().label("count")  # pylint: disable=not-callable
+                _duration = None
+                _costs = None
+                _tokens = None
+                _timestamp = func.date_bin(
+                    text(f"'{stride}'"),
+                    SpanDBE.created_at,
+                    oldest,
+                ).label("timestamp")
+                # ------------------
+
+                # GROUPING
+                inc_or_cum = (
+                    "cumulative"
+                    if query.formatting and query.formatting.focus == Focus.TRACE
+                    else "incremental"
+                )
+
+                _duration = func.sum(
+                    cast(
+                        SpanDBE.attributes["ag"]["metrics"]["duration"][
+                            "cumulative"
+                        ].astext,
+                        Numeric,
+                    )
+                ).label("duration")
+
+                _costs = func.sum(
+                    cast(
+                        SpanDBE.attributes["ag"]["metrics"]["costs"][inc_or_cum][
+                            "total"
+                        ].astext,
+                        Numeric,
+                    )
+                ).label("costs")
+
+                _tokens = func.sum(
+                    cast(
+                        SpanDBE.attributes["ag"]["metrics"]["tokens"][inc_or_cum][
+                            "total"
+                        ].astext,
+                        Numeric,
+                    )
+                ).label("tokens")
+                # --------
+
+                # BASE QUERY
+                total_stmt = select(
+                    _count,
+                    _duration,
+                    _costs,
+                    _tokens,
+                    _timestamp,
+                ).select_from(SpanDBE)
+
+                errors_stmt = select(
+                    _count,
+                    _duration,
+                    _costs,
+                    _tokens,
+                    _timestamp,
+                ).select_from(SpanDBE)
+                # ----------
+
+                # WINDOWING
+                total_stmt = total_stmt.filter(
+                    SpanDBE.created_at >= oldest,
+                    SpanDBE.created_at < newest,
+                )
+
+                errors_stmt = errors_stmt.filter(
+                    SpanDBE.created_at >= oldest,
+                    SpanDBE.created_at < newest,
+                )
+                # ---------
+
+                # SCOPING
+                total_stmt = total_stmt.filter_by(
+                    project_id=project_id,
+                )
+
+                errors_stmt = errors_stmt.filter_by(
+                    project_id=project_id,
+                )
+                # -------
+
+                # TOTAL vs ERRORS
+                # ----------------
+
+                # FILTERING
+                # ---------
+                if query.filtering:
+                    operator = query.filtering.operator
+                    conditions = query.filtering.conditions
+
+                    total_stmt = total_stmt.filter(
+                        type_cast(
+                            ColumnElement[bool],
+                            combine(
+                                operator=operator,
+                                clauses=filter(conditions),
+                            ),
+                        )
+                    )
+
+                    errors_stmt = errors_stmt.filter(
+                        type_cast(
+                            ColumnElement[bool],
+                            combine(
+                                operator=operator,
+                                clauses=filter(
+                                    conditions
+                                    + [
+                                        Condition(
+                                            field="events",
+                                            operator=ListOperator.IN,
+                                            value=[{"name": "exception"}],
+                                        )
+                                    ]
+                                ),
+                            ),
+                        )
+                    )
+                # ---------
+
+                # GROUPING
+                if query.formatting and query.formatting.focus == Focus.TRACE:
+                    total_stmt = total_stmt.filter_by(
+                        parent_id=None,
+                    )
+
+                    errors_stmt = errors_stmt.filter_by(
+                        parent_id=None,
+                    )
+                # --------
+
+                # SORTING
+                total_stmt = total_stmt.group_by("timestamp")
+
+                errors_stmt = errors_stmt.group_by("timestamp")
+                # -------
+
+                # DEBUGGING
+                # log.trace(str(total_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
+                # log.trace(str(errors_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
+                # ---------
+
+                # QUERY EXECUTION
+                total_buckets = list((await session.execute(total_stmt)).all())
+                errors_buckets = list((await session.execute(errors_stmt)).all())
+                # ---------------
+
+                buckets = map_buckets(
+                    total_buckets=total_buckets,
+                    errors_buckets=errors_buckets,
+                    interval=interval,
+                    timestamps=timestamps,
+                )
+
+                # DEBUGGING
+                # log.trace(
+                #     [b.model_dump(mode="json", exclude_none=True) for b in buckets]
+                # )
+                # ---------
+
+            return buckets
+
+        except DBAPIError as e:
+            log.error(f"{type(e).__name__}: {e}")
+            log.error(format_exc())
+
+            if "AnalyticsCanceledError" in str(e.orig):
+                raise Exception(  # pylint: disable=broad-exception-raised
+                    "Analytics execution was cancelled due to timeout. "
+                    "Please try again with a smaller time interval."
+                ) from e
+
+            raise e
+
+        except Exception as e:
+            log.error(f"{type(e).__name__}: {e}")
+            log.error(format_exc())
+            raise e
+
+    ### TRACES
 
     @suppress_exceptions(default=[])
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_ids: List[UUID],
+    ) -> List[OTelFlatSpan]:
+        """Fetch all spans for the given trace IDs."""
+        if not trace_ids:
+            return []
+
+        async with engine.tracing_session() as session:
+            stmt = select(SpanDBE).filter(
+                SpanDBE.project_id == project_id,
+                SpanDBE.trace_id.in_(trace_ids),
+            )
+
+            stmt = stmt.order_by(SpanDBE.start_time.asc())
+
+            result = await session.execute(stmt)
+
+            span_dbes = result.scalars().all()
+
+            if not span_dbes:
+                return []
+
+            span_dtos = [
+                map_span_dbe_to_span_dto(
+                    span_dbe=span_dbe,
+                )
+                for span_dbe in span_dbes
+            ]
+
+            return span_dtos
+
+    @suppress_exceptions(default=[])
+    async def delete(
+        self,
+        *,
+        project_id: UUID,
+        #
+        trace_ids: List[UUID],
+    ) -> List[OTelLink]:
+        """Delete all spans for the given trace IDs."""
+        if not trace_ids:
+            return []
+
+        async with engine.tracing_session() as session:
+            stmt = select(SpanDBE).filter(
+                SpanDBE.project_id == project_id,
+                SpanDBE.trace_id.in_(trace_ids),
+            )
+
+            result = await session.execute(stmt)
+
+            span_dbes = result.scalars().all()
+
+            if not span_dbes:
+                return []
+
+            link_dtos = [
+                map_span_dbe_to_link_dto(
+                    span_dbe=span_dbe,
+                )
+                for span_dbe in span_dbes
+            ]
+
+            for span_dbe in span_dbes:
+                await session.delete(span_dbe)
+
+            await session.commit()
+
+            return link_dtos
+
+    ### SESSIONS AND USERS
+
+    @suppress_exceptions(default=([], None))
     async def sessions(
         self,
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique session IDs with windowing support."""
-        async with engine.tracing_session() as session:
-            # TIMEOUT
-            await session.execute(TIMEOUT_STMT)
+        return await self._query_by_group(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+            #
+            group="session",
+        )
 
-            # Select distinct session IDs from JSONB
-            stmt = (
-                select(
-                    distinct(
-                        SpanDBE.attributes["ag"]["session"]["id"].as_string()
-                    ).label("session_id")
-                )
-                .filter(SpanDBE.project_id == project_id)
-                .filter(SpanDBE.attributes["ag"]["session"].has_key("id"))
-            )
-
-            # Apply windowing
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=SpanDBE,
-                    attribute="start_time",
-                    order="descending",
-                    windowing=windowing,
-                )
-
-            result = await session.execute(stmt)
-            rows = result.all()
-
-            # Return session IDs as strings
-            session_ids = []
-            for row in rows:
-                if row.session_id:
-                    session_ids.append(str(row.session_id))
-
-            return session_ids
-
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=([], None))
     async def users(
         self,
         *,
         project_id: UUID,
         #
+        realtime: Optional[bool] = None,
+        #
         windowing: Optional[Windowing] = None,
-    ) -> List[str]:
+    ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique user IDs with windowing support."""
+        return await self._query_by_group(
+            project_id=project_id,
+            #
+            realtime=realtime,
+            #
+            windowing=windowing,
+            #
+            group="user",
+        )
+
+    async def _query_by_group(
+        self,
+        *,
+        project_id: UUID,
+        #
+        group: Literal["session", "user"],
+        #
+        realtime: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> Tuple[List[str], Optional[datetime]]:
+        """Query unique session or user IDs with windowing support.
+
+        Args:
+            group: Either "session" or "user"
+            realtime: If True, use last_active (mutable, shows recent activity but unstable cursors).
+                     If False/None, use first_active (immutable, stable cursors but doesn't reflect new activity).
+        """
         async with engine.tracing_session() as session:
             # TIMEOUT
             await session.execute(TIMEOUT_STMT)
 
-            # Select distinct user IDs from JSONB
-            stmt = (
+            # Determine ordering direction from windowing parameter
+            # Default to descending (most recent first) if not specified
+            order_direction = "descending"
+            if windowing and windowing.order:
+                order_direction = windowing.order.lower()
+
+            # BASE QUERY: Use DISTINCT ON pattern (like query() does for traces)
+            # DISTINCT ON picks one row per identifier based on ORDER BY
+            id_column = SpanDBE.attributes["ag"][group]["id"].as_string()
+            base = (
                 select(
-                    distinct(SpanDBE.attributes["ag"]["user"]["id"].as_string()).label(
-                        "user_id"
-                    )
+                    id_column.label(f"{group}_id"),
+                    SpanDBE.start_time,
                 )
+                .distinct(id_column)
                 .filter(SpanDBE.project_id == project_id)
-                .filter(SpanDBE.attributes["ag"]["user"].has_key("id"))
+                .filter(SpanDBE.attributes["ag"][group].has_key("id"))
             )
 
-            # Apply windowing
+            # Apply time-range filters on base query (before deduplication)
+            # Follows apply_windowing() logic for oldest/newest based on order direction
             if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=SpanDBE,
-                    attribute="start_time",
-                    order="descending",
-                    windowing=windowing,
+                if order_direction == "ascending":
+                    # ASC: Moving forward in time
+                    if windowing.newest:
+                        base = base.filter(SpanDBE.start_time <= windowing.newest)
+                    if windowing.oldest:
+                        if windowing.next:
+                            base = base.filter(SpanDBE.start_time >= windowing.oldest)
+                        else:
+                            base = base.filter(SpanDBE.start_time > windowing.oldest)
+                else:
+                    # DESC: Moving backward in time
+                    if windowing.newest:
+                        if windowing.next:
+                            base = base.filter(SpanDBE.start_time <= windowing.newest)
+                        else:
+                            base = base.filter(SpanDBE.start_time < windowing.newest)
+                    if windowing.oldest:
+                        base = base.filter(SpanDBE.start_time >= windowing.oldest)
+
+            # ORDER BY for DISTINCT ON: identifier first, then start_time
+            # This determines which row to pick per identifier
+            # realtime=True: pick latest (mutable), realtime=False/None: pick earliest (stable)
+            if realtime:
+                # Realtime mode: Pick latest activity (unstable but shows recent activity)
+                base = base.order_by(
+                    id_column,
+                    SpanDBE.start_time.desc(),
+                )
+            else:
+                # Stable mode: Pick earliest activity (stable cursor)
+                base = base.order_by(
+                    id_column,
+                    SpanDBE.start_time.asc(),
                 )
 
-            result = await session.execute(stmt)
+            # Create subquery (like query() does with inner/uniq pattern)
+            inner = base.subquery(f"unique_{group}s")
+
+            # Build final query that orders and limits the unique identifiers
+            # Label depends on realtime mode
+            activity_label = "last_active" if realtime else "first_active"
+            uniq = select(
+                getattr(inner.c, f"{group}_id").label(f"{group}_id"),
+                inner.c.start_time.label(activity_label),
+            )
+
+            # Order the unique identifiers by their activity time
+            # (regardless of realtime mode, order by the picked timestamp)
+            if order_direction == "ascending":
+                uniq = uniq.order_by(inner.c.start_time.asc())
+            else:
+                uniq = uniq.order_by(inner.c.start_time.desc())
+
+            # Apply limit (no additional cursor filtering needed here)
+            # Time-range filtering already applied in base query via oldest/newest
+            if windowing and windowing.limit:
+                uniq = uniq.limit(windowing.limit)
+
+            result = await session.execute(uniq)
             rows = result.all()
 
-            # Return user IDs as strings
-            user_ids = []
+            # Return IDs as strings with cursor
+            # Cursor is either last_active (realtime) or first_active (stable)
+            ids = []
+            activity_cursor = None
             for row in rows:
-                if row.user_id:
-                    user_ids.append(str(row.user_id))
+                id_value = getattr(row, f"{group}_id")
+                if id_value:
+                    ids.append(str(id_value))
+                    # Activity cursor is set to the timestamp of the last row in the result set.
+                    # This represents the boundary timestamp for the next page of results:
+                    # - In descending order: cursor is the oldest timestamp in this page
+                    # - In ascending order: cursor is the newest timestamp in this page
+                    # The next query uses this as the starting point (oldest/newest boundary)
+                    activity_cursor = getattr(row, activity_label)
 
-            return user_ids
+            return ids, activity_cursor

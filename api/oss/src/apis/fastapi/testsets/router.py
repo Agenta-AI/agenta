@@ -3,8 +3,10 @@ from uuid import uuid4, UUID
 from json import loads, JSONDecodeError
 from io import BytesIO
 
+import csv
+from io import StringIO
+
 import orjson
-import pandas as pd
 from pydantic import ValidationError
 
 from fastapi.responses import StreamingResponse
@@ -15,14 +17,16 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    Depends,
+    Query,
     HTTPException,
 )
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import set_cache
+
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -32,27 +36,10 @@ from oss.src.core.testcases.dtos import (
 )
 from oss.src.core.testsets.dtos import (
     TestsetFlags,
-    Testset,
-    TestsetCreate,
-    TestsetEdit,
-    TestsetQuery,
-    #
-    TestsetVariant,
-    TestsetVariantCreate,
-    TestsetVariantEdit,
-    TestsetVariantQuery,
-    #
     TestsetRevisionData,
-    TestsetRevision,
-    TestsetRevisionCreate,
-    TestsetRevisionEdit,
-    TestsetRevisionQuery,
-    TestsetRevisionCommit,
-    #
     SimpleTestset,
     SimpleTestsetCreate,
     SimpleTestsetEdit,
-    SimpleTestsetQuery,
 )
 from oss.src.core.testsets.service import (
     TestsetsService,
@@ -63,7 +50,6 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
     TestsetQueryRequest,
-    TestsetLogRequest,
     TestsetResponse,
     TestsetsResponse,
     #
@@ -78,6 +64,7 @@ from oss.src.apis.fastapi.testsets.models import (
     TestsetRevisionQueryRequest,
     TestsetRevisionRetrieveRequest,
     TestsetRevisionCommitRequest,
+    TestsetRevisionsLogRequest,
     TestsetRevisionResponse,
     TestsetRevisionsResponse,
     #
@@ -88,9 +75,6 @@ from oss.src.apis.fastapi.testsets.models import (
     SimpleTestsetsResponse,
 )
 from oss.src.apis.fastapi.testsets.utils import (
-    parse_testset_revision_retrieve_request_from_params,
-    parse_testset_revision_retrieve_request_from_body,
-    #
     csv_file_to_json_array,
     json_file_to_json_array,
     json_array_to_json_object,
@@ -105,6 +89,162 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+# Exclude alias fields from API responses
+TESTSET_REVISION_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revision": {
+        "artifact_id",
+        "variant_id",
+        "revision_id",
+    }
+}
+
+TESTSET_REVISIONS_RESPONSE_EXCLUDE: Dict[str, Any] = {
+    "testset_revisions": {
+        "__all__": {
+            "artifact_id",
+            "variant_id",
+            "revision_id",
+        }
+    }
+}
+
+
+def _to_plain_dict(value: Any) -> Dict[str, Any]:
+    """Convert a value to a plain Python dict, handling Pydantic models."""
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if isinstance(value, dict):
+        return dict(value)  # Make a copy to be safe
+    return {}
+
+
+def _serialize_value(value: Any) -> Any:
+    """Serialize a value to a JSON-safe type.
+
+    Handles Pydantic models, dicts, lists, and primitives.
+    Returns the serialized value (not a JSON string).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "dict"):
+        return value.dict()
+    if isinstance(value, dict):
+        return {k: _serialize_value(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_serialize_value(v) for v in value]
+    # Fallback: convert to string
+    return str(value)
+
+
+def _serialize_value_for_csv(value: Any) -> Any:
+    """Serialize complex values to JSON strings for CSV export.
+
+    CSV cannot serialize dicts, lists, or other complex objects to CSV,
+    so we convert them to JSON strings. This includes Pydantic models.
+    """
+    if value is None:
+        return ""
+    # Handle primitive types directly
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    # Handle Pydantic models by converting to dict first
+    if hasattr(value, "model_dump"):
+        return orjson.dumps(value.model_dump()).decode("utf-8")
+    if hasattr(value, "dict"):
+        return orjson.dumps(value.dict()).decode("utf-8")
+    # Handle dicts and lists
+    if isinstance(value, (dict, list)):
+        return orjson.dumps(value).decode("utf-8")
+    # Fallback: convert to string
+    return str(value)
+
+
+def _prepare_testcases_for_csv(
+    testcases_data: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Prepare testcases data for CSV export by serializing complex values."""
+    return [
+        {key: _serialize_value_for_csv(val) for key, val in row.items()}
+        for row in testcases_data
+    ]
+
+
+def _drop_empty_export_columns(testcases_data: List[Dict[str, Any]]) -> None:
+    """Drop metadata columns that are None for every row (CSV export only)."""
+    if not testcases_data:
+        return
+    for column in ("__flags__", "__tags__", "__meta__"):
+        if all(row.get(column) is None for row in testcases_data):
+            for row in testcases_data:
+                row.pop(column, None)
+
+
+def _normalize_testcase_dedup_ids(testcases_data: List[Dict[str, Any]]) -> None:
+    """Normalize legacy dedup keys to the canonical testcase_dedup_id field."""
+    for testcase_data in testcases_data:
+        if not isinstance(testcase_data, dict):
+            continue
+        legacy_dedup_id = testcase_data.pop("__dedup_id__", None)
+        existing_dedup_id = testcase_data.get("testcase_dedup_id")
+        if legacy_dedup_id not in (None, "") and existing_dedup_id in (None, ""):
+            testcase_data["testcase_dedup_id"] = legacy_dedup_id
+
+
+def _normalize_testcase_dedup_ids_in_request(
+    testcases: Optional[List[Testcase]],
+) -> None:
+    """Normalize CSV-style dedup keys in JSON body requests."""
+    for testcase in testcases or []:
+        testcase_data = testcase.data
+        if not isinstance(testcase_data, dict):
+            continue
+        legacy_dedup_id = testcase_data.pop("__dedup_id__", None)
+        existing_dedup_id = testcase_data.get("testcase_dedup_id")
+        if legacy_dedup_id not in (None, "") and existing_dedup_id in (None, ""):
+            testcase_data["testcase_dedup_id"] = legacy_dedup_id
+
+
+def _build_testcase_export_row(testcase: Any) -> Dict[str, Any]:
+    """Build a dict for exporting a testcase, properly handling Pydantic models.
+
+    Extracts and serializes all testcase fields into a flat dict suitable for export.
+    """
+    # Extract the data field - handle both Pydantic models and plain dicts
+    data_dict = _to_plain_dict(testcase.data)
+
+    # Serialize all values in the data dict to ensure they're JSON-safe
+    serialized_data = {key: _serialize_value(val) for key, val in data_dict.items()}
+    if "__dedup_id__" not in serialized_data and "testcase_dedup_id" in serialized_data:
+        serialized_data["__dedup_id__"] = serialized_data["testcase_dedup_id"]
+    if "__dedup_id__" in serialized_data and "testcase_dedup_id" in serialized_data:
+        serialized_data.pop("testcase_dedup_id", None)
+
+    export_row = {
+        **serialized_data,
+        "__id__": str(testcase.id) if testcase.id else None,
+    }
+
+    flags = _serialize_value(testcase.flags)
+    tags = _serialize_value(testcase.tags)
+    meta = _serialize_value(testcase.meta)
+
+    if flags is not None:
+        export_row["__flags__"] = flags
+    if tags is not None:
+        export_row["__tags__"] = tags
+    if meta is not None:
+        export_row["__meta__"] = meta
+
+    return export_row
 
 
 class TestsetsRouter:
@@ -252,6 +392,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -262,6 +403,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -272,6 +414,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -282,6 +425,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -292,6 +436,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -302,6 +447,16 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
+        )
+
+        # POST /api/preview/testsets/revisions/{testset_revision_id}/download
+        self.router.add_api_route(
+            "/revisions/{testset_revision_id}/download",
+            self.fetch_testset_revision_to_file,
+            methods=["POST"],
+            operation_id="fetch_testset_revision_to_file",
+            status_code=status.HTTP_200_OK,
         )
 
         self.router.add_api_route(
@@ -312,6 +467,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -322,6 +478,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISION_RESPONSE_EXCLUDE,
         )
 
         self.router.add_api_route(
@@ -332,6 +489,7 @@ class TestsetsRouter:
             status_code=status.HTTP_200_OK,
             response_model=TestsetRevisionsResponse,
             response_model_exclude_none=True,
+            response_model_exclude=TESTSET_REVISIONS_RESPONSE_EXCLUDE,
         )
 
     # TESTSETS -----------------------------------------------------------------
@@ -348,7 +506,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -378,7 +536,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -407,7 +565,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -438,7 +596,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -466,7 +624,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -494,7 +652,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -510,9 +668,16 @@ class TestsetsRouter:
             windowing=testset_query_request.windowing,
         )
 
+        next_windowing = compute_next_windowing(
+            entities=testsets,
+            attribute="id",  # UUID7 - use id for cursor-based pagination
+            windowing=testset_query_request.windowing,
+        )
+
         testsets_response = TestsetsResponse(
             count=len(testsets),
             testsets=testsets,
+            windowing=next_windowing,
         )
 
         return testsets_response
@@ -529,7 +694,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -554,7 +719,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -583,11 +748,13 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        if str(testset_variant_id) not in request.state.user_id:
+        if str(testset_variant_id) != str(
+            testset_variant_edit_request.testset_variant.id
+        ):
             return TestsetVariantResponse()
 
         testset_variant = await self.testsets_service.edit_testset_variant(
@@ -614,7 +781,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -642,7 +809,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -670,7 +837,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -678,6 +845,9 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_variant_query=testset_variant_query_request.testset_variant,
+            #
+            testset_refs=testset_variant_query_request.testset_refs,
+            testset_variant_refs=testset_variant_query_request.testset_variant_refs,
             #
             include_archived=testset_variant_query_request.include_archived,
             #
@@ -703,7 +873,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -729,6 +899,7 @@ class TestsetsRouter:
                 testset_ref=testset_revision_retrieve_request.testset_ref,  # type: ignore
                 testset_variant_ref=testset_revision_retrieve_request.testset_variant_ref,  # type: ignore
                 testset_revision_ref=testset_revision_retrieve_request.testset_revision_ref,  # type: ignore
+                include_testcases=testset_revision_retrieve_request.include_testcases,
             )
 
             await set_cache(
@@ -756,7 +927,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -765,6 +936,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_create=testset_revision_create_request.testset_revision,
+            include_testcases=testset_revision_create_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -779,12 +951,16 @@ class TestsetsRouter:
         request: Request,
         *,
         testset_revision_id: UUID,
+        include_testcases: Optional[bool] = Query(
+            None,
+            description="Include full testcase objects. Default (null/true): include testcases. False: return only testcase IDs.",
+        ),
     ) -> TestsetRevisionResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -792,6 +968,7 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_ref=Reference(id=testset_revision_id),
+            include_testcases=include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -813,7 +990,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -827,6 +1004,7 @@ class TestsetsRouter:
             user_id=UUID(request.state.user_id),
             #
             testset_revision_edit=testset_revision_edit_request.testset_revision,
+            include_testcases=testset_revision_edit_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -846,7 +1024,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -874,7 +1052,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -892,6 +1070,105 @@ class TestsetsRouter:
 
         return testset_revision_response
 
+    @intercept_exceptions()
+    async def fetch_testset_revision_to_file(
+        self,
+        request: Request,
+        *,
+        testset_revision_id: UUID,
+        #
+        file_type: Optional[Literal["csv", "json"]] = Query(
+            "csv",
+            description="File type to download. Supported: 'csv' or 'json'. Default: 'csv'.",
+        ),
+        file_name: Optional[str] = Query(
+            None,
+            description="Optional custom filename for the download.",
+        ),
+    ) -> StreamingResponse:  # type: ignore
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if file_type is None or file_type not in ["csv", "json"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Supported types are 'csv' and 'json'.",
+            )
+
+        # Fetch the revision with testcases
+        testset_revision_response = await self.fetch_testset_revision(
+            request=request,
+            testset_revision_id=testset_revision_id,
+            include_testcases=True,
+        )
+
+        if (
+            not testset_revision_response.count
+            or not testset_revision_response.testset_revision
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Testset revision not found. Please check the revision_id and try again.",
+            )
+
+        revision = testset_revision_response.testset_revision
+
+        filename = (
+            file_name or f"revision_{testset_revision_id}"
+        ) + f".{file_type.lower()}"
+        testcases = revision.data.testcases if revision.data else []
+
+        # Build export data using helper that properly handles Pydantic models
+        testcases_data = [
+            _build_testcase_export_row(testcase) for testcase in testcases or []
+        ]
+
+        if file_type.lower() == "json":
+            buffer = BytesIO(orjson.dumps(testcases_data))
+
+            return StreamingResponse(
+                buffer,
+                media_type="application/json",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+
+        elif file_type.lower() == "csv":
+            buffer = BytesIO()
+            _drop_empty_export_columns(testcases_data)
+            csv_data = _prepare_testcases_for_csv(testcases_data)
+            if csv_data:
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+                text_buf = StringIO()
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
+            buffer.seek(0)
+
+            return StreamingResponse(
+                buffer,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file type. Supported types are 'csv' and 'json'.",
+            )
+
     async def query_testset_revisions(
         self,
         request: Request,
@@ -902,7 +1179,7 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
@@ -910,6 +1187,15 @@ class TestsetsRouter:
             project_id=UUID(request.state.project_id),
             #
             testset_revision_query=testset_revision_query_request.testset_revision,
+            #
+            testset_refs=testset_revision_query_request.testset_refs,
+            testset_variant_refs=testset_revision_query_request.testset_variant_refs,
+            testset_revision_refs=testset_revision_query_request.testset_revision_refs,
+            #
+            include_archived=testset_revision_query_request.include_archived,
+            include_testcases=testset_revision_query_request.include_testcases,
+            #
+            windowing=testset_revision_query_request.windowing,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
@@ -929,15 +1215,28 @@ class TestsetsRouter:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.EDIT_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        commit = testset_revision_commit_request.testset_revision_commit
+        if commit.data and commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit, not both.",
+            )
+        if not commit.data and not commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit.",
+            )
 
         testset_revision = await self.testsets_service.commit_testset_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            testset_revision_commit=testset_revision_commit_request.testset_revision_commit,
+            testset_revision_commit=commit,
+            include_testcases=testset_revision_commit_request.include_testcases,
         )
 
         testset_revision_response = TestsetRevisionResponse(
@@ -951,20 +1250,21 @@ class TestsetsRouter:
         self,
         request: Request,
         *,
-        testset_log_request: TestsetLogRequest,
+        testset_revisions_log_request: TestsetRevisionsLogRequest,
     ) -> TestsetRevisionsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+                permission=Permission.VIEW_TESTSETS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         testset_revisions = await self.testsets_service.log_testset_revisions(
             project_id=UUID(request.state.project_id),
             #
-            testset_log=testset_log_request.testset,
+            testset_revisions_log=testset_revisions_log_request.testset_revision,
+            include_testcases=testset_revisions_log_request.include_testcases,
         )
 
         testset_revisions_response = TestsetRevisionsResponse(
@@ -1121,6 +1421,10 @@ class SimpleTestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        _normalize_testcase_dedup_ids_in_request(
+            simple_testset_create_request.testset.data.testcases
+        )
+
         simple_testset = await self.simple_testsets_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1138,7 +1442,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def fetch_simple_testset(
         self,
         request: Request,
@@ -1230,7 +1534,28 @@ class SimpleTestsetsRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(testset_id) != str(simple_testset_edit_request.testset.id):
-            return SimpleTestsetResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Testset ID in path does not match testset ID in request body.",
+            )
+
+        # Check if testset exists before attempting to edit
+        existing_testset = (
+            await self.simple_testsets_service.testsets_service.fetch_testset(
+                project_id=UUID(request.state.project_id),
+                testset_ref=Reference(id=testset_id),
+            )
+        )
+
+        if existing_testset is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Testset with ID '{testset_id}' does not exist.",
+            )
+
+        _normalize_testcase_dedup_ids_in_request(
+            simple_testset_edit_request.testset.data.testcases
+        )
 
         simple_testset: Optional[
             SimpleTestset
@@ -1351,7 +1676,7 @@ class SimpleTestsetsRouter:
         return simple_testset_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def list_simple_testsets(
         self,
         request: Request,
@@ -1365,7 +1690,7 @@ class SimpleTestsetsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetsResponse())
+    @suppress_exceptions(default=SimpleTestsetsResponse(), exclude=[HTTPException])
     async def query_simple_testsets(
         self,
         request: Request,
@@ -1508,13 +1833,13 @@ class SimpleTestsetsRouter:
                 ) from e
 
         else:
-            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Supported types are 'csv' and 'json'.",
             )
 
         try:
+            _normalize_testcase_dedup_ids(testcases_data)
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
                 testcase_id_key="__id__",
@@ -1647,6 +1972,7 @@ class SimpleTestsetsRouter:
             )
 
         try:
+            _normalize_testcase_dedup_ids(testcases_data)
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
                 testcase_id_key="__id__",
@@ -1762,15 +2088,9 @@ class SimpleTestsetsRouter:
         filename = (file_name or f"testset_{testset_id}") + f".{file_type.lower()}"
         testcases = testset.data.testcases
 
+        # Build export data using helper that properly handles Pydantic models
         testcases_data = [
-            {
-                **testcase.data,
-                "__id__": testcase.id,
-                "__flags__": testcase.flags,
-                "__tags__": testcase.tags,
-                "__meta__": testcase.meta,
-            }
-            for testcase in testcases or []
+            _build_testcase_export_row(testcase) for testcase in testcases or []
         ]
 
         if file_type.lower() == "json":
@@ -1784,7 +2104,22 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             buffer = BytesIO()
-            pd.DataFrame(testcases_data).to_csv(buffer, index=False)
+            _drop_empty_export_columns(testcases_data)
+            csv_data = _prepare_testcases_for_csv(testcases_data)
+            if csv_data:
+                # Collect all unique keys from all rows to handle heterogeneous data
+                all_keys = set()
+                for row in csv_data:
+                    all_keys.update(row.keys())
+                fieldnames = sorted(all_keys)  # Sort for consistent column order
+
+                text_buf = StringIO()
+                writer = csv.DictWriter(
+                    text_buf, fieldnames=fieldnames, extrasaction="ignore"
+                )
+                writer.writeheader()
+                writer.writerows(csv_data)
+                buffer = BytesIO(text_buf.getvalue().encode("utf-8"))
             buffer.seek(0)
 
             return StreamingResponse(
@@ -1800,7 +2135,7 @@ class SimpleTestsetsRouter:
             )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTestsetResponse())
+    @suppress_exceptions(default=SimpleTestsetResponse(), exclude=[HTTPException])
     async def transfer_simple_testset(
         self,
         request: Request,

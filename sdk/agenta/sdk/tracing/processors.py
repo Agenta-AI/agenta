@@ -1,19 +1,20 @@
-from typing import Optional, Dict, List
 from threading import Lock
+from typing import Dict, List, Optional
 
+
+from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span, SpanProcessor
 from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    ReadableSpan,
     BatchSpanProcessor,
+    ReadableSpan,
+    SpanExporter,
 )
 from opentelemetry.trace import SpanContext
 
-from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.tracing import BaseModel
-from agenta.sdk.contexts.tracing import TracingContext
 
 log = get_module_logger(__name__)
 
@@ -55,11 +56,13 @@ class TraceProcessor(SpanProcessor):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
 
-        # log.debug(
-        #     "[SPAN] [START] ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [START] ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
 
         for key in self.references.keys():
             ref = self.references[key]
@@ -88,6 +91,8 @@ class TraceProcessor(SpanProcessor):
                     if isinstance(ref, dict):
                         for field, val in ref.items():
                             span.set_attribute(f"{key}.{field}", str(val))
+                    elif isinstance(ref, (str, bool, int, float, bytes)):
+                        span.set_attribute(key, ref)
                 else:
                     # Not a reference - only set if it's a valid attribute type
                     if isinstance(value, (str, bool, int, float, bytes)):
@@ -168,11 +173,13 @@ class TraceProcessor(SpanProcessor):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
 
-        # log.debug(
-        #     "[SPAN] [END]   ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
+        # if not self.inline:
+        #     log.debug(
+        #         "[SPAN] [END]   ",
+        #         trace_id=UUID(int=trace_id).hex,
+        #         span_id=UUID(int=span_id).hex[-16:],
+        #         span_name=span.name,
+        #     )
 
         self._spans.setdefault(trace_id, []).append(span)
         self._registry.setdefault(trace_id, {})
@@ -203,7 +210,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 ret = self._exporter.force_flush(timeout_millis)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 ret = True
         # --- INLINE
 
@@ -238,7 +245,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 is_ready = self._exporter.is_ready(trace_id)
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 
@@ -254,7 +261,7 @@ class TraceProcessor(SpanProcessor):
         if self.inline:
             try:
                 trace = self._exporter.fetch(trace_id)  # type: ignore
-            except:  # pylint: disable=bare-except
+            except Exception:  # pylint: disable=bare-except
                 pass
         # --- INLINE
 

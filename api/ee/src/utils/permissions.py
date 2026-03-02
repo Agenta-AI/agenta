@@ -29,16 +29,33 @@ FORBIDDEN_EXCEPTION = HTTPException(
 )
 
 
+def _get_project_member(
+    user_id: str,
+    members: Sequence[Any],
+) -> Optional[Any]:
+    """Return the project member record for a user, or None."""
+    return next(
+        (m for m in members if str(m.user_id) == user_id),
+        None,
+    )
+
+
 def _get_project_member_role(
     user_id: str,
     members: Sequence[Any],
 ) -> Optional[str]:
     """Return the role of a user in a given project_members list, or None."""
-    member = next(
-        (m for m in members if str(m.user_id) == user_id),
-        None,
-    )
+    member = _get_project_member(user_id, members)
     return getattr(member, "role", None) if member else None
+
+
+def _is_demo_member(
+    user_id: str,
+    members: Sequence[Any],
+) -> bool:
+    """Return True if the user is a demo member (is_demo=True) in the project."""
+    member = _get_project_member(user_id, members)
+    return getattr(member, "is_demo", False) if member else False
 
 
 def _project_is_owner(
@@ -93,7 +110,7 @@ async def check_user_org_access(
         if not organization:
             log.error("Organization not found")
             raise Exception("Organization not found")
-        return organization.owner == str(user.id)  # type: ignore
+        return organization.owner_id == user.id  # type: ignore
     else:
         user_organizations: List = kwargs["organization_ids"]
         user_exists_in_organizations = organization_id in user_organizations
@@ -133,7 +150,7 @@ async def check_user_access_to_workspace(
         user_org_workspace_data, workspace_organization_id
     )
     if not has_organization_access:
-        log.error("User does not belong and have access to the organization")
+        # log.debug("User does not belong and have access to the organization")
         return False
 
     # Check that the user belongs to the workspace
@@ -144,7 +161,7 @@ async def check_user_access_to_workspace(
 
     workspace_members = await _get_workspace_member_ids(workspace)
     if user_id not in workspace_members:
-        log.error("User does not belong to the workspace")
+        # log.debug("User does not belong to the workspace")
         return False
 
     # Check that the workspace is in the user's workspaces
@@ -290,7 +307,8 @@ async def check_rbac_permission(
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
         if project is None:
-            raise Exception("Project not found")
+            log.error(f"Project {project_id} not found during permission check")
+            return False
 
         workspace = await db_manager.get_workspace(str(project.workspace_id))
         organization = await db_manager_ee.get_organization(
@@ -303,7 +321,7 @@ async def check_rbac_permission(
         organization=organization,
     )
     if not workspace_has_access:
-        log.error("User does not have access to the workspace")
+        # log.debug("User does not have access to the workspace")
         return False
 
     user_id = user_org_workspace_data["id"]
@@ -330,23 +348,36 @@ async def check_project_has_role_or_permission(
         permission (Optional[str], optional): The permission to check for. Defaults to None.
     """
 
-    check, _, _ = await check_entitlements(
-        organization_id=project.organization_id,
-        key=Flag.RBAC,
-    )
-
-    if not check:
-        return True
-
     assert role is not None or permission is not None, (
         "Either role or permission must be provided"
     )
 
+    # Fetch project members first - needed for both demo check and permission check
     project_members = await db_manager_ee.get_project_members(
         project_id=str(project.id)
     )
 
-    # OWNER always passes
+    # Check if user is a demo member - demo members always have restricted access
+    # regardless of the organization's RBAC setting
+    is_demo = _is_demo_member(user_id, project_members)
+
+    if not is_demo:
+        # For non-demo members, check if RBAC is enabled
+        # If RBAC is disabled, grant full access (current behavior for paid plans)
+        check, _, _ = await check_entitlements(
+            organization_id=project.organization_id,
+            key=Flag.RBAC,
+        )
+
+        if not check:
+            return True
+
+    # Check if user is organization owner - organization owners always have full permissions
+    organization = await db_manager_ee.get_organization(str(project.organization_id))
+    if organization and str(organization.owner_id) == str(user_id):
+        return True
+
+    # OWNER role in workspace members also passes (but demo members can't be owners by design)
     if _project_is_owner(user_id, project_members):
         return True
 

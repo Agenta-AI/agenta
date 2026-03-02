@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
-
 
 class LegacyEvaluator(BaseModel):
     name: str
@@ -16,10 +14,12 @@ class LegacyEvaluator(BaseModel):
     direct_use: bool
     settings_presets: Optional[list[dict]] = None
     settings_template: dict
+    outputs_schema: Optional[Dict[str, Any]] = None
     description: Optional[str] = None
     oss: Optional[bool] = False
     requires_llm_api_keys: Optional[bool] = False
     tags: List[str]
+    archived: Optional[bool] = False
 
 
 class EvaluatorConfig(BaseModel):
@@ -32,11 +32,6 @@ class EvaluatorConfig(BaseModel):
     updated_at: str
 
 
-class EvaluationType(str, Enum):
-    human_a_b_testing = "human_a_b_testing"
-    single_model_test = "single_model_test"
-
-
 class EvaluationStatusEnum(str, Enum):
     EVALUATION_INITIALIZED = "EVALUATION_INITIALIZED"
     EVALUATION_STARTED = "EVALUATION_STARTED"
@@ -46,27 +41,9 @@ class EvaluationStatusEnum(str, Enum):
     EVALUATION_AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED"
 
 
-class EvaluationScenarioStatusEnum(str, Enum):
-    COMPARISON_RUN_STARTED = "COMPARISON_RUN_STARTED"
-
-
 class AggregatedResult(BaseModel):
     evaluator_config: Union[EvaluatorConfig, Dict[str, Any]]
     result: Result
-
-
-class NewHumanEvaluation(BaseModel):
-    app_id: str
-    variant_ids: List[str]
-    evaluation_type: EvaluationType
-    inputs: List[str]
-    testset_id: str
-    status: str
-
-
-class AppOutput(BaseModel):
-    output: Any
-    status: str
 
 
 class Evaluation(BaseModel):
@@ -116,18 +93,6 @@ class EvaluatorMappingOutputInterface(BaseModel):
     outputs: Dict[str, Any]
 
 
-class SimpleEvaluationOutput(BaseModel):
-    id: str
-    variant_ids: List[str]
-    app_id: str
-    status: str
-    evaluation_type: EvaluationType
-
-
-class HumanEvaluationUpdate(BaseModel):
-    status: Optional[EvaluationStatusEnum] = None
-
-
 class EvaluationScenarioResult(BaseModel):
     evaluator_config: str
     result: Result
@@ -143,55 +108,6 @@ class EvaluationScenarioOutput(BaseModel):
     result: Result
     cost: Optional[float] = None
     latency: Optional[float] = None
-
-
-class HumanEvaluationScenarioInput(BaseModel):
-    input_name: str
-    input_value: str
-
-
-class HumanEvaluationScenarioOutput(BaseModel):
-    variant_id: str
-    variant_output: str
-
-
-class HumanEvaluation(BaseModel):
-    id: str
-    app_id: str
-    project_id: str
-    evaluation_type: str
-    variant_ids: List[str]
-    variant_names: List[str]
-    variants_revision_ids: List[str]
-    revisions: List[str]  # the revision / version of each of the variants
-    testset_id: str
-    testset_name: str
-    status: str
-    created_at: str
-    updated_at: str
-
-
-class HumanEvaluationScenario(BaseModel):
-    id: Optional[str] = None
-    evaluation_id: str
-    inputs: List[HumanEvaluationScenarioInput]
-    outputs: List[HumanEvaluationScenarioOutput]
-    vote: Optional[str] = None
-    score: Optional[Union[str, int]] = None
-    correct_answer: Optional[str] = None
-    is_pinned: Optional[bool] = None
-    note: Optional[str] = None
-
-
-class HumanEvaluationScenarioUpdate(BaseModel):
-    vote: Optional[str] = None
-    score: Optional[Union[str, int]] = None
-    # will be used when running custom code evaluation
-    correct_answer: Optional[str] = None
-    outputs: Optional[List[HumanEvaluationScenarioOutput]] = None
-    inputs: Optional[List[HumanEvaluationScenarioInput]] = None
-    is_pinned: Optional[bool] = None
-    note: Optional[str] = None
 
 
 class CorrectAnswer(BaseModel):
@@ -223,51 +139,8 @@ class EvaluationScenarioUpdate(BaseModel):
     note: Optional[str] = None
 
 
-class EvaluationScenarioScoreUpdate(BaseModel):
-    score: float
-
-
 class DeleteEvaluation(BaseModel):
     evaluations_ids: List[str]
-
-
-class CreateCustomEvaluation(BaseModel):
-    evaluation_name: str
-    python_code: str
-    app_id: str
-
-
-class CustomEvaluationOutput(BaseModel):
-    id: str
-    app_id: str
-    evaluation_name: str
-    created_at: datetime
-
-
-class CustomEvaluationDetail(BaseModel):
-    id: str
-    app_id: str
-    evaluation_name: str
-    python_code: str
-    created_at: datetime
-    updated_at: datetime
-
-
-class CustomEvaluationNames(BaseModel):
-    id: str
-    evaluation_name: str
-
-
-class ExecuteCustomEvaluationCode(BaseModel):
-    inputs: List[Dict[str, Any]]
-    app_id: str
-    variant_id: str
-    correct_answer: str
-    outputs: List[Dict[str, Any]]
-
-
-class EvaluationWebhook(BaseModel):
-    score: float
 
 
 class LLMRunRateLimit(BaseModel):
@@ -296,8 +169,8 @@ class LMProvidersEnum(str, Enum):
 class NewEvaluation(BaseModel):
     name: Optional[str] = None
     revisions_ids: List[str]
-    evaluators_configs: List[str]
-    testset_id: str
+    evaluator_ids: List[str]
+    testset_revision_id: str
     rate_limit: LLMRunRateLimit
     correct_answer_column: Optional[str] = None
 
@@ -311,4 +184,4 @@ class NewEvaluatorConfig(BaseModel):
 class UpdateEvaluatorConfig(BaseModel):
     name: Optional[str] = None
     evaluator_key: Optional[str] = None
-    settings_values: Optional[dict]
+    settings_values: Optional[dict] = None

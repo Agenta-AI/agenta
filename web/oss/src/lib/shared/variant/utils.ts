@@ -105,10 +105,8 @@ export const adaptRevisionToVariant = (
     }
 }
 
-// TODO: DEPRECATE @ardaerzin
 export const setVariant = (variant: any, uri): EnhancedVariant => {
-    // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
-    // TODO: REMOVE THIS BEFORE RELEASE.
+    // Handle legacy agenta_config structure
     if (variant.parameters?.agenta_config) {
         variant.parameters = variant.parameters.agenta_config
         delete variant.parameters.agenta_config

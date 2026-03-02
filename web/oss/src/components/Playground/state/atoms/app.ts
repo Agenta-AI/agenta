@@ -1,31 +1,14 @@
-import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
-import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
-
-import {revisionListAtom} from "./variants"
+import {playgroundIsChatModeAtom} from "./playgroundAppAtoms"
 
 /**
  * App-level chat mode detection (pure selector)
- * Derived from the first revision. Immutable for the session by design.
+ * Derived from isChatVariantAtomFamily on the first server revision.
  */
 export const appChatModeAtom = selectAtom(
-    atom((get) => ({revisions: get(revisionListAtom), appUri: get(appUriInfoAtom)})),
-    ({revisions, appUri}) => {
-        const first = (revisions || [])[0]
-        if (!first) return undefined
-        const spec = getSpecLazy()
-        if (spec) {
-            return detectChatVariantFromOpenAISchema(spec, {
-                routePath: appUri?.routePath,
-                runtimePrefix: appUri?.runtimePrefix || "",
-            })
-        } else {
-            return undefined
-        }
-        return false
-    },
+    playgroundIsChatModeAtom,
+    (isChat) => isChat,
     (a, b) => a === b,
 )
 

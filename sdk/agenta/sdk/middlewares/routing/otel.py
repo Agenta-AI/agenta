@@ -1,12 +1,11 @@
 from typing import Callable
 
-from starlette.types import ASGIApp
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.engines.tracing.propagation import extract
+from agenta.sdk.tracing.propagation import extract
 
 
 log = get_module_logger(__name__)

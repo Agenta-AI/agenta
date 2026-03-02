@@ -1,7 +1,7 @@
 import type {CSSProperties, Key, ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Trash} from "@phosphor-icons/react"
+import {TrashIcon} from "@phosphor-icons/react"
 import {Button, Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
@@ -33,6 +33,10 @@ export interface TableScopeConfig {
     columnVisibilityStorageKey?: string | null
     columnVisibilityDefaults?: Key[]
     viewportTrackingEnabled?: boolean
+    /** Margin around viewport for preloading columns (e.g., "0px 200px" to preload 200px on left/right) */
+    viewportMargin?: string
+    /** Debounce time in ms before marking a column as hidden after it exits viewport (default: 150) */
+    viewportExitDebounceMs?: number
 }
 
 export interface TableFeaturePagination<Row extends InfiniteTableRowBase> {
@@ -164,6 +168,12 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
      */
     dataSource?: Row[]
     /**
+     * Jotai store to use for the table. When provided, the table will use this store
+     * instead of creating an isolated one. Useful when cells need to read from
+     * atoms in a shared store (e.g., entity atoms).
+     */
+    store?: InfiniteVirtualTableProps<Row>["store"]
+    /**
      * Ref to access the underlying Ant Design Table instance.
      * Useful for programmatic scrolling via `tableRef.current?.scrollTo({ index })`.
      */
@@ -244,6 +254,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         expandable,
         dataSource,
         tableRef,
+        store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
 
@@ -263,7 +274,9 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [onRowsChange, pagination.rows])
 
     const handleLoadMore = useCallback(() => {
-        if (!enableInfiniteScroll) return
+        if (!enableInfiniteScroll) {
+            return
+        }
         pagination.loadNextPage()
     }, [enableInfiniteScroll, pagination.loadNextPage])
 
@@ -291,6 +304,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         beforeExport,
         resolveValue,
         resolveColumnLabel,
+        columnsOverride: exportColumnsOverride,
     } = exportOptions ?? {}
     const resolvedExportFilename = exportOptionsFilename ?? exportFilename ?? "table-export.csv"
     const exportHandler = useCallback(async () => {
@@ -308,7 +322,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                       })
                     : pagination.rows
             await tableExport({
-                columns,
+                columns: exportColumnsOverride ?? columns,
                 rows: rowsToExport,
                 filename: resolvedExportFilename,
                 isColumnExportable,
@@ -358,7 +372,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             <Button
                 danger
                 type="text"
-                icon={<Trash size={14} className="mt-0.5" />}
+                icon={<TrashIcon size={14} className="mt-0.5" />}
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}
@@ -377,7 +391,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!enableExport || !exportAction || isNarrowScreen) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button disabled={disabled} onClick={exportHandler} loading={isExporting}>
+            <Button disabled={disabled} onClick={exportHandler} type="text" loading={isExporting}>
                 {label}
             </Button>
         )
@@ -423,18 +437,21 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [builtInDeleteButton, builtInExportButton, secondaryActions, exportButtonNode])
 
+    // Only show export in settings when enableExport is true AND no custom renderExportButton is provided
+    const showExportInSettings = enableExport && !renderExportButton
+
     const columnVisibilityRenderer = useMemo(
         () =>
             resolveColumnVisibilityRenderer(columnVisibilityMenuRenderer, columnVisibility, {
                 scopeId,
-                onExport: enableExport ? exportHandler : undefined,
+                onExport: showExportInSettings ? exportHandler : undefined,
                 isExporting,
             }),
         [
             columnVisibilityMenuRenderer,
             columnVisibility,
             scopeId,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
         ],
@@ -450,7 +467,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         (controls: ColumnVisibilityState<Row>) => (
             <TableSettingsDropdown
                 controls={controls}
-                onExport={enableExport ? exportHandler : undefined}
+                onExport={showExportInSettings ? exportHandler : undefined}
                 isExporting={isExporting}
                 onDelete={resolvedSettingsDropdownDelete?.onDelete}
                 deleteDisabled={resolvedSettingsDropdownDelete?.disabled}
@@ -459,7 +476,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                 renderColumnVisibilityContent={(ctrls, close) =>
                     columnVisibilityRenderer(ctrls, close, {
                         scopeId,
-                        onExport: enableExport ? exportHandler : undefined,
+                        onExport: showExportInSettings ? exportHandler : undefined,
                         isExporting,
                     })
                 }
@@ -467,7 +484,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         ),
         [
             columnVisibilityRenderer,
-            enableExport,
+            showExportInSettings,
             exportHandler,
             isExporting,
             scopeId,
@@ -481,6 +498,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
             defaultHiddenKeys: tableScope.columnVisibilityDefaults,
             viewportTrackingEnabled,
+            viewportMargin: tableScope.viewportMargin,
+            viewportExitDebounceMs: tableScope.viewportExitDebounceMs,
             renderMenuContent: columnVisibilityRenderer,
             renderMenuTrigger: useSettingsDropdown ? settingsDropdownRenderer : undefined,
         }),
@@ -489,6 +508,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             settingsDropdownRenderer,
             tableScope.columnVisibilityDefaults,
             tableScope.columnVisibilityStorageKey,
+            tableScope.viewportExitDebounceMs,
+            tableScope.viewportMargin,
             useSettingsDropdown,
             viewportTrackingEnabled,
         ],
@@ -523,6 +544,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [tabs, headerExtra])
 
+    const effectiveDataSource = dataSource ?? pagination.rows
+
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -539,9 +562,10 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             >
                 {beforeTable}
                 <InfiniteVirtualTable<Row>
-                    useIsolatedStore
+                    useIsolatedStore={!store}
+                    store={store}
                     columns={columns}
-                    dataSource={dataSource ?? pagination.rows}
+                    dataSource={effectiveDataSource}
                     loadMore={handleLoadMore}
                     rowKey={rowKey}
                     rowSelection={rowSelection}

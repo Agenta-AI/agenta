@@ -1,4 +1,6 @@
 // instrumentation.js
+import "dotenv/config";
+
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { OpenAIInstrumentation } from "@arizeai/openinference-instrumentation-openai";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";

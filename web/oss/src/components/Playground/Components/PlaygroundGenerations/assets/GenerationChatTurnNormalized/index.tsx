@@ -1,6 +1,5 @@
 import {useCallback, useMemo} from "react"
 
-// antd imports not needed here
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -8,24 +7,34 @@ import dynamic from "next/dynamic"
 import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import ControlsBar from "@/oss/components/Playground/Components/ChatCommon/ControlsBar"
+import GatewayToolExecuteButton from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GatewayToolExecuteButton"
 import {ClickRunPlaceholder} from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/ResultPlaceholder"
+import {createToolCallPayloads} from "@/oss/components/Playground/Components/ToolCallView"
 import {useAssistantDisplayValue} from "@/oss/components/Playground/hooks/chat/useAssistant"
 import useEffectiveRevisionId from "@/oss/components/Playground/hooks/chat/useEffectiveRevisionId"
 import useHasAssistantContent from "@/oss/components/Playground/hooks/chat/useHasAssistantContent"
+import {useRepetitionResult} from "@/oss/components/Playground/hooks/useRepetitionResult"
 import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {resolvedGenerationResultAtomFamily} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {assistantMessageAtomFamily, chatTurnAtomFamily} from "@/oss/state/generation/selectors"
+import {chatTurnsByIdFamilyAtom, messageSchemaMetadataAtom} from "@/oss/state/generation/entities"
+import {chatTurnAtomFamily} from "@/oss/state/generation/selectors"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
+import {
+    buildAssistantMessage,
+    buildUserMessage,
+} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 interface Props {
     turnId: string
     variantId?: string
     withControls?: boolean
     className?: string
+    hideUserMessage?: boolean
+    messageProps?: any
 }
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
@@ -43,6 +52,8 @@ const GenerationChatTurnNormalized = ({
     const runTurn = useSetAtom(runChatTurnAtom)
     const cancelTurn = useSetAtom(cancelChatTurnAtom)
 
+    const setTurn = useSetAtom(chatTurnsByIdFamilyAtom(turnId))
+
     const effectiveRevisionId = useEffectiveRevisionId(variantId, displayedVariantIds as any)
     const resolvedTurnId = turnId
 
@@ -58,6 +69,21 @@ const GenerationChatTurnNormalized = ({
     const {isRunning, result: inlineResult} = useAtomValue(genResultAtom) as any
     const result = inlineResult
 
+    const {currentResult, repetitionIndex, repetitionProps} = useRepetitionResult({
+        rowId: resolvedTurnId || turnId,
+        variantId: variantId as string,
+        result,
+    })
+
+    const messageSchema = useAtomValue(messageSchemaMetadataAtom)
+
+    const messageOverride = useMemo(() => {
+        if (Array.isArray(result) && result.length > 0) {
+            return buildAssistantMessage(messageSchema, currentResult)
+        }
+        return undefined
+    }, [result, currentResult, messageSchema])
+
     const onRun = useCallback(() => {
         runTurn({turnId, variantId: variantId as string | undefined})
     }, [runTurn, turnId, variantId, effectiveRevisionId, resolvedTurnId])
@@ -70,25 +96,17 @@ const GenerationChatTurnNormalized = ({
         })
     }, [cancelTurn, resolvedTurnId, turnId, effectiveRevisionId])
 
-    const sessionRowId = useMemo(
-        () =>
-            (resolvedTurnId ||
-                (variantId && turnId ? `turn-${variantId}-${turnId}` : turnId)) as string,
-        [resolvedTurnId, variantId, turnId],
+    const sessionRowId = turnId
+    const turn = useAtomValue(chatTurnsByIdFamilyAtom(sessionRowId)) as any
+
+    const assistantMsg = useMemo(() => {
+        return turn?.assistantMessageByRevision?.[variantId as string] ?? null
+    }, [turn, variantId])
+
+    const displayAssistantValue = useAssistantDisplayValue(
+        messageOverride || assistantMsg,
+        currentResult,
     )
-
-    const assistantMsg = useAtomValue(
-        useMemo(
-            () =>
-                assistantMessageAtomFamily({
-                    turnId: sessionRowId,
-                    revisionId: variantId as string,
-                }),
-            [sessionRowId, variantId],
-        ),
-    ) as any
-
-    const displayAssistantValue = useAssistantDisplayValue(assistantMsg, result)
 
     const turnState = useAtomValue(useMemo(() => chatTurnAtomFamily(sessionRowId), [sessionRowId]))
 
@@ -99,9 +117,81 @@ const GenerationChatTurnNormalized = ({
     }, [turnState, variantId])
 
     const hasAssistantContent = useHasAssistantContent(
-        assistantMsg as any,
+        (messageOverride || assistantMsg) as any,
         displayAssistantValue,
         toolMessages.length > 0,
+    )
+
+    // Extract tool call payloads from the assistant message for gateway tool execution
+    const assistantToolPayloads = useMemo(
+        () => createToolCallPayloads((messageOverride || assistantMsg)?.toolCalls?.value),
+        [messageOverride, assistantMsg],
+    )
+
+    // Update a tool response message content with the execution result
+    const handleUpdateToolResponse = useCallback(
+        (callId: string | undefined, resultStr: string, toolName?: string) => {
+            setTurn((draft: any) => {
+                if (!draft) return
+
+                if (!draft.toolResponsesByRevision) {
+                    draft.toolResponsesByRevision = {}
+                }
+
+                const revisionId = variantId as string
+                const currentToolResponses = draft.toolResponsesByRevision?.[revisionId]
+                const toolResponses: any[] = Array.isArray(currentToolResponses)
+                    ? currentToolResponses
+                    : []
+
+                let matchIndex = callId
+                    ? toolResponses.findIndex(
+                          (m: any) =>
+                              m?.toolCallId?.value === callId || m?.tool_call_id?.value === callId,
+                      )
+                    : toolResponses.length > 0
+                      ? 0
+                      : -1
+
+                if (matchIndex < 0) {
+                    const toolNode = buildUserMessage(messageSchema, {
+                        role: "tool",
+                        content: "",
+                    }) as any
+                    if (!toolNode) return
+                    if (toolName && !toolNode?.name?.value) {
+                        toolNode.name = {value: toolName}
+                    }
+                    if (callId && !toolNode?.toolCallId?.value) {
+                        toolNode.toolCallId = {value: callId}
+                    }
+                    toolResponses.push(toolNode)
+                    matchIndex = toolResponses.length - 1
+                }
+
+                const toolMsg = toolResponses[matchIndex]
+                if (!toolMsg) return
+                // If the schema didn't include a content field, create it directly
+                if (!toolMsg.content) {
+                    toolMsg.content = {value: resultStr}
+                } else {
+                    const cv = toolMsg.content.value
+                    if (Array.isArray(cv)) {
+                        const idx = cv.findIndex((p: any) => (p?.type?.value ?? p?.type) === "text")
+                        if (idx >= 0) {
+                            cv[idx].text.value = resultStr
+                        } else {
+                            cv.push({type: {value: "text"}, text: {value: resultStr}})
+                        }
+                    } else {
+                        toolMsg.content.value = resultStr
+                    }
+                }
+
+                draft.toolResponsesByRevision[revisionId] = toolResponses
+            })
+        },
+        [setTurn, variantId, messageSchema],
     )
 
     return (
@@ -112,7 +202,9 @@ const GenerationChatTurnNormalized = ({
                     rowId={turnId}
                     kind="user"
                     className="w-full"
+                    hideExpandResults
                     messageOptionProps={{
+                        hideAddToTestset: true,
                         allowFileUpload: true,
                     }}
                     messageProps={messageProps}
@@ -132,13 +224,35 @@ const GenerationChatTurnNormalized = ({
             ) : hasAssistantContent ? (
                 <>
                     <TurnMessageAdapter
+                        key={`${sessionRowId}-assistant-${repetitionIndex}`}
                         variantId={variantId as string}
                         rowId={sessionRowId}
                         kind="assistant"
                         className="w-full"
                         headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        footer={result ? <GenerationResultUtils result={result as any} /> : null}
+                        footer={
+                            <div className="w-full flex flex-col gap-2 mt-2">
+                                <div className="flex justify-between items-center gap-2">
+                                    {currentResult ? (
+                                        <GenerationResultUtils result={currentResult as any} />
+                                    ) : (
+                                        <div />
+                                    )}
+                                </div>
+                                <GatewayToolExecuteButton
+                                    toolPayloads={assistantToolPayloads}
+                                    onUpdateToolResponse={handleUpdateToolResponse}
+                                    onExecuteAndSendToChat={onRun}
+                                />
+                            </div>
+                        }
                         messageProps={messageProps}
+                        messageOverride={messageOverride}
+                        repetitionProps={repetitionProps}
+                        hideRerun
+                        messageOptionProps={{
+                            allowFileUpload: false,
+                        }}
                     />
                     {variantId
                         ? toolMessages.map((_, index) => (
@@ -153,6 +267,7 @@ const GenerationChatTurnNormalized = ({
                               />
                           ))
                         : null}
+                    {isRunning ? <TypingIndicator /> : null}
                 </>
             ) : (
                 <ClickRunPlaceholder />

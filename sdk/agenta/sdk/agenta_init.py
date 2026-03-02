@@ -2,10 +2,8 @@ from importlib.metadata import version
 from os import getenv
 from typing import Any, Callable, Optional
 
-import requests
-import toml
-from agenta.client.client import AgentaApi, AsyncAgentaApi
-from agenta.sdk.contexts.routing import RoutingContext
+import httpx
+from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.tracing import Tracing
 from agenta.sdk.utils.globals import set_global
 from agenta.sdk.utils.helpers import parse_url
@@ -86,22 +84,13 @@ class AgentaSingleton:
 
         log.info("Agenta -     SDK ver: %s", version("agenta"))
 
-        config = {}
-        if config_fname:
-            config = toml.load(config_fname)
-
-        _host = (
-            host
-            or getenv("AGENTA_HOST")
-            or config.get("host")
-            or "https://cloud.agenta.ai"
-        )
+        _host = host or getenv("AGENTA_HOST") or "https://cloud.agenta.ai"
 
         _api_url = (
             api_url
+            #
             or getenv("AGENTA_API_INTERNAL_URL")
             or getenv("AGENTA_API_URL")
-            or config.get("api_url")
             or None  # NO FALLBACK
         )
 
@@ -127,29 +116,29 @@ class AgentaSingleton:
 
         self.api_key = (
             api_key
+            #
             or getenv("AGENTA_API_KEY")
-            or config.get("api_key")
             or None  # NO FALLBACK
         )
 
         if self.api_key is None:
-            log.error(
-                "API key is required. Please set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init()."
+            log.info(
+                "Agenta -     API key: missing (if needed, set AGENTA_API_KEY environment variable or pass api_key parameter in ag.init())"
             )
 
         log.info("Agenta -     API URL: %s", self.api_url)
 
         self.scope_type = (
             scope_type
+            #
             or getenv("AGENTA_SCOPE_TYPE")
-            or config.get("scope_type")
             or None  # NO FALLBACK
         )
 
         self.scope_id = (
             scope_id
+            #
             or getenv("AGENTA_SCOPE_ID")
-            or config.get("scope_id")
             or None  # NO FALLBACK
         )
 
@@ -173,11 +162,6 @@ class AgentaSingleton:
             api_key=self.api_key if self.api_key else "",
         )
 
-        self.config = Config(
-            host=self.host,
-            api_key=self.api_key,
-        )
-
         # Reset cached scope info on re-init
         self.organization_id = None
         self.workspace_id = None
@@ -190,21 +174,21 @@ class AgentaSingleton:
             and self.workspace_id is not None
             and self.project_id is not None
         ):
-            return
+            return None
 
         if self.api_url is None or self.api_key is None:
             log.error("API URL or API key is not set. Please call ag.init() first.")
-            return
+            return None
 
         try:
-            response = requests.get(
-                f"{self.api_url}/projects/current",
-                headers={"Authorization": f"ApiKey {self.api_key}"},
-                timeout=10,
-            )
-            response.raise_for_status()
-
-            project_info = response.json()
+            with httpx.Client() as client:
+                response = client.get(
+                    f"{self.api_url}/projects/current",
+                    headers={"Authorization": f"ApiKey {self.api_key}"},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                project_info = response.json()
 
             if not project_info:
                 log.error(
@@ -226,7 +210,7 @@ class AgentaSingleton:
 
         except Exception as e:
             log.error(f"Failed to fetch scope information: {e}")
-            return
+            return None
 
         if self.organization_id and self.workspace_id and self.project_id:
             return (
@@ -238,50 +222,16 @@ class AgentaSingleton:
         return None
 
 
-class Config:
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        self.default_parameters = {**kwargs}
-
-    def set_default(self, **kwargs):
-        self.default_parameters.update(kwargs)
-
-    def get_default(self):
-        return self.default_parameters
-
-    def __getattr__(self, key):
-        context = RoutingContext.get()
-
-        parameters = context.parameters
-
-        if not parameters:
-            return None
-
-        if key in parameters:
-            value = parameters[key]
-
-            if isinstance(value, dict):
-                nested_config = Config()
-                nested_config.set_default(**value)
-
-                return nested_config
-
-            return value
-
-        return None
-
-
 def init(
     host: Optional[str] = None,
     api_url: Optional[str] = None,
     api_key: Optional[str] = None,
-    config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
     redact_on_error: Optional[bool] = True,
     scope_type: Optional[str] = None,
     scope_id: Optional[str] = None,
+    # DEPRECATED
+    config_fname: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
 
@@ -306,14 +256,10 @@ def init(
         host=host,
         api_url=api_url,
         api_key=api_key,
-        config_fname=config_fname,
         redact=redact,
         redact_on_error=redact_on_error,
         scope_type=scope_type,
         scope_id=scope_id,
     )
 
-    set_global(
-        config=singleton.config,
-        tracing=singleton.tracing,
-    )
+    set_global(tracing=singleton.tracing)

@@ -70,10 +70,13 @@ const EditorPlugins = ({
     autoFocus,
     handleUpdate,
     initialValue,
+    value,
     validationSchema,
     tokens,
     templateFormat,
     additionalCodePlugins = [],
+    onPropertyClick,
+    disableLongText,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -125,10 +128,12 @@ const EditorPlugins = ({
                     <CodeEditorPlugin
                         editorId={id}
                         validationSchema={validationSchema}
-                        initialValue={initialValue}
-                        language={language}
+                        initialValue={value !== undefined ? value : initialValue}
+                        language={language === "code" ? "json" : language}
                         debug={debug}
                         additionalCodePlugins={additionalCodePlugins}
+                        onPropertyClick={onPropertyClick}
+                        disableLongText={disableLongText}
                     />
                     <TabIndentationPlugin />
                 </>

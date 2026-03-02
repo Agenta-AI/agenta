@@ -135,7 +135,7 @@ export interface TracingDashboardData {
             duration: number
             tokens: number
         }
-        window: number
+        interval: number
     }[]
     count: number
     version: string

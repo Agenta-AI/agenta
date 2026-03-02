@@ -1,19 +1,13 @@
-import uniqBy from "lodash/uniqBy"
-import {v4 as uuidv4} from "uuid"
-
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {calcEvalDuration} from "@/oss/lib/evaluations/legacy"
 import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {
-    ComparisonResultRow,
     EvaluationStatus,
     KeyValuePair,
     LLMRunRateLimit,
-    Testset,
     _Evaluation,
     _EvaluationScenario,
 } from "@/oss/lib/Types"
-import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
 
 // Re-export evaluator config functions from the canonical source
@@ -23,7 +17,7 @@ export {
     createEvaluatorConfig,
     updateEvaluatorConfig,
     deleteEvaluatorConfig,
-    type CreateEvaluationConfigData,
+    type CreateEvaluatorConfigData,
 } from "@/oss/services/evaluators"
 
 //Prefix convention:
@@ -77,10 +71,65 @@ export const fetchEvaluation = async (evaluationId: string) => {
     const {projectId} = getProjectValues()
     const id = assertValidId(evaluationId)
 
-    const response = await axios.get(`/evaluations/${encodeURIComponent(id)}`, {
-        params: {project_id: projectId},
+    // Use preview API to query single evaluation by ID
+    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+        run: {
+            ids: [id],
+        },
     })
-    return evaluationTransformer(response.data) as _Evaluation
+
+    const run = response.data?.runs?.[0]
+    if (!run) {
+        throw new Error("Evaluation not found")
+    }
+
+    // Transform preview run to legacy evaluation format
+    return {
+        id: run.id,
+        appId: run.references?.find((r: any) => r.application)?.application?.id || run.meta?.app_id,
+        created_at: run.created_at_timestamp,
+        updated_at: run.updated_at_timestamp,
+        duration: calcEvalDuration({
+            created_at: run.created_at_timestamp,
+            updated_at: run.updated_at_timestamp,
+            status: run.status,
+        }),
+        status: run.status,
+        testset: {
+            id:
+                run.references?.find((r: any) => r.testset)?.testset?.id ||
+                run.meta?.testset_id ||
+                "",
+            name: run.meta?.testset_name || "Unknown",
+        },
+        user: {
+            id: run.created_by_id || "",
+            username: run.meta?.user_username || "Unknown",
+        },
+        variants:
+            run.references
+                ?.filter((r: any) => r.application_variant)
+                ?.map((ref: any, ix: number) => ({
+                    variantId: ref.application_variant?.id || "",
+                    variantName: run.meta?.variant_names?.[ix] || "Unknown",
+                })) || [],
+        aggregated_results: run.meta?.aggregated_results || [],
+        revisions:
+            run.references
+                ?.filter((r: any) => r.application_revision)
+                ?.map((ref: any) => ref.application_revision?.id || "") || [],
+        variant_revision_ids:
+            run.references
+                ?.filter((r: any) => r.application_revision)
+                ?.map((ref: any) => ref.application_revision?.id || "") || [],
+        variant_ids:
+            run.references
+                ?.filter((r: any) => r.application_variant)
+                ?.map((ref: any) => ref.application_variant?.id || "") || [],
+        average_cost: run.meta?.average_cost || 0,
+        total_cost: run.meta?.total_cost || 0,
+        average_latency: run.meta?.average_latency || 0,
+    } as _Evaluation
 }
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
@@ -90,25 +139,36 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     const {projectId} = getProjectValues()
     const id = assertValidId(evaluationId)
 
-    const response = await axios.get(`/evaluations/${encodeURIComponent(id)}/status`, {
-        params: {project_id: projectId},
+    // Use preview API to query single evaluation by ID
+    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+        run: {
+            ids: [id],
+        },
     })
-    return response.data as {status: _Evaluation["status"]}
+
+    const run = response.data?.runs?.[0]
+    if (!run) {
+        throw new Error("Evaluation not found")
+    }
+
+    return {status: run.status} as {status: _Evaluation["status"]}
 }
 
 export type CreateEvaluationData =
     | {
           testset_id: string
+          testset_revision_id?: string
           variant_ids?: string[]
-          evaluators_configs: string[]
+          evaluator_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
       }
     | {
           testset_id: string
+          testset_revision_id?: string
           revisions_ids?: string[]
-          evaluators_configs: string[]
+          evaluator_ids: string[]
           rate_limit: LLMRunRateLimit
           lm_providers_keys?: KeyValuePair
           correct_answer_column: string
@@ -117,19 +177,50 @@ export type CreateEvaluationData =
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getProjectValues()
 
-    // TODO: new AUTO-EVAL trigger
-    return await axios.post(`/evaluations/preview/start?project_id=${projectId}`, {
-        ...evaluation,
-        app_id: appId,
+    // Determine which variant of the type we have and extract revision IDs
+    const revisionIds =
+        "revisions_ids" in evaluation
+            ? evaluation.revisions_ids
+            : "variant_ids" in evaluation
+              ? evaluation.variant_ids
+              : undefined
+    const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
+
+    // Use simple evaluations endpoint which auto-starts execution
+    return await axios.post(`/preview/simple/evaluations/?project_id=${projectId}`, {
+        evaluation: {
+            name,
+            data: {
+                // Simple evaluations API expects Target = Dict[UUID, Origin] for auto-evaluations
+                testset_steps: evaluation.testset_revision_id
+                    ? {[evaluation.testset_revision_id]: "auto"}
+                    : undefined,
+                application_steps:
+                    revisionIds?.reduce(
+                        (acc, id) => ({...acc, [id]: "auto"}),
+                        {} as Record<string, "auto">,
+                    ) || {},
+                evaluator_steps: evaluation.evaluator_ids.reduce(
+                    (acc, id) => ({...acc, [id]: "auto"}),
+                    {} as Record<string, "auto">,
+                ),
+            },
+            flags: {
+                is_live: false,
+                is_active: true,
+                is_closed: false,
+            },
+        },
+        jit: true,
     })
-    // return await axios.post(`/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
     const {projectId} = getProjectValues()
 
-    return axios.delete(`/evaluations?project_id=${projectId}`, {
-        data: {evaluations_ids: evaluationsIds},
+    // Use preview API to delete runs
+    return axios.delete(`/preview/evaluations/runs/?project_id=${projectId}`, {
+        data: {run_ids: evaluationsIds},
     })
 }
 
@@ -141,19 +232,26 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
     const {projectId} = getProjectValues()
     const id = assertValidId(evaluationId)
 
-    const [{data: evaluationScenarios}, evaluation] = await Promise.all([
-        axios.get(`/evaluations/${encodeURIComponent(id)}/evaluation_scenarios`, {
-            params: {project_id: projectId},
+    // Fetch evaluation and scenarios in parallel using preview API
+    const [{data: scenariosResponse}, evaluation] = await Promise.all([
+        axios.post(`/preview/evaluations/scenarios/query?project_id=${projectId}`, {
+            scenario: {
+                references: [{evaluation_run: {id}}],
+            },
         }),
         fetchEvaluation(id),
     ])
 
-    evaluationScenarios.forEach((scenario: _EvaluationScenario) => {
+    const evaluationScenarios = scenariosResponse?.scenarios || []
+
+    // Transform scenarios and attach evaluation metadata
+    evaluationScenarios.forEach((scenario: any) => {
         scenario.evaluation = evaluation
         scenario.evaluators_configs = evaluation.aggregated_results.map(
             (item) => item.evaluator_config,
         )
     })
+
     return evaluationScenarios as _EvaluationScenario[]
 }
 
@@ -167,83 +265,6 @@ export const updateScenarioStatus = async (
     })
 }
 
-// Comparison
-export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
-    // Defensive check: Only accept valid UUIDs
-    const validIds = evaluationIds.filter((id) => isValidId(id))
-    if (validIds.length === 0) {
-        throw new Error("No valid evaluation IDs provided")
-    }
-    const scenarioGroups = await Promise.all(validIds.map(fetchAllEvaluationScenarios))
-    const testset: Testset = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
-
-    const inputsNameSet = new Set<string>()
-    scenarioGroups.forEach((group) => {
-        group.forEach((scenario) => {
-            scenario.inputs.forEach((input) => inputsNameSet.add(input.name))
-        })
-    })
-
-    const rows: ComparisonResultRow[] = []
-    const inputNames = Array.from(inputsNameSet)
-    const inputValuesSet = new Set<string>()
-    const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
-    const correctAnswers = uniqBy(
-        scenarioGroups.map((group) => group[0].correct_answers).flat(),
-        "key",
-    )
-
-    for (const data of testset.csvdata) {
-        const inputValues = inputNames
-            .filter((name) => data[name] !== undefined)
-            .map((name) => ({name, value: data[name]}))
-        const inputValuesStr = inputValues.map((ip) => ip.value).join("")
-        if (inputValuesSet.has(inputValuesStr)) continue
-        else inputValuesSet.add(inputValuesStr)
-
-        rows.push({
-            id: inputValuesStr,
-            rowId: uuidv4(),
-            inputs: inputNames
-                .map((name) => ({name, value: data[name]}))
-                .filter((ip) => ip.value !== undefined),
-            ...correctAnswers.reduce((acc, curr) => {
-                return {...acc, [`correctAnswer_${curr?.key}`]: data[curr?.key!]}
-            }, {}),
-            variants: variants.map((variant, ix) => {
-                const group = scenarioGroups[ix]
-                const scenario = group.find((scenario) =>
-                    scenario.inputs.every((input) =>
-                        inputValues.some(
-                            (ip) => ip.name === input.name && ip.value === input.value,
-                        ),
-                    ),
-                )
-                return {
-                    variantId: variant.variantId,
-                    variantName: variant.variantName,
-                    output: scenario?.outputs[0] || {
-                        result: {type: "string", value: "", error: null},
-                    },
-                    evaluationId: scenario?.evaluation.id || "",
-                    evaluatorConfigs: (scenario?.evaluators_configs || []).map((config) => ({
-                        evaluatorConfig: config,
-                        result: scenario?.results.find(
-                            (result) => result.evaluator_config === config.id,
-                        )?.result || {type: "string", value: "", error: null}, // Adjust this line
-                    })),
-                }
-            }),
-        })
-    }
-
-    return {
-        rows,
-        testset,
-        evaluations: scenarioGroups.map((group) => group[0].evaluation),
-    }
-}
-
 // Evaluation IDs by resource
 export const fetchEvaluatonIdsByResource = async ({
     resourceIds,
@@ -254,10 +275,29 @@ export const fetchEvaluatonIdsByResource = async ({
 }) => {
     const {projectId} = getProjectValues()
 
-    return axios.get(`/evaluations/by_resource?project_id=${projectId}`, {
-        params: {resource_ids: resourceIds, resource_type: resourceType},
-        paramsSerializer: {
-            indexes: null, //no brackets in query params
+    // Build references filter based on resource type
+    const references = resourceIds.map((id) => {
+        switch (resourceType) {
+            case "testset":
+                return {testset: {id}}
+            case "evaluator_config":
+                return {evaluator: {id}}
+            case "variant":
+                return {application_variant: {id}}
+            default:
+                return {}
+        }
+    })
+
+    // Use preview API to query runs by references
+    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+        run: {
+            references,
         },
     })
+
+    // Return evaluation IDs in same format as legacy endpoint
+    return {
+        data: response.data?.runs?.map((run: any) => run.id) || [],
+    }
 }

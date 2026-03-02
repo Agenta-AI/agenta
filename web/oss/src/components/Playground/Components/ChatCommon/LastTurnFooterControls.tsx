@@ -29,7 +29,7 @@ const LastTurnFooterControls: React.FC<Props> = ({
     return (
         <div className={clsx("flex items-center gap-2 p-3 pl-0", className)}>
             {!isAnyRunning ? (
-                <RunButton onClick={onRun} size="small" />
+                <RunButton onClick={onRun} size="small" data-tour="run-button" />
             ) : (
                 <RunButton isCancel onClick={onCancelAll} size="small" />
             )}

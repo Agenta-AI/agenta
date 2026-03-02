@@ -9,6 +9,8 @@ from pydantic import BaseModel
 class RoutingContext(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
     secrets: Optional[List[Any]] = None
+    local_secrets: Optional[List[Any]] = None
+    vault_secrets: Optional[List[Any]] = None
     mock: Optional[str] = None
 
     @classmethod

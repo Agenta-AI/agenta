@@ -1,6 +1,17 @@
 #!/bin/bash
 
-# REQUIRES yq to be installed
+# Fern SDK Generation Script
+# Generates Python SDK client from Agenta's OpenAPI spec
+#
+# Prerequisites:
+#   - fern CLI installed globally (npm install -g fern-api)
+#   - jq installed for JSON manipulation
+#
+# Usage:
+#   ./setup_fern.sh [openapi_url]
+#   Default URL: https://cloud.agenta.ai/api/openapi.json
+
+set -e
 
 # Helper function for error handling
 handle_error() {
@@ -9,75 +20,83 @@ handle_error() {
 }
 trap 'handle_error $LINENO' ERR
 
-# Define the organization name
+# Configuration
 ORGANIZATION_NAME="agenta"
+DEFAULT_OPENAPI_URL="https://cloud.agenta.ai/api/openapi.json"
+OPENAPI_URL="${1:-$DEFAULT_OPENAPI_URL}"
+
+# Get the script directory and navigate to client folder
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLIENT_DIR="$(dirname "$SCRIPT_DIR")/agenta/client"
+
+echo "=== Fern SDK Generation ==="
+echo "OpenAPI URL: $OPENAPI_URL"
+echo "Client directory: $CLIENT_DIR"
+echo ""
 
 # Step 0: Navigate to the client folder
-echo "Navigating to the client folder..."
-cd core/agenta-cli/agenta/client || { echo "Client folder not found!"; exit 1; }
-echo "In client folder: $(pwd)"
+cd "$CLIENT_DIR" || { echo "Client folder not found: $CLIENT_DIR"; exit 1; }
 
+# Step 1: Check prerequisites
+echo "Checking prerequisites..."
+if ! command -v fern >/dev/null 2>&1; then
+  echo "Error: Fern is not installed. Install with: npm install -g fern-api"
+  exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq is not installed. Install with: apt install jq (or brew install jq)"
+  exit 1
+fi
+echo "Prerequisites OK"
 echo ""
 
-# Step 1: Clean up
-echo "Deleting ./fern directory..."
+# Step 2: Clean up previous fern directory
+echo "Cleaning up previous ./fern directory..."
 rm -rf ./fern
-echo "Deleted ./fern directory."
-
-echo ""
-
-# Step 2: Install Fern
-echo "Checking if Fern is installed globally..."
-if ! command -v fern >/dev/null 2>&1; then
-  echo "Fern is not installed globally. Please install and try again."
-  exit 1
-else
-  echo "Fern is already installed globally."
-fi
-
-# Confirm Fern is successfully installed
-if ! command -v fern >/dev/null 2>&1; then
-  echo "Fern installation failed or not found. Fern is required to be installed globally before running this script."
-  exit 1
-fi
-
 echo ""
 
 # Step 3: Initialize Fern
-echo "Initializing Fern with OpenAPI spec..."
-read -p "Enter the OpenAPI URL (e.g., https://cloud.agenta.ai/api/openapi.json): " openapi_url
-fern init --openapi "$openapi_url" --organization "$ORGANIZATION_NAME" || {
-  echo "Failed to initialize Fern. Please check the OpenAPI URL and try again."
-  exit 1
-}
-
+echo "Initializing Fern..."
+fern init --organization "$ORGANIZATION_NAME"
 echo ""
 
-# Step 4: Add the Fern Python SDK
+# Step 4: Download OpenAPI spec
+echo "Downloading OpenAPI spec..."
+mkdir -p ./fern/openapi
+curl -s "$OPENAPI_URL" -o ./fern/openapi/openapi.json
+if [ ! -s "./fern/openapi/openapi.json" ]; then
+  echo "Error: Failed to download OpenAPI spec"
+  exit 1
+fi
+echo "Downloaded OpenAPI spec"
+echo ""
+
+# Step 5: Add the Fern Python SDK
 echo "Adding Fern Python SDK..."
 fern add fern-python-sdk
-
 echo ""
 
-# Step 5: Update `generators.yml` in the ./fern/ directory
-echo "Updating generators.yml..."
+# Step 6: Configure generators.yml
+echo "Configuring generators.yml..."
 generators_file="./fern/generators.yml"
 if [ ! -f "$generators_file" ]; then
-  echo "generators.yml not found in ./fern/! Please ensure initialization was successful."
+  echo "Error: generators.yml not found!"
   exit 1
 fi
 
-# Extract the latest version of the Python SDK
-latest_version=$(grep -o 'version: [^ ]*' "$generators_file" | sed -n '2p' | cut -d' ' -f2)
+# Extract the Python SDK version
+latest_version=$(grep -o 'version: [^ ]*' "$generators_file" | tail -1 | cut -d' ' -f2)
 if [ -z "$latest_version" ]; then
-  echo "Failed to extract the latest version of fern-python-sdk. Please check generators.yml."
-  exit 1
+  echo "Warning: Could not extract SDK version, using default"
+  latest_version="4.48.0"
 fi
 
-# Rewrite generators.yml with only the Python SDK
+# Rewrite generators.yml with correct format
 cat > "$generators_file" <<EOL
+# yaml-language-server: \$schema=https://schema.buildwithfern.dev/generators-yml.json
 api:
-  path: openapi/openapi.json
+  specs:
+    - openapi: openapi/openapi.json
 
 default-group: local
 groups:
@@ -89,69 +108,64 @@ groups:
           location: local-file-system
           path: ../backend
 EOL
-echo "Updated generators.yml with the latest Python SDK version: $latest_version"
-
+echo "Configured generators.yml with Python SDK version: $latest_version"
 echo ""
 
-# Step 6: Update the openapi.yml to resolve this: 'Score is already declared in humanEvaluations.yml'
+# Step 7: Patch OpenAPI spec if needed
+echo "Patching OpenAPI spec..."
 OPENAPI_FILE="./fern/openapi/openapi.json"
 
-# Add the Score schema to components.schemas
-SCORE_SCHEMA='{
-  "Score": {
-    "type": "integer",
-    "description": "An integer score between 1 and 5",
-    "minimum": 1,
-    "maximum": 5
-  }
-}'
+# Note: OpenAPI patching (removing deprecated paths, fixing operationIds) should be
+# done at the API level, not here. See PR #3441 for the API-level fixes.
+# This step is kept as a placeholder for any future patches needed.
 
-# Update the JSON file
-jq \
-  --argjson scoreSchema "$SCORE_SCHEMA" \
-  '.components.schemas.Score = $scoreSchema |
-   .components.schemas.HumanEvaluationScenario.properties.score["$ref"] = "#/components/schemas/Score" |
-   .components.schemas.HumanEvaluationScenarioUpdate.properties.score["$ref"] = "#/components/schemas/Score"' \
-  "$OPENAPI_FILE" > temp.json && mv temp.json "$OPENAPI_FILE"
+echo "OpenAPI spec ready"
+echo ""
 
-# Step 7: Generate the client code
-echo "Generating the client code..."
-fern generate || {
-  echo "Fern generate failed. Check the configuration in generators.yml and fern.config.json."
+# Step 8: Generate the client code
+echo "Generating SDK..."
+yes | fern generate || {
+  echo "Error: Fern generate failed"
   exit 1
 }
+echo ""
+
+# Step 9: Fix recursive type definitions (Pydantic compatibility)
+echo "Fixing recursive type definitions..."
+
+fix_recursive_types() {
+  local file="$1"
+  if [ -f "$file" ]; then
+    # Replace self-referential types with typing.Any
+    sed -i.bak 's/typing\.Optional\["FullJsonInput"\]/typing.Any/g' "$file"
+    sed -i.bak 's/typing\.Optional\["FullJsonOutput"\]/typing.Any/g' "$file"
+    sed -i.bak 's/typing\.Optional\["LabelJsonInput"\]/typing.Any/g' "$file"
+    sed -i.bak 's/typing\.Optional\["LabelJsonOutput"\]/typing.Any/g' "$file"
+    sed -i.bak 's/"FullJsonInput"/typing.Any/g' "$file"
+    sed -i.bak 's/"FullJsonOutput"/typing.Any/g' "$file"
+    sed -i.bak 's/"LabelJsonInput"/typing.Any/g' "$file"
+    sed -i.bak 's/"LabelJsonOutput"/typing.Any/g' "$file"
+    rm -f "${file}.bak"
+    echo "  Fixed: $file"
+  fi
+}
+
+fix_recursive_types "./backend/types/full_json_input.py"
+fix_recursive_types "./backend/types/full_json_output.py"
+fix_recursive_types "./backend/types/label_json_input.py"
+fix_recursive_types "./backend/types/label_json_output.py"
 
 echo ""
 
-Step 8: Update `build_image` function
-echo "Updating request_options in build_image function..."
-client_file="./backend/containers/client.py"
-if [ -f "$client_file" ]; then
-  # Use awk to replace the target line with the new multiline logic
-  awk '
-  {
-    if ($0 ~ /request_options=request_options,/) {
-      print "        request_options=(";
-      print "            {**request_options, \"timeout_in_seconds\": 600}";
-      print "            if request_options";
-      print "            else {\"timeout_in_seconds\": 600}";
-      print "        ),";
-    } else {
-      print $0;
-    }
-  }' "$client_file" > "${client_file}.tmp" && mv "${client_file}.tmp" "$client_file"
-  echo "Updated request_options in build_image function successfully."
-else
-  echo "$client_file not found! Please update it manually."
-fi
-
-echo ""
-
-# Step 9: Clean up
+# Step 10: Clean up
 echo "Cleaning up..."
 rm -rf ./fern
-echo "Deleted ./fern directory."
-
 echo ""
 
-echo "All steps completed successfully!"
+echo "=== SDK Generation Complete ==="
+echo "Generated SDK is in: $CLIENT_DIR/backend/"
+echo ""
+echo "Next steps:"
+echo "  1. Test imports: python -c 'from agenta.client import AgentaApi'"
+echo "  2. Run SDK tests if available"
+echo "  3. Commit changes"

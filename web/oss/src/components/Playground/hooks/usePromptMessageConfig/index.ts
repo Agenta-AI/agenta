@@ -5,7 +5,7 @@ import {useAtomValue} from "jotai"
 import {getArrayVal} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
 
-import {appChatModeAtom, variantByRevisionIdAtomFamily} from "../../state/atoms"
+import {appChatModeAtom, moleculeBackedVariantAtomFamily} from "../../state/atoms"
 import {displayedVariantsVariablesAtom} from "../../state/atoms/variants"
 
 /**
@@ -23,8 +23,8 @@ export const usePromptMessageConfig = ({
 }) => {
     // Use flexible data sourcing for generation messages when rowId is present
 
-    // Focused variant info and chat flag
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    // Focused variant info and chat flag (using molecule-backed atom for draft state)
+    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
     const _variant = variant // keep variable for return payload consistency if needed
     const isChatFlag = useAtomValue(appChatModeAtom)
 

@@ -668,6 +668,7 @@ const MetricDetailsPreviewPopover = memo(
         prefetchedStats,
         evaluationType,
         scenarioTimestamp,
+        fullWidth = true,
         children,
     }: {
         runId?: string
@@ -684,6 +685,8 @@ const MetricDetailsPreviewPopover = memo(
         evaluationType?: "auto" | "human" | "online" | "custom"
         /** Timestamp for the scenario row (used for online evaluations to get temporal stats) */
         scenarioTimestamp?: string | number | null
+        /** Controls whether the trigger wrapper stretches to full width */
+        fullWidth?: boolean
         children: React.ReactNode
     }) => {
         const [shouldLoad, setShouldLoad] = useState(false)
@@ -716,7 +719,7 @@ const MetricDetailsPreviewPopover = memo(
                     />
                 }
             >
-                <div className="flex w-full">{children}</div>
+                <div className={fullWidth ? "flex w-full" : "inline-flex w-fit"}>{children}</div>
             </Popover>
         )
     },
