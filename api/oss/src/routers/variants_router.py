@@ -1,42 +1,43 @@
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union, List
 from uuid import UUID
 
-from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Request, status
 
-from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.services.legacy_adapter import get_legacy_adapter
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
-from oss.src.utils.common import APIRouter, is_ee
-from oss.src.utils.exceptions import (
-    build_entity_creation_conflict_message,
-    intercept_exceptions,
-)
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import (
+    intercept_exceptions,
+    build_entity_creation_conflict_message,
+)
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+
+from oss.src.utils.common import APIRouter
+from oss.src.services.legacy_adapter import get_legacy_adapter
+from oss.src.core.shared.exceptions import EntityCreationConflict
 
 if is_ee():
-    from ee.src.models.api.api_models import (
-        AppVariantResponse_ as AppVariantResponse,
-    )
-    from ee.src.models.shared_models import (
-        Permission,
-    )  # noqa pylint: disable-all
     from ee.src.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
+    from ee.src.models.shared_models import (
+        Permission,
+    )  # noqa pylint: disable-all
+    from ee.src.models.api.api_models import (
+        AppVariantResponse_ as AppVariantResponse,
+    )
 else:
     from oss.src.models.api.api_models import (
         AppVariantResponse,
     )
 
-from pydantic import BaseModel
-
 from oss.src.models.api.api_models import (
-    AddVariantFromBasePayload,
     AppVariantRevision,
-    UpdateVariantParameterPayload,
     UpdateVariantURLPayload,
+    AddVariantFromBasePayload,
+    UpdateVariantParameterPayload,
 )
+from pydantic import BaseModel
 
 
 # Request/Response models for revision query
@@ -585,20 +586,22 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
-from oss.src.services.variants_manager import (  # noqa: E402  # noqa: E402
+from oss.src.services.variants_manager import (  # noqa: E402
     BaseModel,
-    ConfigDTO,
     ReferenceDTO,
+    ConfigDTO,
+)
+from oss.src.services.variants_manager import (  # noqa: E402
     add_config,
-    commit_config,
-    delete_config,
-    deploy_config,
-    fetch_config_by_environment_ref,
     fetch_config_by_variant_ref,
-    fork_config_by_environment_ref,
+    fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
-    history_configs,
+    fork_config_by_environment_ref,
+    commit_config,
+    deploy_config,
+    delete_config,
     list_configs,
+    history_configs,
 )
 
 

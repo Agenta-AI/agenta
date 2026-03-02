@@ -46,12 +46,10 @@ class WebhookEventType(str, Enum):
 
 
 class WebhookSubscriptionFlags(BaseModel):
-    is_active: bool = True
     is_valid: bool = False
 
 
 class WebhookSubscriptionQueryFlags(BaseModel):
-    is_active: Optional[bool] = None
     is_valid: Optional[bool] = None
 
 
@@ -96,14 +94,15 @@ class WebhookDeliveryResponseInfo(BaseModel):
 
 
 class WebhookDeliveryData(BaseModel):
-    url: HttpUrl
-
     event_type: Optional[WebhookEventType] = None
 
-    payload: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    duration_ms: Optional[int] = None
+    url: HttpUrl
+    headers: Optional[Dict[str, str]] = None
+    body: Optional[Dict[str, Any]] = None
+
     response: Optional[WebhookDeliveryResponseInfo] = None
+
+    error: Optional[str] = None
 
 
 class WebhookDelivery(Identifier, Lifecycle):

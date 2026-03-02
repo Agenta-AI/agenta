@@ -389,7 +389,25 @@ class WebhooksService:
                 windowing=Windowing(limit=1, order="descending"),
             )
             if deliveries:
-                return deliveries[0]
+                delivery = deliveries[0]
+
+                if delivery.status and delivery.status.message == "success":
+                    await self.dao.enable_subscription(
+                        project_id=project_id,
+                        subscription_id=subscription_id,
+                    )
+                    await invalidate_cache(
+                        namespace="webhooks",
+                        project_id=str(project_id),
+                        key="subscriptions",
+                    )
+                    await invalidate_cache(
+                        namespace="webhooks",
+                        project_id=str(project_id),
+                        key=f"subscription:{subscription_id}",
+                    )
+
+                return delivery
 
             if attempt < WEBHOOK_TEST_MAX_ATTEMPTS:
                 await asyncio.sleep(WEBHOOK_TEST_POLL_INTERVAL_MS / 1000)

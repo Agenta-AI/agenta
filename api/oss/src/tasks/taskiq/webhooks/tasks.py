@@ -119,9 +119,9 @@ async def deliver_webhook(
 ) -> None:
     """Deliver a webhook payload to a single subscriber endpoint."""
     base_data = WebhookDeliveryData(
-        url=url,
         event_type=event_type,
-        payload=payload,
+        url=url,
+        body=payload,
     )
 
     try:
@@ -160,26 +160,21 @@ async def deliver_webhook(
         user_headers=headers,
         system_headers=system_headers,
     )
+    base_data = base_data.model_copy(update={"headers": request_headers})
 
     try:
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:
-            start_time = datetime.now(timezone.utc)
             response = await client.post(
                 url,
                 content=payload_json,
                 headers=request_headers,
-            )
-            duration_ms = int(
-                (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             )
 
         response_info = WebhookDeliveryResponseInfo(
             status_code=response.status_code,
             body=response.text[:2000],
         )
-        final_data = base_data.model_copy(
-            update={"duration_ms": duration_ms, "response": response_info}
-        )
+        final_data = base_data.model_copy(update={"response": response_info})
 
         if response.is_success:
             # 2xx — record success, task done

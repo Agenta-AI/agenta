@@ -82,7 +82,7 @@ class WebhooksDispatcher:
         self,
         project_id: UUID,
     ) -> List[WebhookSubscription]:
-        """Return active subscriptions for the project, with secrets resolved.
+        """Return validated subscriptions for the project, with secrets resolved.
 
         Hits the cache on warm paths; falls back to Postgres + vault on miss.
         """
@@ -110,7 +110,7 @@ class WebhooksDispatcher:
         subscriptions = await self.subscriptions_dao.query_subscriptions(
             project_id=project_id,
             subscription=WebhookSubscriptionQuery(
-                flags=WebhookSubscriptionQueryFlags(is_active=True),
+                flags=WebhookSubscriptionQueryFlags(is_valid=True),
             ),
             include_archived=False,
         )
