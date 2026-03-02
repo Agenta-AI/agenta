@@ -25,9 +25,7 @@ def upgrade() -> None:
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("request_id", sa.UUID(), nullable=False),
         sa.Column("event_id", sa.UUID(), nullable=False),
-        sa.Column(
-            "request_type", sa.Enum("UNKNOWN", name="requesttype"), nullable=False
-        ),
+        sa.Column("request_type", sa.String(), nullable=False),
         sa.Column("event_type", sa.String(), nullable=False),
         sa.Column("timestamp", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column("status_code", sa.String(), nullable=True),
@@ -117,4 +115,3 @@ def downgrade() -> None:
     op.drop_index("ix_events_project_id_request_id", table_name="events")
     op.drop_index("ix_events_project_id", table_name="events")
     op.drop_table("events")
-    op.execute("DROP TYPE IF EXISTS requesttype;")

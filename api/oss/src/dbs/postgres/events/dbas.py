@@ -1,7 +1,5 @@
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, UUID, TIMESTAMP, Enum as ENUM, String
-
-from oss.src.core.events.types import RequestType
+from sqlalchemy import Column, UUID, TIMESTAMP, String
 
 
 class EventDBA:
@@ -17,7 +15,7 @@ class EventDBA:
     )
 
     request_type = Column(
-        ENUM(RequestType),
+        String,
         nullable=False,
     )
     event_type = Column(
