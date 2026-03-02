@@ -22,7 +22,7 @@ class _DummyRequest:
 @pytest.mark.asyncio
 async def test_otlp_ingest_continues_when_one_span_parse_fails(monkeypatch):
     worker = AsyncMock()
-    router = OTLPRouter(tracing_worker=worker)
+    router = OTLPRouter()
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.otlp.router.parse_otlp_stream",
