@@ -1921,7 +1921,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             values_list = []
             for dbe in metric_dbes:
                 values_dict = {
-                    k: v for k, v in dbe.__dict__.items() if k in column_names
+                    k: v
+                    for k, v in dbe.__dict__.items()
+                    if k in column_names and not (k == "id" and v is None)
                 }
                 values_list.append(values_dict)
 
@@ -2346,9 +2348,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         queue_dbe = create_dbe_from_dto(
             DBE=EvaluationQueueDBE,
             project_id=project_id,
-            dto=queue,
-            #
-            created_by_id=user_id,
+            dto=_queue,  # use _queue: has string UUIDs in data (JSON-safe)
         )
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 

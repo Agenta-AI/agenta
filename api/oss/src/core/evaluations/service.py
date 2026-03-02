@@ -3705,7 +3705,12 @@ class SimpleQueuesService:
             updated_by_id=queue.updated_by_id,
             deleted_by_id=queue.deleted_by_id,
             #
-            flags=queue.flags,
+            flags=queue.flags.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+            if queue.flags
+            else None,
             tags=queue.tags,
             meta=queue.meta,
             #
