@@ -15,7 +15,8 @@ tests/
   manual/                    # Can test any boundary, not automated
   legacy/                    # Archived, not run
   pytest/ or playwright/
-    e2e/                     # Boundary 5: E2E/system (black box)
+    acceptance/              # Boundary 5: Full system (black box)
+    integration/             # Boundary 3-4: Adapter against real dependency
     unit/                    # Boundaries 1-4: Architectural layers (white box)
       utils/                 # Boundary 1: Pure functions
       core/                  # Boundary 2: Business logic with mocked ports
@@ -29,7 +30,8 @@ tests/
 
 | Folder | Boundary coverage | Testing mode | Purpose |
 |--------|------------------|--------------|---------|
-| `e2e/` | Boundary 5 only | Black box, system running | Full integration across all layers |
+| `acceptance/` | Boundary 5 only | Black box, full system running | Full integration across all layers |
+| `integration/` | Boundaries 3-4 | Gray box, real dependency | Adapter against real DB, Redis, or external service |
 | `unit/` | Boundaries 1-4 | White box, system NOT running | Layer isolation with dependency injection |
 | `utils/` | Mixed | White box | Shared test fixtures + library/tool tests (boundary unclear) |
 | `manual/` | Any boundary | Freestyle | Developer reference, not automated, can test any layer |
@@ -184,7 +186,7 @@ This is the explicit tradeoff accepted by skipping adapter integration tests.
 
 ## 5. E2E/system (real dependencies)
 
-**Folder location:** `pytest/e2e/` or `playwright/e2e/`
+**Folder location:** `pytest/acceptance/` or `playwright/acceptance/`
 
 **Testing mode:** Black box. System is running. Tests only interact with public surfaces (API URLs, Web URLs) using credentials.
 
@@ -211,9 +213,9 @@ A minimal E2E suite that pays for itself:
 - Run the FastAPI app (either in-process ASGI client with real DI wiring, or as a process called over HTTP).
 
 **Examples across interfaces:**
-- **API E2E** (`api/oss/tests/pytest/e2e/`): HTTP requests to API endpoints, organized by domain (workflows, evaluations, testsets, etc.)
-- **SDK E2E** (`sdk/tests/pytest/e2e/`): SDK client calls against live API (workflows, evaluations, observability)
-- **Web E2E** (`web/oss/tests/playwright/e2e/`): Playwright browser tests against running web app (settings, app, playground, etc.)
+- **API acceptance** (`api/oss/tests/pytest/acceptance/`): HTTP requests to API endpoints, organized by domain (workflows, evaluations, testsets, etc.)
+- **SDK acceptance** (`sdk/oss/tests/pytest/acceptance/`): SDK client calls against live API (workflows, evaluations, observability)
+- **Web acceptance** (`web/oss/tests/playwright/acceptance/`): Playwright browser tests against running web app (settings, app, playground, etc.)
 
 ---
 
@@ -225,7 +227,7 @@ The `utils/` folder serves two distinct purposes:
 
 ### 6.1. Shared test fixtures (primary use)
 
-Test infrastructure shared by `e2e/` and `unit/` tests:
+Test infrastructure shared by `acceptance/`, `integration/`, and `unit/` tests:
 - **Fixture modules** -- pytest fixtures, Playwright helpers
 - **Account management** -- Test account creation and cleanup
 - **API clients** -- Authenticated/unauthenticated HTTP clients

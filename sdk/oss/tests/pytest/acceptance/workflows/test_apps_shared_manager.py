@@ -26,7 +26,7 @@ from agenta.sdk.managers.shared import SharedManager
 from agenta.sdk.types import ConfigurationResponse, DeploymentResponse
 
 # Mark all tests in this module as integration tests
-pytestmark = [pytest.mark.e2e]
+pytestmark = [pytest.mark.acceptance]
 
 
 def cleanup_app_safe(app_id: str) -> None:
@@ -64,7 +64,7 @@ def generate_unique_slug(prefix: str = "test") -> str:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestAppManagerSync:
     """Test AppManager synchronous methods with real API calls."""
 
@@ -210,7 +210,7 @@ class TestAppManagerSync:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 @pytest.mark.asyncio
 class TestAppManagerAsync:
     """Test AppManager asynchronous methods with real API calls."""
@@ -289,7 +289,7 @@ class TestAppManagerAsync:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestSharedManagerSync:
     """Test SharedManager synchronous methods with real API calls."""
 
@@ -561,7 +561,7 @@ class TestSharedManagerSync:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 @pytest.mark.asyncio
 class TestSharedManagerAsync:
     """Test SharedManager asynchronous methods with real API calls."""
@@ -743,7 +743,7 @@ class TestSharedManagerAsync:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestResponseSerialization:
     """Test that API responses can be properly serialized/deserialized."""
 
@@ -812,7 +812,7 @@ class TestResponseSerialization:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestErrorHandling:
     """Test error handling for invalid API calls."""
 
@@ -845,7 +845,7 @@ class TestErrorHandling:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 class TestSharedManagerValidation:
     """Test parameter validation in SharedManager."""
 
@@ -883,7 +883,7 @@ class TestSharedManagerValidation:
 # =============================================================================
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 @pytest.mark.asyncio
 class TestConcurrentOperations:
     """Test concurrent async operations."""

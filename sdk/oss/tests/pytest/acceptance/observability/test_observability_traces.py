@@ -20,7 +20,7 @@ from uuid import uuid4
 import agenta as ag
 
 
-pytestmark = [pytest.mark.e2e]
+pytestmark = [pytest.mark.acceptance]
 
 
 def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
@@ -108,7 +108,7 @@ def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
             pass
 
 
-@pytest.mark.e2e
+@pytest.mark.acceptance
 @pytest.mark.asyncio
 class TestObservabilityAsync:
     """Test async observability API."""

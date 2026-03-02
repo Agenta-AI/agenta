@@ -22,7 +22,7 @@ import pytest
 
 from agenta.sdk.evaluations import metrics, results, runs, scenarios
 
-pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
+pytestmark = [pytest.mark.acceptance, pytest.mark.asyncio]
 
 
 async def test_evaluations_run_scenario_result_close(agenta_init):
