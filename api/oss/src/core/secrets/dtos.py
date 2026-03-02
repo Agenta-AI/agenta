@@ -160,7 +160,10 @@ class CreateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 
@@ -185,7 +188,10 @@ class UpdateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 

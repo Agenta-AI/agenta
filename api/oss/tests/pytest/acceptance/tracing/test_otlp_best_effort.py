@@ -84,7 +84,8 @@ class TestOTLPBestEffortE2E:
 
         response = wait_for_condition(
             lambda: (
-                (r := _trace_get(api_url, credentials, valid_trace_id)).status_code == 200
+                (r := _trace_get(api_url, credentials, valid_trace_id)).status_code
+                == 200
                 and r.json().get("count", 0) == 1,
                 r,
             ),
