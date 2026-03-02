@@ -37,6 +37,7 @@ def _build_otlp_protobuf(
         ResourceSpans,
         ScopeSpans,
         Span,
+        Status,
     )
     from opentelemetry.proto.common.v1.common_pb2 import (
         AnyValue,
@@ -82,7 +83,7 @@ def _build_otlp_protobuf(
             start_time_unix_nano=start_ns,
             end_time_unix_nano=end_ns,
             attributes=attrs,
-            status=Span.Status(code=Span.Status.StatusCode.STATUS_CODE_OK),
+            status=Status(code=Status.StatusCode.STATUS_CODE_OK),
         )
         proto_spans.append(proto_span)
 
