@@ -33,7 +33,7 @@ const importSingleLinePlugin = () =>
     }))
 const importCodeEditorPlugin = () => import("./code")
 const importNativeCodeOnlyPlugin = () =>
-    import("./code/plugins/NativeCodeOnlyPlugin").then((module) => ({
+    import("./code/NativeCodeOnlyPlugin").then((module) => ({
         default: module.NativeCodeOnlyPlugin,
     }))
 
