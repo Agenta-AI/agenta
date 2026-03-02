@@ -423,7 +423,7 @@ function BuiltinToolsPane({
         <div className="flex flex-col h-full">
             <div className="px-2 py-1.5 border-0 border-b border-solid border-zinc-100">
                 <Input
-                    size="small"
+                    bordered={false}
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder={`Search ${provider.providerLabel} tools`}
                     value={rightSearch}
@@ -611,7 +611,7 @@ function GatewayActionsPane({
 
             <div className="px-2 py-1 border-0 border-b border-solid border-zinc-100">
                 <Input
-                    size="small"
+                    bordered={false}
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder="Search actions"
                     value={rightSearch}
@@ -798,6 +798,19 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         resetAndClose()
     }, [existingToolCount, onAddTool, resetAndClose])
 
+    const handleAddToolAndClose = useCallback(
+        (tool: ToolObj, meta?: ToolSelectionMeta) => {
+            onAddTool(tool, meta)
+            resetAndClose()
+        },
+        [onAddTool, resetAndClose],
+    )
+
+    const handleOpenCatalog = useCallback(() => {
+        resetAndClose()
+        gatewayTools?.onOpenCatalog()
+    }, [gatewayTools, resetAndClose])
+
     const content = (
         <div className="flex min-w-[460px] bg-white rounded-lg overflow-hidden border border-zinc-100 shadow-sm">
             <div
@@ -806,7 +819,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             >
                 <div className="px-2 py-2 border-0 border-b border-solid border-zinc-100">
                     <Input
-                        size="small"
+                        bordered={false}
                         value={leftSearch}
                         onChange={(e) => setLeftSearch(e.target.value)}
                         prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
@@ -866,7 +879,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                         type="text"
                                         size="small"
                                         icon={<Plus size={12} />}
-                                        onClick={() => gatewayTools.onOpenCatalog()}
+                                        onClick={handleOpenCatalog}
                                         className="!h-5 !px-1"
                                     />
                                 }
@@ -959,7 +972,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedTools={effectiveSelectedTools}
-                        onAddTool={onAddTool}
+                        onAddTool={handleAddToolAndClose}
                         onRemoveBuiltinTool={onRemoveBuiltinTool}
                     />
                 ) : gatewayTools?.enabled && activeGatewayConnection ? (
@@ -969,7 +982,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedToolNames={effectiveSelectedToolNames}
-                        onAddTool={onAddTool}
+                        onAddTool={handleAddToolAndClose}
                         onRemoveTool={onRemoveTool}
                         showMessage={showMessage}
                     />

@@ -7,6 +7,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {TurnMessageAdapter} from "@agenta/playground-ui/adapters"
 
 import {useRunnableLoading} from "../../../hooks/useRunnableLoading"
+import ControlsBar from "../../ControlsBar"
 import ChatTurnView from "../../ExecutionItems/assets/ChatTurnView"
 import ExecutionRow from "../../ExecutionItems/assets/ExecutionRow"
 
@@ -158,15 +159,25 @@ const GenerationComparisonChatOutputCell = ({
                                     editorType: "borderless",
                                 }}
                             />
-                            {isLastTurn
-                                ? renderLastTurnFooter?.({
-                                      logicalId: turnId,
-                                      onRun: handleRunTurn,
-                                      onCancelAll: handleCancelAll,
-                                      onAddMessage: handleAddMessage,
-                                      className: "p-3",
-                                  })
-                                : null}
+                            {isLastTurn ? (
+                                renderLastTurnFooter ? (
+                                    renderLastTurnFooter({
+                                        logicalId: turnId,
+                                        onRun: handleRunTurn,
+                                        onCancelAll: handleCancelAll,
+                                        onAddMessage: handleAddMessage,
+                                        className: "p-3",
+                                    })
+                                ) : (
+                                    <ControlsBar
+                                        isRunning={false} // Comparison run state is handled at row/aggregate level, but per-cell is usually idle
+                                        onRun={handleRunTurn}
+                                        onCancel={handleCancelAll}
+                                        onAddMessage={handleAddMessage}
+                                        className="p-3"
+                                    />
+                                )
+                            ) : null}
                         </div>
                     </div>
                 )}
