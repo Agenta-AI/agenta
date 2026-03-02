@@ -25,7 +25,7 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
             ["secrets.id"],
             ondelete="SET NULL",
         ),
-        PrimaryKeyConstraint("id"),
+        PrimaryKeyConstraint("project_id", "id"),
         Index(
             "ix_webhook_subscriptions_project_id_created_at",
             "project_id",
@@ -43,7 +43,7 @@ class WebhookDeliveryDBE(Base, WebhookDeliveryDBA):
     __tablename__ = "webhook_deliveries"
 
     __table_args__ = (
-        PrimaryKeyConstraint("id"),
+        PrimaryKeyConstraint("project_id", "id"),
         Index(
             "ix_webhook_deliveries_project_id_created_at",
             "project_id",

@@ -82,7 +82,7 @@ class WebhooksWorker:
                 #
                 retry_count=retry_count,
                 #
-                webhooks_dao=self.webhooks_dao,
+                dao=self.webhooks_dao,
             )
 
         self.deliver_webhook = deliver_webhook
