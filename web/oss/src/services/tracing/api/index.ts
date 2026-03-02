@@ -14,7 +14,7 @@ export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, ap
     const applicationId = ensureAppId(appId)
 
     // New query endpoint expects POST with JSON body
-    const url = new URL(`${base}/preview/tracing/spans/query`)
+    const url = new URL(`${base}/tracing/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
@@ -45,7 +45,7 @@ export const fetchPreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/preview/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/tracing/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url)
@@ -55,7 +55,7 @@ export const deletePreviewTrace = async (traceId: string) => {
     const base = getBaseUrl()
     const projectId = ensureProjectId()
 
-    const url = new URL(`${base}/preview/tracing/traces/${traceId}`)
+    const url = new URL(`${base}/tracing/traces/${traceId}`)
     if (projectId) url.searchParams.set("project_id", projectId)
 
     return fetchJson(url, {method: "DELETE"})
@@ -131,7 +131,7 @@ export const fetchGenerationsDashboardData = async (
         throw new DOMException("Aborted", "AbortError")
     }
 
-    const url = new URL(`${base}/preview/tracing/spans/analytics`)
+    const url = new URL(`${base}/tracing/spans/analytics`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 

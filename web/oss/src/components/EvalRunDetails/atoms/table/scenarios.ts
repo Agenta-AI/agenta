@@ -144,7 +144,7 @@ export const fetchEvaluationScenarioWindow = async ({
     }
 
     const response = await axios.post<ScenariosResponse>(
-        `/preview/evaluations/scenarios/query`,
+        `/evaluations/scenarios/query`,
         payload,
         {
             params: {

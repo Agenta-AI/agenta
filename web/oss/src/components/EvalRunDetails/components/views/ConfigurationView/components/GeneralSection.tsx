@@ -83,7 +83,7 @@ const GeneralSection = ({runId, showActions = true, showHeader = true}: GeneralS
                 string,
                 any
             >
-            await axios.patch(`/preview/evaluations/runs/${runId}`, {
+            await axios.patch(`/evaluations/runs/${runId}`, {
                 run: {
                     ...base,
                     id: runId,

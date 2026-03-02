@@ -77,7 +77,7 @@ export const invokeEvaluator = async ({
     const timeout = options?.timeout ?? DEFAULT_EVALUATOR_TIMEOUT
 
     const response = await axios.post<WorkflowServiceBatchResponse>(
-        `${getAgentaApiUrl()}/preview/workflows/invoke?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/workflows/invoke?project_id=${projectId}`,
         request,
         {
             signal: options?.signal,

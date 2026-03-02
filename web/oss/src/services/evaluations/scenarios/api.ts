@@ -29,7 +29,7 @@ export const updateScenarioStatus = async (scenarioId: string, status: string): 
         throw new Error("Invalid scenario ID format")
     }
 
-    await axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+    await axios.patch(`/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{id: scenarioId, status}],
     })
 }
@@ -49,7 +49,7 @@ export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
     try {
         // Query all scenarios for this run
         const scenariosResponse = await axios.post(
-            `/preview/evaluations/scenarios/query?project_id=${projectId}`,
+            `/evaluations/scenarios/query?project_id=${projectId}`,
             {
                 scenario: {run_ids: [runId]},
                 windowing: {limit: 1000},
@@ -86,7 +86,7 @@ export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
 
         // Fetch the existing run data first to preserve all fields
         const runResponse = await axios.post(
-            `/preview/evaluations/runs/query?project_id=${projectId}`,
+            `/evaluations/runs/query?project_id=${projectId}`,
             {run: {ids: [runId]}},
         )
 
@@ -94,7 +94,7 @@ export const checkAndUpdateRunStatus = async (runId: string): Promise<void> => {
         if (!existingRun) return
 
         // Update run status by sending the complete run object with only status changed
-        await axios.patch(`/preview/evaluations/runs/${runId}`, {
+        await axios.patch(`/evaluations/runs/${runId}`, {
             run: {...existingRun, id: runId, status: newRunStatus},
         })
 

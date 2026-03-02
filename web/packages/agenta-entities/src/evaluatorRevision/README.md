@@ -24,7 +24,7 @@ To migrate to the relation-based pattern (like testset and appRevision), the bac
 
 Currently, evaluator data is fetched via:
 - `GET /evaluators` - Returns flat list of evaluators
-- `POST /preview/evaluators/revisions/query` - Batch fetches revisions by evaluator refs
+- `POST /evaluators/revisions/query` - Batch fetches revisions by evaluator refs
 
 ## Current Usage
 

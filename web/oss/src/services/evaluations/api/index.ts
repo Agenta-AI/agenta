@@ -72,7 +72,7 @@ export const fetchEvaluation = async (evaluationId: string) => {
     const id = assertValidId(evaluationId)
 
     // Use preview API to query single evaluation by ID
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             ids: [id],
         },
@@ -140,7 +140,7 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     const id = assertValidId(evaluationId)
 
     // Use preview API to query single evaluation by ID
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             ids: [id],
         },
@@ -187,7 +187,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
     const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
 
     // Use simple evaluations endpoint which auto-starts execution
-    return await axios.post(`/preview/simple/evaluations/?project_id=${projectId}`, {
+    return await axios.post(`/simple/evaluations/?project_id=${projectId}`, {
         evaluation: {
             name,
             data: {
@@ -219,7 +219,7 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
     const {projectId} = getProjectValues()
 
     // Use preview API to delete runs
-    return axios.delete(`/preview/evaluations/runs/?project_id=${projectId}`, {
+    return axios.delete(`/evaluations/runs/?project_id=${projectId}`, {
         data: {run_ids: evaluationsIds},
     })
 }
@@ -234,7 +234,7 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
 
     // Fetch evaluation and scenarios in parallel using preview API
     const [{data: scenariosResponse}, evaluation] = await Promise.all([
-        axios.post(`/preview/evaluations/scenarios/query?project_id=${projectId}`, {
+        axios.post(`/evaluations/scenarios/query?project_id=${projectId}`, {
             scenario: {
                 references: [{evaluation_run: {id}}],
             },
@@ -260,7 +260,7 @@ export const updateScenarioStatus = async (
     status: EvaluationStatus,
 ) => {
     const {projectId} = getProjectValues()
-    return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+    return axios.patch(`/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{...scenario, status}],
     })
 }
@@ -290,7 +290,7 @@ export const fetchEvaluatonIdsByResource = async ({
     })
 
     // Use preview API to query runs by references
-    const response = await axios.post(`/preview/evaluations/runs/query?project_id=${projectId}`, {
+    const response = await axios.post(`/evaluations/runs/query?project_id=${projectId}`, {
         run: {
             references,
         },

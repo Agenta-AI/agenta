@@ -2,7 +2,7 @@ import {z} from "zod"
 
 /**
  * Zod schema for testcase entity based on backend API
- * Endpoint: POST /preview/testcases/query
+ * Endpoint: POST /testcases/query
  * Response: TestcasesResponse { count, testcases: Testcase[] }
  *
  * Backend structure (Python):

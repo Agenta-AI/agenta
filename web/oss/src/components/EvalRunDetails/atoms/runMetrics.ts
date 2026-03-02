@@ -517,7 +517,7 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                 },
             }
 
-            const response = await axios.post(`/preview/evaluations/metrics/query`, basePayload, {
+            const response = await axios.post(`/evaluations/metrics/query`, basePayload, {
                 params: {project_id: entry.projectId},
             })
 
@@ -544,7 +544,7 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             if (entry.needsTemporal) {
                 try {
                     const temporalResponse = await axios.post(
-                        `/preview/evaluations/metrics/query`,
+                        `/evaluations/metrics/query`,
                         {
                             ...basePayload,
                             metrics: {
