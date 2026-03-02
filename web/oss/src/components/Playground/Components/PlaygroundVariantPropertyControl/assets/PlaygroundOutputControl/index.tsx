@@ -245,19 +245,20 @@ const PlaygroundOutputControl = ({
                 <Modal
                     title="Structured output"
                     open={modalState}
+                    centered
                     onCancel={() => {
                         setModalState(false)
                     }}
                     classNames={{
                         content: "max-h-[80dvh] overflow-hidden flex flex-col",
-                        body: "flex flex-col grow shrink-1 overflow-y-auto",
+                        body: "flex flex-col grow shrink-1 overflow-hidden",
                     }}
                     onOk={saveChanges}
                 >
                     <Typography.Text>
                         Define the JSON schema for the structured output of the prompt
                     </Typography.Text>
-                    <PlaygroundVariantPropertyControlWrapper className="w-full max-w-full overflow-y-auto mt-2 flex [&_>_div]:!w-auto [&_>_div]:!grow">
+                    <PlaygroundVariantPropertyControlWrapper className="w-full max-w-full overflow-hidden mt-2 flex [&_>_div]:!w-auto [&_>_div]:!grow">
                         <div className="flex flex-col w-full gap-1 mb-2 [&_.agenta-shared-editor]:box-border">
                             <SharedEditor
                                 initialValue={structuredOutputState}
