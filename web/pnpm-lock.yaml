@@ -696,7 +696,7 @@ importers:
         version: 2.1.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@tanstack/react-query':
         specifier: '>=5.0.0'
-        version: 5.90.16(react@19.0.0)
+        version: 5.90.21(react@19.0.0)
       antd:
         specifier: '>=5.0.0'
         version: 6.1.4(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -720,7 +720,7 @@ importers:
         version: 0.0.5(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       jotai-tanstack-query:
         specifier: '>=0.9.0'
-        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.16(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
+        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.21(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       lodash:
         specifier: '>=4.17.23'
         version: 4.17.23
@@ -847,7 +847,7 @@ importers:
         version: 2.1.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@tanstack/react-query':
         specifier: '>=5.0.0'
-        version: 5.90.16(react@19.0.0)
+        version: 5.90.21(react@19.0.0)
       antd:
         specifier: '>=5.0.0'
         version: 6.1.4(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -868,7 +868,7 @@ importers:
         version: 1.0.1(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))
       jotai-tanstack-query:
         specifier: '>=0.9.0'
-        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.16(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
+        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.21(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       lodash:
         specifier: '>=4.17.23'
         version: 4.17.23
@@ -1084,7 +1084,7 @@ importers:
         version: 0.24.13
       '@tanstack/react-query':
         specifier: '>=5.0.0'
-        version: 5.90.16(react@19.0.0)
+        version: 5.90.21(react@19.0.0)
       axios:
         specifier: '>=1.13.5'
         version: 1.13.5
@@ -1096,7 +1096,7 @@ importers:
         version: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
       jotai-tanstack-query:
         specifier: '>=0.9.0'
-        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.16(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
+        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.21(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -2763,16 +2763,8 @@ packages:
     peerDependencies:
       tailwindcss: '>=3.0.0 || >= 3.0.0-alpha.1 || >= 4.0.0-alpha.20 || >= 4.0.0-beta.1'
 
-  '@tanstack/query-core@5.90.16':
-    resolution: {integrity: sha512-MvtWckSVufs/ja463/K4PyJeqT+HMlJWtw6PrCpywznd2NSgO3m4KwO9RqbFqGg6iDE8vVMFWMeQI4Io3eEYww==}
-
   '@tanstack/query-core@5.90.20':
     resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
-
-  '@tanstack/react-query@5.90.16':
-    resolution: {integrity: sha512-bpMGOmV4OPmif7TNMteU/Ehf/hoC0Kf98PDc0F4BZkFrEapRMEqI/V6YS0lyzwSV6PQpY1y4xxArUIfBW5LVxQ==}
-    peerDependencies:
-      react: ^18 || ^19
 
   '@tanstack/react-query@5.90.21':
     resolution: {integrity: sha512-0Lu6y5t+tvlTJMTO7oh5NSpJfpg/5D41LlThfepTixPYkJ0sE2Jj0m0f6yYqujBwIXlId87e234+MxG3D3g7kg==}
@@ -7991,14 +7983,7 @@ snapshots:
       mini-svg-data-uri: 1.4.4
       tailwindcss: 3.4.17(ts-node@10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.17.24)(typescript@5.8.3))
 
-  '@tanstack/query-core@5.90.16': {}
-
   '@tanstack/query-core@5.90.20': {}
-
-  '@tanstack/react-query@5.90.16(react@19.0.0)':
-    dependencies:
-      '@tanstack/query-core': 5.90.16
-      react: 19.0.0
 
   '@tanstack/react-query@5.90.21(react@19.0.0)':
     dependencies:
@@ -10266,14 +10251,6 @@ snapshots:
   jotai-scheduler@0.0.5(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0):
     dependencies:
       jotai: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
-      react: 19.0.0
-
-  jotai-tanstack-query@0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.16(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0):
-    dependencies:
-      '@tanstack/query-core': 5.90.20
-      jotai: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
-    optionalDependencies:
-      '@tanstack/react-query': 5.90.16(react@19.0.0)
       react: 19.0.0
 
   jotai-tanstack-query@0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.21(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0):
