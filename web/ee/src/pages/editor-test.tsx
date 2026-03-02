@@ -187,23 +187,6 @@ export default function EditorTestPage() {
                             />
                         </div>
                     </div>
-                    {/* <div className="flex-1 min-w-0 space-y-2">
-                        <h2 className="text-sm font-medium text-[#1C2C3D]">
-                            Legacy Editor (oss/components/Editor)
-                        </h2>
-                        <div className="min-h-[420px] max-h-[70vh] overflow-auto">
-                            <LegacyEditor
-                                id="ee-editor-test-legacy"
-                                codeOnly
-                                language="json"
-                                initialValue={INITIAL_EDITOR_CONTENT}
-                                showToolbar={false}
-                                enableResize
-                                validationSchema={PLAYGROUND_SCHEMA_EDITOR_VALIDATION_SCHEMA}
-                                onPropertyClick={(path) => setLastDrillInPath(path)}
-                            />
-                        </div>
-                    </div> */}
                 </div>
                 <p className="text-xs text-[#637381]">
                     Last drill-in path: {lastDrillInPath ?? "none"}
