@@ -208,15 +208,6 @@ export const commitWorkflowRevisionAtom = atom(
 
             const newRevisionId = newWorkflow.id
 
-            // 3. Invalidate caches
-            invalidateWorkflowsListCache()
-            invalidateWorkflowCache(revisionId)
-            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
-
-            if (_commitCallbacks.onQueryInvalidate) {
-                await _commitCallbacks.onQueryInvalidate()
-            }
-
             const result: WorkflowCommitResult = {
                 success: true,
                 revisionId,
@@ -224,13 +215,23 @@ export const commitWorkflowRevisionAtom = atom(
                 workflow: newWorkflow,
             }
 
-            // 4. Invoke new revision callback
+            // 3. Invoke new revision callback (entity switch — must happen
+            // before returning so the UI shows the correct entity)
             if (_commitCallbacks.onNewRevision) {
                 await _commitCallbacks.onNewRevision(result, params)
             }
 
-            // 5. Discard draft
+            // 4. Discard draft
             set(discardWorkflowDraftAtom, revisionId)
+
+            // 5. Invalidate caches in the background so the caller (modal)
+            // isn't blocked by network refetches.
+            invalidateWorkflowsListCache()
+            invalidateWorkflowCache(revisionId)
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            if (_commitCallbacks.onQueryInvalidate) {
+                void _commitCallbacks.onQueryInvalidate()
+            }
 
             return result
         } catch (error) {
@@ -361,16 +362,8 @@ export const createWorkflowVariantAtom = atom(
 
             const newRevisionId = newRevision.id
 
-            // 5. Invalidate caches
-            invalidateWorkflowsListCache()
-            invalidateWorkflowCache(baseRevisionId)
-            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
-
-            if (_commitCallbacks.onQueryInvalidate) {
-                await _commitCallbacks.onQueryInvalidate()
-            }
-
-            // 6. Invoke new revision callback (reuse commit callbacks for switch)
+            // 5. Invoke new revision callback (entity switch — must happen
+            // before returning so the UI shows the correct entity)
             const commitResult: WorkflowCommitResult = {
                 success: true,
                 revisionId: baseRevisionId,
@@ -386,6 +379,15 @@ export const createWorkflowVariantAtom = atom(
 
             // Discard draft for the base revision
             set(discardWorkflowDraftAtom, baseRevisionId)
+
+            // 6. Invalidate caches in the background so the caller (modal)
+            // isn't blocked by network refetches.
+            invalidateWorkflowsListCache()
+            invalidateWorkflowCache(baseRevisionId)
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            if (_commitCallbacks.onQueryInvalidate) {
+                void _commitCallbacks.onQueryInvalidate()
+            }
 
             return {
                 success: true,
@@ -423,14 +425,20 @@ export const archiveWorkflowRevisionAtom = atom(
                 throw new Error("No project ID available")
             }
 
+            const _t0 = performance.now()
             await archiveWorkflowRevision(projectId, revisionId)
+            console.log(`[archive] API call: ${(performance.now() - _t0).toFixed(0)}ms`)
 
             // When variantId is provided, check if the variant still has
             // active (non-archived) revisions. If not, archive the variant
             // so it no longer appears in the entity selector dropdown.
             if (variantId) {
                 try {
+                    const _t1 = performance.now()
                     const remaining = await queryWorkflowRevisions(variantId, projectId)
+                    console.log(
+                        `[archive] queryWorkflowRevisions: ${(performance.now() - _t1).toFixed(0)}ms`,
+                    )
                     const allRevisions = remaining.workflow_revisions ?? []
                     const activeRevisions = allRevisions.filter(
                         (r) => !r.deleted_at && r.id !== revisionId,
@@ -441,25 +449,20 @@ export const archiveWorkflowRevisionAtom = atom(
                         (r) => r.data?.parameters && Object.keys(r.data.parameters).length > 0,
                     )
                     if (userVisibleRevisions.length === 0) {
+                        const _t2 = performance.now()
                         // Archive leftover seed revisions first
                         for (const r of activeRevisions) {
                             await archiveWorkflowRevision(projectId, r.id)
                         }
                         // Then archive the now-empty variant
                         await archiveWorkflowVariant(projectId, variantId)
+                        console.log(
+                            `[archive] variant cleanup: ${(performance.now() - _t2).toFixed(0)}ms`,
+                        )
                     }
                 } catch (_variantErr) {
                     // Best-effort: don't fail the overall delete if variant cleanup fails
                 }
-            }
-
-            // Invalidate caches
-            invalidateWorkflowsListCache()
-            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
-            invalidateWorkflowCache(revisionId)
-
-            if (_archiveCallbacks.onQueryInvalidate) {
-                await _archiveCallbacks.onQueryInvalidate()
             }
 
             const result: WorkflowArchiveResult = {
@@ -468,10 +471,30 @@ export const archiveWorkflowRevisionAtom = atom(
                 workflowId,
             }
 
+            const _t3 = performance.now()
+            invalidateWorkflowsListCache()
+            invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            invalidateWorkflowCache(revisionId)
+            console.log(
+                `[archive] sync cache invalidation: ${(performance.now() - _t3).toFixed(0)}ms`,
+            )
+
+            if (_archiveCallbacks.onQueryInvalidate) {
+                const _t4 = performance.now()
+                await _archiveCallbacks.onQueryInvalidate()
+                console.log(
+                    `[archive] onQueryInvalidate callback: ${(performance.now() - _t4).toFixed(0)}ms`,
+                )
+            }
+
+            // Await selection cleanup so the replacement revision is in place
+            // before the caller (delete modal) closes — prevents an empty
+            // playground flash.
             if (_archiveCallbacks.onRevisionDeleted) {
                 await _archiveCallbacks.onRevisionDeleted(result)
             }
 
+            console.log(`[archive] TOTAL: ${(performance.now() - _t0).toFixed(0)}ms`)
             return result
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error))
