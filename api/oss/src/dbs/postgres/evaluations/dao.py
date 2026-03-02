@@ -2347,6 +2347,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             DBE=EvaluationQueueDBE,
             project_id=project_id,
             dto=queue,
+            #
+            created_by_id=user_id,
         )
         queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
@@ -2411,6 +2413,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 DBE=EvaluationQueueDBE,
                 project_id=project_id,
                 dto=queue,
+                #
+                created_by_id=user_id,
             )
             for queue in queues
         ]
