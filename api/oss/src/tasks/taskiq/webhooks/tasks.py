@@ -106,12 +106,13 @@ async def deliver_webhook(
     subscription_id: UUID,
     event_id: UUID,
     #
+    event_type: str,
+    #
     url: str,
     headers: dict,
-    encrypted_secret: str,
+    body: dict,
     #
-    event_type: str,
-    payload: dict,
+    encrypted_secret: str,
     #
     retry_count: int,
     #
@@ -120,8 +121,9 @@ async def deliver_webhook(
     """Deliver a webhook payload to a single subscriber endpoint."""
     base_data = WebhookDeliveryData(
         event_type=event_type,
+        #
         url=url,
-        body=payload,
+        body=body,
     )
 
     try:
@@ -140,7 +142,7 @@ async def deliver_webhook(
 
     signing_secret = decrypt(encrypted_secret)
 
-    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload_json = json.dumps(body, sort_keys=True, separators=(",", ":"))
     timestamp = str(int(datetime.now(timezone.utc).timestamp()))
     to_sign = f"{timestamp}.{payload_json}"
     signature = hmac.new(

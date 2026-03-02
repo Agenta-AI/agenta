@@ -49,7 +49,7 @@ class WebhooksWorker:
             encrypted_secret: str,
             #
             event_type: str,
-            payload: Dict[str, Any],
+            body: Dict[str, Any],
             #
             context: Context = TaskiqDepends(),
         ) -> None:
@@ -72,12 +72,13 @@ class WebhooksWorker:
                 subscription_id=UUID(subscription_id),
                 event_id=UUID(event_id),
                 #
+                event_type=event_type,
+                #
                 url=url,
                 headers=headers,
-                encrypted_secret=encrypted_secret,
+                body=body,
                 #
-                event_type=event_type,
-                payload=payload,
+                encrypted_secret=encrypted_secret,
                 #
                 retry_count=retry_count,
                 #

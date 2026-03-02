@@ -133,6 +133,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         self,
         *,
         project_id: UUID,
+        #
         subscription_id: UUID,
     ) -> bool:
         async with engine.core_session() as session:
@@ -149,6 +150,7 @@ class WebhooksDAO(WebhooksDAOInterface):
                 return False
 
             await session.delete(subscription_dbe)
+
             await session.commit()
 
             return True
@@ -157,6 +159,7 @@ class WebhooksDAO(WebhooksDAOInterface):
         self,
         *,
         project_id: UUID,
+        #
         subscription_id: UUID,
     ) -> Optional[WebhookSubscription]:
         async with engine.core_session() as session:
@@ -177,6 +180,7 @@ class WebhooksDAO(WebhooksDAOInterface):
             subscription_dbe.flags = flags
 
             await session.commit()
+
             await session.refresh(subscription_dbe)
 
             return map_subscription_dbe_to_dto(

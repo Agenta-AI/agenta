@@ -53,33 +53,44 @@ class WebhooksDispatcher:
         self,
         *,
         project_id: UUID,
+        #
         secret_id: UUID,
     ) -> Optional[str]:
         try:
             secret_dto = await self.vault_service.get_secret(
-                secret_id=secret_id,
                 project_id=project_id,
+                #
+                secret_id=secret_id,
             )
+
             if secret_dto is None:
                 log.warning(
                     f"[WEBHOOKS DISPATCHER] Secret {secret_id} not found in vault"
                 )
+
                 return None
+
             key = secret_dto.data.provider.key
+
             if not key:
                 log.warning(
                     f"[WEBHOOKS DISPATCHER] Secret {secret_id} has no key value"
                 )
+
                 return None
+
             return key
+
         except Exception as e:
             log.warning(
                 f"[WEBHOOKS DISPATCHER] Failed to resolve secret {secret_id}: {e}"
             )
+
             return None
 
     async def _get_subscriptions(
         self,
+        *,
         project_id: UUID,
     ) -> List[WebhookSubscription]:
         """Return validated subscriptions for the project, with secrets resolved.
@@ -93,38 +104,50 @@ class WebhooksDispatcher:
             model=WebhookSubscription,
             is_list=True,
         )
+
         if cached is not None:
             decrypted = []
+
             for sub in cached:
                 if sub.secret:
                     try:
                         sub = sub.model_copy(update={"secret": decrypt(sub.secret)})
+
                     except Exception:
                         log.warning(
                             f"[WEBHOOKS DISPATCHER] Failed to decrypt cached secret for {sub.id}"
                         )
+
                         sub = sub.model_copy(update={"secret": None})
+
                 decrypted.append(sub)
+
             return decrypted
 
         subscriptions = await self.subscriptions_dao.query_subscriptions(
             project_id=project_id,
+            #
             subscription=WebhookSubscriptionQuery(
-                flags=WebhookSubscriptionQueryFlags(is_valid=True),
+                flags=WebhookSubscriptionQueryFlags(
+                    is_valid=True,
+                ),
             ),
-            include_archived=False,
         )
 
         # Resolve secrets (vault reads happen only on cache miss)
         result: List[WebhookSubscription] = []
+
         for sub in subscriptions:
             if sub.secret_id:
                 secret = await self._resolve_secret(
                     project_id=project_id,
+                    #
                     secret_id=sub.secret_id,
                 )
+
                 if secret:
                     sub = sub.model_copy(update={"secret": secret})
+
             result.append(sub)
 
         encrypted = [
@@ -133,6 +156,7 @@ class WebhooksDispatcher:
             else sub
             for sub in result
         ]
+
         await set_cache(
             namespace="webhooks",
             project_id=str(project_id),
@@ -140,12 +164,14 @@ class WebhooksDispatcher:
             value=encrypted,
             ttl=AGENTA_CACHE_TTL,
         )
+
         return result
 
     # --- public API ---------------------------------------------------------- #
 
     async def dispatch(
         self,
+        *,
         batches: List[Dict[str, Any]],
     ) -> None:
         """Fan out TaskIQ delivery tasks for all (event, subscription) matches."""
@@ -153,20 +179,27 @@ class WebhooksDispatcher:
 
         for project_batch in batches:
             project_id = project_batch["project_id"]
+
             try:
-                subscriptions = await self._get_subscriptions(project_id)
+                subscriptions = await self._get_subscriptions(
+                    project_id=project_id,
+                )
+
             except Exception as e:
                 log.error(
                     f"[WEBHOOKS DISPATCHER] Failed to load subscriptions "
                     f"for project {project_id}: {e}"
                 )
+
                 enqueue_failures += len(project_batch["events"])
+
                 continue
 
             for msg in project_batch["events"]:
                 event = msg.event
                 event_type = event.event_type.value
                 target_subscription_id = None
+
                 if event.event_type == EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED:
                     target_subscription_id = (
                         (event.attributes or {}).get("subscription_id")
@@ -180,6 +213,7 @@ class WebhooksDispatcher:
                         for sub in subscriptions
                         if str(sub.id) == target_subscription_id
                     ]
+
                 else:
                     matching = [
                         sub
@@ -207,12 +241,13 @@ class WebhooksDispatcher:
                             subscription_id=str(sub.id),
                             event_id=str(event.event_id),
                             #
+                            event_type=event_type,
+                            #
                             url=str(sub.data.url),
                             headers=sub.data.headers or {},
-                            encrypted_secret=encrypt(sub.secret),
+                            body=event.attributes or {},
                             #
-                            event_type=event_type,
-                            payload=event.attributes or {},
+                            encrypted_secret=encrypt(sub.secret),
                         )
                         log.debug(
                             f"[WEBHOOKS DISPATCHER] Enqueued delivery "

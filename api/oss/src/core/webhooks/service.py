@@ -36,13 +36,6 @@ from oss.src.core.webhooks.exceptions import (
     WebhookTestDeliveryTimeoutError,
     WebhookTestEventPublishFailedError,
 )
-from oss.src.utils.caching import (
-    AGENTA_CACHE_TTL,
-    get_cache,
-    invalidate_cache,
-    set_cache,
-)
-from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
@@ -151,25 +144,7 @@ class WebhooksService:
             secret_id=secret_dto.id,
         )
 
-        result = self._with_secret(result, secret_value)
-
-        await set_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{result.id}",
-            value=result.model_copy(update={"secret": encrypt(result.secret)})
-            if result.secret
-            else result,
-            ttl=AGENTA_CACHE_TTL,
-        )
-
-        await invalidate_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key="subscriptions",
-        )
-
-        return result
+        return self._with_secret(result, secret_value)
 
     async def fetch_subscription(
         self,
@@ -178,30 +153,6 @@ class WebhooksService:
         #
         subscription_id: UUID,
     ) -> Optional[WebhookSubscription]:
-        cached = await get_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{subscription_id}",
-            model=WebhookSubscription,
-            is_list=False,
-        )
-
-        if cached is not None:
-            if cached.secret:
-                try:
-                    cached = cached.model_copy(
-                        update={"secret": decrypt(cached.secret)}
-                    )
-
-                except Exception:
-                    log.warning(
-                        f"[WEBHOOKS] Failed to decrypt cached secret for"
-                        f" {subscription_id}"
-                    )
-                    cached = cached.model_copy(update={"secret": None})
-
-            return cached
-
         result = await self.dao.fetch_subscription(
             project_id=project_id,
             #
@@ -218,16 +169,6 @@ class WebhooksService:
             )
 
             result = self._with_secret(result, secret_value)
-
-        await set_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{result.id}",
-            value=result.model_copy(update={"secret": encrypt(result.secret)})
-            if result.secret
-            else result,
-            ttl=AGENTA_CACHE_TTL,
-        )
 
         return result
 
@@ -272,21 +213,6 @@ class WebhooksService:
             )
             result = self._with_secret(result, secret_value)
 
-        await set_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key=f"subscription:{result.id}",
-            value=result.model_copy(update={"secret": encrypt(result.secret)})
-            if result.secret
-            else result,
-            ttl=AGENTA_CACHE_TTL,
-        )
-        await invalidate_cache(
-            namespace="webhooks",
-            project_id=str(project_id),
-            key="subscriptions",
-        )
-
         return result
 
     async def delete_subscription(
@@ -296,25 +222,11 @@ class WebhooksService:
         #
         subscription_id: UUID,
     ) -> bool:
-        deleted = await self.dao.delete_subscription(
+        return await self.dao.delete_subscription(
             project_id=project_id,
             #
             subscription_id=subscription_id,
         )
-
-        if deleted:
-            await invalidate_cache(
-                namespace="webhooks",
-                project_id=str(project_id),
-                key="subscriptions",
-            )
-            await invalidate_cache(
-                namespace="webhooks",
-                project_id=str(project_id),
-                key=f"subscription:{subscription_id}",
-            )
-
-        return deleted
 
     # --- deliveries --------------------------------------------------------- #
 
@@ -439,17 +351,6 @@ class WebhooksService:
                         project_id=project_id,
                         #
                         subscription_id=subscription_id,
-                    )
-
-                    await invalidate_cache(
-                        namespace="webhooks",
-                        project_id=str(project_id),
-                        key="subscriptions",
-                    )
-                    await invalidate_cache(
-                        namespace="webhooks",
-                        project_id=str(project_id),
-                        key=f"subscription:{subscription_id}",
                     )
 
                 return delivery

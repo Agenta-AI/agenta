@@ -4,8 +4,15 @@ from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.caching import (
+    AGENTA_CACHE_TTL,
+    get_cache,
+    invalidate_cache,
+    set_cache,
+)
+from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.core.webhooks.service import WebhooksService
+from oss.src.core.webhooks.types import WebhookSubscription
 from oss.src.core.webhooks.exceptions import (
     WebhookSubscriptionNotFoundError,
     WebhookTestDeliveryTimeoutError,
@@ -152,9 +159,21 @@ class WebhooksRouter:
             subscription=body.subscription,
         )
 
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription.id}",
+            value=subscription.model_copy(
+                update={"secret": encrypt(subscription.secret)}
+            )
+            if subscription.secret
+            else subscription,
+            ttl=AGENTA_CACHE_TTL,
+        )
         await invalidate_cache(
-            project_id=request.state.project_id,
-            namespace="webhook_query_subscriptions",
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key="subscriptions",
         )
 
         return WebhookSubscriptionResponse(
@@ -178,6 +197,24 @@ class WebhooksRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        cached = await get_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription_id}",
+            model=WebhookSubscription,
+            is_list=False,
+        )
+
+        if cached is not None:
+            if cached.secret:
+                try:
+                    cached = cached.model_copy(
+                        update={"secret": decrypt(cached.secret)}
+                    )
+                except Exception:
+                    cached = cached.model_copy(update={"secret": None})
+            return WebhookSubscriptionResponse(count=1, subscription=cached)
+
         subscription = await self.webhooks_service.fetch_subscription(
             project_id=UUID(request.state.project_id),
             #
@@ -189,6 +226,18 @@ class WebhooksRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Webhook subscription not found",
             )
+
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription_id}",
+            value=subscription.model_copy(
+                update={"secret": encrypt(subscription.secret)}
+            )
+            if subscription.secret
+            else subscription,
+            ttl=AGENTA_CACHE_TTL,
+        )
 
         return WebhookSubscriptionResponse(
             count=1,
@@ -231,9 +280,21 @@ class WebhooksRouter:
                 detail="Webhook subscription not found",
             )
 
+        await set_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription.id}",
+            value=subscription.model_copy(
+                update={"secret": encrypt(subscription.secret)}
+            )
+            if subscription.secret
+            else subscription,
+            ttl=AGENTA_CACHE_TTL,
+        )
         await invalidate_cache(
-            project_id=request.state.project_id,
-            namespace="webhook_query_subscriptions",
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key="subscriptions",
         )
 
         return WebhookSubscriptionResponse(
@@ -270,8 +331,14 @@ class WebhooksRouter:
             )
 
         await invalidate_cache(
-            project_id=request.state.project_id,
             namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key=f"subscription:{subscription_id}",
+        )
+        await invalidate_cache(
+            namespace="webhooks",
+            project_id=str(request.state.project_id),
+            key="subscriptions",
         )
 
     @intercept_exceptions()
@@ -418,6 +485,19 @@ class WebhooksRouter:
                 #
                 subscription_id=subscription_id,
             )
+
+            if delivery.status and delivery.status.message == "success":
+                await invalidate_cache(
+                    namespace="webhooks",
+                    project_id=str(request.state.project_id),
+                    key=f"subscription:{subscription_id}",
+                )
+                await invalidate_cache(
+                    namespace="webhooks",
+                    project_id=str(request.state.project_id),
+                    key="subscriptions",
+                )
+
             return WebhookDeliveryResponse(
                 count=1 if delivery else 0,
                 delivery=delivery,

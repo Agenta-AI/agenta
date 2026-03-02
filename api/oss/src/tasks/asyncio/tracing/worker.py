@@ -124,51 +124,35 @@ class TracingWorker:
             )
 
             if not messages:
-                # log.warning(
-                #     "[INGEST] Empty batch! (timeout)",
-                # )
                 return []
 
             # messages format: [(stream_name, [(id, data), (id, data), ...])]
-            stream_data = messages[0]
-            batch = stream_data[1]  # [(id, data), ...]
+            batch = messages[0][1]  # [(id, data), ...]
 
             # 2. If batch is small, accumulate more spans within time window
             if len(batch) < self.max_batch_size:
-                # Record when accumulation starts (after initial read returns)
                 start_time = time.time()
-                accumulated_total = 0
 
                 while True:
                     elapsed = (time.time() - start_time) * 1000  # Convert to ms
                     remaining_ms = self.max_delay_ms - elapsed
 
-                    # Stop if we've exceeded the max delay window
                     if remaining_ms <= 0:
                         break
 
-                    # Blocking read with remaining time to wait for more spans
                     accumulated_messages = await self.redis.xreadgroup(
                         groupname=self.consumer_group,
                         consumername=self.consumer_name,
                         streams={self.stream_name: ">"},
                         count=self.max_batch_size,
-                        block=max(10, int(remaining_ms)),  # Block for remaining time
+                        block=max(10, int(remaining_ms)),
                     )
 
                     if accumulated_messages:
-                        accumulated_batch = accumulated_messages[0][1]
-                        batch.extend(accumulated_batch)
-                        accumulated_total += len(accumulated_batch)
-
-                        elapsed = (time.time() - start_time) * 1000  # Update elapsed
-
-                        # Stop if we've reached target batch size
+                        batch.extend(accumulated_messages[0][1])
                         if len(batch) >= self.max_batch_size:
                             break
-                    # If no messages, loop will check time and either read again or break
 
-            # Calculate batch size in bytes
             return batch
 
         except Exception as e:
@@ -233,12 +217,12 @@ class TracingWorker:
 
                 # Check if we've exceeded the batch size limit
                 if batch_bytes > self.max_batch_mb * 1024 * 1024:
-                    # log.warning(
-                    #     "[INGEST] Batch size limit exceeded, stopping batch processing",
-                    #     batch_bytes=batch_bytes,
-                    #     max_mb=self.max_batch_mb,
-                    #     processed_count=processed_count,
-                    # )
+                    log.warning(
+                        "[INGEST] Batch size limit exceeded, stopping batch processing",
+                        batch_bytes=batch_bytes,
+                        max_mb=self.max_batch_mb,
+                        processed_count=processed_count,
+                    )
                     break
 
                 # Deserialize (handles zlib decompression)
@@ -350,10 +334,10 @@ class TracingWorker:
                 if not batch:
                     continue
 
-                # 3. Process batch (returns count and processed message IDs)
+                # 2. Process batch (returns count and processed message IDs)
                 processed_count, processed_message_ids = await self.process_batch(batch)
 
-                # 4. ACK and DELETE only the processed messages
+                # 3. ACK and DELETE only the processed messages
                 if processed_message_ids:
                     await self.ack_and_delete(processed_message_ids)
 
