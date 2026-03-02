@@ -1,7 +1,5 @@
-from oss.src.apis.fastapi.tracing.utils import (
-    initialize_ag_attributes,
-    _parse_span_from_request,
-)
+from oss.src.core.tracing.utils.attributes import initialize_ag_attributes
+from oss.src.core.tracing.utils.parsing import _parse_span_from_request
 from oss.src.core.tracing.dtos import OTelSpan, TraceType, SpanType
 
 
