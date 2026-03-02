@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     legacyAppRevisionMolecule,
@@ -7,7 +7,6 @@ import {
 } from "@agenta/entities/legacyAppRevision"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
-import type {PlaygroundNode} from "@agenta/playground"
 import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
@@ -53,19 +52,16 @@ const emptyWorkflowDataAtom = atom(() => null)
  */
 const WorkflowDeleteContent = ({
     revisionIds,
-    workflowNodes,
     onClose,
 }: {
     revisionIds: string[]
-    workflowNodes: PlaygroundNode[]
     onClose: () => void
 }) => {
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
     const [isMutating, setIsMutating] = useState(false)
 
-    // Get the entity ID from the first workflow node
-    const entityId = workflowNodes[0]?.entityId ?? revisionIds[0]
+    const entityId = revisionIds[0]
 
     // Memoize the data atom to get the proper entity data with version info
     const dataAtom = useMemo(
@@ -397,23 +393,21 @@ const nodesAtom = playgroundController.selectors.nodes()
 
 const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
     const nodes = useAtomValue(nodesAtom)
+    const isWorkflowRef = useRef<boolean | null>(null)
 
-    // Check if any revision IDs belong to workflow entities
-    const workflowNodes = useMemo(() => {
+    if (isWorkflowRef.current === null) {
         const idSet = new Set(revisionIds)
-        return nodes.filter((n) => idSet.has(n.entityId) && n.entityType === "workflow")
-    }, [nodes, revisionIds])
+        const hasWorkflowNode = nodes.some(
+            (n) => idSet.has(n.entityId) && n.entityType === "workflow",
+        )
+        const hasWorkflowEntity = revisionIds.some((id) => Boolean(workflowMolecule.get.data(id)))
+        isWorkflowRef.current = hasWorkflowNode || hasWorkflowEntity
+    }
 
-    const isWorkflow = workflowNodes.length > 0
+    const isWorkflow = isWorkflowRef.current
 
     if (isWorkflow) {
-        return (
-            <WorkflowDeleteContent
-                revisionIds={revisionIds}
-                workflowNodes={workflowNodes}
-                onClose={onClose}
-            />
-        )
+        return <WorkflowDeleteContent revisionIds={revisionIds} onClose={onClose} />
     }
 
     return (
