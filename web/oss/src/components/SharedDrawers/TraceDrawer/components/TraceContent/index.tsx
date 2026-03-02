@@ -4,6 +4,7 @@ import {Skeleton, Splitter, Tabs, TabsProps} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
+import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
 import AccordionTreePanel from "@/oss/components/SharedDrawers/TraceDrawer/components/AccordionTreePanel"
 import {traceSidePanelOpenAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
@@ -34,6 +35,7 @@ const TraceContent = ({
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
     const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
+    const spanEntityId = activeTrace?.span_id || activeTrace?.invocationIds?.span_id || activeId
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
 
@@ -80,13 +82,25 @@ const TraceContent = ({
                 key: "raw_data",
                 label: "Raw Data",
                 children: (
-                    <AccordionTreePanel
-                        label={"Raw Data"}
-                        value={{...filteredTrace}}
-                        enableFormatSwitcher
-                        fullEditorHeight
-                        enableSearch
-                    />
+                    <>
+                        {spanEntityId ? (
+                            <TraceSpanDrillInView
+                                spanId={spanEntityId}
+                                title="Raw Data"
+                                editable={false}
+                                rootScope="span"
+                                allowSpanCollapse={false}
+                            />
+                        ) : (
+                            <AccordionTreePanel
+                                label={"Raw Data"}
+                                value={{...filteredTrace}}
+                                enableFormatSwitcher
+                                fullEditorHeight
+                                enableSearch
+                            />
+                        )}
+                    </>
                 ),
             },
             {
@@ -100,7 +114,7 @@ const TraceContent = ({
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab])
+    }, [activeTrace, filteredTrace, isLoading, traceResponse, error, tab, spanEntityId])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])

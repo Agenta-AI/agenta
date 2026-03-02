@@ -16,6 +16,9 @@ from oss.src.apis.fastapi.otlp.extractors.adapters.openinference_adapter import 
 from oss.src.apis.fastapi.otlp.extractors.adapters.logfire_adapter import (
     LogfireAdapter,
 )
+from oss.src.apis.fastapi.otlp.extractors.adapters.vercelai_adapter import (
+    VercelAIAdapter,
+)
 from oss.src.apis.fastapi.otlp.extractors.adapters.default_agenta_adapter import (
     DefaultAgentaAdapter,
 )
@@ -40,6 +43,7 @@ class AdapterRegistry:
         self.register(OpenLLMmetryAdapter())
         self.register(OpenInferenceAdapter())
         self.register(LogfireAdapter())
+        self.register(VercelAIAdapter())
         self.register(DefaultAgentaAdapter())
 
     def register(self, adapter: BaseAdapter):
@@ -67,6 +71,13 @@ class AdapterRegistry:
         features_obj = SpanFeatures()
 
         for adapter in self._adapters:
-            adapter.process(attributes, features_obj)
+            try:
+                adapter.process(attributes, features_obj)
+            except Exception:
+                log.warning(
+                    "Adapter %s failed during feature extraction; continuing",
+                    adapter.__class__.__name__,
+                    exc_info=True,
+                )
 
         return features_obj

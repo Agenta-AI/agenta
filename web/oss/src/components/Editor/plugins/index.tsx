@@ -13,6 +13,7 @@ import {useAtomValue} from "jotai"
 import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
+import {DrillInProvider} from "./code/context/DrillInContext"
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
 const CodeFoldingPlugin = lazy(() =>
@@ -77,70 +78,80 @@ const EditorPlugins = ({
     additionalCodePlugins = [],
     onPropertyClick,
     disableLongText,
+    decodeEscapedJsonStringsInLongText,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
+    const drillInContextValue = {
+        enabled: Boolean(onPropertyClick),
+        decodeEscapedJsonStrings: Boolean(decodeEscapedJsonStringsInLongText),
+    }
 
     return (
-        <Suspense
-            fallback={
-                <Skeleton
-                    className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
-                    title={false}
-                    paragraph={{rows: 4, width: "100%"}}
+        <DrillInProvider value={drillInContextValue}>
+            <Suspense
+                fallback={
+                    <Skeleton
+                        className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
+                        title={false}
+                        paragraph={{rows: 4, width: "100%"}}
+                    />
+                }
+            >
+                <RichTextPlugin
+                    contentEditable={
+                        <ContentEditable
+                            className={clsx(
+                                `editor-input relative outline-none min-h-[inherit] ${
+                                    singleLine
+                                        ? "single-line whitespace-nowrap overflow-x-auto"
+                                        : ""
+                                } ${codeOnly ? "code-only" : ""}`,
+                                {
+                                    "markdown-view": markdown,
+                                },
+                            )}
+                        />
+                    }
+                    placeholder={
+                        <div className="editor-placeholder absolute pointer-events-none text-[#BDC7D1]">
+                            {placeholder}
+                        </div>
+                    }
+                    ErrorBoundary={LexicalErrorBoundary}
                 />
-            }
-        >
-            <RichTextPlugin
-                contentEditable={
-                    <ContentEditable
-                        className={clsx(
-                            `editor-input relative outline-none min-h-[inherit] ${
-                                singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
-                            } ${codeOnly ? "code-only" : ""}`,
-                            {
-                                "markdown-view": markdown,
-                            },
-                        )}
-                    />
-                }
-                placeholder={
-                    <div className="editor-placeholder absolute pointer-events-none text-[#BDC7D1]">
-                        {placeholder}
-                    </div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-            />
-            <HistoryPlugin />
-            {autoFocus ? <AutoFocusPlugin /> : null}
-            <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
-            {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
-            {enableTokens && (
-                <>
-                    <TokenPlugin templateFormat={templateFormat} />
-                    <AutoCloseTokenBracesPlugin />
-                    <TokenTypeaheadPlugin tokens={tokens || []} />
-                </>
-            )}
-            {singleLine && <SingleLinePlugin />}
-            {codeOnly && (
-                <>
-                    <CodeFoldingPlugin />
-                    <CodeEditorPlugin
-                        editorId={id}
-                        validationSchema={validationSchema}
-                        initialValue={value !== undefined ? value : initialValue}
-                        language={language === "code" ? "json" : language}
-                        debug={debug}
-                        additionalCodePlugins={additionalCodePlugins}
-                        onPropertyClick={onPropertyClick}
-                        disableLongText={disableLongText}
-                    />
-                    <TabIndentationPlugin />
-                </>
-            )}
-            {debug && <DebugPlugin />}
-            {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
-        </Suspense>
+                <HistoryPlugin />
+                {autoFocus ? <AutoFocusPlugin /> : null}
+                <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
+                {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
+                {enableTokens && (
+                    <>
+                        <TokenPlugin templateFormat={templateFormat} />
+                        <AutoCloseTokenBracesPlugin />
+                        <TokenTypeaheadPlugin tokens={tokens || []} />
+                    </>
+                )}
+                {singleLine && <SingleLinePlugin />}
+                {codeOnly && (
+                    <>
+                        <CodeFoldingPlugin />
+                        <CodeEditorPlugin
+                            editorId={id}
+                            validationSchema={validationSchema}
+                            initialValue={value !== undefined ? value : initialValue}
+                            language={language === "code" ? "json" : language}
+                            debug={debug}
+                            additionalCodePlugins={additionalCodePlugins}
+                            onPropertyClick={onPropertyClick}
+                            disableLongText={disableLongText}
+                            decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
+                        />
+                        <TabIndentationPlugin />
+                    </>
+                )}
+                {debug && <DebugPlugin />}
+                {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
+            </Suspense>
+        </DrillInProvider>
     )
 }
 

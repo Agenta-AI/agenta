@@ -21,7 +21,7 @@ export const catalogIntegrationsInfiniteAtom = atomWithInfiniteQuery<Integration
             queryKey: ["tools", "catalog", "integrations", DEFAULT_PROVIDER, search],
             queryFn: async ({pageParam}) =>
                 fetchIntegrations(DEFAULT_PROVIDER, {
-                    search: search || undefined,
+                    search: search.length >= 3 ? search : undefined,
                     limit: CHUNK_SIZE,
                     cursor: (pageParam as string) || undefined,
                 }),
