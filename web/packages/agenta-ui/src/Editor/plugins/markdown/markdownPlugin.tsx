@@ -19,6 +19,7 @@ import {
     $getRoot,
     $createTextNode,
     KEY_ENTER_COMMAND,
+    PASTE_COMMAND,
     $getSelection,
     $isRangeSelection,
     COMMAND_PRIORITY_HIGH,
@@ -137,6 +138,80 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                         return true
                     }
                 })
+                return true
+            },
+            COMMAND_PRIORITY_HIGH,
+        )
+    }, [editor])
+
+    // Prevent monospace-styled HTML from being converted into code blocks.
+    //
+    // Lexical's CodeNode.importDOM() registers a `div` handler that converts
+    // any <div> whose font-family contains "monospace" into a CodeNode.
+    // Source-code editors (VS Code, JetBrains, terminals) put monospace-styled
+    // HTML in the clipboard, so pasting from them creates unwanted code blocks.
+    //
+    // For markdown/plaintext sources, we parse the plain text as markdown
+    // using $convertFromMarkdownString so all constructs (headings, code
+    // fences, lists, etc.) are converted to proper Lexical nodes.
+    useEffect(() => {
+        return editor.registerCommand(
+            PASTE_COMMAND,
+            (event: ClipboardEvent) => {
+                const htmlData = event.clipboardData?.getData("text/html")
+                if (!htmlData) return false
+
+                // Only intercept when HTML contains monospace font styling
+                if (!/font-family[^;]*monospace/i.test(htmlData)) return false
+
+                const plainText = event.clipboardData?.getData("text/plain")
+                if (!plainText) return false
+
+                // Check VS Code metadata to determine the source language.
+                const vscodeData = event.clipboardData?.getData("vscode-editor-data")
+                let sourceMode: string | undefined
+                if (vscodeData) {
+                    try {
+                        sourceMode = JSON.parse(vscodeData)?.mode
+                    } catch {
+                        // ignore parse errors
+                    }
+                }
+
+                // For actual code files (python, javascript, etc.), let Lexical
+                // handle the paste normally — code should render as a code block.
+                if (sourceMode && sourceMode !== "markdown" && sourceMode !== "plaintext") {
+                    return false
+                }
+
+                event.preventDefault()
+
+                // Parse the plain text as markdown so all constructs (headings,
+                // code fences, lists, etc.) become proper Lexical nodes.
+                editor.update(() => {
+                    const selection = $getSelection()
+                    if (!$isRangeSelection(selection)) return
+
+                    // If pasting into an empty editor, convert the whole root
+                    const root = $getRoot()
+                    const isEmpty =
+                        root.getChildrenSize() === 1 &&
+                        root.getFirstChild()?.getTextContent() === ""
+
+                    if (isEmpty) {
+                        $convertFromMarkdownString(
+                            plainText,
+                            PLAYGROUND_TRANSFORMERS,
+                            undefined,
+                            true,
+                        )
+                    } else {
+                        // Pasting into existing content — insert as raw text
+                        // since $convertFromMarkdownString replaces root content
+                        selection.insertRawText(plainText)
+                    }
+                })
+
                 return true
             },
             COMMAND_PRIORITY_HIGH,

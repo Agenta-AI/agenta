@@ -608,11 +608,18 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 return
             }
 
-            // Compare with actual editor content, not just last hydrated value
-            // This ensures undo/redo works even when reverting to a previously hydrated value
+            // Compare with actual editor content serialized as markdown, not plain text.
+            // Using $getRoot().getTextContent() would strip markdown formatting (headings,
+            // code fences, etc.) causing false mismatches after markdown paste/conversion.
             let currentContent = ""
             editor.getEditorState().read(() => {
-                currentContent = $getRoot().getTextContent()
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
+                    currentContent = firstChild.getTextContent()
+                } else {
+                    currentContent = $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
+                }
             })
             // Skip if content already matches (no change needed)
             if (currentContent === next) return
