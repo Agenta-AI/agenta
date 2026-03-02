@@ -5,16 +5,12 @@ from pydantic import BaseModel
 
 
 class RequestType(str, Enum):
-    """Execution request kind that produced an event."""
-
     UNKNOWN = "unknown"
     ROUTER = "router"
     WORKER = "worker"
 
 
 class EventType(str, Enum):
-    """Top-level event classification."""
-
     UNKNOWN = "unknown"
     ENVIRONMENTS_REVISIONS_COMMITTED = "environments.revisions.committed"
     WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"

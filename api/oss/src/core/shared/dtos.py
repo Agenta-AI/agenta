@@ -55,10 +55,6 @@ class FolderScope(BaseModel):
     folder_id: Optional[UUID] = None
 
 
-class ProjectScope(BaseModel):
-    project_id: Optional[UUID] = None
-
-
 class LegacyLifecycleDTO(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

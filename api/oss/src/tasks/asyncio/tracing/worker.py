@@ -242,17 +242,12 @@ class TracingWorker:
                     break
 
                 # Deserialize (handles zlib decompression)
-                (
-                    organization_id,
-                    project_id,
-                    user_id,
-                    span_dto,
-                ) = deserialize_span(span_bytes=span_bytes)
+                msg = deserialize_span(span_bytes=span_bytes)
 
                 # Group by org → (project, user)
-                spans_by_org.setdefault(organization_id, {}).setdefault(
-                    (project_id, user_id), []
-                ).append(span_dto)
+                spans_by_org.setdefault(msg.organization_id, {}).setdefault(
+                    (msg.project_id, msg.user_id), []
+                ).append(msg.span_dto)
 
                 processed_message_ids.append(msg_id)
                 processed_count += 1

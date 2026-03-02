@@ -153,40 +153,6 @@ class WebhooksDAO(WebhooksDAOInterface):
 
             return True
 
-    async def set_subscription_validity(
-        self,
-        *,
-        project_id: UUID,
-        subscription_id: UUID,
-        #
-        is_valid: bool,
-    ) -> Optional[WebhookSubscription]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.id == subscription_id,
-            )
-
-            result = await session.execute(stmt)
-
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return None
-
-            subscription_dbe.flags = {
-                **(subscription_dbe.flags or {}),
-                "is_valid": is_valid,
-            }
-
-            await session.commit()
-
-            await session.refresh(subscription_dbe)
-
-            return map_subscription_dbe_to_dto(
-                subscription_dbe=subscription_dbe,
-            )
-
     async def query_subscriptions(
         self,
         *,
@@ -194,19 +160,12 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         subscription: Optional[WebhookSubscriptionQuery] = None,
         #
-        include_archived: Optional[bool] = None,
-        #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookSubscription]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).filter(
                 WebhookSubscriptionDBE.project_id == project_id,
             )
-
-            if include_archived is not True:
-                stmt = stmt.filter(
-                    WebhookSubscriptionDBE.deleted_at.is_(None),
-                )
 
             if subscription:
                 if subscription.name is not None:
@@ -341,19 +300,12 @@ class WebhooksDAO(WebhooksDAOInterface):
         #
         delivery: Optional[WebhookDeliveryQuery] = None,
         #
-        include_archived: Optional[bool] = None,
-        #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookDelivery]:
         async with engine.core_session() as session:
             stmt = select(WebhookDeliveryDBE).filter(
                 WebhookDeliveryDBE.project_id == project_id,
             )
-
-            if include_archived is not True:
-                stmt = stmt.filter(
-                    WebhookDeliveryDBE.deleted_at.is_(None),
-                )
 
             if delivery:
                 if delivery.status is not None and delivery.status.code is not None:

@@ -1,8 +1,9 @@
 import zlib
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from uuid import UUID
 
 from orjson import dumps, loads
+from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from oss.src.utils.env import env
@@ -24,6 +25,14 @@ def _get_redis() -> Redis:
         _redis = Redis.from_url(env.redis.uri_durable, decode_responses=False)
 
     return _redis
+
+
+class SpanMessage(BaseModel):
+    organization_id: UUID
+    project_id: UUID
+    user_id: UUID
+    #
+    span_dto: OTelFlatSpan
 
 
 def serialize_span(
@@ -56,18 +65,18 @@ def serialize_span(
 def deserialize_span(
     *,
     span_bytes: bytes,
-) -> Tuple[UUID, UUID, UUID, OTelFlatSpan]:
+) -> SpanMessage:
     span_bytes = zlib.decompress(span_bytes)
     data = loads(span_bytes)
 
-    organization_id = UUID(hex=data["organization_id"])
-    project_id = UUID(hex=data["project_id"])
-    user_id = UUID(hex=data["user_id"])
-
     span_payload = data.get("span_dto", data.get("span", {}))
-    span_dto = OTelFlatSpan(**span_payload)
 
-    return (organization_id, project_id, user_id, span_dto)
+    return SpanMessage(
+        organization_id=UUID(hex=data["organization_id"]),
+        project_id=UUID(hex=data["project_id"]),
+        user_id=UUID(hex=data["user_id"]),
+        span_dto=OTelFlatSpan(**span_payload),
+    )
 
 
 async def publish_spans(

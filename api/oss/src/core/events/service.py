@@ -19,6 +19,7 @@ class EventsService:
     ) -> int:
         return await self.events_dao.ingest(
             project_id=project_id,
+            #
             events=events,
         )
 

@@ -1,3 +1,4 @@
+import zlib
 from typing import Optional
 from uuid import UUID
 
@@ -36,6 +37,7 @@ class EventMessage(BaseModel):
 
 
 def deserialize_event(*, payload: bytes) -> EventMessage:
+    payload = zlib.decompress(payload)
     raw = loads(payload)
     # Support legacy flat format: scope fields at root level alongside event fields
     if "event" not in raw:
@@ -71,9 +73,12 @@ async def publish_event(
             "event": event.model_dump(mode="json"),
         }
 
+        event_bytes = dumps(message)
+        event_bytes = zlib.compress(event_bytes)
+
         await redis.xadd(
             name="streams:events",
-            fields={"data": dumps(message)},
+            fields={"data": event_bytes},
         )
         return True
     except Exception as e:

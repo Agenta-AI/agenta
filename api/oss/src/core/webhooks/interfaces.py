@@ -36,6 +36,7 @@ class WebhooksDAOInterface:
         self,
         *,
         project_id: UUID,
+        #
         subscription_id: UUID,
     ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
@@ -46,8 +47,6 @@ class WebhooksDAOInterface:
         project_id: UUID,
         #
         subscription: Optional[WebhookSubscriptionQuery] = None,
-        #
-        include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookSubscription]:
@@ -72,16 +71,6 @@ class WebhooksDAOInterface:
     ) -> bool:
         raise NotImplementedError
 
-    async def set_subscription_validity(
-        self,
-        *,
-        project_id: UUID,
-        subscription_id: UUID,
-        #
-        is_valid: bool,
-    ) -> Optional[WebhookSubscription]:
-        raise NotImplementedError
-
     # --- deliveries ------------------------------------------------------------
 
     async def create_delivery(
@@ -98,6 +87,7 @@ class WebhooksDAOInterface:
         self,
         *,
         project_id: UUID,
+        #
         delivery_id: UUID,
     ) -> Optional[WebhookDelivery]:
         raise NotImplementedError
@@ -108,8 +98,6 @@ class WebhooksDAOInterface:
         project_id: UUID,
         #
         delivery: Optional[WebhookDeliveryQuery] = None,
-        #
-        include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[WebhookDelivery]:
