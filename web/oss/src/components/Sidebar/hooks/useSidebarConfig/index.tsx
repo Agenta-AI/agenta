@@ -53,6 +53,7 @@ export const useSidebarConfig = () => {
             title: "Playground",
             link: `${projectURL}/playground`,
             icon: <Rocket size={14} />,
+            isHidden: true,
             disabled: !hasProjectURL,
         },
         {
