@@ -71,7 +71,7 @@ def test_generate_secret_length_and_charset():
     from unittest.mock import MagicMock
 
     service = WebhooksService(
-        dao=MagicMock(),
+        webhooks_dao=MagicMock(),
         vault_service=MagicMock(),
     )
 
@@ -86,7 +86,7 @@ def test_generate_secret_is_random():
     from unittest.mock import MagicMock
 
     service = WebhooksService(
-        dao=MagicMock(),
+        webhooks_dao=MagicMock(),
         vault_service=MagicMock(),
     )
 

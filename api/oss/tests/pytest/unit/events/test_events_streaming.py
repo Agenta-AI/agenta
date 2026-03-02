@@ -20,7 +20,9 @@ _TIMESTAMP = "2024-06-01T12:00:00+00:00"
 
 
 def _encode(obj: dict) -> bytes:
-    return dumps(obj)
+    import zlib
+
+    return zlib.compress(dumps(obj))
 
 
 # ---------------------------------------------------------------------------

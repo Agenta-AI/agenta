@@ -144,7 +144,10 @@ class WebhooksService:
             secret_id=secret_dto.id,
         )
 
-        return self._with_secret(result, secret_value)
+        return self._with_secret(
+            subscription=result,
+            secret=secret_value,
+        )
 
     async def fetch_subscription(
         self,
@@ -168,7 +171,10 @@ class WebhooksService:
                 secret_id=result.secret_id,
             )
 
-            result = self._with_secret(result, secret_value)
+            result = self._with_secret(
+                subscription=result,
+                secret=secret_value,
+            )
 
         return result
 
@@ -211,7 +217,10 @@ class WebhooksService:
                 project_id=project_id,
                 secret_id=result.secret_id,
             )
-            result = self._with_secret(result, secret_value)
+            result = self._with_secret(
+                subscription=result,
+                secret=secret_value,
+            )
 
         return result
 

@@ -46,10 +46,12 @@ class WebhookEventType(str, Enum):
 
 
 class WebhookSubscriptionFlags(BaseModel):
+    is_active: bool = True
     is_valid: bool = False
 
 
 class WebhookSubscriptionQueryFlags(BaseModel):
+    is_active: Optional[bool] = None
     is_valid: Optional[bool] = None
 
 
