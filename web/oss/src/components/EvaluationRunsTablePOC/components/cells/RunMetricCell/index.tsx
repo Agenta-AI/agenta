@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, type ReactNode} from "react"
+import {memo, useEffect, useMemo, useRef, type ReactNode} from "react"
 
 import {Typography} from "antd"
 import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
@@ -7,6 +7,7 @@ import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
+import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {type BasicStats} from "@/oss/lib/metricUtils"
 
 import {
@@ -15,6 +16,11 @@ import {
     formatInvocationMetricValue,
     formatPercent,
 } from "../../../../../lib/runMetrics/formatters"
+import {
+    createEvaluatorOutputTypesKey,
+    getOutputTypesMap,
+    setOutputTypesMap,
+} from "../../../atoms/evaluatorOutputTypes"
 import useRunMetricSelection from "../../../hooks/useRunMetricSelection"
 import type {EvaluationRunTableRow} from "../../../types"
 import type {RunMetricDescriptor} from "../../../types/runMetrics"
@@ -102,6 +108,78 @@ const RunMetricCellContent = memo(
             const label = humanizeMetricPath(stripOutputsNamespace(resolvedKey) ?? resolvedKey)
             setResolvedLabel((prev) => (prev === label ? prev : label))
         }, [isGenericOutputsMetric, selection.state, selection.resolvedKey, setResolvedLabel])
+
+        // Track per-metric cache contributions for this component instance.
+        // Virtualized rows can reuse component instances across different descriptors,
+        // so a single boolean guard can hide valid updates.
+        const contributedOutputTypesRef = useRef<Set<string>>(new Set())
+
+        // Update outputTypesMap cache from stats.type when available
+        // This allows SDK-based evaluators (which don't have schema) to still have their
+        // string metrics filtered out from aggregation columns
+        useEffect(() => {
+            // Only process evaluator metrics
+            if (descriptor.kind !== "evaluator") return
+            if (selection.state !== "hasData") return
+
+            const stats = selection.stats as BasicStats | undefined
+            const statsType = (stats as BasicStats & {type?: string})?.type
+            if (!statsType) return
+
+            const projectId = descriptor.evaluatorRef?.projectId ?? record.projectId ?? null
+            const evaluatorIdentity =
+                descriptor.evaluatorRef?.slug ??
+                descriptor.evaluatorRef?.id ??
+                stepKeyForSelection ??
+                descriptor.stepKey ??
+                null
+            if (!evaluatorIdentity) return
+
+            const outputTypesKey = createEvaluatorOutputTypesKey(projectId, evaluatorIdentity)
+            const currentMap = getOutputTypesMap(outputTypesKey)
+
+            const metricPath = metricPathForSelection ?? descriptor.metricPath
+            if (!metricPath) return
+
+            const canonicalFullPath = canonicalizeMetricKey(metricPath)
+            const metricLeaf = metricPath.includes(".")
+                ? (metricPath.split(".").pop() ?? metricPath)
+                : metricPath
+            const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+            const contributionKey = `${outputTypesKey}:${canonicalFullPath}:${statsType}`
+
+            if (contributedOutputTypesRef.current.has(contributionKey)) {
+                return
+            }
+
+            // Only update if we have new information
+            if (
+                currentMap.get(canonicalFullPath) === statsType &&
+                currentMap.get(canonicalLeafPath) === statsType
+            ) {
+                contributedOutputTypesRef.current.add(contributionKey)
+                return
+            }
+
+            // Create a new map with the updated type
+            const newMap = new Map(currentMap)
+            newMap.set(canonicalFullPath, statsType)
+            newMap.set(canonicalLeafPath, statsType)
+            setOutputTypesMap(outputTypesKey, newMap)
+            contributedOutputTypesRef.current.add(contributionKey)
+        }, [
+            descriptor.kind,
+            descriptor.evaluatorRef?.projectId,
+            descriptor.evaluatorRef?.id,
+            descriptor.evaluatorRef?.slug,
+            descriptor.metricPath,
+            descriptor.stepKey,
+            metricPathForSelection,
+            record.projectId,
+            selection.state,
+            selection.stats,
+            stepKeyForSelection,
+        ])
 
         // const resolvedPathsAtom = useMemo(
         //     () => resolvedMetricPathsAtomFamily(descriptor.id),
