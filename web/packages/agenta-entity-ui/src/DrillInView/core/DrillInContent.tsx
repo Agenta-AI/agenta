@@ -24,6 +24,7 @@ import type {
     DataType,
     DrillInContentProps,
     FieldRendererComponent,
+    FieldViewModeOption,
     PathItem,
     PropertyType,
     SchemaRendererComponent,
@@ -122,9 +123,17 @@ export function DrillInContent({
     initialPath,
     getSchemaAtPath,
     showCollapse = true,
+    enableFieldViewModes = false,
+    hideFieldHeaders = false,
+    hideSingleFieldHeader = false,
+    showFieldCollapse,
+    showFieldDrillIn = true,
+    excludeKeys,
     hideBreadcrumb = false,
     currentPath: controlledPath,
     onPathChange,
+    getFieldViewModeOptions,
+    getDefaultFieldViewMode,
     // Injected renderers
     FieldRenderer = DefaultFieldRenderer,
     SchemaRenderer,
@@ -132,14 +141,16 @@ export function DrillInContent({
     drillInEnabled = true,
     ContextProvider,
 }: DrillInContentWithRenderersProps) {
+    const resolvedShowFieldCollapse = showFieldCollapse ?? showCollapse
+
     // Parse initialPath to array format, removing rootTitle prefix if present
-    const parsedInitialPath = (() => {
+    const parsedInitialPath = useMemo(() => {
         if (!initialPath) return []
         const pathArray = typeof initialPath === "string" ? initialPath.split(".") : initialPath
         // Remove the rootTitle prefix if present
         const startIndex = pathArray[0] === rootTitle ? 1 : 0
         return pathArray.slice(startIndex)
-    })()
+    }, [initialPath, rootTitle])
 
     // Support both controlled and uncontrolled path state
     const [internalPath, setInternalPath] = useState<string[]>(parsedInitialPath)
@@ -165,6 +176,7 @@ export function DrillInContent({
     )
     const [collapsedFields, setCollapsedFields] = useState<Record<string, boolean>>({})
     const [rawModeFields, setRawModeFields] = useState<Record<string, boolean>>({})
+    const [viewModes, setViewModes] = useState<Record<string, string>>({})
 
     // Notify parent when path changes (for persistence across navigation)
     useEffect(() => {
@@ -228,6 +240,10 @@ export function DrillInContent({
 
     const toggleRawMode = useCallback((fieldKey: string) => {
         setRawModeFields((prev) => ({...prev, [fieldKey]: !prev[fieldKey]}))
+    }, [])
+
+    const setFieldViewMode = useCallback((fieldKey: string, mode: string) => {
+        setViewModes((prev) => ({...prev, [fieldKey]: mode}))
     }, [])
 
     // Get current value at path
@@ -367,6 +383,19 @@ export function DrillInContent({
         const fieldName = currentPath[currentPath.length - 1] || "value"
         return [{key: fieldName, name: fieldName, value: value, isColumn: false}]
     }, [currentPath, currentValue, getRootItems, valueMode])
+
+    // Check if current path is at the initial path level (where excludeKeys should apply)
+    const isAtInitialPathLevel = useMemo(() => {
+        if (!excludeKeys?.length) return false
+        if (currentPath.length !== parsedInitialPath.length) return false
+        return parsedInitialPath.every((segment, index) => currentPath[index] === segment)
+    }, [currentPath, parsedInitialPath, excludeKeys])
+
+    // Apply excludeKeys filter when at the initial path level
+    const filteredLevelItems = useMemo(() => {
+        if (!isAtInitialPathLevel || !excludeKeys?.length) return currentLevelItems
+        return currentLevelItems.filter((item) => !excludeKeys.includes(item.key))
+    }, [currentLevelItems, isAtInitialPathLevel, excludeKeys])
 
     // Check if a value is expandable
     const isExpandable = useCallback(
@@ -536,12 +565,12 @@ export function DrillInContent({
             )}
 
             {/* Current level items */}
-            {currentLevelItems.length === 0 && (
+            {filteredLevelItems.length === 0 && (
                 <div className="text-gray-500 text-sm">No items to display</div>
             )}
 
             <div className="flex flex-col gap-2">
-                {currentLevelItems.map((item) => {
+                {filteredLevelItems.map((item) => {
                     const fieldKey = `${currentPath.join(".")}.${item.key}`
                     // When drilling into a primitive, currentPath already contains the full path
                     // and item.key is just the last segment (duplicate). Use currentPath directly.
@@ -550,7 +579,7 @@ export function DrillInContent({
                     const isDrilledPrimitive =
                         currentPath.length > 0 &&
                         currentPath[currentPath.length - 1] === item.key &&
-                        currentLevelItems.length === 1 &&
+                        filteredLevelItems.length === 1 &&
                         !isExpandable(item.value)
                     const fullPath = isDrilledPrimitive ? currentPath : [...currentPath, item.key]
                     const stringValue = valueToString(item.value)
@@ -562,7 +591,8 @@ export function DrillInContent({
                     const isCollapsed = collapsedFields[fieldKey] ?? false
                     const expandable = isExpandable(item.value)
                     const itemCount = getItemCount(item.value)
-                    const showRawToggle = editable && canToggleRawMode(dataType)
+                    const showRawToggle =
+                        !enableFieldViewModes && editable && canToggleRawMode(dataType)
 
                     // Build full data path for mapping
                     // Skip "ag.data" prefix if present (trace span internal structure)
@@ -597,45 +627,95 @@ export function DrillInContent({
                           ).length
                         : 0
 
+                    const fieldViewModeOptions: FieldViewModeOption[] =
+                        enableFieldViewModes && getFieldViewModeOptions
+                            ? getFieldViewModeOptions({
+                                  value: item.value,
+                                  dataType,
+                                  item,
+                                  fieldKey,
+                                  fullPath,
+                              })
+                            : []
+
+                    const selectedViewMode =
+                        fieldViewModeOptions.length > 0
+                            ? (() => {
+                                  const availableModes = fieldViewModeOptions.map(
+                                      (option) => option.value,
+                                  )
+                                  const defaultMode =
+                                      getDefaultFieldViewMode?.({
+                                          value: item.value,
+                                          dataType,
+                                          item,
+                                          fieldKey,
+                                          fullPath,
+                                          options: availableModes,
+                                      }) ?? availableModes[0]
+
+                                  const storedMode = viewModes[fieldKey]
+                                  return storedMode && availableModes.includes(storedMode)
+                                      ? storedMode
+                                      : defaultMode
+                              })()
+                            : undefined
+
+                    const showFieldHeader =
+                        !hideFieldHeaders &&
+                        !(hideSingleFieldHeader && filteredLevelItems.length === 1)
+
                     return (
                         <div key={item.key} className="flex flex-col gap-2">
                             {/* Field header */}
-                            <DrillInFieldHeader
-                                name={item.name}
-                                value={item.value}
-                                isCollapsed={isCollapsed}
-                                onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
-                                itemCount={itemCount}
-                                expandable={expandable}
-                                onDrillIn={expandable ? () => navigateInto(item.key) : undefined}
-                                showRawToggle={showRawToggle}
-                                isRawMode={isRawMode}
-                                onToggleRawMode={
-                                    showRawToggle ? () => toggleRawMode(fieldKey) : undefined
-                                }
-                                showDelete={showDeleteControls && !item.isColumn}
-                                onDelete={
-                                    showDeleteControls && !item.isColumn
-                                        ? () => deleteItem(item.key)
-                                        : undefined
-                                }
-                                alwaysShowCopy={false}
-                                columnOptions={columnOptions}
-                                onMapToColumn={
-                                    onMapToColumn
-                                        ? (column: string) => onMapToColumn(dataPath, column)
-                                        : undefined
-                                }
-                                onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
-                                isMapped={isMapped}
-                                mappedColumn={mappedColumn}
-                                nestedMappingCount={nestedMappingCount}
-                                showCollapse={showCollapse}
-                                showMessage={showMessage}
-                            />
+                            {showFieldHeader && (
+                                <DrillInFieldHeader
+                                    name={item.name}
+                                    value={item.value}
+                                    isCollapsed={isCollapsed}
+                                    onToggleCollapse={() => toggleFieldCollapse(fieldKey)}
+                                    itemCount={itemCount}
+                                    expandable={expandable}
+                                    onDrillIn={
+                                        expandable ? () => navigateInto(item.key) : undefined
+                                    }
+                                    showRawToggle={showRawToggle}
+                                    isRawMode={isRawMode}
+                                    onToggleRawMode={
+                                        showRawToggle ? () => toggleRawMode(fieldKey) : undefined
+                                    }
+                                    showDelete={showDeleteControls && !item.isColumn}
+                                    onDelete={
+                                        showDeleteControls && !item.isColumn
+                                            ? () => deleteItem(item.key)
+                                            : undefined
+                                    }
+                                    alwaysShowCopy={false}
+                                    columnOptions={columnOptions}
+                                    onMapToColumn={
+                                        onMapToColumn
+                                            ? (column: string) => onMapToColumn(dataPath, column)
+                                            : undefined
+                                    }
+                                    onUnmap={onUnmap ? () => onUnmap(dataPath) : undefined}
+                                    isMapped={isMapped}
+                                    mappedColumn={mappedColumn}
+                                    nestedMappingCount={nestedMappingCount}
+                                    viewModeOptions={
+                                        fieldViewModeOptions.length > 0
+                                            ? fieldViewModeOptions
+                                            : undefined
+                                    }
+                                    viewMode={selectedViewMode}
+                                    onViewModeChange={(mode) => setFieldViewMode(fieldKey, mode)}
+                                    showCollapseToggle={resolvedShowFieldCollapse}
+                                    showDrillInButton={showFieldDrillIn}
+                                    showMessage={showMessage}
+                                />
+                            )}
 
                             {/* Field content - always visible when showCollapse is false */}
-                            {(!showCollapse || !isCollapsed) && (
+                            {(!resolvedShowFieldCollapse || !isCollapsed) && (
                                 <div className="px-4">
                                     {(() => {
                                         // Get schema at this path for schema-driven rendering
@@ -696,6 +776,7 @@ export function DrillInContent({
                                                               })
                                                         : undefined
                                                 }
+                                                viewMode={selectedViewMode}
                                             />
                                         )
                                     })()}
