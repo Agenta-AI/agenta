@@ -1,5 +1,4 @@
 from sqlalchemy import ForeignKeyConstraint, Index, PrimaryKeyConstraint
-from sqlalchemy.orm import relationship
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.webhooks.dbas import (
@@ -37,10 +36,6 @@ class WebhookSubscriptionDBE(Base, WebhookSubscriptionDBA):
             "project_id",
             "deleted_at",
         ),
-    )
-
-    secret = relationship(
-        "oss.src.models.db_models.SecretDB",
     )
 
 
