@@ -415,7 +415,7 @@ class WebhooksRouter:
         try:
             delivery = await self.webhooks_service.test_webhook(
                 project_id=UUID(request.state.project_id),
-                user_id=UUID(str(request.state.user_id)),
+                #
                 subscription_id=subscription_id,
             )
             return WebhookDeliveryResponse(
