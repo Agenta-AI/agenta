@@ -204,10 +204,12 @@ const resolveRemainingWorkflowRevisionId = async ({
 
 registerWorkflowCommitCallbacks({
     onQueryInvalidate: async () => {
-        await Promise.all([
-            getDefaultStore().set(playgroundController.actions.invalidateQueries),
-            invalidateEntityQueries(),
-        ])
+        // Only invalidate entity-level queries (oss-variants-for-selection, etc.)
+        // for cross-page cache busting. Workflow-specific queries (list, variants,
+        // revisions) are already invalidated by the commit/archive atoms directly.
+        // Calling invalidateQueriesAtom here would redundantly refetch ALL
+        // ["workflows"] queries including heavy per-revision schema queries.
+        await invalidateEntityQueries()
     },
     onNewRevision: async (result: WorkflowCommitResult) => {
         const store = getDefaultStore()
@@ -231,10 +233,9 @@ registerWorkflowCommitCallbacks({
 
 registerWorkflowArchiveCallbacks({
     onQueryInvalidate: async () => {
-        await Promise.all([
-            getDefaultStore().set(playgroundController.actions.invalidateQueries),
-            invalidateEntityQueries(),
-        ])
+        // Same as commit — only entity-level queries. Workflow-specific
+        // invalidation is handled by archiveWorkflowRevisionAtom directly.
+        await invalidateEntityQueries()
     },
     onRevisionDeleted: async (result: WorkflowArchiveResult) => {
         const store = getDefaultStore()
