@@ -1554,7 +1554,8 @@ class EvaluationsService:
                     statuses=scenario.statuses,
                 ),
             )
-            all_ids = [id_ for id_ in all_ids if id_ in set(status_filtered_ids)]
+            status_set = set(status_filtered_ids)
+            all_ids = [id_ for id_ in all_ids if id_ in status_set]
 
         paged_ids, has_more = paginate_ids(ids=all_ids, windowing=windowing)
 
@@ -3204,6 +3205,10 @@ class SimpleQueuesService:
         )
 
         if not created_queue:
+            await self.evaluations_service.delete_run(
+                project_id=project_id,
+                run_id=run.id,
+            )
             return None
 
         return self._parse_queue(
@@ -3486,7 +3491,8 @@ class SimpleQueuesService:
                     statuses=scenario.statuses,
                 ),
             )
-            all_ids = [id_ for id_ in all_ids if id_ in set(status_filtered_ids)]
+            status_set = set(status_filtered_ids)
+            all_ids = [id_ for id_ in all_ids if id_ in status_set]
 
         if not all_ids:
             return [], None

@@ -1336,7 +1336,9 @@ async def _evaluate_batch_items(
 
         input_step_key = input_steps[0].key if input_steps else None
         invocation_step_key = invocation_steps[0].key if invocation_steps else None
-        evaluator_references = {step.key: step.references for step in annotation_steps}
+        evaluator_references = {
+            step.key: step.references or {} for step in annotation_steps
+        }
         evaluator_revisions: Dict[str, Any] = {}
         for annotation_step_key, annotation_refs in evaluator_references.items():
             evaluator_revision_ref = annotation_refs.get("evaluator_revision")
@@ -1413,7 +1415,28 @@ async def _evaluate_batch_items(
             outputs = None
             query_span_id = None
 
-            if source_testcase_id and input_step_key:
+            if source_testcase_id and source_testcase is None:
+                run_has_errors = True
+                scenario_status = EvaluationStatus.ERRORS
+                await evaluations_service.create_results(
+                    project_id=project_id,
+                    user_id=user_id,
+                    results=[
+                        EvaluationResultCreate(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                            step_key=step.key,
+                            status=EvaluationStatus.ERRORS,
+                            testcase_id=source_testcase_id,
+                            error={
+                                "message": f"Testcase {source_testcase_id} not found."
+                            },
+                        )
+                        for step in annotation_steps
+                    ],
+                )
+
+            if source_testcase_id and source_testcase and input_step_key:
                 input_results = await evaluations_service.create_results(
                     project_id=project_id,
                     user_id=user_id,
