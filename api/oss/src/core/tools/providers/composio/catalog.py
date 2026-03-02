@@ -134,7 +134,7 @@ class ComposioCatalogClient:
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
         params: Dict[str, Any] = {"limit": page_limit}
-        if search:
+        if search and len(search) >= 3:
             params["search"] = search
         if sort_by:
             params["sort_by"] = sort_by

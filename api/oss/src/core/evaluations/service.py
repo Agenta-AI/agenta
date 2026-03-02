@@ -82,7 +82,6 @@ from oss.src.core.applications.services import ApplicationsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
 
@@ -2271,12 +2270,14 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.slug),
-                    application_revision.id,
-                )
+                if not application_revision.slug:
+                    log.warn(
+                        "[EVAL] [run] [make] [failure] application revision is missing slug",
+                        id=application_revision.id,
+                    )
+                    return None
 
-                step_key = "application-" + application_revision_slug
+                step_key = "application-" + application_revision.slug
 
                 application_invocation_steps_keys.append(step_key)
 

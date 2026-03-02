@@ -55,6 +55,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     onPropertyClick?: (path: string) => void
     /** Disable long text node truncation (show full content instead of [N chars]) */
     disableLongText?: boolean
+    /** Render escaped JSON string chars (e.g. \n) as readable text in LongTextNode */
+    decodeEscapedJsonStringsInLongText?: boolean
 }
 
 export interface EditorPluginsProps {
@@ -81,4 +83,6 @@ export interface EditorPluginsProps {
     onPropertyClick?: (path: string) => void
     /** Disable long text node truncation (show full content instead of [N chars]) */
     disableLongText?: boolean
+    /** Render escaped JSON string chars (e.g. \n) as readable text in LongTextNode */
+    decodeEscapedJsonStringsInLongText?: boolean
 }
