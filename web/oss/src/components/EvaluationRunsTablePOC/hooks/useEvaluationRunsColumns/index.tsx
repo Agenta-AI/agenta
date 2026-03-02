@@ -432,7 +432,7 @@ const useEvaluationRunsColumns = ({
     const isMetricHidden = useCallback(
         (groupId: string, metricPath: string, descriptorOutputType: string | null | undefined) => {
             // First check descriptor's outputType
-            if (descriptorOutputType === "string") {
+            if (isStringOutputType(descriptorOutputType)) {
                 return true
             }
 
@@ -450,12 +450,13 @@ const useEvaluationRunsColumns = ({
                 return false
             }
 
-            // Extract the metric name from the full path
-            const metricName = metricPath.includes(".")
+            const canonicalFullPath = canonicalizeMetricKey(metricPath)
+            const metricLeaf = metricPath.includes(".")
                 ? (metricPath.split(".").pop() ?? metricPath)
                 : metricPath
-            const canonicalPath = canonicalizeMetricKey(metricName)
-            const outputType = outputTypesMap.get(canonicalPath)
+            const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+            const outputType =
+                outputTypesMap.get(canonicalFullPath) ?? outputTypesMap.get(canonicalLeafPath)
 
             if (outputType === undefined) {
                 return false
@@ -515,12 +516,18 @@ const useEvaluationRunsColumns = ({
                                 const key = createEvaluatorOutputTypesKey(groupProjectId, groupSlug)
                                 const outputTypesMap = getOutputTypesMap(key)
                                 if (outputTypesMap.size > 0) {
-                                    const metricName = descriptor.metricPath.includes(".")
+                                    const canonicalFullPath = canonicalizeMetricKey(
+                                        descriptor.metricPath,
+                                    )
+                                    const metricLeaf = descriptor.metricPath.includes(".")
                                         ? (descriptor.metricPath.split(".").pop() ??
                                           descriptor.metricPath)
                                         : descriptor.metricPath
-                                    const canonicalPath = canonicalizeMetricKey(metricName)
-                                    enrichedOutputType = outputTypesMap.get(canonicalPath) ?? null
+                                    const canonicalLeafPath = canonicalizeMetricKey(metricLeaf)
+                                    enrichedOutputType =
+                                        outputTypesMap.get(canonicalFullPath) ??
+                                        outputTypesMap.get(canonicalLeafPath) ??
+                                        null
                                 }
                             }
 

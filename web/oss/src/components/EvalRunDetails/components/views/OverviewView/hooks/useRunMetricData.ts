@@ -31,6 +31,61 @@ const falseAtom = atom(false)
 const emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
 const emptyMetricSelectionsAtom = atom<RunMetricSelectionEntry[]>([])
 
+/**
+ * Metric types that can be meaningfully aggregated (mean, distribution, etc.)
+ * These come from the backend stats.type field.
+ */
+const AGGREGATABLE_METRIC_TYPES = new Set([
+    "numeric/continuous",
+    "numeric/discrete",
+    "binary",
+    "categorical/single",
+    "categorical/multiple",
+])
+
+/**
+ * Metric types that should NOT be aggregated (text, JSON objects)
+ */
+const NON_AGGREGATABLE_METRIC_TYPES = new Set(["string", "json"])
+
+/**
+ * Determines if a metric should be included in aggregation views (overview, histograms, spider chart).
+ *
+ * Uses stats.type when available (backend-inferred). Falls back to shape heuristics for legacy data.
+ *
+ * @returns true if the metric can be aggregated, false otherwise
+ */
+const isAggregatableMetric = (stats: BasicStats | undefined): boolean => {
+    if (!stats) return false
+
+    // Check explicit type from backend (most reliable)
+    const statsType = stats.type as string | undefined
+    if (statsType) {
+        if (NON_AGGREGATABLE_METRIC_TYPES.has(statsType)) return false
+        if (AGGREGATABLE_METRIC_TYPES.has(statsType)) return true
+    }
+
+    // Fallback: infer from shape when type is missing (legacy data)
+    // Numeric metrics have statistical moments
+    if (
+        typeof stats.mean === "number" ||
+        typeof stats.median === "number" ||
+        typeof stats.sum === "number" ||
+        typeof stats.max === "number"
+    ) {
+        return true
+    }
+
+    // Boolean/categorical metrics have frequency distribution
+    const freq = stats.freq ?? stats.frequency
+    if (Array.isArray(freq) && freq.length > 0) {
+        return true
+    }
+
+    // Count-only metrics are typically text fields (like reason)
+    return false
+}
+
 export interface RunDescriptor {
     runId: string
     displayName: string
@@ -202,25 +257,31 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
 
     const metricCatalog = useMemo(() => {
         const evaluatorMetrics = evaluatorMetricEntries.flatMap((entry) =>
-            entry.metrics.map((metric) => {
-                const metricKey = metric.canonicalKey || metric.rawKey
-                const displayLabel =
-                    humanizeMetricPath(metric.canonicalKey) ||
-                    humanizeMetricPath(metric.rawKey) ||
-                    metric.rawKey.replace(/[_\.]/g, " ")
-                return {
-                    id: `${entry.stepKey}:${metricKey}`,
-                    evaluatorLabel: entry.label,
-                    evaluatorRef: entry.evaluatorRef ?? null,
-                    fallbackEvaluatorLabel: entry.label,
-                    stepKey: entry.stepKey,
-                    canonicalKey: metric.canonicalKey,
-                    rawKey: metric.rawKey,
-                    fullKey: metric.fullKey,
-                    displayLabel,
-                    metricType: metric.metricType,
-                }
-            }),
+            entry.metrics
+                .filter((metric) => {
+                    // Filter out non-aggregatable metrics (e.g., text fields like "reason")
+                    const stats = baseStatsMap[metric.fullKey] as BasicStats | undefined
+                    return isAggregatableMetric(stats)
+                })
+                .map((metric) => {
+                    const metricKey = metric.canonicalKey || metric.rawKey
+                    const displayLabel =
+                        humanizeMetricPath(metric.canonicalKey) ||
+                        humanizeMetricPath(metric.rawKey) ||
+                        metric.rawKey.replace(/[_\.]/g, " ")
+                    return {
+                        id: `${entry.stepKey}:${metricKey}`,
+                        evaluatorLabel: entry.label,
+                        evaluatorRef: entry.evaluatorRef ?? null,
+                        fallbackEvaluatorLabel: entry.label,
+                        stepKey: entry.stepKey,
+                        canonicalKey: metric.canonicalKey,
+                        rawKey: metric.rawKey,
+                        fullKey: metric.fullKey,
+                        displayLabel,
+                        metricType: metric.metricType,
+                    }
+                }),
         )
 
         const invocationMetrics = INVOCATION_METRIC_KEYS.map((key) => ({
@@ -236,7 +297,7 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
         }))
 
         return [...evaluatorMetrics, ...invocationMetrics]
-    }, [evaluatorMetricEntries])
+    }, [baseStatsMap, evaluatorMetricEntries])
 
     const selectionSignature = useMemo(() => {
         const metricSig = metricCatalog.map((metric) => metric.id).join("|")
