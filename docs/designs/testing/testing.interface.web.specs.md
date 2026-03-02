@@ -68,9 +68,9 @@ Executed via `tsx` for TypeScript support.
 ### Scripts (npm)
 
 **From `web/tests/package.json`:**
-- `pnpm test:e2e` — Run all E2E tests
-- `pnpm test:e2e:ui` — Run with Playwright UI mode
-- `pnpm test:e2e:debug` — Debug mode
+- `pnpm test:acceptance` — Run all acceptance tests
+- `pnpm test:acceptance:ui` — Run with Playwright UI mode
+- `pnpm test:acceptance:debug` — Debug mode
 
 **From `web/package.json`:**
 - `pnpm test:datalayer` — All data layer tests

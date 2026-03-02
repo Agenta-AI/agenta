@@ -7,13 +7,13 @@ Folders, markers, and variables depend on the package under test.
 If conflicts, trust scripts.
 
 ## Recipes
-- Web: `cd web/tests && pnpm test:e2e -- [<folders>] [<markers>]`
+- Web: `cd web/tests && pnpm test:acceptance -- [<folders>] [<markers>]`
 - API/SDK/Services: `cd {api,sdk,services} && python run-tests.py [<markers>] -- [<folders>]`
 
 ## Folders
 
-- Web: `../{oss,ee}/tests/playwright/{e2e,unit,utils}`
-- API/SDK/Services: `{oss,ee}/tests/pytest/{e2e,unit,utils}`
+- Web: `../{oss,ee}/tests/playwright/{acceptance,integration,unit,utils}`
+- API/SDK/Services: `{oss,ee}/tests/pytest/{acceptance,integration,unit,utils}`
 
 ## Markers
 

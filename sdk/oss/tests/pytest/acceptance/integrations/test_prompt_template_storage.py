@@ -3,7 +3,7 @@ import pytest
 from agenta.sdk.managers.shared import SharedManager
 from agenta.sdk.types import Message, PromptTemplate
 
-pytestmark = [pytest.mark.e2e]
+pytestmark = [pytest.mark.acceptance]
 
 
 def test_prompt_template_messages_roundtrip_in_variant_config(
