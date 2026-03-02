@@ -57,6 +57,7 @@ import {atomFamily} from "jotai-family"
 
 import type {LegacyAppRevisionData} from "../core"
 
+import {clearPersistedDraft} from "./draftPersistence"
 import {invalidateEntityQueries} from "./invalidation"
 import {
     revisionsListAtomFamily,
@@ -374,6 +375,7 @@ export const commitRevisionAtom = atom(
             // 5. Clear draft state for the old revision
             set(legacyAppRevisionDraftAtomFamily(revisionId), null)
             set(legacyAppRevisionServerDataAtomFamily(revisionId), null)
+            clearPersistedDraft(revisionId)
 
             return result
         } catch (error) {

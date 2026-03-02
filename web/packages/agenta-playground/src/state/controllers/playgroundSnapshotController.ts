@@ -362,6 +362,7 @@ const createSnapshotAtom = atom(
             if (!encodeResult.ok) {
                 return {
                     ok: false,
+                    snapshot,
                     error: encodeResult.error,
                 }
             }

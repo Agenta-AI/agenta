@@ -42,6 +42,11 @@ import {cloneAsLocalDraft as cloneAsLocalDraftFactory} from "../core/factory"
 import {resolveRootSourceId} from "../utils/sourceResolution"
 
 import {
+    persistLocalDraftData,
+    clearPersistedLocalDraftData,
+    restoreAllLocalDraftData,
+} from "./draftPersistence"
+import {
     legacyAppRevisionServerDataAtomFamily,
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
@@ -193,6 +198,23 @@ export function cleanupStaleLocalDrafts(appId?: string): number {
     }
 
     return removedCount
+}
+
+/**
+ * Initialize local drafts from persisted storage.
+ *
+ * Call this on app initialization, BEFORE cleanupStaleLocalDrafts runs.
+ * Restores local draft data from localStorage so that IDs tracked
+ * in `localDraftIdsByAppAtom` have their corresponding data available.
+ *
+ * @returns Number of local drafts restored from localStorage
+ */
+export function initializeLocalDrafts(): number {
+    // Restore local draft data from localStorage first
+    const restored = restoreAllLocalDraftData()
+    // Then clean up IDs that still have no data (truly stale)
+    cleanupStaleLocalDrafts()
+    return restored
 }
 
 /**
@@ -394,6 +416,9 @@ export function createLocalDraftFromRevision(
     // Initialize in molecule's serverData (this makes it available via entityAtom)
     store.set(legacyAppRevisionServerDataAtomFamily(localId), dataWithSource)
 
+    // Persist local draft data to localStorage for page-reload survival
+    persistLocalDraftData(localId)
+
     // Track in local drafts list, scoped by app ID
     // Priority: explicit appId param > source data's appId > registered app ID atom
     const resolvedAppId = appId || dataWithSource.appId || getRegisteredAppId(store.get)
@@ -475,8 +500,9 @@ export function discardLocalDraft(localDraftId: string): boolean {
         return {...prev, [appId]: filtered}
     })
 
-    // Clear molecule data
+    // Clear molecule data and persisted storage
     store.set(legacyAppRevisionServerDataAtomFamily(localDraftId), null)
+    clearPersistedLocalDraftData(localDraftId)
     store.set(localDraftSourceRefsByIdAtom, (prev) => {
         const next = {...prev}
         delete next[localDraftId]
@@ -498,9 +524,10 @@ export function discardAllLocalDrafts(): number {
     // Collect all draft IDs
     const allIds = Object.values(allDraftsByApp).flat()
 
-    // Clear each draft's data
+    // Clear each draft's data and persisted storage
     allIds.forEach((id) => {
         store.set(legacyAppRevisionServerDataAtomFamily(id), null)
+        clearPersistedLocalDraftData(id)
     })
 
     // Clear the tracking storage

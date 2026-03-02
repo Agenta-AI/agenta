@@ -26,17 +26,17 @@ import type {CommitModeOption, CommitSubmitParams, CommitSubmitResult} from "@ag
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {
-    TestsetSelectionModal,
-    type PreviewPanelRenderProps,
-    type TestsetSelectionMode,
-    type TestsetSelectionPayload,
-} from "@agenta/playground-ui/components"
-import {
     executionByMessageIdAtomFamily,
     isChatModeAtom,
     resultsByKeyAtomFamily,
     type MessageExecution,
 } from "@agenta/playground/state"
+import {
+    TestsetSelectionModal,
+    type PreviewPanelRenderProps,
+    type TestsetSelectionMode,
+    type TestsetSelectionPayload,
+} from "@agenta/playground-ui/components"
 import {
     ArrowsLeftRightIcon,
     CaretDownIcon,

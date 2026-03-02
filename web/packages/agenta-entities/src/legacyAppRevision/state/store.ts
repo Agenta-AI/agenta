@@ -40,6 +40,7 @@ import {
 import type {LegacyAppRevisionData} from "../core"
 import {stripVolatileKeys} from "../utils"
 
+import {clearPersistedDraft} from "./draftPersistence"
 import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
 
 // ============================================================================
@@ -1223,6 +1224,9 @@ export const updateLegacyAppRevisionAtom = atom(
  */
 export const discardLegacyAppRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
     set(getDraftAtom(revisionId), null)
+
+    // Clear persisted draft from localStorage
+    clearPersistedDraft(revisionId)
 })
 
 // ============================================================================

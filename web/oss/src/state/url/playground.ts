@@ -1,6 +1,10 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
+import {
+    initializeLocalDrafts,
+    cleanupStalePersistedDrafts,
+} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {getRunnableTypeHint, registerRunnableTypeHint} from "@agenta/entities/shared"
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
@@ -17,6 +21,8 @@ import {
     playgroundInitializedAtom,
     playgroundController,
 } from "@agenta/playground"
+import type {PlaygroundSnapshot} from "@agenta/playground/snapshot"
+import {playgroundSnapshotController} from "@agenta/playground/state"
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
@@ -95,6 +101,9 @@ let urlUpdateRafId: number | null = null
  * resets plain `let` variables, but atom state lives in the default store).
  */
 const _lastWrittenUrlAtom = atom<string | null>(null)
+
+/** Track whether URL encoding has failed to suppress repeated warnings */
+let lastEncodingFailed = false
 
 /**
  * Extract snapshot parameter from URL hash.
@@ -339,9 +348,30 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             )
 
             if (!urlComponents.ok) {
-                console.warn("Failed to build URL components:", urlComponents.error)
+                if (!lastEncodingFailed) {
+                    console.warn(
+                        "[Playground] Draft state too large for URL — persisted to localStorage only.",
+                        urlComponents.error,
+                    )
+                    lastEncodingFailed = true
+                }
+
+                // Clear stale snapshot hash from URL so that on reload
+                // SUB 10 can restore from localStorage instead of skipping
+                // because it thinks a (now-stale) URL snapshot exists.
+                const currentUrl = new URL(window.location.href)
+                if (currentUrl.hash) {
+                    currentUrl.hash = ""
+                    // Keep the query param (revision IDs) but remove the hash
+                    const newUrl = `${currentUrl.pathname}${currentUrl.search}`
+                    setLastWrittenSnapshotHash(null)
+                    setLastWrittenUrl(newUrl)
+                    window.history.replaceState(window.history.state, "", newUrl)
+                }
+
                 return
             }
+            lastEncodingFailed = false
 
             // Set query param
             if (urlComponents.queryParam) {
@@ -1049,6 +1079,130 @@ playgroundSyncAtom.onMount = (set) => {
         },
     )
     unsubs.push(unsubNewTestcaseData)
+
+    // -----------------------------------------------------------------------
+    // SUB 9: Persist full playground snapshot to localStorage (debounced 1s)
+    // -----------------------------------------------------------------------
+    // Subscribes to the same selectedDraftHashAtom as SUB 3 (URL sync).
+    // When the URL encoding fails for large entities (>8KB), this ensures
+    // draft state is still persisted to localStorage as a fallback.
+    // Uses playgroundSnapshotController.createSnapshot for entity-type-agnostic
+    // snapshot building (works for workflow, legacyAppRevision, etc.)
+    const DRAFT_SNAPSHOT_KEY = "agenta:playground-draft-snapshot"
+
+    let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const unsubPersist = store.sub(selectedDraftHashAtom, () => {
+        if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+        persistDebounceTimer = setTimeout(() => {
+            try {
+                const entityIds = store.get(playgroundController.selectors.entityIds())
+                if (entityIds.length === 0) {
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    return
+                }
+
+                const nodes = store.get(playgroundController.selectors.nodes())
+                const snapshotInputs = buildSnapshotSelectionInputs(entityIds, nodes)
+
+                const result = store.set(
+                    playgroundSnapshotController.actions.createSnapshot,
+                    snapshotInputs,
+                )
+
+                if (result.snapshot) {
+                    const hasDraftChanges =
+                        result.snapshot.drafts.length > 0 ||
+                        result.snapshot.selection.some((s) => s.kind === "ephemeral")
+
+                    if (hasDraftChanges) {
+                        localStorage.setItem(
+                            DRAFT_SNAPSHOT_KEY,
+                            JSON.stringify({
+                                snapshot: result.snapshot,
+                                timestamp: Date.now(),
+                            }),
+                        )
+                    } else {
+                        localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                    }
+                }
+            } catch (err) {
+                console.warn("[SUB 9] Error persisting snapshot:", err)
+            }
+        }, 1000)
+    })
+    unsubs.push(unsubPersist)
+    unsubs.push(() => {
+        if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+    })
+
+    // -----------------------------------------------------------------------
+    // SUB 10: Restore persisted snapshot from localStorage (one-time on mount)
+    // -----------------------------------------------------------------------
+    // Initialize local draft data from localStorage FIRST (before SUB 4 validation)
+    initializeLocalDrafts()
+
+    // Clean up stale persisted drafts older than 7 days
+    cleanupStalePersistedDrafts()
+
+    // Check if URL had a snapshot — if so, skip localStorage restoration
+    // (URL snapshot takes priority as it's an explicit sharing action)
+    const urlHadSnapshot = getLastWrittenSnapshotHash() !== null
+
+    if (!urlHadSnapshot) {
+        // Read the persisted full snapshot from localStorage
+        let persistedSnapshot: PlaygroundSnapshot | null = null
+        try {
+            const raw = localStorage.getItem(DRAFT_SNAPSHOT_KEY)
+            if (raw) {
+                const parsed = JSON.parse(raw)
+                const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+                if (parsed?.timestamp && Date.now() - parsed.timestamp > SEVEN_DAYS_MS) {
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                } else if (parsed?.snapshot) {
+                    persistedSnapshot = parsed.snapshot as PlaygroundSnapshot
+                }
+            }
+        } catch (err) {
+            console.warn("[SUB 10] Parse error:", err)
+        }
+
+        if (persistedSnapshot && persistedSnapshot.drafts.length > 0) {
+            // Wait for entity IDs to be populated (by URL sync or defaults),
+            // then hydrate the snapshot to apply draft patches.
+            // The snapshot's selection matches the URL's ?revisions= param,
+            // so we only need the pending hydrations mechanism (SUB 1).
+            let restoreSetupDone = false
+            const entityIdsAtom = playgroundController.selectors.entityIds()
+
+            const tryHydrateSnapshot = () => {
+                if (restoreSetupDone) return
+                const selected = store.get(entityIdsAtom)
+                if (selected.length === 0) return
+
+                restoreSetupDone = true
+
+                // Hydrate the snapshot — this creates pending hydrations
+                // that SUB 1 will apply when server data loads
+                const hydrateResult = store.set(
+                    playgroundSnapshotController.actions.hydrateSnapshot,
+                    persistedSnapshot!,
+                )
+
+                if (hydrateResult.ok) {
+                    // Clear from localStorage after successful hydration setup
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                }
+            }
+
+            const unsubRestoreSetup = store.sub(entityIdsAtom, tryHydrateSnapshot)
+            unsubs.push(unsubRestoreSetup)
+
+            // Also try immediately in case selection is already populated
+            tryHydrateSnapshot()
+        }
+    }
 
     // -----------------------------------------------------------------------
     // CLEANUP

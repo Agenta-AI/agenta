@@ -407,10 +407,37 @@ export {
     // Imperative functions
     createLocalDraftFromRevision,
     getSourceRevisionId,
+    discardLocalDraft,
+    discardAllLocalDrafts,
+    discardRevisionDraftAtom,
+    cleanupStaleLocalDrafts,
+    initializeLocalDrafts,
     // App ID registration (called from OSS bridge)
     registerAppIdAtom,
     // Re-exports
     isLocalDraftId,
     extractSourceIdFromDraft,
     isLocalDraftsGroupId,
+} from "./state"
+
+// ============================================================================
+// DRAFT PERSISTENCE - localStorage backup for draft state
+// ============================================================================
+
+export {
+    // Imperative functions
+    persistDraftPatch,
+    persistLocalDraftData,
+    clearPersistedDraft,
+    clearPersistedLocalDraftData,
+    getPersistedDraftPatches,
+    restorePersistedDraft,
+    restoreAllLocalDraftData,
+    cleanupStalePersistedDrafts,
+    // Atoms (for direct access if needed)
+    persistedDraftPatchesAtom,
+    persistedLocalDraftDataAtom,
+    // Types
+    type PersistedDraftPatch,
+    type PersistedLocalDraftData,
 } from "./state"

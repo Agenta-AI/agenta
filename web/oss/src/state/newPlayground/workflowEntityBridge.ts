@@ -52,7 +52,7 @@ const isVisibleWorkflowRevision = (
 ) => Boolean(workflow?.id) && Number(workflow?.version ?? 0) > 0
 
 const extractVisibleRevisionIds = (
-    revisions: Array<{id?: string | null; version?: number | null}> | null | undefined,
+    revisions: {id?: string | null; version?: number | null}[] | null | undefined,
     excludeId?: string,
 ) =>
     (revisions ?? [])
@@ -84,10 +84,7 @@ const resolveRemainingWorkflowRevisionId = async ({
 
         try {
             const refetched = await query.refetch()
-            return extractVisibleRevisionIds(
-                refetched.data?.workflow_revisions,
-                revisionId,
-            )
+            return extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId)
         } catch (error) {
             console.warn(
                 "[workflowEntityBridge] Failed to refetch adjacent variant revisions:",
@@ -135,10 +132,7 @@ const resolveRemainingWorkflowRevisionId = async ({
             try {
                 const refetched = await variantRevisionsQuery.refetch()
                 const refetchedSiblingId = findAdjacentId(
-                    extractVisibleRevisionIds(
-                        refetched.data?.workflow_revisions,
-                        revisionId,
-                    ),
+                    extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId),
                     revisionId,
                 )
                 if (refetchedSiblingId) return refetchedSiblingId
@@ -187,7 +181,9 @@ const resolveRemainingWorkflowRevisionId = async ({
 
     try {
         const refetched = await revisionsQuery.refetch()
-        return extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId).at(0) ?? null
+        return (
+            extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId).at(0) ?? null
+        )
     } catch (error) {
         console.warn(
             "[workflowEntityBridge] Failed to refetch workflow revisions after delete:",
