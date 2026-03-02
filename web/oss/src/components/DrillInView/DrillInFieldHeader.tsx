@@ -13,7 +13,7 @@ import {
     Trash,
     X,
 } from "@phosphor-icons/react"
-import {Button, Input, Popover, Tooltip} from "antd"
+import {Button, Input, Popover, Select, Tooltip} from "antd"
 
 export interface DrillInFieldHeaderProps {
     /** Field name to display */
@@ -60,6 +60,16 @@ export interface DrillInFieldHeaderProps {
     isMarkdownView?: boolean
     /** Callback when markdown view is toggled */
     onToggleMarkdownView?: () => void
+    /** Available content view modes for this field */
+    viewModeOptions?: {value: string; label: string}[]
+    /** Current content view mode */
+    viewMode?: string
+    /** Callback when content view mode changes */
+    onViewModeChange?: (mode: string) => void
+    /** Show collapse toggle in the header (default: true) */
+    showCollapseToggle?: boolean
+    /** Show drill-in action button in the header (default: true) */
+    showDrillInButton?: boolean
 }
 
 /**
@@ -220,6 +230,11 @@ const DrillInFieldHeader = memo(
         showMarkdownToggle = false,
         isMarkdownView = false,
         onToggleMarkdownView,
+        viewModeOptions,
+        viewMode,
+        onViewModeChange,
+        showCollapseToggle = true,
+        showDrillInButton = true,
     }: DrillInFieldHeaderProps) => {
         const [copiedField, setCopiedField] = useState<string | null>(null)
 
@@ -234,16 +249,20 @@ const DrillInFieldHeader = memo(
         const showCopyButton = alwaysShowCopy || isCollapsed || expandable
 
         return (
-            <div className="flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
+            <div className="drill-in-field-header flex items-center justify-between py-2 px-3 bg-[#FAFAFA] rounded-md border-solid border-[1px] border-[rgba(5,23,41,0.06)]">
                 <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={onToggleCollapse}
-                        className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
-                    >
-                        {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                    {showCollapseToggle ? (
+                        <button
+                            type="button"
+                            onClick={onToggleCollapse}
+                            className="flex items-center gap-2 text-left hover:text-gray-700 transition-colors bg-transparent border-none p-0 cursor-pointer"
+                        >
+                            {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                            <span className="text-gray-700 font-medium">{name}</span>
+                        </button>
+                    ) : (
                         <span className="text-gray-700 font-medium">{name}</span>
-                    </button>
+                    )}
                     {mappedColumn ? (
                         <span className="text-xs text-green-600 font-medium">
                             mapped to {mappedColumn}
@@ -258,6 +277,19 @@ const DrillInFieldHeader = memo(
                     )}
                 </div>
                 <div className="flex items-center gap-2">
+                    {viewModeOptions &&
+                        viewModeOptions.length > 1 &&
+                        viewMode &&
+                        onViewModeChange && (
+                            <Select
+                                size="small"
+                                value={viewMode}
+                                options={viewModeOptions}
+                                onChange={onViewModeChange}
+                                className="min-w-[126px]"
+                                popupMatchSelectWidth={false}
+                            />
+                        )}
                     {showCopyButton && (
                         <Tooltip title={copiedField === name ? "Copied" : "Copy"}>
                             <Button
@@ -299,7 +331,7 @@ const DrillInFieldHeader = memo(
                             />
                         </Tooltip>
                     )}
-                    {expandable && onDrillIn && (
+                    {showDrillInButton && expandable && onDrillIn && (
                         <Button
                             type="text"
                             size="small"
