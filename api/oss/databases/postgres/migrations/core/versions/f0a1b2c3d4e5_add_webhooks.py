@@ -1,7 +1,7 @@
 """add webhook_subscriptions and webhook_deliveries tables
 
 Revision ID: f0a1b2c3d4e5
-Revises: d4e5f6a7b8c9
+Revises: e5f6a1b2c3d4
 Create Date: 2026-03-01 00:01:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "f0a1b2c3d4e5"
-down_revision: Union[str, None] = "d4e5f6a7b8c9"
+down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

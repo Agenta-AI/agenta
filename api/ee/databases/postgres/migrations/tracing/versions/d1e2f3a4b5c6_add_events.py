@@ -1,4 +1,4 @@
-"""add_events_table
+"""add_events
 
 Revision ID: d1e2f3a4b5c6
 Revises: a2b3c4d5e6f7
