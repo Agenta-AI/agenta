@@ -25,13 +25,18 @@ import {testcaseMolecule} from "@agenta/entities/testcase"
 import type {CommitModeOption, CommitSubmitParams, CommitSubmitResult} from "@agenta/entity-ui"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
-import {resultsByKeyAtomFamily} from "@agenta/playground/state"
 import {
     TestsetSelectionModal,
     type PreviewPanelRenderProps,
     type TestsetSelectionMode,
     type TestsetSelectionPayload,
 } from "@agenta/playground-ui/components"
+import {
+    executionByMessageIdAtomFamily,
+    isChatModeAtom,
+    resultsByKeyAtomFamily,
+    type MessageExecution,
+} from "@agenta/playground/state"
 import {
     ArrowsLeftRightIcon,
     CaretDownIcon,
@@ -46,6 +51,11 @@ import {Button, Dropdown, Input, Typography, message} from "antd"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
+import {
+    extractRootSpanIdFromTraceData,
+    toTestsetTraceReference,
+    type TestsetTraceReference,
+} from "@/oss/lib/traces/traceUtils"
 import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
@@ -166,8 +176,26 @@ export function TestsetDropdown() {
             () =>
                 atom((get) => {
                     if (!loadableId) return false
-                    const all = get(resultsByKeyAtomFamily(loadableId))
-                    return Object.values(all).some((r) => r?.status === "success" && !!r?.traceId)
+                    const allResults = get(resultsByKeyAtomFamily(loadableId))
+                    const hasCompletionResults = Object.values(allResults).some(
+                        (r) => r?.status === "success" && !!r?.traceId,
+                    )
+
+                    if (hasCompletionResults) return true
+
+                    const isChat = get(isChatModeAtom)
+                    if (isChat) {
+                        const chatExecutions = get(executionByMessageIdAtomFamily(loadableId))
+                        return Object.values(
+                            chatExecutions as Record<string, MessageExecution>,
+                        ).some(
+                            (r) =>
+                                (r?.status === "complete" || r?.status === "success") &&
+                                !!r?.traceId,
+                        )
+                    }
+
+                    return false
                 }),
             [loadableId],
         ),
@@ -175,21 +203,66 @@ export function TestsetDropdown() {
 
     // ── Add-to-testset drawer state ────────────────────────────────────────
     const [addToTestsetOpen, setAddToTestsetOpen] = useState(false)
-    const [testsetSpanIds, setTestsetSpanIds] = useState<string[]>([])
+    const [testsetTraceReferences, setTestsetTraceReferences] = useState<TestsetTraceReference[]>(
+        [],
+    )
+
+    const testsetSpanIds = useAtomValue(
+        useMemo(
+            () =>
+                atom((get) => {
+                    const spanIds: string[] = []
+                    const seen = new Set<string>()
+
+                    testsetTraceReferences.forEach(({traceId, spanId}) => {
+                        const resolvedSpanId =
+                            spanId ||
+                            (traceId
+                                ? extractRootSpanIdFromTraceData(
+                                      traceId,
+                                      get(loadableController.selectors.traceData(traceId)),
+                                  )
+                                : null)
+
+                        if (!resolvedSpanId || seen.has(resolvedSpanId)) return
+
+                        seen.add(resolvedSpanId)
+                        spanIds.push(resolvedSpanId)
+                    })
+
+                    return spanIds
+                }),
+            [testsetTraceReferences],
+        ),
+    )
 
     const handleAddToTestset = useCallback(() => {
         if (!loadableId) return
         const allResults = store.get(resultsByKeyAtomFamily(loadableId))
-        const ids = Object.values(allResults)
+        const completionTraceReferences = Object.values(allResults)
             .filter((r) => r?.status === "success" && !!r?.traceId)
-            .map((r) => r!.traceId!)
-        setTestsetSpanIds(ids)
+            .map(toTestsetTraceReference)
+            .filter((reference): reference is TestsetTraceReference => !!reference)
+
+        let chatTraceReferences: TestsetTraceReference[] = []
+        const isChat = store.get(isChatModeAtom)
+        if (isChat) {
+            const chatExecutions = store.get(executionByMessageIdAtomFamily(loadableId))
+            chatTraceReferences = Object.values(chatExecutions as Record<string, MessageExecution>)
+                .filter(
+                    (r) => (r?.status === "complete" || r?.status === "success") && !!r?.traceId,
+                )
+                .map(toTestsetTraceReference)
+                .filter((reference): reference is TestsetTraceReference => !!reference)
+        }
+
+        setTestsetTraceReferences([...completionTraceReferences, ...chatTraceReferences])
         setAddToTestsetOpen(true)
     }, [loadableId, store])
 
     const handleAddToTestsetClose = useCallback(() => {
         setAddToTestsetOpen(false)
-        setTestsetSpanIds([])
+        setTestsetTraceReferences([])
     }, [])
 
     // ── TestsetSelectionModal state ─────────────────────────────────────────
