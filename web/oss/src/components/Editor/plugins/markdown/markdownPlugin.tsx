@@ -1,4 +1,4 @@
-import {useEffect, useCallback} from "react"
+import {useLayoutEffect, useEffect, useCallback} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
@@ -27,7 +27,7 @@ import {
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
-import {TOGGLE_MARKDOWN_VIEW} from "./commands"
+import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -81,19 +81,31 @@ const MarkdownPlugin = ({id}: {id: string}) => {
     const [, setMarkdownView] = useAtom(markdownViewAtom(id))
     const [editor] = useLexicalComposerContext()
 
-    const handleMarkdownToggle = useCallback(() => {
-        editor.update(() => {
-            const root = $getRoot()
-            const firstChild = root.getFirstChild()
-            if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
-                $convertFromMarkdownString(
-                    firstChild.getTextContent(),
-                    PLAYGROUND_TRANSFORMERS,
-                    undefined,
-                    true,
-                )
-                setMarkdownView(false)
-            } else {
+    const handleSetMarkdownView = useCallback(
+        (nextMarkdownView?: boolean) => {
+            editor.update(() => {
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                const isMarkdownView =
+                    $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+                const shouldEnableMarkdown = nextMarkdownView ?? !isMarkdownView
+
+                if (shouldEnableMarkdown === isMarkdownView) {
+                    setMarkdownView(shouldEnableMarkdown)
+                    return
+                }
+
+                if (isMarkdownView) {
+                    $convertFromMarkdownString(
+                        firstChild.getTextContent(),
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                    setMarkdownView(false)
+                    return
+                }
+
                 const markdown = $convertToMarkdownStringCustom(
                     PLAYGROUND_TRANSFORMERS,
                     undefined,
@@ -104,11 +116,35 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                 root.clear().append(codeNode)
                 codeNode.selectStart()
                 setMarkdownView(true)
-            }
+            })
+        },
+        [editor, setMarkdownView],
+    )
+
+    const handleMarkdownToggle = useCallback(() => {
+        handleSetMarkdownView()
+    }, [handleSetMarkdownView])
+
+    useLayoutEffect(() => {
+        return editor.registerCommand(
+            SET_MARKDOWN_VIEW,
+            (nextMarkdownView) => {
+                handleSetMarkdownView(nextMarkdownView)
+                return true
+            },
+            COMMAND_PRIORITY_HIGH,
+        )
+    }, [editor, handleSetMarkdownView])
+
+    useLayoutEffect(() => {
+        editor.update(() => {
+            const root = $getRoot()
+            const firstChild = root.getFirstChild()
+            setMarkdownView($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown")
         })
     }, [editor, setMarkdownView])
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         return editor.registerCommand(
             TOGGLE_MARKDOWN_VIEW,
             () => {

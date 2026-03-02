@@ -11,9 +11,9 @@ This example demonstrates how to instrument a Node.js application with OpenTelem
 ## Version Compatibility
 
 This example uses the latest stable versions:
-- **OpenAI SDK** (`latest` - v6.x)
-- **OpenInference Instrumentation** (`latest` - v3.x)
-- **OpenInference Semantic Conventions** (`latest` - v2.x)
+- **OpenAI SDK** (`^4.x`)
+- **OpenInference Instrumentation** (`^2.x`)
+- **OpenInference Semantic Conventions** (`^2.x`)
 
 ## Setup
 

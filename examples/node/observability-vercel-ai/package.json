@@ -1,0 +1,19 @@
+{
+  "name": "agenta-vercel-ai-observability",
+  "version": "1.0.0",
+  "description": "Agenta observability example using Vercel AI SDK with built-in OpenTelemetry",
+  "type": "module",
+  "scripts": {
+    "start": "node --import ./instrumentation.js app.js"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.3.22",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.54.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/sdk-trace-base": "^1.28.0",
+    "@opentelemetry/sdk-trace-node": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0",
+    "ai": "^4.3.16",
+    "dotenv": "^16.4.7"
+  }
+}
