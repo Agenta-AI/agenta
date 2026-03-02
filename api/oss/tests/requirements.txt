@@ -7,3 +7,5 @@ pytest-cov
 pytest-html
 pytest-mock
 pytest-xdist
+asyncpg
+sendgrid

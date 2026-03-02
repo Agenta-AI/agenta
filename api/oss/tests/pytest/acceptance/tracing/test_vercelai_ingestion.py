@@ -83,7 +83,7 @@ def _build_otlp_protobuf(
             start_time_unix_nano=start_ns,
             end_time_unix_nano=end_ns,
             attributes=attrs,
-            status=Status(code=Status.StatusCode.Value("STATUS_CODE_OK")),
+            status=Status(code=Status.StatusCode.STATUS_CODE_OK),
         )
         proto_spans.append(proto_span)
 
