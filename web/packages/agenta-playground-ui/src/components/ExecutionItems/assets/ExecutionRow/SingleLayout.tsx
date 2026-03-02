@@ -1,12 +1,12 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {DropdownButton, HeightCollapse} from "@agenta/ui/components"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
+import {DropdownButton, HeightCollapse} from "@agenta/ui/components"
 import {
     CollapsibleGroupHeader,
     EnhancedButton,
@@ -26,8 +26,7 @@ import {
 } from "@phosphor-icons/react"
 import {Tag} from "antd"
 import clsx from "clsx"
-import {atom} from "jotai"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
 import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
@@ -39,8 +38,8 @@ import ExecutionResultView from "../../../ExecutionResultView"
 import CollapseToggleButton from "../../../shared/CollapseToggleButton"
 import {EvaluatorFieldGrid} from "../../../shared/EvaluatorFieldGrid"
 import {
-    extractDisplayEntries,
     buildSchemaMap,
+    extractDisplayEntries,
     formatFieldLabel,
 } from "../../../shared/EvaluatorFieldGrid/utils"
 import {
@@ -56,6 +55,7 @@ interface Props {
     isBusy: boolean
     isRunning: boolean
     inputOnly?: boolean
+    index?: number
 
     result: unknown
     resultHash: string | null
@@ -358,6 +358,7 @@ const SingleView = ({
     cancelRow,
     containerClassName,
     appType,
+    index,
     renderTestsetButton,
 }: Props) => {
     const variableIds = useAtomValue(executionItemController.selectors.variableKeys) as string[]
@@ -500,7 +501,10 @@ const SingleView = ({
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
-    const testCaseLabel = useMemo(() => `testcase ${getShortTestcaseId(rowId)}`, [rowId])
+    const testCaseLabel = useMemo(
+        () => `testcase ${index !== undefined ? index + 1 : getShortTestcaseId(rowId)}`,
+        [rowId, index],
+    )
 
     // Delete and duplicate handlers
     const deleteRow = useSetAtom(executionItemController.actions.deleteRow)

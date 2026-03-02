@@ -11,6 +11,7 @@ export interface ExecutionRowProps {
     disabled?: boolean
     forceSingle?: boolean
     appType?: string
+    index?: number
     /** Render slot for testset drawer button (passed through to SingleLayout) */
     renderTestsetButton?: (props: {
         results: unknown[]
@@ -30,6 +31,7 @@ const ExecutionRow = ({
     disabled,
     forceSingle,
     appType,
+    index,
     renderTestsetButton,
 }: ExecutionRowProps) => {
     // Skip heavy execution cell data when only rendering variable inputs
@@ -50,6 +52,7 @@ const ExecutionRow = ({
             cancelRow={row.cancelRow}
             containerClassName="border-0 border-b border-solid border-colorBorderSecondary"
             appType={appType}
+            index={index}
             renderTestsetButton={renderTestsetButton}
         />
     ) : (

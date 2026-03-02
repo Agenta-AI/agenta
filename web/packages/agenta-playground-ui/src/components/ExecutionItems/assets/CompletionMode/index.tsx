@@ -59,11 +59,12 @@ const CompletionMode = ({
                     renderTestsetButton={renderTestsetButton}
                 />
             ) : (
-                executionRowIds.map((rowIdItem) => (
+                executionRowIds.map((rowIdItem, index) => (
                     <ExecutionRow
                         key={rowIdItem}
                         entityId={entityId}
                         rowId={rowIdItem}
+                        index={index}
                         className={rowClassName}
                         appType={appType}
                         renderTestsetButton={renderTestsetButton}

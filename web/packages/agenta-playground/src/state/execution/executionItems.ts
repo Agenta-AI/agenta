@@ -29,13 +29,13 @@ import {SHARED_SESSION_ID} from "../chat/messageTypes"
 import {buildAssistantMessage} from "../helpers/messageFactory"
 
 import {
+    abortRun,
+    buildResultKey,
+    executionAdapterAtom,
     repetitionCountAtom,
     repetitionIndexAtomFamily,
     resultAtomFamily,
     resultsByKeyAtomFamily,
-    buildResultKey,
-    abortRun,
-    executionAdapterAtom,
 } from "./atoms"
 import {completeRunAtom} from "./reducer"
 import {isChatModeAtom} from "./selectors"
@@ -1220,7 +1220,7 @@ export const handleExecutionResultAtom = atom(
                 loadableId,
                 stepId: parentUserMsgId ?? rowId,
                 sessionId,
-                result: {output: testResult},
+                result: {output: testResult, traceId},
             })
 
             // Auto-append blank user message if this was the last turn
