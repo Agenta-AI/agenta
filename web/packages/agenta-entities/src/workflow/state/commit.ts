@@ -187,6 +187,7 @@ export const commitWorkflowRevisionAtom = atom(
                 workflowId,
                 variantId: variantId ?? undefined,
                 name: entity.name ?? undefined,
+                flags: entity.flags ?? undefined,
                 message: _commitMessage ?? undefined,
                 data: {
                     uri: entity.data.uri,
@@ -327,6 +328,7 @@ export const createWorkflowVariantAtom = atom(
                 workflowId,
                 variantId: newVariant.id,
                 name: newVariantName,
+                flags: entity.flags ?? undefined,
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
@@ -338,6 +340,7 @@ export const createWorkflowVariantAtom = atom(
                 workflowId,
                 variantId: newVariant.id,
                 name: newVariantName,
+                flags: entity.flags ?? undefined,
                 message: commitMessage,
                 data: {
                     uri: entity.data.uri,
