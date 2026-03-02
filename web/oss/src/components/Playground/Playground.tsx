@@ -12,18 +12,18 @@ import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import PlaygroundMainView from "./Components/MainLayout"
-import PlaygroundHeader from "./Components/PlaygroundHeader"
-import PlaygroundTestcaseEditor from "./Components/PlaygroundTestcaseEditor"
-import {OSSPlaygroundEntityProvider} from "./OSSPlaygroundEntityProvider"
-import PlaygroundOnboarding from "./PlaygroundOnboarding"
-
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import CatalogDrawer from "@/oss/features/gateway-tools/drawers/CatalogDrawer"
 import {executeToolCall} from "@/oss/services/tools/api"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
+
+import PlaygroundMainView from "./Components/MainLayout"
+import PlaygroundHeader from "./Components/PlaygroundHeader"
+import PlaygroundTestcaseEditor from "./Components/PlaygroundTestcaseEditor"
+import {OSSPlaygroundEntityProvider} from "./OSSPlaygroundEntityProvider"
+import PlaygroundOnboarding from "./PlaygroundOnboarding"
 
 /**
  * Sync state tag slot — renders the sync state badge in each row header.

@@ -1,1 +1,3 @@
-export {useDebounceInput} from "@agenta/shared/hooks"
+import {useDebounceInput} from "@agenta/shared/hooks"
+
+export {useDebounceInput}

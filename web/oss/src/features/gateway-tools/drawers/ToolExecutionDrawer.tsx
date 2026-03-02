@@ -1,5 +1,6 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {
     ArrowLeft,
     BracketsRound,
@@ -27,7 +28,6 @@ import Image from "next/image"
 
 import type {ActionItem} from "@/oss/services/tools/api/types"
 
-import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
@@ -95,18 +95,18 @@ export default function ToolExecutionDrawer() {
             {state &&
                 (step === 1 ? (
                     <ActionPickerStep
-                        integrationKey={state.integrationKey}
-                        integrationName={integrationName}
+                        integrationKey={state.integrationKey || ""}
+                        integrationName={integrationName || ""}
                         integrationLogo={integrationLogo}
-                        connectionSlug={state.connectionSlug}
+                        connectionSlug={state.connectionSlug || ""}
                         onSelectAction={handleSelectAction}
                     />
                 ) : (
                     <ActionDetailStep
-                        integrationKey={state.integrationKey}
-                        integrationName={integrationName}
+                        integrationKey={state.integrationKey || ""}
+                        integrationName={integrationName || ""}
                         integrationLogo={integrationLogo}
-                        connectionSlug={state.connectionSlug}
+                        connectionSlug={state.connectionSlug || ""}
                         actionKey={activeActionKey}
                         actionName={selectedAction?.name}
                         canGoBack={!state.actionKey}

@@ -217,5 +217,6 @@ export {
     DrillInUIProvider,
     useDrillInUI,
     type DrillInUIComponents,
+    type GatewayToolsBridge,
     type DrillInUIProviderProps,
 } from "./context/DrillInUIContext"

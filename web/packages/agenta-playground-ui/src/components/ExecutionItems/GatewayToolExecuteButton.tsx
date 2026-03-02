@@ -1,10 +1,9 @@
 import React, {useCallback, useState} from "react"
 
+import {isGatewayToolSlug} from "@agenta/shared/utils"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
-
-import {isGatewayToolSlug} from "@agenta/shared/utils"
 
 export interface GatewayToolPayloadInfo {
     name?: string

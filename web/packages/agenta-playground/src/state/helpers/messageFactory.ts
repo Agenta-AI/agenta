@@ -7,7 +7,7 @@
  * No schema-driven wrapping — messages are plain data.
  */
 
-import type {SimpleChatMessage} from "@agenta/shared/types"
+import type {SimpleChatMessage, ToolCall} from "@agenta/shared/types"
 import {generateId} from "@agenta/shared/utils"
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
@@ -36,6 +36,17 @@ const unwrapString = (value: unknown): string | undefined => {
     const rec = asRecord(value)
     if (rec && typeof rec.value === "string") return rec.value
     return undefined
+}
+
+const isToolCall = (value: unknown): value is ToolCall => {
+    const rec = asRecord(value)
+    const fn = asRecord(rec?.function)
+    return (
+        typeof rec?.id === "string" &&
+        rec.type === "function" &&
+        typeof fn?.name === "string" &&
+        typeof fn?.arguments === "string"
+    )
 }
 
 export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
@@ -69,7 +80,7 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
     // Preserve tool_calls so subsequent tool messages have a valid predecessor
     const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
     const toolCallsArr = unwrapArray(toolCalls)
-    const normalizedToolCalls = toolCallsArr && toolCallsArr.length > 0 ? toolCallsArr : undefined
+    const normalizedToolCalls = toolCallsArr?.filter(isToolCall)
 
     const toolCallId = unwrapString(innerRec?.tool_call_id ?? innerRec?.toolCallId)
     const name = unwrapString(innerRec?.name)
@@ -100,7 +111,9 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
         content: fallbackContent,
     }
 
-    if (normalizedToolCalls) msg.tool_calls = normalizedToolCalls as any
+    if (normalizedToolCalls && normalizedToolCalls.length > 0) {
+        msg.tool_calls = normalizedToolCalls
+    }
     if (toolCallId) msg.tool_call_id = toolCallId
     if (name) msg.name = name
 

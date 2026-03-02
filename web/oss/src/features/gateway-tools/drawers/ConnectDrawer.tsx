@@ -1,5 +1,6 @@
 import {useCallback, useRef, useState} from "react"
 
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {Divider, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import Image from "next/image"
@@ -7,8 +8,6 @@ import Image from "next/image"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {createConnection, fetchConnection} from "@/oss/services/tools/api"
-
-import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -205,7 +204,7 @@ export default function ConnectDrawer({
                     className="!mb-0"
                     initialValues={{
                         name: integrationName,
-                        slug: buildDefaultSlug(integrationName),
+                        slug: buildDefaultSlug(integrationName || ""),
                     }}
                     requiredMark={(label, {required}) => (
                         <>
@@ -229,7 +228,7 @@ export default function ConnectDrawer({
                                 if (!slugTouchedRef.current) {
                                     form.setFieldValue(
                                         "slug",
-                                        buildDefaultSlug(e.target.value || integrationName),
+                                        buildDefaultSlug(e.target.value || integrationName || ""),
                                     )
                                 }
                             }}

@@ -75,6 +75,8 @@ export {
     // Entity selector
     EntitySelectorProvider,
     // Focus drawer
+    GatewayToolAssistantActions,
+    GatewayToolExecuteButton,
     PlaygroundFocusDrawer,
     // Tool call view
     ToolCallView,

@@ -32,6 +32,7 @@ import {
     type WorkflowResponse,
     type WorkflowsResponse,
     type WorkflowVariantsResponse,
+    type WorkflowRevisionResponse,
     type WorkflowRevisionsResponse,
     type WorkflowFlags,
     type WorkflowQueryFlags,

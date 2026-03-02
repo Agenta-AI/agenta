@@ -254,7 +254,7 @@ function GatewayConnectionRowWithHook({
     connection: NonNullable<GatewayToolsBridge>["connections"][number]
     active: boolean
     onHover: () => void
-    useIntegrationInfo: NonNullable<GatewayToolsBridge>["useIntegrationInfo"]
+    useIntegrationInfo: NonNullable<NonNullable<GatewayToolsBridge>["useIntegrationInfo"]>
 }) {
     const info = useIntegrationInfo(connection.integration_key)
     const label = info.name || connection.integration_key.replace(/_/g, " ")
@@ -472,7 +472,7 @@ function GatewayActionsPaneHeaderWithHook({
     useIntegrationInfo,
 }: {
     connection: NonNullable<GatewayToolsBridge>["connections"][number]
-    useIntegrationInfo: NonNullable<GatewayToolsBridge>["useIntegrationInfo"]
+    useIntegrationInfo: NonNullable<NonNullable<GatewayToolsBridge>["useIntegrationInfo"]>
 }) {
     const info = useIntegrationInfo(connection.integration_key)
     const label = info.name || connection.integration_key.replace(/_/g, " ")

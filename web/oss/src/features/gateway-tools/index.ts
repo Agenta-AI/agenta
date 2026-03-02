@@ -1,3 +1,5 @@
+import {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "@agenta/shared/utils"
+
 // State
 export {
     actionSearchAtom,
@@ -10,7 +12,7 @@ export {
 export type {ExecutionDrawerState} from "./state/atoms"
 
 // Hooks
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "@agenta/shared/utils"
+export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug}
 export {useActionDetail} from "./hooks/useActionDetail"
 export {useCatalogActions} from "./hooks/useCatalogActions"
 export {useCatalogIntegrations} from "./hooks/useCatalogIntegrations"

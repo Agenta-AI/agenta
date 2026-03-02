@@ -1,10 +1,10 @@
 import {useCallback, useState} from "react"
 
+import {buildGatewayToolSlug} from "@agenta/shared/utils"
 import {v4 as uuidv4} from "uuid"
 
 import {executeToolCall} from "@/oss/services/tools/api"
 import type {ToolCallResult} from "@/oss/services/tools/api/types"
-import {buildGatewayToolSlug} from "@agenta/shared/utils"
 
 export const buildToolSlug = buildGatewayToolSlug
 

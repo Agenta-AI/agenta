@@ -20,18 +20,14 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {CopySimple, MinusCircle} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {useDrillInUI} from "../context/DrillInUIContext"
 
-import {
-    TOOL_PROVIDERS_META,
-    TOOL_SPECS,
-    parseGatewayFunctionName,
-    type ToolObj,
-} from "./toolUtils"
+import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 
 // ============================================================================
 // JSON HELPERS
@@ -301,8 +297,8 @@ function GatewayToolHeaderWithHook({
     actionLabel: string
     connectionLabel: string
     useIntegrationInfo: NonNullable<
-        ReturnType<typeof useDrillInUI>["gatewayTools"]
-    >["useIntegrationInfo"]
+        NonNullable<ReturnType<typeof useDrillInUI>["gatewayTools"]>["useIntegrationInfo"]
+    >
 }) {
     const info = useIntegrationInfo(integrationKey)
     return (
@@ -506,9 +502,9 @@ export const ToolItemControl = memo(function ToolItemControl({
     const functionName =
         (toolObj as Record<string, unknown>)?.function &&
         typeof (toolObj as Record<string, unknown>).function === "object"
-            ? ((
-                  (toolObj as Record<string, unknown>).function as Record<string, unknown>
-              ).name as string | undefined)
+            ? (((toolObj as Record<string, unknown>).function as Record<string, unknown>).name as
+                  | string
+                  | undefined)
             : undefined
 
     // Builtin detection

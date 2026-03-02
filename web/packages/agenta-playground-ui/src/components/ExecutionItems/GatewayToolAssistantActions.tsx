@@ -1,15 +1,16 @@
 import React, {useCallback, useMemo} from "react"
 
-import {executionItemController, type ChatMessage} from "@agenta/playground"
-import {createToolCallPayloads, type ChatTurnAssistantActionsProps} from "@agenta/playground-ui"
+import {executionItemController, type ChatMessage, type SimpleChatMessage} from "@agenta/playground"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {createToolCallPayloads, type ChatTurnAssistantActionsProps} from "@agenta/playground-ui"
 
 import GatewayToolExecuteButton from "./GatewayToolExecuteButton"
 
 function toolCallIdOf(message: ChatMessage | null | undefined): string | undefined {
     if (!message) return undefined
-    const id = (message as any).tool_call_id
+    const id = message.tool_call_id
     return typeof id === "string" && id.length > 0 ? id : undefined
 }
 
@@ -40,17 +41,17 @@ const GatewayToolAssistantActions: React.FC<GatewayToolAssistantActionsProps> = 
     ) as ChatMessage[]
 
     const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
-    const addMessage = useSetAtom(executionItemController.actions.addMessage as any)
+    const addMessage = useSetAtom(executionItemController.actions.addMessage)
 
     const messageOverride = useMemo(
         () =>
             currentResult
-                ? (executionItemController.helpers.buildAssistantMessage(currentResult) as any)
+                ? executionItemController.helpers.buildAssistantMessage(currentResult)
                 : null,
         [currentResult],
     )
 
-    const assistantForToolCalls = (messageOverride || assistantMessage) as any
+    const assistantForToolCalls = messageOverride ?? assistantMessage
     const toolPayloads = useMemo(
         () => createToolCallPayloads(assistantForToolCalls?.tool_calls),
         [assistantForToolCalls],
@@ -67,7 +68,7 @@ const GatewayToolAssistantActions: React.FC<GatewayToolAssistantActionsProps> = 
             if (matchIndex >= 0) {
                 patchMessage({
                     target: {turnId: rowId, kind: "tool", sessionId, toolIndex: matchIndex},
-                    updater: (m: ChatMessage | null) =>
+                    updater: (m: SimpleChatMessage | null) =>
                         m
                             ? {
                                   ...m,
@@ -76,7 +77,7 @@ const GatewayToolAssistantActions: React.FC<GatewayToolAssistantActionsProps> = 
                                   ...(callId && !m.tool_call_id ? {tool_call_id: callId} : {}),
                               }
                             : m,
-                } as any)
+                })
                 return
             }
 

@@ -1,5 +1,6 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
+import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
 import {
@@ -20,7 +21,6 @@ import Image from "next/image"
 
 import type {ConnectionItem, IntegrationItem} from "@/oss/services/tools/api/types"
 
-import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
 import {actionsSearchAtom, useCatalogActions} from "../hooks/useCatalogActions"
 import {integrationsSearchAtom, useCatalogIntegrations} from "../hooks/useCatalogIntegrations"
 import {useDebouncedAtomSearch} from "../hooks/useDebouncedAtomSearch"

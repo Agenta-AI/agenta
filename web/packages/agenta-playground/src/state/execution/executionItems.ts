@@ -1197,6 +1197,7 @@ export const handleExecutionResultAtom = atom(
 
             const lastMessage = newMessages[newMessages.length - 1]
             const assistantMsgId = lastMessage.id
+            if (!assistantMsgId) return
             const hasToolCalls =
                 Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0
 

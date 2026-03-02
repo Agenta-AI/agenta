@@ -154,7 +154,9 @@ function ConnectionRow({connection, onTest}: {connection: ConnectionItem; onTest
                 />
             ) : null}
             <div className="flex flex-col min-w-0 flex-1 leading-tight">
-                <Typography.Text className="text-xs truncate">{connection.name || connection.slug}</Typography.Text>
+                <Typography.Text className="text-xs truncate">
+                    {connection.name || connection.slug}
+                </Typography.Text>
                 <Typography.Text className="text-[10px] text-slate-400 truncate">
                     {label} / {connection.slug}
                 </Typography.Text>

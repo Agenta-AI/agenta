@@ -1,9 +1,9 @@
 // Import workflow to ensure the snapshot adapter is registered
 import "@agenta/entities/workflow"
 
-import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {getRunnableTypeHint, registerRunnableTypeHint} from "@agenta/entities/shared"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {
     urlSnapshotController,
     setRunnableTypeResolver,
@@ -134,7 +134,8 @@ const _store = () => getDefaultStore()
 const getLastWrittenUrl = () => _store().get(_lastWrittenUrlAtom)
 const setLastWrittenUrl = (v: string | null) => _store().set(_lastWrittenUrlAtom, v)
 const getLastWrittenSnapshotHash = () => _store().get(_lastWrittenSnapshotHashAtom)
-const setLastWrittenSnapshotHash = (v: string | null) => _store().set(_lastWrittenSnapshotHashAtom, v)
+const setLastWrittenSnapshotHash = (v: string | null) =>
+    _store().set(_lastWrittenSnapshotHashAtom, v)
 
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
@@ -166,9 +167,21 @@ interface HydratedEntityDescriptor {
     label?: string
 }
 
-type RunnableType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "legacyAppRevision" | "workflow" | "baseRunnable"
+type RunnableType =
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "workflow"
+    | "baseRunnable"
 
-type PlaygroundEntityType = "evaluator" | "legacyEvaluator" | "evaluatorRevision" | "legacyAppRevision" | "workflow" | "baseRunnable"
+type PlaygroundEntityType =
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "workflow"
+    | "baseRunnable"
 
 interface SnapshotSelectionInput {
     id: string
@@ -580,7 +593,11 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         const snapshotEncoded = extractSnapshotFromHash(url)
 
         // Use package controller for hydration
-        if (snapshotEncoded && snapshotEncoded !== getLastWrittenSnapshotHash() && isPlaygroundRoute) {
+        if (
+            snapshotEncoded &&
+            snapshotEncoded !== getLastWrittenSnapshotHash() &&
+            isPlaygroundRoute
+        ) {
             setLastWrittenSnapshotHash(snapshotEncoded)
 
             const hydrateResult = store.set(
@@ -640,10 +657,7 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
                                 playgroundController.selectors.loadableId(),
                             )
                             if (loadableId) {
-                                store.set(
-                                    playgroundController.actions.addRowWithInit,
-                                    {loadableId},
-                                )
+                                store.set(playgroundController.actions.addRowWithInit, {loadableId})
                             }
                         })
                 } else if (hydrateResult.localTestset) {
@@ -1001,18 +1015,15 @@ playgroundSyncAtom.onMount = (set) => {
     // When the user adds a new testcase row (locally-created, not yet committed),
     // the snapshot must be re-encoded so the new row data is captured in draftRows
     // and persists across page reloads.
-    const unsubNewTestcases = store.sub(
-        playgroundController.selectors.newTestcaseCount(),
-        () => {
-            const count = store.get(playgroundController.selectors.newTestcaseCount())
-            const currentSelected = sanitizeRevisionList(
-                store.get(playgroundController.selectors.entityIds()),
-            )
-            if (currentSelected.length > 0) {
-                writePlaygroundSelectionToQuery(currentSelected)
-            }
-        },
-    )
+    const unsubNewTestcases = store.sub(playgroundController.selectors.newTestcaseCount(), () => {
+        store.get(playgroundController.selectors.newTestcaseCount())
+        const currentSelected = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
+        if (currentSelected.length > 0) {
+            writePlaygroundSelectionToQuery(currentSelected)
+        }
+    })
     unsubs.push(unsubNewTestcases)
 
     // -----------------------------------------------------------------------
@@ -1021,9 +1032,7 @@ playgroundSyncAtom.onMount = (set) => {
     // When the user edits the content of a locally-created testcase row,
     // the snapshot must be re-encoded so the updated data is captured in
     // draftRows and persists across page reloads.
-    let prevNewTestcaseDataHash = store.get(
-        playgroundController.selectors.newTestcaseDataHash(),
-    )
+    let prevNewTestcaseDataHash = store.get(playgroundController.selectors.newTestcaseDataHash())
     const unsubNewTestcaseData = store.sub(
         playgroundController.selectors.newTestcaseDataHash(),
         () => {
