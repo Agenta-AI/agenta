@@ -599,6 +599,15 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         useEffect(() => {
             if (codeOnly) return
             const next = effectiveValue || ""
+
+            // If this value is just our own onChange echoing back, skip hydration.
+            // The markdown round-trip (serialize → emit → hydrate → deserialize)
+            // can produce different text than $getRoot().getTextContent() due to
+            // trailing newline differences, causing an infinite re-hydration loop.
+            if (next === lastEmittedTextRef.current) {
+                return
+            }
+
             // Compare with actual editor content, not just last hydrated value
             // This ensures undo/redo works even when reverting to a previously hydrated value
             let currentContent = ""
@@ -671,7 +680,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 )
 
 export const EditorProvider = ({
-    id = uuidv4(),
+    id: idProp,
     initialValue = "",
     disabled = false,
     className,
@@ -700,6 +709,12 @@ export const EditorProvider = ({
     disableIndentationPlugin = false,
     useNativeCodeNodes = false,
 }: EditorProps & {children: ReactNode}) => {
+    // Stabilize id across renders — `uuidv4()` as a default parameter would
+    // generate a new UUID on every render, which forces the extension useMemo
+    // to recompute and remounts the LexicalExtensionComposer (losing focus).
+    const stableIdRef = useRef(idProp || uuidv4())
+    const id = idProp || stableIdRef.current
+
     useEditorInvariant({
         singleLine,
         enableResize,
@@ -904,7 +919,7 @@ export const EditorProvider = ({
 }
 
 const Editor = ({
-    id = uuidv4(),
+    id: idProp,
     initialValue = "",
     value,
     disabled = false,
@@ -938,6 +953,10 @@ const Editor = ({
     useNativeCodeNodes = false,
     ...rest
 }: EditorProps) => {
+    // Stabilize id across renders (same pattern as EditorProvider above).
+    const stableIdRef = useRef(idProp || uuidv4())
+    const id = idProp || stableIdRef.current
+
     const {setContainerElm, dimensions: dimension} = useEditorResize({
         singleLine,
         enableResize,
