@@ -7,12 +7,23 @@
  * No schema-driven wrapping — messages are plain data.
  */
 
-import type {SimpleChatMessage} from "@agenta/shared/types"
+import type {SimpleChatMessage, ToolCall} from "@agenta/shared/types"
 import {generateId} from "@agenta/shared/utils"
 
 const asRecord = (value: unknown): Record<string, unknown> | null => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null
     return value as Record<string, unknown>
+}
+
+const unwrapValue = (value: unknown): unknown => {
+    const rec = asRecord(value)
+    return rec && "value" in rec ? rec.value : value
+}
+
+const unwrapArray = (value: unknown): unknown[] | undefined => {
+    if (Array.isArray(value)) return value
+    const unwrapped = unwrapValue(value)
+    return Array.isArray(unwrapped) ? unwrapped : undefined
 }
 
 /**
@@ -25,6 +36,17 @@ const unwrapString = (value: unknown): string | undefined => {
     const rec = asRecord(value)
     if (rec && typeof rec.value === "string") return rec.value
     return undefined
+}
+
+const isToolCall = (value: unknown): value is ToolCall => {
+    const rec = asRecord(value)
+    const fn = asRecord(rec?.function)
+    return (
+        typeof rec?.id === "string" &&
+        rec.type === "function" &&
+        typeof fn?.name === "string" &&
+        typeof fn?.arguments === "string"
+    )
 }
 
 export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
@@ -50,12 +72,18 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
     const raw = response?.data
     const rawRec = asRecord(raw)
     const inner = rawRec ? (rawRec.data ?? rawRec) : raw
-    const innerRec = asRecord(inner)
+    const innerRec = asRecord(inner) || resultRecord
+
+    const role = unwrapString(innerRec?.role) ?? "assistant"
     const content = innerRec ? (innerRec.content ?? innerRec.data) : undefined
 
     // Preserve tool_calls so subsequent tool messages have a valid predecessor
     const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
-    const toolCallsArr = Array.isArray(toolCalls) && toolCalls.length > 0 ? toolCalls : undefined
+    const toolCallsArr = unwrapArray(toolCalls)
+    const normalizedToolCalls = toolCallsArr?.filter(isToolCall)
+
+    const toolCallId = unwrapString(innerRec?.tool_call_id ?? innerRec?.toolCallId)
+    const name = unwrapString(innerRec?.name)
 
     let finalText: string | undefined
     if (typeof content === "string") {
@@ -72,67 +100,24 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
         finalText = texts.join("\n\n")
     }
 
-    if (finalText !== undefined) {
-        const msg: SimpleChatMessage = {
-            id: generateId(),
-            role: "assistant",
-            content: finalText,
-        }
-        if (toolCallsArr) msg.tool_calls = toolCallsArr
-        return msg
-    }
-
-    // Fallback: try to extract content from inner object
-    const fallbackContent = innerRec
-        ? (unwrapString(innerRec.content) ?? unwrapString(innerRec.data)) || ""
-        : ""
+    const fallbackContent =
+        finalText ??
+        (innerRec ? (unwrapString(innerRec.content) ?? unwrapString(innerRec.data)) : "") ??
+        ""
 
     const msg: SimpleChatMessage = {
         id: generateId(),
-        role: "assistant",
+        role,
         content: fallbackContent,
     }
-    if (toolCallsArr) msg.tool_calls = toolCallsArr
-    return msg
-}
 
-export function buildToolMessages(testResult: unknown): SimpleChatMessage[] {
-    try {
-        const resultRec = asRecord(testResult)
-        const responseRec = asRecord(resultRec?.response)
-        const raw = responseRec?.data
-        if (!raw) return []
-        const rawRec = asRecord(raw)
-        const inner = rawRec && rawRec.data !== undefined ? rawRec.data : raw
-        const innerRec = asRecord(inner)
-
-        const toolCalls = (innerRec?.tool_calls ?? innerRec?.toolCalls) as unknown
-        if (!Array.isArray(toolCalls) || toolCalls.length === 0) return []
-
-        return toolCalls
-            .map((toolCall, index: number): SimpleChatMessage | null => {
-                const toolCallRec = asRecord(toolCall)
-                const functionRec = asRecord(toolCallRec?.function)
-                const name =
-                    (functionRec?.name as string | undefined) ||
-                    (toolCallRec?.name as string | undefined) ||
-                    `tool_${index + 1}`
-                const toolCallId =
-                    (toolCallRec?.id as string | undefined) ||
-                    (toolCallRec?.tool_call_id as string | undefined)
-
-                return {
-                    id: generateId(),
-                    role: "tool",
-                    name,
-                    tool_call_id: toolCallId,
-                    content: "",
-                }
-            })
-            .filter((msg): msg is SimpleChatMessage => msg !== null)
-    } catch {
-        return []
+    if (normalizedToolCalls && normalizedToolCalls.length > 0) {
+        msg.tool_calls = normalizedToolCalls
     }
+    if (toolCallId) msg.tool_call_id = toolCallId
+    if (name) msg.name = name
+
+    return msg
 }
 
 export function buildUserMessage(init?: {role?: string; content?: unknown}): SimpleChatMessage {

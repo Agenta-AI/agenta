@@ -35,6 +35,56 @@ interface LLMProviderGroup {
     options: LLMProviderOption[]
 }
 
+export interface GatewayToolConnectionUI {
+    id: string
+    slug: string
+    name?: string
+    integration_key: string
+    provider_key: string
+    flags?: {is_active?: boolean; is_valid?: boolean}
+}
+
+export interface GatewayToolActionUI {
+    key: string
+    name: string
+}
+
+export interface GatewayToolsBridge {
+    enabled: boolean
+    connections: GatewayToolConnectionUI[]
+    connectionsLoading: boolean
+    onOpenCatalog: () => void
+    renderIntegrationInfo?: (integrationKey: string) => {name?: string; logo?: string} | null
+    useIntegrationInfo?: (integrationKey: string) => {
+        name?: string
+        logo?: string
+        isLoading?: boolean
+    }
+    useActions: (integrationKey: string) => {
+        actions: GatewayToolActionUI[]
+        total: number
+        isLoading: boolean
+        isFetchingNextPage: boolean
+        hasNextPage: boolean
+        requestMore: () => void
+        setSearch: (search: string) => void
+        prefetchThreshold: number
+    }
+    buildToolSlug: (
+        provider: string,
+        integration: string,
+        action: string,
+        connectionSlug: string,
+    ) => string
+    fetchActionDetail: (
+        provider: string,
+        integration: string,
+        action: string,
+    ) => Promise<{
+        action: {description?: string; schemas?: {inputs?: unknown}}
+    }>
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -138,6 +188,9 @@ export interface DrillInUIComponents {
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
         footerContent?: ReactElement | null
     }
+
+    /** Gateway tools integration for the tool selector */
+    gatewayTools?: GatewayToolsBridge
 
     /**
      * Lexical editor context hook

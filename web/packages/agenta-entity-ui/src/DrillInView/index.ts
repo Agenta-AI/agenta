@@ -112,7 +112,7 @@ export {defaultFieldBehaviors} from "./context"
 
 // UI Injection Context (for OSS component injection)
 export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "./context"
-export type {DrillInUIComponents, DrillInUIProviderProps} from "./context"
+export type {DrillInUIComponents, DrillInUIProviderProps, GatewayToolsBridge} from "./context"
 
 // ============================================================================
 // CORE TYPES (for DrillInContent-based implementations)

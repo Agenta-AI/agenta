@@ -481,7 +481,8 @@ export const assistantForTurnAtomFamily = atomFamily(
     ({turnId, sessionId}: {turnId: string; sessionId: string}) =>
         atom((get) => {
             const index = get(childMessageIndexWithContextAtom)
-            return index[`${turnId}:${sessionId}`]?.assistant ?? null
+            const assistants = index[`${turnId}:${sessionId}`]?.assistants ?? []
+            return assistants.length > 0 ? assistants[assistants.length - 1] : null
         }),
 )
 
@@ -494,6 +495,18 @@ export const toolsForTurnAtomFamily = atomFamily(
         atom((get) => {
             const index = get(childMessageIndexWithContextAtom)
             return index[`${turnId}:${sessionId}`]?.tools ?? []
+        }),
+)
+
+/**
+ * Get all assistant messages for a specific turn and session.
+ * Returns assistants in chronological order (insertion order from the index).
+ */
+export const assistantsForTurnAtomFamily = atomFamily(
+    ({turnId, sessionId}: {turnId: string; sessionId: string}) =>
+        atom((get) => {
+            const index = get(childMessageIndexWithContextAtom)
+            return index[`${turnId}:${sessionId}`]?.assistants ?? []
         }),
 )
 

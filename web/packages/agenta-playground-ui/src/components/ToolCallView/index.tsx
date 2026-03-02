@@ -30,6 +30,40 @@ function getStringField(record: UnknownRecord | undefined, key: string): string 
     return typeof value === "string" ? value : undefined
 }
 
+function getWrappedStringField(record: UnknownRecord | undefined, key: string): string | undefined {
+    const direct = getStringField(record, key)
+    if (direct) return direct
+    const wrapped = record?.[key]
+    if (isRecord(wrapped) && typeof wrapped.value === "string") {
+        return wrapped.value
+    }
+    return undefined
+}
+
+interface GatewayToolParsed {
+    provider: string
+    integration: string
+    action: string
+    connection: string
+}
+
+// Parse gateway tool slug: tools__{provider}__{integration}__{action}__{connection}
+// Segments may contain single underscores; only "__" is a separator.
+function parseGatewayFunctionName(name: string | undefined): GatewayToolParsed | null {
+    if (!name) return null
+    const parts = name.split("__")
+    if (parts.length !== 5 || parts[0] !== "tools") return null
+    const [, provider, integration, action, connection] = parts
+    if (!provider || !integration || !action || !connection) return null
+    return {provider, integration, action, connection}
+}
+
+function formatGatewayToolLabel(name: string | undefined): string | undefined {
+    const parsed = parseGatewayFunctionName(name)
+    if (!parsed) return name
+    return `${parsed.integration} / ${parsed.action} / ${parsed.connection}`
+}
+
 function getRecordField(record: UnknownRecord | undefined, key: string): UnknownRecord | undefined {
     if (!record) return undefined
     const value = record[key]
@@ -74,10 +108,11 @@ export const ToolCallViewHeader = ({
     callId?: string
     className?: string
 }) => {
+    const displayName = formatGatewayToolLabel(name)
     return (
         <div className={clsx("w-full p-2 pt-0 flex items-center justify-between", className)}>
             <CopyTooltip title={"Function name"}>
-                <span>{name}</span>
+                <span title={name}>{displayName}</span>
             </CopyTooltip>
             <CopyTooltip title={"Call id"}>
                 <span className="font-mono">{callId}</span>
@@ -97,11 +132,16 @@ function toArrayItemPayload(item: unknown, index: number): Payload {
 
     let fnName = ""
     let argsRaw: unknown = {}
-    let callId = getStringField(item, "id") ?? getStringField(item, "__id")
+    let callId =
+        getWrappedStringField(item, "id") ??
+        getWrappedStringField(item, "__id") ??
+        getWrappedStringField(item, "tool_call_id") ??
+        getWrappedStringField(item, "toolCallId") ??
+        getWrappedStringField(item, "toolCallID")
 
     const functionRecord = getRecordField(item, "function")
     if (functionRecord) {
-        fnName = getStringField(functionRecord, "name") ?? ""
+        fnName = getWrappedStringField(functionRecord, "name") ?? ""
         argsRaw = functionRecord.arguments ?? {}
     } else {
         const content = getStringField(item, "content")
@@ -113,8 +153,10 @@ function toArrayItemPayload(item: unknown, index: number): Payload {
                 argsRaw = parsedFunction?.arguments ?? {}
                 callId =
                     callId ??
-                    getStringField(parsedContent, "id") ??
-                    getStringField(parsedContent, "__id")
+                    getWrappedStringField(parsedContent, "id") ??
+                    getWrappedStringField(parsedContent, "__id") ??
+                    getWrappedStringField(parsedContent, "tool_call_id") ??
+                    getWrappedStringField(parsedContent, "toolCallId")
             }
         }
     }
@@ -152,10 +194,15 @@ export const createToolCallPayloads = (resultData: unknown): Payload[] => {
 
             return {
                 name:
-                    getStringField(functionRecord, "name") ??
-                    getStringField(toolCall, "name") ??
+                    getWrappedStringField(functionRecord, "name") ??
+                    getWrappedStringField(toolCall, "name") ??
                     `tool_${index + 1}`,
-                callId: getStringField(toolCall, "id") ?? getStringField(toolCall, "__id"),
+                callId:
+                    getWrappedStringField(toolCall, "id") ??
+                    getWrappedStringField(toolCall, "__id") ??
+                    getWrappedStringField(toolCall, "tool_call_id") ??
+                    getWrappedStringField(toolCall, "toolCallId") ??
+                    getWrappedStringField(toolCall, "toolCallID"),
                 json: toPrettyString(functionRecord?.arguments ?? toolCall.arguments ?? {}),
             }
         })

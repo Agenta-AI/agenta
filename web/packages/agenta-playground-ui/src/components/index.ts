@@ -26,7 +26,7 @@ export {default as ExecutionHeader} from "./ExecutionHeader"
 export type {ExecutionHeaderProps} from "./ExecutionHeader"
 
 // Tool call view
-export {createToolCallPayloads, default as ToolCallView, ToolCallViewHeader} from "./ToolCallView"
+export {default as ToolCallView, ToolCallViewHeader, createToolCallPayloads} from "./ToolCallView"
 
 // Chat controls
 export {default as ControlsBar, type ControlsBarProps} from "./ControlsBar"
@@ -41,6 +41,8 @@ export {
     CompletionMode,
     default as ExecutionItems,
     ExecutionRow,
+    GatewayToolAssistantActions,
+    GatewayToolExecuteButton,
     type ChatModeProps,
     type CompletionModeProps,
     type PlaygroundGenerationsProps as ExecutionItemsProps,

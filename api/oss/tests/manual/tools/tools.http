@@ -1,0 +1,239 @@
+@agenta_api_url = {{$dotenv AGENTA_API_URL}}
+@agenta_auth_key = {{$dotenv AGENTA_AUTH_KEY}}
+@base_url = {{agenta_api_url}}/preview/tools
+
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+@composio_api_url = https://backend.composio.dev/api/v3
+
+###
+# @name create_account
+POST {{agenta_api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{agenta_auth_key}}
+
+{
+  "user": {
+    "name": "test_user_{{$guid}}",
+    "email": "test+{{$guid}}@agenta.ai"
+  },
+  "scope": {
+    "name": "Agenta (test) {{$guid}}"
+  }
+}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+@project_id = {{create_account.response.body.scopes[0].project_id}}
+
+# =====================================================================
+# CONNECTIONS
+# =====================================================================
+
+###
+# @name create_gmail_connection
+# Step 1: Create a connection (initiates OAuth flow).
+# Open redirect_url in browser to complete OAuth.
+POST {{base_url}}/connections/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "connection": {
+    "slug": "my-gmail-{{$guid}}",
+    "name": "My Gmail Account",
+    "description": "Personal Gmail for testing",
+    "provider_key": "composio",
+    "integration_key": "gmail"
+  }
+}
+
+###
+@gmail_connection_id = {{create_gmail_connection.response.body.connection.id}}
+@gmail_connection_slug = {{create_gmail_connection.response.body.connection.slug}}
+@gmail_redirect_url = {{create_gmail_connection.response.body.connection.data.redirect_url}}
+
+###
+# @name create_github_connection
+POST {{base_url}}/connections/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "connection": {
+    "slug": "my-github-{{$guid}}",
+    "name": "My GitHub Account",
+    "provider_key": "composio",
+    "integration_key": "github"
+  }
+}
+
+###
+@github_connection_id = {{create_github_connection.response.body.connection.id}}
+@github_connection_slug = {{create_github_connection.response.body.connection.slug}}
+@github_redirect_url = {{create_github_connection.response.body.connection.data.redirect_url}}
+
+###
+# @name get_gmail_connection
+# Step 2: Poll connection status after completing OAuth in browser.
+GET {{base_url}}/connections/{{gmail_connection_id}}
+Authorization: {{authorization}}
+
+###
+# @name get_github_connection
+# Step 2: Poll connection status after completing OAuth in browser.
+GET {{base_url}}/connections/{{github_connection_id}}
+Authorization: {{authorization}}
+
+###
+# @name refresh_connection
+# Re-initiates OAuth to get fresh tokens (force=true skips token-validity check).
+POST {{base_url}}/connections/{{gmail_connection_id}}/refresh?force=false
+Authorization: {{authorization}}
+
+###
+# @name revoke_connection
+# Marks the connection invalid locally without touching the provider.
+POST {{base_url}}/connections/{{gmail_connection_id}}/revoke
+Authorization: {{authorization}}
+
+###
+# @name list_connections
+# List all connections (optionally filtered by provider / integration).
+POST {{base_url}}/connections/query
+Authorization: {{authorization}}
+
+###
+# @name list_connections_gmail
+# Filter by provider + integration.
+POST {{base_url}}/connections/query?provider_key=composio&integration_key=gmail
+Authorization: {{authorization}}
+
+###
+# @name delete_connection
+# WARNING: This permanently revokes the connection at the provider.
+DELETE {{base_url}}/connections/{{gmail_connection_id}}
+Authorization: {{authorization}}
+
+# =====================================================================
+# TOOL CALL  (action execution)
+# =====================================================================
+
+###
+# @name get_action
+# Our API — use stripped key (GMAIL_ prefix removed by our parser)
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/gmail/actions/SEND_EMAIL
+Authorization: {{authorization}}
+
+###
+# @name call_tool_send_email
+# Execute a tool using its full slug: tools.{provider}.{integration}.{action}.{connection}.
+POST {{base_url}}/call
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "id": "call_{{$guid}}",
+    "type": "function",
+    "function": {
+      "name": "tools.composio.gmail.SEND_EMAIL.{{gmail_connection_slug}}",
+      "arguments": {
+        "recipient_email": "team@agenta.ai",
+        "subject": "Test from Agenta",
+        "body": "This is a test email sent via the Tools Gateway."
+      }
+    }
+  }
+}
+
+###
+# @name call_tool_list_pull_requests
+POST {{base_url}}/call
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "id": "call_{{$guid}}",
+    "type": "function",
+    "function": {
+      "name": "tools.composio.github.LIST_PULL_REQUESTS.{{github_connection_slug}}",
+      "arguments": {
+        "owner": "Agenta-AI",
+        "repo": "agenta",
+        "state": "open"
+      }
+    }
+  }
+}
+
+###
+# @name search_github_pr_actions
+# Find the exact action key for listing PRs
+GET {{agenta_api_url}}/preview/tools/catalog/providers/composio/integrations/github/actions/?search=LIST_PULL_REQUEST
+Authorization: {{authorization}}
+
+###
+# @name call_tool_list_prs
+# Slug uses the action key WITHOUT the GITHUB_ prefix (adapter adds it back)
+POST {{base_url}}/call
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "id": "call_{{$guid}}",
+    "type": "function",
+    "function": {
+      "name": "tools.composio.github.LIST_PULL_REQUESTS.{{github_connection_slug}}",
+      "arguments": {
+        "owner": "Agenta-AI",
+        "repo": "agenta",
+        "state": "open"
+      }
+    }
+  }
+}
+
+# =====================================================================
+# DIRECT COMPOSIO (for debugging — compare exact request/response)
+# =====================================================================
+
+###
+@gmail_connected_account_id = {{get_gmail_connection.response.body.connection.data.connected_account_id}}
+@github_connected_account_id = {{get_github_connection.response.body.connection.data.connected_account_id}}
+
+###
+# @name composio_list_prs_direct
+POST {{composio_api_url}}/tools/execute/GITHUB_LIST_PULL_REQUESTS
+Content-Type: application/json
+x-api-key: {{composio_api_key}}
+
+{
+  "arguments": {
+    "owner": "Agenta-AI",
+    "repo": "agenta",
+    "state": "open"
+  },
+  "connected_account_id": "{{github_connected_account_id}}",
+  "user_id": "{{project_id}}"
+}
+
+###
+# @name composio_execute_direct
+# Direct call matching exactly what our adapter sends: arguments + connected_account_id + user_id
+# NOTE: connection must have been created AFTER the entity_id format change (plain UUID, no prefix).
+# Old connections used "project_<uuid>" — create a new connection if you get an entity mismatch error.
+POST {{composio_api_url}}/tools/execute/GMAIL_SEND_EMAIL
+Content-Type: application/json
+x-api-key: {{composio_api_key}}
+
+{
+  "arguments": {
+    "recipient_email": "team@agenta.ai",
+    "subject": "Test from Agenta (direct)",
+    "body": "Direct Composio call."
+  },
+  "connected_account_id": "{{gmail_connected_account_id}}",
+  "user_id": "{{project_id}}"
+}

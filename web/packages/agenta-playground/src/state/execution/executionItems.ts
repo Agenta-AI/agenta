@@ -26,7 +26,7 @@ import {
 } from "../chat/messageReducer"
 import type {ChatMessage} from "../chat/messageTypes"
 import {SHARED_SESSION_ID} from "../chat/messageTypes"
-import {buildAssistantMessage, buildToolMessages} from "../helpers/messageFactory"
+import {buildAssistantMessage} from "../helpers/messageFactory"
 
 import {
     repetitionCountAtom,
@@ -208,10 +208,25 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     return value as Record<string, unknown>
 }
 
+function unwrapValue(value: unknown): unknown {
+    const rec = asRecord(value)
+    return rec && "value" in rec ? rec.value : value
+}
+
+function unwrapArray(value: unknown): unknown[] | undefined {
+    if (Array.isArray(value)) return value
+    const unwrapped = unwrapValue(value)
+    return Array.isArray(unwrapped) ? unwrapped : undefined
+}
+
 function readString(value: unknown): string | undefined {
     if (typeof value !== "string") return undefined
     const trimmed = value.trim()
     return trimmed.length > 0 ? trimmed : undefined
+}
+
+function readWrappedString(value: unknown): string | undefined {
+    return readString(value) ?? readString(unwrapValue(value))
 }
 
 function extractLogicalRowId(rowId: string): string {
@@ -220,26 +235,39 @@ function extractLogicalRowId(rowId: string): string {
 }
 
 function normalizeTransformContent(content: unknown): string | unknown[] {
-    if (Array.isArray(content)) return content
-    if (typeof content === "string") return content
+    const unwrapped = unwrapValue(content)
+    if (Array.isArray(unwrapped)) return unwrapped
+    if (typeof unwrapped === "string") return unwrapped
     return ""
 }
 
 function toTransformMessage(message: ChatMessage): TransformMessage {
     const messageRecord = asRecord(message)
     const toolCalls =
-        (messageRecord && Array.isArray(messageRecord.toolCalls)
-            ? messageRecord.toolCalls
-            : undefined) ?? (Array.isArray(message.tool_calls) ? message.tool_calls : undefined)
-    const toolCallId = readString(messageRecord?.toolCallId) ?? readString(message.tool_call_id)
+        unwrapArray(messageRecord?.toolCalls) ??
+        unwrapArray(messageRecord?.tool_calls) ??
+        (Array.isArray(message.tool_calls) ? message.tool_calls : undefined)
+    const toolCallId =
+        readWrappedString(messageRecord?.toolCallId) ??
+        readWrappedString(messageRecord?.tool_call_id) ??
+        readWrappedString(messageRecord?.toolCallID) ??
+        readWrappedString(message.tool_call_id)
+
+    let content = normalizeTransformContent(message.content)
+    if (message.role === "tool" && content === "") {
+        content =
+            normalizeTransformContent(messageRecord?.response) ||
+            normalizeTransformContent(messageRecord?.output)
+    }
 
     const transformed: TransformMessage = {
         role: message.role,
-        content: normalizeTransformContent(message.content),
+        content,
     }
 
-    if (typeof message.name === "string" && message.name.length > 0) {
-        transformed.name = message.name
+    const normalizedName = readWrappedString(message.name) ?? readWrappedString(messageRecord?.name)
+    if (normalizedName) {
+        transformed.name = normalizedName
     }
 
     if (toolCalls && toolCalls.length > 0) {
@@ -936,6 +964,36 @@ function buildRequestBody(
                 delete rec.id
                 delete rec.parentId
                 delete rec.sessionId
+
+                // Normalize chat-history tool call keys to provider/API format.
+                // Some UI paths keep camelCase keys (`toolCalls`, `toolCallId`),
+                // but runtime chat payloads must use snake_case.
+                const toolCalls = rec.tool_calls ?? rec.toolCalls
+                if (Array.isArray(toolCalls)) {
+                    rec.tool_calls = toolCalls.map((call) => {
+                        const callRec =
+                            call && typeof call === "object"
+                                ? ({...(call as Record<string, unknown>)} as Record<
+                                      string,
+                                      unknown
+                                  >)
+                                : call
+                        if (callRec && typeof callRec === "object") {
+                            if (!("id" in callRec) && typeof callRec.__id === "string") {
+                                callRec.id = callRec.__id
+                            }
+                            delete callRec.__id
+                        }
+                        return callRec
+                    })
+                }
+                delete rec.toolCalls
+
+                const toolCallId = rec.tool_call_id ?? rec.toolCallId
+                if (toolCallId !== undefined && toolCallId !== null) {
+                    rec.tool_call_id = String(toolCallId)
+                }
+                delete rec.toolCallId
             }
             normalizeFileMessageParts(requestBody.messages)
             applyModelAttachmentRules(entityData, requestBody)
@@ -1110,12 +1168,6 @@ export const handleExecutionResultAtom = atom(
 
         if (isChat) {
             const results = Array.isArray(testResult) ? testResult : [testResult]
-            const lastResult = results[results.length - 1]
-
-            // Build assistant and tool messages from result
-            const incoming = buildAssistantMessage(lastResult)
-            const toolMessages = buildToolMessages(lastResult)
-            const hasToolCalls = toolMessages.length > 0
 
             // Find the parent user message this response belongs to
             const flatIds = get(messageIdsAtomFamily(loadableId))
@@ -1129,27 +1181,30 @@ export const handleExecutionResultAtom = atom(
                 }
             }
 
-            // Build assistant ChatMessage
-            const assistantMsgId = generateMessageId()
-            const assistantChatMsg: ChatMessage = {
-                ...incoming,
-                id: assistantMsgId,
-                sessionId,
-                ...(parentUserMsgId ? {parentId: parentUserMsgId} : {}),
+            const newMessages: ChatMessage[] = []
+            for (const res of results) {
+                const incoming = buildAssistantMessage(res)
+                const msgId = generateMessageId()
+                newMessages.push({
+                    ...incoming,
+                    id: msgId,
+                    sessionId,
+                    ...(parentUserMsgId ? {parentId: parentUserMsgId} : {}),
+                } as ChatMessage)
             }
 
-            // Build tool ChatMessages
-            const toolChatMsgs: ChatMessage[] = toolMessages.map((tm) => ({
-                ...tm,
-                id: generateMessageId(),
-                sessionId,
-                ...(parentUserMsgId ? {parentId: parentUserMsgId} : {}),
-            }))
+            if (newMessages.length === 0) return
+
+            const lastMessage = newMessages[newMessages.length - 1]
+            const assistantMsgId = lastMessage.id
+            if (!assistantMsgId) return
+            const hasToolCalls =
+                Array.isArray(lastMessage.tool_calls) && lastMessage.tool_calls.length > 0
 
             // Write messages to flat model
             set(addMessagesAtom, {
                 loadableId,
-                messages: [assistantChatMsg, ...toolChatMsgs],
+                messages: newMessages,
             })
 
             // Write execution state on the assistant message
@@ -1171,9 +1226,7 @@ export const handleExecutionResultAtom = atom(
             // Auto-append blank user message if this was the last turn
             const updatedFlatIds = get(messageIdsAtomFamily(loadableId))
             const lastMsgId = updatedFlatIds[updatedFlatIds.length - 1]
-            const isLastResponse =
-                lastMsgId === assistantMsgId ||
-                (toolChatMsgs.length > 0 && lastMsgId === toolChatMsgs[toolChatMsgs.length - 1].id)
+            const isLastResponse = lastMsgId === assistantMsgId
             if (isLastResponse && !hasToolCalls) {
                 set(addMessageAtom, {
                     loadableId,

@@ -291,6 +291,7 @@ export {
     // Turn-level message selectors
     assistantForTurnAtomFamily,
     toolsForTurnAtomFamily,
+    assistantsForTurnAtomFamily,
     // Rerun from turn
     rerunFromTurnAtom,
     // Run all orchestration

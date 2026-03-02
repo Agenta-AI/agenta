@@ -1,0 +1,46 @@
+@composio_url = https://backend.composio.dev/api/v3
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+@composio_user_id = {{$dotenv COMPOSIO_USER_ID}}
+
+###
+# @name list_auth_configs_gmail
+# List auth configs for gmail toolkit
+GET {{composio_url}}/auth_configs?toolkit_slugs=gmail
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_auth_configs_github
+# List auth configs for github toolkit
+GET {{composio_url}}/auth_configs?toolkit_slugs=github
+x-api-key: {{composio_api_key}}
+
+###
+# @name create_auth_config_gmail
+# Create a Composio-managed auth config for Gmail (one-time per toolkit)
+POST {{composio_url}}/auth_configs
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "toolkit": { "slug": "gmail" },
+  "auth_config": {
+    "type": "use_composio_managed_auth",
+    "name": "Agenta Gmail OAuth",
+    "credentials": { "scopes": "https://mail.google.com/" }
+  }
+}
+
+###
+# @name create_auth_config_github
+# Create a Composio-managed auth config for GitHub
+POST {{composio_url}}/auth_configs
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "toolkit": { "slug": "github" },
+  "auth_config": {
+    "type": "use_composio_managed_auth",
+    "name": "Agenta GitHub OAuth"
+  }
+}

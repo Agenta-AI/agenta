@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y jq
     
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
+COPY patches/ ./patches/
 COPY ./entrypoint.sh /app/entrypoint.sh   
 
 # Extract PNPM version and install it

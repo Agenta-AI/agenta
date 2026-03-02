@@ -1,4 +1,4 @@
-import {memo, useCallback, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     executionController,
@@ -79,9 +79,10 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const showErrorState = isEmpty && !isProjectLevel
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {generationPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
+    const lastAutoScrollKeyRef = useRef<string>("")
 
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({

@@ -3,7 +3,7 @@ import React, {useMemo} from "react"
 import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import type {SimpleChatMessage} from "@agenta/playground"
+import type {ChatMessage, SimpleChatMessage} from "@agenta/playground"
 import {
     extractAssistantDisplayValue,
     hasAssistantContent as checkHasAssistantContent,
@@ -178,6 +178,7 @@ const ChatTurnView = ({
 }: Props) => {
     const providers = usePlaygroundUIOptional()
     const SharedGenerationResultUtils = providers?.SharedGenerationResultUtils
+    const ChatTurnAssistantActions = providers?.ChatTurnAssistantActions
     const addUserMessage = useSetAtom(executionItemController.actions.addUserMessage)
 
     const {
@@ -203,45 +204,83 @@ const ChatTurnView = ({
 
     const sessionId = entityId ? `sess:${entityId}` : null
 
-    const assistantMsg = useAtomValue(
+    const assistantMessages = useAtomValue(
         useMemo(
             () =>
                 sessionId
-                    ? executionItemController.selectors.assistantForTurn({turnId, sessionId})
-                    : executionItemController.selectors.assistantForTurn({
+                    ? executionItemController.selectors.assistantsForTurn({turnId, sessionId})
+                    : executionItemController.selectors.assistantsForTurn({
                           turnId: "",
                           sessionId: "",
                       }),
             [turnId, sessionId],
         ),
-    ) as SimpleChatMessage | null
+    ) as ChatMessage[]
 
     const toolMessages = useAtomValue(
         useMemo(
             () =>
                 sessionId
                     ? executionItemController.selectors.toolsForTurn({turnId, sessionId})
-                    : executionItemController.selectors.toolsForTurn({turnId: "", sessionId: ""}),
+                    : executionItemController.selectors.toolsForTurn({
+                          turnId: "",
+                          sessionId: "",
+                      }),
             [turnId, sessionId],
         ),
-    ) as SimpleChatMessage[]
+    ) as ChatMessage[]
+
+    const lastAssistantMessage = useMemo(
+        () =>
+            assistantMessages.length > 0
+                ? (assistantMessages[assistantMessages.length - 1] as SimpleChatMessage)
+                : null,
+        [assistantMessages],
+    )
+
+    const fallbackAssistantMessage = useMemo(
+        () =>
+            !lastAssistantMessage && messageOverride
+                ? (messageOverride as SimpleChatMessage)
+                : null,
+        [lastAssistantMessage, messageOverride],
+    )
+
+    const displayedAssistantMessage = lastAssistantMessage || fallbackAssistantMessage
 
     const displayAssistantValue = useMemo(
-        () =>
-            extractAssistantDisplayValue((messageOverride || assistantMsg)?.content, currentResult),
-        [messageOverride, assistantMsg, currentResult],
+        () => extractAssistantDisplayValue(displayedAssistantMessage?.content, currentResult),
+        [displayedAssistantMessage, currentResult],
     )
 
     const hasAssistantContent = useMemo(
         () =>
             checkHasAssistantContent(
-                messageOverride || assistantMsg,
+                displayedAssistantMessage,
                 displayAssistantValue,
                 toolMessages.length > 0,
             ),
-        [messageOverride, assistantMsg, displayAssistantValue, toolMessages.length],
+        [displayedAssistantMessage, displayAssistantValue, toolMessages.length],
     )
-    const isRerunning = isRunning && hasAssistantContent
+    const hasPendingToolContinuation = useMemo(() => {
+        if (toolMessages.length === 0) return false
+
+        const assistantHasToolCalls = assistantMessages.some((msg) => {
+            const toolCalls = (msg as {tool_calls?: unknown[]}).tool_calls
+            return Array.isArray(toolCalls) && toolCalls.length > 0
+        })
+
+        const fallbackHasToolCalls = Array.isArray(
+            (fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls,
+        )
+            ? ((fallbackAssistantMessage as {tool_calls?: unknown[]} | null | undefined)?.tool_calls
+                  ?.length ?? 0) > 0
+            : false
+
+        return assistantHasToolCalls || fallbackHasToolCalls
+    }, [assistantMessages, fallbackAssistantMessage, toolMessages.length])
+    const isToolContinuationRunning = isRunning && hasPendingToolContinuation
+    const isRerunning = isRunning && hasAssistantContent && !isToolContinuationRunning
 
     // Chain nodes for downstream evaluator results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -300,30 +339,107 @@ const ChatTurnView = ({
             ) : hasAssistantContent ? (
                 <>
                     {isRerunning ? <TypingIndicator label="Re-running..." size="small" /> : null}
-                    <TurnMessageAdapter
-                        key={`${turnId}-assistant-${repetitionIndex}`}
-                        entityId={entityId as string}
-                        rowId={turnId}
-                        kind="assistant"
-                        className="w-full"
-                        headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
-                        messageProps={messageProps}
-                        messageOverride={messageOverride}
-                        repetitionProps={repetitionProps}
-                    />
-                    {entityId
-                        ? toolMessages.map((_, index) => (
-                              <TurnMessageAdapter
-                                  key={`${turnId}-tool-${index}`}
-                                  entityId={entityId}
-                                  rowId={turnId}
-                                  kind="tool"
-                                  toolIndex={index}
-                                  className="w-full"
-                                  messageProps={messageProps}
-                              />
-                          ))
-                        : null}
+                    {assistantMessages.length > 0 ? (
+                        <>
+                            {assistantMessages.map((msg, idx) => {
+                                const isLastAssistant = idx === assistantMessages.length - 1
+                                const hasToolCalls =
+                                    Array.isArray((msg as {tool_calls?: unknown[]}).tool_calls) &&
+                                    ((msg as {tool_calls?: unknown[]}).tool_calls?.length ?? 0) > 0
+
+                                return (
+                                    <React.Fragment
+                                        key={`${turnId}-assistant-${msg.id || idx}-${repetitionIndex}`}
+                                    >
+                                        <TurnMessageAdapter
+                                            entityId={entityId as string}
+                                            rowId={turnId}
+                                            kind="assistant"
+                                            className="w-full"
+                                            headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                            messageProps={messageProps}
+                                            messageOverride={msg}
+                                            repetitionProps={
+                                                isLastAssistant ? repetitionProps : undefined
+                                            }
+                                        />
+                                        {/* Tool messages render after the first assistant (which triggered them) */}
+                                        {idx === 0 && toolMessages.length > 0 && entityId
+                                            ? toolMessages.map((toolMsg, toolIdx) => (
+                                                  <TurnMessageAdapter
+                                                      key={`${turnId}-tool-${toolMsg.id || toolIdx}`}
+                                                      entityId={entityId}
+                                                      rowId={turnId}
+                                                      kind="tool"
+                                                      toolIndex={toolIdx}
+                                                      className="w-full"
+                                                      messageProps={messageProps}
+                                                  />
+                                              ))
+                                            : null}
+                                        {idx === 0 && isToolContinuationRunning ? (
+                                            <TypingIndicator />
+                                        ) : null}
+                                        {isLastAssistant &&
+                                        hasToolCalls &&
+                                        ChatTurnAssistantActions &&
+                                        entityId &&
+                                        !isToolContinuationRunning ? (
+                                            <ChatTurnAssistantActions
+                                                rowId={turnId}
+                                                entityId={entityId}
+                                                currentResult={currentResult}
+                                                onRun={run}
+                                            />
+                                        ) : null}
+                                    </React.Fragment>
+                                )
+                            })}
+                        </>
+                    ) : (
+                        <>
+                            <TurnMessageAdapter
+                                key={`${turnId}-assistant-${repetitionIndex}`}
+                                entityId={entityId as string}
+                                rowId={turnId}
+                                kind="assistant"
+                                className="w-full"
+                                headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
+                                messageProps={messageProps}
+                                messageOverride={messageOverride}
+                                repetitionProps={repetitionProps}
+                            />
+                            {(() => {
+                                const hasToolCalls = Array.isArray(
+                                    (
+                                        fallbackAssistantMessage as
+                                            | {tool_calls?: unknown[]}
+                                            | null
+                                            | undefined
+                                    )?.tool_calls,
+                                )
+                                    ? ((
+                                          fallbackAssistantMessage as
+                                              | {tool_calls?: unknown[]}
+                                              | null
+                                              | undefined
+                                      )?.tool_calls?.length ?? 0)
+                                    : 0
+                                return ChatTurnAssistantActions && entityId && hasToolCalls > 0 ? (
+                                    isToolContinuationRunning ? (
+                                        <TypingIndicator />
+                                    ) : (
+                                        <ChatTurnAssistantActions
+                                            rowId={turnId}
+                                            entityId={entityId}
+                                            currentResult={currentResult}
+                                            onRun={run}
+                                        />
+                                    )
+                                ) : null
+                            })()}
+                        </>
+                    )}
                     {hasFooterContent ? (
                         <div className="flex items-center gap-2 flex-wrap px-1">
                             {traceId && SharedGenerationResultUtils ? (

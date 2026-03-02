@@ -71,7 +71,10 @@ export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParam
 
     const run = useCallback(() => {
         if (skip) return
-        triggerTest({executionId: entityId, step: {id: stepId}})
+        triggerTest({
+            executionId: entityId,
+            step: {id: stepId},
+        })
     }, [triggerTest, entityId, stepId, skip])
 
     const cancel = useCallback(() => {

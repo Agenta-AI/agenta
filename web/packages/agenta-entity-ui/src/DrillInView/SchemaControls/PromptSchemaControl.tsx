@@ -35,7 +35,7 @@ import {
     normalizeMessages,
 } from "./schemaUtils"
 import {ToolItemControl} from "./ToolItemControl"
-import {ToolSelectorPopover} from "./ToolSelectorPopover"
+import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
 import {type ToolObj} from "./toolUtils"
 
 export interface PromptSchemaControlProps {
@@ -136,6 +136,25 @@ function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
     return <Icon className="w-4 h-4" />
 }
 
+function isBuiltinPayloadMatch(tool: unknown, payload: ToolObj): boolean {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return false
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false
+
+    const toolObj = tool as Record<string, unknown>
+    const payloadObj = payload as Record<string, unknown>
+
+    if (typeof payloadObj.type === "string" && toolObj.type === payloadObj.type) return true
+    if (typeof payloadObj.name === "string" && toolObj.name === payloadObj.name) return true
+
+    const payloadKeys = Object.keys(payloadObj)
+    return (
+        payloadKeys.length === 1 &&
+        payloadKeys[0] !== "type" &&
+        payloadKeys[0] !== "name" &&
+        payloadKeys[0] in toolObj
+    )
+}
+
 /**
  * Schema-driven control for prompt objects.
  *
@@ -173,7 +192,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     renderProviderIcon,
 }: PromptSchemaControlProps) {
     // Get injected EditorProvider from context
-    const {EditorProvider} = useDrillInUI()
+    const {EditorProvider, gatewayTools} = useDrillInUI()
 
     // Use prop if provided, otherwise use default
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
@@ -304,18 +323,49 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     )
 
     // Handle add tool (from ToolSelectorPopover)
-    // No agenta_metadata is injected — ToolItemControl infers builtin status
-    // via inferBuiltinToolInfo which matches against TOOL_SPECS payloads.
+    // Preserve tool source metadata so the card renderer can recover the
+    // richer gateway/builtin header presentation after serialization.
     const handleAddTool = useCallback(
-        (newTool: ToolObj) => {
+        (newTool: ToolObj, meta?: ToolSelectionMeta) => {
             const currentTools = getToolsArray()
-            setToolsValue([...currentTools, newTool])
+            if (!newTool || typeof newTool !== "object" || Array.isArray(newTool)) {
+                setToolsValue([...currentTools, newTool])
+                return
+            }
+
+            const nextTool = meta
+                ? {
+                      ...(newTool as Record<string, unknown>),
+                      agenta_metadata: {
+                          ...(((newTool as Record<string, unknown>).agenta_metadata as
+                              | Record<string, unknown>
+                              | undefined) ?? {}),
+                          ...meta,
+                      },
+                  }
+                : newTool
+
+            setToolsValue([...currentTools, nextTool])
         },
         [getToolsArray, setToolsValue],
     )
 
     // Extract tools array from value (respects nested llm_config)
     const tools = useMemo(() => getToolsArray(), [getToolsArray])
+
+    const selectedToolNames = useMemo(() => {
+        return new Set(
+            tools
+                .map((tool) => {
+                    if (!tool || typeof tool !== "object") return undefined
+                    const fn = (tool as Record<string, unknown>).function
+                    if (!fn || typeof fn !== "object") return undefined
+                    const name = (fn as Record<string, unknown>).name
+                    return typeof name === "string" ? name : undefined
+                })
+                .filter((name): name is string => Boolean(name)),
+        )
+    }, [tools])
 
     // Handle individual tool change
     const handleToolChange = useCallback(
@@ -333,6 +383,38 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         (index: number) => {
             const currentTools = getToolsArray()
             const updated = currentTools.filter((_, i) => i !== index)
+            setToolsValue(updated.length > 0 ? updated : undefined)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    const handleRemoveToolByName = useCallback(
+        (toolName: string) => {
+            const currentTools = getToolsArray()
+            const updated = currentTools.filter((tool) => {
+                if (!tool || typeof tool !== "object") return true
+                const fn = (tool as Record<string, unknown>).function
+                if (!fn || typeof fn !== "object") return true
+                return (fn as Record<string, unknown>).name !== toolName
+            })
+            setToolsValue(updated.length > 0 ? updated : undefined)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    const handleRemoveBuiltinTool = useCallback(
+        (toolToRemove: ToolObj) => {
+            const currentTools = getToolsArray()
+            let removed = false
+            const updated = currentTools.filter((tool) => {
+                if (removed) return true
+                const matches = isBuiltinPayloadMatch(tool, toolToRemove)
+                if (matches) {
+                    removed = true
+                    return false
+                }
+                return true
+            })
             setToolsValue(updated.length > 0 ? updated : undefined)
         },
         [getToolsArray, setToolsValue],
@@ -428,9 +510,14 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     {/* Add Tool */}
                     <ToolSelectorPopover
                         onAddTool={handleAddTool}
+                        onRemoveTool={handleRemoveToolByName}
+                        onRemoveBuiltinTool={handleRemoveBuiltinTool}
+                        selectedToolNames={selectedToolNames}
+                        selectedTools={tools as ToolObj[]}
                         disabled={disabled}
                         renderProviderIcon={effectiveRenderProviderIcon}
                         existingToolCount={tools.length}
+                        gatewayTools={gatewayTools}
                     />
 
                     {/* Output type (response format) with JSON schema editing */}

@@ -62,6 +62,17 @@ export interface SharedGenerationResultUtilsProps {
 }
 
 /**
+ * Optional assistant-footer actions rendered under a chat assistant message.
+ * OSS uses this to inject gateway tool execution controls.
+ */
+export interface ChatTurnAssistantActionsProps {
+    rowId: string
+    entityId: string
+    currentResult?: unknown
+    onRun: () => void
+}
+
+/**
  * Payload returned when testset data is selected
  */
 export interface LoadTestsetSelectionPayload {
@@ -143,6 +154,9 @@ export interface PlaygroundUIProviders {
 
     /** SharedGenerationResultUtils for trace info display */
     SharedGenerationResultUtils: ComponentType<SharedGenerationResultUtilsProps>
+
+    /** Optional assistant footer actions for chat turns (e.g. gateway tool execution) */
+    ChatTurnAssistantActions?: ComponentType<ChatTurnAssistantActionsProps>
 
     /** CommitVariantChangesButton for saving variants */
     CommitVariantChangesButton: ComponentType<CommitVariantChangesButtonProps>

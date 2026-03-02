@@ -463,12 +463,21 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
             // We specifically look for RevisionLabel and EntityListItemLabel
             // But since they might be wrapped or come from other packages,
             // we try to inject the props if they seem compatible.
-            const propsToInject: Record<string, any> = {
+            const propsToInject: {
+                showDateInline: boolean
+                showSubtitle: boolean
+            } = {
                 showDateInline: showDate,
                 showSubtitle: showDate,
             }
 
-            return React.cloneElement(node as React.ReactElement<any>, propsToInject)
+            return React.cloneElement(
+                node as React.ReactElement<{
+                    showDateInline?: boolean
+                    showSubtitle?: boolean
+                }>,
+                propsToInject,
+            )
         },
         [showDate],
     )

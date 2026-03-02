@@ -213,9 +213,10 @@ export interface DrillInProviderProps<TEntity = unknown> {
 // ============================================================================
 
 export {
+    defaultShowMessage,
     DrillInUIProvider,
     useDrillInUI,
-    defaultShowMessage,
     type DrillInUIComponents,
+    type GatewayToolsBridge,
     type DrillInUIProviderProps,
 } from "./context/DrillInUIContext"

@@ -85,7 +85,12 @@ const EvaluatorTag: React.FC<{
 }> = ({node, onDisconnect}) => {
     const runnableData = useAtomValue(
         useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
-    ) as {name?: string | null; slug?: string | null; uri?: string | null; version?: number | null} | null
+    ) as {
+        name?: string | null
+        slug?: string | null
+        uri?: string | null
+        version?: number | null
+    } | null
 
     const color: EvaluatorColor | undefined = useMemo(() => {
         if (!runnableData?.uri) return undefined

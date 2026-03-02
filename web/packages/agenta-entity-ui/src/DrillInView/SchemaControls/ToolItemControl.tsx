@@ -27,7 +27,7 @@ import clsx from "clsx"
 
 import {useDrillInUI} from "../context/DrillInUIContext"
 
-import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
+import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
 
 // ============================================================================
 // JSON HELPERS
@@ -256,7 +256,80 @@ interface ToolHeaderProps {
     builtinProviderLabel?: string
     builtinToolLabel?: string
     builtinIcon?: React.ReactNode
+    gatewayHeader?: React.ReactNode
     containerRef?: React.RefObject<HTMLElement | null>
+}
+
+function GatewayToolHeaderIdentity({
+    integrationKey,
+    actionLabel,
+    connectionLabel,
+    logo,
+}: {
+    integrationKey: string
+    actionLabel: string
+    connectionLabel: string
+    logo?: string
+}) {
+    return (
+        <div className="flex items-center gap-1.5 min-w-0">
+            {logo ? (
+                <img
+                    src={logo}
+                    alt={integrationKey}
+                    className="h-6 w-6 rounded object-contain shrink-0"
+                />
+            ) : null}
+            <Typography.Text className="truncate">
+                {integrationKey} / {actionLabel} / {connectionLabel}
+            </Typography.Text>
+        </div>
+    )
+}
+
+function GatewayToolHeaderWithHook({
+    integrationKey,
+    actionLabel,
+    connectionLabel,
+    useIntegrationInfo,
+}: {
+    integrationKey: string
+    actionLabel: string
+    connectionLabel: string
+    useIntegrationInfo: NonNullable<
+        NonNullable<ReturnType<typeof useDrillInUI>["gatewayTools"]>["useIntegrationInfo"]
+    >
+}) {
+    const info = useIntegrationInfo(integrationKey)
+    return (
+        <GatewayToolHeaderIdentity
+            integrationKey={integrationKey}
+            actionLabel={actionLabel}
+            connectionLabel={connectionLabel}
+            logo={info.logo}
+        />
+    )
+}
+
+function GatewayToolHeader({
+    integrationKey,
+    actionLabel,
+    connectionLabel,
+    logo,
+}: {
+    integrationKey: string
+    actionLabel: string
+    connectionLabel: string
+    logo?: string
+}) {
+    return (
+        <GatewayToolHeaderIdentity
+            integrationKey={integrationKey}
+            actionLabel={actionLabel}
+            connectionLabel={connectionLabel}
+            logo={logo}
+        />
+    )
 }
 
 const ToolHeader = memo(function ToolHeader({
@@ -271,12 +344,15 @@ const ToolHeader = memo(function ToolHeader({
     builtinProviderLabel,
     builtinToolLabel,
     builtinIcon,
+    gatewayHeader,
     containerRef,
 }: ToolHeaderProps) {
     return (
         <div className="w-full flex items-start justify-between py-1">
             <div className="grow min-w-0">
-                {isBuiltinTool ? (
+                {gatewayHeader ? (
+                    gatewayHeader
+                ) : isBuiltinTool ? (
                     <div className="flex items-center gap-1">
                         <div className="flex items-center">
                             {builtinIcon && (
@@ -386,7 +462,7 @@ export const ToolItemControl = memo(function ToolItemControl({
     className,
     renderProviderIcon,
 }: ToolItemControlProps) {
-    const {SharedEditor} = useDrillInUI()
+    const {SharedEditor, gatewayTools} = useDrillInUI()
 
     // Use prop if provided, otherwise use default
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
@@ -423,6 +499,14 @@ export const ToolItemControl = memo(function ToolItemControl({
         onEditorChange,
     } = useToolState(cleanedValue, isReadOnly, handleChange)
 
+    const functionName =
+        (toolObj as Record<string, unknown>)?.function &&
+        typeof (toolObj as Record<string, unknown>).function === "object"
+            ? (((toolObj as Record<string, unknown>).function as Record<string, unknown>).name as
+                  | string
+                  | undefined)
+            : undefined
+
     // Builtin detection
     const isBuiltinInferred = useMemo(() => inferIsBuiltinTool(toolObj), [toolObj])
 
@@ -438,6 +522,13 @@ export const ToolItemControl = memo(function ToolItemControl({
 
     const inferredToolInfo = useMemo(() => inferBuiltinToolInfo(toolObj), [toolObj])
     const fallbackToolLabel = useMemo(() => inferBuiltinLabel(toolObj), [toolObj])
+    const parsedGatewayTool = useMemo(() => parseGatewayFunctionName(functionName), [functionName])
+    const isGatewayTool = useMemo(() => {
+        if (agentaMetadata && typeof agentaMetadata === "object") {
+            return (agentaMetadata as Record<string, unknown>).source === "gateway"
+        }
+        return Boolean(parsedGatewayTool)
+    }, [agentaMetadata, parsedGatewayTool])
 
     // Provider metadata
     const providerKey = useMemo(() => {
@@ -445,8 +536,9 @@ export const ToolItemControl = memo(function ToolItemControl({
             const meta = agentaMetadata as Record<string, unknown>
             if (meta.provider) return meta.provider as string
         }
+        if (parsedGatewayTool?.provider) return parsedGatewayTool.provider
         return inferredToolInfo?.providerKey
-    }, [agentaMetadata, inferredToolInfo])
+    }, [agentaMetadata, inferredToolInfo, parsedGatewayTool])
 
     const providerConfig = providerKey ? TOOL_PROVIDERS_META[providerKey] : undefined
 
@@ -473,6 +565,47 @@ export const ToolItemControl = memo(function ToolItemControl({
         }
         return null
     }, [effectiveRenderProviderIcon, providerKey])
+
+    const gatewayHeader = useMemo(() => {
+        if (!isGatewayTool) return null
+
+        const meta =
+            agentaMetadata && typeof agentaMetadata === "object"
+                ? (agentaMetadata as Record<string, unknown>)
+                : undefined
+
+        const integrationKey =
+            (meta?.integrationKey as string | undefined) ?? parsedGatewayTool?.integration
+        const actionLabel =
+            (meta?.toolLabel as string | undefined) ??
+            (meta?.toolCode as string | undefined) ??
+            parsedGatewayTool?.action
+        const connectionLabel =
+            (meta?.connectionSlug as string | undefined) ?? parsedGatewayTool?.connection
+
+        if (!integrationKey || !actionLabel || !connectionLabel) return null
+
+        if (gatewayTools?.useIntegrationInfo) {
+            return (
+                <GatewayToolHeaderWithHook
+                    integrationKey={integrationKey}
+                    actionLabel={actionLabel}
+                    connectionLabel={connectionLabel}
+                    useIntegrationInfo={gatewayTools.useIntegrationInfo}
+                />
+            )
+        }
+
+        const info = gatewayTools?.renderIntegrationInfo?.(integrationKey)
+        return (
+            <GatewayToolHeader
+                integrationKey={integrationKey}
+                actionLabel={actionLabel}
+                connectionLabel={connectionLabel}
+                logo={info?.logo}
+            />
+        )
+    }, [agentaMetadata, gatewayTools, isGatewayTool, parsedGatewayTool])
 
     // Fallback when SharedEditor is not injected
     if (!SharedEditor) {
@@ -510,6 +643,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                     builtinProviderLabel={providerLabel}
                     builtinToolLabel={toolLabel}
                     builtinIcon={providerIcon}
+                    gatewayHeader={gatewayHeader}
                     containerRef={containerRef}
                 />
                 {!minimized && (
@@ -580,6 +714,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                         builtinProviderLabel={providerLabel}
                         builtinToolLabel={toolLabel}
                         builtinIcon={providerIcon}
+                        gatewayHeader={gatewayHeader}
                         containerRef={containerRef}
                     />
                 }

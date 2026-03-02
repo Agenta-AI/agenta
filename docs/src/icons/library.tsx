@@ -182,6 +182,23 @@ const ServerIcon: IconComponent = (props) => {
   );
 };
 
+const PuzzleIcon: IconComponent = (props) => {
+  const {colorMode} = useColorMode();
+  const isDark = colorMode === 'dark';
+
+  return isDark ? (
+    // Dark mode - filled
+    <svg {...filledSvgProps} {...props}>
+      <path d="M17.5 1H13v4.5a3 3 0 1 1-6 0V1H4a3 3 0 0 0-3 3v3h4.5a3 3 0 1 1 0 6H1v4a3 3 0 0 0 3 3h3v-4.5a3 3 0 1 1 6 0V20h4a3 3 0 0 0 3-3v-3h-4.5a3 3 0 1 1 0-6H20V4a3 3 0 0 0-2.5-3z" />
+    </svg>
+  ) : (
+    // Light mode - stroke
+    <svg {...strokeSvgProps} {...props}>
+      <path d="M16.5 2H13v3.5a2.5 2.5 0 1 1-5 0V2H4.5A2.5 2.5 0 0 0 2 4.5V8h3.5a2.5 2.5 0 1 1 0 5H2v3.5A2.5 2.5 0 0 0 4.5 19H8v-3.5a2.5 2.5 0 1 1 5 0V19h3.5a2.5 2.5 0 0 0 2.5-2.5V13h-3.5a2.5 2.5 0 1 1 0-5H19V4.5A2.5 2.5 0 0 0 16.5 2z" />
+    </svg>
+  );
+};
+
 const SunIcon: IconComponent = (props) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
     <path d="M13 1H11V4H13V1Z" fill="currentColor" />
@@ -215,6 +232,7 @@ const ICON_LIBRARIES: Record<string, IconLibrary> = {
     settings: SettingsIcon,
     shield: ShieldIcon,
     server: ServerIcon,
+    puzzle: PuzzleIcon,
     sun: SunIcon,
     moon: MoonIcon,
   },

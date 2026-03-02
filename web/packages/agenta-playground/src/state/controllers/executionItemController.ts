@@ -30,6 +30,7 @@ import {
     messageIdsWithContextAtom,
     messagesByIdWithContextAtom,
     addUserMessageWithContextAtom,
+    addMessageWithContextAtom,
     patchMessageWithContextAtom,
     deleteMessageWithContextAtom,
     truncateChatWithContextAtom,
@@ -77,6 +78,7 @@ import {
     aggregatedHeaderDataAtom,
     assistantForTurnAtomFamily,
     toolsForTurnAtomFamily,
+    assistantsForTurnAtomFamily,
     rerunFromTurnAtom,
     runAllWithContextAtom,
     runRowAtom,
@@ -232,6 +234,10 @@ export const executionItemController = {
         /** Tool messages for a specific turn and session */
         toolsForTurn: (params: {turnId: string; sessionId: string}) =>
             toolsForTurnAtomFamily(params),
+
+        /** All assistant messages for a specific turn and session (chronological) */
+        assistantsForTurn: (params: {turnId: string; sessionId: string}) =>
+            assistantsForTurnAtomFamily(params),
     },
 
     /**
@@ -311,6 +317,9 @@ export const executionItemController = {
 
         /** Add a user message turn */
         addUserMessage: addUserMessageWithContextAtom,
+
+        /** Add a message (assistant/tool/system) to the current chat context */
+        addMessage: addMessageWithContextAtom,
 
         /** Patch (edit) a specific message */
         patchMessage: patchMessageWithContextAtom,

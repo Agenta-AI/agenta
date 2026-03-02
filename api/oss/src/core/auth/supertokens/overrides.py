@@ -225,20 +225,43 @@ async def _get_blocked_emails() -> Set[str]:
     return set()
 
 
+async def _get_allowed_domains() -> Set[str]:
+    return env.agenta.allowed_domains
+
+
+def _matches_exact_or_subdomain(
+    candidate_domain: str, configured_domains: Set[str]
+) -> bool:
+    return any(
+        candidate_domain == blocked_domain
+        or candidate_domain.endswith(f".{blocked_domain}")
+        for blocked_domain in configured_domains
+    )
+
+
 async def _is_blocked(email: str) -> bool:
     email = email.lower()
+
+    if email in await _get_blocked_emails():
+        return True
+
     domain = email.split("@")[-1] if "@" in email else ""
-    allowed_domains = env.agenta.allowed_domains
-    is_domain_allowed = allowed_domains and domain in allowed_domains
 
-    if allowed_domains and not is_domain_allowed:
-        return True
+    allowed_domains = await _get_allowed_domains()
+    is_domain_allowed = bool(
+        domain and allowed_domains
+    ) and _matches_exact_or_subdomain(domain, allowed_domains)
 
-    if email and email in await _get_blocked_emails():
-        return True
+    if allowed_domains:
+        return not is_domain_allowed
 
-    if domain and domain in await _get_blocked_domains() and not is_domain_allowed:
-        return True
+    blocked_domains = await _get_blocked_domains()
+    is_domain_blocked = bool(
+        domain and blocked_domains
+    ) and _matches_exact_or_subdomain(domain, blocked_domains)
+
+    if blocked_domains:
+        return is_domain_blocked
 
     return False
 

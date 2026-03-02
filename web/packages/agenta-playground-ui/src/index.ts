@@ -49,6 +49,7 @@ export {
     PlaygroundUIProvider,
     usePlaygroundUI,
     usePlaygroundUIOptional,
+    type ChatTurnAssistantActionsProps,
     type CommitVariantChangesButtonProps,
     // Component prop types
     type EntityDrillInViewProps,
@@ -74,6 +75,8 @@ export {
     // Entity selector
     EntitySelectorProvider,
     // Focus drawer
+    GatewayToolAssistantActions,
+    GatewayToolExecuteButton,
     PlaygroundFocusDrawer,
     // Tool call view
     ToolCallView,

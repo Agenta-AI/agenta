@@ -1,0 +1,45 @@
+---
+title: "Tool Integrations in the Playground"
+slug: tool-integrations
+date: 2026-02-27
+tags: [v0.87.0]
+description: "Connect 150+ tools to your prompts directly from the playground. Gmail, Slack, Notion, Google Sheets, GitHub, and more."
+---
+
+## The Problem
+
+Building agentic applications that interact with external services means writing integration code: OAuth flows, API wrappers, error handling. You do all of that before you can even test whether your prompt works with the tool.
+
+## The Solution
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/nEbwJhdTQds"
+    title="Tool Integrations in the Playground"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+You can now connect external tools to your prompts and call them from the playground. Browse a catalog of 150+ integrations, authenticate with OAuth or an API key, and attach tool actions to your prompt config. When the LLM generates a tool call, you execute it with one click and send the result back to the chat.
+
+## What You Can Do
+
+- **Use Google Sheets or Notion as data sources.** Connect a spreadsheet or Notion database and let the LLM query it. Build RAG applications directly from the playground without writing any code.
+- **Send emails and messages.** Attach Gmail or Slack and your prompt can draft and send emails, post to channels, or create threads.
+- **Automate developer workflows.** Connect GitHub to create issues, Jira to update tickets, or any of the 150+ available integrations.
+- **Manage connections in Settings.** A dedicated Tools page shows all your connected integrations, their status, and lets you add or revoke connections.
+
+## How It Works
+
+1. Go to **Settings > Tools** and connect an integration (e.g., Gmail). You authenticate via OAuth or paste an API key.
+2. In the Playground, open the tools panel in your prompt config. Your connected integrations appear there.
+3. Select the actions you want available to the LLM (e.g., "Send Email", "List Emails").
+4. Run your prompt. When the LLM generates a tool call, click "Execute" to run it and return the result to the conversation.
+
+## Getting Started
+
+Tool integrations are available on Agenta Cloud. Connect your first integration in **Settings > Tools**.
