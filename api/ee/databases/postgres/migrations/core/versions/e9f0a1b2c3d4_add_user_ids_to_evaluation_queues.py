@@ -31,7 +31,7 @@ def upgrade() -> None:
             SET user_ids = (
                 SELECT array_agg(DISTINCT uid.value::uuid)
                 FROM jsonb_array_elements(
-                    COALESCE(evaluation_queues.data -> 'user_ids', '[]'::jsonb)
+                    COALESCE((evaluation_queues.data -> 'user_ids')::jsonb, '[]'::jsonb)
                 ) AS repeat_user_ids(value)
                 CROSS JOIN LATERAL jsonb_array_elements_text(repeat_user_ids.value) AS uid(value)
             )
