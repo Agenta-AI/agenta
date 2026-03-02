@@ -1,12 +1,8 @@
 import {
     legacyAppRevisionMolecule,
-    revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
-import {
-    metadataAtom as mergedMetadataAtom,
-    getAllMetadata,
-} from "@agenta/entities/legacyAppRevision"
+import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
 import {produce} from "immer"
 import {atom} from "jotai"
 import {RESET, atomFamily} from "jotai/utils"
@@ -182,23 +178,17 @@ export const transformedPromptsAtomFamily = atomFamily(
                 const useStable = typeof p === "object" && !!p.useStableParams
 
                 if (useStable) {
-                    const variant = resolveRevisionSource(get, revisionId)
-                    const prompts = get(revisionEnhancedPromptsAtomFamily(revisionId))
-                    const customProps = get(revisionEnhancedCustomPropertiesAtomFamily(revisionId))
-                    const variables = get(stablePromptVariablesAtomFamily(revisionId))
-                    const appType = get(currentAppContextAtom)?.appType || undefined
-                    const isChat = get(variantFlagsAtomFamily({revisionId}))?.isChat
-                    const metadata = get(mergedMetadataAtom)
-                    return transformToRequestBody({
-                        variant: variant as any,
-                        prompts,
-                        customProperties: customProps,
-                        allMetadata: metadata,
-                        isChat,
-                        revisionId,
-                        appType,
-                        variables,
-                    })
+                    // For the "original" side of the commit diff, use server
+                    // parameters directly. The server stores the raw ag_config
+                    // in `parameters`, so we don't need to derive it through
+                    // enhanced prompts/customProperties (which read from merged
+                    // draft data and would include local edits).
+                    const serverData = get(
+                        legacyAppRevisionMolecule.atoms.serverData(revisionId),
+                    ) as any
+                    if (!serverData) return undefined
+
+                    return {ag_config: serverData.parameters || {}}
                 }
 
                 const local = get(localTransformedPromptsByRevisionAtomFamily(revisionId))

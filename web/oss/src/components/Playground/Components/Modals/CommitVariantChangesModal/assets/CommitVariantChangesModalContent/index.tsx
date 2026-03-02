@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import {
@@ -110,20 +110,6 @@ function computeDiffStrings(originalParams: any, modifiedParams: any): DiffData 
     }
 }
 
-/**
- * Schedule a callback at low priority — uses `requestIdleCallback` when
- * available (lets the browser finish the modal open transition first),
- * falls back to a 0ms setTimeout (next macrotask) otherwise.
- */
-function scheduleIdleCallback(callback: () => void): () => void {
-    if (typeof requestIdleCallback !== "undefined") {
-        const id = requestIdleCallback(callback, {timeout: 300})
-        return () => cancelIdleCallback(id)
-    }
-    const id = setTimeout(callback, 0)
-    return () => clearTimeout(id)
-}
-
 // ============================================================================
 // Component
 // ============================================================================
@@ -172,33 +158,15 @@ const CommitVariantChangesModalContent = ({
     // Snapshot target revision on first render so it doesn't shift while the modal is open
     const settledTargetRevisionRef = useRef<number | null>(null)
 
-    // ---- Deferred diff computation ----
-    // Diff data is computed at low priority (requestIdleCallback) so the
-    // modal open transition is not blocked. The data won't change while
-    // the modal is open, so we compute once and store the result.
-    const [diffData, setDiffData] = useState<DiffData | null>(null)
-    const diffComputedRef = useRef(false)
-
     const modifiedParams =
         commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
 
-    useEffect(() => {
-        if (diffComputedRef.current || !variant || !originalAgConfig) return
-
-        diffComputedRef.current = true
-        const cancel = scheduleIdleCallback(() => {
-            setDiffData(computeDiffStrings(originalAgConfig, modifiedParams))
-        })
-
-        return cancel
-    }, [variant, originalAgConfig, modifiedParams])
-
-    // Reset when the target variant changes
-    useEffect(() => {
-        settledTargetRevisionRef.current = null
-        diffComputedRef.current = false
-        setDiffData(null)
-    }, [variantId])
+    // Compute diff strings as a derived value — StrictMode-safe (no refs/effects).
+    // Returns null while data is still loading.
+    const diffData = useMemo<DiffData | null>(() => {
+        if (!originalAgConfig || !modifiedParams) return null
+        return computeDiffStrings(originalAgConfig, modifiedParams)
+    }, [originalAgConfig, modifiedParams])
 
     // Guard against undefined variant during commit invalidation (after all hooks)
     if (!variant) {
