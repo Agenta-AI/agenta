@@ -48,9 +48,32 @@ release name so the Bitnami PostgreSQL subchart finds the correct secret:
   --set global.postgresql.auth.existingSecret={{ printf "%s-pgauth" (include "agenta.fullname" .) }}
 {{- end }}
 
+{{- if .Values.secrets.existingSecret }}
+
+You are using a pre-created Secret: {{ .Values.secrets.existingSecret }}
+Ensure it contains the following keys:
+  - AGENTA_AUTH_KEY
+  - AGENTA_CRYPT_KEY
+  - POSTGRES_PASSWORD
+  - SUPERTOKENS_API_KEY  (optional)
+{{- if .Values.postgresql.enabled }}
+
+Bundled PostgreSQL is enabled. Bitnami is configured to read the password from:
+  global.postgresql.auth.existingSecret: {{ .Values.global.postgresql.auth.existingSecret }}
+{{- if ne .Values.global.postgresql.auth.existingSecret .Values.secrets.existingSecret }}
+
+WARNING: global.postgresql.auth.existingSecret ({{ .Values.global.postgresql.auth.existingSecret }})
+does not match secrets.existingSecret ({{ .Values.secrets.existingSecret }}).
+The Bitnami PostgreSQL subchart may fail to find the password.
+Set: --set global.postgresql.auth.existingSecret={{ .Values.secrets.existingSecret }}
+{{- end }}
+{{- end }}
+{{- else }}
+
 IMPORTANT: Three secrets are REQUIRED. Install with:
 
   helm install agenta hosting/helm/agenta-oss \
     --set secrets.agentaAuthKey=$(openssl rand -hex 32) \
     --set secrets.agentaCryptKey=$(openssl rand -hex 32) \
     --set secrets.postgresPassword=$(openssl rand -hex 16)
+{{- end }}

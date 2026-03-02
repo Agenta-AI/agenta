@@ -17,6 +17,10 @@ global:
   # with a different release name or run multiple instances in the same
   # namespace, override this value to match your release, e.g.:
   #   global.postgresql.auth.existingSecret: "<release>-agenta-oss-pgauth"
+  #
+  # If you use secrets.existingSecret (a pre-created K8s Secret), set this to
+  # the SAME secret name so Bitnami reads POSTGRES_PASSWORD from it:
+  #   global.postgresql.auth.existingSecret: "my-secret"
   postgresql:
     auth:
       existingSecret: "agenta-pgauth"
@@ -30,6 +34,12 @@ global:
 secrets:
   # Set to the name of an existing Secret to use instead of the chart-managed one.
   # The Secret must contain keys: AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY, POSTGRES_PASSWORD
+  #
+  # When using this with the bundled PostgreSQL (postgresql.enabled=true), you must
+  # also set global.postgresql.auth.existingSecret to the SAME secret name so the
+  # Bitnami subchart can read POSTGRES_PASSWORD from it. Example:
+  #   --set secrets.existingSecret=my-secret
+  #   --set global.postgresql.auth.existingSecret=my-secret
   existingSecret: ""
   # REQUIRED — helm install will fail if these are not set (when existingSecret is empty).
   # Generate random keys:
