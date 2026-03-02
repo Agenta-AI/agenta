@@ -1,6 +1,6 @@
 """add events table
 
-Revision ID: d4e5f6a7b8c9
+Revision ID: a0b1c2d3e4f5
 Revises: e5f6a1b2c3d4
 Create Date: 2026-03-01 00:00:00.000000
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "d4e5f6a7b8c9"
+revision: str = "a0b1c2d3e4f5"
 down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
