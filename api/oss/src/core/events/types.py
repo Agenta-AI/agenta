@@ -8,10 +8,8 @@ class RequestType(str, Enum):
     """Execution request kind that produced an event."""
 
     UNKNOWN = "unknown"
-    # Future examples:
-    # HTTP = "http"
-    # WORKER = "worker"
-    # CRON = "cron"
+    ROUTER = "router"
+    WORKER = "worker"
 
 
 class EventType(str, Enum):

@@ -345,21 +345,32 @@ class WebhooksService:
         if subscription is None:
             raise WebhookSubscriptionNotFoundError(str(subscription_id))
 
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+        request_id = uuid.uuid7()
         event_id = uuid.uuid7()
+
+        request_type = RequestType.UNKNOWN
+        event_type = EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED
+
+        timestamp = datetime.now(timezone.utc)
+
+        attributes = dict(
+            subscription_id=str(subscription_id),
+        )
+
+        event = Event(
+            request_id=request_id,
+            event_id=event_id,
+            request_type=request_type,
+            event_type=event_type,
+            timestamp=timestamp,
+            attributes=attributes,
+        )
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+
         published = await publish_event(
             project_id=project_id,
-            event=Event(
-                request_id=uuid.uuid7(),
-                event_id=event_id,
-                request_type=RequestType.UNKNOWN,
-                event_type=EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED,
-                timestamp=datetime.now(timezone.utc),
-                attributes={
-                    "test": True,
-                    "subscription_id": str(subscription_id),
-                    "tested_by": str(user_id),
-                },
-            ),
+            event=event,
         )
         if not published:
             raise WebhookTestEventPublishFailedError(

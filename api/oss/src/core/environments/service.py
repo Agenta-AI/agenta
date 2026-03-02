@@ -737,28 +737,45 @@ class EnvironmentsService:
             ),
         )
 
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+        request_id = uuid_compat.uuid7()
+        event_id = uuid_compat.uuid7()
+
+        request_type = RequestType.UNKNOWN
+        event_type = EventType.ENVIRONMENTS_REVISIONS_COMMITTED
+
+        timestamp = datetime.now(timezone.utc)
+
+        attributes = dict(
+            user_id=str(user_id),
+            references=dict(
+                environment=dict(
+                    id=str(environment_revision.environment_id),
+                ),
+                environment_variant=dict(
+                    id=str(environment_revision.environment_variant_id),
+                ),
+                environment_revision=dict(
+                    id=str(environment_revision.id),
+                    slug=environment_revision.slug,
+                    version=environment_revision.version,
+                ),
+            ),
+        )
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+
+        event = Event(
+            request_id=request_id,
+            event_id=event_id,
+            request_type=request_type,
+            event_type=event_type,
+            timestamp=timestamp,
+            attributes=attributes,
+        )
+
         await publish_event(
             project_id=project_id,
-            event=Event(
-                request_id=uuid_compat.uuid7(),
-                event_id=uuid_compat.uuid7(),
-                request_type=RequestType.UNKNOWN,
-                event_type=EventType.ENVIRONMENTS_REVISIONS_COMMITTED,
-                timestamp=datetime.now(timezone.utc),
-                attributes={
-                    "environment_revision_id": str(environment_revision.id),
-                    "environment_id": str(environment_revision_commit.environment_id)
-                    if environment_revision_commit.environment_id
-                    else None,
-                    "environment_variant_id": str(
-                        environment_revision_commit.environment_variant_id
-                    )
-                    if environment_revision_commit.environment_variant_id
-                    else None,
-                    "slug": environment_revision.slug,
-                    "deployed_by": str(user_id),
-                },
-            ),
+            event=event,
         )
 
         return environment_revision
