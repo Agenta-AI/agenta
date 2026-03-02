@@ -1013,7 +1013,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
             arrow={false}
             menu={{items: []}}
             popupRender={() => content}
-            overlayClassName="[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"
+            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
             <Button
                 variant="outlined"

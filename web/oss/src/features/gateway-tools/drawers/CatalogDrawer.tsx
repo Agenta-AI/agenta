@@ -93,7 +93,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                 open={open}
                 onClose={handleClose}
                 title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
-                width={540}
+                size="large"
                 destroyOnClose
                 styles={{
                     body: {
