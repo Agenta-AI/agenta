@@ -11,6 +11,9 @@ services:
         command: ["true"]
 
     .web:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-web
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         build:
