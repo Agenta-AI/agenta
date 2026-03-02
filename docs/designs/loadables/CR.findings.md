@@ -88,12 +88,12 @@ The implementation quality and architecture are generally strong, but there are 
 5. Loadables e2e fixture appears outdated for traces ingest payload.
 - Request model expects `traces`: `api/oss/src/apis/fastapi/tracing/models.py:36`
 - Endpoint rejects missing traces: `api/oss/src/apis/fastapi/tracing/router.py:1179`
-- Fixture posts `{"spans": ...}`: `api/oss/tests/pytest/e2e/loadables/test_loadable_strategies.py:115`
+- Fixture posts `{"spans": ...}`: `api/oss/tests/pytest/acceptance/loadables/test_loadable_strategies.py:115`
 
 ## P3 Findings
 
 1. Stale "Status: RED" docstrings in e2e tests after implementation is complete.
-- `api/oss/tests/pytest/e2e/loadables/test_loadable_strategies.py`
+- `api/oss/tests/pytest/acceptance/loadables/test_loadable_strategies.py`
 
 2. Double UUID computation in `json_array_to_json_object` is valid but confusing.
 - `api/oss/src/core/testsets/utils.py:65`

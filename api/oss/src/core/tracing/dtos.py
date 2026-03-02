@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
     FullJson,
     Link,
     Trace,  # noqa: F401
+    Traces,  # noqa: F401
 )
 
 

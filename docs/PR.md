@@ -53,11 +53,11 @@ This PR aligns loadables retrieval behavior across testsets/queries, removes sta
 1. Formatting/lint:
    - `cd api && ruff format && ruff check --fix`
 2. Targeted e2e:
-   - `pytest -q oss/tests/pytest/e2e/tracing/test_traces_basics.py oss/tests/pytest/e2e/loadables/test_loadable_strategies.py`
+   - `pytest -q oss/tests/pytest/acceptance/tracing/test_traces_basics.py oss/tests/pytest/acceptance/loadables/test_loadable_strategies.py`
    - Result: `27 passed`
 3. Broader e2e:
-   - `pytest -q oss/tests/pytest/e2e/testsets/test_testsets_basics.py oss/tests/pytest/e2e/testsets/test_testsets_queries.py oss/tests/pytest/e2e/testsets/test_testcases_basics.py oss/tests/pytest/e2e/tracing/test_spans_basics.py oss/tests/pytest/e2e/tracing/test_spans_queries.py`
+   - `pytest -q oss/tests/pytest/acceptance/testsets/test_testsets_basics.py oss/tests/pytest/acceptance/testsets/test_testsets_queries.py oss/tests/pytest/acceptance/testsets/test_testcases_basics.py oss/tests/pytest/acceptance/tracing/test_spans_basics.py oss/tests/pytest/acceptance/tracing/test_spans_queries.py`
    - Result: `17 passed, 3 skipped` (existing flaky skips)
 4. Full e2e suite:
-   - `pytest -q oss/tests/pytest/e2e`
+   - `pytest -q oss/tests/pytest/acceptance`
    - Result: `175 passed, 3 skipped`
