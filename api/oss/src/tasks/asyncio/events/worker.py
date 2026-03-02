@@ -266,7 +266,7 @@ class EventsWorker:
                 # 3. Dispatch to webhooks (skip ACK/DEL on failure to allow retry)
                 if self.webhooks_dispatcher and batches:
                     try:
-                        await self.webhooks_dispatcher.dispatch(batches)
+                        await self.webhooks_dispatcher.dispatch(batches=batches)
                     except Exception:
                         log.error("[EVENTS] Webhook dispatch failed", exc_info=True)
                         log.warning(

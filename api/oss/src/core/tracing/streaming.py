@@ -83,7 +83,7 @@ async def publish_spans(
     *,
     organization_id: UUID,
     project_id: UUID,
-    user_id: Optional[UUID] = None,
+    user_id: UUID,
     #
     span_dtos: List[OTelFlatSpan],
 ) -> int:
