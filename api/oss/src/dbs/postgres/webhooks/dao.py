@@ -291,7 +291,7 @@ class WebhooksDAO(WebhooksDAOInterface):
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=WebhookSubscriptionDBE,
-                    attribute="created_at",
+                    attribute="id",
                     order="descending",
                     windowing=windowing,
                 )

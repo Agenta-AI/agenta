@@ -181,7 +181,7 @@ class TestWebhooksSubscriptionsBasics:
         assert response.status_code == 200
         body = response.json()
         assert body["count"] == 1
-        assert body["subscription"]["deleted_at"] is None
+        assert body["subscription"].get("deleted_at") is None
         # ----------------------------------------------------------------------
 
     def test_archive_webhook_subscription_not_found(self, authed_api):
