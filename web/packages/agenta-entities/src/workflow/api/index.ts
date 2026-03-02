@@ -37,6 +37,7 @@ export {
     type CommitWorkflowRevisionPayload,
     // Archive / Unarchive
     archiveWorkflow,
+    archiveWorkflowVariant,
     archiveWorkflowRevision,
     unarchiveWorkflow,
     // Batch

@@ -1016,7 +1016,10 @@ const controllerDeleteRevisionAtom = atom(
             // Read raw workflow entity data (NOT bridge.data which transforms to RunnableData
             // and strips workflow_id). The archive API expects the artifact-level workflow ID.
             const entityData = workflowMolecule.get.data(revisionId) as
-                | ({workflow_id?: unknown; id?: unknown} & Record<string, unknown>)
+                | ({workflow_id?: unknown; workflow_variant_id?: unknown; id?: unknown} & Record<
+                      string,
+                      unknown
+                  >)
                 | null
             const workflowId = asNonEmptyString(entityData?.workflow_id)
             if (!workflowId) {
@@ -1025,9 +1028,11 @@ const controllerDeleteRevisionAtom = atom(
                     error: `Cannot delete workflow: missing workflow_id for revision ${revisionId}`,
                 }
             }
+            const variantId = asNonEmptyString(entityData?.workflow_variant_id)
             const result = await set(archiveWorkflowRevisionAtom, {
                 revisionId,
                 workflowId,
+                variantId: variantId ?? undefined,
             })
             return {
                 success: result.success,

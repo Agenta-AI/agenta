@@ -31,6 +31,7 @@ import {
     type WorkflowVariant,
     type WorkflowResponse,
     type WorkflowsResponse,
+    type WorkflowVariantResponse,
     type WorkflowVariantsResponse,
     type WorkflowRevisionResponse,
     type WorkflowRevisionsResponse,
@@ -853,6 +854,31 @@ export async function archiveWorkflowRevision(
         "[archiveWorkflowRevision]",
     )
     return validated ?? {count: 0, workflow_revision: null}
+}
+
+/**
+ * Archive (soft delete) a single workflow variant.
+ *
+ * Endpoint: `POST /preview/workflows/variants/{variant_id}/archive`
+ *
+ * Used to clean up orphaned variants after their last revision is archived.
+ */
+export async function archiveWorkflowVariant(
+    projectId: string,
+    variantId: string,
+): Promise<WorkflowVariantResponse> {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/variants/${variantId}/archive`,
+        {},
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowVariantResponseSchema,
+        response.data,
+        "[archiveWorkflowVariant]",
+    )
+    return validated ?? {count: 0, workflow_variant: null}
 }
 
 // ============================================================================

@@ -26,7 +26,13 @@
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
 
-import {commitWorkflowRevisionApi, createWorkflowVariantApi, archiveWorkflowRevision} from "../api"
+import {
+    commitWorkflowRevisionApi,
+    createWorkflowVariantApi,
+    archiveWorkflowRevision,
+    archiveWorkflowVariant,
+    queryWorkflowRevisions,
+} from "../api"
 import type {Workflow} from "../core"
 
 import {
@@ -80,8 +86,11 @@ export type WorkflowCommitOutcome = WorkflowCommitResult | WorkflowCommitError
 export interface WorkflowArchiveParams {
     /** Revision ID to archive */
     revisionId: string
-    /** Workflow ID (parent workflow) */
+    /** Workflow ID (parent workflow artifact) */
     workflowId: string
+    /** Variant ID (parent variant) — when provided, the atom checks if the
+     *  variant has remaining active revisions and archives it if empty. */
+    variantId?: string
 }
 
 /**
@@ -406,7 +415,7 @@ export const createWorkflowVariantAtom = atom(
 export const archiveWorkflowRevisionAtom = atom(
     null,
     async (get, _set, params: WorkflowArchiveParams): Promise<WorkflowArchiveOutcome> => {
-        const {revisionId, workflowId} = params
+        const {revisionId, workflowId, variantId} = params
 
         try {
             const projectId = get(projectIdAtom)
@@ -416,9 +425,38 @@ export const archiveWorkflowRevisionAtom = atom(
 
             await archiveWorkflowRevision(projectId, revisionId)
 
+            // When variantId is provided, check if the variant still has
+            // active (non-archived) revisions. If not, archive the variant
+            // so it no longer appears in the entity selector dropdown.
+            if (variantId) {
+                try {
+                    const remaining = await queryWorkflowRevisions(variantId, projectId)
+                    const allRevisions = remaining.workflow_revisions ?? []
+                    const activeRevisions = allRevisions.filter(
+                        (r) => !r.deleted_at && r.id !== revisionId,
+                    )
+                    // Check if remaining revisions are only seed commits (v0)
+                    // with no parameters — these are invisible to the user.
+                    const userVisibleRevisions = activeRevisions.filter(
+                        (r) => r.data?.parameters && Object.keys(r.data.parameters).length > 0,
+                    )
+                    if (userVisibleRevisions.length === 0) {
+                        // Archive leftover seed revisions first
+                        for (const r of activeRevisions) {
+                            await archiveWorkflowRevision(projectId, r.id)
+                        }
+                        // Then archive the now-empty variant
+                        await archiveWorkflowVariant(projectId, variantId)
+                    }
+                } catch (_variantErr) {
+                    // Best-effort: don't fail the overall delete if variant cleanup fails
+                }
+            }
+
             // Invalidate caches
             invalidateWorkflowsListCache()
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
+            invalidateWorkflowCache(revisionId)
 
             if (_archiveCallbacks.onQueryInvalidate) {
                 await _archiveCallbacks.onQueryInvalidate()

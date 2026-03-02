@@ -58,6 +58,7 @@ const WorkflowDeleteContent = ({
     onClose: () => void
 }) => {
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
+    const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
     const [isMutating, setIsMutating] = useState(false)
 
@@ -86,17 +87,22 @@ const WorkflowDeleteContent = ({
                 }
             }
 
+            // Remove deleted entities from the playground selection
+            // so the UI doesn't show stale nodes for archived revisions.
+            for (const id of revisionIds) {
+                removeEntity(id)
+            }
+
             await invalidatePlaygroundQueries()
 
             message.success("Deleted workflow successfully")
             onClose()
         } catch (error) {
-            console.error("Failed to delete workflow:", error)
             message.error(error instanceof Error ? error.message : "Failed to delete workflow")
         } finally {
             setIsMutating(false)
         }
-    }, [revisionIds, deleteRevision, invalidatePlaygroundQueries, onClose])
+    }, [revisionIds, deleteRevision, removeEntity, invalidatePlaygroundQueries, onClose])
 
     return (
         <section className="flex flex-col gap-5">
