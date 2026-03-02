@@ -434,7 +434,7 @@ class EvaluationQueueCreate(Header, Metadata):
 
     flags: Optional[EvaluationQueueFlags] = None  # type: ignore
 
-    status: Optional[EvaluationStatus] = None
+    status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     data: Optional[EvaluationQueueData] = None
 
