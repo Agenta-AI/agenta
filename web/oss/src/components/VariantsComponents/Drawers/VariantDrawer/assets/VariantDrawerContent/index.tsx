@@ -1,6 +1,7 @@
 import {memo, useEffect, useMemo} from "react"
 
 import {
+    legacyAppRevisionQueryAtomFamily,
     legacyAppRevisionSchemaQueryAtomFamily,
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
@@ -42,6 +43,9 @@ const EMPTY_REVISION_ID = "__variant-drawer-empty__"
  * Waits for both variant data AND schema before rendering, so prompts and
  * custom properties are derived with full metadata on first paint.
  * For completion/chat apps the schema is prefetched, so this adds no latency.
+ *
+ * When data cannot be loaded (e.g., deleted revision, API error), returns false
+ * so the drawer can render a "not found" state instead of loading forever.
  */
 export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
@@ -51,6 +55,13 @@ export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) 
 
         const selectedVariant = get(moleculeBackedVariantAtomFamily(revisionId)) as any
         if (!selectedVariant) {
+            // Check if the underlying query has finished — if it completed without
+            // returning data (deleted revision, API error), stop loading so the
+            // drawer can render a "not found" state instead of spinning forever.
+            const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
+            if (!query.isPending) {
+                return false
+            }
             return true
         }
 
@@ -209,6 +220,14 @@ const VariantDrawerContent = ({
         return (
             <div className="flex items-center justify-center w-full h-full">
                 <Spin spinning />
+            </div>
+        )
+    }
+
+    if (!selectedVariant) {
+        return (
+            <div className="flex items-center justify-center w-full h-full">
+                <Text type="secondary">Revision not found</Text>
             </div>
         )
     }
