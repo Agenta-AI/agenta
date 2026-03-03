@@ -196,6 +196,8 @@ export interface ExtractChatMessagesParams {
     loadableId: string
     /** Testcase rows, each potentially containing a `messages` field */
     testcaseRows: Record<string, unknown>[]
+    /** When true, skip appending a blank user message at the end (e.g. trace replay) */
+    skipBlankMessage?: boolean
 }
 
 /**
@@ -213,7 +215,7 @@ export interface ExtractChatMessagesParams {
 export const extractAndLoadChatMessagesAtom = atom(
     null,
     (get, set, params: ExtractChatMessagesParams) => {
-        const {loadableId, testcaseRows} = params
+        const {loadableId, testcaseRows, skipBlankMessage} = params
 
         if (!testcaseRows || testcaseRows.length === 0) return
 
@@ -383,16 +385,19 @@ export const extractAndLoadChatMessagesAtom = atom(
             }
         }
 
-        // Append a blank user message for the next input
-        const blankUserMsgId = `msg-${generateId()}`
-        const blankUserMsg: ChatMessage = {
-            id: blankUserMsgId,
-            role: "user",
-            content: "",
-            sessionId: SHARED_SESSION_ID,
+        // Append a blank user message for the next input (unless suppressed,
+        // e.g. when replaying a trace where no new input is expected initially)
+        if (!skipBlankMessage) {
+            const blankUserMsgId = `msg-${generateId()}`
+            const blankUserMsg: ChatMessage = {
+                id: blankUserMsgId,
+                role: "user",
+                content: "",
+                sessionId: SHARED_SESSION_ID,
+            }
+            flatMessageIds.push(blankUserMsgId)
+            flatMessagesById[blankUserMsgId] = blankUserMsg
         }
-        flatMessageIds.push(blankUserMsgId)
-        flatMessagesById[blankUserMsgId] = blankUserMsg
 
         set(messageIdsAtomFamily(loadableId), flatMessageIds)
         set(messagesByIdAtomFamily(loadableId), flatMessagesById)
