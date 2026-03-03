@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {PencilLineIcon, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps, Modal, Switch, Tag, Typography, message} from "antd"
 import {useAtom} from "jotai"
 
@@ -10,7 +11,6 @@ import CreateWebhookModal from "@/oss/components/Webhooks/CreateWebhookModal"
 import {deleteWebhook, updateWebhook} from "@/oss/services/webhooks/api"
 import {WebhookSubscription, WebhookSubscriptionEditRequest} from "@/oss/services/webhooks/types"
 import {webhooksAtom} from "@/oss/state/webhooks/atoms"
-import {PencilLineIcon, Trash} from "@phosphor-icons/react"
 
 const {Title} = Typography
 
@@ -166,7 +166,7 @@ const Webhooks: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full gap-4">
-            <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
                 <Title level={4} className="!m-0">
                     Webhooks
                 </Title>
