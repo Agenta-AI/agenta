@@ -162,6 +162,9 @@ export type {
     BuildDraftPatchResult,
 } from "./snapshotAdapter"
 
+export {computeShallowDiff, applyShallowPatch} from "./snapshotDiff"
+export type {ShallowDiffOptions} from "./snapshotDiff"
+
 // ============================================================================
 // PROVIDER TYPES (for playground entity injection)
 // ============================================================================
