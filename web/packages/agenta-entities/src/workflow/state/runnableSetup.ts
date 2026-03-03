@@ -34,9 +34,11 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import type {RequestPayloadData} from "../../runnable/types"
 import type {StoreOptions} from "../../shared"
+import {parseRevisionUri} from "../../shared"
 
-import {workflowEntityAtomFamily} from "./store"
+import {workflowAppSchemaAtomFamily, workflowEntityAtomFamily} from "./store"
 
 // ============================================================================
 // HELPERS
@@ -62,6 +64,32 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
 )
 
 // ============================================================================
+// APP WORKFLOW SCHEMA SELECTORS
+// ============================================================================
+
+/**
+ * Route path derived from the app schema query.
+ * Only populated for non-evaluator app workflows with a `data.url`.
+ */
+export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
+    atom<string>((get) => {
+        const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
+        return appSchemaQuery.data?.routePath || ""
+    }),
+)
+
+/**
+ * Raw dereferenced OpenAPI spec from the app schema query.
+ * Needed by `buildRequestBody()` for input mapping and custom workflow detection.
+ */
+export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
+    atom<unknown | null>((get) => {
+        const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
+        return appSchemaQuery.data?.openApiSchema ?? null
+    }),
+)
+
+// ============================================================================
 // INVOCATION URL
 // ============================================================================
 
@@ -69,26 +97,40 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
  * Invocation URL for workflow execution.
  *
  * Resolution order:
- * 1. `data.url` → use directly (custom/webhook workflow)
- * 2. `data.uri` → native workflow invoke endpoint (`/preview/workflows/invoke`)
- * 3. null
+ * - **App workflows** (non-evaluator with `data.url`): `{runtimePrefix}/{routePath}/test`
+ * - **Evaluator workflows** with `data.url`: URL as-is
+ * - **URI-based workflows**: `/preview/workflows/invoke`
  */
 export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        // Custom workflows with webhook URL
-        if (entity.data.url) {
-            // Evaluator workflows return the URL as-is (no /test suffix)
-            if (entity.flags?.is_evaluator) {
-                return entity.data.url
+        const isEvaluator = entity.flags?.is_evaluator ?? false
+
+        // App workflows with URL: build invocation URL from runtimePrefix + routePath
+        if (entity.data.url && !isEvaluator) {
+            const routePath = get(appRoutePathAtomFamily(workflowId))
+            const parsed = parseRevisionUri(entity.data.url)
+            if (!parsed) return `${entity.data.url}/test`
+
+            const prefix = parsed.runtimePrefix.replace(/\/$/, "")
+            const cleanRoutePath = (routePath || parsed.routePath || "")
+                .replace(/^\//, "")
+                .replace(/\/$/, "")
+
+            if (cleanRoutePath) {
+                return `${prefix}/${cleanRoutePath}/test`
             }
-            return `${entity.data.url}/test`
+            return `${prefix}/test`
         }
 
-        // URI-based invocation — all workflows (including evaluators) use
-        // the unified /preview/workflows/invoke endpoint.
+        // Evaluator workflows with URL: return URL as-is
+        if (entity.data.url && isEvaluator) {
+            return entity.data.url
+        }
+
+        // URI-based invocation (evaluators and workflows without URL)
         if (entity.data.uri) {
             return `${getAgentaApiUrl()}/preview/workflows/invoke`
         }
@@ -171,42 +213,80 @@ export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Request payload for workflow execution.
  *
- * Only **evaluator** workflows use the `{interface, configuration, data}`
- * format for the unified `/preview/workflows/invoke` endpoint.
- *
- * Non-evaluator workflows (regular apps) return `null` so the standard
- * `buildRequestBody()` path constructs the flat request body expected
- * by their custom `/test` endpoints.
+ * - **Evaluator workflows** use the `{interface, configuration, data}` format
+ *   (`__rawBody: true`) for `/preview/workflows/invoke`.
+ * - **App workflows** return `RequestPayloadData` so the standard
+ *   `buildRequestBody()` path constructs the `{ag_config, inputs}` format
+ *   expected by their `/test` endpoints.
  */
 export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
-    atom<Record<string, unknown> | null>((get) => {
+    atom<Record<string, unknown> | RequestPayloadData | null>((get) => {
         const entity = get(workflowEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        // Only evaluator workflows use the raw body format.
-        // Regular app workflows fall through to buildRequestBody().
-        const isEvaluator =
-            entity.flags?.is_evaluator ||
-            (entity.data.uri && entity.data.uri.startsWith("agenta:builtin:"))
-        if (!isEvaluator) return null
+        const isEvaluator = entity.flags?.is_evaluator ?? false
 
-        const uri = entity.data.uri
-        const url = entity.data.url
-        if (!uri && !url) return null
+        // ── Evaluator workflows: use __rawBody format ──
+        if (isEvaluator) {
+            const uri = entity.data.uri
+            const url = entity.data.url
+            if (!uri && !url) return null
 
-        const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
+            const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
+            return {
+                __rawBody: true,
+                interface: uri ? {uri} : {url},
+                configuration:
+                    parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+                data: {
+                    inputs: {},
+                    outputs: {},
+                    parameters,
+                },
+            }
+        }
+
+        // ── App workflows: return RequestPayloadData for buildRequestBody() ──
+        const invocationUrl = get(invocationUrlAtomFamily(workflowId))
+        const isChat = entity.flags?.is_chat ?? false
+        const openApiSchema = get(appOpenApiSchemaAtomFamily(workflowId))
+        const routePath = get(appRoutePathAtomFamily(workflowId))
+        const parsed = entity.data.url ? parseRevisionUri(entity.data.url) : null
+
+        // Extract ag_config from parameters
+        const params = entity.data.parameters as Record<string, unknown> | undefined
+        const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
+
+        // Extract variables from ag_config prompt configs' input_keys
+        const variables: string[] = []
+        try {
+            for (const val of Object.values(agConfig)) {
+                const valRecord = val as Record<string, unknown> | null
+                if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
+                    const keys = valRecord.input_keys
+                    if (Array.isArray(keys)) {
+                        for (const k of keys) {
+                            if (typeof k === "string" && !variables.includes(k)) {
+                                variables.push(k)
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            // best-effort
+        }
 
         return {
-            __rawBody: true,
-            interface: uri ? {uri} : {url},
-            configuration:
-                parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
-            data: {
-                inputs: {},
-                outputs: {},
-                parameters,
-            },
-        }
+            ag_config: agConfig,
+            isChat,
+            appType: null,
+            invocationUrl,
+            runtimePrefix: parsed?.runtimePrefix ?? null,
+            variables,
+            spec: openApiSchema,
+            routePath: routePath || undefined,
+        } satisfies RequestPayloadData
     }),
 )
 

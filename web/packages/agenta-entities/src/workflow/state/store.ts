@@ -24,7 +24,6 @@ import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
     fetchWorkflowRevisionById,
     inspectWorkflow,
-    fetchInterfaceSchemas,
     fetchWorkflowAppOpenApiSchema,
     fetchWorkflowsBatch,
     queryWorkflows,
@@ -760,13 +759,11 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
 // INTERFACE SCHEMAS QUERY (builtin workflow fallback)
 // ============================================================================
 
-/**
- * Helper to check if a URI is a builtin workflow URI.
- */
-function isBuiltinUri(uri: string | null | undefined): boolean {
-    if (!uri) return false
-    return uri.startsWith("agenta:builtin:")
-}
+// NOTE: Disabled — re-enable when `/preview/workflows/interfaces/schemas` is available.
+// function isBuiltinUri(uri: string | null | undefined): boolean {
+//     if (!uri) return false
+//     return uri.startsWith("agenta:builtin:")
+// }
 
 /**
  * Interface schemas query atom family.
@@ -777,30 +774,17 @@ function isBuiltinUri(uri: string | null | undefined): boolean {
  * for builtin evaluators without requiring the handler to be running.
  *
  * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
+ *
+ * NOTE: Currently disabled — the backend endpoint is not yet implemented.
+ * Re-enable `enabled` when `/preview/workflows/interfaces/schemas` is available.
  */
 export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(workflowProjectIdAtom)
-        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
-        const serverData = revisionQuery.data ?? null
-        const uri = serverData?.data?.uri ?? null
-
-        // Check if schemas are already present in server data
-        const existingSchemas = serverData?.data?.schemas
-        const hasParametersSchema = !!existingSchemas?.parameters
-        const hasInputsSchema = !!existingSchemas?.inputs
-
-        // Only fetch if it's a builtin URI and missing schemas
-        const needsSchemaFetch = isBuiltinUri(uri) && (!hasParametersSchema || !hasInputsSchema)
-
+    atomWithQuery((_get) => {
         return {
-            queryKey: ["workflows", "interfaceSchemas", revisionId, uri, projectId],
-            queryFn: async (): Promise<InterfaceSchemasResponse | null> => {
-                if (!projectId || !uri) return null
-                return fetchInterfaceSchemas(uri, projectId)
-            },
-            enabled: get(sessionAtom) && !!projectId && !!uri && needsSchemaFetch,
-            staleTime: Infinity, // Static schemas never change
+            queryKey: ["workflows", "interfaceSchemas", revisionId],
+            queryFn: async (): Promise<InterfaceSchemasResponse | null> => null,
+            enabled: false,
+            staleTime: Infinity,
         }
     }),
 )
@@ -919,29 +903,9 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Interface schemas fallback: for builtin workflows that still have missing schemas
-        // This is a lightweight fallback that works for any builtin URI
-        const uri = merged.data?.uri ?? null
-        if (isBuiltinUri(uri)) {
-            const interfaceSchemasQuery = get(workflowInterfaceSchemasAtomFamily(workflowId))
-            const interfaceSchemas = interfaceSchemasQuery.data?.schemas ?? null
-
-            if (interfaceSchemas) {
-                merged = {
-                    ...merged,
-                    data: {
-                        ...merged.data,
-                        schemas: {
-                            ...merged.data?.schemas,
-                            inputs: merged.data?.schemas?.inputs ?? interfaceSchemas.inputs,
-                            outputs: merged.data?.schemas?.outputs ?? interfaceSchemas.outputs,
-                            parameters:
-                                merged.data?.schemas?.parameters ?? interfaceSchemas.parameters,
-                        },
-                    },
-                } as Workflow
-            }
-        }
+        // NOTE: Interface schemas fallback (workflowInterfaceSchemasAtomFamily) is
+        // disabled — backend endpoint not yet implemented. When re-enabled, add
+        // the builtin URI schema merge back here.
 
         if (!draft) return merged
 

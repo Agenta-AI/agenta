@@ -17,7 +17,7 @@
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema} from "@agenta/shared/utils"
 
-import {extractAllEndpointSchemas, type OpenAPISpec} from "../../appRevision/api/schemaUtils"
+import {extractAllEndpointSchemas, type OpenAPISpec} from "../../legacyAppRevision/api/schemaUtils"
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {
     workflowSchema,
@@ -401,6 +401,12 @@ export interface AppOpenApiSchemas {
     inputs?: Record<string, unknown> | null
     outputs?: Record<string, unknown> | null
     parameters?: Record<string, unknown> | null
+    /** Route path parsed from the app URL (e.g., "agent/v1") */
+    routePath?: string
+    /** Runtime prefix (protocol + host) parsed from the app URL */
+    runtimePrefix?: string
+    /** Full dereferenced OpenAPI spec (needed for buildRequestBody) */
+    openApiSchema?: unknown
 }
 
 /**
@@ -449,6 +455,9 @@ export async function fetchWorkflowAppOpenApiSchema(
             inputs: (primaryEndpoint?.inputsSchema as Record<string, unknown> | null) ?? null,
             outputs: (primaryOutputsSchema as Record<string, unknown> | null) ?? null,
             parameters: (primaryAgConfigSchema as Record<string, unknown> | null) ?? null,
+            routePath: routePath || undefined,
+            runtimePrefix: uriInfo.runtimePrefix,
+            openApiSchema: dereferencedSchema,
         }
     } catch (error) {
         console.error("[fetchWorkflowAppOpenApiSchema] Failed to fetch schema", {url, error})
