@@ -12,6 +12,7 @@ Tests cover:
 
 import pytest
 from uuid import uuid4
+from typing import Dict
 
 from oss.src.core.embeds.utils import (
     resolve_embeds,
@@ -31,6 +32,7 @@ from oss.src.core.embeds.exceptions import (
     CircularEmbedError,
     MaxDepthExceededError,
     MaxEmbedsExceededError,
+    MixedEntityTypesError,
     PathExtractionError,
 )
 from oss.src.core.shared.dtos import Reference
@@ -174,7 +176,7 @@ class TestFindStringEmbeds:
         """Test finding string embed with path selector in token."""
         workflow_variant_id = str(uuid4())
         config = {
-            "message": f"Content: @ag.embed[@ag.references[workflow_variant.id={workflow_variant_id}], @ag.selector[path:params.message.content]]"
+            "message": f"Content: @ag.embed[@ag.references[workflow_variant.id={workflow_variant_id}], @ag.selector[path=params.message.content]]"
         }
 
         embeds = find_string_embeds(config)
@@ -186,10 +188,10 @@ class TestFindStringEmbeds:
         assert str(embeds[0].references["workflow_variant"].id) == workflow_variant_id
 
     def test_find_environment_revision_key_selector(self):
-        """environment_revision.key should target data.references.<key>."""
+        """@ag.selector[key=...] should set selector.key for two-hop resolution."""
         environment_revision_id = str(uuid4())
         config = {
-            "auth": f"@ag.embed[@ag.references[environment_revision.id={environment_revision_id}, environment_revision.key=api_config]]"
+            "auth": f"@ag.embed[@ag.references[environment_revision.id={environment_revision_id}], @ag.selector[key=api_config]]"
         }
 
         embeds = find_string_embeds(config)
@@ -200,7 +202,8 @@ class TestFindStringEmbeds:
             == environment_revision_id
         )
         assert embeds[0].selector is not None
-        assert embeds[0].selector.path == "references.api_config"
+        assert embeds[0].selector.key == "api_config"
+        assert embeds[0].selector.path is None
 
     def test_no_string_embed_without_token(self):
         """Test that strings without @ag.embed token are not detected."""
@@ -364,9 +367,9 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
-            assert entity_type == "workflow_revision"
-            assert ref.id == workflow_id
+        async def resolver(references: Dict[str, Reference]):
+            assert "workflow_revision" in references
+            assert references["workflow_revision"].id == workflow_id
             return resolved_config
 
         result_config, resolution_info = await resolve_embeds(
@@ -399,7 +402,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             return full_config
 
         result_config, resolution_info = await resolve_embeds(
@@ -419,7 +422,8 @@ class TestResolveEmbeds:
             "greeting": "Say: @ag.embed[@ag.references[workflow_revision.version=v1]]"
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
+            ref = next(iter(references.values()))
             assert ref.version == "v1"
             return resolved_value
 
@@ -459,9 +463,10 @@ class TestResolveEmbeds:
 
         call_count = 0
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             nonlocal call_count
             call_count += 1
+            ref = next(iter(references.values()))
 
             if ref.id == id1:
                 return intermediate_config
@@ -490,7 +495,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             # Return config with reference to itself
             return {
                 "self_ref": {
@@ -516,7 +521,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             # Always return another embed
             return {
                 "nested": {
@@ -553,7 +558,7 @@ class TestResolveEmbeds:
             },
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             return {"value": "resolved"}
 
         with pytest.raises(MaxEmbedsExceededError):
@@ -573,7 +578,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         with pytest.raises(ValueError, match="Resolver failed"):
@@ -593,7 +598,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         result_config, resolution_info = await resolve_embeds(
@@ -617,7 +622,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         result_config, resolution_info = await resolve_embeds(
@@ -630,37 +635,56 @@ class TestResolveEmbeds:
         assert AG_EMBED_KEY in result_config["embed"]
         assert len(resolution_info.errors) == 1
 
-    async def test_multiple_references_in_same_embed(self):
-        """Test embed with multiple references in dict."""
-        workflow_id = uuid4()
-        env_id = uuid4()
+    async def test_multiple_references_same_family(self):
+        """Test embed with same-family multi-reference (variant + revision)."""
+        variant_id = uuid4()
+        revision_resolved = {"model": "gpt-4", "temperature": 0.7}
 
         config = {
             "combined": {
                 AG_EMBED_KEY: {
                     AG_REFERENCES_KEY: {
-                        "workflow_revision": {"id": str(workflow_id)},
-                        "environment_revision": {"id": str(env_id)},
+                        "workflow_variant": {"id": str(variant_id)},
+                        "workflow_revision": {"version": "v1"},
                     }
                 }
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
-            return {"resolved": str(ref.id)}
+        async def resolver(references: Dict[str, Reference]):
+            assert "workflow_variant" in references
+            assert "workflow_revision" in references
+            assert references["workflow_variant"].id == variant_id
+            assert references["workflow_revision"].version == "v1"
+            return revision_resolved
 
         result_config, resolution_info = await resolve_embeds(
             configuration=config,
             resolver_callback=resolver,
         )
 
-        # Should resolve all references into a mapping keyed by entity_type
-        assert "workflow_revision" in result_config["combined"]
-        assert "environment_revision" in result_config["combined"]
-        assert result_config["combined"]["workflow_revision"]["resolved"] == str(
-            workflow_id
-        )
-        assert result_config["combined"]["environment_revision"]["resolved"] == str(
-            env_id
-        )
+        # Single resolver call returns the resolved entity directly
+        assert result_config["combined"] == revision_resolved
         assert resolution_info.embeds_resolved == 1
+
+    async def test_mixed_family_references_raises_error(self):
+        """Test that references spanning different entity families raise MixedEntityTypesError."""
+        config = {
+            "bad": {
+                AG_EMBED_KEY: {
+                    AG_REFERENCES_KEY: {
+                        "workflow_revision": {"version": "v1"},
+                        "environment_revision": {"slug": "prod"},
+                    }
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return {}
+
+        with pytest.raises(MixedEntityTypesError):
+            await resolve_embeds(
+                configuration=config,
+                resolver_callback=resolver,
+            )

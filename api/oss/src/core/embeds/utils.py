@@ -21,7 +21,9 @@ from oss.src.core.embeds.exceptions import (
     CircularEmbedError,
     MaxDepthExceededError,
     MaxEmbedsExceededError,
+    MixedEntityTypesError,
     PathExtractionError,
+    EmbedNotFoundError,
 )
 from oss.src.core.shared.dtos import Reference, Selector
 
@@ -36,6 +38,17 @@ AG_EMBED_KEY = "@ag.embed"
 AG_REFERENCES_KEY = "@ag.references"
 AG_SELECTOR_KEY = "@ag.selector"
 
+# Entity hierarchy: category → ordered levels (shallow to deep)
+ENTITY_HIERARCHY: Dict[str, List[str]] = {
+    "workflow": ["artifact", "variant", "revision"],
+    "environment": ["artifact", "variant", "revision"],
+    "application": ["artifact", "variant", "revision"],
+    "evaluator": ["artifact", "variant", "revision"],
+}
+
+# Level → integer depth for comparison (higher = deeper = primary target)
+LEVEL_ORDER: Dict[str, int] = {"artifact": 0, "variant": 1, "revision": 2}
+
 
 def create_universal_resolver(
     *,
@@ -46,12 +59,15 @@ def create_universal_resolver(
     environments_service: Optional[Any] = None,
     applications_service: Optional[Any] = None,
     evaluators_service: Optional[Any] = None,
-) -> Callable[[str, Reference], Awaitable[Dict[str, Any]]]:
+) -> Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]]:
     """
     Create a universal resolver that can handle ANY entity type.
 
     This resolver automatically routes to the appropriate service based on
     entity_type, so any entity can reference any other entity.
+
+    The resolver accepts a dict of references (all same family). For multi-reference
+    embeds (e.g., variant + revision), it uses the variant ref for scoped lookup.
 
     Args:
         project_id: Project context
@@ -62,7 +78,7 @@ def create_universal_resolver(
         evaluators_service: Optional evaluators service
 
     Returns:
-        Universal resolver callback
+        Universal resolver callback accepting Dict[str, Reference]
     """
     from oss.src.core.embeds.exceptions import (
         UnsupportedReferenceTypeError,
@@ -97,15 +113,31 @@ def create_universal_resolver(
 
         return None
 
-    async def resolver_callback(entity_type: str, ref: Reference) -> Dict[str, Any]:
-        # Parse entity_type:
-        # - "workflow_revision" -> ("workflow", "revision")
-        # - "workflow" -> ("workflow", "artifact")
-        # Bare category form is shorthand for artifact references.
-        if "_" in entity_type:
-            category, level = entity_type.split("_", 1)
-        else:
-            category, level = entity_type, "artifact"
+    async def resolver_callback(references: Dict[str, Reference]) -> Dict[str, Any]:
+        # Parse all entity types to extract category and levels.
+        # All references are guaranteed same-family by _resolve_references.
+        parsed: Dict[str, Reference] = {}  # level -> ref
+        category: Optional[str] = None
+
+        for entity_type, ref in references.items():
+            if "_" in entity_type:
+                cat, level = entity_type.split("_", 1)
+            else:
+                cat, level = entity_type, "artifact"
+            category = cat
+            parsed[level] = ref
+
+        # Find the deepest level (primary target to fetch)
+        deepest_level = max(parsed.keys(), key=lambda lvl: LEVEL_ORDER.get(lvl, -1))
+
+        # Extract scoping refs by level
+        variant_ref: Optional[Reference] = parsed.get("variant")
+        revision_ref: Optional[Reference] = parsed.get("revision")
+        artifact_ref: Optional[Reference] = parsed.get("artifact")
+
+        # Prefer variant for scoping; fall back to artifact.
+        # Both carry whatever identifying fields the caller provided (id, slug, version).
+        scoping_ref: Optional[Reference] = variant_ref or artifact_ref
 
         # Route to appropriate service
         if category == "workflow":
@@ -114,43 +146,51 @@ def create_universal_resolver(
                     f"{category} (service not available)"
                 )
 
-            if level == "artifact":
+            if deepest_level == "artifact":
                 entity = await workflows_service.fetch_workflow(
                     project_id=project_id,
-                    workflow_ref=ref,
+                    workflow_ref=parsed["artifact"],
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Workflow not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Workflow not found: {parsed['artifact']}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "variant":
+            elif deepest_level == "variant":
                 entity = await workflows_service.fetch_workflow_variant(
                     project_id=project_id,
-                    workflow_variant_ref=ref,
+                    workflow_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Workflow variant not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Workflow variant not found: {variant_ref}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "revision":
+            elif deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
-                    ref=ref,
-                    fetch_revision_by_refs=lambda variant_ref,
-                    revision_ref: workflows_service.fetch_workflow_revision(
+                    ref=revision_ref,
+                    fetch_revision_by_refs=lambda vref,
+                    rref: workflows_service.fetch_workflow_revision(
                         project_id=project_id,
-                        workflow_variant_ref=variant_ref,
-                        workflow_revision_ref=revision_ref,
+                        workflow_variant_ref=vref or scoping_ref,
+                        workflow_revision_ref=rref,
                         include_archived=include_archived,
                     ),
                 )
                 if not entity or not entity.data:
-                    raise EmbedNotFoundError(f"Workflow revision not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Workflow revision not found: {revision_ref}"
+                    )
                 return entity.data.model_dump(mode="json")
 
             else:
-                raise UnsupportedReferenceTypeError(f"Unsupported level: {level}")
+                raise UnsupportedReferenceTypeError(
+                    f"Unsupported level: {deepest_level}"
+                )
 
         elif category == "environment":
             if not environments_service:
@@ -158,43 +198,51 @@ def create_universal_resolver(
                     f"{category} (service not available)"
                 )
 
-            if level == "artifact":
+            if deepest_level == "artifact":
                 entity = await environments_service.fetch_environment(
                     project_id=project_id,
-                    environment_ref=ref,
+                    environment_ref=parsed["artifact"],
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Environment not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Environment not found: {parsed['artifact']}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "variant":
+            elif deepest_level == "variant":
                 entity = await environments_service.fetch_environment_variant(
                     project_id=project_id,
-                    environment_variant_ref=ref,
+                    environment_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Environment variant not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Environment variant not found: {variant_ref}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "revision":
+            elif deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
-                    ref=ref,
-                    fetch_revision_by_refs=lambda variant_ref,
-                    revision_ref: environments_service.fetch_environment_revision(
+                    ref=revision_ref,
+                    fetch_revision_by_refs=lambda vref,
+                    rref: environments_service.fetch_environment_revision(
                         project_id=project_id,
-                        environment_variant_ref=variant_ref,
-                        environment_revision_ref=revision_ref,
+                        environment_variant_ref=vref or scoping_ref,
+                        environment_revision_ref=rref,
                         include_archived=include_archived,
                     ),
                 )
                 if not entity or not entity.data:
-                    raise EmbedNotFoundError(f"Environment revision not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Environment revision not found: {revision_ref}"
+                    )
                 return entity.data.model_dump(mode="json")
 
             else:
-                raise UnsupportedReferenceTypeError(f"Unsupported level: {level}")
+                raise UnsupportedReferenceTypeError(
+                    f"Unsupported level: {deepest_level}"
+                )
 
         elif category == "application":
             if not applications_service:
@@ -202,43 +250,51 @@ def create_universal_resolver(
                     f"{category} (service not available)"
                 )
 
-            if level == "artifact":
+            if deepest_level == "artifact":
                 entity = await applications_service.fetch_application(
                     project_id=project_id,
-                    application_ref=ref,
+                    application_ref=parsed["artifact"],
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Application not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Application not found: {parsed['artifact']}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "variant":
+            elif deepest_level == "variant":
                 entity = await applications_service.fetch_application_variant(
                     project_id=project_id,
-                    application_variant_ref=ref,
+                    application_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Application variant not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Application variant not found: {variant_ref}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "revision":
+            elif deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
-                    ref=ref,
-                    fetch_revision_by_refs=lambda variant_ref,
-                    revision_ref: applications_service.fetch_application_revision(
+                    ref=revision_ref,
+                    fetch_revision_by_refs=lambda vref,
+                    rref: applications_service.fetch_application_revision(
                         project_id=project_id,
-                        application_variant_ref=variant_ref,
-                        application_revision_ref=revision_ref,
+                        application_variant_ref=vref or scoping_ref,
+                        application_revision_ref=rref,
                         include_archived=include_archived,
                     ),
                 )
                 if not entity or not entity.data:
-                    raise EmbedNotFoundError(f"Application revision not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Application revision not found: {revision_ref}"
+                    )
                 return entity.data.model_dump(mode="json")
 
             else:
-                raise UnsupportedReferenceTypeError(f"Unsupported level: {level}")
+                raise UnsupportedReferenceTypeError(
+                    f"Unsupported level: {deepest_level}"
+                )
 
         elif category == "evaluator":
             if not evaluators_service:
@@ -246,43 +302,51 @@ def create_universal_resolver(
                     f"{category} (service not available)"
                 )
 
-            if level == "artifact":
+            if deepest_level == "artifact":
                 entity = await evaluators_service.fetch_evaluator(
                     project_id=project_id,
-                    evaluator_ref=ref,
+                    evaluator_ref=parsed["artifact"],
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Evaluator not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Evaluator not found: {parsed['artifact']}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "variant":
+            elif deepest_level == "variant":
                 entity = await evaluators_service.fetch_evaluator_variant(
                     project_id=project_id,
-                    evaluator_variant_ref=ref,
+                    evaluator_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
                 if not entity:
-                    raise EmbedNotFoundError(f"Evaluator variant not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Evaluator variant not found: {variant_ref}"
+                    )
                 return entity.model_dump(mode="json")
 
-            elif level == "revision":
+            elif deepest_level == "revision":
                 entity = await _resolve_revision_with_normalization(
-                    ref=ref,
-                    fetch_revision_by_refs=lambda variant_ref,
-                    revision_ref: evaluators_service.fetch_evaluator_revision(
+                    ref=revision_ref,
+                    fetch_revision_by_refs=lambda vref,
+                    rref: evaluators_service.fetch_evaluator_revision(
                         project_id=project_id,
-                        evaluator_variant_ref=variant_ref,
-                        evaluator_revision_ref=revision_ref,
+                        evaluator_variant_ref=vref or scoping_ref,
+                        evaluator_revision_ref=rref,
                         include_archived=include_archived,
                     ),
                 )
                 if not entity or not entity.data:
-                    raise EmbedNotFoundError(f"Evaluator revision not found: {ref}")
+                    raise EmbedNotFoundError(
+                        f"Evaluator revision not found: {revision_ref}"
+                    )
                 return entity.data.model_dump(mode="json")
 
             else:
-                raise UnsupportedReferenceTypeError(f"Unsupported level: {level}")
+                raise UnsupportedReferenceTypeError(
+                    f"Unsupported level: {deepest_level}"
+                )
 
         else:
             raise UnsupportedReferenceTypeError(
@@ -295,7 +359,7 @@ def create_universal_resolver(
 async def resolve_embeds(
     *,
     configuration: Dict[str, Any],
-    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
     #
     max_depth: int = MAX_DEPTH,
     max_embeds: int = MAX_EMBEDS,
@@ -312,7 +376,7 @@ async def resolve_embeds(
 
     Args:
         configuration: Config with potential embeds
-        resolver_callback: Async function that fetches entity by (entity_type, reference)
+        resolver_callback: Async function that fetches entity by Dict[entity_type, reference]
         max_depth: Maximum nesting depth
         max_embeds: Maximum total embeds allowed
         error_policy: How to handle errors
@@ -448,7 +512,7 @@ async def _resolve_and_inline_object_embed(
     *,
     config: Dict[str, Any],
     embed: ObjectEmbed,
-    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
     seen_by_iteration: Dict[str, int],
     current_iteration: int,
     max_depth: int,
@@ -474,9 +538,18 @@ async def _resolve_and_inline_object_embed(
         current_iteration=current_iteration,
     )
 
-    # Extract path if selector specified
     selector = embed.selector
-    if selector and selector.path:
+    if selector and selector.key:
+        resolved_value = await _follow_key_reference(
+            resolved_value=resolved_value,
+            selector_key=selector.key,
+            resolver_callback=resolver_callback,
+            seen_by_iteration=seen_by_iteration,
+            current_iteration=current_iteration,
+        )
+        if selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
+    elif selector and selector.path:
         resolved_value = extract_path(resolved_value, selector.path)
 
     # Replace in config
@@ -487,7 +560,7 @@ async def _resolve_and_inline_object_embed(
 async def _resolve_nested_embeds_in_value(
     *,
     value: Any,
-    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
     max_depth: int,
     max_embeds: int,
     error_policy: ErrorPolicy,
@@ -523,44 +596,90 @@ async def _resolve_nested_embeds_in_value(
 async def _resolve_references(
     *,
     references: Dict[str, Reference],
-    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
     seen_by_iteration: Dict[str, int],
     current_iteration: int,
 ) -> Any:
     """
     Resolve one or more references and return resolved value.
 
-    - If one entity_type is referenced, returns that entity value directly.
-    - If multiple entity_types are referenced, returns a dict keyed by entity_type.
-    """
-    resolved_by_entity: Dict[str, Any] = {}
+    All references must belong to the same entity family (e.g., all "workflow*").
+    They are sent together to the resolver for scoped lookup — e.g.,
+    workflow_variant + workflow_revision allows variant-scoped revision fetch.
 
+    Raises:
+        MixedEntityTypesError: If references span multiple entity families.
+        CircularEmbedError: If a circular reference is detected.
+    """
+    # Validate all references are same entity family
+    categories: Set[str] = set()
+    for entity_type in references.keys():
+        category = entity_type.split("_", 1)[0] if "_" in entity_type else entity_type
+        categories.add(category)
+
+    if len(categories) > 1:
+        raise MixedEntityTypesError(sorted(categories))
+
+    # Track for circular detection
     for entity_type, reference in references.items():
         canonical = f"{entity_type}:{canonicalize_reference(reference)}"
 
         if canonical in seen_by_iteration:
-            first_seen_iteration = seen_by_iteration[canonical]
-            if first_seen_iteration < current_iteration:
+            if seen_by_iteration[canonical] < current_iteration:
                 raise CircularEmbedError([canonical])
 
         if canonical not in seen_by_iteration:
             seen_by_iteration[canonical] = current_iteration
 
-        resolved_by_entity[entity_type] = await resolver_callback(
-            entity_type, reference
+    # Call resolver once with the full references dict
+    return await resolver_callback(references)
+
+
+async def _follow_key_reference(
+    *,
+    resolved_value: Dict[str, Any],
+    selector_key: str,
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
+    seen_by_iteration: Dict[str, int],
+    current_iteration: int,
+) -> Any:
+    """
+    Follow a reference pointer stored at data.references.<key>.
+
+    Expects resolved_value to contain a "references" dict with an entry at selector_key.
+    That entry must be a dict with exactly one key (the entity type) mapping to a Reference.
+    Fetches that secondary entity and returns its data.
+    """
+    try:
+        ref_entry = extract_path(resolved_value, f"references.{selector_key}")
+    except PathExtractionError:
+        raise EmbedNotFoundError(f"Key '{selector_key}' not found in references")
+
+    if not isinstance(ref_entry, dict) or len(ref_entry) != 1:
+        raise ValueError(
+            f"Expected exactly one entity type at references.{selector_key}, got: {ref_entry}"
         )
 
-    if len(resolved_by_entity) == 1:
-        return next(iter(resolved_by_entity.values()))
+    entity_type = next(iter(ref_entry.keys()))
+    ref = Reference.model_validate(ref_entry[entity_type])
 
-    return resolved_by_entity
+    canonical = f"{entity_type}:{canonicalize_reference(ref)}"
+    if (
+        canonical in seen_by_iteration
+        and seen_by_iteration[canonical] < current_iteration
+    ):
+        raise CircularEmbedError([canonical])
+    if canonical not in seen_by_iteration:
+        seen_by_iteration[canonical] = current_iteration
+
+    return await resolver_callback({entity_type: ref})
 
 
 async def _resolve_and_inline_string_embed(
     *,
     config: Dict[str, Any],
     embed: StringEmbed,
-    resolver_callback: Callable[[str, Reference], Awaitable[Dict[str, Any]]],
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
     seen_by_iteration: Dict[str, int],
     current_iteration: int,
     max_depth: int,
@@ -587,27 +706,49 @@ async def _resolve_and_inline_string_embed(
         current_iteration=current_iteration,
     )
 
-    # If the resolved value is a nested object/list, resolve embeds inside it
-    # before selector extraction and stringification.
-    resolved_value, nested_embeds, nested_depth = await _resolve_nested_embeds_in_value(
-        value=resolved_value,
-        resolver_callback=resolver_callback,
-        max_depth=max_depth,
-        max_embeds=max_embeds,
-        error_policy=error_policy,
-    )
-
-    # Extract path if selector specified
     selector = embed.selector
-    if selector and selector.path:
-        resolved_value = extract_path(resolved_value, selector.path)
+    if selector and selector.key:
+        resolved_value = await _follow_key_reference(
+            resolved_value=resolved_value,
+            selector_key=selector.key,
+            resolver_callback=resolver_callback,
+            seen_by_iteration=seen_by_iteration,
+            current_iteration=current_iteration,
+        )
+        (
+            resolved_value,
+            nested_embeds,
+            nested_depth,
+        ) = await _resolve_nested_embeds_in_value(
+            value=resolved_value,
+            resolver_callback=resolver_callback,
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=error_policy,
+        )
+        if selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
+    else:
+        # If the resolved value is a nested object/list, resolve embeds inside it
+        # before selector extraction and stringification.
+        (
+            resolved_value,
+            nested_embeds,
+            nested_depth,
+        ) = await _resolve_nested_embeds_in_value(
+            value=resolved_value,
+            resolver_callback=resolver_callback,
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=error_policy,
+        )
+        if selector and selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
 
     # Convert to string if needed
     if not isinstance(resolved_value, str):
         resolved_value = dumps(resolved_value)
 
-    # Use the original token stored at parse time (reconstruction could differ
-    # from the original text, e.g. for environment_revision.key= tokens)
     token = embed.token
 
     # Get the original string from config
@@ -848,13 +989,16 @@ def _parse_embed_token(
     - @ag.embed[@ag.references[workflow_revision.version=v1]]
     - @ag.embed[@ag.references[workflow_revision.id=abc-123]]
     - @ag.embed[@ag.references[workflow_revision.slug=my-revision-v1]]
-    - @ag.embed[@ag.references[workflow_revision.version=v1, environment_revision.slug=prod-v1], @ag.selector[path:workflow_revision.parameters.prompt]]
-    - @ag.embed[@ag.references[environment_revision.id=abc-123, environment_revision.key=api_config]]
+    - @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.prompt]]
+    - @ag.embed[@ag.references[environment_revision.slug=prod], @ag.selector[key=auth, path=parameters.system_prompt]]
 
     Reference format: entity_type.field=value
     - Supported fields: id, slug, version
-    - Special field: environment_revision.key (maps selector to references.<key>)
     - Examples: workflow_revision.version=v1, workflow_variant.id=abc-123
+
+    Selector format: @ag.selector[key=<key>, path=<path>]
+    - key: for environment revisions, navigate to references.<key> and follow the pointer
+    - path: dot notation path into the resolved entity's data
 
     Returns:
         Tuple of (references dict, Optional[Selector]) or None if invalid
@@ -874,8 +1018,8 @@ def _parse_embed_token(
     ref_content = ref_match.group(1).strip()
 
     # Parse references format: entity_type.field=value[, entity_type.field=value...]
+    # Supported fields: id, slug, version
     references: Dict[str, Reference] = {}
-    reference_keys: Dict[str, str] = {}
     if "=" in ref_content:
         ref_entries = [
             entry.strip() for entry in ref_content.split(",") if entry.strip()
@@ -892,12 +1036,7 @@ def _parse_embed_token(
                 continue
 
             entity_type, field = key_path.rsplit(".", 1)
-            if field not in {"id", "slug", "version", "key"}:
-                continue
-
-            if field == "key":
-                if entity_type == "environment_revision":
-                    reference_keys[entity_type] = value
+            if field not in {"id", "slug", "version"}:
                 continue
 
             if entity_type in references:
@@ -909,32 +1048,27 @@ def _parse_embed_token(
                 references[entity_type] = Reference.model_validate({field: value})
 
     # Extract @ag.selector[...] (optional)
+    # Format: @ag.selector[key=auth, path=parameters.system_prompt]
+    # Both key and path use = only.
     selector = None
     sel_match = re.search(r"@ag\.selector\[([^\]]+)\]", content)
     if sel_match:
         sel_content = sel_match.group(1).strip()
-        # Parse selector: "path:params.system_prompt"
-        if sel_content.startswith("path:"):
-            path = sel_content.split(":", 1)[1].strip()
-            selector = Selector(path=path)
-        elif sel_content.startswith("path="):
-            path = sel_content.split("=", 1)[1].strip()
-            selector = Selector(path=path)
-
-    if reference_keys:
-        # key currently maps to a specific entry under environment_revision.data.references
-        if len(reference_keys) > 1:
-            return None
-
-        entity_type, key = next(iter(reference_keys.items()))
-        if entity_type not in references:
-            return None
-
-        key_selector_prefix = f"references.{key}"
-        if selector is None:
-            selector = Selector(path=key_selector_prefix)
-        elif not selector.path.startswith("references."):
-            selector = Selector(path=f"{key_selector_prefix}.{selector.path}")
+        sel_key = None
+        sel_path = None
+        for part in sel_content.split(","):
+            part = part.strip()
+            if "=" not in part:
+                continue
+            field, value = part.split("=", 1)
+            field = field.strip()
+            value = value.strip()
+            if field == "key":
+                sel_key = value
+            elif field == "path":
+                sel_path = value
+        if sel_key or sel_path:
+            selector = Selector(key=sel_key, path=sel_path)
 
     if not references:
         return None

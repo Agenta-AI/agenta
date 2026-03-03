@@ -240,7 +240,7 @@ class TestApplicationsEmbeds:
                     "workflow_variant_id": app_variant_id,
                     "data": {
                         "parameters": {
-                            "message": f"Say: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path:parameters.greeting]]"
+                            "message": f"Say: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path=parameters.greeting]]"
                         }
                     },
                 }

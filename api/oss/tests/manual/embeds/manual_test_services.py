@@ -348,7 +348,7 @@ async def test_string_embeds_with_services():
     project_id = uuid4()
 
     config = {
-        "prompt": "System instruction: @ag.embed[@ag.references[workflow_revision:v1], @ag.selector[path:parameters.system_prompt]]"
+        "prompt": "System instruction: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.system_prompt]]"
     }
 
     print("\nInput configuration with string embeds:")

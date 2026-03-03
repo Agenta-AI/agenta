@@ -119,7 +119,7 @@ async def test_string_embed():
         "messages": [
             {
                 "role": "system",
-                "content": "Base prompt: @ag.embed[@ag.references[workflow_revision:v2], @ag.selector[path:params.system_prompt]]",
+                "content": "Base prompt: @ag.embed[@ag.references[workflow_revision.version=v2], @ag.selector[path=params.system_prompt]]",
             },
             {"role": "user", "content": "Write a story"},
         ]

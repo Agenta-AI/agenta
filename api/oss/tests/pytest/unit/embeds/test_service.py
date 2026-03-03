@@ -307,7 +307,7 @@ class TestStringEmbeds:
         """Test resolving a simple string embed."""
         project_id = uuid4()
         config = {
-            "prompt": "System: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.system_prompt]]"
+            "prompt": "System: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.system_prompt]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
@@ -324,7 +324,7 @@ class TestStringEmbeds:
         """Test multiple string embeds in the same string value."""
         project_id = uuid4()
         config = {
-            "prompt": "Model: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.temperature]]"
+            "prompt": "Model: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.temperature]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
