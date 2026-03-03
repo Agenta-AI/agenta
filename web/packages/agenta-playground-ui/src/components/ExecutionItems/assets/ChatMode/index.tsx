@@ -138,12 +138,13 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                     </div>
                 </HeightCollapse>
                 <div className="flex flex-col gap-4 px-4 pt-2 pb-4">
-                    {turnIds.map((turnId) => (
+                    {turnIds.map((turnId, index) => (
                         <ChatTurnView
                             key={turnId}
                             turnId={turnId}
                             entityId={entityId as string}
                             withControls
+                            isLastTurn={index === turnIds.length - 1}
                             renderControlsBar={renderControlsBar}
                         />
                     ))}

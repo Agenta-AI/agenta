@@ -156,6 +156,8 @@ interface Props {
     withControls?: boolean
     className?: string
     hideUserMessage?: boolean
+    /** When true, shows the "No output yet" placeholder if there's no assistant content */
+    isLastTurn?: boolean
 
     messageProps?: Record<string, unknown>
     /** Render slot for controls bar (run/cancel/add message) */
@@ -173,6 +175,7 @@ const ChatTurnView = ({
     withControls,
     className,
     hideUserMessage = false,
+    isLastTurn = true,
     messageProps,
     renderControlsBar,
 }: Props) => {
@@ -466,9 +469,9 @@ const ChatTurnView = ({
                         </div>
                     ) : null}
                 </>
-            ) : (
+            ) : isLastTurn ? (
                 <ClickRunPlaceholder />
-            )}
+            ) : null}
         </div>
     )
 }
