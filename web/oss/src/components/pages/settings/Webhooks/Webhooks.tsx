@@ -1,22 +1,21 @@
 import {useState} from "react"
 
-import {DeleteOutlined, EditOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Modal, Space, Switch, Tag, Typography, message} from "antd"
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {Button, Dropdown, MenuProps, Modal, Switch, Tag, Typography, message} from "antd"
 import {useAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
 import CreateWebhookModal from "@/oss/components/Webhooks/CreateWebhookModal"
 import {deleteWebhook, updateWebhook} from "@/oss/services/webhooks/api"
-import {WebhookSubscription} from "@/oss/services/webhooks/types"
-import {useOrgData} from "@/oss/state/org"
+import {WebhookSubscription, WebhookSubscriptionEditRequest} from "@/oss/services/webhooks/types"
 import {webhooksAtom} from "@/oss/state/webhooks/atoms"
+import {PencilLineIcon, Trash} from "@phosphor-icons/react"
 
 const {Title} = Typography
 
 const Webhooks: React.FC = () => {
     const [{data: webhooks, refetch, isPending: isLoading}] = useAtom(webhooksAtom)
-    const {selectedOrg} = useOrgData()
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingWebhook, setEditingWebhook] = useState<WebhookSubscription | undefined>(undefined)
 
@@ -35,10 +34,8 @@ const Webhooks: React.FC = () => {
             title: "Delete Webhook",
             content: "Are you sure you want to delete this webhook?",
             onOk: async () => {
-                const workspaceId = selectedOrg?.default_workspace?.id
-                if (!workspaceId) return
                 try {
-                    await deleteWebhook(workspaceId, webhook.id)
+                    await deleteWebhook(webhook.id)
                     message.success("Webhook deleted successfully")
                     refetch()
                 } catch (error) {
@@ -49,11 +46,20 @@ const Webhooks: React.FC = () => {
     }
 
     const handleToggleActive = async (webhook: WebhookSubscription, checked: boolean) => {
-        const workspaceId = selectedOrg?.default_workspace?.id
-        if (!workspaceId) return
         try {
+            const payload: WebhookSubscriptionEditRequest = {
+                subscription: {
+                    id: webhook.id,
+                    name: webhook.name,
+                    flags: {is_valid: checked},
+                    data: {
+                        url: webhook.data.url,
+                        event_types: webhook.data.event_types,
+                    },
+                },
+            }
             // Optimistic update could be done here, but refetch is safer
-            await updateWebhook(workspaceId, webhook.id, {is_active: checked})
+            await updateWebhook(webhook.id, payload)
             message.success(`Webhook ${checked ? "activated" : "deactivated"}`)
             refetch()
         } catch (error) {
@@ -71,19 +77,33 @@ const Webhooks: React.FC = () => {
 
     const columns: EnhancedColumnType<WebhookSubscription & {key: string}>[] = [
         {
+            title: "Name",
+            dataIndex: "name",
+            key: "name",
+            width: 200,
+            render: (name: string) => <Typography.Text>{name}</Typography.Text>,
+        },
+        {
             title: "URL",
-            dataIndex: "url",
+            dataIndex: ["data", "url"],
             key: "url",
             width: 300,
-            render: (url: string) => <Typography.Text copyable>{url}</Typography.Text>,
+            render: (url: string) => (
+                <Tag
+                    className="max-w-[200px] truncate"
+                    title={url} // Show full URL on hover
+                >
+                    {url}
+                </Tag>
+            ),
         },
         {
             title: "Events",
-            dataIndex: "events",
+            dataIndex: ["data", "event_types"],
             key: "events",
             render: (events: string[]) => (
                 <>
-                    {events.map((event) => (
+                    {events?.map((event) => (
                         <Tag key={event}>{event}</Tag>
                     ))}
                 </>
@@ -91,12 +111,13 @@ const Webhooks: React.FC = () => {
         },
         {
             title: "Active",
-            dataIndex: "is_active",
-            key: "is_active",
+            dataIndex: ["flags", "is_valid"],
+            key: "is_valid",
             width: 100,
-            render: (isActive: boolean, record) => (
+            render: (isValid: boolean, record) => (
                 <Switch
-                    checked={isActive}
+                    // Provide a default fallback if is_valid is undefined in flags
+                    checked={isValid ?? true}
                     onChange={(checked) => handleToggleActive(record, checked)}
                 />
             ),
@@ -111,29 +132,42 @@ const Webhooks: React.FC = () => {
         {
             title: "Actions",
             key: "actions",
-            width: 100,
-            render: (_: any, record: WebhookSubscription) => (
-                <Space>
-                    <Button
-                        type="text"
-                        icon={<EditOutlined />}
-                        onClick={() => handleEdit(record)}
-                    />
-                    <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleDelete(record)}
-                    />
-                </Space>
-            ),
+            width: 80,
+            align: "center",
+            render: (_: any, record: WebhookSubscription) => {
+                const items: MenuProps["items"] = [
+                    {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <PencilLineIcon size={14} />,
+                        onClick: () => handleEdit(record),
+                    },
+                    {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash size={14} />,
+                        danger: true,
+                        onClick: () => handleDelete(record),
+                    },
+                ]
+
+                return (
+                    <Dropdown
+                        menu={{items, style: {width: 150}}}
+                        trigger={["click"]}
+                        placement="bottomRight"
+                    >
+                        <Button type="text" icon={<MoreOutlined />} />
+                    </Dropdown>
+                )
+            },
         },
     ]
 
     return (
         <div className="flex flex-col h-full gap-4">
             <div className="flex justify-between items-center">
-                <Title level={4} style={{margin: 0}}>
+                <Title level={4} className="!m-0">
                     Webhooks
                 </Title>
                 <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>

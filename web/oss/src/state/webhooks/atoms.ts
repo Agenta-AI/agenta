@@ -1,19 +1,17 @@
-import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {fetchWebhooks} from "@/oss/services/webhooks/api"
-import {selectedOrgAtom} from "@/oss/state/org"
+import {listWebhooks} from "@/oss/services/webhooks/api"
+import {projectIdAtom} from "@/oss/state/project"
 
-export const webhooksAtom = atomWithQuery((get) => ({
-    queryKey: ["webhooks", get(selectedOrgAtom)?.default_workspace?.id],
-    queryFn: async () => {
-        const workspaceId = get(selectedOrgAtom)?.default_workspace?.id
-        if (!workspaceId) return []
-        return fetchWebhooks(workspaceId)
-    },
-}))
+export const webhooksAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
 
-export const isWebhooksLoadingAtom = atom((get) => {
-    const webhooks = get(webhooksAtom)
-    return webhooks.isPending
+    return {
+        queryKey: ["webhooks", projectId],
+        queryFn: async () => {
+            const response = await listWebhooks()
+            return response.subscriptions
+        },
+        enabled: !!projectId,
+    }
 })

@@ -1,47 +1,54 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+
 import {
-    CreateWebhookSubscription,
-    TestWebhookResponse,
-    UpdateWebhookSubscription,
-    WebhookSubscription,
+    WebhookDeliveriesResponse,
+    WebhookDeliveryResponse,
+    WebhookSubscriptionCreateRequest,
+    WebhookSubscriptionEditRequest,
+    WebhookSubscriptionResponse,
+    WebhookSubscriptionsResponse,
 } from "./types"
 
-const fetchWebhooks = async (workspaceId: string): Promise<WebhookSubscription[]> => {
-    const response = await axios.get(`/webhooks/?workspace_id=${workspaceId}`)
+const listWebhooks = async (): Promise<WebhookSubscriptionsResponse> => {
+    // Backend uses POST /api/webhooks/query
+    // Scoping to project_id happens via auth session injected on backend
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/query`, {})
     return response.data
 }
 
 const createWebhook = async (
-    workspaceId: string,
-    data: CreateWebhookSubscription,
-): Promise<WebhookSubscription> => {
-    const response = await axios.post(`/webhooks/?workspace_id=${workspaceId}`, data)
+    data: WebhookSubscriptionCreateRequest,
+): Promise<WebhookSubscriptionResponse> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/`, data)
     return response.data
 }
 
 const updateWebhook = async (
-    workspaceId: string,
     webhookId: string,
-    data: UpdateWebhookSubscription,
-): Promise<WebhookSubscription> => {
-    const response = await axios.put(`/webhooks/${webhookId}?workspace_id=${workspaceId}`, data)
+    data: WebhookSubscriptionEditRequest,
+): Promise<WebhookSubscriptionResponse> => {
+    // Backend path requires {subscription_id}; body also requires it inside data
+    const response = await axios.put(`${getAgentaApiUrl()}/webhooks/${webhookId}`, data)
     return response.data
 }
 
-const deleteWebhook = async (workspaceId: string, webhookId: string): Promise<void> => {
-    await axios.delete(`/webhooks/${webhookId}?workspace_id=${workspaceId}`)
+const deleteWebhook = async (webhookId: string): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/webhooks/${webhookId}`)
 }
 
-const testWebhook = async (
-    workspaceId: string,
-    url: string,
-    eventType: string,
-): Promise<TestWebhookResponse> => {
-    const response = await axios.post(`/webhooks/test?workspace_id=${workspaceId}`, {
-        url,
-        event_type: eventType,
+const testWebhook = async (webhookId: string): Promise<WebhookDeliveryResponse> => {
+    // Backend uses POST /api/webhooks/test/{subscription_id} with no body
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/test/${webhookId}`)
+    return response.data
+}
+
+const listDeliveries = async (webhookId: string): Promise<WebhookDeliveriesResponse> => {
+    // Optional delivery panel endpoint
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/deliveries/query`, {
+        delivery: {subscription_id: webhookId},
     })
     return response.data
 }
 
-export {createWebhook, deleteWebhook, fetchWebhooks, testWebhook, updateWebhook}
+export {createWebhook, deleteWebhook, listDeliveries, listWebhooks, testWebhook, updateWebhook}
