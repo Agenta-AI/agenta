@@ -111,7 +111,13 @@ class TracingService:
         propagate_metrics: bool = True,
     ) -> OTelLinks:
         if propagate_metrics:
-            span_dtos = calculate_and_propagate_metrics(span_dtos)
+            try:
+                span_dtos = calculate_and_propagate_metrics(span_dtos)
+            except Exception:  # pylint: disable=broad-exception-caught
+                log.error(
+                    "Failed to calculate metrics; continuing without metrics",
+                    exc_info=True,
+                )
 
         if sync:
             if is_ee():

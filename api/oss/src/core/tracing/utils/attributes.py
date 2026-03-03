@@ -5,6 +5,8 @@ from json import loads as json_loads, JSONDecodeError
 from re import match
 from typing import Any, Dict, Optional, Tuple, Union
 
+from pydantic import ValidationError
+
 from oss.src.core.shared.dtos import Data, Flags, Meta, Tags
 from oss.src.core.tracing.dtos import (
     AgAttributes,
@@ -44,6 +46,21 @@ REFERENCE_KEYS = [
     "snippet_variant",
     "snippet_revision",
 ]
+
+
+def _sanitize_invalid_ag_fields(
+    cleaned_ag: dict,
+    unsupported: dict,
+    error: ValidationError,
+) -> None:
+    """Move fields that failed Pydantic validation into unsupported."""
+    for err in error.errors():
+        loc = err.get("loc", ())
+        if not loc:
+            continue
+        top_key = loc[0]
+        if isinstance(top_key, str) and top_key in cleaned_ag:
+            unsupported[top_key] = cleaned_ag.pop(top_key)
 
 
 def ensure_nested_dict(d: dict, *keys: str) -> dict:
@@ -208,7 +225,24 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
             unsupported[key] = ag[key]
 
     cleaned_ag["unsupported"] = unsupported or None
-    cleaned_ag = AgAttributes(**cleaned_ag).model_dump(mode="json", exclude_none=True)
+    try:
+        cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
+            mode="json", exclude_none=True
+        )
+    except ValidationError as e:
+        _sanitize_invalid_ag_fields(cleaned_ag, unsupported, e)
+        cleaned_ag["unsupported"] = unsupported or None
+        try:
+            cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
+                mode="json", exclude_none=True
+            )
+        except ValidationError:
+            cleaned_ag = AgAttributes(
+                type=cleaned_ag.get("type"),
+                data=cleaned_ag.get("data"),
+                metrics=cleaned_ag.get("metrics"),
+                unsupported=unsupported or None,
+            ).model_dump(mode="json", exclude_none=True)
 
     # Re-inject inputs as-is (not subject to AgDataAttributes Dict validation)
     if _inputs is not None:

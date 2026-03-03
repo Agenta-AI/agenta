@@ -13,6 +13,10 @@ from oss.src.core.tracing.dtos import (
     Focus,
     Format,
 )
+from oss.src.core.tracing.utils.parsing import (
+    parse_trace_id_from_uuid,
+    parse_span_id_from_uuid,
+)
 
 if TYPE_CHECKING:
     from oss.src.core.tracing.service import TracingService
@@ -195,9 +199,11 @@ class QueriesService:
 
         traces: Traces = [
             Trace(
-                trace_id=str(tid),
+                trace_id=parse_trace_id_from_uuid(tid),
                 spans={
-                    s.span_id: OTelSpan(**s.model_dump()).model_dump(
+                    parse_span_id_from_uuid(s.span_id): OTelSpan(
+                        **s.model_dump()
+                    ).model_dump(
                         mode="json",
                         exclude_none=True,
                     )

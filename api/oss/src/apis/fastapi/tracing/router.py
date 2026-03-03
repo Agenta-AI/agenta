@@ -793,12 +793,17 @@ class SpansRouter:
         if not spans_request.spans:
             raise HTTPException(status_code=400, detail="Missing spans")
 
-        links = await self.service.ingest_spans(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            organization_id=UUID(request.state.organization_id),
-            spans=spans_request.spans,
-        )
+        try:
+            links = await self.service.ingest_spans(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                spans=spans_request.spans,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
 
         normalized_links = self._links_from_otel_links(links)
         return LinksResponse(
@@ -1166,12 +1171,17 @@ class TracesRouter:
         if not traces:
             raise HTTPException(status_code=400, detail="Missing traces")
 
-        links = await self.service.ingest_spans(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            organization_id=UUID(request.state.organization_id),
-            traces=traces,
-        )
+        try:
+            links = await self.service.ingest_spans(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                traces=traces,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
 
         trace_ids = self._trace_ids_from_links(links)
         return TraceIdsResponse(
