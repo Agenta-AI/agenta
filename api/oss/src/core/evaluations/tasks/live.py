@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from redis.asyncio import Redis
 from fastapi import Request
@@ -198,8 +198,10 @@ async def evaluate_live_query(
     #
     run_id: UUID,
     #
-    newest: datetime,
-    oldest: datetime,
+    newest: Optional[datetime] = None,
+    oldest: Optional[datetime] = None,
+    #
+    use_windowing: bool = False,
 ):
     request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
 
@@ -207,8 +209,10 @@ async def evaluate_live_query(
     request.state.user_id = str(user_id)
 
     # count in minutes
-    timestamp = oldest
-    interval = int((newest - oldest).total_seconds() / 60)
+    timestamp = oldest or datetime.now(timezone.utc)
+    interval: Optional[int] = None
+    if newest and oldest:
+        interval = int((newest - oldest).total_seconds() / 60)
 
     try:
         # ----------------------------------------------------------------------
@@ -224,6 +228,9 @@ async def evaluate_live_query(
             run_id=run_id,
             timestamp=timestamp,
             interval=interval,
+            newest=newest,
+            oldest=oldest,
+            use_windowing=use_windowing,
         )
         # ----------------------------------------------------------------------
 
@@ -385,7 +392,20 @@ async def evaluate_live_query(
                     filtering = query_revision.data.filtering
 
                 if query_revision.data.windowing:
-                    windowing.rate = query_revision.data.windowing.rate
+                    query_windowing = query_revision.data.windowing
+
+                    if use_windowing:
+                        windowing = Windowing(
+                            oldest=query_windowing.oldest,
+                            newest=query_windowing.newest,
+                            limit=query_windowing.limit,
+                            order=query_windowing.order,
+                            rate=query_windowing.rate,
+                            # next=
+                            # interval=
+                        )
+                    else:
+                        windowing.rate = query_windowing.rate
 
             query = TracingQuery(
                 formatting=formatting,
