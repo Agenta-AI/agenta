@@ -33,6 +33,8 @@ import {
 } from "../evaluator/state/runnableSetup"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
 import {legacyAppRevisionMolecule} from "../legacyAppRevision"
+import {createLocalDraftFromRevision} from "../legacyAppRevision/state/localDrafts"
+import {latestServerRevisionIdAtomFamily} from "../legacyAppRevision/state/store"
 import {legacyEvaluatorMolecule} from "../legacyEvaluator"
 import {
     invocationUrlAtomFamily as legacyEvaluatorInvocationUrlAtomFamily,
@@ -942,6 +944,14 @@ export const runnableBridge = createRunnableBridge({
                     const schemaQuery = get(legacyAppRevisionMolecule.selectors.schemaQuery(id))
                     return getSchemaFromRevisionState(schemaQuery.data)
                 }),
+            parametersSchemaSelector: (id: string) =>
+                atom<Record<string, unknown> | null>((get) => {
+                    const schema = get(legacyAppRevisionMolecule.atoms.agConfigSchema(id))
+                    if (!schema) return null
+                    // EntitySchema → JSON schema record
+                    return schema as unknown as Record<string, unknown>
+                }),
+            draftSelector: (id: string) => legacyAppRevisionMolecule.atoms.draft(id),
             // Use molecule selectors for reactive derivation
             inputPortsSelector: (id: string) => legacyAppRevisionMolecule.selectors.inputPorts(id),
             outputPortsSelector: (id: string) =>
@@ -954,6 +964,14 @@ export const runnableBridge = createRunnableBridge({
             requestPayloadSelector: (id: string) =>
                 legacyAppRevisionMolecule.atoms.requestPayload(id),
             serverDataSelector: (id: string) => legacyAppRevisionMolecule.selectors.serverData(id),
+            invalidateCache: () => legacyAppRevisionMolecule.set.invalidateCache(),
+            latestRevisionIdSelector: (parentId: string) =>
+                latestServerRevisionIdAtomFamily(parentId),
+            parentIdExtractor: (entity: unknown) => {
+                const e = entity as LegacyAppRevisionEntity
+                return e.appId ?? null
+            },
+            createLocalDraft: createLocalDraftFromRevision,
         },
         // appRevision: {
         //     molecule: appRevisionMolecule,
