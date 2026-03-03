@@ -16,6 +16,7 @@ import uuid_utils.compat as uuid_compat
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.types import (
+    WebhookEventType,
     WebhookSubscription,
     WebhookSubscriptionQuery,
 )
@@ -193,6 +194,16 @@ class WebhooksDispatcher:
             for msg in project_batch["events"]:
                 event = msg.event
                 event_type = event.event_type.value
+
+                try:
+                    WebhookEventType(event_type)
+                except ValueError:
+                    log.debug(
+                        "[WEBHOOKS DISPATCHER] Skipping non-subscribable event_type %r",
+                        event_type,
+                    )
+                    continue
+
                 target_subscription_id = None
 
                 if event.event_type == EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED:

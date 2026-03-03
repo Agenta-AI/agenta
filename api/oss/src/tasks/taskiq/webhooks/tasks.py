@@ -28,6 +28,7 @@ from oss.src.core.webhooks.types import (
     WebhookDeliveryCreate,
     WebhookDeliveryData,
     WebhookDeliveryResponseInfo,
+    WebhookEventType,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.core.webhooks.utils import validate_webhook_url
@@ -97,8 +98,17 @@ async def deliver_webhook(
     dao: WebhooksDAOInterface,
 ) -> None:
     """Deliver a webhook payload to a single subscriber endpoint."""
+    try:
+        typed_event_type = WebhookEventType(event_type)
+    except ValueError:
+        log.warning(
+            "[WEBHOOKS TASK] Unrecognized event_type %r — storing None in delivery record",
+            event_type,
+        )
+        typed_event_type = None
+
     base_data = WebhookDeliveryData(
-        event_type=event_type,
+        event_type=typed_event_type,
         #
         url=url,
         body=body,
