@@ -79,6 +79,35 @@ const isRecord = (value: unknown): value is UnknownRecord =>
 const asRecord = (value: unknown): UnknownRecord => (isRecord(value) ? value : {})
 
 /**
+ * Merge `extracted` values into `server` while preserving the server's key ordering.
+ *
+ * - Keys present in `server` are emitted first, in server order.
+ *   If the key also exists in `extracted`, the extracted value wins.
+ *   Otherwise the server value is kept (preserves fields like system_prompt).
+ * - Keys only in `extracted` (new fields) are appended at the end.
+ */
+function mergePreservingOrder(
+    server: Record<string, unknown>,
+    extracted: Record<string, unknown>,
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
+
+    // First: server keys in original order, overlaying extracted values
+    for (const key of Object.keys(server)) {
+        result[key] = key in extracted ? extracted[key] : server[key]
+    }
+
+    // Second: new keys from extracted that server didn't have
+    for (const key of Object.keys(extracted)) {
+        if (!(key in result)) {
+            result[key] = extracted[key]
+        }
+    }
+
+    return result
+}
+
+/**
  * Transform enhanced variant data back to API request shape.
  *
  * Accepts a duck-typed variant (compatible with both `EnhancedVariant` and
@@ -294,16 +323,48 @@ export function transformToRequestBody({
         }
     }
 
-    let ag_config = {
-        ...promptConfigs,
-        ...customConfigs,
+    // Build ag_config preserving the server's field ordering.
+    //
+    // When rawAgConfig is available (the raw parameters from the server), use it
+    // as the structural base so that:
+    //   1. Field ordering matches what the server stored (ordered JSON)
+    //   2. Server-only fields (system_prompt, user_prompt) are preserved
+    //   3. Extracted (user-modified) values overlay the server values
+    let ag_config: Record<string, unknown>
+    if (rawAgConfig && Object.keys(rawAgConfig).length > 0) {
+        ag_config = {...rawAgConfig}
+
+        // Overlay extracted prompt configs while preserving server field ordering
+        for (const [key, extracted] of Object.entries(promptConfigs)) {
+            const serverVal = rawAgConfig[key]
+            if (isRecord(serverVal) && isRecord(extracted)) {
+                ag_config[key] = mergePreservingOrder(
+                    serverVal as Record<string, unknown>,
+                    extracted as Record<string, unknown>,
+                )
+            } else {
+                ag_config[key] = extracted
+            }
+        }
+
+        // Overlay custom configs (these are typically new/modified properties)
+        for (const [key, value] of Object.entries(customConfigs)) {
+            ag_config[key] = value
+        }
+    } else {
+        ag_config = {
+            ...promptConfigs,
+            ...customConfigs,
+        }
     }
 
-    // When prompt/custom extraction produced an empty config but the caller
-    // provided a pre-resolved ag_config (e.g. from runnableBridge.configuration),
-    // use it as a fallback so the backend receives the actual parameters.
-    if (Object.keys(ag_config).length === 0 && rawAgConfig && Object.keys(rawAgConfig).length > 0) {
-        ag_config = {...rawAgConfig}
+    // Strip legacy fields that should NOT appear in execution payloads.
+    // system_prompt / user_prompt are superseded by the structured messages array.
+    for (const value of Object.values(ag_config)) {
+        if (isRecord(value)) {
+            delete value["system_prompt"]
+            delete value["user_prompt"]
+        }
     }
 
     // Sanitize response_format within each prompt's llm_config to avoid backend validation errors
