@@ -1068,9 +1068,7 @@ export const runnableBridge = createRunnableBridge({
                 const serverData = get(
                     workflowServerDataSelectorFamily(entityId),
                 ) as WorkflowEntity | null
-                const isEvaluator =
-                    serverData?.flags?.is_evaluator ||
-                    (serverData?.data?.uri && serverData.data.uri.startsWith("agenta:builtin:"))
+                const isEvaluator = serverData?.flags?.is_evaluator ?? false
                 if (isEvaluator) {
                     // Use PURE server params, not merged entity params
                     const originalFlat =

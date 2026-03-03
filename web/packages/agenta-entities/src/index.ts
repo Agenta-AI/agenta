@@ -6,7 +6,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { testcase, appRevision, runnable, loadable } from '@agenta/entities'
+ * import { testcase, legacyAppRevision, runnable, loadable } from '@agenta/entities'
  *
  * // === BASE API (same for all entities) ===
  *
@@ -22,9 +22,9 @@
  *
  * // === CAPABILITY APIs ===
  *
- * // Runnable API (appRevision, evaluator)
- * appRevision.runnable.inputPorts(id)
- * appRevision.runnable.config(id)
+ * // Runnable API (legacyAppRevision, evaluator)
+ * legacyAppRevision.runnable.inputPorts(id)
+ * legacyAppRevision.runnable.config(id)
  *
  * // Loadable API (testcase)
  * testcase.loadable.rows(revisionId)
@@ -124,17 +124,6 @@ export {revisionMolecule as revision} from "./testset"
 export {testsetMolecule as testset} from "./testset"
 
 /**
- * App revision entity controller.
- * Implements RunnableCapability for input/output ports.
- *
- * @example
- * ```typescript
- * const ports = useAtomValue(appRevision.runnable.inputPorts(id))
- * ```
- */
-export {appRevisionMolecule as appRevision} from "./appRevision"
-
-/**
  * OSS app revision entity controller.
  * Uses the legacy backend API (AppVariantRevision model).
  * Implements RunnableCapability for input/output ports.
@@ -227,7 +216,7 @@ export {loadableBridge as loadable} from "./loadable"
 
 /**
  * Runnable bridge - unified access to executables.
- * Works with any runnable entity (appRevision, evaluator, etc.)
+ * Works with any runnable entity (legacyAppRevision, evaluator, etc.)
  *
  * @example
  * ```typescript
@@ -244,10 +233,11 @@ export {runnableBridge as runnable} from "./runnable"
 // Entity data types
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
-export type {AppRevisionData} from "./appRevision"
 export type {Evaluator, EvaluatorData, EvaluatorFlags} from "./evaluator"
 export type {LegacyEvaluator, LegacyEvaluatorData, LegacyEvaluatorFlags} from "./legacyEvaluator"
 export type {LegacyAppRevisionData} from "./legacyAppRevision"
+// Alias for backward compatibility - AppRevisionData was removed with appRevision entity
+export type {LegacyAppRevisionData as AppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
 export type {Environment, EnvironmentRevision, EnvironmentRevisionData} from "./environment"
 
@@ -270,7 +260,6 @@ export type {
 // Use these with initializeSelectionSystem() from @agenta/entity-ui.
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
-export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
 export {
     legacyAppRevisionSelectionConfig,
     type LegacyAppRevisionSelectionConfig,

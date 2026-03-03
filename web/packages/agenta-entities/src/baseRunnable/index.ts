@@ -21,12 +21,12 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
-import type {RevisionSchemaState} from "../appRevision/core"
 import {
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
-} from "../appRevision/state/serviceSchemaAtoms"
-import {getSchemaPropertyAtPath} from "../legacyAppRevision/state/schemaAtoms"
+    getSchemaPropertyAtPath,
+} from "../legacyAppRevision"
+import type {RevisionSchemaState} from "../legacyAppRevision/api/types"
 import type {RunnableInputPort, RunnableOutputPort} from "../runnable/types"
 import {extractVariablesFromConfig} from "../runnable/utils"
 import type {EntitySchema, EntitySchemaProperty} from "../shared"
