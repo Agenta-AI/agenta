@@ -306,7 +306,6 @@ workflows_service = WorkflowsService(
 
 environments_service = EnvironmentsService(
     environments_dao=environments_dao,
-    workflows_service=workflows_service,
 )
 
 applications_service = ApplicationsService(

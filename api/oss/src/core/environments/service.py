@@ -1,8 +1,5 @@
-from typing import Optional, List, Dict, TYPE_CHECKING
+from typing import Optional, List, Dict
 from uuid import UUID, uuid4
-
-if TYPE_CHECKING:
-    from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.git.interfaces import GitDAOInterface
@@ -61,12 +58,9 @@ class EnvironmentsService:
         self,
         *,
         environments_dao: GitDAOInterface,
-        #
-        workflows_service: Optional["WorkflowsService"] = None,  # type: ignore
     ):
         self.embeds_service = None  # Will be set later
         self.environments_dao = environments_dao
-        self.workflows_service = workflows_service
 
     # environments ---------------------------------------------------------
 
