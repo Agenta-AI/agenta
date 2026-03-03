@@ -38,7 +38,7 @@ import {
     EntityPicker,
     type EvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
-    type AppRevisionSelectionResult,
+    type LegacyAppRevisionSelectionResult,
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -63,7 +63,7 @@ interface EntitySelectorContextType {
 
 function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
     const handleSelect = useCallback(
-        (selection: AppRevisionSelectionResult) => {
+        (selection: LegacyAppRevisionSelectionResult) => {
             onSelect({
                 type: "legacyAppRevision",
                 id: selection.id,
@@ -80,9 +80,9 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
     )
 
     return (
-        <EntityPicker<AppRevisionSelectionResult>
+        <EntityPicker<LegacyAppRevisionSelectionResult>
             variant="cascading"
-            adapter="appRevision"
+            adapter="legacyAppRevision"
             onSelect={handleSelect}
             instanceId="entity-selector-app-revision"
         />
