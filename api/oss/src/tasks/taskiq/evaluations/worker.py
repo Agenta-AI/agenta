@@ -223,7 +223,7 @@ class EvaluationsWorker:
                 run_id=run_id,
                 trace_ids=trace_ids,
                 #
-                tracing_router=self.tracing_router,
+                tracing_service=self.tracing_service,
                 workflows_service=self.workflows_service,
                 evaluations_service=self.evaluations_service,
             )

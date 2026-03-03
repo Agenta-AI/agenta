@@ -1,7 +1,5 @@
-from typing import TYPE_CHECKING, Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any
 
-if TYPE_CHECKING:
-    from oss.src.apis.fastapi.tracing.router import TracingRouter
 from uuid import UUID
 from json import dumps
 
@@ -1288,7 +1286,7 @@ async def _evaluate_batch_items(
     testcase_ids: Optional[List[UUID]] = None,
     trace_ids: Optional[List[str]] = None,
     #
-    tracing_router: Optional[TracingRouter] = None,
+    tracing_service: Optional[TracingService] = None,
     testcases_service: Optional[TestcasesService] = None,
     workflows_service: WorkflowsService,
     evaluations_service: EvaluationsService,
@@ -1327,8 +1325,8 @@ async def _evaluate_batch_items(
             raise ValueError(
                 f"Evaluation run with id {run_id} has no testcase_ids or trace_ids!"
             )
-        if trace_ids and tracing_router is None:
-            raise ValueError("tracing_router is required for trace batches")
+        if trace_ids and tracing_service is None:
+            raise ValueError("tracing_service is required for trace batches")
         if testcase_ids and testcases_service is None:
             raise ValueError("testcases_service is required for testcase batches")
 
@@ -1463,9 +1461,9 @@ async def _evaluate_batch_items(
 
             if source_trace_id:
                 trace = await fetch_trace(
-                    tracing_router=tracing_router,
-                    request=request,
+                    project_id=project_id,
                     trace_id=source_trace_id,
+                    tracing_service=tracing_service,
                 )
                 if not trace or not isinstance(trace.spans, dict):
                     scenario_status = EvaluationStatus.ERRORS
@@ -1763,7 +1761,7 @@ async def evaluate_batch_traces(
     run_id: UUID,
     trace_ids: List[str],
     #
-    tracing_router: TracingRouter,
+    tracing_service: TracingService,
     workflows_service: WorkflowsService,
     evaluations_service: EvaluationsService,
 ):
@@ -1773,7 +1771,7 @@ async def evaluate_batch_traces(
         run_id=run_id,
         #
         trace_ids=trace_ids,
-        tracing_router=tracing_router,
+        tracing_service=tracing_service,
         workflows_service=workflows_service,
         evaluations_service=evaluations_service,
     )
