@@ -350,6 +350,19 @@ function resolveVariableRowId(params: ResolveVariableRowIdParams): string | null
     return displayRowIds[0] ?? null
 }
 
+function stringifyValue(value: unknown): string {
+    if (value === undefined || value === null) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "object") {
+        try {
+            return JSON.stringify(value)
+        } catch {
+            return String(value)
+        }
+    }
+    return String(value)
+}
+
 function resolveVariableValues(params: ResolveVariableValuesParams): Record<string, string> {
     const {allowedVariableKeys, sourceRowData} = params
     const source = sourceRowData ?? {}
@@ -357,15 +370,14 @@ function resolveVariableValues(params: ResolveVariableValuesParams): Record<stri
     if (Array.isArray(allowedVariableKeys) && allowedVariableKeys.length > 0) {
         const values: Record<string, string> = {}
         for (const key of allowedVariableKeys) {
-            const value = source[key]
-            values[key] = value !== undefined && value !== null ? String(value) : ""
+            values[key] = stringifyValue(source[key])
         }
         return values
     }
 
     const values: Record<string, string> = {}
     for (const [key, value] of Object.entries(source)) {
-        values[key] = value !== undefined && value !== null ? String(value) : ""
+        values[key] = stringifyValue(value)
     }
     return values
 }
@@ -540,10 +552,18 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const hasInputValues = inputValues != null && Object.keys(inputValues).length > 0
         const variableSourceDataForExecution = hasInputValues ? inputValues : variableSourceRowData
 
-        const variableValues = resolveVariableValues({
+        const rawVariableValues = resolveVariableValues({
             allowedVariableKeys: variables,
             sourceRowData: variableSourceDataForExecution,
         })
+        // In chat mode, "messages" is handled via chatHistory — never include it
+        // as an input variable. This prevents duplicating messages in the request
+        // body (once correctly in `data.messages`, once as a stringified blob in
+        // `data.inputs.messages`).
+        if (mode === "chat") {
+            delete rawVariableValues.messages
+        }
+        const variableValues = rawVariableValues
 
         const completionInputRow =
             mode === "completion"
