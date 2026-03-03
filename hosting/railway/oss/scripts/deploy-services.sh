@@ -16,7 +16,9 @@ railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/nu
 
 # Bring stateful infra up first so credentials/volumes are applied.
 railway service Postgres >/dev/null && railway redeploy --yes
-railway service redis >/dev/null && railway redeploy --yes
+if railway service redis >/dev/null 2>&1; then
+    railway up hosting/railway/oss/redis --path-as-root --service redis --detach
+fi
 
 # Deployment order matters. Migrations first, gateway last.
 # Alembic runs as a job and should complete before API startup checks.
