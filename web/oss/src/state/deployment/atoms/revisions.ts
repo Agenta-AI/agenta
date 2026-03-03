@@ -22,19 +22,15 @@ export const deploymentRevisionsWithAppIdQueryAtomFamily = atomFamily(
             const sessionExists = get(sessionExistsAtom)
             const user = get(userAtom)
             const userId = user?.id
-            console.log("user", {user, sessionExists, userId, projectId, appId, envName})
             return {
                 queryKey: ["deploymentRevisions", appId, envName],
                 queryFn: async (): Promise<DeploymentRevisions | undefined> => {
-                    console.log("deploymentRevisionsWithAppIdQueryAtomFamily 1")
                     if (!appId || !envName) {
                         return {}
                     }
 
-                    console.log("deploymentRevisionsWithAppIdQueryAtomFamily 2")
                     try {
                         const data = await fetchAllDeploymentRevisions(appId, envName)
-                        console.log("deploymentRevisionsWithAppIdQueryAtomFamily 3", data)
                         return data
                     } catch (error) {
                         console.warn(`Error fetching deployment revisions for ${envName}:`, {
