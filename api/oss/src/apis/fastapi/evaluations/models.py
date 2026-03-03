@@ -33,11 +33,17 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueCreate,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    EvaluationQueueScenariosQuery,
     #
     SimpleEvaluation,
     SimpleEvaluationCreate,
     SimpleEvaluationEdit,
     SimpleEvaluationQuery,
+    #
+    SimpleQueue,
+    SimpleQueueCreate,
+    SimpleQueueQuery,
+    SimpleQueueScenariosQuery,
 )
 
 
@@ -178,6 +184,8 @@ class EvaluationScenarioResponse(BaseModel):
 class EvaluationScenariosResponse(BaseModel):
     count: int = 0
     scenarios: List[EvaluationScenario] = []
+    #
+    windowing: Optional[Windowing] = None
 
 
 class EvaluationScenarioIdResponse(BaseModel):
@@ -320,6 +328,14 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
     scenario_ids: List[List[UUID]] = []
 
 
+class EvaluationQueueScenariosQueryRequest(BaseModel):
+    queue: Optional[EvaluationQueueScenariosQuery] = None
+    #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
 # - SIMPLE EVALUATIONS ---------------------------------------------------------
 
 
@@ -359,3 +375,56 @@ class SimpleEvaluationsResponse(BaseModel):
 class SimpleEvaluationIdResponse(BaseModel):
     count: int = 0
     evaluation_id: Optional[UUID] = None
+
+
+# - SIMPLE QUEUES --------------------------------------------------------------
+
+
+class SimpleQueueCreateRequest(BaseModel):
+    queue: SimpleQueueCreate
+
+
+class SimpleQueueQueryRequest(BaseModel):
+    queue: Optional[SimpleQueueQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueScenariosQueryRequest(BaseModel):
+    queue: Optional[SimpleQueueScenariosQuery] = None
+    #
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueTracesCreateRequest(BaseModel):
+    trace_ids: List[str]
+
+
+class SimpleQueueTestcasesCreateRequest(BaseModel):
+    testcase_ids: List[UUID]
+
+
+class SimpleQueueResponse(BaseModel):
+    count: int = 0
+    queue: Optional[SimpleQueue] = None
+
+
+class SimpleQueuesResponse(BaseModel):
+    count: int = 0
+    queues: List[SimpleQueue] = []
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleQueueIdResponse(BaseModel):
+    count: int = 0
+    queue_id: Optional[UUID] = None
+
+
+class SimpleQueueScenariosResponse(BaseModel):
+    count: int = 0
+    scenarios: List[EvaluationScenario] = []
+    #
+    windowing: Optional[Windowing] = None
