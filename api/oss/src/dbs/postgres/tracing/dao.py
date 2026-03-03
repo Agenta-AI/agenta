@@ -750,13 +750,10 @@ class TracingDAO(TracingDAOInterface):
         async with engine.tracing_session() as session:
             stmt = select(SpanDBE).filter(SpanDBE.project_id == project_id)
 
-            conditions = []
             if trace_ids:
-                conditions.append(SpanDBE.trace_id.in_(trace_ids))
+                stmt = stmt.filter(SpanDBE.trace_id.in_(trace_ids))
             if span_ids:
-                conditions.append(SpanDBE.span_id.in_(span_ids))
-            if conditions:
-                stmt = stmt.filter(or_(*conditions))
+                stmt = stmt.filter(SpanDBE.span_id.in_(span_ids))
 
             stmt = stmt.order_by(SpanDBE.start_time.asc())
 
