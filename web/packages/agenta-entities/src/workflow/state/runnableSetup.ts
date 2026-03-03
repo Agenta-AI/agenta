@@ -38,7 +38,11 @@ import type {RequestPayloadData} from "../../runnable/types"
 import type {StoreOptions} from "../../shared"
 import {parseRevisionUri} from "../../shared"
 
+import {resolveBuiltinAppServiceUrl} from "./helpers"
 import {workflowAppSchemaAtomFamily, workflowEntityAtomFamily} from "./store"
+
+// Re-export for external consumers
+export {resolveBuiltinAppServiceUrl} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -108,11 +112,19 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
 
+        // --- Builtin app URL resolution (migration fix) ---
+        // For non-evaluator builtin apps (URI like "agenta:builtin:completion:v0"),
+        // derive URL from the current domain instead of potentially stale data.url.
+        // TODO: Remove once backend migration patches all revision data.url values.
+        const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
+
         // App workflows with URL: build invocation URL from runtimePrefix + routePath
-        if (entity.data.url && !isEvaluator) {
+        // Use resolved builtin URL if available, otherwise fall back to data.url
+        const effectiveAppUrl = resolvedBuiltinUrl ?? entity.data.url
+        if (effectiveAppUrl && !isEvaluator) {
             const routePath = get(appRoutePathAtomFamily(workflowId))
-            const parsed = parseRevisionUri(entity.data.url)
-            if (!parsed) return `${entity.data.url}/test`
+            const parsed = parseRevisionUri(effectiveAppUrl)
+            if (!parsed) return `${effectiveAppUrl}/test`
 
             const prefix = parsed.runtimePrefix.replace(/\/$/, "")
             const cleanRoutePath = (routePath || parsed.routePath || "")
@@ -251,7 +263,13 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         const isChat = entity.flags?.is_chat ?? false
         const openApiSchema = get(appOpenApiSchemaAtomFamily(workflowId))
         const routePath = get(appRoutePathAtomFamily(workflowId))
-        const parsed = entity.data.url ? parseRevisionUri(entity.data.url) : null
+
+        // --- Builtin app URL resolution (migration fix) ---
+        // Use corrected URL for builtin apps with stale data.url.
+        // TODO: Remove once backend migration is complete.
+        const resolvedUrl = resolveBuiltinAppServiceUrl(entity)
+        const effectiveUrl = resolvedUrl ?? entity.data.url
+        const parsed = effectiveUrl ? parseRevisionUri(effectiveUrl) : null
 
         // Extract ag_config from parameters
         const params = entity.data.parameters as Record<string, unknown> | undefined

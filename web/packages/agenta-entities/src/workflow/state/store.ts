@@ -40,6 +40,8 @@ import type {
     WorkflowRevisionsResponse,
 } from "../core"
 
+import {resolveBuiltinAppServiceUrl} from "./helpers"
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -740,8 +742,14 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const projectId = get(workflowProjectIdAtom)
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
-        const url = serverData?.data?.url ?? null
         const isEvaluator = serverData?.flags?.is_evaluator ?? false
+
+        // --- Builtin app URL resolution (migration fix) ---
+        // Use corrected URL for builtin apps with stale data.url.
+        // TODO: Remove resolveBuiltinAppServiceUrl once backend migration patches
+        // all revision data.url values. After that, data.url will always be correct.
+        const resolvedUrl = serverData ? resolveBuiltinAppServiceUrl(serverData) : null
+        const url = resolvedUrl ?? serverData?.data?.url ?? null
 
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],
