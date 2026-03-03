@@ -1186,6 +1186,51 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             return scenario_ids
 
     @suppress_exceptions(default=[])
+    async def query_scenario_ids(
+        self,
+        *,
+        project_id: UUID,
+        #
+        scenario: Optional[EvaluationScenarioQuery] = None,
+    ) -> List[UUID]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationScenarioDBE.id).filter(
+                EvaluationScenarioDBE.project_id == project_id,
+            )
+
+            if scenario is not None:
+                if scenario.ids is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.id.in_(scenario.ids),
+                    )
+
+                if scenario.run_id is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.run_id == scenario.run_id,
+                    )
+
+                if scenario.run_ids is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.run_id.in_(scenario.run_ids),
+                    )
+
+                if scenario.status is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.status == scenario.status,
+                    )
+
+                if scenario.statuses is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.status.in_(scenario.statuses),
+                    )
+
+            stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
+
+            res = await session.execute(stmt)
+
+            return list(res.scalars().all())
+
+    @suppress_exceptions(default=[])
     async def query_scenarios(
         self,
         *,
@@ -1876,7 +1921,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             values_list = []
             for dbe in metric_dbes:
                 values_dict = {
-                    k: v for k, v in dbe.__dict__.items() if k in column_names
+                    k: v
+                    for k, v in dbe.__dict__.items()
+                    if k in column_names and not (k == "id" and v is None)
                 }
                 values_list.append(values_dict)
 
@@ -2301,8 +2348,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         queue_dbe = create_dbe_from_dto(
             DBE=EvaluationQueueDBE,
             project_id=project_id,
-            dto=queue,
+            dto=_queue,  # use _queue: has string UUIDs in data (JSON-safe)
         )
+        queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
             async with engine.core_session() as session:
@@ -2365,9 +2413,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 DBE=EvaluationQueueDBE,
                 project_id=project_id,
                 dto=queue,
+                #
+                created_by_id=user_id,
             )
             for queue in queues
         ]
+        for queue_dbe, queue in zip(queue_dbes, queues):
+            queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
         try:
             async with engine.core_session() as session:
@@ -2501,6 +2553,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
             )
+            if queue.data is not None:
+                queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
@@ -2564,6 +2618,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         updated_at=datetime.now(timezone.utc),
                         updated_by_id=user_id,
                     )
+                    if queue.data is not None:
+                        queue_dbe.user_ids = _flatten_queue_user_ids(queue.data)
 
             await session.commit()
 
@@ -2673,10 +2729,26 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.run_id.in_(queue.run_ids),
                     )
 
-                if queue.flags is not None:
+                if queue.user_id is not None:
                     stmt = stmt.filter(
-                        EvaluationQueueDBE.flags.contains(queue.flags),
+                        EvaluationQueueDBE.user_ids.any(queue.user_id),  # type: ignore[arg-type]
                     )
+
+                if queue.user_ids is not None and len(queue.user_ids) != 0:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.user_ids.overlap(queue.user_ids),  # type: ignore[arg-type]
+                    )
+
+                if queue.flags is not None:
+                    queue_flags = queue.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+
+                    if queue_flags:
+                        stmt = stmt.filter(
+                            EvaluationQueueDBE.flags.contains(queue_flags),
+                        )
 
                 if queue.tags is not None:
                     stmt = stmt.filter(
@@ -2751,3 +2823,28 @@ async def _get_run_flags(
     run_flags = res.scalars().first()
 
     return run_flags or {}
+
+
+def _flatten_queue_user_ids(
+    queue_data,
+) -> Optional[List[UUID]]:
+    if queue_data is None or not getattr(queue_data, "user_ids", None):
+        return None
+
+    user_ids: List[UUID] = []
+    seen = set()
+
+    for repeat_user_ids in queue_data.user_ids:
+        if not repeat_user_ids:
+            continue
+
+        for user_id in repeat_user_ids:
+            normalized_user_id = UUID(str(user_id))
+
+            if normalized_user_id in seen:
+                continue
+
+            seen.add(normalized_user_id)
+            user_ids.append(normalized_user_id)
+
+    return user_ids or None
