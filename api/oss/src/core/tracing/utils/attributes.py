@@ -118,15 +118,11 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         if key not in AgDataAttributes.model_fields:
             unsupported.setdefault("data", {})[key] = data_dict[key]
 
-    # inputs is Optional[Any] by design — keep as-is, bypass AgDataAttributes validation.
-    # Pop it now and re-inject into the final dict after AgAttributes serialization.
-    _inputs = cleaned_data.pop("inputs", None)
-
-    # For dict-typed ag.data fields (parameters, internals):
+    # For dict-typed ag.data fields (parameters, inputs, internals):
     # - parse JSON strings to dicts (only if they parse to a dict)
     # - move non-dict values (including non-dict parse results) to unsupported
     # outputs is kept as-is (any type is valid)
-    _dict_fields = {"parameters", "internals"}
+    _dict_fields = {"parameters", "inputs", "internals"}
     for key in _dict_fields:
         val = cleaned_data.get(key)
         if val is None:
@@ -230,7 +226,10 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
             mode="json", exclude_none=True
         )
     except ValidationError as e:
-        _sanitize_invalid_ag_fields(cleaned_ag, unsupported, e)
+        try:
+            _sanitize_invalid_ag_fields(cleaned_ag, unsupported, e)
+        except Exception:
+            pass
         cleaned_ag["unsupported"] = unsupported or None
         try:
             cleaned_ag = AgAttributes(**cleaned_ag).model_dump(
@@ -238,15 +237,14 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
             )
         except ValidationError:
             cleaned_ag = AgAttributes(
-                type=cleaned_ag.get("type"),
-                data=cleaned_ag.get("data"),
-                metrics=cleaned_ag.get("metrics"),
+                type=AgTypeAttributes(
+                    trace=TraceType.INVOCATION,
+                    span=SpanType.TASK,
+                ),
+                data=AgDataAttributes(),
+                metrics=AgMetricsAttributes(),
                 unsupported=unsupported or None,
             ).model_dump(mode="json", exclude_none=True)
-
-    # Re-inject inputs as-is (not subject to AgDataAttributes Dict validation)
-    if _inputs is not None:
-        cleaned_ag.setdefault("data", {})["inputs"] = _inputs
 
     attributes["ag"] = cleaned_ag
     return attributes
