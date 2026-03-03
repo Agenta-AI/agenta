@@ -174,6 +174,22 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
     const totalSelectedCount = uniqueRevisionIds.length
     const isBulkDelete = deletionPlan.variants.length > 0 || totalSelectedCount > 1
 
+    // Check if deleting the last non-draft revision for any variant
+    const deletingLastRevision = useMemo(() => {
+        for (const group of Object.values(variantGroups)) {
+            const totalNonDraft = group.totalIds.length
+            const selectedNonDraft = group.selectedIds.length
+            // If deleting entire variant or selecting all revisions
+            if (group.deleteEntireVariant || selectedNonDraft >= totalNonDraft) {
+                // Check if this is the only variant being deleted
+                if (Object.keys(variantGroups).length === 1) {
+                    return true
+                }
+            }
+        }
+        return false
+    }, [variantGroups])
+
     const onDeleteVariant = useCallback(async () => {
         setIsMutating(true)
         try {
@@ -271,17 +287,28 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
                 </div>
             </div>
 
+            {deletingLastRevision && (
+                <div className="rounded-md bg-amber-50 p-3 text-amber-800">
+                    <Text strong>Cannot delete the only revision.</Text>
+                    <Text> Delete the app instead.</Text>
+                </div>
+            )}
+
             <div className="flex items-center justify-end gap-2">
                 <Button onClick={onClose}>Cancel</Button>
                 <Button
                     type="primary"
                     danger
                     loading={isMutating}
-                    disabled={isMutating || totalSelectedCount === 0}
+                    disabled={isMutating || totalSelectedCount === 0 || deletingLastRevision}
                     icon={<Trash size={14} />}
                     onClick={onDeleteVariant}
                 >
-                    {isBulkDelete ? "Delete selected" : "Delete"}
+                    {deletingLastRevision
+                        ? "Cannot delete the only revision"
+                        : isBulkDelete
+                            ? "Delete selected"
+                            : "Delete"}
                 </Button>
             </div>
         </section>
