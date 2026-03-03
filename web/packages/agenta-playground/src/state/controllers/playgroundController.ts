@@ -800,6 +800,23 @@ const restoreLocalTestsetAtom = atom(null, (get, set, localTestset: SnapshotLoca
         id: null,
         name: localTestset.name,
     })
+
+    // Extract chat messages from restored testcase rows if in chat mode.
+    // The entity layer stores `messages` as a regular data column, but the
+    // playground chat UI reads from messageIdsAtomFamily/messagesByIdAtomFamily.
+    // Without this step, chat messages are lost after snapshot hydration
+    // (e.g. when opening a chat trace span in the playground via URL).
+    const isChat = get(isChatModeAtom) ?? false
+    if (isChat) {
+        // For trace replays (baseRunnable entities), skip appending a blank
+        // user message — the loaded messages are the complete conversation.
+        const isTraceReplay = loadableId.includes(":baseRunnable:")
+        set(extractAndLoadChatMessagesAtom, {
+            loadableId,
+            testcaseRows: localTestset.rows as Record<string, unknown>[],
+            skipBlankMessage: isTraceReplay,
+        })
+    }
 })
 
 // ============================================================================
@@ -839,6 +856,66 @@ function looksLikeChat(inputs: Record<string, unknown>): boolean {
             ("role" in (m as Record<string, unknown>) ||
                 "content" in (m as Record<string, unknown>)),
     )
+}
+
+/**
+ * Split chat messages into config (before first user message) and generation (from first user message).
+ * Config messages (typically system prompts) go into baseRunnable parameters.
+ * Generation messages (user turns onward) go into testcase/loadable data.
+ */
+function splitChatMessages(messages: {role: string; content: unknown}[]): {
+    configMessages: {role: string; content: unknown}[]
+    generationMessages: {role: string; content: unknown}[]
+} {
+    const firstUserIdx = messages.findIndex((m) => m.role === "user")
+    if (firstUserIdx <= 0) {
+        // No user message or user message is first — nothing to split into config
+        return {configMessages: [], generationMessages: messages}
+    }
+    return {
+        configMessages: messages.slice(0, firstUserIdx),
+        generationMessages: messages.slice(firstUserIdx),
+    }
+}
+
+/**
+ * Extract model/LLM config from a chat span.
+ *
+ * Priority:
+ * 1. ag.data.parameters (playground-generated traces have model here)
+ * 2. attributes.llm.invocation_parameters (observability SDK traces)
+ */
+function extractModelConfig(span: TraceSpanNode): Record<string, unknown> | null {
+    const agData = extractAgData(span)
+
+    // 1. Check ag.data.parameters for direct model or llm_config
+    if (isRecord(agData?.parameters)) {
+        const params = agData.parameters as Record<string, unknown>
+        if (params.model || isRecord(params.llm_config)) {
+            return params
+        }
+    }
+
+    // 2. Fall back to attributes.llm.invocation_parameters
+    const attrs = span.attributes as Record<string, unknown> | undefined
+    if (attrs) {
+        const llm = attrs.llm as Record<string, unknown> | undefined
+        if (llm?.invocation_parameters) {
+            const raw = llm.invocation_parameters
+            if (typeof raw === "string") {
+                try {
+                    const parsed = JSON.parse(raw)
+                    if (isRecord(parsed)) return parsed
+                } catch {
+                    /* not valid JSON */
+                }
+            } else if (isRecord(raw)) {
+                return raw
+            }
+        }
+    }
+
+    return null
 }
 
 /**
@@ -919,6 +996,8 @@ export interface OpenFromTraceResult {
     entityId: string
     label: string
     inputs: Record<string, unknown>
+    /** For workflow spans with app references — used for navigation to app playground */
+    appId?: string
 }
 
 /**
@@ -937,31 +1016,11 @@ export interface OpenFromTraceResult {
 const openFromTraceAtom = atom(
     null,
     (_get, set, activeSpan: TraceSpanNode): OpenFromTraceResult => {
-        // 1. Extract data from active span
+        const spanType = activeSpan.span_type
         const agData = extractAgData(activeSpan)
-        const rawInputs = extractInputs(activeSpan)
-        const outputs = extractOutputs(activeSpan)
-
-        // ag.data.inputs may be a flat map of input keys OR a nested structure
-        // with { inputs: {...actual inputs...}, parameters: {...config...} }.
-        // Detect the nested shape and split accordingly.
-        const hasNestedInputs = isRecord(rawInputs.inputs)
-        const actualInputs = hasNestedInputs
-            ? (rawInputs.inputs as Record<string, unknown>)
-            : rawInputs
-        const rawParameters = (
-            hasNestedInputs && isRecord(rawInputs.parameters)
-                ? rawInputs.parameters
-                : (agData?.parameters ?? {})
-        ) as Record<string, unknown>
-
-        // Strip keys that duplicate prompt template / input data from nested objects
-        const parameters = stripOmittedKeys(rawParameters)
-
-        // 2. Extract references from trace
         const refs = extractReferences(activeSpan)
 
-        // 3. Determine label from references
+        // Determine label from references
         const label =
             refs.application_variant?.slug ||
             refs.application?.slug ||
@@ -971,42 +1030,251 @@ const openFromTraceAtom = atom(
             activeSpan.span_name ||
             "Trace Replay"
 
-        // 4. Check if we have a valid revision reference to open directly
-        // Note: revision ID may be in `id` or `version` field depending on how it was stored
-        const revisionId = refs.application_revision?.id || refs.application_revision?.version
-        if (revisionId) {
-            // Open existing revision in playground
-            set(addPrimaryNodeAtom, {
-                type: "legacyAppRevision",
-                id: revisionId,
-                label,
-            })
+        // ── WORKFLOW SPANS ──────────────────────────────────────────────
+        // Workflow spans with an app reference open in the app playground.
+        if (spanType === "workflow") {
+            const appId = refs.application?.id
 
-            // Populate loadable with trace inputs
+            // Extract data (same as legacy path)
+            let rawInputs = extractInputs(activeSpan)
+            if (Object.keys(rawInputs).length === 0 && typeof agData?.inputs === "string") {
+                try {
+                    const parsed = JSON.parse(agData.inputs)
+                    if (isRecord(parsed)) rawInputs = parsed
+                } catch {
+                    /* not valid JSON */
+                }
+            }
+
+            let outputs = extractOutputs(activeSpan)
+            if (typeof outputs === "string") {
+                try {
+                    outputs = JSON.parse(outputs)
+                } catch {
+                    /* keep as string */
+                }
+            }
+
+            const hasNestedInputs = isRecord(rawInputs.inputs)
+            const templateInputs = hasNestedInputs
+                ? (rawInputs.inputs as Record<string, unknown>)
+                : rawInputs
+            const chatMessages =
+                hasNestedInputs && Array.isArray(rawInputs.messages) ? rawInputs.messages : null
+            const actualInputs: Record<string, unknown> = {
+                ...templateInputs,
+                ...(chatMessages ? {messages: chatMessages} : {}),
+            }
+
+            let rawAgParameters = agData?.parameters
+            if (typeof rawAgParameters === "string") {
+                try {
+                    const parsed = JSON.parse(rawAgParameters)
+                    if (isRecord(parsed)) rawAgParameters = parsed
+                } catch {
+                    rawAgParameters = undefined
+                }
+            }
+            const rawParameters = (
+                hasNestedInputs && isRecord(rawInputs.parameters)
+                    ? rawInputs.parameters
+                    : isRecord(rawAgParameters)
+                      ? rawAgParameters
+                      : {}
+            ) as Record<string, unknown>
+            const parameters = stripOmittedKeys(rawParameters)
+
+            // If there's an app_revision reference, open that revision directly
+            const revisionId = refs.application_revision?.id || refs.application_revision?.version
+            if (revisionId) {
+                set(addPrimaryNodeAtom, {
+                    type: "legacyAppRevision",
+                    id: revisionId,
+                    label,
+                })
+
+                if (Object.keys(actualInputs).length > 0) {
+                    const loadableId = `testset:legacyAppRevision:${revisionId}`
+                    set(loadableController.actions.setRows, loadableId, [
+                        {id: "trace-input-0", data: actualInputs},
+                    ])
+                    if (looksLikeChat(actualInputs)) {
+                        set(extractAndLoadChatMessagesAtom, {
+                            loadableId,
+                            testcaseRows: [actualInputs],
+                            skipBlankMessage: true,
+                        })
+                    }
+                }
+
+                return {
+                    type: "revision",
+                    entityId: revisionId,
+                    label,
+                    inputs: actualInputs,
+                    appId,
+                }
+            }
+
+            // No revision — create baseRunnable
+            const {id: entityId, data} = createBaseRunnable({
+                label,
+                inputs: actualInputs,
+                outputs,
+                parameters,
+                sourceRef: appId
+                    ? {type: "application", id: appId, slug: refs.application?.slug}
+                    : undefined,
+            })
+            baseRunnableMolecule.set.data(entityId, data)
+            set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
+
             if (Object.keys(actualInputs).length > 0) {
-                const loadableId = `testset:legacyAppRevision:${revisionId}`
+                const loadableId = `testset:baseRunnable:${entityId}`
                 set(loadableController.actions.setRows, loadableId, [
                     {id: "trace-input-0", data: actualInputs},
                 ])
-
-                // For chat spans, populate the chat message atoms from the messages field
                 if (looksLikeChat(actualInputs)) {
                     set(extractAndLoadChatMessagesAtom, {
                         loadableId,
                         testcaseRows: [actualInputs],
+                        skipBlankMessage: true,
                     })
                 }
             }
 
             return {
-                type: "revision",
-                entityId: revisionId,
+                type: "baseRunnable",
+                entityId,
+                label,
+                inputs: actualInputs,
+                appId,
+            }
+        }
+
+        // ── CHAT SPANS ─────────────────────────────────────────────────
+        // Chat spans always create a baseRunnable in the project playground.
+        // Extract config messages (before first user) vs generation messages.
+
+        // Get raw prompt messages from inputs.prompt
+        let rawInputs = extractInputs(activeSpan)
+        if (Object.keys(rawInputs).length === 0 && typeof agData?.inputs === "string") {
+            try {
+                const parsed = JSON.parse(agData.inputs)
+                if (isRecord(parsed)) rawInputs = parsed
+            } catch {
+                /* not valid JSON */
+            }
+        }
+
+        let outputs = extractOutputs(activeSpan)
+        if (typeof outputs === "string") {
+            try {
+                outputs = JSON.parse(outputs)
+            } catch {
+                /* keep as string */
+            }
+        }
+
+        // Chat spans have inputs.prompt as an array of {role, content} messages
+        const promptMessages = rawInputs.prompt
+        const isChatFormat = Array.isArray(promptMessages) && promptMessages.length > 0
+
+        if (isChatFormat) {
+            // Split messages: config (before first user) vs generation (from first user)
+            const {configMessages, generationMessages} = splitChatMessages(
+                promptMessages as {role: string; content: unknown}[],
+            )
+
+            // Build model/llm config from span data
+            const modelConfig = extractModelConfig(activeSpan)
+            const llmConfig: Record<string, unknown> = {}
+            if (modelConfig) {
+                if (modelConfig.model) {
+                    llmConfig.model = modelConfig.model
+                } else if (isRecord(modelConfig.llm_config)) {
+                    Object.assign(llmConfig, modelConfig.llm_config)
+                }
+            }
+
+            // Build parameters with config messages and model config
+            const parameters: Record<string, unknown> = {
+                prompt: {
+                    messages: configMessages,
+                    ...(Object.keys(llmConfig).length > 0 ? {llm_config: llmConfig} : {}),
+                },
+            }
+
+            // Generation messages go into testcase as chat messages
+            const actualInputs: Record<string, unknown> = {
+                messages: generationMessages,
+            }
+
+            const {id: entityId, data} = createBaseRunnable({
+                label,
+                inputs: actualInputs,
+                outputs,
+                parameters,
+                sourceRef: refs.application?.id
+                    ? {
+                          type: "application",
+                          id: refs.application.id,
+                          slug: refs.application.slug,
+                      }
+                    : undefined,
+            })
+            baseRunnableMolecule.set.data(entityId, data)
+            set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
+
+            const loadableId = `testset:baseRunnable:${entityId}`
+            set(loadableController.actions.setRows, loadableId, [
+                {id: "trace-input-0", data: actualInputs},
+            ])
+            set(extractAndLoadChatMessagesAtom, {
+                loadableId,
+                testcaseRows: [actualInputs],
+                skipBlankMessage: true,
+            })
+
+            return {
+                type: "baseRunnable",
+                entityId,
                 label,
                 inputs: actualInputs,
             }
         }
 
-        // 5. No revision reference - create baseRunnable from trace data
+        // Fallback for chat spans without standard prompt format —
+        // use the legacy extraction logic
+        const hasNestedInputs = isRecord(rawInputs.inputs)
+        const templateInputs = hasNestedInputs
+            ? (rawInputs.inputs as Record<string, unknown>)
+            : rawInputs
+        const chatMessages =
+            hasNestedInputs && Array.isArray(rawInputs.messages) ? rawInputs.messages : null
+        const actualInputs: Record<string, unknown> = {
+            ...templateInputs,
+            ...(chatMessages ? {messages: chatMessages} : {}),
+        }
+
+        let rawAgParameters = agData?.parameters
+        if (typeof rawAgParameters === "string") {
+            try {
+                const parsed = JSON.parse(rawAgParameters)
+                if (isRecord(parsed)) rawAgParameters = parsed
+            } catch {
+                rawAgParameters = undefined
+            }
+        }
+        const rawParameters = (
+            hasNestedInputs && isRecord(rawInputs.parameters)
+                ? rawInputs.parameters
+                : isRecord(rawAgParameters)
+                  ? rawAgParameters
+                  : {}
+        ) as Record<string, unknown>
+        const parameters = stripOmittedKeys(rawParameters)
+
         const {id: entityId, data} = createBaseRunnable({
             label,
             inputs: actualInputs,
@@ -1026,29 +1294,19 @@ const openFromTraceAtom = atom(
                     }
                   : undefined,
         })
-
-        // 6. Initialize entity in molecule store
         baseRunnableMolecule.set.data(entityId, data)
+        set(addPrimaryNodeAtom, {type: "baseRunnable", id: entityId, label})
 
-        // 7. Add to playground (creates node + loadable + initial empty row)
-        set(addPrimaryNodeAtom, {
-            type: "baseRunnable",
-            id: entityId,
-            label,
-        })
-
-        // 8. Replace empty row with trace inputs if available
         if (Object.keys(actualInputs).length > 0) {
             const loadableId = `testset:baseRunnable:${entityId}`
             set(loadableController.actions.setRows, loadableId, [
                 {id: "trace-input-0", data: actualInputs},
             ])
-
-            // For chat spans, populate the chat message atoms from the messages field
             if (looksLikeChat(actualInputs)) {
                 set(extractAndLoadChatMessagesAtom, {
                     loadableId,
                     testcaseRows: [actualInputs],
+                    skipBlankMessage: true,
                 })
             }
         }
