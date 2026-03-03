@@ -253,8 +253,11 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
 - This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`) and does not wire CI yet.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
-- Redis deployments use a wrapper that runs the container as root first, so the
-  `/data` volume can be prepared and Redis can persist without `MISCONF`.
+- `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis
+  service (when present) so Railway does not force a non-root runtime UID.
+- Redis deployments use a wrapper entrypoint to prepare `/data` before handing
+  off to the official Redis entrypoint, preventing `MISCONF` from RDB write
+  permission failures.
 - Alembic now creates `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` automatically before running migrations.
 - OTLP traces require `worker-tracing` to be deployed and healthy.
 - Evaluation jobs require `worker-evaluations` to be deployed and healthy.
