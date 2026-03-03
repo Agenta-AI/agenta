@@ -3,8 +3,14 @@ import {useCallback, useState} from "react"
 import {CreateTestsetCard, type CreateCardRenderProps} from "@agenta/playground-ui/components"
 import {ArrowLeft, UploadSimple} from "@phosphor-icons/react"
 import {Button, Input, Typography} from "antd"
+import {useSetAtom} from "jotai"
 
 import {useTestsetFileUpload} from "@/oss/hooks/useTestsetFileUpload"
+import {
+    enableRevisionsListQueryAtom,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+} from "@/oss/state/entities/testset"
 
 export interface CreateTestsetCardWrapperProps extends CreateCardRenderProps {}
 
@@ -19,6 +25,7 @@ export function CreateTestsetCardWrapper({
     onCommitMessageChange,
 }: CreateTestsetCardWrapperProps) {
     const [hasSelectedFile, setHasSelectedFile] = useState(false)
+    const enableRevisionsListQuery = useSetAtom(enableRevisionsListQueryAtom)
 
     // File upload hook for drag & drop functionality
     const {
@@ -36,6 +43,9 @@ export function CreateTestsetCardWrapper({
             const testsetId = testsetData.testset_id || testsetData.id
 
             if (revisionId && testsetId) {
+                invalidateTestsetsListCache()
+                invalidateTestsetCache(testsetId)
+                enableRevisionsListQuery(testsetId)
                 setHasSelectedFile(false)
                 onTestsetCreated?.(revisionId, testsetId)
             } else {
