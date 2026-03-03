@@ -2,24 +2,24 @@
 import "@agenta/entities/workflow"
 
 import {
-    initializeLocalDrafts,
     cleanupStalePersistedDrafts,
+    initializeLocalDrafts,
 } from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {getRunnableTypeHint, registerRunnableTypeHint} from "@agenta/entities/shared"
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {
-    urlSnapshotController,
-    setRunnableTypeResolver,
+    applyPendingHydrationsForRevision,
+    displayedEntityIdsAtom,
     getRunnableTypeResolver,
-    setSelectionUpdateCallback,
     isPlaceholderId,
     pendingHydrations,
     pendingHydrationsAtom,
-    applyPendingHydrationsForRevision,
-    displayedEntityIdsAtom,
-    playgroundInitializedAtom,
     playgroundController,
+    playgroundInitializedAtom,
+    setRunnableTypeResolver,
+    setSelectionUpdateCallback,
+    urlSnapshotController,
 } from "@agenta/playground"
 import type {PlaygroundSnapshot} from "@agenta/playground/snapshot"
 import {playgroundSnapshotController} from "@agenta/playground/state"
@@ -594,8 +594,6 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         const url = new URL(nextUrl ?? window.location.href, window.location.origin)
         const isPlaygroundRoute =
             url.pathname.includes("/playground") && !url.pathname.includes("/playground-test")
-        const appState = store.get(appStateSnapshotAtom)
-        const currentAppId = appState.appId ?? null
 
         const revisionsParam = url.searchParams.get(REVISIONS_QUERY_PARAM)
         const urlRevisions = revisionsParam ? sanitizeRevisionList(revisionsParam.split(",")) : []
@@ -702,28 +700,8 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             return
         }
 
-        const currentSelected = sanitizeRevisionList(
-            store.get(playgroundController.selectors.entityIds()),
-        )
-
         if (isPlaygroundRoute) {
-            // Clear stale selection when the app changes.
-            // This covers both direct app→app navigation (lastPlaygroundAppId !== currentAppId)
-            // and app→home→app navigation (lastPlaygroundAppId is null because non-playground
-            // routes reset it). In the latter case, any existing selection from the previous
-            // app would remain and cause ensurePlaygroundDefaults to skip, so we must also
-            // clear when re-entering a playground route from a non-playground route.
-            const appChanged =
-                currentAppId &&
-                currentSelected.length > 0 &&
-                (lastPlaygroundAppId !== currentAppId || lastPlaygroundAppId === null)
-            if (appChanged) {
-                store.set(playgroundController.actions.setEntityIds, [])
-            }
-            lastPlaygroundAppId = currentAppId
             ensurePlaygroundDefaults(store)
-        } else {
-            lastPlaygroundAppId = null
         }
     } catch (err) {
         console.error("Failed to sync playground state from URL:", nextUrl, err)
@@ -894,15 +872,41 @@ playgroundSyncAtom.onMount = (set) => {
     const bindRevisionsReady = () => {
         // Use URL-based app ID only — project-level playground has no app context
         const currentAppId = store.get(routerAppIdAtom)
+        let currentSelected = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
+        const appState = store.get(appStateSnapshotAtom)
+        const isPlaygroundRoute =
+            appState.pathname?.includes("/playground") &&
+            !appState.pathname?.includes("/playground-test")
+
+        if (isPlaygroundRoute) {
+            // Clear stale selection when the app changes.
+            // This covers both direct app→app navigation (lastPlaygroundAppId !== currentAppId)
+            // and app→home→app navigation (lastPlaygroundAppId is null because non-playground
+            // routes reset it). In the latter case, any existing selection from the previous
+            // app would remain and cause ensurePlaygroundDefaults to skip, so we must also
+            // clear when re-entering a playground route from a non-playground route.
+            const appChanged =
+                currentAppId &&
+                currentSelected.length > 0 &&
+                (lastPlaygroundAppId !== currentAppId || lastPlaygroundAppId === null)
+            if (appChanged) {
+                store.set(playgroundController.actions.setEntityIds, [])
+                currentSelected = []
+            }
+            lastPlaygroundAppId = currentAppId
+        } else {
+            lastPlaygroundAppId = null
+        }
+
         hasAppliedDefaults = false
         store.set(playgroundInitializedAtom, false)
         currentRevReadyUnsub?.()
         currentLatestRevUnsub?.()
 
         // Check if URL already provided a selection
-        const existingSelection = sanitizeRevisionList(
-            store.get(playgroundController.selectors.entityIds()),
-        )
+        const existingSelection = currentSelected
         if (existingSelection.length > 0) {
             hasAppliedDefaults = true
             // Subscribe to revisionsReady (per-entity query state)

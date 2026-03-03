@@ -71,7 +71,10 @@ export function LoadModeContent({
 }: LoadModeContentProps) {
     const isEditMode = mode === "edit"
 
-    // Get playground rows to preselect when connecting/importing from a testset
+    // Keep the current row selection only in edit mode.
+    // In load/change mode, seeding the draft with existing playground row IDs
+    // causes the confirm payload to reconnect using those local rows instead of
+    // the selected testset rows.
     const preselectedIds = useAtomValue(
         useMemo(() => loadableController.selectors.displayRowIds(_loadableId), [_loadableId]),
     )
@@ -80,7 +83,7 @@ export function LoadModeContent({
     const {selectedRevisionId, selectedTestsetId, setSelection, revisionInfo} = useTestsetSelection(
         isEditMode ? connectedRevisionId : undefined,
         undefined,
-        preselectedIds,
+        isEditMode ? preselectedIds : [],
     )
 
     // Testcase search term (used by default preview panel)

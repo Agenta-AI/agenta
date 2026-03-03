@@ -827,6 +827,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+function asString(value: unknown): string | undefined {
+    return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
 const TRACE_OMIT_KEYS = new Set(["system_prompt", "user_prompt", "input_keys"])
 
 /** Strip omitted keys from each direct child object in parameters */
@@ -1022,19 +1026,23 @@ const openFromTraceAtom = atom(
 
         // Determine label from references
         const label =
-            refs.application_variant?.slug ||
-            refs.application?.slug ||
-            refs.evaluator_variant?.slug ||
-            refs.evaluator?.slug ||
-            agData?.variantName ||
-            activeSpan.span_name ||
+            asString(refs.application_variant?.slug) ??
+            asString(refs.application?.slug) ??
+            asString(refs.evaluator_variant?.slug) ??
+            asString(refs.evaluator?.slug) ??
+            asString(agData.variantName) ??
+            asString(activeSpan.span_name) ??
             "Trace Replay"
+
+        // Extract safe reference IDs (origin's asString guards)
+        const applicationId = asString(refs.application?.id)
+        const applicationSlug = asString(refs.application?.slug)
+        const evaluatorId = asString(refs.evaluator?.id)
+        const evaluatorSlug = asString(refs.evaluator?.slug)
 
         // ── WORKFLOW SPANS ──────────────────────────────────────────────
         // Workflow spans with an app reference open in the app playground.
         if (spanType === "workflow") {
-            const appId = refs.application?.id
-
             // Extract data (same as legacy path)
             let rawInputs = extractInputs(activeSpan)
             if (Object.keys(rawInputs).length === 0 && typeof agData?.inputs === "string") {
@@ -1085,7 +1093,9 @@ const openFromTraceAtom = atom(
             const parameters = stripOmittedKeys(rawParameters)
 
             // If there's an app_revision reference, open that revision directly
-            const revisionId = refs.application_revision?.id || refs.application_revision?.version
+            const revisionId =
+                asString(refs.application_revision?.id) ??
+                asString(refs.application_revision?.version)
             if (revisionId) {
                 set(addPrimaryNodeAtom, {
                     type: "legacyAppRevision",
@@ -1112,7 +1122,7 @@ const openFromTraceAtom = atom(
                     entityId: revisionId,
                     label,
                     inputs: actualInputs,
-                    appId,
+                    appId: applicationId,
                 }
             }
 
@@ -1122,8 +1132,8 @@ const openFromTraceAtom = atom(
                 inputs: actualInputs,
                 outputs,
                 parameters,
-                sourceRef: appId
-                    ? {type: "application", id: appId, slug: refs.application?.slug}
+                sourceRef: applicationId
+                    ? {type: "application", id: applicationId, slug: applicationSlug}
                     : undefined,
             })
             baseRunnableMolecule.set.data(entityId, data)
@@ -1215,11 +1225,11 @@ const openFromTraceAtom = atom(
                 inputs: actualInputs,
                 outputs,
                 parameters,
-                sourceRef: refs.application?.id
+                sourceRef: applicationId
                     ? {
                           type: "application",
-                          id: refs.application.id,
-                          slug: refs.application.slug,
+                          id: applicationId,
+                          slug: applicationSlug,
                       }
                     : undefined,
             })
@@ -1280,17 +1290,17 @@ const openFromTraceAtom = atom(
             inputs: actualInputs,
             outputs,
             parameters,
-            sourceRef: refs.application?.id
+            sourceRef: applicationId
                 ? {
                       type: "application",
-                      id: refs.application.id,
-                      slug: refs.application.slug,
+                      id: applicationId,
+                      slug: applicationSlug,
                   }
-                : refs.evaluator?.id
+                : evaluatorId
                   ? {
                         type: "evaluator",
-                        id: refs.evaluator.id,
-                        slug: refs.evaluator.slug,
+                        id: evaluatorId,
+                        slug: evaluatorSlug,
                     }
                   : undefined,
         })

@@ -37,7 +37,12 @@ import {
     pendingRowOpsAtomFamily,
     clearPendingOpsReducer,
 } from "./revisionTableState"
-import {revisionDraftAtomFamily} from "./store"
+import {
+    revisionDraftAtomFamily,
+    invalidateRevisionsListCache,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+} from "./store"
 
 // ============================================================================
 // INTERNAL HELPERS
@@ -329,6 +334,11 @@ export const saveTestsetAtom = atom(
                 set(clearNewEntityIdsAtom)
                 set(clearDeletedIdsAtom)
 
+                // Refresh testset selection and revision lists used by playground/testset pickers.
+                invalidateTestsetCache(testsetId)
+                invalidateRevisionsListCache(testsetId)
+                invalidateTestsetsListCache()
+
                 return {success: true, newRevisionId, newVersion}
             }
 
@@ -428,6 +438,12 @@ export const saveNewTestsetAtom = atom(
                 set(discardAllDraftsAtom)
                 set(clearNewEntityIdsAtom)
                 set(clearDeletedIdsAtom)
+
+                // Ensure newly-created testsets appear immediately in selection UIs.
+                invalidateTestsetsListCache()
+                if (response.testset?.id) {
+                    invalidateTestsetCache(response.testset.id)
+                }
 
                 return {
                     success: true,
