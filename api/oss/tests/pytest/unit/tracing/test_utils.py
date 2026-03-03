@@ -18,7 +18,7 @@ def test_initialize_ag_attributes_parses_json_strings_for_dict_typed_ag_data_fie
     parsed = initialize_ag_attributes(attributes)
     ag_data = parsed["ag"]["data"]
 
-    assert ag_data["inputs"] == '{"prompt": "hello"}'
+    assert ag_data["inputs"] == {"prompt": "hello"}
     assert ag_data["parameters"] == {"temperature": 0.2}
     assert ag_data["internals"] == {"debug": True}
     assert ag_data["outputs"] == '{"answer": "raw-string"}'
@@ -38,21 +38,21 @@ def test_initialize_ag_attributes_keeps_ag_data_outputs_as_string():
     assert parsed["ag"]["data"]["outputs"] == '{"answer": "do-not-parse"}'
 
 
-def test_initialize_ag_attributes_keeps_ag_data_inputs_as_string():
+def test_initialize_ag_attributes_parses_ag_data_inputs_json_string_to_dict():
     attributes = {
         "ag": {
             "data": {
-                "inputs": '{"prompt": "do-not-parse"}',
+                "inputs": '{"prompt": "hello"}',
             }
         }
     }
 
     parsed = initialize_ag_attributes(attributes)
 
-    assert parsed["ag"]["data"]["inputs"] == '{"prompt": "do-not-parse"}'
+    assert parsed["ag"]["data"]["inputs"] == {"prompt": "hello"}
 
 
-def test_initialize_ag_attributes_keeps_json_primitives_as_strings_for_non_outputs():
+def test_initialize_ag_attributes_quarantines_non_dict_primitives_for_dict_typed_fields():
     attributes = {
         "ag": {
             "data": {
@@ -66,12 +66,11 @@ def test_initialize_ag_attributes_keeps_json_primitives_as_strings_for_non_outpu
     parsed = initialize_ag_attributes(attributes)
     ag = parsed["ag"]
 
-    # inputs is Optional[Any], so keep primitive JSON-like strings unchanged
-    assert ag["data"]["inputs"] == "null"
-
-    # internals/parameters are dict-typed and invalid primitive strings are sanitized
+    # inputs/internals/parameters are dict-typed — invalid primitive strings are sanitized
+    assert "inputs" not in ag["data"]
     assert "internals" not in ag["data"]
     assert "parameters" not in ag["data"]
+    assert ag["unsupported"]["data"]["inputs"] == "null"
     assert ag["unsupported"]["data"]["internals"] == "true"
     assert ag["unsupported"]["data"]["parameters"] == "42"
 
@@ -108,7 +107,7 @@ def test_initialize_ag_attributes_handles_non_dict_unsupported_payload():
 
     parsed = initialize_ag_attributes(attributes)
 
-    assert parsed["ag"]["data"]["inputs"] == '{"prompt": "hello"}'
+    assert parsed["ag"]["data"]["inputs"] == {"prompt": "hello"}
     assert isinstance(parsed["ag"]["metrics"], dict)
     assert parsed["ag"]["unsupported"]["_unsupported"] == "oops"
 
