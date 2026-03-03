@@ -162,10 +162,17 @@ EOF
 render_redis_wrapper() {
     local dir="$TMP_DIR/redis"
     mkdir -p "$dir"
+    cp "$ROOT_DIR/hosting/railway/oss/redis/entrypoint.sh" "$dir/entrypoint.sh"
     cat > "$dir/Dockerfile" <<EOF
 FROM ${REDIS_IMAGE}
 
+COPY entrypoint.sh /usr/local/bin/railway-redis-entrypoint.sh
+RUN chmod +x /usr/local/bin/railway-redis-entrypoint.sh
+
 USER root
+
+ENTRYPOINT ["/usr/local/bin/railway-redis-entrypoint.sh"]
+CMD ["redis-server"]
 EOF
 }
 
