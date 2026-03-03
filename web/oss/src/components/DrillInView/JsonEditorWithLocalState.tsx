@@ -45,7 +45,12 @@ export function JsonEditorWithLocalState({
     )
 
     return (
-        <DrillInProvider value={{enabled: !!onPropertyClick}}>
+        <DrillInProvider
+            value={{
+                enabled: !!onPropertyClick,
+                decodeEscapedJsonStrings: false,
+            }}
+        >
             <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
                 <SharedEditor
                     key={`${editorKey}-shared`}

@@ -650,7 +650,7 @@ export function DrillInContent({
     const drillInEnabled = true
 
     return (
-        <DrillInProvider value={{enabled: drillInEnabled}}>
+        <DrillInProvider value={{enabled: drillInEnabled, decodeEscapedJsonStrings: false}}>
             <div className="flex flex-col gap-2">
                 {/* Optional header content */}
                 {headerContent}
