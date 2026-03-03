@@ -476,13 +476,6 @@ class AnnotationsService:
 
         _annotation_links = annotation.links if annotation else None
 
-        log.warning(
-            "[annotations.query] annotation_query=%r links=%r annotation_links=%r",
-            annotation,
-            _annotation_links,
-            annotation_links,
-        )
-
         annotations = await self._query_annotation(
             project_id=project_id,
             user_id=user_id,
