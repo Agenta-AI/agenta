@@ -153,6 +153,7 @@ evaluations_worker = EvaluationsWorker(
     simple_evaluators_service=simple_evaluators_service,
     #
     testsets_service=testsets_service,
+    testcases_service=testcases_service,
     queries_service=queries_service,
     workflows_service=workflows_service,
     applications_service=applications_service,

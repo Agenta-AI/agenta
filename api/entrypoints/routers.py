@@ -82,6 +82,7 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -107,6 +108,7 @@ from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
@@ -351,6 +353,12 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_worker=evaluations_worker,
 )
 
+simple_queues_service = SimpleQueuesService(
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    simple_evaluations_service=simple_evaluations_service,
+)
+
 # Tools adapter + service
 _composio_adapters = {}
 if env.composio.enabled:
@@ -450,6 +458,10 @@ evaluations = EvaluationsRouter(
 
 simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
+)
+
+simple_queues = SimpleQueuesRouter(
+    simple_queues_service=simple_queues_service,
 )
 
 tools = ToolsRouter(
@@ -746,6 +758,12 @@ app.include_router(
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
+    tags=["Evaluations"],
 )
 
 app.include_router(
