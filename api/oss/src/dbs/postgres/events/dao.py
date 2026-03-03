@@ -44,6 +44,10 @@ class EventsDAO(EventsDAOInterface):
                 values = {
                     c.name: getattr(event_dbe, c.name)
                     for c in EventDBE.__table__.columns
+                    if not (
+                        getattr(event_dbe, c.name) is None
+                        and c.server_default is not None
+                    )
                 }
 
                 stmt = insert(EventDBE).values(**values)
