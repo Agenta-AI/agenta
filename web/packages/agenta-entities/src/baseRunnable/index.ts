@@ -145,7 +145,14 @@ const baseRunnableInputPortsFamily = atomFamily((id: string) =>
 
         // Fallback: derive from trace inputs keys
         if (!data.inputs) return []
-        return Object.keys(data.inputs).map((key) => ({
+
+        const isChat = get(baseRunnableIsChatFamily(id))
+        const inputKeys = Object.keys(data.inputs).filter(
+            // In chat mode, `messages` is handled by the chat UI, not as an input port
+            (key) => !(isChat && key === "messages"),
+        )
+
+        return inputKeys.map((key) => ({
             key,
             name: key,
             type: "string",
@@ -239,8 +246,13 @@ const baseRunnableRequestPayloadFamily = atomFamily((id: string) =>
         }
 
         // If no input_keys found, use the original inputs keys
+        // Exclude "messages" in chat mode — chat messages are handled via
+        // the dedicated chatHistory path, not as input variables.
         if (variables.length === 0 && data.inputs) {
-            variables.push(...Object.keys(data.inputs))
+            for (const key of Object.keys(data.inputs)) {
+                if (isChat && key === "messages") continue
+                variables.push(key)
+            }
         }
 
         // Build references from sourceRef for trace attribution
