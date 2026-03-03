@@ -810,6 +810,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+function asString(value: unknown): string | undefined {
+    return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
 const TRACE_OMIT_KEYS = new Set(["system_prompt", "user_prompt", "input_keys"])
 
 /** Strip omitted keys from each direct child object in parameters */
@@ -963,17 +967,22 @@ const openFromTraceAtom = atom(
 
         // 3. Determine label from references
         const label =
-            refs.application_variant?.slug ||
-            refs.application?.slug ||
-            refs.evaluator_variant?.slug ||
-            refs.evaluator?.slug ||
-            agData?.variantName ||
-            activeSpan.span_name ||
+            asString(refs.application_variant?.slug) ??
+            asString(refs.application?.slug) ??
+            asString(refs.evaluator_variant?.slug) ??
+            asString(refs.evaluator?.slug) ??
+            asString(agData.variantName) ??
+            asString(activeSpan.span_name) ??
             "Trace Replay"
 
         // 4. Check if we have a valid revision reference to open directly
         // Note: revision ID may be in `id` or `version` field depending on how it was stored
-        const revisionId = refs.application_revision?.id || refs.application_revision?.version
+        const revisionId =
+            asString(refs.application_revision?.id) ?? asString(refs.application_revision?.version)
+        const applicationId = asString(refs.application?.id)
+        const applicationSlug = asString(refs.application?.slug)
+        const evaluatorId = asString(refs.evaluator?.id)
+        const evaluatorSlug = asString(refs.evaluator?.slug)
         if (revisionId) {
             // Open existing revision in playground
             set(addPrimaryNodeAtom, {
@@ -1012,17 +1021,17 @@ const openFromTraceAtom = atom(
             inputs: actualInputs,
             outputs,
             parameters,
-            sourceRef: refs.application?.id
+            sourceRef: applicationId
                 ? {
                       type: "application",
-                      id: refs.application.id,
-                      slug: refs.application.slug,
+                      id: applicationId,
+                      slug: applicationSlug,
                   }
-                : refs.evaluator?.id
+                : evaluatorId
                   ? {
                         type: "evaluator",
-                        id: refs.evaluator.id,
-                        slug: refs.evaluator.slug,
+                        id: evaluatorId,
+                        slug: evaluatorSlug,
                     }
                   : undefined,
         })
