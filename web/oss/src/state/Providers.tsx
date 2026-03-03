@@ -1,6 +1,5 @@
 import {PropsWithChildren} from "react"
 
-import {appRevisionSelectionConfig} from "@agenta/entities/appRevision"
 import {
     evaluatorSelectionConfig,
     evaluatorRevisionSelectionConfig,
@@ -27,7 +26,6 @@ import {SessionListener} from "./session"
 // This must be called before any selection components are rendered
 initializeSelectionSystem({
     testset: testsetSelectionConfig,
-    appRevision: appRevisionSelectionConfig,
     evaluator: evaluatorSelectionConfig,
     legacyEvaluator: legacyEvaluatorSelectionConfig,
     evaluatorRevision: evaluatorRevisionSelectionConfig,

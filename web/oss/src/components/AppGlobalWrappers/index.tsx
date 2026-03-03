@@ -3,10 +3,11 @@ import {memo, useEffect} from "react"
 import {
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
-} from "@agenta/entities/appRevision/state"
+} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import Router from "next/router"
 
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
