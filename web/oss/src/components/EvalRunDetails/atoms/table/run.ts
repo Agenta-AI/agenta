@@ -31,7 +31,9 @@ const buildRevisionPayload = (references: Record<string, any> | undefined) => {
     if (!references) return null
     const evaluatorRef = references.evaluator ?? references.evaluator_ref ?? null
     if (!evaluatorRef) return null
-    const payload: Record<string, any> = {}
+    const payload: Record<string, any> = {
+        resolve: true,
+    }
     if (evaluatorRef.id || evaluatorRef.slug || evaluatorRef.version) {
         payload.evaluator_ref = {
             id: evaluatorRef.id,

@@ -287,6 +287,11 @@ class EvaluationQueueDBE(
             "run_id",
         ),  # for filtering
         Index(
+            "ix_evaluation_queues_user_ids",
+            "user_ids",
+            postgresql_using="gin",
+        ),  # for assignee filtering
+        Index(
             "ix_evaluation_queues_flags",
             "flags",
             postgresql_using="gin",

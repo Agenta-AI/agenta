@@ -16,12 +16,14 @@ from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
-from oss.src.core.tracing.service import TracingService
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+
+from oss.src.core.tracing.streaming import publish_spans
+
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
@@ -31,12 +33,7 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(
-        self,
-        tracing_service: TracingService,
-    ):
-        self.service = tracing_service
-
+    def __init__(self):
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -214,13 +211,11 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await self.service.ingest_span_dtos(
+                await publish_spans(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
                     span_dtos=spans,
-                    sync=False,
-                    propagate_metrics=True,
                 )
             except Exception as e:
                 log.error(

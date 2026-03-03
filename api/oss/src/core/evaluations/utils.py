@@ -2,10 +2,77 @@ from typing import List, Tuple, Dict, Optional
 from uuid import UUID
 from asyncio import sleep
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.tracing.dtos import OTelSpansTree
+from oss.src.core.shared.dtos import Windowing
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
-BLOCKS = 1 * 2 * 3 * 4 * 5
+DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
+
+log = get_module_logger(__name__)
+
+
+def paginate_ids(
+    *,
+    ids: List[UUID],
+    windowing: Optional[Windowing],
+) -> Tuple[List[UUID], bool]:
+    """Apply cursor-based pagination to an ordered list of UUIDs.
+
+    Returns (page_ids, has_more).  The list must be deterministically ordered
+    (UUID7 ascending by default) so the cursor lookup is stable across requests.
+    """
+    if not windowing:
+        return list(ids), False
+
+    ordered = list(ids)
+
+    if windowing.order == "descending":
+        ordered.reverse()
+
+    if windowing.next is not None:
+        try:
+            next_index = ordered.index(windowing.next)
+            ordered = ordered[next_index + 1 :]
+        except ValueError:
+            return [], False
+
+    if windowing.limit is None:
+        return ordered, False
+
+    has_more = len(ordered) > windowing.limit
+    return ordered[: windowing.limit], has_more
+
+
+def next_windowing_from_ids(
+    *,
+    paged_ids: List[UUID],
+    windowing: Optional[Windowing],
+    has_more: bool,
+) -> Optional[Windowing]:
+    """Build the next-page windowing cursor from a paginated ID slice."""
+    if not windowing or windowing.limit is None or len(paged_ids) == 0 or not has_more:
+        return None
+
+    return Windowing(
+        newest=windowing.newest,
+        oldest=windowing.oldest,
+        next=paged_ids[-1],
+        limit=windowing.limit,
+        order=windowing.order,
+    )
+
+
+def flatten_dedup_ids(ids_by_group: List[List[UUID]]) -> List[UUID]:
+    """Flatten a list of ID groups, deduplicating while preserving first-seen order."""
+    result: List[UUID] = []
+    seen: set = set()
+    for group in ids_by_group:
+        for id_ in group:
+            if id_ not in seen:
+                seen.add(id_)
+                result.append(id_)
+    return result
 
 
 def filter_scenario_ids(
@@ -13,11 +80,21 @@ def filter_scenario_ids(
     user_ids: List[List[UUID]],
     scenario_ids: List[UUID],
     is_sequential: bool,
-    offset: int = 0,
+    batch_offset: Optional[int] = None,
+    batch_size: Optional[int] = None,
 ) -> List[List[UUID]]:
     user_scenario_ids: List[List[UUID]] = []
 
-    MOD = min(len(scenario_ids), BLOCKS)
+    if is_sequential:
+        blocks = (
+            batch_size
+            if isinstance(batch_size, int) and batch_size > 0
+            else DEFAULT_BATCH_SIZE
+        )
+        MOD = min(len(scenario_ids), blocks)
+    else:
+        MOD = DEFAULT_BATCH_SIZE
+    offset = batch_offset if isinstance(batch_offset, int) and batch_offset >= 0 else 0
 
     for repeat_user_ids in user_ids:
         if not repeat_user_ids:
@@ -131,10 +208,11 @@ async def fetch_trace(
     project_id: UUID,
     #
     trace_id: str,
-    max_retries: int = 15,
+    max_retries: int = 5,
     delay: float = 1.0,
 ) -> Optional[OTelSpansTree]:
     for attempt in range(max_retries):
+        had_exception = False
         try:
             trace = await tracing_service.fetch_trace(
                 project_id=project_id,
@@ -143,10 +221,23 @@ async def fetch_trace(
             if trace:
                 return OTelSpansTree(spans=trace.spans)
 
-        except Exception:
-            pass
+        except Exception:  # pylint: disable=broad-exception-caught
+            had_exception = True
+            if attempt == max_retries - 1:
+                log.warning(
+                    "[EVAL] [trace] fetch failed after retries",
+                    trace_id=trace_id,
+                    attempts=max_retries,
+                    exc_info=True,
+                )
 
         if attempt < max_retries - 1:
             await sleep(delay)
+        elif not had_exception:
+            log.warning(
+                "[EVAL] [trace] empty trace response after retries",
+                trace_id=trace_id,
+                attempts=max_retries,
+            )
 
     return None

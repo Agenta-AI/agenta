@@ -1,14 +1,17 @@
 import zlib
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from uuid import UUID
 
 from orjson import dumps, loads
+from pydantic import BaseModel
 from redis.asyncio import Redis
 
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.dtos import OTelFlatSpan
 
+log = get_module_logger(__name__)
 _redis: Optional[Redis] = None
 
 
@@ -23,6 +26,14 @@ def _get_redis() -> Redis:
     return _redis
 
 
+class SpanMessage(BaseModel):
+    organization_id: UUID
+    project_id: UUID
+    user_id: UUID
+    #
+    span_dto: OTelFlatSpan
+
+
 def serialize_span(
     *,
     organization_id: UUID,
@@ -35,7 +46,7 @@ def serialize_span(
         organization_id=organization_id.hex,
         project_id=project_id.hex,
         user_id=user_id.hex,
-        span=span_dto.model_dump(mode="json", exclude_unset=True),
+        span_dto=span_dto.model_dump(mode="json", exclude_unset=True),
     )
 
     span_bytes = dumps(data)
@@ -53,20 +64,18 @@ def serialize_span(
 def deserialize_span(
     *,
     span_bytes: bytes,
-) -> Tuple[UUID, UUID, UUID, OTelFlatSpan]:
+) -> SpanMessage:
     span_bytes = zlib.decompress(span_bytes)
     data = loads(span_bytes)
 
-    organization_id = UUID(hex=data["organization_id"])
-    project_id = UUID(hex=data["project_id"])
-    user_id = UUID(hex=data["user_id"])
+    span_payload = data.get("span_dto", data.get("span", {}))
 
-    span_payload = data.get("span") or data.get("span_dto")
-    if span_payload is None:
-        raise KeyError("Neither 'span' nor 'span_dto' found in serialized data")
-    span_dto = OTelFlatSpan(**span_payload)
-
-    return (organization_id, project_id, user_id, span_dto)
+    return SpanMessage(
+        organization_id=UUID(hex=data["organization_id"]),
+        project_id=UUID(hex=data["project_id"]),
+        user_id=UUID(hex=data["user_id"]),
+        span_dto=OTelFlatSpan(**span_payload),
+    )
 
 
 async def publish_spans(
@@ -80,6 +89,7 @@ async def publish_spans(
     redis = _get_redis()
 
     count = 0
+
     for span_dto in span_dtos:
         span_bytes = serialize_span(
             organization_id=organization_id,

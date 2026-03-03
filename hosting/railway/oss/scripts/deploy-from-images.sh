@@ -164,6 +164,8 @@ render_web_wrapper
 render_alembic_wrapper
 render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tracing"]'
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
+render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
+render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
 render_api_like_wrapper cron '["cron", "-f"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
@@ -187,6 +189,8 @@ run_alembic_with_retries
 railway up "$TMP_DIR/api" --path-as-root --service api --detach
 railway up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
 railway up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
+railway up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
+railway up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
 railway up "$TMP_DIR/services" --path-as-root --service services --detach
 railway up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway up "$TMP_DIR/web" --path-as-root --service web --detach

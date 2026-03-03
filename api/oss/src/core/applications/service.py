@@ -21,6 +21,9 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.workflows.service import WorkflowsService
+
+# Resolution is now handled by EmbedsService
+from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
 from oss.src.core.applications.dtos import (
     SimpleApplicationData,
     SimpleApplication,
@@ -58,6 +61,7 @@ class ApplicationsService:
         self,
         workflows_service: WorkflowsService,
     ):
+        self.embeds_service = None  # Will be set later
         self.workflows_service = workflows_service
 
     # applications -------------------------------------------------------------
@@ -758,6 +762,78 @@ class ApplicationsService:
         ]
 
         return application_revisions
+
+    async def resolve_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        application_revision_ref: Optional[Reference] = None,
+        #
+        max_depth: int = 10,
+        max_embeds: int = 100,
+        error_policy: str = "exception",
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[tuple["ApplicationRevision", "ResolutionInfo"]]:
+        """
+        Fetch and resolve an application revision with embedded references.
+
+        Applications are workflows with is_evaluator=False. This method
+        delegates to WorkflowsService.resolve_workflow_revision and converts
+        the result to Application types for backward compatibility.
+
+        Args:
+            project_id: Project scope
+            user_id: User performing resolution
+            application_ref: Application reference
+            application_variant_ref: Variant reference
+            application_revision_ref: Revision reference
+            max_depth: Maximum nesting depth for embeds
+            max_embeds: Maximum total embeds allowed
+            error_policy: How to handle errors (exception, placeholder, keep)
+            include_archived: Include archived entities
+
+        Returns:
+            Tuple of (ApplicationRevision with resolved configuration, ResolutionInfo metadata)
+        """
+        # Fetch the application revision
+        revision = await self.fetch_application_revision(
+            project_id=project_id,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not revision or not revision.data:
+            return None
+
+        # Use embeds service for resolution
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        (
+            revision_data,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=revision.data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=ErrorPolicy(error_policy),
+            include_archived=include_archived,
+        )
+
+        # Update revision with resolved configuration
+        revision.data = ApplicationRevisionData(**revision_data)
+
+        return (revision, resolution_info)
 
     # --------------------------------------------------------------------------
 

@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -21,8 +20,7 @@ class _DummyRequest:
 
 @pytest.mark.asyncio
 async def test_otlp_ingest_continues_when_one_span_parse_fails(monkeypatch):
-    service = AsyncMock()
-    router = OTLPRouter(tracing_service=service)
+    router = OTLPRouter()
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.otlp.router.parse_otlp_stream",
@@ -39,6 +37,16 @@ async def test_otlp_ingest_continues_when_one_span_parse_fails(monkeypatch):
         _parse_from_otel_span_dto,
     )
 
+    published_spans = []
+
+    async def _mock_publish_spans(**kwargs):
+        published_spans.extend(kwargs.get("span_dtos", []))
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.otlp.router.publish_spans",
+        _mock_publish_spans,
+    )
+
     # In EE mode this symbol exists; in OSS mode it's absent.
     async def _mock_check_action_access(*args, **kwargs):
         return True
@@ -52,6 +60,4 @@ async def test_otlp_ingest_continues_when_one_span_parse_fails(monkeypatch):
     response = await router.otlp_ingest(_DummyRequest(body=b"otlp"))
 
     assert response.status_code == 200
-    service.ingest_span_dtos.assert_awaited_once()
-    queued_spans = service.ingest_span_dtos.await_args.kwargs["span_dtos"]
-    assert queued_spans == [{"span": "good"}]
+    assert published_spans == [{"span": "good"}]
