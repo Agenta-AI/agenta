@@ -1,6 +1,7 @@
 """Attribute and AG-namespace helpers for tracing payloads."""
 
 from copy import deepcopy
+from json import loads as json_loads, JSONDecodeError
 from re import match
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -13,6 +14,8 @@ from oss.src.core.tracing.dtos import (
     AgTypeAttributes,
     Attributes,
     OTelAttributes,
+    SpanType,
+    TraceType,
 )
 
 URL_SAFE = r"^[a-zA-Z0-9_-]+$"
@@ -55,14 +58,36 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     if not attributes or not isinstance(attributes, dict):
         attributes = {}
 
-    ag = deepcopy(attributes.get("ag", {})) or {}
-    unsupported = deepcopy(ag.get("unsupported", {})) or {}
+    raw_ag = deepcopy(attributes.get("ag", {}))
+
+    # Handle non-dict ag payload
+    if not isinstance(raw_ag, dict):
+        invalid_ag = raw_ag
+        ag: dict = {}
+        unsupported: dict = {"_invalid": invalid_ag}
+    else:
+        ag = raw_ag
+        raw_unsupported = ag.get("unsupported", {})
+        # Handle non-dict unsupported
+        if not isinstance(raw_unsupported, dict):
+            unsupported = {"_unsupported": raw_unsupported}
+        else:
+            unsupported = dict(raw_unsupported) or {}
+
     cleaned_ag = {}
 
     type_dict = ensure_nested_dict(ag, "type")
     cleaned_type = {
         key: type_dict.get(key, None) for key in AgTypeAttributes.model_fields
     }
+    # Validate enum values for type fields; replace invalid values with None
+    for key, enum_class in (("trace", TraceType), ("span", SpanType)):
+        val = cleaned_type.get(key)
+        if val is not None and not isinstance(val, enum_class):
+            try:
+                cleaned_type[key] = enum_class(val)
+            except ValueError:
+                cleaned_type[key] = None
     for key in type_dict:
         if key not in AgTypeAttributes.model_fields:
             unsupported.setdefault("type", {})[key] = type_dict[key]
@@ -75,6 +100,38 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     for key in data_dict:
         if key not in AgDataAttributes.model_fields:
             unsupported.setdefault("data", {})[key] = data_dict[key]
+
+    # inputs is Optional[Any] by design — keep as-is, bypass AgDataAttributes validation.
+    # Pop it now and re-inject into the final dict after AgAttributes serialization.
+    _inputs = cleaned_data.pop("inputs", None)
+
+    # For dict-typed ag.data fields (parameters, internals):
+    # - parse JSON strings to dicts (only if they parse to a dict)
+    # - move non-dict values (including non-dict parse results) to unsupported
+    # outputs is kept as-is (any type is valid)
+    _dict_fields = {"parameters", "internals"}
+    for key in _dict_fields:
+        val = cleaned_data.get(key)
+        if val is None:
+            continue
+        if isinstance(val, str):
+            try:
+                parsed_val = json_loads(val)
+                if isinstance(parsed_val, dict):
+                    cleaned_data[key] = parsed_val
+                else:
+                    # Parsed to non-dict → move original string to unsupported
+                    unsupported.setdefault("data", {})[key] = val
+                    del cleaned_data[key]
+            except (JSONDecodeError, ValueError):
+                # Invalid JSON → move to unsupported
+                unsupported.setdefault("data", {})[key] = val
+                del cleaned_data[key]
+        elif not isinstance(val, dict):
+            # Non-string, non-dict (list, bool, int) → move to unsupported
+            unsupported.setdefault("data", {})[key] = val
+            del cleaned_data[key]
+
     cleaned_ag["data"] = cleaned_data
 
     metrics_dict = ensure_nested_dict(ag, "metrics")
@@ -138,7 +195,7 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
         if "configuration" in cleaned_ag["meta"]:
-            if cleaned_ag["data"]["parameters"] is None:
+            if cleaned_ag["data"].get("parameters") is None:
                 cleaned_ag["data"]["parameters"] = cleaned_ag["meta"]["configuration"]
             del cleaned_ag["meta"]["configuration"]
             if not cleaned_ag["meta"]:
@@ -152,6 +209,11 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["unsupported"] = unsupported or None
     cleaned_ag = AgAttributes(**cleaned_ag).model_dump(mode="json", exclude_none=True)
+
+    # Re-inject inputs as-is (not subject to AgDataAttributes Dict validation)
+    if _inputs is not None:
+        cleaned_ag.setdefault("data", {})["inputs"] = _inputs
+
     attributes["ag"] = cleaned_ag
     return attributes
 

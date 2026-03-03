@@ -16,6 +16,7 @@ from oss.src.core.tracing.dtos import (
     OTelTraceTree,
     Format,
     Focus,
+    AgTypeAttributes,
 )
 from oss.src.core.tracing.utils.attributes import (
     initialize_ag_attributes,
@@ -278,8 +279,9 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
     raw_span.attributes = initialize_ag_attributes(raw_span.attributes)
     ag = raw_span.attributes["ag"]
 
-    raw_span.trace_type = ag["type"].get("trace") or raw_span.trace_type
-    raw_span.span_type = ag["type"].get("span") or raw_span.span_type
+    type_attrs = AgTypeAttributes.model_validate(ag.get("type", {}))
+    raw_span.trace_type = type_attrs.trace or raw_span.trace_type
+    raw_span.span_type = type_attrs.span or raw_span.span_type
 
     if raw_span.start_time and raw_span.end_time:
         duration_s = (raw_span.end_time - raw_span.start_time).total_seconds()

@@ -10,7 +10,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpan,
     OTelSpansTree,
 )
-from oss.src.core.tracing.utils.simple_traces import (
+from oss.src.core.tracing.utils.traces import (
     build_otel_links,
     build_simple_trace_attributes,
     build_simple_trace_filtering,

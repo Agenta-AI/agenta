@@ -27,7 +27,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
     SimpleEvaluatorData,
 )
-from oss.src.core.tracing.utils.simple_traces import (
+from oss.src.core.tracing.utils.traces import (
     build_otel_links,
     build_simple_trace_attributes,
     build_simple_trace_query,
@@ -475,6 +475,13 @@ class AnnotationsService:
         )
 
         _annotation_links = annotation.links if annotation else None
+
+        log.warning(
+            "[annotations.query] annotation_query=%r links=%r annotation_links=%r",
+            annotation,
+            _annotation_links,
+            annotation_links,
+        )
 
         annotations = await self._query_annotation(
             project_id=project_id,

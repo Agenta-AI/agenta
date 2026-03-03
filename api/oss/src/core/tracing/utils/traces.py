@@ -21,6 +21,12 @@ from oss.src.core.tracing.dtos import (
 )
 
 from .attributes import parse_from_attributes, parse_into_attributes
+from .parsing import (
+    parse_trace_id_to_uuid,
+    parse_span_id_to_uuid,
+    parse_ref_id_to_uuid,
+    parse_ref_slug_to_str,
+)
 
 
 class ParsedSimpleTrace(NamedTuple):
@@ -232,7 +238,14 @@ def build_simple_trace_filtering(
                 conditions.append(
                     Condition(
                         field="references",
-                        value=[{"id": ref_id, "slug": ref_slug}],
+                        value=[
+                            {
+                                "id": parse_ref_id_to_uuid(ref_id) if ref_id else None,
+                                "slug": parse_ref_slug_to_str(ref_slug)
+                                if ref_slug
+                                else None,
+                            }
+                        ],
                         operator=ListOperator.IN,
                     )
                 )
@@ -241,15 +254,12 @@ def build_simple_trace_filtering(
         if isinstance(links, dict):
             for link in links.values():
                 if link:
+                    tid = parse_trace_id_to_uuid(link.trace_id)
+                    sid = parse_span_id_to_uuid(link.span_id)
                     conditions.append(
                         Condition(
                             field="links",
-                            value=[
-                                {
-                                    "trace_id": link.trace_id,
-                                    "span_id": link.span_id,
-                                },
-                            ],
+                            value=[{"trace_id": tid, "span_id": sid}],
                             operator=ListOperator.IN,
                         )
                     )
@@ -257,15 +267,12 @@ def build_simple_trace_filtering(
             link_conditions = []
             for link in links:
                 if link:
+                    tid = parse_trace_id_to_uuid(link.trace_id)
+                    sid = parse_span_id_to_uuid(link.span_id)
                     link_conditions.append(
                         Condition(
                             field="links",
-                            value=[
-                                {
-                                    "trace_id": link.trace_id,
-                                    "span_id": link.span_id,
-                                },
-                            ],
+                            value=[{"trace_id": tid, "span_id": sid}],
                             operator=ListOperator.IN,
                         )
                     )
