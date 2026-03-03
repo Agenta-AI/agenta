@@ -398,7 +398,6 @@ export {
     type ListQueryState,
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
-    type AppRevisionSelectionResult,
     type EvaluatorSelectionResult,
     type LegacyEvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
@@ -414,7 +413,6 @@ export {
     createAndRegisterAdapter as createAndRegisterSelectionAdapter,
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
-    appRevisionAdapter,
     legacyAppRevisionAdapter,
     evaluatorAdapter,
     setEvaluatorAtoms,

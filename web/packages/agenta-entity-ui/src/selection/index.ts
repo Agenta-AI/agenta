@@ -16,7 +16,7 @@
  * import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui/selection'
  *
  * // Use pre-built adapters
- * import { appRevisionAdapter, testsetAdapter } from '@agenta/entity-ui/selection'
+ * import { testsetAdapter, legacyAppRevisionAdapter } from '@agenta/entity-ui/selection'
  *
  * // Use controller for modal management
  * import { entitySelectorController } from '@agenta/entity-ui/selection'
@@ -188,7 +188,6 @@ export type {
 
 // Pre-built adapters
 export {
-    appRevisionAdapter,
     legacyAppRevisionAdapter,
     createLegacyAppRevisionAdapter,
     evaluatorAdapter,
@@ -204,7 +203,6 @@ export {
 } from "./adapters"
 
 export type {
-    AppRevisionSelectionResult,
     LegacyAppRevisionSelectionResult,
     CreateLegacyAppRevisionAdapterOptions,
     EvaluatorSelectionResult,
