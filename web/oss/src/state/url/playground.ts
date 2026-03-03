@@ -329,7 +329,7 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
         urlUpdateRafId = null
     }
 
-    // Use RAF to coalesce updates within the same frame
+    // RAF coalesces multiple calls within the same frame into one URL write.
     urlUpdateRafId = requestAnimationFrame(() => {
         urlUpdateRafId = null
         try {
@@ -338,50 +338,22 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
             const nodes = store.get(playgroundController.selectors.nodes())
             const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
 
-            // Build the new URL with query params and hash
-            const url = new URL(window.location.href)
-
-            // Use package controller to build URL components
             const urlComponents = store.set(
                 urlSnapshotController.actions.buildUrlComponents,
                 snapshotSelection,
             )
 
-            if (!urlComponents.ok) {
-                if (!lastEncodingFailed) {
-                    console.warn(
-                        "[Playground] Draft state too large for URL — persisted to localStorage only.",
-                        urlComponents.error,
-                    )
-                    lastEncodingFailed = true
-                }
+            // Build the full URL (query params + hash)
+            const url = new URL(window.location.href)
 
-                // Clear stale snapshot hash from URL so that on reload
-                // SUB 10 can restore from localStorage instead of skipping
-                // because it thinks a (now-stale) URL snapshot exists.
-                const currentUrl = new URL(window.location.href)
-                if (currentUrl.hash) {
-                    currentUrl.hash = ""
-                    // Keep the query param (revision IDs) but remove the hash
-                    const newUrl = `${currentUrl.pathname}${currentUrl.search}`
-                    setLastWrittenSnapshotHash(null)
-                    setLastWrittenUrl(newUrl)
-                    window.history.replaceState(window.history.state, "", newUrl)
-                }
-
-                return
-            }
-            lastEncodingFailed = false
-
-            // Set query param
-            if (urlComponents.queryParam) {
-                url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
+            const queryParam = urlComponents.queryParam ?? sanitized.join(",")
+            if (queryParam) {
+                url.searchParams.set(REVISIONS_QUERY_PARAM, queryParam)
             } else {
                 url.searchParams.delete(REVISIONS_QUERY_PARAM)
             }
 
-            // Set hash param
-            if (urlComponents.hashParam) {
+            if (urlComponents.ok && urlComponents.hashParam) {
                 url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
                 setLastWrittenSnapshotHash(urlComponents.hashParam)
             } else {
@@ -389,9 +361,17 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
                 setLastWrittenSnapshotHash(null)
             }
 
-            const newUrl = `${url.pathname}${url.search}${url.hash}`
+            if (!urlComponents.ok && !lastEncodingFailed) {
+                console.warn(
+                    "[Playground] Draft state too large for URL — persisted to localStorage only.",
+                    urlComponents.error,
+                )
+                lastEncodingFailed = true
+            } else if (urlComponents.ok) {
+                lastEncodingFailed = false
+            }
 
-            // Only update if URL actually changed and we didn't just write this URL
+            const newUrl = `${url.pathname}${url.search}${url.hash}`
             if (newUrl !== getLastWrittenUrl()) {
                 setLastWrittenUrl(newUrl)
                 window.history.replaceState(window.history.state, "", newUrl)
@@ -1092,44 +1072,66 @@ playgroundSyncAtom.onMount = (set) => {
 
     let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
+    const persistSnapshot = () => {
+        try {
+            const entityIds = store.get(playgroundController.selectors.entityIds())
+            if (entityIds.length === 0) {
+                localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                return
+            }
+
+            const nodes = store.get(playgroundController.selectors.nodes())
+            const snapshotInputs = buildSnapshotSelectionInputs(entityIds, nodes)
+
+            const result = store.set(
+                playgroundSnapshotController.actions.createSnapshot,
+                snapshotInputs,
+            )
+
+            if (result.snapshot) {
+                const hasDraftChanges =
+                    result.snapshot.drafts.length > 0 ||
+                    result.snapshot.selection.some((s) => s.kind === "ephemeral")
+
+                if (hasDraftChanges) {
+                    localStorage.setItem(
+                        DRAFT_SNAPSHOT_KEY,
+                        JSON.stringify({
+                            snapshot: result.snapshot,
+                            timestamp: Date.now(),
+                        }),
+                    )
+                } else {
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                }
+            }
+        } catch (err) {
+            console.warn("[SUB 9] Error persisting snapshot:", err)
+        }
+    }
+
     const unsubPersist = store.sub(selectedDraftHashAtom, () => {
         if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+
+        // Check if any entity has an active draft. When no drafts exist
+        // (e.g. after discard/commit), clear localStorage IMMEDIATELY
+        // so a page reload within the debounce window won't re-apply stale drafts.
+        const entityIds = store.get(playgroundController.selectors.entityIds())
+        const hasAnyDraft = entityIds.some((id) => {
+            const isDirty = store.get(runnableBridge.isDirty(id))
+            return isDirty
+        })
+
+        if (!hasAnyDraft) {
+            persistDebounceTimer = null
+            persistSnapshot()
+            return
+        }
+
+        // Debounce writes when drafts are active (reduces I/O during rapid editing)
         persistDebounceTimer = setTimeout(() => {
-            try {
-                const entityIds = store.get(playgroundController.selectors.entityIds())
-                if (entityIds.length === 0) {
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
-                    return
-                }
-
-                const nodes = store.get(playgroundController.selectors.nodes())
-                const snapshotInputs = buildSnapshotSelectionInputs(entityIds, nodes)
-
-                const result = store.set(
-                    playgroundSnapshotController.actions.createSnapshot,
-                    snapshotInputs,
-                )
-
-                if (result.snapshot) {
-                    const hasDraftChanges =
-                        result.snapshot.drafts.length > 0 ||
-                        result.snapshot.selection.some((s) => s.kind === "ephemeral")
-
-                    if (hasDraftChanges) {
-                        localStorage.setItem(
-                            DRAFT_SNAPSHOT_KEY,
-                            JSON.stringify({
-                                snapshot: result.snapshot,
-                                timestamp: Date.now(),
-                            }),
-                        )
-                    } else {
-                        localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
-                    }
-                }
-            } catch (err) {
-                console.warn("[SUB 9] Error persisting snapshot:", err)
-            }
+            persistDebounceTimer = null
+            persistSnapshot()
         }, 1000)
     })
     unsubs.push(unsubPersist)
@@ -1184,16 +1186,14 @@ playgroundSyncAtom.onMount = (set) => {
                 restoreSetupDone = true
 
                 // Hydrate the snapshot — this creates pending hydrations
-                // that SUB 1 will apply when server data loads
-                const hydrateResult = store.set(
-                    playgroundSnapshotController.actions.hydrateSnapshot,
-                    persistedSnapshot!,
-                )
-
-                if (hydrateResult.ok) {
-                    // Clear from localStorage after successful hydration setup
-                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
-                }
+                // that SUB 1 will apply when server data loads.
+                // NOTE: We do NOT clear localStorage here. hydrateSnapshot only
+                // QUEUES pending hydrations — the actual patches are applied later
+                // by SUB 1 when server data loads. If the user reloads before that,
+                // we'd lose the drafts. SUB 9 manages the localStorage lifecycle:
+                // once drafts are applied, it re-persists; when committed/discarded,
+                // it removes from localStorage.
+                store.set(playgroundSnapshotController.actions.hydrateSnapshot, persistedSnapshot!)
             }
 
             const unsubRestoreSetup = store.sub(entityIdsAtom, tryHydrateSnapshot)
