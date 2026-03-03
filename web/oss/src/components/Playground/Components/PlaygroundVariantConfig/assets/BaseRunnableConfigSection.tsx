@@ -20,6 +20,8 @@ import {atom} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
 // ============================================================================
 // BRIDGE UPDATE REDUCER
 // ============================================================================
@@ -140,18 +142,32 @@ function BaseRunnableConfigSection({entityId}: BaseRunnableConfigSectionProps) {
 
     const hasParameters = data?.parameters && Object.keys(data.parameters).length > 0
 
+    const posthog = usePostHogAg()
+
     const discardEntity = useSetAtom(baseRunnableMolecule.reducers.discard)
     const handleDiscard = useCallback(() => {
         discardEntity(entityId)
     }, [entityId, discardEntity])
 
     const handleCreateApp = useCallback(() => {
-        message.info("Create App from trace - coming soon")
-    }, [])
+        posthog?.capture?.("create_from_span_clicked", {
+            type: "app",
+            entityId,
+            hasParameters: !!data?.parameters && Object.keys(data.parameters).length > 0,
+            sourceLabel: data?.label,
+        })
+        message.info("Create App from span - coming soon")
+    }, [posthog, entityId, data?.parameters, data?.label])
 
     const handleCreateEvaluator = useCallback(() => {
-        message.info("Create Evaluator from trace - coming soon")
-    }, [])
+        posthog?.capture?.("create_from_span_clicked", {
+            type: "evaluator",
+            entityId,
+            hasParameters: !!data?.parameters && Object.keys(data.parameters).length > 0,
+            sourceLabel: data?.label,
+        })
+        message.info("Create Evaluator from span - coming soon")
+    }, [posthog, entityId, data?.parameters, data?.label])
 
     const createMenuItems: MenuProps["items"] = useMemo(
         () => [
