@@ -4,7 +4,11 @@ sidebar_label: Deploy on Kubernetes
 description: 'Deploy Agenta on Kubernetes using the official Helm chart. Covers prerequisites, quick start, configuration, ingress, TLS, external databases, upgrading, and troubleshooting.'
 ---
 
-This guide walks you through deploying Agenta on Kubernetes using the official Helm chart. By the end, you will have a fully working Agenta instance running in your cluster.
+:::info Community-Maintained — Beta
+The Agenta Helm chart is **community-maintained** and currently in **beta**. If you encounter issues or have suggestions, please [open a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out in our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw).
+:::
+
+This guide walks you through deploying Agenta on Kubernetes using the Helm chart. By the end, you will have a fully working Agenta instance running in your cluster.
 
 The Helm chart packages all Agenta OSS components and uses Bitnami PostgreSQL as a subchart dependency. Database migrations run automatically as a post-install/post-upgrade hook (post-hooks are required because PostgreSQL is deployed as a Bitnami subchart and is not available until the main release installs).
 
