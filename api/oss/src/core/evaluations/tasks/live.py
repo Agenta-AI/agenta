@@ -2,11 +2,9 @@ from typing import Dict, Any, Optional
 from uuid import UUID
 from datetime import datetime
 
-from redis.asyncio import Redis
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -46,7 +44,6 @@ from oss.src.core.annotations.service import AnnotationsService
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 from oss.src.core.evaluations.types import (
@@ -121,18 +118,6 @@ evaluations_dao = EvaluationsDAO()
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
-
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
