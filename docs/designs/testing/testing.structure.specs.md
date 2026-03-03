@@ -17,7 +17,8 @@ Test files are organized by **test runner first, then by test type, then by doma
   legacy/                   # Old tests, not run, preserved for reference
   <runner>/                 # pytest/ or playwright/
     conftest.py             # Runner-level config and shared fixtures (pytest only)
-    e2e/                    # E2E tests organized by domain
+    acceptance/             # Black box tests through public interfaces (was: e2e/)
+    integration/            # Adapter tests against real dependencies
     unit/                   # Unit tests organized by boundary layer
     utils/                  # Shared fixture modules
 ```
@@ -46,8 +47,9 @@ Within each license directory, the runner/type/domain hierarchy applies identica
 | `manual/` | Freestyle tests and scripts in any format (`.http`, `.sh`, `.py`, `.ts`, `.curl`, etc.) | N/A | Not run automatically. Not in CI. No framework required. May be run manually by developers or agents. |
 | `legacy/` | Archived historical tests | N/A | Not run. Preserved for reference during migration. |
 | `pytest/` or `playwright/` | Framework-based automated tests | Follows tool's conventions | Run by pytest/playwright tool. Can be invoked by agents, humans, or CI. |
-| `e2e/` | End-to-end tests | **Black box** | System running behind it. Tests only interact with public surfaces (API URL, Web URL) using credentials. Full system integration. |
-| `unit/` | Unit tests | **White box** | System NOT running. Tests internal parts and layers using dependency injection and mocks. No external dependencies. |
+| `acceptance/` | Full system tests through a public interface | **Black box** | Full system running. Tests only interact with public surfaces (API URL, Web URL) using credentials. All dependencies are real. |
+| `integration/` | Adapter implementation tests against real dependencies | **Gray box** | Relevant dependencies real (DB, Redis, external service). Part of system may be running. |
+| `unit/` | Code in isolation | **White box** | System NOT running. All dependencies mocked/faked. Tests internal parts and layers using dependency injection. |
 | `utils/` | Utilities and library tests | **White box** | Tests tools, libraries, internal benchmarks, and helper functions the system uses but that aren't part of the system itself. Gray line with `unit/`. |
 
 ### Test file conventions
@@ -85,7 +87,7 @@ api/
       conftest.py, ...
     pytest/
       conftest.py                         # Root conftest (imports from utils/)
-      e2e/                                # E2E tests organized by domain (155 tests)
+      acceptance/                         # Acceptance tests organized by domain (155 tests)
         workflows/
           test_workflows_basics.py
           test_workflows_queries.py
@@ -121,6 +123,7 @@ api/
           test_spans_queries.py
         healthchecks/
           test_healthchecks.py
+      integration/                        # Integration tests (.gitkeep placeholder)
       unit/                               # Unit tests (.gitkeep placeholder)
       utils/                              # Shared fixtures
         api.py                            # authed_api, unauthed_api fixtures
@@ -134,8 +137,9 @@ api/
       evaluations/sdk/*.py
     legacy/                               # .gitkeep placeholder
     pytest/
-      e2e/
-        test_billing_period.py            # Billing period E2E test
+      acceptance/
+        test_billing_period.py            # Billing period acceptance test
+      integration/                        # .gitkeep placeholder
       unit/                               # .gitkeep placeholder
       utils/                              # .gitkeep placeholder
 ```
@@ -146,8 +150,8 @@ SDK is OSS-only (no EE split), so tests live directly under `sdk/tests/`.
 
 ```
 sdk/
-  pytest.ini                              # Test config (testpaths: tests/pytest)
-  tests/
+  pytest.ini                              # Test config (testpaths: oss/tests/pytest, ee/tests/pytest)
+  oss/tests/
     manual/                               # Manual tests
       imports/*.py                        # Import and init tests
       workflows/*.py                      # SDK workflow manual tests
@@ -156,7 +160,7 @@ sdk/
       annotations/, baggage/, custom_workflows/, debugging/, management/, ...
     pytest/
       conftest.py
-      e2e/                                # SDK E2E tests (66 tests, against live API)
+      acceptance/                         # SDK acceptance tests (66 tests, against live API)
         workflows/
           test_apps_shared_manager.py
           test_legacy_applications_manager.py
@@ -172,6 +176,7 @@ sdk/
           test_observability_traces.py
         healthchecks/
           test_healthchecks.py
+      integration/                        # Integration tests (.gitkeep placeholder)
       unit/                               # Unit tests (22 tests, no external deps)
         conftest.py
         test_tracing_decorators.py
@@ -187,8 +192,8 @@ sdk/
 ```
 web/
   tests/                                  # Shared Playwright infrastructure
-    package.json                          # E2E scripts (test:e2e, test:e2e:ui, test:e2e:debug)
-    playwright.config.ts                  # Playwright configuration (testDir points to e2e/)
+    package.json                          # Acceptance scripts (test:acceptance, test:acceptance:ui, test:acceptance:debug)
+    playwright.config.ts                  # Playwright configuration (testDir points to acceptance/)
     playwright/
       config/
         testTags.ts                       # Tag definitions and syntax
@@ -215,7 +220,7 @@ web/
         test-observability.ts
     legacy/                               # .gitkeep placeholder
     playwright/
-      e2e/                                # E2E test suites organized by feature
+      acceptance/                         # Acceptance test suites organized by feature
         settings/
         app/
         playground/
@@ -224,13 +229,14 @@ web/
         observability/
         deployment/
         smoke.spec.ts                     # Smoke test
+      integration/                        # .gitkeep placeholder
       unit/                               # .gitkeep placeholder
       utils/                              # .gitkeep placeholder
   ee/tests/
     manual/                               # .gitkeep placeholder
     legacy/                               # .gitkeep placeholder
     playwright/
-      e2e/                                # EE E2E test suites
+      acceptance/                         # EE acceptance test suites
         settings/
         app/
         playground/
@@ -240,6 +246,7 @@ web/
         observability/
         deployment/
         human-annotation/
+      integration/                        # .gitkeep placeholder
       unit/                               # .gitkeep placeholder
       utils/                              # .gitkeep placeholder
   oss/src/components/Playground/state/atoms/__tests__/
@@ -257,14 +264,16 @@ services/
       smoke.http                          # Existing smoke test
     legacy/                               # .gitkeep placeholder
     pytest/
-      e2e/                                # .gitkeep placeholder (ready for E2E tests)
+      acceptance/                         # .gitkeep placeholder (ready for acceptance tests)
+      integration/                        # .gitkeep placeholder (ready for integration tests)
       unit/                               # .gitkeep placeholder (ready for unit tests)
       utils/                              # .gitkeep placeholder (ready for fixtures)
   ee/tests/
     manual/                               # .gitkeep placeholder
     legacy/                               # .gitkeep placeholder
     pytest/
-      e2e/                                # .gitkeep placeholder
+      acceptance/                         # .gitkeep placeholder
+      integration/                        # .gitkeep placeholder
       unit/                               # .gitkeep placeholder
       utils/                              # .gitkeep placeholder
 ```
@@ -334,14 +343,24 @@ The `manual/` folder accepts any kind of scripts or documentation. It's **freest
 
 Historical tests preserved for reference during migration. **Not run.** May be deleted once migration is complete.
 
-### e2e/ -- Black box, system running
+### acceptance/ -- Black box, full system running
 
-End-to-end tests that treat the system as a **black box**. Expects a running system behind it (API server, web server, database, etc.). Tests only interact with public surfaces using credentials:
-- API E2E: HTTP requests to API endpoints (`AGENTA_API_URL`, `AGENTA_AUTH_KEY`)
-- SDK E2E: SDK client calls against live API (`AGENTA_HOST`, `AGENTA_API_KEY`)
-- Web E2E: Playwright browser tests against running web app (`AGENTA_WEB_URL`)
+Acceptance tests test the **full system through a public interface**. All dependencies are real. The full system is running. Tests only interact with public surfaces using credentials:
+- API acceptance: HTTP requests to API endpoints (`AGENTA_API_URL`, `AGENTA_AUTH_KEY`)
+- SDK acceptance: SDK client calls against live API (`AGENTA_HOST`, `AGENTA_API_KEY`)
+- Web acceptance: Playwright browser tests against running web app (`AGENTA_WEB_URL`)
 
-**No access to internals.** Tests validate behavior from the outside.
+**No access to internals.** Tests validate behavior from the outside. This includes contract, functional, performance, security, usability, reliability, and compatibility testing.
+
+### integration/ -- Gray box, real dependency
+
+Integration tests test an **adapter implementation against a real dependency**. Relevant dependencies are real; the full system may not be running.
+
+Examples:
+- Backend: test DAO against Postgres, test utils against Redis, test runner against Daytona, test gateway against Composio
+- Frontend: test hooks against Agenta, test analytics against PostHog
+
+Integration tests are new and currently have `.gitkeep` placeholder files in each component.
 
 ### unit/ -- White box, system NOT running
 
@@ -368,4 +387,4 @@ There's a **gray line** between `unit/utils/` (pure business utilities) and `uti
 - If it's business domain logic → `unit/utils/`
 - If it's infrastructure/tooling → `utils/`
 
-The `utils/` folder may also contain **shared test fixtures** (conftest helpers, account management, API clients) used by `e2e/` and `unit/` tests.
+The `utils/` folder may also contain **shared test fixtures** (conftest helpers, account management, API clients) used by `acceptance/`, `integration/`, and `unit/` tests.

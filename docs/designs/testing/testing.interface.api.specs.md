@@ -112,7 +112,7 @@ Apply the full [test pyramid](testing.principles.specs.md) to the API:
 
 ### Layer 5: E2E tests (existing)
 
-The current E2E suite in `api/oss/tests/pytest/` moves to `api/oss/tests/pytest/e2e/` for consistency with the runner → type → domain hierarchy. See [testing.structure.specs.md](testing.structure.specs.md) for the full target layout.
+The current acceptance suite in `api/oss/tests/pytest/` lives under `api/oss/tests/pytest/acceptance/` following the runner → type → domain hierarchy. See [testing.structure.specs.md](testing.structure.specs.md) for the full target layout.
 
 ---
 
@@ -123,7 +123,7 @@ The current E2E suite in `api/oss/tests/pytest/` moves to `api/oss/tests/pytest/
 | Core | DAO interface (port) | Return values, side effects, domain errors |
 | DAO | `AsyncSession` | Statement shape, bound params, call sequence, row mapping |
 | Router | Core service | Status codes, response shapes, error mapping |
-| E2E | Nothing | Full stack behavior |
+| Acceptance | Nothing | Full stack behavior |
 
 ---
 

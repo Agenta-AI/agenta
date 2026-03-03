@@ -240,6 +240,7 @@ function InsertInitialCodeBlockPlugin({
     editorId,
     onPropertyClick,
     disableLongText = false,
+    decodeEscapedJsonStringsInLongText = false,
 }: {
     debug?: boolean
     initialValue: string
@@ -249,6 +250,7 @@ function InsertInitialCodeBlockPlugin({
     editorId: string
     onPropertyClick?: (path: string) => void
     disableLongText?: boolean
+    decodeEscapedJsonStringsInLongText?: boolean
 }) {
     const [editor] = useLexicalComposerContext()
 
@@ -645,7 +647,10 @@ function InsertInitialCodeBlockPlugin({
         editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
     }, [initialValue, language])
 
-    const drillInContextValue = {enabled: Boolean(onPropertyClick)}
+    const drillInContextValue = {
+        enabled: Boolean(onPropertyClick),
+        decodeEscapedJsonStrings: decodeEscapedJsonStringsInLongText,
+    }
 
     return (
         <DrillInProvider value={drillInContextValue}>

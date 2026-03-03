@@ -29,11 +29,11 @@ async function generate() {
             // Stores the input parameters as JSON
             span.setAttribute("ag.data.inputs", JSON.stringify({
                 messages: messages,
-                model: "gpt-5"
+                model: "gpt-4o-mini"
             }));
 
             const response = await openai.chat.completions.create({
-                model: "gpt-5",
+                model: "gpt-4o-mini",
                 messages: messages,
             });
 
