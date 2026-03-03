@@ -1,4 +1,5 @@
 import {fetchRevisionSchema} from "@agenta/entities/legacyAppRevision"
+import {extractVariablesFromConfig} from "@agenta/entities/runnable"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -263,6 +264,55 @@ function extractDefaultParameters(
     return {}
 }
 
+/**
+ * Clean up raw Pydantic defaults extracted from the OpenAPI schema.
+ *
+ * The `PromptTemplate` Pydantic model includes legacy fields (`system_prompt`,
+ * `user_prompt`) and optional fields (`tools`) that may be absent from the
+ * serialized default but are expected in the commit payload.
+ *
+ * This function:
+ *  1. Removes `system_prompt` and `user_prompt` from each prompt config
+ *  2. Ensures `llm_config.tools` is `[]` when absent/null
+ *  3. Extracts `input_keys` from message templates and adds them
+ */
+function cleanupDefaultParameters(params: Record<string, unknown>): Record<string, unknown> {
+    const cleaned = {...params}
+
+    for (const [key, value] of Object.entries(cleaned)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const config = value as Record<string, unknown>
+
+        // Check if this looks like a prompt config (has messages or llm_config)
+        const hasMessages = Array.isArray(config.messages)
+        const hasLlmConfig = config.llm_config && typeof config.llm_config === "object"
+
+        if (!hasMessages && !hasLlmConfig) continue
+
+        // 1. Remove legacy fields
+        delete config.system_prompt
+        delete config.user_prompt
+
+        // 2. Ensure llm_config.tools is an empty array when absent/null
+        if (hasLlmConfig) {
+            const llmConfig = config.llm_config as Record<string, unknown>
+            if (!Array.isArray(llmConfig.tools)) {
+                llmConfig.tools = []
+            }
+        }
+
+        // 3. Extract input_keys from message templates
+        if (hasMessages && !config.input_keys) {
+            const variables = extractVariablesFromConfig({[key]: config})
+            if (variables.length > 0) {
+                config.input_keys = variables
+            }
+        }
+    }
+
+    return cleaned
+}
+
 export const createAndStartTemplate = async ({
     appName,
     providerKey: _providerKey,
@@ -320,12 +370,14 @@ export const createAndStartTemplate = async ({
             try {
                 const schemaResult = await fetchRevisionSchema(uri, projectId)
 
-                const defaultParams = schemaResult?.schema
+                const rawParams = schemaResult?.schema
                     ? extractDefaultParameters(
                           schemaResult.schema as Record<string, unknown>,
                           schemaResult.routePath,
                       )
                     : {}
+
+                const defaultParams = cleanupDefaultParameters(rawParams)
 
                 const commitResponse = await axios.put(
                     `${getAgentaApiUrl()}/variants/${variantId}/parameters`,
