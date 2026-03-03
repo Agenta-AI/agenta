@@ -1,5 +1,6 @@
 import React, {useCallback, useState} from "react"
 
+import {type ToolCall} from "@agenta/shared/types"
 import {isGatewayToolSlug} from "@agenta/shared/utils"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
 import {Dropdown, message as antMessage} from "antd"
@@ -15,7 +16,15 @@ interface Props {
     toolPayloads: GatewayToolPayloadInfo[]
     onUpdateToolResponse: (callId: string | undefined, resultStr: string, toolName?: string) => void
     onExecuteAndSendToChat?: () => void
-    onExecuteToolCall: (params: {data: any}) => Promise<{call?: {data?: any}}>
+    onExecuteToolCall: (params: {data: ToolCall}) => Promise<{
+        call?: {
+            data?: {
+                content?: string
+                role?: string
+                tool_call_id?: string
+            }
+        }
+    }>
 }
 
 const GatewayToolExecuteButton: React.FC<Props> = ({

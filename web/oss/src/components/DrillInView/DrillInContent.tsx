@@ -15,9 +15,8 @@ import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 
-import { useLexicalComposerContext} from "@/oss/components/Editor/Editor"
+import {useLexicalComposerContext} from "@/oss/components/Editor/Editor"
 import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-
 import {
     detectDataType,
     getTextModeValue,

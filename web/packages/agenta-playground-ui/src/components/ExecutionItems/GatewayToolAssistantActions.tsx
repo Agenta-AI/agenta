@@ -1,6 +1,7 @@
 import React, {useCallback, useMemo} from "react"
 
 import {executionItemController, type ChatMessage, type SimpleChatMessage} from "@agenta/playground"
+import {type ToolCall} from "@agenta/shared/types"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -15,7 +16,15 @@ function toolCallIdOf(message: ChatMessage | null | undefined): string | undefin
 }
 
 interface GatewayToolAssistantActionsProps extends ChatTurnAssistantActionsProps {
-    onExecuteToolCall: (params: {data: any}) => Promise<{call?: {data?: any}}>
+    onExecuteToolCall: (params: {data: ToolCall}) => Promise<{
+        call?: {
+            data?: {
+                content?: string
+                role?: string
+                tool_call_id?: string
+            }
+        }
+    }>
 }
 
 const GatewayToolAssistantActions: React.FC<GatewayToolAssistantActionsProps> = ({

@@ -399,6 +399,7 @@ export {
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
     type EvaluatorSelectionResult,
+    type LegacyAppRevisionSelectionResult,
     type LegacyEvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
     type EvaluatorRevisionRelationSelectionResult,

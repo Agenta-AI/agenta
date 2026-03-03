@@ -64,7 +64,7 @@ const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfig
             {Object.keys(depRevisionConfig.parameters).length ? (
                 <div className="flex flex-col gap-6 grow">
                     <div className="flex flex-col gap-2 grow">
-                        {!!propsVariant ? (
+                        {propsVariant ? (
                             <NewVariantParametersView
                                 selectedVariant={propsVariant as unknown as EnhancedVariant}
                             />

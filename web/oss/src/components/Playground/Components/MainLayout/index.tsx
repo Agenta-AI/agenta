@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useRef} from "react"
 
 import {
     executionController,
@@ -8,8 +8,8 @@ import {
 import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
 import {
     GenerationComparisonOutput,
-    GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
     GenerationComparisonOutputHeader,
+    GenerationComparisonInputHeader as PlaygroundComparisonGenerationInputHeader,
 } from "@agenta/playground-ui/execution-item-comparison-view"
 import ExecutionItems from "@agenta/playground-ui/execution-items"
 import {Button, Splitter, Typography} from "antd"
@@ -79,10 +79,9 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const showErrorState = isEmpty && !isProjectLevel
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {generationPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
-    const lastAutoScrollKeyRef = useRef<string>("")
 
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({

@@ -43,6 +43,7 @@ import {
 } from "./adapters/evaluatorRevisionAdapter"
 // 2-level evaluator revision adapter (relation-based, auto-configured)
 import {evaluatorRevisionRelationAdapter} from "./adapters/evaluatorRevisionRelationAdapter"
+import {legacyAppRevisionAdapter} from "./adapters/legacyAppRevisionRelationAdapter"
 // 1-level legacy evaluator adapter (flat list, SimpleEvaluator facade API)
 import {legacyEvaluatorAdapter, setLegacyEvaluatorAtoms} from "./adapters/legacyEvaluatorAdapter"
 import {testsetAdapter} from "./adapters/testsetRelationAdapter"
@@ -167,6 +168,9 @@ export function initializeSelectionSystem(config: SelectionSystemConfig = {}): v
 
     // Register testset adapter (auto-configured from @agenta/entities/testset)
     registerSelectionAdapter(testsetAdapter)
+
+    // Register legacy app revision adapter (auto-configured from @agenta/entities/legacyAppRevision)
+    registerSelectionAdapter(legacyAppRevisionAdapter)
 
     // Register evaluator revision relation adapter (2-level: Evaluator → Revision)
     // Auto-configured from @agenta/entities/evaluator — supports list-popover variant
