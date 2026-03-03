@@ -716,9 +716,10 @@ function workflowToRunnable(entity: unknown): RunnableData {
     const e = entity as WorkflowEntity
     const flatParams = e.data?.parameters ?? e.data?.configuration ?? undefined
 
-    // Check if this is an evaluator workflow
-    const isEvaluator =
-        e.flags?.is_evaluator || (e.data?.uri && e.data.uri.startsWith("agenta:builtin:"))
+    // Check if this is an evaluator workflow.
+    // Only use the flags — the URI prefix "agenta:builtin:" is shared by both
+    // evaluator builtins (auto_exact_match, etc.) and app builtins (completion, chat).
+    const isEvaluator = !!e.flags?.is_evaluator
 
     // Transform evaluator config to nested prompt structure
     const configuration =
@@ -847,10 +848,10 @@ function workflowParametersSchemaSelector(workflowId: string) {
             (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
         if (!flatSchema) return null
 
-        // Check if this is an evaluator workflow
-        const isEvaluator =
-            entity?.flags?.is_evaluator ||
-            (entity?.data?.uri && entity.data.uri.startsWith("agenta:builtin:"))
+        // Check if this is an evaluator workflow.
+        // Only use the flags — the URI prefix "agenta:builtin:" is shared by both
+        // evaluator builtins and app builtins (completion, chat).
+        const isEvaluator = !!entity?.flags?.is_evaluator
 
         if (isEvaluator) {
             const nested = nestEvaluatorSchema(flatSchema) as Record<string, unknown>
