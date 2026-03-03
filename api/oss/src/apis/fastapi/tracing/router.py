@@ -440,7 +440,7 @@ class TracingRouter:
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )
-        except Exception as e:
+        except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
         if not trace:
@@ -544,7 +544,7 @@ class TracingRouter:
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )
-        except Exception as e:
+        except TypeError as e:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid trace_id",
