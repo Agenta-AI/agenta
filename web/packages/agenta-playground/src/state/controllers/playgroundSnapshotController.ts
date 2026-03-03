@@ -19,7 +19,6 @@
  * ```
  */
 
-import {appRevisionSnapshotAdapter} from "@agenta/entities/appRevision"
 import {baseRunnableSnapshotAdapter} from "@agenta/entities/baseRunnable/snapshotAdapter"
 import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
@@ -50,7 +49,6 @@ import {derivedLoadableIdAtom} from "../execution/selectors"
 // Ensure adapters are registered before any snapshot operations.
 // Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
 snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
-snapshotAdapterRegistry.register(appRevisionSnapshotAdapter)
 snapshotAdapterRegistry.register(baseRunnableSnapshotAdapter)
 snapshotAdapterRegistry.register(workflowSnapshotAdapter)
 
