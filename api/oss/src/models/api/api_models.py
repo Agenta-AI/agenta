@@ -8,8 +8,8 @@ from oss.src.models.shared_models import ConfigDB
 
 
 class TimestampModel(BaseModel):
-    created_at: str = Field(str(datetime.now(timezone.utc)))
-    updated_at: str = Field(str(datetime.now(timezone.utc)))
+    created_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
+    updated_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
 
 
 class PaginationParam(BaseModel):
