@@ -27,6 +27,7 @@ Run with:
 """
 
 import sys
+import os
 import asyncio
 from redis.asyncio import Redis
 
@@ -35,6 +36,7 @@ from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_en
 from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.clickhouse.tracing.dao import ClickHouseTracingDAO
 from oss.src.core.tracing.service import TracingService
 
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
@@ -62,7 +64,12 @@ async def main_async() -> int:
         redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
 
         # Initialize DAO
-        tracing_dao = TracingDAO()
+        backend = os.getenv("TRACING_BACKEND", "postgres").lower()
+        if backend == "clickhouse":
+            tracing_dao = ClickHouseTracingDAO()
+            log.info("[OTLP] Using ClickHouse tracing backend")
+        else:
+            tracing_dao = TracingDAO()
 
         # Initialize service
         tracing_service = TracingService(
