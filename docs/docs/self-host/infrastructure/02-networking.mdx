@@ -25,24 +25,23 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │                                                                             │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                      Traefik (Reverse Proxy)                          │  │
-│  │              HTTP: 80 → HTTPS: 443 → Dashboard: 8080                  │  │
-│  │                   SSL Termination & Routing                           │  │
-│  └─┬─────────────────────┬─────────────────────┬─────────────────────┬───┘  │
-│    │                     │                     │                     │      │
-│    │ /:3000              │ /api:8000           │ /services:80        │      │
-│    ▼                     ▼                     ▼                     ▼      │
-│  ┌─────────────┐  ┌─────────────┐   ┌─────────────┐      ┌─────────────┐    │
-│  │     Web     │  │     API     │   │ Completion  │      │    Chat     │    │
-│  │   :3000     │──►   :8000     │   │    :80      │      │    :80      │    │
-│  │             │  │             │   │             │      │             │    │
-│  └─────────────┘  └──────┬──────┘   └─────────────┘      └─────────────┘    │
+│  │              HTTP: 80 -> HTTPS: 443 -> Dashboard: 8080               │  │
+│  │                   SSL termination and routing                         │  │
+│  └─┬─────────────────────┬─────────────────────┬─────────────────────────┘  │
+│    │                     │                     │                            │
+│    │ /                   │ /api/               │ /services/                  │
+│    ▼                     ▼                     ▼                            │
+│  ┌─────────────┐  ┌─────────────┐   ┌────────────────────┐                 │
+│  │     Web     │  │     API     │   │   Services API     │                 │
+│  │   :3000     │  │   :8000     │   │      :80           │                 │
+│  └─────────────┘  └──────┬──────┘   └────────────────────┘                 │
 │                          │                                                  │
-│                          │ Delegates Tasks                                  │
+│                          │ Redis queues / streams                           │
 │                          ▼                                                  │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                       Worker :TaskIQ                                 │   │
-│  │                   (Background Tasks)                                 │   │
-│  │             Calls AI Services for Evaluation                         │   │
+│  │                            Worker Pool                               │   │
+│  │   worker-evaluations, worker-tracing, worker-webhooks,              │   │
+│  │   worker-events, cron                                                 │   │
 │  └─────────────────────────┬────────────────────────────────────────────┘   │
 │                            │                                                │
 │                            ▼                                                │
@@ -51,14 +50,8 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │  │                                                                      │   │
 │  │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐    │   │
 │  │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │    │   │
-│  │ │     :5432         │ │      :6379        │ │      :3567        │    │   │
-│  │ │                   │ │                   │ │                   │    │   │
-│  │ │                   │ │ • Task Queue      │ │                   │    │   │
-│  │ │◄─── API           │ │   (TaskIQ)        │ │◄─── API           │    │   │
-│  │ │     Worker        │ │ • Caching         │ │                   │    │   │
-│  │ │                   │ │ • Sessions        │ │                   │    │   │
-│  │ │                   │ │                   │ │                   │    │   │
-│  │ │                   │ │◄─── API / Worker  │ │                   │    │   │
+│  │ │     :5432         │ │   :6379 / :6381   │ │      :3567        │    │   │
+│  │ │ Core + Tracing DB │ │ queues + caching   │ │ auth + sessions   │    │   │
 │  │ └───────────────────┘ └───────────────────┘ └───────────────────┘    │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
@@ -73,26 +66,26 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 Internet → Traefik (80/443) → Internal Services
 ├── / → web:3000 (Frontend)
 ├── /api/ → api:8000 (Backend API)
-├── /services/completion/ → completion:80
-└── /services/chat/ → chat:80
+└── /services/ → services:80 (includes completion/chat endpoints)
 ```
 
 ### Internal Service Communication
 ```
 Web Container:
 ├── → api:8000 (Backend API calls)
-└── → completion:80, chat:80 (Direct playground calls)
+└── → services:80 (Playground and model interaction endpoints)
 
 API Container:
 ├── → postgres:5432 (Database operations)
-├── → redis:6379 (Task queue, caching, sessions)
+├── → redis-volatile:6379, redis-durable:6381 (queues, streams, caching)
 ├── → supertokens:3567 (Authentication)
-└── → worker (Task delegation via TaskIQ)
+└── → worker pool (Task delegation via queues/streams)
 
-Worker Container:
-├── → redis:6379 (Task queue via TaskIQ)
+Worker Pool:
+├── → redis-volatile:6379, redis-durable:6381 (task and event consumption)
 ├── → postgres:5432 (Data access)
-└── → completion:80, chat:80 (AI operations)
+├── → api:8000 (coordination and shared backend logic)
+└── → external webhook destinations (worker-webhooks)
 ```
 
 ## Network Environment Variables
@@ -109,7 +102,8 @@ These variables control how external users access Agenta:
 | `AGENTA_API_URL` | API endpoint | `http://localhost/api` | External API URL |
 | `AGENTA_WEB_URL` | Frontend URL | `http://localhost` | External frontend URL |
 | `AGENTA_SERVICES_URL` | Services URL | `http://localhost/services` | External services URL template |
-| `AGENTA_API_INTERNAL_URL` | Internal API URL between services and backend | `http://host.docker.internal/api` | Internal API URL |
+| `AGENTA_API_INTERNAL_URL` | Internal API URL between services and backend | `http://api:8000/api` | Internal API URL |
+| `DOCKER_NETWORK_MODE` | Docker network mode hint for runtime URL logic | `bridge` | Should be `bridge` for compose-based deployments |
 
 ### Internal Service Communication
 
@@ -156,17 +150,16 @@ Processing: Strip `/api` prefix
 Middleware: Path prefix stripping
 ```
 
-#### AI Services Routing
+#### Services Routing
 ```yaml
-# Completion Service
-Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/completion/`)
-Target: completion:80
-Processing: Strip `/services/completion` prefix
+# Route: /services/ -> services:80
+Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/`)
+Target: services:80
+Processing: Strip `/services` prefix
 
-# Chat Service
-Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/chat/`)
-Target: chat:80
-Processing: Strip `/services/chat` prefix
+# Examples served by the same services container:
+# /services/completion/* -> services:80/completion/*
+# /services/chat/* -> services:80/chat/*
 ```
 
 ## SSL/TLS Configuration
@@ -205,7 +198,8 @@ The services are isolated within Docker bridge network. None of the services are
 docker exec :container-name: nc -zv postgres 5432
 
 # Test Redis connectivity
-docker exec :container-name: redis-cli -h redis ping
+docker exec :container-name: redis-cli -h redis-volatile -p 6379 ping
+docker exec :container-name: redis-cli -h redis-durable -p 6381 ping
 ```
 
 ### Port Conflicts
