@@ -238,6 +238,9 @@ export {
     revisionSchemaAtPathAtomFamily,
     revisionEndpointsAtomFamily,
     getSchemaPropertyAtPath,
+    // Service schema prefetch atoms (mount in app root for eager fetch)
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
 } from "./state"
 
 // ============================================================================

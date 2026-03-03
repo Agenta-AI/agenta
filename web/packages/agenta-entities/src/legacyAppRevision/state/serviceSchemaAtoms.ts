@@ -19,9 +19,13 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {fetchServiceSchema} from "../../appRevision/api/schema"
-import type {RevisionSchemaState} from "../../appRevision/core"
-import {APP_SERVICE_TYPES, resolveServiceType, type AppServiceType} from "../../appRevision/core"
+import {fetchServiceSchema} from "../api/schema"
+import {
+    APP_SERVICE_TYPES,
+    resolveServiceType,
+    type AppServiceType,
+    type RevisionSchemaState,
+} from "../api/types"
 
 import {
     appsListDataAtom,

@@ -881,7 +881,7 @@ export async function fetchRevisionSchemaWithProbe(
 // SCHEMA BUILDING
 // ============================================================================
 
-// Re-use pure schema building utilities from appRevision (no network deps)
+// Re-export pure schema building utilities (no network deps)
 export {
     buildRevisionSchemaState,
     extractEndpointSchema,
@@ -889,6 +889,6 @@ export {
     constructEndpointPath,
     convertOpenApiSchemaToJsonSchema,
     jsonSchemaToEntitySchema,
-} from "../../appRevision/api/schemaUtils"
+} from "./schemaUtils"
 
 // Validation utilities imported from shared/utils/revisionUtils
