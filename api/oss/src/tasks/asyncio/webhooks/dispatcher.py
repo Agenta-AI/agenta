@@ -18,7 +18,6 @@ from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.types import (
     WebhookSubscription,
     WebhookSubscriptionQuery,
-    WebhookSubscriptionQueryFlags,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.utils.caching import get_cache, set_cache, AGENTA_CACHE_TTL
@@ -127,11 +126,7 @@ class WebhooksDispatcher:
         subscriptions = await self.subscriptions_dao.query_subscriptions(
             project_id=project_id,
             #
-            subscription=WebhookSubscriptionQuery(
-                flags=WebhookSubscriptionQueryFlags(
-                    is_valid=True,
-                ),
-            ),
+            subscription=WebhookSubscriptionQuery(),
         )
 
         # Resolve secrets (vault reads happen only on cache miss)
@@ -218,8 +213,12 @@ class WebhooksDispatcher:
                     matching = [
                         sub
                         for sub in subscriptions
-                        if sub.data.event_types is None
-                        or event_type in sub.data.event_types
+                        if sub.flags is not None
+                        and sub.flags.is_valid
+                        and (
+                            sub.data.event_types is None
+                            or event_type in sub.data.event_types
+                        )
                     ]
 
                 for sub in matching:

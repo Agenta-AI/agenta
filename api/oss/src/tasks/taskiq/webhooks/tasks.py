@@ -114,7 +114,7 @@ async def deliver_webhook(
                 id=delivery_id,
                 subscription_id=subscription_id,
                 event_id=event_id,
-                status=Status(code=400, message="failed"),
+                status=Status(code="400", message="failed"),
                 data=base_data.model_copy(update={"error": str(e)}),
             ),
         )
@@ -168,7 +168,7 @@ async def deliver_webhook(
                     id=delivery_id,
                     subscription_id=subscription_id,
                     event_id=event_id,
-                    status=Status(code=response.status_code, message="success"),
+                    status=Status(code=str(response.status_code), message="success"),
                     data=final_data,
                 ),
             )
@@ -186,7 +186,7 @@ async def deliver_webhook(
                         id=delivery_id,
                         subscription_id=subscription_id,
                         event_id=event_id,
-                        status=Status(code=response.status_code, message="failed"),
+                        status=Status(code=str(response.status_code), message="failed"),
                         data=final_data,
                     ),
                 )
@@ -201,7 +201,7 @@ async def deliver_webhook(
                     id=delivery_id,
                     subscription_id=subscription_id,
                     event_id=event_id,
-                    status=Status(code=response.status_code, message="failed"),
+                    status=Status(code=str(response.status_code), message="failed"),
                     data=final_data,
                 ),
             )
@@ -217,7 +217,7 @@ async def deliver_webhook(
                     id=delivery_id,
                     subscription_id=subscription_id,
                     event_id=event_id,
-                    status=Status(code=0, message="failed"),
+                    status=Status(code="0", message="failed"),
                     data=base_data.model_copy(update={"error": f"Timeout: {e}"}),
                 ),
             )
@@ -239,7 +239,7 @@ async def deliver_webhook(
                     id=delivery_id,
                     subscription_id=subscription_id,
                     event_id=event_id,
-                    status=Status(code=0, message="failed"),
+                    status=Status(code="0", message="failed"),
                     data=base_data.model_copy(update={"error": str(e)}),
                 ),
             )
