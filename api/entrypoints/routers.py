@@ -140,9 +140,6 @@ import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
 
-from redis.asyncio import Redis
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
-
 import agenta as ag
 
 ag.init(
@@ -282,18 +279,6 @@ tracing_service = TracingService(
 events_service = EventsService(
     events_dao=events_dao,
 )
-
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
 
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
