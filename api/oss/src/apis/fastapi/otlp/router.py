@@ -23,11 +23,7 @@ if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-# TYPE_CHECKING to avoid circular import at runtime
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+from oss.src.core.tracing.streaming import publish_spans
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -38,12 +34,7 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(
-        self,
-        tracing_worker: "TracingWorker",
-    ):
-        self.worker = tracing_worker
-
+    def __init__(self):
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -235,7 +226,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await self.worker.publish_to_stream(
+                await publish_spans(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
