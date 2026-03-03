@@ -46,27 +46,32 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
             const allAnnMetrics = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
             const evaluator = evaluators.find((e) => e.slug === ann.references?.evaluator?.slug)
 
-            if (!evaluator) return ann
-
             const evalMetricsSchema =
-                evaluator.data?.service?.format?.properties?.outputs?.properties || {}
+                evaluator?.data?.service?.format?.properties?.outputs?.properties || {}
 
             const grouped = Object.entries(allAnnMetrics).reduce(
                 (acc, [key, value]) => {
                     const schema = evalMetricsSchema[key]
-                    if (!schema) return acc
-
                     let type: string
-                    let metricValue = value
+                    const metricValue = value
 
-                    if (schema.anyOf) {
+                    if (schema?.anyOf) {
                         type = "class"
-                    } else if (schema.type === "array") {
+                    } else if (schema?.type === "array") {
                         type = "array"
-                    } else if (schema.type && USEABLE_METRIC_TYPES.includes(schema.type)) {
+                    } else if (schema?.type && USEABLE_METRIC_TYPES.includes(schema.type)) {
                         type = schema.type
+                    } else if (typeof metricValue === "string") {
+                        // Preserve free-text comments even if evaluator schema is missing this key.
+                        type = "string"
+                    } else if (typeof metricValue === "number") {
+                        type = "number"
+                    } else if (typeof metricValue === "boolean") {
+                        type = "boolean"
+                    } else if (Array.isArray(metricValue)) {
+                        type = "array"
                     } else {
-                        return acc // Skip if no matching type
+                        type = "class"
                     }
 
                     const metricObj = {value: metricValue, type}

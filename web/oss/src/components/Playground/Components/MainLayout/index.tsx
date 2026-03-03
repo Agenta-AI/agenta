@@ -1,4 +1,4 @@
-import {memo, useCallback, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {Button, Splitter, Typography} from "antd"
 import clsx from "clsx"
@@ -6,7 +6,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
+import {chatTurnIdsAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
 
 import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import {appChatModeAtom, displayedVariantsAtom, isComparisonViewAtom} from "../../state/atoms"
@@ -63,6 +63,9 @@ const GenerationComparisonRenderer = memo(() => {
 const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
     const isComparisonView = useAtomValue(isComparisonViewAtom)
     const displayedVariants = useAtomValue(displayedVariantsAtom)
+    const isChatApp = useAtomValue(appChatModeAtom)
+    const chatTurnIds = useAtomValue(chatTurnIdsAtom) as string[]
+    const chatTurnsById = useAtomValue(chatTurnsByIdAtom) as Record<string, any>
 
     const appStatus = useAtomValue(playgroundAppStatusAtom)
     const appStatusLoading = useAtomValue(playgroundAppStatusLoadingAtom)
@@ -76,9 +79,10 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     const shouldShowGenerationSkeleton = appStatusLoading || (isLoading && !hasDisplayedVariantIds)
     const notReachable = !appStatusLoading && !appStatus
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
-    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+    const {generationPanelRef, setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
+    const lastAutoScrollKeyRef = useRef<string>("")
 
     // Selection validation and default selection are now handled imperatively
     // by playgroundSyncAtom (store.sub subscriptions in playground.ts)
@@ -93,6 +97,65 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         },
         [variantRefs],
     )
+
+    const chatAutoScrollKey = useMemo(() => {
+        if (!isChatApp) return ""
+
+        const revisionIds = (displayedVariants || []) as string[]
+        const rows = (chatTurnIds || []).map((turnId) => {
+            const turn = chatTurnsById?.[turnId]
+            const userId = turn?.userMessage?.__id ?? ""
+
+            const perRevision = revisionIds.map((revisionId) => {
+                const assistant = turn?.assistantMessageByRevision?.[revisionId]
+                const assistantId = assistant?.__id ?? ""
+                const toolResponses = turn?.toolResponsesByRevision?.[revisionId]
+                const toolSig = Array.isArray(toolResponses)
+                    ? toolResponses
+                          .map((msg: any) => {
+                              const id = msg?.__id ?? ""
+                              const callId =
+                                  msg?.toolCallId?.value ?? msg?.tool_call_id?.value ?? ""
+                              return `${id}:${callId}`
+                          })
+                          .join(",")
+                    : ""
+
+                return `${revisionId}:${assistantId}:${toolSig}`
+            })
+
+            return `${turnId}:${userId}:${perRevision.join(";")}`
+        })
+
+        return rows.join("|")
+    }, [isChatApp, displayedVariants, chatTurnIds, chatTurnsById])
+
+    useEffect(() => {
+        if (!isChatApp || !generationPanelRef) return
+        if (!chatAutoScrollKey) return
+        if (chatAutoScrollKey === lastAutoScrollKeyRef.current) return
+
+        const behavior = lastAutoScrollKeyRef.current ? "smooth" : "auto"
+        const scrollToBottom = () => {
+            // Direct assignment is the most reliable way to force-bottom after layout shifts.
+            generationPanelRef.scrollTop = generationPanelRef.scrollHeight
+            generationPanelRef.scrollTo({
+                top: generationPanelRef.scrollHeight,
+                behavior,
+            })
+        }
+
+        // Run after at least one extra frame so newly mounted editors/tool blocks
+        // are measured before we scroll.
+        const frame = requestAnimationFrame(() => {
+            scrollToBottom()
+            requestAnimationFrame(scrollToBottom)
+        })
+
+        lastAutoScrollKeyRef.current = chatAutoScrollKey
+
+        return () => cancelAnimationFrame(frame)
+    }, [isChatApp, generationPanelRef, chatAutoScrollKey])
 
     return notReachable ? (
         <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">

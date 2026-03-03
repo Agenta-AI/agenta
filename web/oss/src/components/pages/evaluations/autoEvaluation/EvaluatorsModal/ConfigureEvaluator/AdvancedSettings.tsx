@@ -44,7 +44,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
     return (
         <Collapse
             bordered={false}
-            defaultActiveKey={["1"]}
+            defaultActiveKey={[]}
             expandIcon={({isActive}: {isActive: boolean}) => (
                 <CaretRightOutlined rotate={isActive ? 90 : 0} />
             )}
@@ -71,7 +71,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                     return (
                         <Form.Item
                             key={field.key}
-                            name={["settings_values", field.key]}
+                            name={["parameters", field.key]}
                             initialValue={field.default}
                             rules={rules}
                             label={label}

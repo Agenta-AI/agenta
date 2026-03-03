@@ -1,48 +1,53 @@
-from typing import Optional, List, Dict
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
-from oss.src.utils.logging import get_module_logger
-from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.git.dtos import (
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    #
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    #
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionCommit,
-)
+import uuid_utils.compat as uuid_compat
+
 from oss.src.core.environments.dtos import (
     Environment,
     EnvironmentCreate,
     EnvironmentEdit,
-    EnvironmentQuery,
-    EnvironmentRevisionsLog,
     EnvironmentFlags,
+    EnvironmentQuery,
+    #
+    EnvironmentRevision,
+    EnvironmentRevisionCommit,
+    EnvironmentRevisionCreate,
+    EnvironmentRevisionData,
+    EnvironmentRevisionEdit,
+    EnvironmentRevisionQuery,
+    EnvironmentRevisionsLog,
     #
     EnvironmentVariant,
     EnvironmentVariantCreate,
     EnvironmentVariantEdit,
     EnvironmentVariantQuery,
-    #
-    EnvironmentRevision,
-    EnvironmentRevisionData,
-    EnvironmentRevisionCreate,
-    EnvironmentRevisionEdit,
-    EnvironmentRevisionQuery,
-    EnvironmentRevisionCommit,
     SimpleEnvironment,
     SimpleEnvironmentCreate,
     SimpleEnvironmentEdit,
     SimpleEnvironmentQuery,
 )
-
+from oss.src.core.events.dtos import Event
+from oss.src.core.events.streaming import publish_event
+from oss.src.core.events.types import EventType, RequestType
+from oss.src.core.git.dtos import (
+    ArtifactCreate,
+    ArtifactEdit,
+    ArtifactQuery,
+    RevisionCommit,
+    #
+    RevisionCreate,
+    RevisionEdit,
+    RevisionQuery,
+    #
+    VariantCreate,
+    VariantEdit,
+    VariantQuery,
+)
+from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
@@ -99,11 +104,15 @@ class EnvironmentsService:
         project_id: UUID,
         #
         environment_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Environment]:
         artifact = await self.environments_dao.fetch_artifact(
             project_id=project_id,
             #
             artifact_ref=environment_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not artifact:
@@ -288,12 +297,16 @@ class EnvironmentsService:
         #
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentVariant]:
         variant = await self.environments_dao.fetch_variant(
             project_id=project_id,
             #
             artifact_ref=environment_ref,
             variant_ref=environment_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not variant:
@@ -481,6 +494,8 @@ class EnvironmentsService:
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,
         environment_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[EnvironmentRevision]:
         if (
             not environment_ref
@@ -498,6 +513,8 @@ class EnvironmentsService:
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not environment:
@@ -512,6 +529,8 @@ class EnvironmentsService:
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not environment_variant:
@@ -527,6 +546,8 @@ class EnvironmentsService:
             #
             variant_ref=environment_variant_ref,
             revision_ref=environment_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not revision:
@@ -716,6 +737,47 @@ class EnvironmentsService:
             ),
         )
 
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+        request_id = uuid_compat.uuid7()
+        event_id = uuid_compat.uuid7()
+
+        request_type = RequestType.UNKNOWN
+        event_type = EventType.ENVIRONMENTS_REVISIONS_COMMITTED
+
+        timestamp = datetime.now(timezone.utc)
+
+        attributes = dict(
+            user_id=str(user_id),
+            references=dict(
+                environment=dict(
+                    id=str(environment_revision.environment_id),
+                ),
+                environment_variant=dict(
+                    id=str(environment_revision.environment_variant_id),
+                ),
+                environment_revision=dict(
+                    id=str(environment_revision.id),
+                    slug=environment_revision.slug,
+                    version=environment_revision.version,
+                ),
+            ),
+        )
+        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
+
+        event = Event(
+            request_id=request_id,
+            event_id=event_id,
+            request_type=request_type,
+            event_type=event_type,
+            timestamp=timestamp,
+            attributes=attributes,
+        )
+
+        await publish_event(
+            project_id=project_id,
+            event=event,
+        )
+
         return environment_revision
 
     async def _commit_environment_revision_delta(
@@ -794,11 +856,15 @@ class EnvironmentsService:
         project_id: UUID,
         #
         environment_revisions_log: EnvironmentRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[EnvironmentRevision]:
         revisions = await self.environments_dao.log_revisions(
             project_id=project_id,
             #
             revisions_log=environment_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         if not revisions:

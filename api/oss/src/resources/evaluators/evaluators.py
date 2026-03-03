@@ -1,3 +1,6 @@
+from copy import deepcopy
+
+
 rag_evaluator_settings_template = {
     "question_key": {
         "label": "Question Key",
@@ -306,7 +309,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "python",
                     "correct_answer_key": "correct_answer",
-                    "code": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
+                    "version": "2",
+                    "code": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
                 },
                 "description": "Exact match evaluator implemented in Python.",
             },
@@ -317,7 +321,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "javascript",
                     "correct_answer_key": "correct_answer",
-                    "code": 'function evaluate(appParams, inputs, output, correctAnswer) {\n  void appParams\n  void inputs\n\n  const outputStr =\n    typeof output === "string" ? output : JSON.stringify(output)\n\n  return outputStr === String(correctAnswer) ? 1.0 : 0.0\n}\n',
+                    "version": "2",
+                    "code": 'function evaluate(inputs, outputs, trace) {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
                 },
                 "description": "Exact match evaluator implemented in JavaScript.",
             },
@@ -328,7 +333,8 @@ evaluators = [
                     "requires_llm_api_keys": False,
                     "runtime": "typescript",
                     "correct_answer_key": "correct_answer",
-                    "code": 'type OutputValue = string | Record<string, unknown>\n\nfunction evaluate(\n  app_params: Record<string, string>,\n  inputs: Record<string, string>,\n  output: OutputValue,\n  correct_answer: string\n): number {\n  void app_params\n  void inputs\n\n  const outputStr =\n    (typeof output === "string" ? output : JSON.stringify(output)) as string\n\n  return outputStr === String(correct_answer) ? 1.0 : 0.0\n}\n',
+                    "version": "2",
+                    "code": 'function evaluate(\n  inputs: Record<string, any>,\n  outputs: any,\n  trace: Record<string, any>\n): number {\n  const outputStr =\n    typeof outputs === "string" ? outputs : JSON.stringify(outputs)\n\n  return outputStr === String(inputs.correct_answer || "") ? 1.0 : 0.0\n}\n',
                 },
                 "description": "Exact match evaluator implemented in TypeScript.",
             },
@@ -345,7 +351,7 @@ evaluators = [
             "code": {
                 "label": "Evaluation Code",
                 "type": "code",
-                "default": "from typing import Dict, Union, Any\n\n\ndef evaluate(\n    app_params: Dict[str, str],  # deprecated; currently receives {}\n    inputs: Dict[str, str],\n    output: Union[str, Dict[str, Any]],\n    correct_answer: str,\n) -> float:\n    if output == correct_answer:\n        return 1.0\n    return 0.0\n",
+                "default": 'from typing import Dict, Any\n\n\ndef evaluate(\n    inputs: Dict[str, Any],\n    outputs: Any,\n    trace: Dict[str, Any],\n) -> float:\n    if outputs == inputs.get("correct_answer"):\n        return 1.0\n    return 0.0\n',
                 "description": "Code for evaluating submissions",
                 "required": True,
             },
@@ -366,8 +372,14 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
             },
+            "version": {
+                "label": "Version",
+                "type": "hidden",
+                "default": "2",
+                "description": "The version of the evaluator interface",
+            },
         },
-        "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
+        "description": "Code Evaluation allows you to write your own evaluator in Python, JavaScript, or TypeScript. You can access inputs, outputs, and full trace data (spans, latency, token usage).",
         "oss": True,
         "tags": ["custom"],
     },
@@ -832,6 +844,76 @@ evaluators = [
 ]
 
 
+_SUCCESS_ONLY_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+    },
+    "required": ["success"],
+    "additionalProperties": False,
+}
+
+_SCORE_AND_SUCCESS_OUTPUT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "score": {"type": "number"},
+        "success": {"type": "boolean"},
+    },
+    "required": [],
+    "additionalProperties": False,
+}
+
+_FIXED_OUTPUT_SCHEMA_BY_KEY = {
+    "auto_custom_code_run": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "field_match_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_json_diff": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_semantic_similarity": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_webhook_test": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_exact_match": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_json": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_similarity_match": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+    "auto_regex_test": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_starts_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_ends_with": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_any": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_contains_all": _SUCCESS_ONLY_OUTPUT_SCHEMA,
+    "auto_levenshtein_distance": _SCORE_AND_SUCCESS_OUTPUT_SCHEMA,
+}
+
+
+def _extract_auto_ai_critique_default_outputs_schema():
+    for evaluator in evaluators:
+        if evaluator.get("key") != "auto_ai_critique":
+            continue
+
+        settings_template = evaluator.get("settings_template") or {}
+        json_schema_field = settings_template.get("json_schema") or {}
+        default_value = json_schema_field.get("default") or {}
+        schema = default_value.get("schema")
+
+        return deepcopy(schema) if isinstance(schema, dict) else None
+
+    return None
+
+
+_auto_ai_critique_outputs_schema = _extract_auto_ai_critique_default_outputs_schema()
+if _auto_ai_critique_outputs_schema is not None:
+    _FIXED_OUTPUT_SCHEMA_BY_KEY["auto_ai_critique"] = _auto_ai_critique_outputs_schema
+
+for evaluator in evaluators:
+    evaluator_key = evaluator.get("key")
+    outputs_schema = (
+        _FIXED_OUTPUT_SCHEMA_BY_KEY.get(evaluator_key)
+        if isinstance(evaluator_key, str)
+        else None
+    )
+    if outputs_schema is not None:
+        evaluator["outputs_schema"] = deepcopy(outputs_schema)
+
+
 def get_all_evaluators():
     """
     Returns a list of evaluators
@@ -840,3 +922,29 @@ def get_all_evaluators():
         List[dict]: A list of evaluator dictionaries.
     """
     return evaluators
+
+
+def get_builtin_evaluators():
+    """
+    Returns a list of LegacyEvaluator models.
+
+    This is used by migrations and services that need typed evaluator objects.
+
+    Returns:
+        List[LegacyEvaluator]: A list of LegacyEvaluator model instances.
+    """
+    from oss.src.models.api.evaluation_model import LegacyEvaluator
+
+    return [LegacyEvaluator(**evaluator_dict) for evaluator_dict in evaluators]
+
+
+# Pre-built list for backwards compatibility
+# Lazy initialization to avoid circular imports
+_BUILTIN_EVALUATORS = None
+
+
+def _get_cached_builtin_evaluators():
+    global _BUILTIN_EVALUATORS
+    if _BUILTIN_EVALUATORS is None:
+        _BUILTIN_EVALUATORS = get_builtin_evaluators()
+    return _BUILTIN_EVALUATORS

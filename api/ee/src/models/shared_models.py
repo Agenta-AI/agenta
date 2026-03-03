@@ -46,6 +46,10 @@ class Permission(str, Enum):
     # Service
     RUN_SERVICE = "run_service"
 
+    # Webhooks
+    VIEW_WEBHOOKS = "view_webhooks"
+    EDIT_WEBHOOKS = "edit_webhooks"
+
     # Vault Secret
     VIEW_SECRET = "view_secret"
     EDIT_SECRET = "edit_secret"
@@ -149,12 +153,18 @@ class Permission(str, Enum):
     VIEW_EVALUATION_QUEUES = "view_evaluation_queues"
     EDIT_EVALUATION_QUEUES = "edit_evaluation_queues"
 
+    # Tools
+    VIEW_TOOLS = "view_tools"
+    EDIT_TOOLS = "edit_tools"
+    RUN_TOOLS = "run_tools"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
             cls.READ_SYSTEM,
             cls.VIEW_APPLICATIONS,
             cls.VIEW_SECRET,
+            cls.VIEW_WEBHOOKS,
             cls.VIEW_APP_ENVIRONMENT_DEPLOYMENT,
             cls.VIEW_TESTSET,
             cls.VIEW_EVALUATION,
@@ -176,6 +186,8 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_RESULTS,
             cls.VIEW_EVALUATION_METRICS,
             cls.VIEW_EVALUATION_QUEUES,
+            #
+            cls.VIEW_TOOLS,
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],

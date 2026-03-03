@@ -158,7 +158,6 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
 )
 
 evaluations_worker = EvaluationsWorker(

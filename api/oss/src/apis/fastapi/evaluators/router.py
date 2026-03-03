@@ -56,6 +56,9 @@ from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluatorQueryRequest,
     SimpleEvaluatorResponse,
     SimpleEvaluatorsResponse,
+    #
+    EvaluatorTemplate,
+    EvaluatorTemplatesResponse,
 )
 from oss.src.apis.fastapi.evaluators.utils import (
     parse_evaluator_variant_query_request_from_params,
@@ -71,6 +74,16 @@ if is_ee():
 log = get_module_logger(__name__)
 # TEMPORARY: Disabling name editing
 RENAME_EVALUATORS_DISABLED_MESSAGE = "Renaming evaluators is temporarily disabled."
+
+
+def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) -> str:
+    if existing_name:
+        return (
+            f"{RENAME_EVALUATORS_DISABLED_MESSAGE} "
+            f"Current evaluator name is '{existing_name}'."
+        )
+
+    return RENAME_EVALUATORS_DISABLED_MESSAGE
 
 
 class EvaluatorsRouter:
@@ -405,7 +418,9 @@ class EvaluatorsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+                detail=_build_rename_evaluators_disabled_detail(
+                    existing_name=existing_evaluator.name
+                ),
             )
 
         evaluator = await self.evaluators_service.edit_evaluator(
@@ -1073,6 +1088,20 @@ class SimpleEvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
+        # EVALUATOR TEMPLATES --------------------------------------------------
+        # NOTE: This must be registered BEFORE /{evaluator_id} routes to avoid
+        # FastAPI matching "templates" as a UUID path parameter
+
+        self.router.add_api_route(
+            "/templates",
+            self.list_evaluator_templates,
+            methods=["GET"],
+            operation_id="list_evaluator_templates",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorTemplatesResponse,
+            response_model_exclude_none=True,
+        )
+
         self.router.add_api_route(
             "/{evaluator_id}",
             self.fetch_simple_evaluator,
@@ -1223,7 +1252,9 @@ class SimpleEvaluatorsRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RENAME_EVALUATORS_DISABLED_MESSAGE,
+                detail=_build_rename_evaluators_disabled_detail(
+                    existing_name=existing_simple_evaluator.name
+                ),
             )
 
         simple_evaluator = await self.simple_evaluators_service.edit(
@@ -1582,3 +1613,33 @@ class SimpleEvaluatorsRouter:
         )
 
         return simple_evaluators_response
+
+    # EVALUATOR TEMPLATES ------------------------------------------------------
+
+    @intercept_exceptions()
+    async def list_evaluator_templates(
+        self,
+        request: Request,
+        *,
+        include_archived: bool = False,
+    ) -> EvaluatorTemplatesResponse:
+        """
+        Returns the list of built-in evaluator templates.
+
+        These are static evaluator type definitions (not user-created configs).
+        """
+        from oss.src.resources.evaluators.evaluators import get_all_evaluators
+
+        all_templates = get_all_evaluators()
+
+        # Filter templates based on include_archived flag
+        templates = [
+            EvaluatorTemplate(**template)
+            for template in all_templates
+            if include_archived or not template.get("archived", False)
+        ]
+
+        return EvaluatorTemplatesResponse(
+            count=len(templates),
+            templates=templates,
+        )

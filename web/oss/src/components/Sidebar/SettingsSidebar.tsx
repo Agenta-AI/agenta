@@ -1,6 +1,15 @@
 import {FC, useEffect, useMemo} from "react"
 
-import {ArrowLeft, Buildings, Key, Link, Receipt, Sparkle, UsersThree} from "@phosphor-icons/react"
+import {
+    ArrowLeft,
+    Sparkle,
+    Receipt,
+    Key,
+    Buildings,
+    UsersThree,
+    Wrench,
+    Link,
+} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
@@ -8,7 +17,7 @@ import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
-import {isEE} from "@/oss/lib/helpers/isEE"
+import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -32,6 +41,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
     const canShowBilling = isEE() && isOwner
+    const canShowTools = isToolsEnabled()
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -48,15 +58,25 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             },
             {
                 key: "secrets",
-                title: "Providers & Models",
+                title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
             {
                 key: "webhooks",
                 title: "Webhooks",
                 icon: <Link size={16} className="mt-0.5" />,
-                divider: true,
+                divider: !canShowTools,
             },
+            ...(canShowTools
+                ? [
+                      {
+                          key: "tools",
+                          title: "Tools",
+                          icon: <Wrench size={16} className="mt-0.5" />,
+                          divider: true,
+                      },
+                  ]
+                : []),
             {
                 key: "workspace",
                 title: "Members",
@@ -80,7 +100,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             })
         }
         return list
-    }, [isOwner, canShowOrganization, canShowBilling])
+    }, [isOwner, canShowOrganization, canShowBilling, canShowTools])
 
     return (
         <section

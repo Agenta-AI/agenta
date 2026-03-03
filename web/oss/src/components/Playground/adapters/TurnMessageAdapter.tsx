@@ -1,4 +1,4 @@
-import React, {ComponentProps, useCallback, useMemo, useRef, useState} from "react"
+import React, {ComponentProps, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -82,7 +82,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
             [rowId, variantId],
         ),
     )
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(() => kind === "tool")
+    const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
     const toolMessage = useMemo(() => {
         if (!turn) return null
@@ -142,33 +143,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const {addUploadSlot, updateTextContent, removeUploadItem} = useMessageContentHandlers()
     const effectiveDisabled = Boolean(disabled)
 
-    const deleteMessage = useCallback(() => {
-        if (isToolKind) return
-        const msgId = (msg as any)?.__id
-        if (!msgId) return
-        setTurn((draft: any) => {
-            if (!draft) return
-            if (kind === "assistant") {
-                const cur = draft?.assistantMessageByRevision?.[variantId]
-                // When messageOverride is used (e.g., from result/error), the __id won't match
-                // the stored message. In that case, delete if there's any assistant message.
-                if (messageOverride) {
-                    draft.assistantMessageByRevision[variantId] = null
-                } else if (cur && cur.__id === msgId) {
-                    draft.assistantMessageByRevision[variantId] = null
-                }
-            } else {
-                if (draft.userMessage && draft.userMessage.__id === msgId) {
-                    draft.userMessage = null
-                }
-            }
-        })
-        // Also clear the response that generates the messageOverride
-        if (kind === "assistant" && messageOverride) {
-            setResponse(null)
-        }
-    }, [setTurn, kind, variantId, msg, isToolKind, messageOverride, setResponse])
-
     // Shared helper to get and assign the current target message node (user/assistant)
     const getTarget = useCallback(
         (draft: any) => {
@@ -200,6 +174,40 @@ const TurnMessageAdapter: React.FC<Props> = ({
         },
         [kind, variantId, isToolKind, toolIndex],
     )
+
+    const deleteMessage = useCallback(() => {
+        if (isToolKind) {
+            setTurn((draft: any) => {
+                if (!draft) return
+                const {assign} = getTarget(draft)
+                assign(null)
+            })
+            return
+        }
+        const msgId = (msg as any)?.__id
+        if (!msgId) return
+        setTurn((draft: any) => {
+            if (!draft) return
+            if (kind === "assistant") {
+                const cur = draft?.assistantMessageByRevision?.[variantId]
+                // When messageOverride is used (e.g., from result/error), the __id won't match
+                // the stored message. In that case, delete if there's any assistant message.
+                if (messageOverride) {
+                    draft.assistantMessageByRevision[variantId] = null
+                } else if (cur && cur.__id === msgId) {
+                    draft.assistantMessageByRevision[variantId] = null
+                }
+            } else {
+                if (draft.userMessage && draft.userMessage.__id === msgId) {
+                    draft.userMessage = null
+                }
+            }
+        })
+        // Also clear the response that generates the messageOverride
+        if (kind === "assistant" && messageOverride) {
+            setResponse(null)
+        }
+    }, [setTurn, kind, variantId, msg, isToolKind, messageOverride, setResponse, getTarget])
 
     const onChangeRole = useCallback(
         (v: string) => {
@@ -395,6 +403,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return createToolCallPayloads(msg?.toolCalls?.value)
     }, [kind, msg])
 
+    useEffect(() => {
+        const shouldAutoMinimize = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
+        if (!shouldAutoMinimize || autoMinimizedRef.current) return
+        setMinimized(true)
+        autoMinimizedRef.current = true
+    }, [isToolKind, kind, toolPayloads.length])
+
     return toolPayloads?.length ? (
         toolPayloads.map((p) => (
             <div
@@ -428,7 +443,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     onChangeText={onChangeText}
                     state={"readOnly"}
                     headerBottom={
-                        toolCallsView ? <ToolCallViewHeader className="mt-2" {...p} /> : null
+                        p.name || p.callId ? (
+                            <ToolCallViewHeader className="mt-2" name={p.name} callId={p.callId} />
+                        ) : null
                     }
                     headerRight={
                         <TurnMessageHeaderOptions
@@ -465,7 +482,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                         ? undefined
                                         : (propsHandleRerun ?? handleRerun),
                                 onMinimize: () => setMinimized((c) => !c),
-                                onDelete: isToolKind ? undefined : deleteMessage,
+                                onDelete: deleteMessage,
                             }}
                         >
                             {headerRight}
@@ -542,7 +559,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                                     ? undefined
                                     : (propsHandleRerun ?? handleRerun),
                             onMinimize: () => setMinimized((c) => !c),
-                            onDelete: isToolKind ? undefined : deleteMessage,
+                            onDelete: deleteMessage,
                         }}
                     >
                         {headerRight}

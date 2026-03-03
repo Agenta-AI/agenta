@@ -6,11 +6,15 @@ from fastapi import HTTPException, Request, status
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.exceptions import (
+    intercept_exceptions,
+    build_entity_creation_conflict_message,
+)
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.utils.common import APIRouter
 from oss.src.services.legacy_adapter import get_legacy_adapter
+from oss.src.core.shared.exceptions import EntityCreationConflict
 
 if is_ee():
     from ee.src.utils.permissions import (
@@ -178,6 +182,7 @@ async def remove_variant(
     operation_id="update_variant_parameters",
     response_model=AppVariantRevision,
 )
+@intercept_exceptions()
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
@@ -235,12 +240,24 @@ async def update_variant_parameters(
 
     except HTTPException:
         raise
+    except EntityCreationConflict as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": build_entity_creation_conflict_message(
+                    conflict=e.conflict,
+                    default_message=e.message,
+                ),
+                "conflict": e.conflict,
+            },
+        ) from e
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
 
 
 @router.put("/{variant_id}/service/", operation_id="update_variant_url")
+@intercept_exceptions()
 async def update_variant_url(request: Request, payload: UpdateVariantURLPayload):
     """
     Updates the URL used in an app variant.
@@ -292,12 +309,23 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
 
     except HTTPException:
         raise
+    except EntityCreationConflict as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": build_entity_creation_conflict_message(
+                    conflict=e.conflict,
+                    default_message=e.message,
+                ),
+                "conflict": e.conflict,
+            },
+        ) from e
     except ValueError as e:
         import traceback
 
         traceback.print_exc()
         detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
         import traceback
 
@@ -626,8 +654,8 @@ async def configs_add(
     )
     if config:
         raise HTTPException(
-            status_code=400,
-            detail="Config already exists.",
+            status_code=409,
+            detail="A config with the same references already exists.",
         )
 
     config = await add_config(

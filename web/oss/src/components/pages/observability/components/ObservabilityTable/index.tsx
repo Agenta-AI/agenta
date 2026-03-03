@@ -8,9 +8,12 @@ import dynamic from "next/dynamic"
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import ResizableTitle from "@/oss/components/ResizableTitle"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {isNewUserAtom} from "@/oss/lib/onboarding"
+import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
 import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
+import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls"
 
 import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
@@ -74,6 +77,10 @@ const ObservabilityTable = () => {
         fetchAnnotations,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
+    const isNewUser = useAtomValue(isNewUserAtom)
+    const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
+    const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
+    const setHasReceivedTraces = useSetAtom(hasReceivedTracesAtom)
     const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
 
     const [traceParamValue, setTraceParam] = useQueryParamState("trace")
@@ -180,6 +187,13 @@ const ObservabilityTable = () => {
 
     const showTableLoading = isLoading && traces.length === 0
     const isEmptyState = traces.length === 0 && !isLoading
+    const showOnboarding = isNewUser && !hasReceivedTraces
+
+    useEffect(() => {
+        if (onboardingStorageUserId && traces.length > 0 && !hasReceivedTraces) {
+            setHasReceivedTraces(true)
+        }
+    }, [onboardingStorageUserId, traces.length, hasReceivedTraces, setHasReceivedTraces])
 
     const handleResize =
         (key: string) =>
@@ -213,10 +227,11 @@ const ObservabilityTable = () => {
             />
 
             {isEmptyState ? (
-                <EmptyObservability />
+                <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <div className="flex flex-col gap-2">
                     <Table
+                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
                         rowSelection={{
                             type: "checkbox",
                             columnWidth: 48,

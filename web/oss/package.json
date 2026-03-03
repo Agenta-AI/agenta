@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.85.4",
+    "version": "0.87.3",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -30,6 +30,7 @@
         "@ant-design/colors": "^7.2.1",
         "@ant-design/cssinjs": "^2.0.1",
         "@ant-design/icons": "^6.1.0",
+        "@ant-design/x": "^2.2.2",
         "@cloudflare/stream-react": "^1.9.3",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/modifiers": "^9.0.0",
@@ -54,6 +55,7 @@
         "@monaco-editor/react": "^4.7.0-rc.0",
         "@next/bundle-analyzer": "15.5.10",
         "@phosphor-icons/react": "^2.1.10",
+        "@reduxjs/toolkit": "^2.8.2",
         "@scalar/openapi-parser": "^0.9.0",
         "@scalar/openapi-types": "^0.1.5",
         "@tailwindcss/container-queries": "^0.1.1",
@@ -72,10 +74,10 @@
         "@types/react-syntax-highlighter": "^15.5.7",
         "@types/react-window": "^1.8.8",
         "@types/uuid": "^10.0.0",
-        "ajv": "^8.17.1",
+        "ajv": "^8.18.0",
         "antd": "^6.1.3",
         "autoprefixer": "10.4.20",
-        "axios": "^1.12.2",
+        "axios": "^1.13.5",
         "classnames": "^2.3.2",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.10",

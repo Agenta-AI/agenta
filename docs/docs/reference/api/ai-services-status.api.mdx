@@ -1,0 +1,63 @@
+---
+id: ai-services-status
+title: "Get Status"
+description: "Get Status"
+sidebar_label: "Get Status"
+hide_title: true
+hide_table_of_contents: true
+api: eJylVE1v2zAM/SsBz0Kc7ejTArToggJbsXSnICgYm03UyZYqUcUyw/99oPxRO22xw3yxLD5+PT66AcZjgHwH681iS/5FFxRgr8A68sja1psSckD9EHrjQ2DkGECBp+BsHShA3sDn1UpeJYXCayeOkMM2FgWF8BjN4kcPBgWFrZlqFjg6Z3SR8mRPQXwaCMWJKpST81IF6y4D1XgwVMqRz44gh4O1hrAGBazZyM11j2kVsLUm+WmmKrwNV2NFk1iBva6Pk1DfxN6O3x8D79O7VfPeP8ZfTWCtAl27yNuxZyxLLSY0d5Ny2UdSQ0R7eKKCJxE3EqKnrVVgI/93yO8pxhCzfQv09By1l3HsOioH3zkP8/4uattPSLTWXNGjrvXAS58QvcczzIHhnxUNWplkWG8GeW+TgEdBtvJcTA9uiBfbQegV8cnKGhxJEjnkE+SQoc6GpcjGpZAb8rJRDURvIIcTswt5lhXGxnKJR6oZl6gzdBravXgU0Ws+J5f13eaWzl8JS/KQ7/ZTQGKtE+8cNmoNnb4lYasTN6wjn6zXf3CchdTTebVJe482uQ8cpeIW67sNKJA2OjJWy0/LFVxSNAPLTmPBr4vVm0FdsDD2DwqoQi02Jqy+vBqkMmcDV1hP4s0m8v6qMf3mzBnUSUApb9NPawcp4zAvOXax9gpONrAgmuaAgX5607Zy/RzJy1D2Cl7QaxFUmogaGJR5/aKz9FoU5EQaL2hiN4iL/5rMcZTRzfU9tO1f4MPhUQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Status"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/ai/services/status"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Get Status
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"enabled":{"type":"boolean","title":"Enabled"},"tools":{"items":{"properties":{"name":{"type":"string","title":"Name"},"title":{"type":"string","title":"Title"},"description":{"type":"string","title":"Description"},"inputSchema":{"additionalProperties":true,"type":"object","title":"Inputschema"},"outputSchema":{"additionalProperties":true,"type":"object","title":"Outputschema"}},"type":"object","required":["name","title","description","inputSchema","outputSchema"],"title":"ToolDefinition"},"type":"array","title":"Tools"}},"type":"object","required":["enabled"],"title":"AIServicesStatusResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

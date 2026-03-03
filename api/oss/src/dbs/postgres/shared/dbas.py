@@ -175,6 +175,15 @@ class MetaDBA:
     )
 
 
+class StatusDBA:
+    __abstract__ = True
+
+    status = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+
+
 class DataDBA:
     __abstract__ = True
 

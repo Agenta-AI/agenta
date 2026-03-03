@@ -1,3 +1,4 @@
+import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {
@@ -126,6 +127,7 @@ export const extractEvaluatorType = (
     }
 
     const candidates = collectEvaluatorCandidates(
+        resolveEvaluatorKey(evaluator as any),
         (evaluator as any)?.slug,
         (evaluator as any)?.key,
         (evaluator as any)?.name,
@@ -290,8 +292,8 @@ export const extractParameterList = (evaluator?: EvaluatorPreviewDto): Parameter
 
     // Support both simple preview artifacts and workflow evaluators
     const parameterSources = [
-        (evaluator as any)?.settings_values,
         (evaluator as any)?.data?.parameters,
+        (evaluator as any)?.settings_values,
         (evaluator as any)?.data?.service?.configuration?.parameters,
         (evaluator as any)?.data?.configuration?.parameters,
     ]
@@ -359,8 +361,8 @@ export const extractModelName = (evaluator?: EvaluatorPreviewDto) => {
     }
 
     const sources = [
-        (evaluator as any)?.settings_values,
         (evaluator as any)?.data?.parameters,
+        (evaluator as any)?.settings_values,
         (evaluator as any)?.data?.service?.configuration,
         (evaluator as any)?.data?.service?.configuration?.parameters,
         (evaluator as any)?.data?.configuration,
@@ -660,7 +662,8 @@ const normalizeMessageContent = (
 export const extractPromptSections = (evaluator?: EvaluatorPreviewDto): PromptPreviewSection[] => {
     if (!evaluator) return []
     const data = (evaluator as any)?.data ?? {}
-    const settings = (evaluator as any)?.settings_values
+    const parameters = data?.parameters
+    const settings = parameters ?? (evaluator as any)?.settings_values
     const agConfig = data?.parameters?.ag_config ?? data?.parameters?.agConfig
     const messages =
         findFirstMessages(settings) ??
@@ -728,7 +731,6 @@ export const extractPromptSections = (evaluator?: EvaluatorPreviewDto): PromptPr
 
     const promptSources = [
         settings,
-        data?.parameters,
         data?.service?.configuration?.parameters,
         data?.configuration?.parameters,
     ]

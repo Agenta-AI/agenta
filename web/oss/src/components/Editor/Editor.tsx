@@ -85,6 +85,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             showLineNumbers = true,
             onPropertyClick,
             disableLongText,
+            decodeEscapedJsonStringsInLongText,
             ...rest
         }: EditorProps,
         ref,
@@ -363,6 +364,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             additionalCodePlugins={additionalCodePlugins}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
+                            decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
                         />
                     ) : (
                         <FormView
@@ -490,6 +492,8 @@ const Editor = ({
     additionalCodePlugins = [],
     showLineNumbers = true,
     onPropertyClick,
+    disableLongText,
+    decodeEscapedJsonStringsInLongText,
     ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
@@ -525,6 +529,8 @@ const Editor = ({
                     additionalCodePlugins={additionalCodePlugins}
                     showLineNumbers={showLineNumbers}
                     onPropertyClick={onPropertyClick}
+                    disableLongText={disableLongText}
+                    decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
                 />
             ) : (
                 <EditorProvider
@@ -586,6 +592,8 @@ const Editor = ({
                         additionalCodePlugins={additionalCodePlugins}
                         showLineNumbers={showLineNumbers}
                         onPropertyClick={onPropertyClick}
+                        disableLongText={disableLongText}
+                        decodeEscapedJsonStringsInLongText={decodeEscapedJsonStringsInLongText}
                     />
                 </EditorProvider>
             )}

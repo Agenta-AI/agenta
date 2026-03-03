@@ -143,7 +143,6 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
 )
 
 simple_testsets_router = SimpleTestsetsRouter(

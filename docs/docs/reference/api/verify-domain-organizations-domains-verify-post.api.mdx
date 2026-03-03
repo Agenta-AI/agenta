@@ -1,0 +1,74 @@
+---
+id: verify-domain-organizations-domains-verify-post
+title: "Verify Domain"
+description: "Verify domain ownership via DNS TXT record."
+sidebar_label: "Verify Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVsFu2zgQ/RVizqqdDfak03qbLhp0tzFit1jAMQJGHFlsJFIlqSRaQf9eDEnFkp24RW7rk0XODGfevDdkB47vLKQbuDI7ruR/3EmtLGwTEGgzI2v6hhS+opF5y4SuuFRMPyo0tpA1e5CcXXxesfW/a2Yw00bMbtSNWhfSMlSi1lI5lhWY3VuWa8Ncgaw2aFFlyHTuvx8otsz80aNAN4orwSpu7q03i2dzGx1QMJmzXDdKzCABXaPxIS4FpOBN2tvgc6vHxcVFexttam0dJGDwe4PW/alFC2kHmVYOlaO/vK7LmN78myU4OrBZgRWnf7Whk51ES1/xQCnow7U1QgrWGal2kICTrqSFi1DJpYC+TwYrffcNsyERaVBQV/bhtnv3catCqNAdOGzadSiJVVpg6eEPJUu1YzziOYOektgf6kyDfsHWWtlQ1fnZmS9uEn3VZBlamzclu47GkLwVt9OAEVIJ2LLZnbJa0X6fgOIV+vNVe5VDujn06JPnFdWUJfQjbD+Tb38A5NtCXYxC9AnkpVdaB1wISYu8XI4gINiPuTDE+ss7E1n0Pb45o7V37hPIDHKH4pa7l/DMtaloBwR3+M7JCkeZvA+ubOEoUFOLUaDXcnox5KlEv4Sw8ZCxen+irLE0fkVfUkDkVaTNtPND1wbcJ8hNqj/O8qRgR4I5lGzYGGl2otQ+gd/Pz4/F+JWXUoSyPxijzduVKNBxWXpNOqzssUGps8nuLzBRKoc7NNBv9/3gxvB21Lq/dUiQOl7Zk0L/B63lO6/TYPK6qQeDrWm3T0CqugmUHwaLXyBFuKdRmCP9vScsn9xP+UTYhPSj3YgF+xaFDr0OxUVowUuHDSYf1+vlUcDAjwpdoekOjBdbzV0BKcwnl+A8XoLzh+HqsGge0FjfyMaUkELhXG3T+TwrdSNmfIfK8RmXc15Lr1aLWWOka73LYnn5CduPyAUaSDfbscGKqBbIMzV7BpzX8hO2gwhTWDSu0CYmC9Q4yid4UY1E4uv9hf3hiVd1iQcX8J6IIFWux31f+GLYYnkJCb0VbFDR2ey32dmRJifGpCqeeRINufptGgcT1J7xggSw8pICh7z6Y79BlVCTKq5G8eJTKwyKw2RGD5P/wZssdpekM69LKqePMHWRlpvJ3KRJG4kZ+kLU3CZQEJPTDXTdHbf4xZR9T8vfGzTEvm0CD9xIfke93dCMKQYednCP7SBg5d75SUDmZRN4dzAYaWgFj0WWYe1O2m5HYlterdaQwF18PtL4hhQMf6QJwR8hBf9GDVWmXVjroORq19AsSyHEpN8PfFIB1A==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Verify Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/verify"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Verify domain ownership via DNS TXT record.
+
+This endpoint checks for the presence of the verification TXT record
+and marks the domain as verified if found.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"domain_id":{"type":"string","title":"Domain Id"}},"type":"object","required":["domain_id"],"title":"OrganizationDomainVerify","description":"Request model for verifying a domain."}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"slug":{"type":"string","title":"Slug"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"flags":{"additionalProperties":true,"type":"object","title":"Flags"},"token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Token"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["id","slug","name","description","flags","token","created_at","updated_at","organization_id"],"title":"OrganizationDomainResponse","description":"Response model for a domain."}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

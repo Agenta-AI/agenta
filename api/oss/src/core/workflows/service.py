@@ -110,11 +110,15 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not artifact:
@@ -273,12 +277,16 @@ class WorkflowsService:
         #
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
             artifact_ref=workflow_ref,
             variant_ref=workflow_variant_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not variant:
@@ -476,6 +484,8 @@ class WorkflowsService:
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
         workflow_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
     ) -> Optional[WorkflowRevision]:
         if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
             return None
@@ -485,6 +495,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow:
@@ -499,6 +511,8 @@ class WorkflowsService:
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
+                #
+                include_archived=include_archived,
             )
 
             if not workflow_variant:
@@ -514,6 +528,8 @@ class WorkflowsService:
             #
             variant_ref=workflow_variant_ref,
             revision_ref=workflow_revision_ref,
+            #
+            include_archived=include_archived,
         )
 
         if not revision:
@@ -648,6 +664,8 @@ class WorkflowsService:
         project_id: UUID,
         #
         workflow_revisions_log: WorkflowRevisionsLog,
+        #
+        include_archived: bool = False,
     ) -> List[WorkflowRevision]:
         _revisions_log = RevisionsLog(
             **workflow_revisions_log.model_dump(mode="json"),
@@ -657,6 +675,8 @@ class WorkflowsService:
             project_id=project_id,
             #
             revisions_log=_revisions_log,
+            #
+            include_archived=include_archived,
         )
 
         _workflow_revisions = [

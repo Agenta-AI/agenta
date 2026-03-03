@@ -7,7 +7,12 @@ export const typeWithDelay = async (page: Page, selector: string, text: string, 
 }
 
 export const waitForPath = async (page: Page, path: string) => {
-    await page.waitForURL(path, {waitUntil: "domcontentloaded"})
+    // Strip protocol+host if full URL is passed, then match by pathname suffix
+    // to support workspace-scoped URLs (/w/{id}/p/{id}/path)
+    const pathname = path.replace(/^https?:\/\/[^/]+/, "")
+    await page.waitForURL((url) => url.pathname.endsWith(pathname), {
+        waitUntil: "domcontentloaded",
+    })
 }
 
 export const clickButton = async (page: Page, name: string, locator?: Locator) => {

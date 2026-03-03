@@ -23,7 +23,6 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router
 from oss.src.core.auth.supertokens.config import init_supertokens
 
 # DBEs
@@ -53,7 +52,9 @@ from oss.src.dbs.postgres.environments.dbes import (
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -61,7 +62,9 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.events.service import EventsService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
@@ -82,9 +85,11 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
@@ -103,12 +108,19 @@ from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 
+from oss.src.core.ai_services.service import AIServicesService
+from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+from oss.src.dbs.postgres.tools.dao import ToolsDAO
+from oss.src.core.tools.providers.composio import ComposioToolsAdapter
+from oss.src.core.tools.registry import ToolsGatewayRegistry
+from oss.src.core.tools.service import ToolsService
+from oss.src.apis.fastapi.tools.router import ToolsRouter
+
 
 from oss.src.routers import (
     admin_router,
     app_router,
     environment_router,
-    evaluators_router,
     user_profile,
     variants_router,
     configs_router,
@@ -123,6 +135,7 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+from entrypoints.worker_webhooks import webhooks_worker
 import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
@@ -163,6 +176,9 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     yield
+
+    for adapter in _composio_adapters.values():
+        await adapter.close()
 
 
 app = FastAPI(
@@ -207,8 +223,10 @@ if ee and is_ee():
 # DAOS -------------------------------------------------------------------------
 
 secrets_dao = SecretsDAO()
+webhooks_dao = WebhooksDAO()
 
 tracing_dao = TracingDAO()
+events_dao = EventsDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,
@@ -241,14 +259,28 @@ environments_dao = GitDAO(
 evaluations_dao = EvaluationsDAO()
 folders_dao = FoldersDAO()
 
+tools_dao = ToolsDAO()
+
 # SERVICES ---------------------------------------------------------------------
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+
+webhooks_service = WebhooksService(
+    webhooks_dao=webhooks_dao,
+    vault_service=vault_service,
+    webhooks_worker=webhooks_worker,
+)
+
+
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
+)
+
+events_service = EventsService(
+    events_dao=events_dao,
 )
 
 # Redis client and TracingWorker for publishing spans to Redis Streams
@@ -334,19 +366,43 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_worker=evaluations_worker,
 )
 
+# Tools adapter + service
+_composio_adapters = {}
+if env.composio.enabled:
+    _composio_adapters["composio"] = ComposioToolsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+else:
+    log.warning("Composio not enabled — set COMPOSIO_API_KEY to activate gateway tools")
+
+tools_adapter_registry = ToolsGatewayRegistry(
+    adapters=_composio_adapters,
+)
+
+tools_service = ToolsService(
+    tools_dao=tools_dao,
+    adapter_registry=tools_adapter_registry,
+)
+
 # ROUTERS ----------------------------------------------------------------------
 
 secrets = VaultRouter(
     vault_service=vault_service,
 )
 
-otlp = OTLPRouter(
-    tracing_worker=tracing_worker,
+webhooks = WebhooksRouter(
+    webhooks_service=webhooks_service,
 )
+
+otlp = OTLPRouter()
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
+)
+
+events = EventsRouter(
+    events_service=events_service,
 )
 
 testcases = TestcasesRouter(
@@ -411,6 +467,10 @@ simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+tools = ToolsRouter(
+    tools_service=tools_service,
+)
+
 invocations_service = InvocationsService(
     tracing_router=tracing,
     applications_service=applications_service,
@@ -431,12 +491,25 @@ annotations = AnnotationsRouter(
     annotations_service=annotations_service,
 )
 
+# AI SERVICES ------------------------------------------------------------------
+
+ai_services_service = AIServicesService.from_env()
+ai_services = AIServicesRouter(
+    ai_services_service=ai_services_service,
+)
+
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
-    secrets.router,
+    router=secrets.router,
     prefix="/vault/v1",
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
 )
 
 app.include_router(
@@ -467,26 +540,66 @@ app.include_router(
 )
 
 app.include_router(
+    router=events.router,
+    prefix="/events",
+    tags=["Events"],
+)
+
+app.include_router(
+    router=invocations.router,
+    prefix="/invocations",
+    tags=["Invocations"],
+)
+
+app.include_router(
     router=invocations.router,
     prefix="/preview/invocations",
     tags=["Invocations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/annotations",
+    tags=["Annotations"],
 )
 
 app.include_router(
     router=annotations.router,
     prefix="/preview/annotations",
     tags=["Annotations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testcases.router,
+    prefix="/testcases",
+    tags=["Testcases"],
 )
 
 app.include_router(
     router=testcases.router,
     prefix="/preview/testcases",
     tags=["Testcases"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testsets.router,
+    prefix="/testsets",
+    tags=["Testsets"],
 )
 
 app.include_router(
     router=testsets.router,
     prefix="/preview/testsets",
+    tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_testsets.router,
+    prefix="/simple/testsets",
     tags=["Testsets"],
 )
 
@@ -494,11 +607,25 @@ app.include_router(
     router=simple_testsets.router,
     prefix="/preview/simple/testsets",
     tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=queries.router,
+    prefix="/queries",
+    tags=["Queries"],
 )
 
 app.include_router(
     router=queries.router,
     prefix="/preview/queries",
+    tags=["Queries"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queries.router,
+    prefix="/simple/queries",
     tags=["Queries"],
 )
 
@@ -506,6 +633,7 @@ app.include_router(
     router=simple_queries.router,
     prefix="/preview/simple/queries",
     tags=["Queries"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -516,7 +644,20 @@ app.include_router(
 
 app.include_router(
     router=applications.router,
+    prefix="/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=applications.router,
     prefix="/preview/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/simple/applications",
     tags=["Applications"],
 )
 
@@ -524,17 +665,44 @@ app.include_router(
     router=simple_applications.router,
     prefix="/preview/simple/applications",
     tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=workflows.router,
+    prefix="/workflows",
+    tags=["Workflows"],
 )
 
 app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
     tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=ai_services.router,
+    prefix="/ai/services",
+    tags=["AI Services"],
+)
+
+app.include_router(
+    router=evaluators.router,
+    prefix="/evaluators",
+    tags=["Evaluators"],
 )
 
 app.include_router(
     router=evaluators.router,
     prefix="/preview/evaluators",
+    tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluators.router,
+    prefix="/simple/evaluators",
     tags=["Evaluators"],
 )
 
@@ -542,6 +710,7 @@ app.include_router(
     router=simple_evaluators.router,
     prefix="/preview/simple/evaluators",
     tags=["Evaluators"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -557,6 +726,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=tools.router,
+    prefix="/preview/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
     router=evaluations.admin_router,
     prefix="/admin/evaluations",
     tags=["Evaluations", "Admin"],
@@ -564,7 +739,20 @@ app.include_router(
 
 app.include_router(
     router=evaluations.router,
+    prefix="/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=evaluations.router,
     prefix="/preview/evaluations",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluations.router,
+    prefix="/simple/evaluations",
     tags=["Evaluations"],
 )
 
@@ -572,12 +760,7 @@ app.include_router(
     router=simple_evaluations.router,
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
-)
-
-app.include_router(
-    evaluation_router.router,
-    prefix="/evaluations",
-    tags=["Evaluations"],
+    include_in_schema=False,
 )
 
 app.include_router(
@@ -624,12 +807,6 @@ app.include_router(
     container_router.router,
     prefix="/containers",
     tags=["Containers"],
-)
-
-app.include_router(
-    evaluators_router.router,
-    prefix="/evaluators",
-    tags=["Evaluators"],
 )
 
 app.include_router(

@@ -165,7 +165,7 @@ async def get_prompt_config() -> Optional[Tuple]:
 @ag.instrument()
 async def generate(
     query: str,
-    docs: List[RetrievedDoc],
+    context: str,
     model: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """
@@ -173,22 +173,13 @@ async def generate(
 
     Args:
         query: The user's question
-        docs: Retrieved documents for context
+        context: Retrieved documents formatted as context string
         model: LLM model to use
 
     Yields:
         Chunks of the generated response
     """
     model = model or settings.LLM_MODEL
-    context = format_context(docs)
-
-    # Store generation metadata in trace
-    ag.tracing.store_internals(
-        {
-            "context": context,
-            "query": query,
-        }
-    )
 
     # Try to fetch prompt from Agenta, fallback to default if unavailable
     result = await get_prompt_config()
@@ -267,5 +258,5 @@ async def rag_query(query: str) -> AsyncGenerator[str, None]:
     docs = retrieve(query)
 
     # Generate response
-    async for chunk in generate(query, docs):
+    async for chunk in generate(query, format_context(docs)):
         yield chunk

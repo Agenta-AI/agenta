@@ -15,6 +15,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
 from agenta.sdk.utils.lazy import (
     _load_jinja2,
     _load_jsonpath,
@@ -31,6 +32,7 @@ from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.workflows.errors import (
     CustomCodeServerV0Error,
+    ErrorStatus,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -97,11 +99,13 @@ def _validate_webhook_url(url: str) -> None:
 
     try:
         ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None:
         if _is_blocked_ip(ip):
             raise ValueError("Webhook URL resolves to a blocked IP range.")
         return
-    except ValueError:
-        pass
 
     try:
         addresses = {
@@ -207,8 +211,6 @@ def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
 
 # ========= Placeholder & coercion helpers =========
 
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
-
 
 def extract_placeholders(template: str) -> Iterable[str]:
     """Yield the inner text of all {{ ... }} occurrences (trimmed)."""
@@ -242,22 +244,6 @@ def build_replacements(
     return replacements, unresolved
 
 
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
-
-
 def missing_lib_hints(unreplaced: set) -> Optional[str]:
     """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
     if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced):
@@ -277,11 +263,16 @@ def _format_with_template(
         return content.format(**kwargs)
 
     elif format == "jinja2":
-        Template, TemplateError = _load_jinja2()
+        SandboxedEnvironment, TemplateError = _load_jinja2()
+        env = SandboxedEnvironment()
 
         try:
-            return Template(content).render(**kwargs)
-        except TemplateError:
+            return env.from_string(content).render(**kwargs)
+        except TemplateError as e:
+            log.warning(
+                "Jinja2 template rendering failed (possible sandbox violation): %s",
+                str(e),
+            )
             return content
 
     elif format == "curly":
@@ -289,9 +280,13 @@ def _format_with_template(
 
         replacements, _unresolved = build_replacements(original_placeholders, kwargs)
 
-        result = apply_replacements(content, replacements)
+        result, successfully_replaced = apply_replacements_with_tracking(
+            content, replacements
+        )
 
-        truly_unreplaced = compute_truly_unreplaced(original_placeholders, result)
+        # Only the placeholders that were NOT successfully replaced are errors
+        # This avoids false positives when substituted values contain {{...}} patterns
+        truly_unreplaced = original_placeholders - successfully_replaced
 
         if truly_unreplaced:
             hint = missing_lib_hints(truly_unreplaced)
@@ -852,14 +847,20 @@ async def auto_custom_code_run_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
 ) -> Any:
     """
     Custom code execution evaluator for running arbitrary code to evaluate outputs.
 
+    Supports two interface versions controlled by parameters["version"]:
+    - v1 (default/"1"): evaluate(app_params, inputs, output, correct_answer)
+    - v2 ("2"):         evaluate(inputs, outputs, trace)
+
     Args:
-        inputs: Testcase data with ground truth
+        inputs: Testcase data / app inputs
         outputs: Output from the workflow execution
         parameters: Configuration for the evaluator with code to execute
+        trace: Full trace data with spans, metrics (v2 only)
 
     Returns:
         Evaluation result with score from the custom code
@@ -872,21 +873,15 @@ async def auto_custom_code_run_v0(
 
     code = str(parameters["code"])
 
-    if "correct_answer_key" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="correct_answer_key")
+    declared_version = str(parameters.get("version") or "").strip() or None
 
-    correct_answer_key = str(parameters["correct_answer_key"])
-
-    if inputs is None or not isinstance(inputs, dict):
+    if inputs is not None and not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    if correct_answer_key not in inputs:
-        raise MissingInputV0Error(path=correct_answer_key)
-
-    correct_answer = inputs[correct_answer_key]
-
-    if not isinstance(outputs, str) and not isinstance(outputs, dict):
+    if not isinstance(outputs, (str, dict)):
         raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
+
+    _outputs_value: Union[dict, str] = outputs
 
     threshold = parameters.get("threshold") or 0.5
 
@@ -904,8 +899,6 @@ async def auto_custom_code_run_v0(
             got=threshold,
         )
 
-    _outputs = None
-
     runtime = parameters.get("runtime") or "python"
 
     if runtime not in ["python", "javascript", "typescript"]:
@@ -915,23 +908,64 @@ async def auto_custom_code_run_v0(
             got=runtime,
         )
 
-    # --------------------------------------------------------------------------
-    try:
-        _outputs = execute_code_safely(
-            app_params={},
-            inputs=inputs,
-            output=outputs,
-            correct_answer=correct_answer,
-            code=code,
-            runtime=runtime,
-            templates=EVALUATOR_TEMPLATES.get("v0", {}),
-        )
-    except Exception as e:
-        raise CustomCodeServerV0Error(
-            message=str(e),
-            stacktrace=traceback.format_exc(),
-        ) from e
-    # --------------------------------------------------------------------------
+    effective_version = declared_version if declared_version in {"1", "2"} else "1"
+
+    def _run_v2() -> Any:
+        try:
+            return execute_code_safely(
+                app_params={},
+                inputs=inputs or {},
+                output=_outputs_value,
+                correct_answer=None,
+                code=code,
+                runtime=runtime,
+                templates=EVALUATOR_TEMPLATES.get("v1", {}),
+                version="2",
+                trace=trace,
+            )
+        except ErrorStatus:
+            raise
+        except Exception as e:
+            raise CustomCodeServerV0Error(
+                message=str(e),
+                stacktrace=traceback.format_exc(),
+            ) from e
+
+    def _run_v1() -> Any:
+        if "correct_answer_key" not in parameters:
+            raise MissingConfigurationParameterV0Error(path="correct_answer_key")
+
+        correct_answer_key = str(parameters["correct_answer_key"])
+
+        if inputs is None or not isinstance(inputs, dict):
+            raise InvalidInputsV0Error(expected="dict", got=inputs)
+
+        if correct_answer_key not in inputs:
+            raise MissingInputV0Error(path=correct_answer_key)
+
+        correct_answer = inputs[correct_answer_key]
+
+        try:
+            return execute_code_safely(
+                app_params={},
+                inputs=inputs,
+                output=_outputs_value,
+                correct_answer=correct_answer,
+                code=code,
+                runtime=runtime,
+                templates=EVALUATOR_TEMPLATES.get("v0", {}),
+                version="1",
+                trace=None,
+            )
+        except ErrorStatus:
+            raise
+        except Exception as e:
+            raise CustomCodeServerV0Error(
+                message=str(e),
+                stacktrace=traceback.format_exc(),
+            ) from e
+
+    _outputs = _run_v2() if effective_version == "2" else _run_v1()
 
     if isinstance(_outputs, (int, float)):
         return {"score": _outputs, "success": _outputs >= threshold}
@@ -950,6 +984,7 @@ async def auto_ai_critique_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
 ) -> Any:
     """
     AI critique evaluator for using an LLM to evaluate outputs.
@@ -1098,7 +1133,7 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if correct_answer:
+    if correct_answer is not None:
         context.update(
             **{
                 "ground_truth": correct_answer,
@@ -1107,7 +1142,7 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if outputs:
+    if outputs is not None:
         context.update(
             **{
                 "prediction": outputs,
@@ -1115,11 +1150,18 @@ async def auto_ai_critique_v0(
             }
         )
 
-    if inputs:
+    if inputs is not None:
         context.update(**inputs)
         context.update(
             **{
                 "inputs": inputs,
+            }
+        )
+
+    if trace is not None:
+        context.update(
+            **{
+                "trace": trace,
             }
         )
 
@@ -1940,7 +1982,7 @@ def _apply_responses_bridge_if_needed(
     return provider_settings
 
 
-@instrument()
+@instrument(ignore_inputs=["parameters"])
 async def completion_v0(
     parameters: Data,
     inputs: Dict[str, str],
@@ -2004,7 +2046,7 @@ async def completion_v0(
         return [tool_call.dict() for tool_call in message.tool_calls]
 
 
-@instrument()
+@instrument(ignore_inputs=["parameters"])
 async def chat_v0(
     parameters: Data,
     inputs: Optional[Dict[str, str]] = None,
@@ -2059,7 +2101,7 @@ async def chat_v0(
     return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
 
 
-@instrument()
+@instrument(ignore_inputs=["parameters"])
 async def hook_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,

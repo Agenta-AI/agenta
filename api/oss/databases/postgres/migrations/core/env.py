@@ -21,6 +21,7 @@ import oss.src.dbs.postgres.testcases.dbes  # noqa: F401
 import oss.src.dbs.postgres.testsets.dbes  # noqa: F401
 import oss.src.dbs.postgres.users.dbes  # noqa: F401
 import oss.src.dbs.postgres.workflows.dbes  # noqa: F401
+import oss.src.dbs.postgres.webhooks.dbes  # noqa: F401
 
 
 # this is the Alembic Config object, which provides

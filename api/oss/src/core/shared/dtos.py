@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agenta.sdk.models.shared import (  # noqa: F401
     BoolJson,
@@ -40,6 +41,14 @@ from agenta.sdk.models.shared import (  # noqa: F401
     #
     Windowing,
 )
+
+
+class Status(BaseModel):
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    type: Optional[str] = None
+    code: Optional[str] = None
+    message: Optional[str] = None
+    stacktrace: Optional[str] = None
 
 
 class FolderScope(BaseModel):

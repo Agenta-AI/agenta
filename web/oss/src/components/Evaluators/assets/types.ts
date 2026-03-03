@@ -1,5 +1,5 @@
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
+import {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
 export type EvaluatorCategory = "automatic" | "human"
 
@@ -15,7 +15,7 @@ export type EvaluatorPreview = EvaluatorPreviewDto & {
     metrics?: Record<string, unknown>
 }
 
-export type EvaluatorConfigRow = EvaluatorConfig & {
+export type EvaluatorConfigRow = SimpleEvaluator & {
     evaluator?: Evaluator | null
     kind?: "config"
 }

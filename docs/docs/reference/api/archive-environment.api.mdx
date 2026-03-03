@@ -1,0 +1,71 @@
+---
+id: archive-environment
+title: "Archive Environment"
+description: "Archive Environment"
+sidebar_label: "Archive Environment"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1V0uP2zYQ/ivGnBKAWbuLnnSqu4/GTdtdZJ1eDGMxFscWU0pU+HDjCvrvBSnJpizvxllsTpbFeX7fcGZUgcWNgWQBN8VWaFXkVFgDSwaqJI1WqGLGIQHUaSa29EgHKWBQosacLGlvoYICc4IEIplHwYGBKCCBEm0GDDR9cUITh8RqRwxMmlGOkFRgd6XXNlaLYgMM1krnaCEB54IVK6z0AlGgoxmHul56q6ZUhSHjDV1OJv6Hk0m1KH0KkMCDS1MyZu3k6GMrDAxSVVifSlIBlqUUach4/Nl4nSoKrtQeDysaD6lyjVIbsygsbUhHQV4FCQac1uikhWRSsxiY4LHY3a0DcH3rayU5aQ9dT+h5fGq2lyiclOBR6YK5DQYDWAzWMhD+tHthHjcONSceZbhSShIWUYYzM/qtFYvSXKM0VNes01Orz5Ta0+zdhkiGgXvtQYzIufDcoLzvRTvAp4s0sttC5t+cNgOp0KmTqN/8gSuSvxtVvLtztnT2LRynEgN7LA2DxJ+jZd6kDzlZfGGyUWZHpdhznK/6b2KMvoXIrZPfAIRVICzlZ2qh1rh7vlz7ut8H6p8ezJq1vegsyAY2/vK6Net3kJeZuo5M1AxSTWiJP6I9825ztPTOihDP016uGrOjaQDLlfxHOPnUmG2dcJL0A5xcN2ZbJx1cq90rdsMOrF93bUfs8HpVLx1aey8dYK/qpYNr78VIt3lprT543ZrB64UXxvNZs+DUGDhPcz/N69pr/Hx5ORz+f6MUPIz20Y3WSr988nOyKGQYk03LOxaQKu2dfk/LXtZHXTKaNKoJMMwLszm1Lx06oDG4oUPbfFo0gDGa+1PPe+G7rRfv6Cva9pvar5GZARtXHsuv9iTXh31vEbBpwm/lolI5UNQw9DQU1w0Fz5XH+/n8fmCwqY9+YUybtXZ001trc7KZ8ltvqUyz5toMEhiXmraC/h1He5wZV/11tx63qzIwMKS33W7stIQEMmtLk4zHqVSOX+CGCosXKMZYinBxDKVOC7sLKtP72QfavSfkpCFZLGOBB1+fTcX1xfYsYSk+kMet3cqnzmZKi/+aMmqX8qzRqgP7axWTPw3Bjab3M2Dg02gQm1z8dDGBAY6xsL9amIZK6nyHY2BHKOzzBwaUh3sFljD/5XDgI/Ms5FjE9k7SdjSuWxx8ZY5LiSLcnRBA1TK6gJZR6O3mBhgkg4+YjtYlg8yXRbKAqlqhoU9a1rV//cWR9swtGWxRC1x5HBcVcGH8M2+340Gg+1YEbz62t+Xt6LAw9RPo2C08tVuUzv8DBv/QbvjpFTpK1hVQ1QpN05RKG6kPGqCvtP0luL97mENd/w9t+tjV
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Environment"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/environments/{environment_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Archive Environment
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"environment_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Environment Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"environment":{"anyOf":[{"properties":{"folder_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Folder Id"},"flags":{"anyOf":[{"properties":{"is_guarded":{"type":"boolean","title":"Is Guarded","default":false}},"type":"object","title":"EnvironmentFlags"},{"type":"null"}]},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Environment"},{"type":"null"}]}},"type":"object","title":"EnvironmentResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

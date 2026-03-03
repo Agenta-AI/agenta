@@ -57,9 +57,22 @@ class SSOProviderDTO(BaseModel):
     provider: SSOProviderSettingsDTO
 
 
+class WebhookProviderSettingsDTO(BaseModel):
+    key: str
+
+
+class WebhookProviderDTO(BaseModel):
+    provider: WebhookProviderSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
-    data: Union[StandardProviderDTO, CustomProviderDTO, SSOProviderDTO]
+    data: Union[
+        StandardProviderDTO,
+        CustomProviderDTO,
+        SSOProviderDTO,
+        WebhookProviderDTO,
+    ]
 
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
@@ -114,6 +127,16 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for SSOProviderSettingsDTO"
                 )
+        elif kind == SecretKind.WEBHOOK_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for WebhookProviderDTO"
+                )
+            provider = data.get("provider")
+            if not isinstance(provider, dict) or "key" not in provider:
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
+                )
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")
 
@@ -137,7 +160,10 @@ class CreateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 
@@ -162,7 +188,10 @@ class UpdateSecretDTO(BaseModel):
         header = values.get("header")
         secret = values.get("secret")
         if header and isinstance(header, dict) and "name" in header:
-            if secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value:
+            if (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
+            ):
                 secret["data"].update({"provider_slug": header["name"]})
         return values
 

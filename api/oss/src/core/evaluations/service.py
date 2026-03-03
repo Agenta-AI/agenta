@@ -82,7 +82,6 @@ from oss.src.core.applications.services import ApplicationsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
 
-from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
 
 
@@ -122,6 +121,8 @@ DEFAULT_METRICS = [
         "type": "numeric/continuous",
     },
 ]
+
+METRICS_STEP_TYPES = {"invocation", "annotation"}
 
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
@@ -887,8 +888,14 @@ class EvaluationsService:
             log.warning("run or run.data or run.data.steps not found")
             return []
 
+        step_types_by_key: Dict[str, str] = {
+            step.key: step.type
+            for step in run.data.steps
+            if step.type in METRICS_STEP_TYPES
+        }
+
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
-            step.key: [] for step in run.data.steps if step.type == "annotation"
+            step_key: [] for step_key in step_types_by_key
         }
 
         if not steps_metrics_keys:
@@ -929,6 +936,9 @@ class EvaluationsService:
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
         for step in run.data.steps:
+            if step.type not in METRICS_STEP_TYPES:
+                continue
+
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
@@ -1051,11 +1061,6 @@ class EvaluationsService:
                         path=metric.get("path") or "*",
                     )
                     for metric in step_metrics_keys
-                ] + [
-                    MetricSpec(
-                        type=MetricType.JSON,
-                        path="attributes.ag",
-                    )
                 ]
 
                 # log.info(f"[METRICS] Step '{step_key}': {len(specs)} metric specs")
@@ -2265,12 +2270,14 @@ class SimpleEvaluationsService:
                     )
                     return None
 
-                application_revision_slug = get_slug_from_name_and_id(
-                    str(application_revision.slug),
-                    application_revision.id,
-                )
+                if not application_revision.slug:
+                    log.warn(
+                        "[EVAL] [run] [make] [failure] application revision is missing slug",
+                        id=application_revision.id,
+                    )
+                    return None
 
-                step_key = "application-" + application_revision_slug
+                step_key = "application-" + application_revision.slug
 
                 application_invocation_steps_keys.append(step_key)
 

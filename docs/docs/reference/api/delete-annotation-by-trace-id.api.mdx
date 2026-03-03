@@ -5,7 +5,7 @@ description: "Delete Annotation"
 sidebar_label: "Delete Annotation"
 hide_title: true
 hide_table_of_contents: true
-api: eJylVU1v2zAM/SsBTxsgNFmxk08L1gAt2mFFm+1SBAFjM7FaWVYluptn+L8Pkr+bthi6UxyJfCTfI6kKGA8OojtYap0zssy1g42A3JAN/y4SiCAhRUxb7G22u3LLFmPaygQEGLSYEZP1UBVozAgiGBlIDREY5BQEWHospKUEIrYFCXBxShlCVAGXxvs5tlIfQABLVv5g7YFmFwnUtejRnUE9An8syJYT9D0qN4FHXX7fhwSngTxoe6ILpaDeDKFvDeom8sZjO5NrR86jnS4W/ichF1tpPCnevIhjcm5fqNlNawwC4lwzaQ45GKNkHDic3zvvU40yNNbzzrKJEOdF49QmJzXTgeyImK/BQkBCeywUQ7SoBYxUUlI/TCufRug4/F9yxKD1O6HGEndG+e6eYh6Ve+XLOUZ5y2Voa+/ca1LX3unz6emxhD9RySR4zFbW5vb9+iXEKJX/kkyZOzZQeTy5/Qfiuh6oN0PRaC2WY5ryJkGvS+YOb03WN3IODwQ92OumgYzZ2t++RPgwd3ehriZ0azcSeqC3Yff1Ms4a+t5S93y9vj4CbLSdinoWFths6AafH3GaD9strDFOIYK5sfQk6dd8mCQ3r7oOr0GAI/vULbvCKoggZTYums9jlRfJCR5IM56gnKORoc8dxYWVXAaX5fXFJZXnhAlZiO42Y4Nb30xNe0zNemXQyEvyRLWLcFlwmlv5p6srrMO08fJMSL3Pg3s3EiG52fL6AgT4MhqKFiefThbwnLiJsZ8DjMMcdLHDNYhnLPT1gwDKwhAAE2ZfhgufmckdZ6hHeC/pNEmoZ4HpN8+NQhnaPISvWgHvoBUQxsvQgfAvTrumNgLS3LE3rqodOvphVV374+Yh8TIl0uFOjZ6SByonD88TqsLnEhR+Qiu9+cuuz4roNwp8uGkH5+MMxMvFdbrrchyzS6cvKayEtGuqqr1exjEZHjkebTCffD8LZ6ur1XoFdf0XlMbCfA==
+api: eJylVd9v2zgM/lcCPt0BQpMr9uSnC9YCC7bDii13L0VQsDYTa1NkTaKL+Qz/7wfKv+SmK4bdUxyJ/Eh+H0m1wHgKkN3D1tqKkXVlAxwUVI58/LcrIIOCDDE94GTz8Ng8sMecHnQBChx6PBOTF6gWLJ4JMkgMtIUMHHIJCjx9q7WnAjL2NSkIeUlnhKwFbpz4BfbankABazZysBeg1a6ArlMTenBoE/BvNflmgX5EExbwaJuPx5jgMpCADie2Nga6wxz6s0PbRz4IdnCVDRQE7XqzkZ+CQu61E1LEvM5zCuFYm9WnwRgU5JVlshxzcM7oPHK4/hLEp00ydF54Z91HyKu6dxqS05bpRD4h5m20UFDQEWvDkG06BYlKRtuvy8qXEUYO/y85atb6F6FSiUej6vEL5ZyU+0HKuUR5zWVua3GeNOk6cXpzfX0p4T9odBE9VrfeV/7X9SuIURv50kzncGlgqnxx+xPEjT3QHeai0XtsUpqqPkHR5RxOr03WXxQCnggmsB+bRjJWe7ntZOZc3ffmcL2LB52CnL8nMBeCvBUuv/OLOs+zex+56dMf7JJmmSXqFfoxFTe9BK91yLv9/u4CsO+PZWPcxCW4mjtK8iMuq3lDxlXIJWSwnqcwrNtxOjpQEMg/jYuy9gYyKJldyNbr3FR1cYUnsoxXqNfodJyRQHntNTfRZXu3e0/NO8KCPGT3h9TgszRi31pLs0kOdPo9CUHDEt3WXFZe/zvWE1dp2Xt1UeZjlaq8jcmttnc7UCBl9NRsrv642sBzwhbGMkOYx5YZY8drUM9YmOoHBXSOAwRMeP5zvpDMXBX4jDbBe0mfRUITC9KAa2dQxxGJ4dtBuPtkfQZQ8kYNi+2goKwCi0nbPmKgv73pOjnunx4Rp9ABH03y+HylZvFUPaGpJYOo6xN6LeYvuz5LfdpB8NunYUx+X4F6uaRRbdukMcd0ppLiEinHVmqH622ek+PE8WLnSfJT59/cfrjd30LX/Qdy5NKA
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-api
 custom_edit_url: null
@@ -28,7 +28,7 @@ import Heading from "@theme/Heading";
 
 <MethodEndpoint
   method={"delete"}
-  path={"/preview/annotations/{trace_id}"}
+  path={"/annotations/{trace_id}"}
   context={"endpoint"}
 >
   
@@ -62,7 +62,7 @@ Delete Annotation
 <StatusCodes
   id={undefined}
   label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"annotation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"AnnotationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"annotation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"AnnotationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
 >
   
 </StatusCodes>

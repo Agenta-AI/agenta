@@ -41,7 +41,18 @@ export function buildAssistantMessage(messageSchema: any | undefined, testResult
             return createdMsg
         }
 
-        return createMessageFromSchema(messageSchema, inner)
+        const createdMsg = createMessageFromSchema(messageSchema, inner)
+        // Preserve tool_calls even when the schema doesn't have a toolCalls property
+        const tc = (inner as any)?.tool_calls ?? (inner as any)?.toolCalls
+        if (
+            createdMsg &&
+            Array.isArray(tc) &&
+            tc.length > 0 &&
+            !(createdMsg as any).toolCalls?.value
+        ) {
+            ;(createdMsg as any).toolCalls = {value: tc}
+        }
+        return createdMsg
     }
 
     const fallbackContent = testResult?.error
@@ -84,12 +95,18 @@ export function buildToolMessages(messageSchema: any | undefined, testResult: an
                 const _pickValue = rawResponse !== undefined ? rawResponse : rawArgs
                 void _pickValue
 
-                return createMessageFromSchema(messageSchema, {
+                const node = createMessageFromSchema(messageSchema, {
                     role: "tool",
                     name,
                     toolCallId,
                     content: "",
                 })
+                // Ensure toolCallId is always accessible for matching in handleUpdateToolResponse,
+                // regardless of whether the Message schema includes this property.
+                if (node && toolCallId && !(node as any).toolCallId?.value) {
+                    ;(node as any).toolCallId = {value: toolCallId}
+                }
+                return node
             })
             .filter(Boolean)
     } catch {

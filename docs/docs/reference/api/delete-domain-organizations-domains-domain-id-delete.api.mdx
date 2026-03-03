@@ -1,0 +1,71 @@
+---
+id: delete-domain-organizations-domains-domain-id-delete
+title: "Delete Domain"
+description: "Delete a domain."
+sidebar_label: "Delete Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJx9VE1vm0AQ/StoTq20MmmUE6dataVYSZUocXuxLGsCY7MpsJvdJaqL9r9Xs4CBOIkvhpk3w5s3Hw04PFhINnBnDljJf+ikqixsBWRkUyM1v0MCCyrIUYRRpkqU1QwEKE0mwFcZJJAFwK5179Q4W2e0u94rs92uxYMAjQZLcmSYRgMVlsTpeiQIkExAo8tBgKGXWhrKIHGmJgE2zalESBpwR82B1hlZHUCAk65gwyJkilYZeL/lBFarypLlmMuLK/6blvpYpylZu6+L6KEDgxdwdXl5jv2NhcxCldHSGGVAQKoqR5VjLGpdyDS442fLAc2IsDasoJMtlYwcyoKfpKPSngMKlU68WB3v9kGyaeVenCyycnQgA37rRW9DY/A4kudWtQS5xNIePlPyJ1mLhyBGC/kYGsSI1uz13EBdB0F69yoYvIDU/R2lUU/PlLpRmh+s5V8HfuB/wgyTsAnatPQ73HbIMbSo7dDHUizaFrz3sR5yvV7fnyXkn4CSXK6GTQiT7XJIIJ4sQ9wtQ9ycRtyDAEvmtV+B2hSQQO6ctkkcp4WqsxkeqHI4QxmjlsCDbCmtjXTHEDK/X93Q8ZowIwPJZjsGPPLEtTM0hZ10Ry1viJXolm9eu1yZjnG/gHkb5UM/92rcznkgF83vVyCAy2iX42L2bXYBby/JBMzLgmmYjf7bwQ3ijQqn+kEAlWFTwBGW3wcHM9PKuhKrUb7ucLVX4C2ZZtjW9y5cJw+PYKwLjvcdr6Zr7gYmzeX8bXtBQDLcsK2AXFnH+KZ5Qku/TOE9m19qMtzCrYBXNBKfWNBNA5m0/JxBssfC0ie8vzx0i/A1+ohy3+aKe/yKRc1vIOAPHSenNtyJvB+ipvPP05S0G0WenTWettP4L5a3y/USvP8PXGArAw==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/organizations/domains/{domain_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a domain.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Successful Response"},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
