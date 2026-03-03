@@ -182,7 +182,7 @@ async def resolve_embeds(
 
         headers = {}
         if credentials:
-            headers["Authorization"] = f"Secret {credentials}"
+            headers["Authorization"] = credentials
 
         async with httpx.AsyncClient() as client:
             response = await client.post(

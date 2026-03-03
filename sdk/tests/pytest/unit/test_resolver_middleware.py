@@ -246,7 +246,7 @@ class TestResolverMiddlewareEmbedGate:
             await mw(request, call_next)
 
         mock_resolve_embeds.assert_called_once_with(
-            configuration=params_with_embed,
+            parameters=params_with_embed,
             credentials="test-creds",
         )
 

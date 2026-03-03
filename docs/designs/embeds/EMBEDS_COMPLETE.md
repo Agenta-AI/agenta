@@ -358,15 +358,15 @@ Content-Type: application/json
    - Future optimization opportunity
 
 4. **SDK Integration:**
-   - SDK doesn't auto-resolve embeds yet
-   - Users must call API endpoint explicitly
-   - Future: Add `resolve_embeds` parameter to SDK
+   - SDK auto-resolves embeds via `ResolverMiddleware` when `flags.resolve=True`
+   - Resolution is triggered automatically before workflow execution
+   - Set `resolve=False` in request flags to opt out
 
 ## Future Enhancements
 
 ### Short Term (Next Sprint)
 - [ ] Add `include_archived` parameter to request models
-- [ ] SDK integration with auto-resolution
+- [x] SDK integration with auto-resolution
 - [ ] API documentation (OpenAPI specs)
 - [ ] User guide
 
