@@ -352,6 +352,7 @@ export type {
     HydrateFromUrlResult,
     HydrateSnapshotResult,
     HydratedSnapshotEntity,
+    OpenFromTraceResult,
     RunnableTypeResolver,
     SnapshotSelectionInput,
     UrlComponents,
