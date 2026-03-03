@@ -520,8 +520,6 @@ def parse_workflow_revision_query_request_from_body(
     include_archived: Optional[bool] = None,
     #
     windowing: Optional[Windowing] = None,
-    #
-    resolve: bool = False,
 ) -> WorkflowRevisionQueryRequest:
     workflow_revision_query_request = None
 
@@ -536,8 +534,6 @@ def parse_workflow_revision_query_request_from_body(
             include_archived=include_archived,
             #
             windowing=windowing,
-            #
-            resolve=resolve,
         )
 
     except Exception as e:  # pylint: disable=broad-except
@@ -577,8 +573,6 @@ def merge_workflow_revision_query_requests(
             ),
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
-            #
-            resolve=query_request_body.resolve,
         )
 
     return WorkflowRevisionQueryRequest()
