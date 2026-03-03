@@ -345,7 +345,11 @@ export function extractInputValues(inputRow: Record<string, unknown>): Record<st
                 if (typeof wrappedValue === "string") {
                     acc[key] = wrappedValue
                 } else if (wrappedValue !== undefined && wrappedValue !== null) {
-                    acc[key] = String(wrappedValue)
+                    try {
+                        acc[key] = JSON.stringify(wrappedValue)
+                    } catch {
+                        acc[key] = String(wrappedValue)
+                    }
                 }
             }
             return acc
