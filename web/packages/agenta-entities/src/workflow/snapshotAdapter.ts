@@ -14,6 +14,7 @@ import {
     type RunnableDraftPatch,
     type BuildDraftPatchResult,
 } from "../runnable/snapshotAdapter"
+import {computeShallowDiff, applyShallowPatch} from "../runnable/snapshotDiff"
 import {isLocalDraftId} from "../shared"
 
 import {
@@ -72,14 +73,15 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         const serverData = store.get(workflowServerDataSelectorFamily(revisionId))
         const serverParams = (serverData?.data?.parameters as Record<string, unknown>) ?? {}
 
-        const hasChanges = JSON.stringify(entityParams) !== JSON.stringify(serverParams)
-        if (!hasChanges) {
+        // Compute shallow diff — only include top-level keys that changed
+        const diff = computeShallowDiff(entityParams, serverParams)
+        if (!diff) {
             return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
         }
 
         return {
             hasDraft: true,
-            patch: {parameters: entityParams},
+            patch: {parameters: diff},
             sourceRevisionId: revisionId,
         }
     },
@@ -104,8 +106,15 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
         }
 
         const store = getDefaultStore()
+
+        // Get server parameters as merge base, then shallow-merge the patch.
+        // This handles both full-params patches (old format) and diff patches (new format).
+        const serverData = store.get(workflowServerDataSelectorFamily(revisionId))
+        const serverParams = (serverData?.data?.parameters as Record<string, unknown>) ?? {}
+        const mergedParams = applyShallowPatch(serverParams, parseResult.data.parameters)
+
         store.set(updateWorkflowDraftAtom, revisionId, {
-            data: {parameters: parseResult.data.parameters},
+            data: {parameters: mergedParams},
         })
         return true
     },
@@ -158,8 +167,14 @@ export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
 
             if (!isEmptyPatch) {
                 const store = getDefaultStore()
+
+                // Get the cloned server data as merge base, then shallow-merge the patch.
+                const clonedData = store.get(workflowServerDataSelectorFamily(localDraftId))
+                const clonedParams = (clonedData?.data?.parameters as Record<string, unknown>) ?? {}
+                const mergedParams = applyShallowPatch(clonedParams, parseResult.data.parameters)
+
                 store.set(updateWorkflowDraftAtom, localDraftId, {
-                    data: {parameters: parseResult.data.parameters},
+                    data: {parameters: mergedParams},
                 })
             }
 

@@ -24,6 +24,8 @@
 
 import {getDefaultStore} from "jotai/vanilla"
 
+import {computeShallowDiff, applyShallowPatch} from "../runnable/snapshotDiff"
+
 import type {LegacyAppRevisionData} from "./core"
 import {
     legacyAppRevisionServerDataSelectorFamily,
@@ -109,12 +111,14 @@ export function buildLegacyAppRevisionDraftPatch(revisionId: string): BuildPatch
     const serverParams = serverData?.parameters ?? {}
     const draftParams = draft.parameters ?? {}
 
-    // Compare parameters to detect changes
-    const strippedDraft = stripVolatileKeys(draftParams, true)
-    const strippedServer = stripVolatileKeys(serverParams, true)
-    const hasChanges = JSON.stringify(strippedDraft) !== JSON.stringify(strippedServer)
+    // Compute shallow diff — only include top-level keys that actually changed.
+    // Uses stripVolatileKeys as preprocessor so __id/__metadata don't cause
+    // false positives, but the diff result contains original (unstripped) values.
+    const diff = computeShallowDiff(draftParams, serverParams, {
+        preprocess: (v) => stripVolatileKeys(v, true),
+    })
 
-    if (!hasChanges) {
+    if (!diff) {
         return {
             hasDraft: false,
             patch: null,
@@ -122,14 +126,9 @@ export function buildLegacyAppRevisionDraftPatch(revisionId: string): BuildPatch
         }
     }
 
-    // Build patch with raw parameters only
-    const patch: LegacyAppRevisionDraftPatch = {
-        parameters: draftParams,
-    }
-
     return {
         hasDraft: true,
-        patch,
+        patch: {parameters: diff},
         sourceRevisionId: revisionId,
     }
 }
@@ -178,11 +177,14 @@ export function applyLegacyAppRevisionDraftPatch(
     // Empty patch means: create a local copy using source parameters as-is
     const isEmptyPatch = !patch.parameters || Object.keys(patch.parameters).length === 0
 
-    // Build draft by applying patched parameters onto server data
+    // Build draft by merging patched parameters onto server data.
+    // Uses shallow merge so both full-params patches (old format) and
+    // diff patches (new format with only changed keys) work correctly.
     const draft: LegacyAppRevisionData = {
         ...serverData,
-        // For empty patches, preserve server parameters; otherwise use patch parameters
-        parameters: isEmptyPatch ? serverData.parameters : patch.parameters,
+        parameters: isEmptyPatch
+            ? serverData.parameters
+            : applyShallowPatch(serverData.parameters ?? {}, patch.parameters),
     }
 
     // Set the draft
@@ -236,8 +238,9 @@ export function hasDraftChanges(revisionId: string): boolean {
     const serverParams = serverData.parameters ?? {}
     const draftParams = draft.parameters ?? {}
 
-    const strippedDraft = stripVolatileKeys(draftParams, true)
-    const strippedServer = stripVolatileKeys(serverParams, true)
-
-    return JSON.stringify(strippedDraft) !== JSON.stringify(strippedServer)
+    return (
+        computeShallowDiff(draftParams, serverParams, {
+            preprocess: (v) => stripVolatileKeys(v, true),
+        }) !== null
+    )
 }

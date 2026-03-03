@@ -14,6 +14,7 @@ import {
     type RunnableDraftPatch,
     type BuildDraftPatchResult,
 } from "../runnable/snapshotAdapter"
+import {computeShallowDiff, applyShallowPatch} from "../runnable/snapshotDiff"
 import type {RunnableType} from "../runnable/types"
 import {isLocalDraftId, extractSourceIdFromDraft} from "../shared/utils/revisionLabel"
 
@@ -80,10 +81,17 @@ export function buildAppRevisionDraftPatch(revisionId: string): BuildDraftPatchR
         }
     }
 
-    // Compare draft with server data
-    const hasChanges = JSON.stringify(draft) !== JSON.stringify(serverData)
+    // Compute shallow diff on agConfig — only include changed top-level keys
+    const draftAgConfig = (draft.agConfig as Record<string, unknown>) ?? {}
+    const serverAgConfig = (serverData?.agConfig as Record<string, unknown>) ?? {}
+    const agConfigDiff = computeShallowDiff(draftAgConfig, serverAgConfig)
 
-    if (!hasChanges) {
+    // Check prompts separately (full array comparison — typically small)
+    const promptsChanged = draft.prompts
+        ? JSON.stringify(draft.prompts) !== JSON.stringify(serverData?.prompts)
+        : false
+
+    if (!agConfigDiff && !promptsChanged) {
         return {
             hasDraft: false,
             patch: null,
@@ -91,13 +99,11 @@ export function buildAppRevisionDraftPatch(revisionId: string): BuildDraftPatchR
         }
     }
 
-    // Build patch with relevant fields
     const patch: AppRevisionDraftPatch = {
-        agConfig: (draft.agConfig as Record<string, unknown>) ?? {},
+        agConfig: agConfigDiff ?? {},
     }
 
-    // Include prompts if present
-    if (draft.prompts) {
+    if (promptsChanged && draft.prompts) {
         patch.prompts = draft.prompts
     }
 
@@ -134,13 +140,20 @@ export function applyAppRevisionDraftPatch(
         return false
     }
 
-    // Build draft by applying patched fields onto server data
+    // Build draft by merging patched agConfig onto server data.
+    // Uses shallow merge so both full-agConfig patches (old format) and
+    // diff patches (new format with only changed keys) work correctly.
+    const serverAgConfig = (serverData.agConfig as Record<string, unknown>) ?? {}
+    const isEmptyAgConfig = !patch.agConfig || Object.keys(patch.agConfig).length === 0
+
     const draft: AppRevisionData = {
         ...serverData,
-        agConfig: patch.agConfig,
+        agConfig: isEmptyAgConfig
+            ? serverData.agConfig
+            : applyShallowPatch(serverAgConfig, patch.agConfig),
     }
 
-    // Apply prompts if present in patch
+    // Apply prompts if present in patch (full replacement — arrays don't shallow-merge)
     if (patch.prompts) {
         draft.prompts = patch.prompts as AppRevisionData["prompts"]
     }
