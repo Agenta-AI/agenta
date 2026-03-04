@@ -38,7 +38,7 @@ MAX_EMBEDS = 100
 AG_EMBED_KEY = "@ag.embed"
 AG_REFERENCES_KEY = "@ag.references"
 AG_SELECTOR_KEY = "@ag.selector"
-SHORTHAND_DEFAULT_PATH = "prompt.messages.0.content"
+SNIPPET_DEFAULT_PATH = "prompt.messages.0.content"
 
 # Entity hierarchy: category → ordered levels (shallow to deep)
 ENTITY_HIERARCHY: Dict[str, List[str]] = {
@@ -1236,9 +1236,10 @@ def _parse_snippet_token(
     - entity_type: bare category (workflow, environment, …) or with level suffix
       (workflow_revision, environment_variant, …); same as full @ag.embed syntax
     - ref_field: id, slug, or version
-    - separators: , or & (spaces trimmed)
+    - part separators: , or & (spaces trimmed)
+    - name-value separator: = or : (both supported; spaces trimmed on both sides)
     - multiple reference params are merged into the same references dict
-    - path defaults to SHORTHAND_DEFAULT_PATH when omitted
+    - path is relative to parameters. and is auto-prefixed; defaults to SNIPPET_DEFAULT_PATH
     - key="" (empty string) signals auto-select when key= is absent
 
     Returns:
@@ -1260,10 +1261,14 @@ def _parse_snippet_token(
     has_key = False
 
     for part in parts:
-        if "=" not in part:
+        # Support both = and : as name-value separator
+        if "=" in part:
+            field, _, value = part.partition("=")
+        elif ":" in part:
+            field, _, value = part.partition(":")
+        else:
             continue
 
-        field, _, value = part.partition("=")
         field = field.strip()
         value = value.strip()
 
@@ -1305,12 +1310,19 @@ def _parse_snippet_token(
     if not references:
         return None
 
-    # Default path when not specified
+    # Default path when not specified; path is stored as-is (parameters. prefix applied at resolution)
     if not has_path:
-        sel_path = SHORTHAND_DEFAULT_PATH
+        sel_path = SNIPPET_DEFAULT_PATH
 
-    # key="" signals auto-select (key= was absent); key=None means no key hop
-    resolved_key = "" if not has_key else sel_key
+    # key="" signals auto-select for environments (key= absent AND entity is environment).
+    # For non-environment entities, absent key= means direct path (key=None).
+    is_environment = any(
+        (k.split("_", 1)[0] if "_" in k else k) == "environment" for k in references
+    )
+    if not has_key:
+        resolved_key = "" if is_environment else None
+    else:
+        resolved_key = sel_key
     selector = Selector(key=resolved_key, path=sel_path)
 
     return (references, selector)
@@ -1410,7 +1422,12 @@ async def _resolve_and_inline_snippet_embed(
     """
     Resolve a @{{...}} snippet embed and inline it into config.
 
-    Handles auto-key selection (when key= was not specified) and default path.
+    Resolution rules:
+    - key="" (auto-select, environment only): follow the single entry in data.references
+    - key="x" (explicit): follow data.references["x"]
+    - key=None (absent for non-environments, or explicitly empty): no key-hop
+    - path is always applied as parameters.<path> to the final entity's data
+
     Modifies config in-place.
     """
     if not embed.references:
@@ -1424,19 +1441,20 @@ async def _resolve_and_inline_snippet_embed(
     )
 
     selector = embed.selector
-    auto_select_key = selector is not None and selector.key == ""
 
-    if auto_select_key:
-        # Auto-select the single key from the entity's references
+    # Determine effective key — "" means auto-select (environment only)
+    effective_key: Optional[str] = None
+    if selector is not None and selector.key == "":
+        # Auto-select: environment has key= absent, pick single reference
         if not isinstance(resolved_value, dict):
             raise EmbedNotFoundError(
-                f"Expected dict from entity at {embed.location}, "
+                f"Expected dict from environment entity at {embed.location}, "
                 f"got {type(resolved_value).__name__}"
             )
         refs = resolved_value.get("references") or {}
         if not isinstance(refs, dict) or not refs:
             raise EmbedNotFoundError(
-                f"No references found in entity for auto-key selection at {embed.location}"
+                f"No references found in environment for auto-key selection at {embed.location}"
             )
         if len(refs) != 1:
             raise ValueError(
@@ -1444,10 +1462,15 @@ async def _resolve_and_inline_snippet_embed(
                 f"{embed.location}, expected exactly 1. "
                 f"Available keys: {list(refs.keys())}"
             )
-        auto_key = next(iter(refs))
+        effective_key = next(iter(refs))
+    elif selector is not None and selector.key:
+        effective_key = selector.key
+
+    if effective_key:
+        # Key-hop: follow data.references[effective_key], then apply path to secondary entity
         resolved_value = await _follow_key_reference(
             resolved_value=resolved_value,
-            selector_key=auto_key,
+            selector_key=effective_key,
             resolver_callback=resolver_callback,
             seen_by_iteration=seen_by_iteration,
             current_iteration=current_iteration,
@@ -1464,32 +1487,10 @@ async def _resolve_and_inline_snippet_embed(
             error_policy=error_policy,
         )
         if selector and selector.path:
-            resolved_value = extract_path(resolved_value, selector.path)
-
-    elif selector and selector.key:
-        # Use the specified key
-        resolved_value = await _follow_key_reference(
-            resolved_value=resolved_value,
-            selector_key=selector.key,
-            resolver_callback=resolver_callback,
-            seen_by_iteration=seen_by_iteration,
-            current_iteration=current_iteration,
-        )
-        (
-            resolved_value,
-            nested_embeds,
-            nested_depth,
-        ) = await _resolve_nested_embeds_in_value(
-            value=resolved_value,
-            resolver_callback=resolver_callback,
-            max_depth=max_depth,
-            max_embeds=max_embeds,
-            error_policy=error_policy,
-        )
-        if selector.path:
-            resolved_value = extract_path(resolved_value, selector.path)
+            resolved_value = extract_path(resolved_value, f"parameters.{selector.path}")
 
     else:
+        # No key-hop: apply path directly to the resolved entity's parameters
         (
             resolved_value,
             nested_embeds,
@@ -1502,7 +1503,7 @@ async def _resolve_and_inline_snippet_embed(
             error_policy=error_policy,
         )
         if selector and selector.path:
-            resolved_value = extract_path(resolved_value, selector.path)
+            resolved_value = extract_path(resolved_value, f"parameters.{selector.path}")
 
     # Convert to string if needed
     if not isinstance(resolved_value, str):

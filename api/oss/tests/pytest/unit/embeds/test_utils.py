@@ -25,7 +25,7 @@ from oss.src.core.embeds.utils import (
     AG_EMBED_KEY,
     AG_REFERENCES_KEY,
     AG_SELECTOR_KEY,
-    SHORTHAND_DEFAULT_PATH,
+    SNIPPET_DEFAULT_PATH,
     _find_snippet_tokens,
     _parse_snippet_token,
 )
@@ -739,16 +739,24 @@ class TestParseSnippetToken:
         assert references["environment"].slug == "production"
         assert selector is not None
         assert selector.key == "my_snippet"
-        assert selector.path == SHORTHAND_DEFAULT_PATH
+        assert selector.path == SNIPPET_DEFAULT_PATH
 
-    def test_auto_select_key(self):
-        """key= absent → selector.key == '' signals auto-select."""
+    def test_auto_select_key_environment(self):
+        """key= absent + environment → selector.key == '' (auto-select)."""
         result = _parse_snippet_token("@{{environment.slug=production}}")
         assert result is not None
         references, selector = result
         assert selector is not None
-        assert selector.key == ""  # empty string = auto-select
-        assert selector.path == SHORTHAND_DEFAULT_PATH
+        assert selector.key == ""  # empty string = auto-select (environment only)
+        assert selector.path == SNIPPET_DEFAULT_PATH
+
+    def test_no_auto_select_for_workflow(self):
+        """key= absent + workflow → selector.key is None (direct path, no key-hop)."""
+        result = _parse_snippet_token("@{{workflow.slug=my-flow}}")
+        assert result is not None
+        _, selector = result
+        assert selector is not None
+        assert selector.key is None  # no auto-select for non-environments
 
     def test_explicit_path(self):
         result = _parse_snippet_token(
@@ -758,6 +766,16 @@ class TestParseSnippetToken:
         _, selector = result
         assert selector is not None
         assert selector.path == "config.value"
+
+    def test_colon_separator(self):
+        """`:` is supported as an alternative name-value separator."""
+        result = _parse_snippet_token("@{{environment.slug:prod, key:tip}}")
+        assert result is not None
+        references, selector = result
+        assert "environment" in references
+        assert references["environment"].slug == "prod"
+        assert selector is not None
+        assert selector.key == "tip"
 
     def test_ampersand_separator(self):
         result = _parse_snippet_token("@{{environment.slug=prod & key=tip}}")
@@ -815,7 +833,7 @@ class TestParseSnippetToken:
         result = _parse_snippet_token("@{{environment.slug=prod, key=tip}}")
         assert result is not None
         _, selector = result
-        assert selector.path == SHORTHAND_DEFAULT_PATH
+        assert selector.path == SNIPPET_DEFAULT_PATH
 
 
 class TestFindSnippetEmbeds:
@@ -830,13 +848,21 @@ class TestFindSnippetEmbeds:
         assert embeds[0].selector is not None
         assert embeds[0].selector.key == "tip"
 
-    def test_find_auto_key_snippet(self):
-        """key= absent → selector.key == '' (auto-select indicator)."""
+    def test_find_auto_key_snippet_environment(self):
+        """key= absent on environment → selector.key == '' (auto-select)."""
         config = {"msg": "@{{environment.slug=prod}}"}
         embeds = find_snippet_embeds(config)
         assert len(embeds) == 1
         assert embeds[0].selector is not None
         assert embeds[0].selector.key == ""
+
+    def test_find_direct_path_snippet_workflow(self):
+        """key= absent on workflow → selector.key is None (direct path, no auto-select)."""
+        config = {"msg": "@{{workflow.slug=my-flow}}"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key is None
 
     def test_find_nested_snippet(self):
         config = {"outer": {"inner": "@{{environment.slug=prod, key=tip}}"}}
@@ -875,7 +901,9 @@ class TestSnippetEmbedResolution:
                 "tip": {"workflow_revision": {"slug": "my-workflow-v1"}},
             }
         }
-        workflow_data = {"prompt": {"messages": [{"content": "Hello from workflow"}]}}
+        workflow_data = {
+            "parameters": {"prompt": {"messages": [{"content": "Hello from workflow"}]}}
+        }
 
         async def resolver(references: Dict[str, Reference]):
             # bare "environment" category — resolver handles level inference
@@ -900,7 +928,11 @@ class TestSnippetEmbedResolution:
                 "only_key": {"workflow_revision": {"slug": "my-workflow-v1"}},
             }
         }
-        workflow_data = {"prompt": {"messages": [{"content": "Auto-selected content"}]}}
+        workflow_data = {
+            "parameters": {
+                "prompt": {"messages": [{"content": "Auto-selected content"}]}
+            }
+        }
 
         async def resolver(references: Dict[str, Reference]):
             if "environment" in references:
@@ -914,6 +946,24 @@ class TestSnippetEmbedResolution:
         )
         assert result_config["msg"] == "Auto-selected content"
 
+    async def test_resolve_snippet_workflow_direct_path(self):
+        """Workflow without key= applies path directly — no key-hop."""
+        workflow_data = {
+            "parameters": {
+                "prompt": {"messages": [{"content": "direct-workflow-content"}]}
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return workflow_data
+
+        config = {"msg": "@{{workflow.slug=my-flow}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "direct-workflow-content"
+
     async def test_resolve_snippet_explicit_path(self):
         """Explicit path= overrides the default path."""
         env_data = {
@@ -921,7 +971,7 @@ class TestSnippetEmbedResolution:
                 "tip": {"workflow_revision": {"slug": "wf-v1"}},
             }
         }
-        workflow_data = {"config": {"value": "explicit-path-result"}}
+        workflow_data = {"parameters": {"config": {"value": "explicit-path-result"}}}
 
         async def resolver(references: Dict[str, Reference]):
             if "environment" in references:
@@ -957,7 +1007,9 @@ class TestSnippetEmbedResolution:
     async def test_snippet_and_string_embed_coexist(self):
         """Both @ag.embed[...] and @{{...}} can appear in the same config."""
         env_data = {"references": {"tip": {"workflow_revision": {"slug": "wf-v1"}}}}
-        workflow_data = {"prompt": {"messages": [{"content": "snippet-value"}]}}
+        workflow_data = {
+            "parameters": {"prompt": {"messages": [{"content": "snippet-value"}]}}
+        }
 
         async def resolver(references: Dict[str, Reference]):
             if "environment" in references:

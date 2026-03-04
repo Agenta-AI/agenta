@@ -310,13 +310,16 @@ Token grammar:
 ```
 
 Rules:
-- Separators: `,` or `&`; spaces around `=` and separators are trimmed
-- Entity reference: `<entity_type>.<ref_field>=<value>` — entity type can be a bare category
+- Part separators: `,` or `&`; spaces trimmed
+- Name-value separator: `=` or `:` (both work; spaces trimmed on both sides)
+- Entity reference: `<entity_type>.<field>=<value>` — entity type can be a bare category
   (`environment`, `workflow`, …) or a full type with level suffix (`environment_revision`,
-  `workflow_variant`, …); `ref_field` is one of `id`, `slug`, `version`
+  `workflow_variant`, …); `field` is one of `id`, `slug`, `version`
 - `key=<name>`: follow `data.references.<name>` on the fetched entity (two-hop resolution)
-- `path=<dotpath>`: dot-notation path into the resolved data
+- `path=<dotpath>`: path **relative to `parameters.`** in the resolved data — write
+  `path=system_prompt`, not `path=parameters.system_prompt`
 - When `path=` is absent, defaults to `prompt.messages.0.content`
+  (resolved as `parameters.prompt.messages.0.content`)
 - When `key=` is absent entirely, auto-select: if the resolved entity has exactly one
   `references` entry, that entry is followed automatically; otherwise an error is raised
 
@@ -325,23 +328,30 @@ Rules:
 ### Simple — bare category, default path
 
 ```json
+{ "greeting": "Say: @{{workflow.slug=my-flow}}" }
+```
+
+The `workflow` reference is resolved. `path=` is absent, so the default
+`prompt.messages.0.content` is extracted from `parameters.prompt.messages.0.content`.
+
+```json
 { "greeting": "Say: @{{environment.slug=production}}" }
 ```
 
-The `environment` reference is resolved. Because `path=` is absent the resolver extracts
-`prompt.messages.0.content` from the entity data and inlines it.
+For an environment without `key=`, auto-select kicks in if the environment has exactly
+one entry in `data.references` (see Auto-select section).
 
-Tests: `TestSnippetEmbedResolution::test_snippet_embed_default_path` (utils)
+Tests: `TestSnippetEmbedResolution::test_resolve_snippet_workflow_direct_path` (utils)
 
 ---
 
 ### With explicit `path`
 
 ```json
-{ "hint": "Use: @{{environment_revision.slug=prod, path=parameters.api_url}}" }
+{ "hint": "Use: @{{environment_revision.slug=prod, path=api_url}}" }
 ```
 
-`path=parameters.api_url` overrides the default. The full entity type with level suffix
+`path=api_url` is resolved as `parameters.api_url`. The full entity type with level suffix
 (`environment_revision`) is also accepted.
 
 Tests: `TestSnippetEmbedResolution::test_snippet_embed_with_path` (utils)
@@ -364,23 +374,28 @@ Tests: `TestSnippetEmbedResolution::test_snippet_embed_with_key` (utils)
 
 ---
 
-### Auto-select key (absent `key=`)
+### Auto-select key — environments only
 
 ```json
-{ "content": "@{{workflow.slug=my-flow}}" }
+{ "content": "@{{environment.slug=prod}}" }
 ```
 
-When `key=` is absent **and** the resolved entity has exactly one entry in `data.references`,
-that key is selected automatically (equivalent to `key=<that_single_key>`).
+When the entity is an **environment** and `key=` is absent, auto-select kicks in: if the
+resolved environment has exactly one entry in `data.references`, that key is followed
+automatically. Raises an error if there are zero or more than one entries.
+
+This is environment-specific because environments store named references to other entities
+in `data.references`. Other entity types (workflow, application, evaluator) do not use
+key-hop — absent `key=` simply applies the path directly to their own `parameters`.
 
 ```json
-{ "content": "@{{workflow.slug=my-flow, path=}}" }
+{ "content": "@{{environment.slug=prod, key=}}" }
 ```
 
-When `key=` is present but empty (`key=`), no key-hop is performed; the path is applied
-directly to the fetched entity data.
+Explicitly empty `key=` disables key-hop even for environments; path is applied directly.
 
-Tests: `TestSnippetEmbedResolution::test_snippet_embed_auto_select_key` (utils)
+Tests: `TestSnippetEmbedResolution::test_resolve_snippet_auto_key`,
+`TestSnippetEmbedResolution::test_auto_key_fails_with_multiple_keys` (utils)
 
 ---
 
@@ -388,7 +403,7 @@ Tests: `TestSnippetEmbedResolution::test_snippet_embed_auto_select_key` (utils)
 
 ```json
 {
-  "prompt": "A: @{{environment.slug=prod}} B: @{{workflow_revision.version=v1, path=parameters.text}}"
+  "prompt": "A: @{{environment.slug=prod}} B: @{{workflow_revision.version=v1, path=text}}"
 }
 ```
 
@@ -398,15 +413,21 @@ Tests: `TestFindSnippetEmbeds::test_find_snippet_embed_in_string` (utils)
 
 ---
 
-### `&` separator
+### `&` and `:` separators
+
+Both `,`/`&` (part separators) and `=`/`:` (name-value separators) are interchangeable:
 
 ```json
-{ "greeting": "Say: @{{environment.slug=production & key=my_snippet & path=prompt.messages.0.content}}" }
+{ "greeting": "Say: @{{environment.slug=production & key=my_snippet}}" }
 ```
 
-`&` is interchangeable with `,`; spaces are trimmed on both sides of each `=`.
+```json
+{ "greeting": "Say: @{{environment.slug:production, key:my_snippet}}" }
+```
 
-Tests: `TestParseSnippetToken::test_ampersand_separator` (utils)
+Spaces are trimmed on both sides of separators.
+
+Tests: `TestParseSnippetToken::test_ampersand_separator`, `TestParseSnippetToken::test_colon_separator` (utils)
 
 ---
 
@@ -414,8 +435,8 @@ Tests: `TestParseSnippetToken::test_ampersand_separator` (utils)
 
 | Feature | Snippet `@{{...}}` | Full `@ag.embed[...]` |
 |---------|--------------------|-----------------------|
-| Separators | `,` or `&` | positional `@ag.references[...]`, `@ag.selector[...]` |
-| Default path | `prompt.messages.0.content` | none — full data inlined |
+| Part separators | `,` or `&`; name-value: `=` or `:` | positional `@ag.references[...]`, `@ag.selector[...]` |
+| Default path | `prompt.messages.0.content` (→ `parameters.…`) | none — full data inlined |
 | Auto-select key | `key=` absent → auto | must name key explicitly |
 | Multiple references | supported (same entity family) | supported |
 | Multi-token string | yes | yes |
