@@ -142,7 +142,7 @@ Three things to note here.
 We also call **`store_internals`** to save the context and document metadata on the trace. This is not for the evaluators; it is for you. When you open a trace in the Agenta UI, you can see exactly which documents were retrieved and how they scored.
 
 :::note Alternative: read context from trace data
-If you prefer your application to return a plain string, you can store the retrieval context via `store_internals` and read it back from the `trace` parameter in your evaluator. This keeps the return type clean but adds complexity — the evaluator needs to navigate the trace structure to find the internals. See the [`evaluate_rag_trace_based.py`](https://github.com/Agenta-AI/agenta/blob/main/agenta/examples/python/RAG_QA_chatbot/scripts/evaluate_rag_trace_based.py) example for a working implementation.
+If you prefer your application to return a plain string, you can store the retrieval context via `store_internals` and read it back from the `trace` parameter in your evaluator. This keeps the return type clean but adds complexity — the evaluator needs to navigate the trace structure to find the internals. See the [`evaluate_rag_trace_based.py`](https://github.com/Agenta-AI/agenta/blob/main/examples/python/RAG_QA_chatbot/scripts/evaluate_rag_trace_based.py) example for a working implementation.
 :::
 
 ## Step 2: Create your test data
