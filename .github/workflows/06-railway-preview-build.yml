@@ -41,10 +41,34 @@ jobs:
         run: |
           PR="${{ github.event.pull_request.number || inputs.pr_number }}"
           SHA="$(git rev-parse --short HEAD)"
-          TAG="pr-${PR}-${SHA}"
+
+          if [ -n "$PR" ]; then
+            TAG="pr-${PR}-${SHA}"
+          else
+            TAG="manual-${SHA}"
+          fi
+
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
           echo "Image tag: ${TAG}"
+
+      - name: Determine cache scope
+        id: cache
+        run: |
+          PR="${{ steps.tag.outputs.pr_number }}"
+          if [ -n "$PR" ]; then
+            CACHE_SCOPE="pr-${PR}"
+          else
+            REF="$(printf "%s" "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-')"
+            REF="${REF#-}"
+            REF="${REF%-}"
+            CACHE_SCOPE="${REF:-manual}"
+          fi
+
+          CACHE_SCOPE="${CACHE_SCOPE:0:80}"
+
+          echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
+          echo "Cache scope: ${CACHE_SCOPE}"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -63,8 +87,12 @@ jobs:
           file: api/oss/docker/Dockerfile.gh
           push: true
           tags: ghcr.io/agenta-ai/agenta-api:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,mode=max,scope=api
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-api:buildcache-shared
+            type=registry,ref=ghcr.io/agenta-ai/agenta-api:buildcache-${{ steps.cache.outputs.cache_scope }}
+          cache-to: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-api:buildcache-shared,mode=max
+            type=registry,ref=ghcr.io/agenta-ai/agenta-api:buildcache-${{ steps.cache.outputs.cache_scope }},mode=max
 
       - name: Build and push Web image
         uses: docker/build-push-action@v6
@@ -73,8 +101,12 @@ jobs:
           file: web/oss/docker/Dockerfile.gh
           push: true
           tags: ghcr.io/agenta-ai/agenta-web:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,mode=max,scope=web
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web:buildcache-shared
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web:buildcache-${{ steps.cache.outputs.cache_scope }}
+          cache-to: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web:buildcache-shared,mode=max
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web:buildcache-${{ steps.cache.outputs.cache_scope }},mode=max
 
       - name: Build and push Services image
         uses: docker/build-push-action@v6
@@ -83,8 +115,12 @@ jobs:
           file: services/oss/docker/Dockerfile.gh
           push: true
           tags: ghcr.io/agenta-ai/agenta-services:${{ steps.tag.outputs.image_tag }}
-          cache-from: type=gha,scope=services
-          cache-to: type=gha,mode=max,scope=services
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-services:buildcache-shared
+            type=registry,ref=ghcr.io/agenta-ai/agenta-services:buildcache-${{ steps.cache.outputs.cache_scope }}
+          cache-to: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-services:buildcache-shared,mode=max
+            type=registry,ref=ghcr.io/agenta-ai/agenta-services:buildcache-${{ steps.cache.outputs.cache_scope }},mode=max
 
       - name: Summary
         run: |
@@ -96,6 +132,9 @@ jobs:
           echo "| agenta-api | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| agenta-web | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| agenta-services | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cache scope: \`${{ steps.cache.outputs.cache_scope }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Shared cache: \`buildcache-shared\`" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: build-and-push
