@@ -51,7 +51,8 @@ const isSafeImageSrc = (url: string) => {
     try {
         const lower = url.toLowerCase().trim()
         if (/^https?:\/\/[^ "]+$/i.test(lower)) {
-            if (/\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(lower)) {
+            const path = lower.split("?")[0]
+            if (/\.(png|jpe?g|gif|webp)$/i.test(path)) {
                 return true
             }
             return false

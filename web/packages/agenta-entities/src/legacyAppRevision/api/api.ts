@@ -13,37 +13,37 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {dereferenceSchema} from "@agenta/shared/utils"
 
 import {
-    // URI parsing
-    parseRevisionUri,
     // Revision parameter extraction
     extractRevisionParameters,
-    // List item types (re-export)
-    type AppListItem,
-    type VariantListItem,
-    type RevisionListItem,
-    // API response types (re-export)
-    type ApiVariant,
-    type ApiRevisionListItem,
-    type ApiApp,
-    // Transform utilities
-    transformAppToListItem,
-    transformVariantToListItem,
-    transformRevisionToListItem,
     // Validation
     isValidUUID,
+    // URI parsing
+    parseRevisionUri,
+    // Transform utilities
+    transformAppToListItem,
+    transformRevisionToListItem,
+    transformVariantToListItem,
+    type ApiApp,
+    type ApiRevisionListItem,
+    // API response types (re-export)
+    type ApiVariant,
+    // List item types (re-export)
+    type AppListItem,
+    type RevisionListItem,
+    type VariantListItem,
 } from "../../shared"
-import type {LegacyAppRevisionData, ApiAppVariantRevision} from "../core"
+import type {ApiAppVariantRevision, LegacyAppRevisionData} from "../core"
 
 // Re-export shared types for consumers
-export type {
-    AppListItem,
-    VariantListItem,
-    RevisionListItem,
-    ApiVariant,
-    ApiRevisionListItem,
-    ApiApp,
-}
 export {isValidUUID}
+export type {
+    ApiApp,
+    ApiRevisionListItem,
+    ApiVariant,
+    AppListItem,
+    RevisionListItem,
+    VariantListItem,
+}
 
 // ============================================================================
 // TYPES
@@ -727,7 +727,9 @@ function normalizeUriForProbing(uri: string): string | null {
     }
 
     // Trim trailing slashes
-    normalized = normalized.replace(/\/+$/, "")
+    while (normalized.endsWith("/")) {
+        normalized = normalized.slice(0, -1)
+    }
 
     // Strip trailing /openapi.json if present
     if (normalized.endsWith("/openapi.json")) {
@@ -884,10 +886,10 @@ export async function fetchRevisionSchemaWithProbe(
 // Re-export pure schema building utilities (no network deps)
 export {
     buildRevisionSchemaState,
-    extractEndpointSchema,
-    extractAllEndpointSchemas,
     constructEndpointPath,
     convertOpenApiSchemaToJsonSchema,
+    extractAllEndpointSchemas,
+    extractEndpointSchema,
     jsonSchemaToEntitySchema,
 } from "./schemaUtils"
 
