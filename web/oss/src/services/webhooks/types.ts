@@ -28,6 +28,7 @@ export interface WebhookSubscription {
     flags?: WebhookSubscriptionFlags
     data: WebhookSubscriptionData
     secret?: string
+    secret_id?: string
 }
 
 // --- REQUEST BODIES -------------------------------------------------------- //

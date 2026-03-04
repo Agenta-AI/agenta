@@ -107,9 +107,10 @@ const Settings: React.FC = () => {
                             return "Tools"
                         case "apiKeys":
                             return "API Keys"
-
                         case "webhooks":
                             return "Webhooks"
+                        case "billing":
+                            return "Usage & Billing"
                         default:
                             return resolvedTab
                     }

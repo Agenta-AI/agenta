@@ -1,28 +1,44 @@
-import React, {useCallback, useEffect, useMemo} from "react"
+import React, {useCallback, useEffect, useState} from "react"
 
-import {EnhancedModal, ModalContent} from "@agenta/ui"
-import {Button, Form, Input, Select, Switch, Tooltip, message} from "antd"
+import {Button, Form, Input, Select, Tooltip, Typography, message} from "antd"
+import {useAtom, useSetAtom} from "jotai"
 
-import {createWebhook, testWebhook, updateWebhook} from "@/oss/services/webhooks/api"
+import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {
-    WebhookSubscription,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/webhooks/types"
+import {createWebhookAtom, testWebhookAtom, updateWebhookAtom} from "@/oss/state/webhooks/atoms"
+import {
+    createdWebhookSecretAtom,
+    editingWebhookAtom,
+    isCreateWebhookModalOpenAtom,
+} from "@/oss/state/webhooks/state"
 
 import {EVENT_OPTIONS} from "./constants"
+import CreatedWebhookSecretModal from "./CreatedWebhookSecretModal"
 
 interface Props {
-    open: boolean
-    onCancel: () => void
     onSuccess: () => void
-    initialValues?: WebhookSubscription
 }
 
-const CreateWebhookModal: React.FC<Props> = ({open, onCancel, onSuccess, initialValues}) => {
+const CreateWebhookDrawer: React.FC<Props> = ({onSuccess}) => {
     const [form] = Form.useForm()
+    const [open, setOpen] = useAtom(isCreateWebhookModalOpenAtom)
+    const [initialValues, setEditingWebhook] = useAtom(editingWebhookAtom)
+    const [isTesting, setIsTesting] = useState(false)
+    const setCreatedWebhookSecret = useSetAtom(createdWebhookSecretAtom)
+
+    const createWebhook = useSetAtom(createWebhookAtom)
+    const updateWebhook = useSetAtom(updateWebhookAtom)
+    const testWebhook = useSetAtom(testWebhookAtom)
+
     const isEdit = !!initialValues
-    const [isTesting, setIsTesting] = React.useState(false)
+
+    const onCancel = useCallback(() => {
+        setOpen(false)
+        setEditingWebhook(undefined)
+    }, [setOpen, setEditingWebhook])
 
     useEffect(() => {
         if (open && initialValues) {
@@ -30,16 +46,14 @@ const CreateWebhookModal: React.FC<Props> = ({open, onCancel, onSuccess, initial
                 name: initialValues.name,
                 url: initialValues.data.url,
                 events: initialValues.data.event_types || [],
-                is_valid: initialValues.flags?.is_valid ?? true,
             })
         } else if (open) {
-            form.resetFields()
+            // Fields are reset via component unmount (destroyOnHidden),
+            // but we still need to set the default value for new creations
             form.setFieldsValue({
-                is_valid: true,
                 events: ["environments.revisions.committed"],
             })
         }
-        setIsTesting(false)
     }, [open, initialValues, form])
 
     const handleTestConnection = useCallback(async () => {
@@ -67,78 +81,103 @@ const CreateWebhookModal: React.FC<Props> = ({open, onCancel, onSuccess, initial
         } finally {
             setIsTesting(false)
         }
-    }, [initialValues?.id])
+    }, [initialValues?.id, testWebhook])
 
     const handleOk = useCallback(async () => {
         try {
             const values = await form.validateFields()
-            console.log("Webhook outside", values)
             if (isEdit && initialValues?.id) {
-                console.log("Webhook edit")
                 const payload: WebhookSubscriptionEditRequest = {
                     subscription: {
                         id: initialValues.id,
                         name: values.name,
-                        flags: {is_valid: values.is_valid},
                         data: {
                             url: values.url,
                             event_types: values.events,
                         },
                     },
                 }
-                await updateWebhook(initialValues.id, payload)
+                await updateWebhook({webhookId: initialValues.id, payload})
                 message.success("Webhook updated successfully")
             } else {
-                console.log("Webhook create")
                 const payload: WebhookSubscriptionCreateRequest = {
                     subscription: {
                         name: values.name,
-                        flags: {is_valid: values.is_valid},
                         data: {
                             url: values.url,
                             event_types: values.events,
                         },
                     },
                 }
-                console.log("Webhook create payload", payload)
-                await createWebhook(payload)
+                const response = await createWebhook(payload)
+                const webhookSecret =
+                    response.subscription?.secret || response.subscription?.secret_id
+                setCreatedWebhookSecret(webhookSecret ?? null)
                 message.success("Webhook created successfully")
             }
             onSuccess()
+            onCancel()
         } catch (error) {
             console.error(error)
+            message.error(isEdit ? "Failed to update webhook" : "Failed to create webhook")
         }
-    }, [form, isEdit, initialValues, onSuccess])
-
-    const footer = useMemo(
-        () => (
-            <div className="flex items-center justify-end gap-2 pt-2">
-                <Button onClick={onCancel}>Cancel</Button>
-                <Tooltip
-                    title={
-                        isEdit ? "Test this webhook" : "You must save the webhook before testing it"
-                    }
-                >
-                    <Button loading={isTesting} onClick={handleTestConnection} disabled={!isEdit}>
-                        Test Connection
-                    </Button>
-                </Tooltip>
-                <Button type="primary" onClick={handleOk}>
-                    {isEdit ? "Update" : "Create"}
-                </Button>
-            </div>
-        ),
-        [isEdit, isTesting, onCancel, handleTestConnection, handleOk],
-    )
+    }, [
+        form,
+        isEdit,
+        initialValues,
+        onSuccess,
+        onCancel,
+        setCreatedWebhookSecret,
+        createWebhook,
+        updateWebhook,
+    ])
 
     return (
-        <EnhancedModal
-            title={isEdit ? "Edit Webhook" : "Create Webhook"}
-            open={open}
-            onCancel={onCancel}
-            footer={footer}
-        >
-            <ModalContent className="mt-5">
+        <>
+            <EnhancedDrawer
+                title={isEdit ? "Edit Webhook" : "Create Webhook"}
+                open={open}
+                onClose={onCancel}
+                width={560}
+                destroyOnHidden
+                footer={
+                    <div className="flex items-center justify-between gap-2">
+                        <Button onClick={onCancel}>Cancel</Button>
+                        <div className="flex items-center gap-2">
+                            <Tooltip
+                                title={
+                                    isEdit
+                                        ? "Test this webhook"
+                                        : "You must save the webhook before testing it"
+                                }
+                            >
+                                <Button
+                                    loading={isTesting}
+                                    onClick={handleTestConnection}
+                                    disabled={!isEdit}
+                                >
+                                    Test Connection
+                                </Button>
+                            </Tooltip>
+                            <Button type="primary" onClick={handleOk}>
+                                {isEdit ? "Update" : "Create"}
+                            </Button>
+                        </div>
+                    </div>
+                }
+            >
+                <div className="mb-4">
+                    Webhooks allow you to receive real-time notifications when events happen in
+                    Agenta. Use them to trigger automated workflows or integrate with other tools.{" "}
+                    <Typography.Link
+                        href="https://docs.agenta.ai/self-hosting/concepts/webhooks"
+                        target="_blank"
+                        className="font-medium"
+                    >
+                        Read documentation
+                    </Typography.Link>
+                </div>
+
                 <Form form={form} layout="vertical" requiredMark={false}>
                     <Form.Item
                         name="name"
@@ -172,19 +211,11 @@ const CreateWebhookModal: React.FC<Props> = ({open, onCancel, onSuccess, initial
                             options={EVENT_OPTIONS}
                         />
                     </Form.Item>
-
-                    <Form.Item
-                        name="is_valid"
-                        label="Active"
-                        valuePropName="checked"
-                        className="!mb-0"
-                    >
-                        <Switch />
-                    </Form.Item>
                 </Form>
-            </ModalContent>
-        </EnhancedModal>
+            </EnhancedDrawer>
+            <CreatedWebhookSecretModal />
+        </>
     )
 }
 
-export default CreateWebhookModal
+export default CreateWebhookDrawer
