@@ -142,60 +142,7 @@ const arraysEqual = (a: string[], b: string[]) => {
 }
 
 /**
- * Synchronously build URL components and write to browser history.
- * This is the core URL-writing logic extracted so it can be called
- * both synchronously (for initial sync) and via RAF (for coalescing).
- */
-const writeUrlNow = (selection: string[]): boolean => {
-    if (!isBrowser) return false
-
-    try {
-        const sanitized = sanitizeRevisionList(selection)
-        const store = getDefaultStore()
-
-        // Build the new URL with query params and hash
-        const url = new URL(window.location.href)
-
-        // Use package controller to build URL components
-        const urlComponents = store.set(urlSnapshotController.actions.buildUrlComponents, sanitized)
-
-        if (!urlComponents.ok) {
-            return false
-        }
-
-        // Set query param
-        if (urlComponents.queryParam) {
-            url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
-        } else {
-            url.searchParams.delete(REVISIONS_QUERY_PARAM)
-        }
-
-        // Set hash param
-        if (urlComponents.hashParam) {
-            url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
-            lastWrittenSnapshotHash = urlComponents.hashParam
-        } else {
-            url.hash = ""
-            lastWrittenSnapshotHash = null
-        }
-
-        const newUrl = `${url.pathname}${url.search}${url.hash}`
-
-        // Only update if URL actually changed and we didn't just write this URL
-        if (newUrl !== lastWrittenUrl) {
-            lastWrittenUrl = newUrl
-            window.history.replaceState(window.history.state, "", newUrl)
-        }
-
-        return true
-    } catch {
-        return false
-    }
-}
-
-/**
  * Write the current playground selection to the URL.
- * Uses RAF to coalesce rapid updates (e.g., draft edits).
  * Uses urlSnapshotController.buildUrlComponents for entity-agnostic snapshot building.
  */
 export const writePlaygroundSelectionToQuery = (selection: string[]) => {
@@ -210,7 +157,50 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
     // Use RAF to coalesce updates within the same frame
     urlUpdateRafId = requestAnimationFrame(() => {
         urlUpdateRafId = null
-        writeUrlNow(selection)
+        try {
+            const sanitized = sanitizeRevisionList(selection)
+            const store = getDefaultStore()
+
+            // Build the new URL with query params and hash
+            const url = new URL(window.location.href)
+
+            // Use package controller to build URL components
+            const urlComponents = store.set(
+                urlSnapshotController.actions.buildUrlComponents,
+                sanitized,
+            )
+
+            if (!urlComponents.ok) {
+                console.warn("Failed to build URL components:", urlComponents.error)
+                return
+            }
+
+            // Set query param
+            if (urlComponents.queryParam) {
+                url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
+            } else {
+                url.searchParams.delete(REVISIONS_QUERY_PARAM)
+            }
+
+            // Set hash param
+            if (urlComponents.hashParam) {
+                url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
+                lastWrittenSnapshotHash = urlComponents.hashParam
+            } else {
+                url.hash = ""
+                lastWrittenSnapshotHash = null
+            }
+
+            const newUrl = `${url.pathname}${url.search}${url.hash}`
+
+            // Only update if URL actually changed and we didn't just write this URL
+            if (newUrl !== lastWrittenUrl) {
+                lastWrittenUrl = newUrl
+                window.history.replaceState(window.history.state, "", newUrl)
+            }
+        } catch (error) {
+            console.error("Failed to write playground state to URL:", error)
+        }
     })
 }
 
@@ -512,26 +502,10 @@ playgroundSyncAtom.onMount = (set) => {
         const selected = store.get(selectedVariantsAtom)
         if (selected.length > 0) {
             hasAppliedDefaults = true
-
-            // Ensure URL reflects the in-memory selection. This covers the case
-            // where the user navigated away (which clears urlRevisionsAtom) and
-            // returned — the selection persists in memory but the URL has no
-            // ?revisions param. Write synchronously to avoid RAF cancellation.
-            const urlRevs = sanitizeRevisionList(store.get(urlRevisionsAtom))
-            if (urlRevs.length === 0) {
-                store.set(urlRevisionsAtom, selected)
-                writeUrlNow(selected)
-            }
             return
         }
         hasAppliedDefaults = true
         ensurePlaygroundDefaults(store)
-
-        // After applying defaults, sync the URL synchronously
-        const newSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
-        if (newSelected.length > 0) {
-            writeUrlNow(newSelected)
-        }
     }
     const unsubRevisions = store.sub(revisionListAtom, tryApplyDefaults)
     const unsubReady = store.sub(playgroundRevisionsReadyAtom, tryApplyDefaults)
@@ -598,22 +572,6 @@ playgroundSyncAtom.onMount = (set) => {
         }
     })
     unsubs.push(unsubValidation)
-
-    // -----------------------------------------------------------------------
-    // INITIAL URL SYNC: ensure URL reflects in-memory selection
-    // -----------------------------------------------------------------------
-    // When navigating away from the playground, urlRevisionsAtom is cleared but
-    // selectedVariantsAtom persists in memory. On return, the URL has no
-    // ?revisions param even though a selection exists. Write synchronously
-    // (bypassing RAF) so a subsequent RAF-based call cannot cancel this write.
-    {
-        const initialSelection = sanitizeRevisionList(store.get(selectedVariantsAtom))
-        const initialUrlRevisions = sanitizeRevisionList(store.get(urlRevisionsAtom))
-        if (initialSelection.length > 0 && initialUrlRevisions.length === 0) {
-            store.set(urlRevisionsAtom, initialSelection)
-            writeUrlNow(initialSelection)
-        }
-    }
 
     // -----------------------------------------------------------------------
     // CLEANUP

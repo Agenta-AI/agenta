@@ -217,23 +217,24 @@ async function runVariantInputRow(payload: {
     } = payload
 
     try {
-        const rawRequestBody = transformToRequestBody({
-            variant,
-            inputRow,
-            messageRow,
-            allMetadata,
-            chatHistory,
-            spec,
-            routePath: uri?.routePath,
-            prompts,
-            variables,
-            variableValues,
-            revisionId,
-            isChat,
-            isCustom,
-            appType,
-        })
-        const requestBody = stripAgentaMetadataDeep(rawRequestBody)
+        const requestBody = stripAgentaMetadataDeep(
+            transformToRequestBody({
+                variant,
+                inputRow,
+                messageRow,
+                allMetadata,
+                chatHistory,
+                spec,
+                routePath: uri?.routePath,
+                prompts,
+                variables,
+                variableValues,
+                revisionId,
+                isChat,
+                isCustom,
+                appType,
+            }),
+        )
 
         // Strip any remaining enhanced value wrappers (__id, __metadata, {value: X})
         // from messages — fallback content parts may bypass extractValueByMetadata

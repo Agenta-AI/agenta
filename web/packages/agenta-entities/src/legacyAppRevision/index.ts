@@ -112,12 +112,6 @@ export {
     fetchOssRevisionsBatch,
     fetchOssRevisionEnriched,
     fetchVariantDetail,
-    // Batch fetchers
-    revisionBatchFetcher,
-    variantDetailBatchFetcher,
-    revisionsListBatchFetcher,
-    // Cache invalidation
-    clearVariantDetailCache,
     // URI utilities
     normalizeUri,
     // List API functions
