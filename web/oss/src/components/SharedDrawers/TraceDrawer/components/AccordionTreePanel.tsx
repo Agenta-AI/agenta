@@ -248,14 +248,6 @@ const LanguageAwareViewer = ({
         />
     )
 
-    if (language === "rendered-json") {
-        return (
-            <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: true}}>
-                {editorNode}
-            </DrillInProvider>
-        )
-    }
-
     return editorNode
 }
 
@@ -549,35 +541,43 @@ const AccordionTreePanel = ({
                                 }}
                             >
                                 {isCodeMode ? (
-                                    <EditorProvider
-                                        codeOnly={true}
-                                        enableTokens={false}
-                                        showToolbar={false}
-                                        className={classes.editor}
-                                        readOnly
-                                        disabled
-                                        noProvider
+                                    <DrillInProvider
+                                        value={{
+                                            enabled: false,
+                                            decodeEscapedJsonStrings:
+                                                panelViewMode === "rendered-json",
+                                        }}
                                     >
-                                        <LanguageAwareViewer
-                                            initialValue={
-                                                panelViewMode === "yaml"
-                                                    ? yamlOutput
-                                                    : panelViewMode === "rendered-json"
-                                                      ? renderedJsonOutput
-                                                      : jsonOutput
-                                            }
-                                            language={panelViewMode}
-                                            searchProps={
-                                                isSearchOpen
-                                                    ? {
-                                                          searchTerm,
-                                                          currentResultIndex,
-                                                          onResultCountChange: setResultCount,
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                    </EditorProvider>
+                                        <EditorProvider
+                                            codeOnly={true}
+                                            enableTokens={false}
+                                            showToolbar={false}
+                                            className={classes.editor}
+                                            readOnly
+                                            disabled
+                                            noProvider
+                                        >
+                                            <LanguageAwareViewer
+                                                initialValue={
+                                                    panelViewMode === "yaml"
+                                                        ? yamlOutput
+                                                        : panelViewMode === "rendered-json"
+                                                          ? renderedJsonOutput
+                                                          : jsonOutput
+                                                }
+                                                language={panelViewMode}
+                                                searchProps={
+                                                    isSearchOpen
+                                                        ? {
+                                                              searchTerm,
+                                                              currentResultIndex,
+                                                              onResultCountChange: setResultCount,
+                                                          }
+                                                        : undefined
+                                                }
+                                            />
+                                        </EditorProvider>
+                                    </DrillInProvider>
                                 ) : (
                                     <TextModeViewer
                                         editorId={`accordion-${textViewerId}`}
