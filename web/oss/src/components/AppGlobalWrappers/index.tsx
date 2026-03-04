@@ -4,13 +4,17 @@ import {
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
 } from "@agenta/entities/appRevision/state"
-import {serviceSchemaMetadataWarmerAtom} from "@agenta/entities/legacyAppRevision"
+import {
+    serviceSchemaMetadataWarmerAtom,
+    revisionCacheVersionAtom,
+} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
 // import {} from "@agenta/entity-ui/modals"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
+import {playgroundRevisionsReadyAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
@@ -184,6 +188,31 @@ const NavigationCommandListener = () => {
     return null
 }
 
+/**
+ * Bumps the revision cache version when playground revision list queries settle.
+ *
+ * On non-playground pages (overview, deployments), `playgroundRevisionsReadyAtom`
+ * still subscribes to `variantsQueryAtomFamily` and `revisionsQueryAtomFamily`,
+ * which populate the TanStack Query cache with RevisionListItems (including
+ * variantId, appId, URI). Without this bump, `revisionListItemFromCacheAtomFamily`
+ * never re-scans the cache, so deeplinked drawer revisions fall through to the
+ * slow `directQueryAtomFamily` path that returns data without URI enrichment.
+ *
+ * This mirrors what the playground URL hydration does in `playground.ts:500`.
+ */
+const RevisionCacheSync = () => {
+    const isReady = useAtomValue(playgroundRevisionsReadyAtom)
+    const bumpCacheVersion = useSetAtom(revisionCacheVersionAtom)
+
+    useEffect(() => {
+        if (isReady) {
+            bumpCacheVersion((prev) => prev + 1)
+        }
+    }, [isReady, bumpCacheVersion])
+
+    return null
+}
+
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
 
@@ -201,6 +230,7 @@ const AppGlobalWrappers = () => {
     return (
         <EntityModalsProvider>
             <NavigationCommandListener />
+            <RevisionCacheSync />
             <TraceDrawer />
             <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />

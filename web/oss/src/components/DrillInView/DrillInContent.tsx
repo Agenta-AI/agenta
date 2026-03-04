@@ -8,16 +8,19 @@ import {
     useState,
 } from "react"
 
+import {
+    DrillInProvider,
+    EditorProvider,
+    markdownViewAtom,
+    SET_MARKDOWN_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 
 import {ChatMessageEditor, ChatMessageList} from "@/oss/components/ChatMessageEditor"
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
-import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {
     detectDataType,
     getTextModeValue,
@@ -647,7 +650,7 @@ export function DrillInContent({
     const drillInEnabled = true
 
     return (
-        <DrillInProvider value={{enabled: drillInEnabled}}>
+        <DrillInProvider value={{enabled: drillInEnabled, decodeEscapedJsonStrings: false}}>
             <div className="flex flex-col gap-2">
                 {/* Optional header content */}
                 {headerContent}
