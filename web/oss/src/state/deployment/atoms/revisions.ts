@@ -25,12 +25,10 @@ export const deploymentRevisionsWithAppIdQueryAtomFamily = atomFamily(
             return {
                 queryKey: ["deploymentRevisions", appId, envName],
                 queryFn: async (): Promise<DeploymentRevisions | undefined> => {
-                    console.log("deploymentRevisionsWithAppIdQueryAtomFamily 1")
                     if (!appId || !envName) {
                         return {}
                     }
 
-                    console.log("deploymentRevisionsWithAppIdQueryAtomFamily 2")
                     try {
                         const data = await fetchAllDeploymentRevisions(appId, envName)
                         console.log("deploymentRevisionsWithAppIdQueryAtomFamily 3", data)
