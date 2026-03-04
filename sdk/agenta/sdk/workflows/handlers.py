@@ -215,12 +215,22 @@ def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
     - Strings starting with ``$`` are resolved as JSON Path against *data*.
     - Strings starting with ``/`` are resolved as JSON Pointer against *data*.
     - Everything else (plain strings, numbers, dicts, …) is returned as-is.
+
+    On resolution failure (missing library, invalid syntax, missing path, etc.),
+    this helper returns ``None`` instead of raising, as expected by webhook
+    callers and design spec.
     """
     if isinstance(value, str):
-        if value.startswith("$"):
-            return resolve_json_path(value, data)
-        if value.startswith("/"):
-            return resolve_json_pointer(value, data)
+        try:
+            if value.startswith("$"):
+                return resolve_json_path(value, data)
+            if value.startswith("/"):
+                return resolve_json_pointer(value, data)
+        except Exception as exc:
+            # Selector resolution is intentionally non-throwing; log at debug
+            # level and signal failure via ``None``.
+            log.debug("Failed to resolve JSON selector %r: %s", value, exc)
+            return None
     return value
 
 
