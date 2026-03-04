@@ -37,7 +37,7 @@ class WebhookSubscriptionData(BaseModel):
     headers: Optional[Dict[str, str]] = None
     event_types: Optional[List[WebhookEventType]] = None
     auth_mode: Optional[Literal["signature", "authorization"]] = None
-    event_fields: Optional[Dict[str, Any]] = None
+    payload_fields: Optional[Dict[str, Any]] = None
 ```
 
 - `auth_mode` defaults to `None` → resolved as `"signature"` at delivery time
@@ -56,18 +56,17 @@ class WebhookSubscriptionData(BaseModel):
 ## 2. Event ID + Idempotency Key Headers
 
 ### Current Behavior
-- `X-Agenta-Delivery-Id: {delivery_uuid}` — unique per delivery attempt
+- `X-Agenta-Delivery-Id: {delivery_uuid}` — unique per delivery (event + subscription pair), stable across retries
 
 ### New Behavior
-- **Replace** `X-Agenta-Delivery-Id` with `X-Agenta-Event-Id: {event_id}` (breaking change)
-- **Add** `Idempotency-Key: {event_id}` — standard idempotency header, same value as event ID
-- The `delivery_id` is still generated and stored in the delivery record, just no longer sent as a header
+- **Keep** `X-Agenta-Delivery-Id: {delivery_id}` — unique per delivery (event + subscription pair), stable across retries (unchanged)
+- **Add** `X-Agenta-Event-Id: {event_id}` — stable across retries of the same event
+- **Add** `Idempotency-Key: {delivery_id}` — standard idempotency header, same value as delivery ID
 
 ### Files Affected
 - `api/oss/src/tasks/taskiq/webhooks/tasks.py`:
-  - Swap header name in `system_headers`
-  - Add `Idempotency-Key`
-  - Update `NON_OVERRIDABLE_HEADERS`: remove `x-agenta-delivery-id`, add `x-agenta-event-id` and `idempotency-key`
+  - Add `X-Agenta-Event-Id` and `Idempotency-Key` to `system_headers`
+  - Update `NON_OVERRIDABLE_HEADERS`: add `x-agenta-event-id` and `idempotency-key`
 
 ---
 
@@ -78,106 +77,138 @@ class WebhookSubscriptionData(BaseModel):
 - `event_type`, `event_id`, `timestamp`, etc. are only sent as HTTP headers
 
 ### New Behavior
-- The webhook payload is the full `Event` object serialized via `event.model_dump(mode="json", exclude_none=True)`
-- This means `event_type`, `event_id`, `timestamp`, `request_id`, `attributes`, etc. are all in the body
-- No separate injection of `event_type` needed — it's already part of the serialized Event
-
-### Example payload (default `event_fields=None` → falls back to `{"event": "$"}`)
-```json
-{
-  "event": {
-    "event_id": "01961234-5678-7abc-...",
-    "request_id": "01961234-5678-7abc-...",
-    "request_type": "router",
-    "event_type": "environments.revisions.committed",
-    "timestamp": "2026-03-04T12:00:00Z",
-    "attributes": {
-      "user_id": "...",
-      "references": {...}
-    }
-  }
-}
-```
+- The webhook payload is built from a **context** containing the event, subscription, and scope (see Section 5 for full context structure)
+- The default payload includes all three context sections: `event`, `subscription`, `scope`
+- The event is the full `Event` object (filtered through `EVENT_CONTEXT_FIELDS`) — `event_type`, `event_id`, `timestamp`, `request_id`, `attributes`, etc. are all available
+- No separate injection of `event_type` needed — it's part of the event in the context
 
 ### Files Affected
-- `api/oss/src/tasks/asyncio/webhooks/dispatcher.py` — change `body=event.attributes or {}` to `body=event.model_dump(mode="json", exclude_none=True)`
-- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — remove any `event_type` injection logic (it's already in the payload)
+- `api/oss/src/tasks/asyncio/webhooks/dispatcher.py` — build context dict from event + subscription + scope, pass to delivery task
+- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — resolve `payload_fields` against context to build payload; remove any `event_type` injection logic
 
 ---
 
-## 4. Rename `body` → `event` in Code
+## 4. Rename `WebhookDeliveryData.body` → `WebhookDeliveryData.payload`
 
 ### Current Behavior
-- The variable/parameter is called `body` throughout dispatch and delivery code
+- `WebhookDeliveryData.body` stores the HTTP body that was sent
 
 ### New Behavior
-- Rename `body` → `event` in:
-  - `deliver_webhook()` parameter
-  - `dispatcher.py` kiq call
-  - `WebhookDeliveryData.body` → `WebhookDeliveryData.event`
-  - `tasks.py` local variables
-- This is a code-level rename, not a wire-format change
+- Rename to `WebhookDeliveryData.payload` — the resolved HTTP payload after `payload_fields` resolution
+- The delivery task receives `event`, `subscription`, and `project_id` separately, builds the context (see Section 5), resolves `payload_fields`, and stores the result in `WebhookDeliveryData.payload`
 
 ### Files Affected
 - `api/oss/src/core/webhooks/types.py` — rename field on `WebhookDeliveryData`
-- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — rename parameter and variables
-- `api/oss/src/tasks/asyncio/webhooks/dispatcher.py` — rename in kiq call
-- `api/oss/src/tasks/taskiq/webhooks/worker.py` — rename in task registration if needed
+- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — rename local variables, store resolved payload
+- `api/oss/src/tasks/asyncio/webhooks/dispatcher.py` — pass event, subscription, project_id to delivery task
+- `api/oss/src/tasks/taskiq/webhooks/worker.py` — update task signature if needed
 
 ---
 
-## 5. Event Fields — Unified Body Shaping
+## 5. Payload Fields — Unified Body Shaping
 
 ### Current Behavior
 - The HTTP body IS `event.attributes` directly — a flat dict with no control over structure
 - No way to nest the event, extract fields, or add static keys
 
+### Resolution Context
+
+At delivery time, a **context** dict is built from three sources. Each source is positively filtered via a global allowlist — only listed fields are included.
+
+```python
+# --- CONTEXT ALLOWLISTS (global) ------------------------------------------- #
+
+EVENT_CONTEXT_FIELDS = {
+    "event_id",
+    "event_type",
+    "timestamp",
+    "created_at",
+    "attributes",
+}
+
+SUBSCRIPTION_CONTEXT_FIELDS = {
+    "id",
+    "name",
+    "flags",
+    "tags",
+    "meta",
+    "created_at",
+    "updated_at",
+}
+```
+
+```python
+context = {
+    "event": {k: v for k, v in serialized_event.items() if k in EVENT_CONTEXT_FIELDS},
+    "subscription": {k: v for k, v in serialized_sub.items() if k in SUBSCRIPTION_CONTEXT_FIELDS},
+    "scope": {"project_id": str(project_id)},
+}
+```
+
+| Context key | Source | Included fields |
+|-------------|--------|-----------------|
+| `event` | Serialized `Event` | `event_id`, `event_type`, `timestamp`, `created_at`, `attributes` |
+| `subscription` | Serialized `WebhookSubscription` | `id`, `name`, `flags`, `tags`, `meta`, `created_at`, `updated_at` |
+| `scope` | Delivery context | `project_id` |
+
+**Excluded from event**: `request_id`, `request_type`, `status_code`, `status_message`, lifecycle fields except `created_at`
+**Excluded from subscription**: `data` (url, headers, auth_mode, payload_fields), `secret_id`, `secret`, `description`, `deleted_at`, `*_by_id`
+
 ### New Behavior
-- New field on `WebhookSubscriptionData`: `event_fields: Optional[Dict[str, Any]] = None`
+- New field on `WebhookSubscriptionData`: `payload_fields: Optional[Dict[str, Any]] = None`
 - A single dict that defines the entire HTTP body structure
-- The structure is resolved **recursively** — dicts, lists, and primitives are all walked:
+- The structure is resolved **recursively** against the context — dicts, lists, and primitives are all walked:
   - **dict** → recurse into values (keys are always plain strings)
   - **list** → recurse into items
   - **primitive** (string, number, bool, null) → passed to `resolve_json_selector`
 - `resolve_json_selector` (from `sdk/agenta/sdk/workflows/handlers.py`) handles primitives only:
-  - **JSON Path** (prefix `$`): resolved against the serialized event — `"$"` = entire event, `"$.event_type"` = `event["event_type"]`
-  - **JSON Pointer** (prefix `/`): resolved against the serialized event — `"/event_type"` = `event["event_type"]`
+  - **JSON Path** (prefix `$`): resolved against the context — `"$"` = entire context, `"$.event.event_type"` = `context["event"]["event_type"]`
+  - **JSON Pointer** (prefix `/`): resolved against the context — `"/event/event_type"` = `context["event"]["event_type"]`
   - **Missing path or resolution error** → returns `None`
   - **Anything else** (plain strings, numbers, bools, null): used as a static value as-is
-- `resolve_event_fields` is a thin recursive wrapper that walks the structure down to primitives, then delegates to `resolve_json_selector`
-- When `event_fields` is `None` (default), delivery falls back to `{"event": "$"}` — the full event nested under `"event"`
+- `resolve_payload_fields` is a thin recursive wrapper with depth limiting that walks the structure down to primitives, then delegates to `resolve_json_selector`
+- When `payload_fields` is `None` (default), delivery falls back to `"$"` — the full context
 
 ### Resolution Logic
 
 ```python
-def resolve_event_fields(fields, event):
+MAX_RESOLVE_DEPTH = 10
+
+def resolve_payload_fields(fields, context, *, _depth=0):
+    if _depth > MAX_RESOLVE_DEPTH:
+        return None
     if isinstance(fields, dict):
-        return {k: resolve_event_fields(v, event) for k, v in fields.items()}
+        return {k: resolve_payload_fields(v, context, _depth=_depth + 1) for k, v in fields.items()}
     if isinstance(fields, list):
-        return [resolve_event_fields(item, event) for item in fields]
-    return resolve_json_selector(fields, event)
+        return [resolve_payload_fields(item, context, _depth=_depth + 1) for item in fields]
+    return resolve_json_selector(fields, context)
 ```
 
 - `resolve_json_selector` is flat — no recursion, primitives only
-- `resolve_event_fields` is the recursive wrapper — handles dicts, lists, delegates primitives
+- `resolve_payload_fields` is the recursive wrapper — handles dicts, lists, delegates primitives
 - On missing path or any resolution error, `resolve_json_selector` returns `None` (never raises)
+- Recursion beyond `MAX_RESOLVE_DEPTH` (10) returns `None`
 
 ### Value Resolution Examples
 
 | Value | Type | Result |
 |-------|------|--------|
-| `"$"` | JSON Path (root) | Entire serialized event |
-| `"$.event_type"` | JSON Path | `event["event_type"]` |
-| `"$.attributes.user_id"` | JSON Path | `event["attributes"]["user_id"]` |
-| `"/event_type"` | JSON Pointer | `event["event_type"]` |
+| `"$"` | JSON Path (root) | Entire context |
+| `"$.event"` | JSON Path | Full event object |
+| `"$.event.event_type"` | JSON Path | `context["event"]["event_type"]` |
+| `"$.event.attributes.user_id"` | JSON Path | `context["event"]["attributes"]["user_id"]` |
+| `"$.subscription.name"` | JSON Path | `context["subscription"]["name"]` |
+| `"$.subscription.tags"` | JSON Path | `context["subscription"]["tags"]` |
+| `"$.scope.project_id"` | JSON Path | `context["scope"]["project_id"]` |
+| `"/event/event_type"` | JSON Pointer | `context["event"]["event_type"]` |
 | `"main"` | Static string | `"main"` |
 | `42` | Static number | `42` |
-| `"$.attributes.nonexistent"` | Missing path | `None` |
-| `{"type": "$.event_type", "meta": {"id": "$.event_id"}}` | Nested dict | `{"type": "environments...", "meta": {"id": "019..."}}` |
-| `["$.event_type", "production"]` | List | `["environments...", "production"]` |
+| `"$.event.attributes.nonexistent"` | Missing path | `None` |
+| `{"type": "$.event.event_type", "meta": {"id": "$.event.event_id"}}` | Nested dict | `{"type": "environments...", "meta": {"id": "019..."}}` |
+| `["$.event.event_type", "production"]` | List | `["environments...", "production"]` |
 
-### Example — default (no `event_fields`)
-Fallback: `{"event": "$"}`
+### Example — default (no `payload_fields`)
+Fallback: `"$"` (entire context)
 
 ```json
 {
@@ -185,16 +216,29 @@ Fallback: `{"event": "$"}`
     "event_id": "01961234-5678-7abc-...",
     "event_type": "environments.revisions.committed",
     "timestamp": "2026-03-04T12:00:00Z",
+    "created_at": "2026-03-04T12:00:00Z",
     "attributes": {
       "user_id": "...",
       "references": {...}
     }
+  },
+  "subscription": {
+    "id": "01961234-...",
+    "name": "GitHub Deploy Dispatch",
+    "flags": {"is_valid": true},
+    "tags": ["deploy", "production"],
+    "meta": null,
+    "created_at": "2026-03-01T10:00:00Z",
+    "updated_at": "2026-03-02T15:00:00Z"
+  },
+  "scope": {
+    "project_id": "01961234-..."
   }
 }
 ```
 
 ### Example — repository_dispatch shape
-`event_fields={"event_type": "$.event_type", "client_payload": "$"}`
+`payload_fields={"event_type": "$.event.event_type", "client_payload": "$.event"}`
 
 ```json
 {
@@ -212,7 +256,7 @@ Fallback: `{"event": "$"}`
 ```
 
 ### Example — workflow_dispatch shape
-`event_fields={"ref": "main", "inputs": "$"}`
+`payload_fields={"ref": "main", "inputs": "$.event"}`
 
 ```json
 {
@@ -229,10 +273,30 @@ Fallback: `{"event": "$"}`
 }
 ```
 
+### Example — using subscription metadata
+`payload_fields={"event_type": "$.event.event_type", "client_payload": {"event": "$.event", "tags": "$.subscription.tags", "source": "$.subscription.name"}}`
+
+```json
+{
+  "event_type": "environments.revisions.committed",
+  "client_payload": {
+    "event": {
+      "event_id": "01961234-5678-7abc-...",
+      "event_type": "environments.revisions.committed",
+      "timestamp": "2026-03-04T12:00:00Z",
+      "attributes": {...}
+    },
+    "tags": ["deploy", "production"],
+    "source": "GitHub Deploy Dispatch"
+  }
+}
+```
+
 ### Files Affected
-- `sdk/agenta/sdk/workflows/handlers.py` — add `resolve_json_selector` function
-- `api/oss/src/core/webhooks/types.py` — replace `event_field`, `extract_fields`, `custom_fields` with single `event_fields` field
-- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — build body by iterating `event_fields` and resolving each value via `resolve_json_selector`
+- `sdk/agenta/sdk/workflows/handlers.py` — add `resolve_json_selector` function (primitives only)
+- `api/oss/src/core/webhooks/types.py` — add `payload_fields` field, add `EVENT_CONTEXT_FIELDS` and `SUBSCRIPTION_CONTEXT_FIELDS` allowlists
+- `api/oss/src/tasks/taskiq/webhooks/tasks.py` — add `resolve_payload_fields` wrapper; build context and resolve payload
+- `api/oss/src/tasks/asyncio/webhooks/dispatcher.py` — build context dict, pass subscription + scope to delivery task
 
 ---
 
@@ -256,9 +320,9 @@ Subscription creation:
         "X-GitHub-Api-Version": "2022-11-28"
       },
       "event_types": ["environments.revisions.committed"],
-      "event_fields": {
-        "event_type": "$.event_type",
-        "client_payload": "$"
+      "payload_fields": {
+        "event_type": "$.event.event_type",
+        "client_payload": "$.event"
       }
     }
   }
@@ -274,8 +338,9 @@ X-GitHub-Api-Version: 2022-11-28
 Content-Type: application/json
 User-Agent: Agenta-Webhook/1.0
 X-Agenta-Event-Type: environments.revisions.committed
+X-Agenta-Delivery-Id: {delivery_id}
 X-Agenta-Event-Id: {event_id}
-Idempotency-Key: {event_id}
+Idempotency-Key: {delivery_id}
 
 {
   "event_type": "environments.revisions.committed",
@@ -307,9 +372,9 @@ Subscription creation:
         "X-GitHub-Api-Version": "2022-11-28"
       },
       "event_types": ["environments.revisions.committed"],
-      "event_fields": {
+      "payload_fields": {
         "ref": "main",
-        "inputs": "$"
+        "inputs": "$.event"
       }
     }
   }
@@ -325,8 +390,9 @@ X-GitHub-Api-Version: 2022-11-28
 Content-Type: application/json
 User-Agent: Agenta-Webhook/1.0
 X-Agenta-Event-Type: environments.revisions.committed
+X-Agenta-Delivery-Id: {delivery_id}
 X-Agenta-Event-Id: {event_id}
-Idempotency-Key: {event_id}
+Idempotency-Key: {delivery_id}
 
 {
   "ref": "main",
@@ -351,32 +417,37 @@ Idempotency-Key: {event_id}
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
 | `auth_mode` | `Optional[Literal["signature", "authorization"]]` | `None` | Auth header strategy (falls back to `"signature"` when resolved) |
-| `event_fields` | `Optional[Dict[str, Any]]` | `None` | Body structure — values resolved via `resolve_json_selector` (falls back to `{"event": "$"}`) |
+| `payload_fields` | `Optional[Dict[str, Any]]` | `None` | Body structure — resolved recursively via `resolve_payload_fields` against context (falls back to `"$"` — the full context) |
 
 ### Header Changes
 
 | Before | After |
 |--------|-------|
-| `X-Agenta-Delivery-Id: {delivery_id}` | `X-Agenta-Event-Id: {event_id}` |
-| _(not present)_ | `Idempotency-Key: {event_id}` |
-| _(when user provides secret)_ | `Authorization: {secret}` (replaces HMAC signature) |
+| `X-Agenta-Delivery-Id: {delivery_id}` | `X-Agenta-Delivery-Id: {delivery_id}` (unchanged) |
+| _(not present)_ | `X-Agenta-Event-Id: {event_id}` |
+| _(not present)_ | `Idempotency-Key: {delivery_id}` |
+| _(when auth_mode="authorization")_ | `Authorization: {secret}` (replaces HMAC signature) |
 
 ### Code-Level Rename
 
 | Before | After |
 |--------|-------|
-| `body` (parameter/field) | `event` |
-| `WebhookDeliveryData.body` | `WebhookDeliveryData.event` |
+| `body` (parameter/field) | `payload` |
+| `WebhookDeliveryData.body` | `WebhookDeliveryData.payload` |
 
 ---
 
 ## Body Assembly Order
 
-At delivery time, the final HTTP body is assembled in this order:
+At delivery time, the final HTTP payload is assembled in this order:
 
 ```
-1. Serialize event: event.model_dump(mode="json", exclude_none=True)
-2. Resolve event_fields: use subscription's event_fields if set, else {"event": "$"}
-3. body = resolve_event_fields(event_fields, serialized_event)
+1. Build context:
+   a. Serialize event: event.model_dump(mode="json", exclude_none=True)
+   b. Serialize subscription: subscription.model_dump(mode="json", exclude_none=True)
+   c. Filter both through allowlists (EVENT_CONTEXT_FIELDS, SUBSCRIPTION_CONTEXT_FIELDS)
+   d. context = {"event": filtered_event, "subscription": filtered_sub, "scope": {"project_id": str(project_id)}}
+2. Resolve payload_fields: use subscription's payload_fields if set, else "$" (full context)
+3. payload = resolve_payload_fields(payload_fields, context)
 4. JSON-serialize with sort_keys=True
 ```

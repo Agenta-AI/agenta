@@ -16,13 +16,17 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 import httpx
 
+from agenta.sdk.workflows.handlers import resolve_json_selector
+
 from oss.src.core.shared.dtos import Status
 from oss.src.core.webhooks.types import (
+    EVENT_CONTEXT_FIELDS,
+    SUBSCRIPTION_CONTEXT_FIELDS,
     WEBHOOK_MAX_RETRIES,
     WEBHOOK_TIMEOUT,
     WebhookDeliveryCreate,
@@ -37,6 +41,8 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+MAX_RESOLVE_DEPTH = 10
+
 NON_OVERRIDABLE_HEADERS = {
     "content-type",
     "content-length",
@@ -44,7 +50,10 @@ NON_OVERRIDABLE_HEADERS = {
     "user-agent",
     "x-agenta-event-type",
     "x-agenta-delivery-id",
+    "x-agenta-event-id",
     "x-agenta-signature",
+    "idempotency-key",
+    "authorization",
 }
 
 
@@ -77,6 +86,36 @@ def _merge_headers(
     return merged
 
 
+def resolve_payload_fields(
+    fields: Any,
+    context: Dict[str, Any],
+    *,
+    _depth: int = 0,
+) -> Any:
+    """Recursively resolve payload_fields against context.
+
+    - dict  → recurse into values (keys stay as-is)
+    - list  → recurse into items
+    - primitive → delegate to resolve_json_selector; returns None on any error
+    - depth > MAX_RESOLVE_DEPTH → return None
+    """
+    if _depth > MAX_RESOLVE_DEPTH:
+        return None
+    if isinstance(fields, dict):
+        return {
+            k: resolve_payload_fields(v, context, _depth=_depth + 1)
+            for k, v in fields.items()
+        }
+    if isinstance(fields, list):
+        return [
+            resolve_payload_fields(item, context, _depth=_depth + 1) for item in fields
+        ]
+    try:
+        return resolve_json_selector(fields, context)
+    except Exception:
+        return None
+
+
 async def deliver_webhook(
     *,
     project_id: UUID,
@@ -89,7 +128,11 @@ async def deliver_webhook(
     #
     url: str,
     headers: dict,
-    body: dict,
+    payload_fields: Optional[Dict[str, Any]],
+    auth_mode: Optional[str],
+    #
+    event: Dict[str, Any],
+    subscription: Dict[str, Any],
     #
     encrypted_secret: str,
     #
@@ -107,11 +150,32 @@ async def deliver_webhook(
         )
         typed_event_type = None
 
+    # --- Build context ------------------------------------------------------- #
+
+    context = {
+        "event": {
+            k: v  #
+            for k, v in event.items()
+            if k in EVENT_CONTEXT_FIELDS
+        },
+        "subscription": {
+            k: v  #
+            for k, v in subscription.items()
+            if k in SUBSCRIPTION_CONTEXT_FIELDS
+        },
+        "scope": {"project_id": str(project_id)},
+    }
+
+    # --- Resolve payload ------------------------------------------------------ #
+
+    resolved_fields = payload_fields if payload_fields is not None else "$"
+    payload = resolve_payload_fields(resolved_fields, context)
+
     base_data = WebhookDeliveryData(
         event_type=typed_event_type,
         #
         url=url,
-        body=body,
+        payload=payload,
     )
 
     try:
@@ -132,22 +196,38 @@ async def deliver_webhook(
 
     signing_secret = decrypt(encrypted_secret)
 
-    payload_json = json.dumps(body, sort_keys=True, separators=(",", ":"))
-    timestamp = str(int(datetime.now(timezone.utc).timestamp()))
-    to_sign = f"{timestamp}.{payload_json}"
-    signature = hmac.new(
-        key=signing_secret.encode("utf-8"),
-        msg=to_sign.encode("utf-8"),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
+    resolved_auth_mode = auth_mode or "signature"
 
-    system_headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Agenta-Webhook/1.0",
-        "X-Agenta-Event-Type": event_type,
-        "X-Agenta-Delivery-Id": str(delivery_id),
-        "X-Agenta-Signature": f"t={timestamp},v1={signature}",
-    }
+    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+
+    if resolved_auth_mode == "authorization":
+        system_headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Agenta-Webhook/1.0",
+            "X-Agenta-Event-Type": event_type,
+            "X-Agenta-Delivery-Id": str(delivery_id),
+            "X-Agenta-Event-Id": str(event_id),
+            "Idempotency-Key": str(delivery_id),
+            "Authorization": signing_secret,
+        }
+    else:
+        to_sign = f"{timestamp}.{payload_json}"
+        signature = hmac.new(
+            key=signing_secret.encode("utf-8"),
+            msg=to_sign.encode("utf-8"),
+            digestmod=hashlib.sha256,
+        ).hexdigest()
+        system_headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Agenta-Webhook/1.0",
+            "X-Agenta-Event-Type": event_type,
+            "X-Agenta-Delivery-Id": str(delivery_id),
+            "X-Agenta-Event-Id": str(event_id),
+            "Idempotency-Key": str(delivery_id),
+            "X-Agenta-Signature": f"t={timestamp},v1={signature}",
+        }
+
     request_headers = _merge_headers(
         user_headers=headers,
         system_headers=system_headers,

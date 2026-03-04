@@ -32,6 +32,7 @@ from oss.src.core.webhooks.types import (
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.core.webhooks.exceptions import (
+    WebhookAuthorizationSecretRequiredError,
     WebhookSubscriptionNotFoundError,
     WebhookTestDeliveryTimeoutError,
     WebhookTestEventPublishFailedError,
@@ -114,7 +115,12 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionCreate,
     ) -> WebhookSubscription:
-        secret_value = self._generate_secret()
+        auth_mode = subscription.data.auth_mode if subscription.data else None
+
+        if auth_mode == "authorization" and not subscription.secret:
+            raise WebhookAuthorizationSecretRequiredError()
+
+        secret_value = subscription.secret or self._generate_secret()
 
         secret_dto = await self.vault_service.create_secret(
             project_id=project_id,

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, HttpUrl
@@ -22,6 +22,27 @@ WEBHOOK_TIMEOUT = 10.0  # seconds per request
 
 WEBHOOK_TEST_POLL_INTERVAL_MS = 500
 WEBHOOK_TEST_MAX_ATTEMPTS = 20
+
+
+# --- CONTEXT ALLOWLISTS ----------------------------------------------------- #
+
+EVENT_CONTEXT_FIELDS = {
+    "event_id",
+    "event_type",
+    "timestamp",
+    "created_at",
+    "attributes",
+}
+
+SUBSCRIPTION_CONTEXT_FIELDS = {
+    "id",
+    "name",
+    "flags",
+    "tags",
+    "meta",
+    "created_at",
+    "updated_at",
+}
 
 
 # --- WEBHOOK EVENT TYPES --------------------------------------------------- #
@@ -56,6 +77,8 @@ class WebhookSubscriptionQueryFlags(BaseModel):
 class WebhookSubscriptionData(BaseModel):
     url: HttpUrl
     headers: Optional[Dict[str, str]] = None
+    payload_fields: Optional[Dict[str, Any]] = None
+    auth_mode: Optional[Literal["signature", "authorization"]] = None
 
     event_types: Optional[List[WebhookEventType]] = None
 
@@ -73,6 +96,8 @@ class WebhookSubscriptionCreate(Header, Metadata):
     flags: Optional[WebhookSubscriptionFlags] = None
 
     data: WebhookSubscriptionData
+
+    secret: Optional[str] = None
 
 
 class WebhookSubscriptionEdit(Identifier, Lifecycle, Header, Metadata):
@@ -98,7 +123,7 @@ class WebhookDeliveryData(BaseModel):
 
     url: HttpUrl
     headers: Optional[Dict[str, str]] = None
-    body: Optional[Dict[str, Any]] = None
+    payload: Optional[Dict[str, Any]] = None
 
     response: Optional[WebhookDeliveryResponseInfo] = None
 
