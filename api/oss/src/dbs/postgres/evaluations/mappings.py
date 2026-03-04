@@ -40,6 +40,7 @@ def edit_dbe_from_dto(
 
     for field, value in dto.model_dump(
         # mode="json",
+        exclude_none=True,
     ).items():
         setattr(dbe, field, value)
 

@@ -1,10 +1,9 @@
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, UUID, TIMESTAMP, Enum as ENUM, VARCHAR
 
+from oss.src.core.tracing.dtos import TraceType, SpanType
 from oss.src.core.tracing.dtos import OTelStatusCode as StatusCode
 from oss.src.core.tracing.dtos import OTelSpanKind as SpanKind
-from oss.src.core.tracing.dtos import SpanType
-from oss.src.core.tracing.dtos import TraceType
 
 
 class SpanDBA:
