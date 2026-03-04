@@ -83,31 +83,28 @@ async def publish_spans(
     *,
     organization_id: UUID,
     project_id: UUID,
-    user_id: Optional[UUID] = None,
+    user_id: UUID,
     #
     span_dtos: List[OTelFlatSpan],
 ) -> int:
     redis = _get_redis()
 
     count = 0
-    try:
-        for span_dto in span_dtos:
-            span_bytes = serialize_span(
-                organization_id=organization_id,
-                project_id=project_id,
-                user_id=user_id,
-                #
-                span_dto=span_dto,
-            )
 
-            await redis.xadd(
-                name="streams:tracing",
-                fields={"data": span_bytes},
-            )
+    for span_dto in span_dtos:
+        span_bytes = serialize_span(
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=user_id,
+            #
+            span_dto=span_dto,
+        )
 
-            count += 1
+        await redis.xadd(
+            name="streams:tracing",
+            fields={"data": span_bytes},
+        )
 
-    except Exception as e:
-        log.error(f"[INGEST] Failed to publish spans: {e}", exc_info=True)
+        count += 1
 
     return count

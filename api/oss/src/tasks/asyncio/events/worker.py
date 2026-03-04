@@ -198,6 +198,7 @@ class EventsWorker:
 
         batches = list(groups.values())
         total_ingested = 0
+        allowed_batches = []
 
         for project_batch in batches:
             if project_batch["organization_id"] and is_ee():
@@ -230,8 +231,9 @@ class EventsWorker:
                 project_id=project_batch["project_id"],
                 events=[msg.to_event() for msg in project_batch["events"]],
             )
+            allowed_batches.append(project_batch)
 
-        return total_ingested, processed_ids, batches
+        return total_ingested, processed_ids, allowed_batches
 
     async def run(self):
         """
@@ -266,7 +268,7 @@ class EventsWorker:
                 # 3. Dispatch to webhooks (skip ACK/DEL on failure to allow retry)
                 if self.webhooks_dispatcher and batches:
                     try:
-                        await self.webhooks_dispatcher.dispatch(batches)
+                        await self.webhooks_dispatcher.dispatch(batches=batches)
                     except Exception:
                         log.error("[EVENTS] Webhook dispatch failed", exc_info=True)
                         log.warning(

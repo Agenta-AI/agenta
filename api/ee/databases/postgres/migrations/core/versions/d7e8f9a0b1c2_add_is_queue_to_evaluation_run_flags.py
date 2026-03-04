@@ -1,0 +1,48 @@
+"""Add is_queue to evaluation run flags
+
+Revision ID: d7e8f9a0b1c2
+Revises: e5f6a1b2c3d4
+Create Date: 2026-02-26 12:00:00
+"""
+
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+# revision identifiers, used by Alembic.
+revision: str = "d7e8f9a0b1c2"
+down_revision: Union[str, None] = "e5f6a1b2c3d4"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    conn = op.get_bind()
+
+    conn.execute(
+        sa.text(
+            """
+            UPDATE evaluation_runs
+            SET flags = CASE
+                WHEN flags IS NULL THEN '{"is_queue": false}'::jsonb
+                WHEN NOT (flags ? 'is_queue') THEN flags || '{"is_queue": false}'::jsonb
+                ELSE flags
+            END
+            """
+        )
+    )
+
+
+def downgrade() -> None:
+    conn = op.get_bind()
+
+    conn.execute(
+        sa.text(
+            """
+            UPDATE evaluation_runs
+            SET flags = flags - 'is_queue'
+            WHERE flags ? 'is_queue'
+            """
+        )
+    )

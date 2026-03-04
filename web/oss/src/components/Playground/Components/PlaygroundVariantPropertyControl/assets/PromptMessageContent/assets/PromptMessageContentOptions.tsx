@@ -1,5 +1,6 @@
 import {memo, useCallback, useState} from "react"
 
+import {TOGGLE_MARKDOWN_VIEW, markdownViewAtom} from "@agenta/ui/editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     ArrowClockwise,
@@ -15,8 +16,6 @@ import {
 import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {getTextContent} from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"

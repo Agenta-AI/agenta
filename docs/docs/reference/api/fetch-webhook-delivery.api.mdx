@@ -1,0 +1,71 @@
+---
+id: fetch-webhook-delivery
+title: "Fetch Delivery"
+description: "Fetch Delivery"
+sidebar_label: "Fetch Delivery"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1V81uGzcQfhViTi3ASo7bQ7GnOnbaGElRI3bSg2MY1HIkMdklN+SsYkVYoA/RJ+yTFEPurlaWLCtGcrKhHc58M/PN3wpIzQJk1/A3TubOfQxwI8FV6BUZZ881ZDBFyue3n9P3W42FWaBfgoRKeVUioWcFK7CqRMigE7g1GiQYCxlUiuYgweOn2njUkJGvUULI51gqyFZAy4qfBvLGzkDC1PlSEWRQ11ELGSpY4KzVLc41NM0NqwyVswEDazk+OuI/GkPuTcX4IYPLOs8xhGldiDetMEjInSW0xOKqqgqTR3fHHwK/WQ2QVZ6DQSZZyF2dHrWAjSWcoR8gPI0SEjROVV0QZEeN7EMSzdnlX9MYr3uqPSpCfatoU+rB0GhF+BOZEqGRvZitiwI4MD2epFacEDQS6kp/DyNvk9rWiMYCv4ORs6S2NdKFaxJ5dpidSKZDgvU8EWwdr29qpYtWb6UL2De10oWrt/LtVCd9gRTVYbtGOJGBVFntLex1ztd6r/qXjWxfPgx4H8Ar/p1J4vSTdZzy20ZCiSGo2ZPV/Nk+TwHLP5JX+ZOVXa41NH2IwE0+YE6wIcaZYWYpUvuaDi7Q0u1joZaAti55SKBdGO9siZbCyOPCBONsGOWuLA0Rcqtu50QYhXrS9+EwIgz8feBMO3BeMISYMLnVuaOCiZoUKCJSwbiC+O+ff4USDC4nwWaQhJuKXtPovX1v36mixiCUR6HRmwVqMfWuXEuJ4ATNUSQngwiklsJYEZY2H723V04orYUSFj+LsBuKFIZEWQcSU+MDCbwzgVjHGsqOfHJf8cWu6ijV3Wu0M5pDdnz0688SSmO7H54NK9SbQbrf+oJzPUel4ygeJlJpbTicqrjYLNJ7nLvHpX0kfNnaaSRMnF4eYi+N+8NNPGe9zXq676NwakO3D5Z6N6IfqSuqg+hKftutw0s0Qd9TnC3tu02m20nO7dTt5gp67/xT4byIj3fhWS9j15GO25XZQTzjJrIT2rDE29F16CZ3OXjaDqjUjL5OTSy0tA3ud7GdVtuYB3YfDsEu978+x9A0/OqX4+PtNfWdKoyOS6hIOXvyjqqRlIntxRCWOwZ04fKNrwfwqi+im7XXynu1HDj92iWAcWiG2a4s7hiK3ex5SDQGQ3QD3diqTvt3t4rEH3jU091AzVZGTjmWd/QoTTg2CX4rN+DEOkVtVT0YirOUgn0UeXl1dbGlMPFjkxi/8/UlztZXV4k0d3yXzZDiEcbTAcbd3B23x4bBMF4NbrGGuY9+0V1rcQTBnKgK2XicF67WIzVDS2qkzFhVJvaRgHntDS3jk5OL81e4TP0fsuubocAlszHxa1Osz4mqzCtkB9o78aSmufPmSyJNeymmIRYjZ7gjDlJ9EsGJk4tzkMBupPgcjZ6NjrZ2hw1hLiSVR950tuNnkPei0PvPXaGMVQSEqvxt/YGRVS5QqexA31aSNtD0IWAKjqtCmVgk7RKQEnjdL07Q34tcrxKy4UF9I2HuArH8ajVRAd/6omn45091PDCvbyQslDe8qcSkaRP4fw3ZVBUBt6D1XQZ+eNMWwo8C5G7IXSot+7jgDQsyAAkfcXnv8o+dYt5RZdVKnOQ5VjR4u9XYmFM9w/94cQVN8z8c2LQq
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Delivery"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/webhooks/deliveries/{delivery_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Delivery
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"delivery_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Delivery Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"delivery":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"status":{"properties":{"timestamp":{"type":"string","format":"date-time","title":"Timestamp"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"},"code":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Code"},"message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Message"},"stacktrace":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Stacktrace"}},"type":"object","title":"Status"},"data":{"anyOf":[{"properties":{"event_type":{"anyOf":[{"type":"string","enum":["environments.revisions.committed","webhooks.subscriptions.tested"],"title":"WebhookEventType","description":"Subscribable event types — a strict subset of EventType.\n\nValues are derived from EventType so the strings stay in sync.\nTo add a new subscribable event type, it must first exist in EventType."},{"type":"null"}]},"url":{"type":"string","maxLength":2083,"minLength":1,"format":"uri","title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"type":"string"},"type":"object"},{"type":"null"}],"title":"Headers"},"body":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Body"},"response":{"anyOf":[{"properties":{"status_code":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Status Code"},"body":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Body"}},"type":"object","title":"WebhookDeliveryResponseInfo"},{"type":"null"}]},"error":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Error"}},"type":"object","required":["url"],"title":"WebhookDeliveryData"},{"type":"null"}]},"subscription_id":{"type":"string","format":"uuid","title":"Subscription Id"},"event_id":{"type":"string","format":"uuid","title":"Event Id"}},"type":"object","required":["status","subscription_id","event_id"],"title":"WebhookDelivery"},{"type":"null"}]}},"type":"object","title":"WebhookDeliveryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

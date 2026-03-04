@@ -16,9 +16,9 @@ import uuid_utils.compat as uuid_compat
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.events.types import EventType
 from oss.src.core.webhooks.types import (
+    WebhookEventType,
     WebhookSubscription,
     WebhookSubscriptionQuery,
-    WebhookSubscriptionQueryFlags,
 )
 from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.utils.caching import get_cache, set_cache, AGENTA_CACHE_TTL
@@ -127,11 +127,7 @@ class WebhooksDispatcher:
         subscriptions = await self.subscriptions_dao.query_subscriptions(
             project_id=project_id,
             #
-            subscription=WebhookSubscriptionQuery(
-                flags=WebhookSubscriptionQueryFlags(
-                    is_valid=True,
-                ),
-            ),
+            subscription=WebhookSubscriptionQuery(),
         )
 
         # Resolve secrets (vault reads happen only on cache miss)
@@ -198,6 +194,16 @@ class WebhooksDispatcher:
             for msg in project_batch["events"]:
                 event = msg.event
                 event_type = event.event_type.value
+
+                try:
+                    WebhookEventType(event_type)
+                except ValueError:
+                    log.debug(
+                        "[WEBHOOKS DISPATCHER] Skipping non-subscribable event_type %r",
+                        event_type,
+                    )
+                    continue
+
                 target_subscription_id = None
 
                 if event.event_type == EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED:
@@ -218,8 +224,12 @@ class WebhooksDispatcher:
                     matching = [
                         sub
                         for sub in subscriptions
-                        if sub.data.event_types is None
-                        or event_type in sub.data.event_types
+                        if sub.flags is not None
+                        and sub.flags.is_valid
+                        and (
+                            sub.data.event_types is None
+                            or event_type in sub.data.event_types
+                        )
                     ]
 
                 for sub in matching:
