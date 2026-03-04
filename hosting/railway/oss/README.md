@@ -196,7 +196,7 @@ The API image defaults to docker-compose hostnames for Redis (`redis-durable:638
 
 First deploys on Railway take longer because Docker layer caches are cold. The app settle window (`RAILWAY_APP_SETTLE_SECONDS`, default 60) may not be enough on very slow builds. If smoke fails because services are still DEPLOYING, wait and re-run smoke manually.
 
-For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
+For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
 ### Smoke check options
 
