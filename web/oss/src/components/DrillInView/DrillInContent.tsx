@@ -8,15 +8,18 @@ import {
     useState,
 } from "react"
 
-import {ChatMessageEditor, ChatMessageList} from "@agenta/ui/chat-message"
-import {EditorProvider, DrillInProvider, markdownViewAtom} from "@agenta/ui/editor"
+import {
+    DrillInProvider,
+    EditorProvider,
+    markdownViewAtom,
+    SET_MARKDOWN_VIEW,
+    useLexicalComposerContext,
+} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InputNumber, Select, Switch} from "antd"
 import {useAtomValue} from "jotai"
 import yaml from "js-yaml"
 
-import {useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {
     detectDataType,
     getTextModeValue,
@@ -33,6 +36,7 @@ import DrillInFieldHeader from "./DrillInFieldHeader"
 import {EditorMarkdownToggleExposer} from "./EditorMarkdownToggleExposer"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import {canToggleRawMode} from "./utils"
+import { ChatMessageEditor, ChatMessageList } from "@agenta/ui"
 
 // Helper component to read markdown view state for a field
 function MarkdownViewState({
@@ -652,7 +656,7 @@ export function DrillInContent({
     const drillInEnabled = true
 
     return (
-        <DrillInProvider value={{enabled: drillInEnabled}}>
+        <DrillInProvider value={{enabled: drillInEnabled, decodeEscapedJsonStrings: false}}>
             <div className="flex flex-col gap-2">
                 {/* Optional header content */}
                 {headerContent}

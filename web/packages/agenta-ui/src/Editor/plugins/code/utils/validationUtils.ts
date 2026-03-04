@@ -1,6 +1,7 @@
 import yaml from "js-yaml"
 import JSON5 from "json5"
 
+import type {ErrorInfo} from "../core/validation/types"
 import type {CodeLanguage} from "../types"
 
 // Enhanced validation functions for irregular and chaotic input detection
@@ -230,14 +231,6 @@ function detectStandaloneValues(lines: string[]): ErrorInfo[] {
     return errors
 }
 
-export interface ErrorInfo {
-    id: string
-    line: number
-    message: string
-    type: "syntax" | "schema" | "bracket" | "structural"
-    severity: "error" | "warning"
-}
-
 /**
  * Main validation function - validates both JSON/YAML syntax and schema
  * @param textContent - The content to validate
@@ -290,18 +283,17 @@ export function validateAll(
 
     // 1. Try native parsing first (fast path for valid content)
     try {
-        if (language === "json") {
-            JSON.parse(textContent)
-        } else {
-            yaml.load(textContent)
-        }
+        const parsedContent = language === "json" ? JSON.parse(textContent) : yaml.load(textContent)
         // If we reach here, it's valid content - only run schema validation if needed
-        const schemaErrors = schema ? validateSchema(textContent, schema, lines, language) : []
+        const schemaErrors = schema
+            ? validateSchema(textContent, schema, lines, language, parsedContent)
+            : []
         const errorsByLine = new Map<number, ErrorInfo[]>()
         for (const error of schemaErrors) {
-            const lineErrors = errorsByLine.get(error.line) || []
+            const lineNumber = error.line ?? 1
+            const lineErrors = errorsByLine.get(lineNumber) || []
             lineErrors.push(error)
-            errorsByLine.set(error.line, lineErrors)
+            errorsByLine.set(lineNumber, lineErrors)
         }
         return {
             allErrors: schemaErrors,
@@ -365,9 +357,10 @@ export function validateAll(
     // Group errors by line
     const errorsByLine = new Map<number, ErrorInfo[]>()
     for (const error of errors) {
-        const lineErrors = errorsByLine.get(error.line) || []
+        const lineNumber = error.line ?? 1
+        const lineErrors = errorsByLine.get(lineNumber) || []
         lineErrors.push(error)
-        errorsByLine.set(error.line, lineErrors)
+        errorsByLine.set(lineNumber, lineErrors)
     }
 
     return {
@@ -1038,6 +1031,7 @@ function validateSchema(
     schema: Record<string, unknown>,
     lines: string[],
     language: CodeLanguage = "json",
+    parsedContentFromCaller?: unknown,
 ): ErrorInfo[] {
     const errors: ErrorInfo[] = []
 
@@ -1051,18 +1045,46 @@ function validateSchema(
     }
 
     try {
+        let parsedObjectCache: Record<string, unknown> | null =
+            parsedContentFromCaller &&
+            typeof parsedContentFromCaller === "object" &&
+            !Array.isArray(parsedContentFromCaller)
+                ? (parsedContentFromCaller as Record<string, unknown>)
+                : null
+        let hasParsedObjectCache =
+            parsedContentFromCaller &&
+            typeof parsedContentFromCaller === "object" &&
+            !Array.isArray(parsedContentFromCaller)
+
+        const getParsedObject = (): Record<string, unknown> | null => {
+            if (hasParsedObjectCache) {
+                return parsedObjectCache
+            }
+
+            hasParsedObjectCache = true
+            try {
+                const parsedRaw =
+                    language === "json"
+                        ? (JSON5.parse(textContent) as unknown)
+                        : yaml.load(textContent)
+                if (parsedRaw && typeof parsedRaw === "object" && !Array.isArray(parsedRaw)) {
+                    parsedObjectCache = parsedRaw as Record<string, unknown>
+                    return parsedObjectCache
+                }
+            } catch {
+                return null
+            }
+
+            return null
+        }
+
         // For schema validation, we'll use a simple approach:
         // Always check for missing required properties regardless of JSON validity
 
         // Check for missing required properties - must be at root level
         if (schema.required) {
-            try {
-                let parsedContent: Record<string, unknown>
-                if (language === "json") {
-                    parsedContent = JSON5.parse(textContent) as Record<string, unknown>
-                } else {
-                    parsedContent = yaml.load(textContent) as Record<string, unknown>
-                }
+            const parsedContent = getParsedObject()
+            if (parsedContent) {
                 for (const requiredProp of schema.required as string[]) {
                     // Check if the required property exists at the root level
                     if (!(requiredProp in parsedContent)) {
@@ -1076,7 +1098,7 @@ function validateSchema(
                     } else {
                     }
                 }
-            } catch (parseError) {
+            } else {
                 // When content is malformed, fall back to text-based validation
                 // This checks if the property exists anywhere in the text (less precise but more forgiving)
                 for (const requiredProp of schema.required as string[]) {
@@ -1103,14 +1125,8 @@ function validateSchema(
         }
 
         // Check for wrong value types by trying to parse the content
-        try {
-            let parsedContent: Record<string, unknown>
-            if (language === "json") {
-                parsedContent = JSON5.parse(textContent) as Record<string, unknown>
-            } else {
-                parsedContent = yaml.load(textContent) as Record<string, unknown>
-            }
-
+        const parsedContent = getParsedObject()
+        if (parsedContent) {
             if (schema.properties) {
                 const schemaProps = schema.properties as Record<string, Record<string, unknown>>
                 for (const [propName, propSchema] of Object.entries(schemaProps)) {
@@ -1152,7 +1168,7 @@ function validateSchema(
                     }
                 }
             }
-        } catch (parseError) {
+        } else {
             // Skip type validation if content is malformed
         }
 

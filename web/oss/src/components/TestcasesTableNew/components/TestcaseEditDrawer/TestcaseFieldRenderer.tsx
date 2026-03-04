@@ -1,9 +1,8 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
-import type {SimpleChatMessage} from "@agenta/shared/types"
-import {ChatMessageList} from "@agenta/ui/chat-message"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+
 
 // JSON Editor wrapper that manages local state to prevent breaking on invalid JSON
 const JsonEditorWithLocalState = ({
@@ -72,6 +71,8 @@ import {
     getArrayItemValue,
 } from "./fieldUtils"
 import NestedFieldEditor from "./NestedFieldEditor"
+import { SimpleChatMessage } from "@agenta/playground"
+import { ChatMessageList } from "@agenta/ui"
 
 // Display modes: text (beautified/readable) vs raw (exact underlying data) vs expanded (nested fields)
 export type FieldMode = "text" | "raw" | "expanded"

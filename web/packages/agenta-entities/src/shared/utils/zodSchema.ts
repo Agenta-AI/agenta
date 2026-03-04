@@ -153,7 +153,8 @@ export function createEntitySchemaSet<TBase extends z.ZodRawShape>(
     )
 
     // Create schema - omits server-generated fields
-    const createSchema = base.omit(omitKeys).partial()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod omit requires exact key type
+    const createSchema = base.omit(omitKeys as any).partial()
 
     // Update schema - partial with required ID
     const updateSchema = base.partial().extend({

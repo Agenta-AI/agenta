@@ -10,6 +10,15 @@ import {
 } from "react"
 
 import {
+    Editor as EditorWrapper,
+    EditorProvider,
+    DrillInProvider,
+    useLexicalComposerContext,
+    ON_CHANGE_LANGUAGE,
+    SET_MARKDOWN_VIEW,
+    SearchPlugin,
+} from "@agenta/ui"
+import {
     ArrowDownIcon,
     ArrowUpIcon,
     CaretDown,
@@ -27,13 +36,6 @@ import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import EditorWrapper, {
-    EditorProvider,
-    useLexicalComposerContext,
-} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {SET_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {SearchPlugin} from "@/oss/components/Editor/plugins/search/SearchPlugin"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {traceSpan} from "@/oss/state/entities/trace"
@@ -221,7 +223,7 @@ const LanguageAwareViewer = ({
         ]
     }, [searchProps])
 
-    return (
+    const editorNode = (
         <EditorWrapper
             initialValue={initialValue}
             language={language === "yaml" ? "yaml" : "json"}
@@ -232,9 +234,18 @@ const LanguageAwareViewer = ({
             noProvider
             readOnly
             additionalCodePlugins={additionalPlugins}
-            decodeEscapedJsonStringsInLongText={language === "rendered-json"}
         />
     )
+
+    if (language === "rendered-json") {
+        return (
+            <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: true}}>
+                {editorNode}
+            </DrillInProvider>
+        )
+    }
+
+    return editorNode
 }
 
 const MarkdownModeSync = ({isMarkdownView}: {isMarkdownView: boolean}) => {

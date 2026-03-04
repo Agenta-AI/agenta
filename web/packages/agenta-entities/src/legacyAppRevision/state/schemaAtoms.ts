@@ -340,9 +340,22 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily(
                 }
             }
 
+            // Entity has URI — read the schema query (will be enabled)
             const query = get(directSchemaQueryAtomFamily(revisionId))
 
-            // Pending if query is actively fetching
+            // Layer 2: Per-revision schema (fallback for custom apps or failed service fetch)
+
+            // Entity data hasn't arrived yet — pending (data will arrive eventually)
+            if (isEntityStillLoading) {
+                return {
+                    data: query.data ?? emptySchemaState,
+                    isPending: false,
+                    isError: false,
+                    error: null,
+                }
+            }
+
+            // Pending only if the query is actively fetching
             if (query.isPending) {
                 return {
                     data: emptySchemaState,

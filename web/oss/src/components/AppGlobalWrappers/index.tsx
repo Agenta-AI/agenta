@@ -1,9 +1,5 @@
 import {memo, useEffect} from "react"
 
-import {
-    completionServiceSchemaAtom,
-    chatServiceSchemaAtom,
-} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -13,6 +9,12 @@ import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appStat
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
+import {playgroundRevisionsReadyAtom} from "@agenta/playground/state"
+import {
+    chatServiceSchemaAtom,
+    completionServiceSchemaAtom,
+    revisionCacheVersionAtom,
+} from "node_modules/@agenta/entities/src/legacyAppRevision/state"
 
 // Initialize user atoms for @agenta/entities shared user resolution
 // This enables UserAuthorLabel and other user resolution features
@@ -182,6 +184,31 @@ const NavigationCommandListener = () => {
     return null
 }
 
+/**
+ * Bumps the revision cache version when playground revision list queries settle.
+ *
+ * On non-playground pages (overview, deployments), `playgroundRevisionsReadyAtom`
+ * still subscribes to `variantsQueryAtomFamily` and `revisionsQueryAtomFamily`,
+ * which populate the TanStack Query cache with RevisionListItems (including
+ * variantId, appId, URI). Without this bump, `revisionListItemFromCacheAtomFamily`
+ * never re-scans the cache, so deeplinked drawer revisions fall through to the
+ * slow `directQueryAtomFamily` path that returns data without URI enrichment.
+ *
+ * This mirrors what the playground URL hydration does in `playground.ts:500`.
+ */
+const RevisionCacheSync = () => {
+    const isReady = useAtomValue(playgroundRevisionsReadyAtom)
+    const bumpCacheVersion = useSetAtom(revisionCacheVersionAtom)
+
+    useEffect(() => {
+        if (isReady) {
+            bumpCacheVersion((prev) => prev + 1)
+        }
+    }, [isReady, bumpCacheVersion])
+
+    return null
+}
+
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
 
@@ -195,6 +222,7 @@ const AppGlobalWrappers = () => {
     return (
         <EntityModalsProvider>
             <NavigationCommandListener />
+            <RevisionCacheSync />
             <TraceDrawer />
             <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />

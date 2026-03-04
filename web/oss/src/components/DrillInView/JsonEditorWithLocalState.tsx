@@ -1,8 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {DrillInProvider, EditorProvider} from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-
-import {DrillInProvider} from "@/oss/components/Editor/plugins/code/context/DrillInContext"
 
 interface JsonEditorWithLocalStateProps {
     initialValue: string
@@ -46,25 +45,33 @@ export function JsonEditorWithLocalState({
     )
 
     return (
-        <DrillInProvider value={{enabled: !!onPropertyClick}}>
-            <SharedEditor
-                key={editorKey}
-                initialValue={localValue}
-                handleChange={readOnly ? undefined : handleChange}
-                editorType="border"
-                className="min-h-[60px] overflow-hidden"
-                disableDebounce
-                onPropertyClick={onPropertyClick}
-                syncWithInitialValueChanges
-                disabled={readOnly}
-                state={readOnly ? "readOnly" : undefined}
-                editorProps={{
-                    codeOnly: true,
-                    language: "json",
-                    showLineNumbers: true,
-                    disableLongText: true,
-                }}
-            />
+        <DrillInProvider
+            value={{
+                enabled: !!onPropertyClick,
+                decodeEscapedJsonStrings: false,
+            }}
+        >
+            <EditorProvider key={editorKey} codeOnly language="json" showToolbar={false}>
+                <SharedEditor
+                    key={`${editorKey}-shared`}
+                    initialValue={localValue}
+                    handleChange={readOnly ? undefined : handleChange}
+                    editorType="border"
+                    className="min-h-[60px] overflow-hidden"
+                    disableDebounce
+                    noProvider
+                    onPropertyClick={onPropertyClick}
+                    syncWithInitialValueChanges
+                    disabled={readOnly}
+                    state={readOnly ? "readOnly" : undefined}
+                    editorProps={{
+                        codeOnly: true,
+                        language: "json",
+                        showLineNumbers: true,
+                        disableLongText: true,
+                    }}
+                />
+            </EditorProvider>
         </DrillInProvider>
     )
 }

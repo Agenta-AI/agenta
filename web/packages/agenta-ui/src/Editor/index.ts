@@ -55,15 +55,15 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
 } from "./plugins/code"
+export {$getEditorCodeAsString, constructJsonFromSchema} from "./plugins/code/utils/editorCodeUtils"
 export {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
-export {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
 export {DrillInProvider} from "./plugins/code/context/DrillInContext"
 
 // JSON parsing utilities - Re-exported from @agenta/shared
 export {tryParsePartialJson, safeJson5Parse} from "@agenta/shared/utils"
 
 // Markdown utilities
-export {TOGGLE_MARKDOWN_VIEW} from "./plugins/markdown/commands"
+export {TOGGLE_MARKDOWN_VIEW, SET_MARKDOWN_VIEW} from "./plugins/markdown/commands"
 export {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 export {
     $convertToMarkdownStringCustom,
@@ -72,6 +72,9 @@ export {
 
 // Form view types
 export type {CustomRenderFn} from "./form/nodes/NodeTypes"
+
+// Search plugin
+export {SearchPlugin} from "./plugins/search/SearchPlugin"
 
 // Hooks
 export {default as useEditorConfig} from "./hooks/useEditorConfig"

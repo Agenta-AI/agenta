@@ -1,9 +1,20 @@
-import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo, useState} from "react"
+import {
+    forwardRef,
+    useCallback,
+    useEffect,
+    useRef,
+    ReactNode,
+    memo,
+    useState,
+    useMemo,
+    type CSSProperties,
+} from "react"
 
+import {createLogger} from "@agenta/shared/utils"
 import {$isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
-import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
 import yaml from "js-yaml"
@@ -12,7 +23,11 @@ import {
     COMMAND_PRIORITY_LOW,
     EditorState,
     LexicalEditor,
+    type AnyLexicalExtensionArgument,
+    configExtension,
     createCommand,
+    defineExtension,
+    type InitialEditorStateType,
 } from "lexical"
 import {$getRoot} from "lexical"
 import {v4 as uuidv4} from "uuid"
@@ -23,16 +38,56 @@ import {useEditorInvariant} from "./hooks/useEditorInvariant"
 import {useEditorResize} from "./hooks/useEditorResize"
 import EditorPlugins from "./plugins"
 import {createHighlightedNodes, TOGGLE_FORM_VIEW} from "./plugins/code"
+import {
+    ENTER_KEY_UPDATE_TAG,
+    HIGHLIGHT_ONLY_UPDATE_TAG,
+} from "./plugins/code/core/highlight/updateTags"
+import {CodeBehaviorCommandsExtension} from "./plugins/code/extensions/codeBehaviorCommands"
+import {CodeFoldingExtension} from "./plugins/code/extensions/codeFoldingReact"
+import {CodeModelExtension} from "./plugins/code/extensions/codeModel"
+import {CodeVirtualizationExtension} from "./plugins/code/extensions/codeVirtualization"
+import {DiffHighlightExtension} from "./plugins/code/extensions/diffHighlight"
+import {HighlightCoreExtension} from "./plugins/code/extensions/highlightCore"
+import {PropertyClickExtension} from "./plugins/code/extensions/propertyClick"
+import {ValidationCoreExtension} from "./plugins/code/extensions/validationCore"
+import {ValidationExtension} from "./plugins/code/extensions/validationReact"
 import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
-import {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
+import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
+import {$getLineCount} from "./plugins/code/utils/segmentUtils"
 import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
+import {TokenBehaviorExtension} from "./plugins/token/extensions/tokenBehavior"
 import type {EditorProps} from "./types"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
     parentId: string
 }>("ON_HYDRATE_FROM_REMOTE_CONTENT")
+const extensionFlowLog = createLogger("EditorExtensionFlow", {disabled: true})
+const onChangeLog = createLogger("EditorOnChange", {disabled: true})
+const DEBUG_ENTER_ON_CHANGE_PROFILE = true
+const SLOW_ON_CHANGE_THRESHOLD_MS = 80
+const LARGE_DOC_LINE_NUMBER_DISABLE_CHAR_THRESHOLD = 50000
+const LARGE_DOC_LINE_NUMBER_DISABLE_LINE_THRESHOLD = 1200
+/** Debounce delay for onChange serialization during rapid structural edits (Enter key) */
+const LARGE_DOC_ON_CHANGE_DEBOUNCE_MS = 150
+const EMPTY_TOKENS: string[] = []
+
+function getNow(): number {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+        return performance.now()
+    }
+    return Date.now()
+}
+
+function $getNativeCodeAsString(): string {
+    const root = $getRoot()
+    const codeNode = root.getChildren().find($isCodeNode)
+    if ($isCodeNode(codeNode)) {
+        return codeNode.getTextContent()
+    }
+    return root.getTextContent()
+}
 
 // Re-export the useLexicalComposerContext hook for easier access
 export {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -81,12 +136,16 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             boundWidth = true, // New prop
             boundHeight, // New prop
             disabled = false,
-            tokens = [],
+            tokens = EMPTY_TOKENS,
             additionalCodePlugins = [],
             showLineNumbers = true,
             onPropertyClick,
             disableLongText,
             loadingFallback = "skeleton",
+            disableCodeFoldingPlugin = false,
+            disableIndentationPlugin = false,
+            useNativeCodeNodes = false,
+            diffExtensionConfig,
             ...rest
         }: EditorProps,
         ref,
@@ -105,29 +164,87 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         const [editor] = useLexicalComposerContext()
 
         const handleUpdate = useCallback(
-            (editorState: EditorState, _editor: LexicalEditor) => {
-                editor.dispatchCommand(ON_CHANGE_COMMAND, {editorState, _editor})
+            (editorState: EditorState, _editor: LexicalEditor, tags?: ReadonlySet<string>) => {
+                if (!onChange) {
+                    return
+                }
+                editor.dispatchCommand(ON_CHANGE_COMMAND, {editorState, _editor, tags})
             },
-            [editor],
+            [editor, onChange],
         )
 
         useEffect(() => {
-            editor.registerCommand(
+            if (!onChange) {
+                return
+            }
+
+            return editor.registerCommand(
                 ON_CHANGE_COMMAND,
-                (payload: {editorState: EditorState; _editor: LexicalEditor}) => {
-                    const {editorState, _editor} = payload
+                (payload: {
+                    editorState: EditorState
+                    _editor: LexicalEditor
+                    tags?: ReadonlySet<string>
+                }) => {
+                    const {editorState, _editor, tags} = payload
+                    const updateTags = tags ?? new Set<string>()
+                    if (updateTags.has(HIGHLIGHT_ONLY_UPDATE_TAG)) {
+                        return true
+                    }
+                    const isEnterUpdate = updateTags.has(ENTER_KEY_UPDATE_TAG)
+
+                    // For Enter key updates on large code documents, debounce the
+                    // serialization to avoid O(n) $getEditorCodeAsString() traversal
+                    // on every keystroke. The serialization runs after LARGE_DOC_ON_CHANGE_DEBOUNCE_MS
+                    // of idle time, batching rapid Enter presses into a single serialize.
+                    if (codeOnly && isEnterUpdate) {
+                        if (onChangeDebounceRef.current != null) {
+                            clearTimeout(onChangeDebounceRef.current)
+                        }
+                        onChangeDebounceRef.current = setTimeout(() => {
+                            onChangeDebounceRef.current = null
+                            editor.getEditorState().read(() => {
+                                if (!editor.isEditable()) return
+                                const textContent = useNativeCodeNodes
+                                    ? $getNativeCodeAsString()
+                                    : $getEditorCodeAsString(editor)
+                                onChange({value: textContent, textContent, tokens: []})
+                            })
+                        }, LARGE_DOC_ON_CHANGE_DEBOUNCE_MS)
+                        return true
+                    }
+
+                    const onChangeStartMs = getNow()
                     editorState.read(() => {
                         if (!_editor.isEditable()) return false
 
                         if (codeOnly) {
-                            const textContent = $getEditorCodeAsString(_editor)
+                            const serializeStartMs = getNow()
+                            const textContent = useNativeCodeNodes
+                                ? $getNativeCodeAsString()
+                                : $getEditorCodeAsString(_editor)
+                            const serializeMs = getNow() - serializeStartMs
                             const result = {
                                 value: textContent,
                                 textContent,
                                 tokens: [], // You can extract tokens if needed
                             }
-                            if (onChange) {
-                                onChange(result)
+                            const callbackStartMs = getNow()
+                            onChange(result)
+                            const callbackMs = getNow() - callbackStartMs
+                            const totalMs = getNow() - onChangeStartMs
+                            if (
+                                (DEBUG_ENTER_ON_CHANGE_PROFILE && isEnterUpdate) ||
+                                totalMs >= SLOW_ON_CHANGE_THRESHOLD_MS
+                            ) {
+                                onChangeLog("updateProfile", {
+                                    editorId: id,
+                                    isEnterUpdate,
+                                    codeOnly: true,
+                                    contentLength: textContent.length,
+                                    serializeMs: Number(serializeMs.toFixed(2)),
+                                    callbackMs: Number(callbackMs.toFixed(2)),
+                                    totalMs: Number(totalMs.toFixed(2)),
+                                })
                             }
                         } else {
                             const root = $getRoot()
@@ -155,9 +272,23 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 tokens,
                             }
 
-                            if (onChange) {
-                                lastEmittedTextRef.current = result.textContent
-                                onChange(result)
+                            lastEmittedTextRef.current = result.textContent
+                            const callbackStartMs = getNow()
+                            onChange(result)
+                            const callbackMs = getNow() - callbackStartMs
+                            const totalMs = getNow() - onChangeStartMs
+                            if (
+                                (DEBUG_ENTER_ON_CHANGE_PROFILE && isEnterUpdate) ||
+                                totalMs >= SLOW_ON_CHANGE_THRESHOLD_MS
+                            ) {
+                                onChangeLog("updateProfile", {
+                                    editorId: id,
+                                    isEnterUpdate,
+                                    codeOnly: false,
+                                    contentLength: result.textContent.length,
+                                    callbackMs: Number(callbackMs.toFixed(2)),
+                                    totalMs: Number(totalMs.toFixed(2)),
+                                })
                             }
                         }
                     })
@@ -165,7 +296,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 },
                 COMMAND_PRIORITY_HIGH,
             )
-        }, [editor])
+        }, [codeOnly, editor, onChange])
 
         const [view, setView] = useState<"code" | "form">("code")
         const [jsonValue, setJsonValue] = useState<Record<string, unknown>>({})
@@ -315,18 +446,181 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
         const lastHydratedRef = useRef<string>("")
         const lastEmittedTextRef = useRef<string>("")
+        const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
         // Use controlled value if provided, otherwise fall back to initialValue
         const effectiveValue = value !== undefined ? value : initialValue
+        const shouldDisableLineNumbersForLargeDoc = useMemo(() => {
+            if (!codeOnly || !showLineNumbers) {
+                return false
+            }
+
+            const text = effectiveValue || ""
+            if (text.length >= LARGE_DOC_LINE_NUMBER_DISABLE_CHAR_THRESHOLD) {
+                return true
+            }
+
+            let lineCount = 1
+            for (let i = 0; i < text.length; i++) {
+                if (text.charCodeAt(i) === 10) {
+                    lineCount += 1
+                    if (lineCount >= LARGE_DOC_LINE_NUMBER_DISABLE_LINE_THRESHOLD) {
+                        return true
+                    }
+                }
+            }
+
+            return false
+        }, [codeOnly, effectiveValue, showLineNumbers])
+
+        const [isLargeDocByRuntimeLineCount, setIsLargeDocByRuntimeLineCount] = useState(false)
+        const isLargeDocByRuntimeLineCountRef = useRef(false)
+
+        useEffect(() => {
+            isLargeDocByRuntimeLineCountRef.current = false
+
+            if (!codeOnly || !showLineNumbers) {
+                setIsLargeDocByRuntimeLineCount(false)
+                return
+            }
+            // If we already know from raw text size that this is a large doc,
+            // runtime line-count tracking is redundant and adds update-path overhead.
+            if (shouldDisableLineNumbersForLargeDoc) {
+                setIsLargeDocByRuntimeLineCount(false)
+                return
+            }
+
+            const refreshLargeDocState = () => {
+                let lineCount = 0
+                editor.getEditorState().read(() => {
+                    const root = $getRoot()
+                    const codeBlock = root.getChildren().find($isCodeBlockNode)
+                    if ($isCodeBlockNode(codeBlock)) {
+                        lineCount = $getLineCount(codeBlock)
+                    }
+                })
+                const isLargeLineCount = lineCount >= LARGE_DOC_LINE_NUMBER_DISABLE_LINE_THRESHOLD
+
+                if (isLargeDocByRuntimeLineCountRef.current === isLargeLineCount) {
+                    return
+                }
+
+                isLargeDocByRuntimeLineCountRef.current = isLargeLineCount
+                setIsLargeDocByRuntimeLineCount(isLargeLineCount)
+            }
+
+            refreshLargeDocState()
+
+            return mergeRegister(
+                editor.registerRootListener(() => {
+                    refreshLargeDocState()
+                }),
+                editor.registerUpdateListener(({dirtyElements, dirtyLeaves}) => {
+                    if (dirtyElements.size === 0 && dirtyLeaves.size === 0) {
+                        return
+                    }
+                    refreshLargeDocState()
+                }),
+            )
+        }, [codeOnly, editor, showLineNumbers, shouldDisableLineNumbersForLargeDoc])
+
+        const shouldEnableLargeDocOptimizations =
+            shouldDisableLineNumbersForLargeDoc || isLargeDocByRuntimeLineCount
+
+        const hasExplicitHeight = useMemo(() => {
+            const height = dimensions?.height
+            if (height == null) {
+                return false
+            }
+            if (typeof height === "number") {
+                return height > 0
+            }
+            const normalized = height.trim().toLowerCase()
+            if (!normalized) {
+                return false
+            }
+            return (
+                normalized !== "auto" &&
+                normalized !== "fit-content" &&
+                normalized !== "max-content" &&
+                normalized !== "min-content" &&
+                normalized !== "unset" &&
+                normalized !== "initial" &&
+                normalized !== "inherit"
+            )
+        }, [dimensions?.height])
+
+        const editorInnerStyle = useMemo<CSSProperties | undefined>(() => {
+            const style: CSSProperties = {}
+
+            if (dimensions?.width) {
+                style.width = dimensions.width
+            }
+            if (hasExplicitHeight && dimensions?.height) {
+                style.height = dimensions.height
+            }
+
+            // Virtualization needs a bounded scroll container.
+            // If caller did not provide a fixed height, apply a large-doc default.
+            if (codeOnly && shouldEnableLargeDocOptimizations && !hasExplicitHeight) {
+                style.maxHeight = "70vh"
+                style.overflow = "auto"
+            }
+
+            return Object.keys(style).length > 0 ? style : undefined
+        }, [
+            codeOnly,
+            dimensions?.height,
+            dimensions?.width,
+            hasExplicitHeight,
+            shouldEnableLargeDocOptimizations,
+        ])
+
+        useEffect(() => {
+            if (!codeOnly) {
+                return
+            }
+
+            extensionFlowLog("largeDocClassState", {
+                editorId: id,
+                showLineNumbers,
+                shouldDisableLineNumbersForLargeDoc,
+                isLargeDocByRuntimeLineCount,
+                shouldEnableLargeDocOptimizations,
+            })
+        }, [
+            codeOnly,
+            id,
+            isLargeDocByRuntimeLineCount,
+            shouldDisableLineNumbersForLargeDoc,
+            shouldEnableLargeDocOptimizations,
+            showLineNumbers,
+        ])
 
         useEffect(() => {
             if (codeOnly) return
             const next = effectiveValue || ""
-            // Compare with actual editor content, not just last hydrated value
-            // This ensures undo/redo works even when reverting to a previously hydrated value
+
+            // If this value is just our own onChange echoing back, skip hydration.
+            // The markdown round-trip (serialize → emit → hydrate → deserialize)
+            // can produce different text than $getRoot().getTextContent() due to
+            // trailing newline differences, causing an infinite re-hydration loop.
+            if (next === lastEmittedTextRef.current) {
+                return
+            }
+
+            // Compare with actual editor content serialized as markdown, not plain text.
+            // Using $getRoot().getTextContent() would strip markdown formatting (headings,
+            // code fences, etc.) causing false mismatches after markdown paste/conversion.
             let currentContent = ""
             editor.getEditorState().read(() => {
-                currentContent = $getRoot().getTextContent()
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
+                    currentContent = firstChild.getTextContent()
+                } else {
+                    currentContent = $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
+                }
             })
             // Skip if content already matches (no change needed)
             if (currentContent === next) return
@@ -348,16 +642,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     className={clsx("editor-inner border rounded-lg min-h-[inherit]", {
                         "single-line": singleLine,
                         "code-editor": codeOnly,
+                        "large-doc-optimizations": codeOnly && shouldEnableLargeDocOptimizations,
                         "no-line-numbers": codeOnly && !showLineNumbers,
                     })}
-                    style={
-                        dimensions && dimensions.width
-                            ? {
-                                  width: dimensions.width,
-                                  height: dimensions.height,
-                              }
-                            : undefined
-                    }
+                    style={editorInnerStyle}
                 >
                     {view === "code" ? (
                         <EditorPlugins
@@ -367,20 +655,18 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             showMarkdownToggleButton={showMarkdownToggleButton}
                             singleLine={singleLine}
                             codeOnly={codeOnly}
-                            enableTokens={enableTokens}
                             debug={debug}
                             language={language}
-                            templateFormat={templateFormat}
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
+                            hasOnChange={Boolean(onChange)}
                             initialValue={initialValue}
                             value={value}
-                            validationSchema={validationSchema}
-                            tokens={tokens}
-                            additionalCodePlugins={additionalCodePlugins}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
                             loadingFallback={loadingFallback}
+                            useNativeCodeNodes={useNativeCodeNodes}
+                            isDiffView={Boolean(diffExtensionConfig)}
                         />
                     ) : (
                         <FormView
@@ -407,7 +693,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 )
 
 export const EditorProvider = ({
-    id = uuidv4(),
+    id: idProp,
     initialValue = "",
     disabled = false,
     className,
@@ -419,6 +705,8 @@ export const EditorProvider = ({
     showToolbar = true,
     showMarkdownToggleButton = false,
     enableTokens = false,
+    tokens = EMPTY_TOKENS,
+    templateFormat = "curly",
     autoFocus = false,
     debug = false,
     enableResize = false,
@@ -428,7 +716,19 @@ export const EditorProvider = ({
     validationSchema,
     children,
     dimensions,
+    onPropertyClick,
+    diffExtensionConfig,
+    disableLongText = false,
+    disableCodeFoldingPlugin = false,
+    disableIndentationPlugin = false,
+    useNativeCodeNodes = false,
 }: EditorProps & {children: ReactNode}) => {
+    // Stabilize id across renders — `uuidv4()` as a default parameter would
+    // generate a new UUID on every render, which forces the extension useMemo
+    // to recompute and remounts the LexicalExtensionComposer (losing focus).
+    const stableIdRef = useRef(idProp || uuidv4())
+    const id = idProp || stableIdRef.current
+
     useEditorInvariant({
         singleLine,
         enableResize,
@@ -444,7 +744,153 @@ export const EditorProvider = ({
         codeOnly,
         enableTokens,
         disabled,
+        useNativeCodeNodes,
     })
+
+    const extension = useMemo(() => {
+        if (!config) {
+            extensionFlowLog("skip extension build: no config", {
+                id,
+            })
+            return null
+        }
+
+        const extensionDependencies: AnyLexicalExtensionArgument[] = []
+        const extensionDependencyLabels: string[] = []
+        const shouldMountModelExtension = validationSchema !== undefined
+        const shouldMountValidationExtensions = validationSchema != null
+
+        if (codeOnly && !useNativeCodeNodes) {
+            if (diffExtensionConfig) {
+                // Diff-only: minimal extension set (read-only view)
+                extensionDependencies.push(
+                    CodeVirtualizationExtension,
+                    configExtension(DiffHighlightExtension, {
+                        originalContent: diffExtensionConfig.originalContent,
+                        modifiedContent: diffExtensionConfig.modifiedContent,
+                        language:
+                            diffExtensionConfig.language ?? (language === "yaml" ? "yaml" : "json"),
+                        enableFolding: diffExtensionConfig.enableFolding ?? false,
+                        foldThreshold: diffExtensionConfig.foldThreshold ?? 5,
+                        showFoldedLineCount: diffExtensionConfig.showFoldedLineCount ?? true,
+                    }),
+                )
+                extensionDependencyLabels.push(
+                    "@agenta/editor/code/CodeVirtualization",
+                    "@agenta/editor/code/DiffHighlight",
+                )
+            } else {
+                // Interactive editor: full extension set
+                extensionDependencies.push(
+                    configExtension(CodeBehaviorCommandsExtension, {
+                        disableIndentation: disableIndentationPlugin,
+                    }),
+                    CodeVirtualizationExtension,
+                    configExtension(HighlightCoreExtension, {
+                        disableLongText,
+                    }),
+                )
+                extensionDependencyLabels.push(
+                    "@agenta/editor/code/CodeBehaviorCommands",
+                    "@agenta/editor/code/CodeVirtualization",
+                    "@agenta/editor/code/HighlightCore",
+                )
+                if (!disableCodeFoldingPlugin) {
+                    extensionDependencies.push(CodeFoldingExtension)
+                    extensionDependencyLabels.push("@agenta/editor/code/CodeFolding")
+                }
+                if (shouldMountModelExtension) {
+                    extensionDependencies.push(
+                        configExtension(CodeModelExtension, {
+                            editorId: id,
+                            schema: validationSchema ?? undefined,
+                        }),
+                    )
+                    extensionDependencyLabels.push("@agenta/editor/code/CodeModel")
+                }
+                if (shouldMountValidationExtensions) {
+                    extensionDependencies.push(
+                        configExtension(ValidationCoreExtension, {
+                            editorId: id,
+                        }),
+                        ValidationExtension,
+                    )
+                    extensionDependencyLabels.push(
+                        "@agenta/editor/code/ValidationCore",
+                        "@agenta/editor/code/Validation",
+                    )
+                }
+                if (onPropertyClick) {
+                    extensionDependencies.push(
+                        configExtension(PropertyClickExtension, {
+                            onPropertyClick,
+                            language: language ?? "json",
+                        }),
+                    )
+                    extensionDependencyLabels.push("@agenta/editor/code/PropertyClick")
+                }
+            }
+        }
+
+        if (enableTokens) {
+            extensionDependencies.push(
+                configExtension(TokenBehaviorExtension, {
+                    templateFormat,
+                    tokens: tokens || [],
+                }),
+            )
+            extensionDependencyLabels.push("@agenta/editor/token/TokenBehavior")
+        }
+
+        extensionFlowLog("build extension", {
+            id,
+            codeOnly,
+            useNativeCodeNodes,
+            enableTokens,
+            hasValidationSchema: validationSchema != null,
+            hasModelPipeline: shouldMountModelExtension,
+            hasValidationPipeline: shouldMountValidationExtensions,
+            hasPropertyClick: Boolean(onPropertyClick),
+            hasDiffConfig: Boolean(diffExtensionConfig),
+            disableCodeFoldingPlugin,
+            disableIndentationPlugin,
+            dependencyCount: extensionDependencies.length,
+            dependencies: extensionDependencyLabels,
+        })
+
+        return defineExtension({
+            name: "@agenta/ui/editor/root",
+            namespace: config.namespace,
+            onError: config.onError,
+            nodes: config.nodes,
+            theme: config.theme,
+            editable: config.editable,
+            $initialEditorState: config.editorState as InitialEditorStateType,
+            dependencies: extensionDependencies.length > 0 ? extensionDependencies : undefined,
+        })
+    }, [
+        codeOnly,
+        config,
+        diffExtensionConfig,
+        disableLongText,
+        disableCodeFoldingPlugin,
+        disableIndentationPlugin,
+        enableTokens,
+        id,
+        language,
+        onPropertyClick,
+        templateFormat,
+        tokens,
+        useNativeCodeNodes,
+        validationSchema,
+    ])
+
+    useEffect(() => {
+        extensionFlowLog("render provider", {
+            id,
+            hasExtension: Boolean(extension),
+        })
+    }, [extension, id])
 
     if (!config) {
         return (
@@ -477,13 +923,17 @@ export const EditorProvider = ({
                 className,
             ])}
         >
-            <LexicalComposer initialConfig={config}>{children}</LexicalComposer>
+            {extension ? (
+                <LexicalExtensionComposer extension={extension} contentEditable={null}>
+                    {children}
+                </LexicalExtensionComposer>
+            ) : null}
         </div>
     )
 }
 
 const Editor = ({
-    id = uuidv4(),
+    id: idProp,
     initialValue = "",
     value,
     disabled = false,
@@ -506,13 +956,22 @@ const Editor = ({
     showBorder = true,
     validationSchema,
     noProvider = false,
-    tokens = [],
+    tokens = EMPTY_TOKENS,
     additionalCodePlugins = [],
     showLineNumbers = true,
     onPropertyClick,
+    diffExtensionConfig,
+    disableLongText = false,
     loadingFallback = "skeleton",
+    disableCodeFoldingPlugin = false,
+    disableIndentationPlugin = false,
+    useNativeCodeNodes = false,
     ...rest
 }: EditorProps) => {
+    // Stabilize id across renders (same pattern as EditorProvider above).
+    const stableIdRef = useRef(idProp || uuidv4())
+    const id = idProp || stableIdRef.current
+
     const {setContainerElm, dimensions: dimension} = useEditorResize({
         singleLine,
         enableResize,
@@ -548,6 +1007,10 @@ const Editor = ({
                     showLineNumbers={showLineNumbers}
                     onPropertyClick={onPropertyClick}
                     loadingFallback={loadingFallback}
+                    disableLongText={disableLongText}
+                    disableCodeFoldingPlugin={disableCodeFoldingPlugin}
+                    disableIndentationPlugin={disableIndentationPlugin}
+                    useNativeCodeNodes={useNativeCodeNodes}
                 />
             ) : (
                 <EditorProvider
@@ -572,6 +1035,8 @@ const Editor = ({
                     showToolbar={showToolbar}
                     showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
+                    tokens={tokens}
+                    templateFormat={templateFormat}
                     autoFocus={autoFocus}
                     debug={debug}
                     enableResize={enableResize}
@@ -579,6 +1044,12 @@ const Editor = ({
                     boundHeight={boundHeight}
                     showBorder={showBorder}
                     validationSchema={validationSchema}
+                    onPropertyClick={onPropertyClick}
+                    diffExtensionConfig={diffExtensionConfig}
+                    disableLongText={disableLongText}
+                    disableCodeFoldingPlugin={disableCodeFoldingPlugin}
+                    disableIndentationPlugin={disableIndentationPlugin}
+                    useNativeCodeNodes={useNativeCodeNodes}
                 >
                     <EditorInner
                         dimensions={
@@ -612,6 +1083,10 @@ const Editor = ({
                         showLineNumbers={showLineNumbers}
                         onPropertyClick={onPropertyClick}
                         loadingFallback={loadingFallback}
+                        disableLongText={disableLongText}
+                        disableCodeFoldingPlugin={disableCodeFoldingPlugin}
+                        disableIndentationPlugin={disableIndentationPlugin}
+                        useNativeCodeNodes={useNativeCodeNodes}
                     />
                 </EditorProvider>
             )}

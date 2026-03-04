@@ -259,12 +259,13 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                     okText="Save"
                     cancelText="Cancel"
                     width={600}
+                    centered
                 >
                     <Typography.Text className="mb-2 block">
                         Define the JSON schema for the structured output. The model will return
                         responses that conform to this schema.
                     </Typography.Text>
-                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-y-auto [&_.agenta-shared-editor]:box-border">
+                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-hidden [&_.agenta-shared-editor]:box-border">
                         {editorContent}
                     </div>
                 </Modal>

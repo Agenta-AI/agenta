@@ -16,46 +16,26 @@ import type {EditorPluginsProps} from "../types"
 import MarkdownHoverToggleButton from "./markdown/MarkdownHoverToggleButton"
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
-const importCodeFoldingPlugin = () =>
-    import("./code/plugins/CodeFoldingPlugin").then((module) => ({
-        default: module.CodeFoldingPlugin,
-    }))
-
 const importTabIndentationPlugin = () =>
     import("@lexical/react/LexicalTabIndentationPlugin").then((module) => ({
         default: module.TabIndentationPlugin,
     }))
-
 const importToolbarPlugin = () =>
     import("./toolbar/ToolbarPlugin").then((module) => ({
         default: module.ToolbarPlugin,
     }))
-
 const importDebugPlugin = () =>
     import("./debug/DebugPlugin").then((module) => ({
         default: module.DebugPlugin,
     }))
-
 const importSingleLinePlugin = () =>
     import("./singleline/SingleLinePlugin").then((module) => ({
         default: module.SingleLinePlugin,
     }))
-
 const importCodeEditorPlugin = () => import("./code")
-
-const importTokenPlugin = () =>
-    import("./token/TokenPlugin").then((module) => ({
-        default: module.TokenPlugin,
-    }))
-
-const importAutoCloseTokenBracesPlugin = () =>
-    import("./token/AutoCloseTokenBracesPlugin").then((module) => ({
-        default: module.AutoCloseTokenBracesPlugin,
-    }))
-
-const importTokenTypeaheadPlugin = () =>
-    import("./token/TokenTypeaheadPlugin").then((module) => ({
-        default: module.TokenMenuPlugin,
+const importNativeCodeOnlyPlugin = () =>
+    import("./code/NativeCodeOnlyPlugin").then((module) => ({
+        default: module.NativeCodeOnlyPlugin,
     }))
 
 let preloadPromise: Promise<void> | null = null
@@ -66,15 +46,12 @@ let preloadPromise: Promise<void> | null = null
 export const preloadEditorPlugins = () => {
     if (!preloadPromise) {
         preloadPromise = Promise.all([
-            importCodeFoldingPlugin(),
             importTabIndentationPlugin(),
             importToolbarPlugin(),
             importDebugPlugin(),
             importSingleLinePlugin(),
             importCodeEditorPlugin(),
-            importTokenPlugin(),
-            importAutoCloseTokenBracesPlugin(),
-            importTokenTypeaheadPlugin(),
+            importNativeCodeOnlyPlugin(),
         ])
             .then(() => undefined)
             .catch(() => undefined)
@@ -83,15 +60,15 @@ export const preloadEditorPlugins = () => {
     return preloadPromise
 }
 
-const CodeFoldingPlugin = lazy(importCodeFoldingPlugin)
 const TabIndentationPlugin = lazy(importTabIndentationPlugin)
 const ToolbarPlugin = lazy(importToolbarPlugin)
 const DebugPlugin = lazy(importDebugPlugin)
 const SingleLinePlugin = lazy(importSingleLinePlugin)
 const CodeEditorPlugin = lazy(importCodeEditorPlugin)
-const TokenPlugin = lazy(importTokenPlugin)
-const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
-const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
+const NativeCodeOnlyPlugin = lazy(importNativeCodeOnlyPlugin)
+// const TokenPlugin = lazy(importTokenPlugin)
+// const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
+// const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
@@ -99,7 +76,6 @@ const EditorPlugins = ({
     showMarkdownToggleButton,
     singleLine,
     codeOnly,
-    enableTokens,
     debug,
     language,
     placeholder,
@@ -107,13 +83,12 @@ const EditorPlugins = ({
     handleUpdate,
     initialValue,
     value,
-    validationSchema,
-    tokens,
-    templateFormat,
-    additionalCodePlugins = [],
+    hasOnChange = false,
     onPropertyClick,
     disableLongText,
     loadingFallback = "skeleton",
+    useNativeCodeNodes = false,
+    isDiffView = false,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -152,6 +127,13 @@ const EditorPlugins = ({
                                 "markdown-view": markdown,
                             },
                         )}
+                        spellCheck={!codeOnly}
+                        autoCorrect={codeOnly ? "off" : undefined}
+                        autoCapitalize={codeOnly ? "off" : undefined}
+                        translate={codeOnly ? "no" : undefined}
+                        data-gramm={codeOnly ? "false" : undefined}
+                        data-gramm_editor={codeOnly ? "false" : undefined}
+                        data-enable-grammarly={codeOnly ? "false" : undefined}
                     />
                 }
                 placeholder={
@@ -163,32 +145,24 @@ const EditorPlugins = ({
             />
             <HistoryPlugin />
             {autoFocus ? <AutoFocusPlugin /> : null}
-            <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
+            {hasOnChange && <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />}
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
-            {showMarkdownToggleButton && !singleLine && !codeOnly ? (
-                <MarkdownHoverToggleButton id={id} />
-            ) : null}
-            {enableTokens && (
-                <>
-                    <TokenPlugin templateFormat={templateFormat} />
-                    <AutoCloseTokenBracesPlugin />
-                    <TokenTypeaheadPlugin tokens={tokens || []} />
-                </>
-            )}
             {singleLine && <SingleLinePlugin />}
-            {codeOnly && (
+            {codeOnly && !isDiffView && (
                 <>
-                    <CodeFoldingPlugin />
-                    <CodeEditorPlugin
-                        editorId={id}
-                        validationSchema={validationSchema}
-                        initialValue={value !== undefined ? value : initialValue}
-                        language={language === "yaml" ? "yaml" : "json"}
-                        debug={debug}
-                        additionalCodePlugins={additionalCodePlugins}
-                        onPropertyClick={onPropertyClick}
-                        disableLongText={disableLongText}
-                    />
+                    {useNativeCodeNodes ? (
+                        <NativeCodeOnlyPlugin
+                            initialValue={value !== undefined ? value : initialValue}
+                            language={language}
+                        />
+                    ) : (
+                        <CodeEditorPlugin
+                            initialValue={value !== undefined ? value : initialValue}
+                            language={language === "yaml" ? "yaml" : "json"}
+                            onPropertyClick={onPropertyClick}
+                            disableLongText={disableLongText}
+                        />
+                    )}
                     <TabIndentationPlugin />
                 </>
             )}
