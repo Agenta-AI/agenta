@@ -55,25 +55,44 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
           IMAGE_TAG: ${{ inputs.image_tag }}
+          RAILWAY_POST_BOOTSTRAP_SLEEP: "2"
+          RAILWAY_INFRA_SETTLE_SECONDS: "20"
+          RAILWAY_APP_SETTLE_SECONDS: "30"
           SMOKE_AUTO_REPAIR: "false"
           SMOKE_MAX_RETRIES: "20"
-          SMOKE_SLEEP_SECONDS: "10"
+          SMOKE_SLEEP_SECONDS: "5"
         run: |
           chmod +x hosting/railway/oss/scripts/*.sh
-          output="$(hosting/railway/oss/scripts/preview-create-or-update.sh 2>&1)" || {
-            echo "$output"
+          log_file="$(mktemp)"
+          cleanup() {
+            rm -f "$log_file"
+          }
+          trap cleanup EXIT
+
+          set +e
+          hosting/railway/oss/scripts/preview-create-or-update.sh 2>&1 | tee "$log_file"
+          deploy_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$deploy_status" -ne 0 ]; then
             echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
             exit 1
-          }
-          echo "$output"
+          fi
 
           # Extract preview URL from output
-          url="$(echo "$output" | grep -oP 'Preview URL: \K.*' || true)"
+          url="$(grep -oP 'Preview URL: \K.*' "$log_file" || true)"
+          url="${url%%$'\n'*}"
+          url="${url//$'\r'/}"
           echo "preview_url=${url}" >> "$GITHUB_OUTPUT"
 
           # Extract project name from output
-          project="$(echo "$output" | grep -oP "Preview deploy completed for '\K[^']*" || true)"
+          project="$(grep -oP "Preview deploy completed for '\K[^']*" "$log_file" || true)"
+          project="${project%%$'\n'*}"
+          project="${project//$'\r'/}"
           echo "project_name=${project}" >> "$GITHUB_OUTPUT"
+
+          trap - EXIT
+          cleanup
 
       - name: Post preview URL as PR comment
         if: inputs.pr_number != '' && steps.deploy.outputs.preview_url != ''
