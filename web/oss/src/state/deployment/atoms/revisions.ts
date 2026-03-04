@@ -22,7 +22,6 @@ export const deploymentRevisionsWithAppIdQueryAtomFamily = atomFamily(
             const sessionExists = get(sessionExistsAtom)
             const user = get(userAtom)
             const userId = user?.id
-            console.log("user", {user, sessionExists, userId, projectId, appId, envName})
             return {
                 queryKey: ["deploymentRevisions", appId, envName],
                 queryFn: async (): Promise<DeploymentRevisions | undefined> => {
