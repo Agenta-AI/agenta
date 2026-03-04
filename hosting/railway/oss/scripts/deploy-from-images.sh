@@ -202,7 +202,7 @@ sleep "${RAILWAY_POST_BOOTSTRAP_SLEEP:-5}"
 # Ensure infra picks up freshly configured credentials before migrations.
 railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 redeploy_service_if_exists "$POSTGRES_SERVICE"
-if railway service "$REDIS_SERVICE" >/dev/null 2>&1; then
+if railway_call service "$REDIS_SERVICE" >/dev/null 2>&1; then
     railway_call up "$TMP_DIR/redis" --path-as-root --service "$REDIS_SERVICE" --detach
 fi
 sleep "$INFRA_SETTLE_SECONDS"
