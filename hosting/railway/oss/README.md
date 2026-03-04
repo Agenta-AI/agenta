@@ -17,6 +17,7 @@ This directory contains a CLI-first bootstrap path to deploy Agenta OSS on Railw
 - `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
+- `redis/` - redis wrapper to ensure volume permissions are writable
 - `worker-evaluations/` - Taskiq worker image for evaluations
 - `worker-tracing/` - tracing ingestion worker image
 - `worker-webhooks/` - webhook delivery worker image
@@ -254,6 +255,11 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
 - This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`) and does not wire CI yet.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
+- `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis
+  service (when present) so Railway does not force a non-root runtime UID.
+- Redis deployments use a wrapper entrypoint to prepare `/data` before handing
+  off to the official Redis entrypoint, preventing `MISCONF` from RDB write
+  permission failures.
 - Alembic now creates `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` automatically before running migrations.
 - OTLP traces require `worker-tracing` to be deployed and healthy.
 - Evaluation jobs require `worker-evaluations` to be deployed and healthy.
