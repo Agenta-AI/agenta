@@ -1158,7 +1158,7 @@ const openFromTraceAtom = atom(
                 entityId,
                 label,
                 inputs: actualInputs,
-                appId,
+                appId: applicationId,
             }
         }
 
