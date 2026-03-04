@@ -76,7 +76,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Hardcode bookworm codename to avoid pulling in lsb-release (+ perl ~56MB).
 # IMPORTANT: This codename must match the Debian release used in the base image (python:3.11-slim-bookworm).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl cron gnupg2 && \
+    apt-get install -y --no-install-recommends curl gnupg2 && \
     echo "deb http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
@@ -84,6 +84,13 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends postgresql-client-17 && \
     apt-get purge -y --auto-remove gnupg2 && \
     rm -rf /var/lib/apt/lists/*
+
+# Install supercronic (non-root-compatible cron daemon)
+ARG SUPERCRONIC_VERSION=v0.2.33
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" \
+      -o /usr/local/bin/supercronic && \
+    chmod +x /usr/local/bin/supercronic
 
 # Copy stable cron files first (change less frequently)
 COPY --chmod=755 ./oss/src/crons/queries.sh /queries.sh
@@ -97,10 +104,19 @@ COPY --from=builder /app/oss /app/oss
 COPY --from=builder /app/entrypoints /app/entrypoints
 COPY --from=builder /app/sdk /app/sdk
 
+# Generate supercronic-compatible crontab (strip user field and /proc redirects)
 RUN set -eux; \
     for cron_file in /etc/cron.d/queries-cron; do \
         sed -i -e '$a\' "${cron_file}"; \
-    done
+    done; \
+    sed 's/^\(\S\+ \S\+ \S\+ \S\+ \S\+\) root /\1 /' /etc/cron.d/queries-cron \
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab
+
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
 
 LABEL org.opencontainers.image.title="agenta-api" \
     org.opencontainers.image.description="Agenta API GH runtime image" \

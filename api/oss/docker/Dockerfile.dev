@@ -3,7 +3,7 @@ FROM python:3.11-slim-bookworm
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y curl cron gnupg2 lsb-release && \
+    apt-get install -y curl gnupg2 lsb-release && \
     echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
@@ -11,6 +11,13 @@ RUN apt-get update && \
     apt-get install -y postgresql-client-16 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install supercronic (non-root-compatible cron daemon)
+ARG SUPERCRONIC_VERSION=v0.2.33
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" \
+      -o /usr/local/bin/supercronic && \
+    chmod +x /usr/local/bin/supercronic
 
 RUN pip install --upgrade pip \
     && pip install poetry
@@ -28,11 +35,12 @@ ENV PYTHONPATH=/sdk:$PYTHONPATH
 
 COPY ./oss/src/crons/queries.sh /queries.sh
 COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
 
 RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
+    && chmod 0644 /etc/cron.d/queries-cron \
+    && sed -i -e '$a\' /etc/cron.d/queries-cron \
+    && sed 's/^\(\S\+ \S\+ \S\+ \S\+ \S\+\) root /\1 /' /etc/cron.d/queries-cron \
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab
 
 #
 #
@@ -50,4 +58,10 @@ RUN chmod +x /queries.sh \
 #
 #
     
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
+
 EXPOSE 8000
