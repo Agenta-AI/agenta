@@ -2,14 +2,7 @@ import {useEffect, useCallback} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {useLexicalTextEntity} from "@lexical/react/useLexicalTextEntity"
-import {
-    TextNode,
-    $createTextNode,
-    $getRoot,
-    LexicalNode,
-    $isRangeSelection,
-    $getSelection,
-} from "lexical"
+import {TextNode, $createTextNode, LexicalNode, $isRangeSelection, $getSelection} from "lexical"
 
 import {navigateCursor} from "./assets/selectionUtils"
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
@@ -149,20 +142,6 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
             TokenInputNode,
             $transformNode,
         )
-
-        // Force re-evaluation of existing TextNodes that may have been created
-        // by hydration before these transforms were registered. In production builds,
-        // the hydration effect can fire before TokenPlugin mounts, so the transform
-        // pipeline never sees the initial TextNodes. Marking them dirty ensures the
-        // just-registered transforms process any pending {{...}} patterns.
-        editor.update(() => {
-            const root = $getRoot()
-            for (const textNode of root.getAllTextNodes()) {
-                if (textNode.getType() === "text") {
-                    textNode.markDirty()
-                }
-            }
-        })
 
         return () => {
             unregisterTextNodeTransform()

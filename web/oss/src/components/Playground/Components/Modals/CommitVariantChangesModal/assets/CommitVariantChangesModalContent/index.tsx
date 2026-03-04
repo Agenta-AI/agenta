@@ -49,6 +49,7 @@ const LEGACY_KEYS = new Set([
     "top_p",
     "frequency_penalty",
     "presence_penalty",
+    "input_keys",
     "template_format",
 ])
 

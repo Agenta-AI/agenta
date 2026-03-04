@@ -235,6 +235,14 @@ const LanguageAwareViewer = ({
         />
     )
 
+    if (language === "rendered-json") {
+        return (
+            <DrillInProvider value={{enabled: false, decodeEscapedJsonStrings: true}}>
+                {editorNode}
+            </DrillInProvider>
+        )
+    }
+
     return editorNode
 }
 
@@ -588,35 +596,28 @@ export const TraceSpanDrillInView = memo(
                                 </div>
                             )}
                             {isCodeMode ? (
-                                <DrillInProvider
-                                    value={{
-                                        enabled: false,
-                                        decodeEscapedJsonStrings: viewMode === "rendered-json",
-                                    }}
+                                <EditorProvider
+                                    codeOnly
+                                    enableTokens={false}
+                                    showToolbar={false}
+                                    readOnly
+                                    disabled
+                                    noProvider
                                 >
-                                    <EditorProvider
-                                        codeOnly
-                                        enableTokens={false}
-                                        showToolbar={false}
-                                        readOnly
-                                        disabled
-                                        noProvider
-                                    >
-                                        <LanguageAwareViewer
-                                            initialValue={activeOutput}
-                                            language={viewMode}
-                                            searchProps={
-                                                isSearchOpen
-                                                    ? {
-                                                          searchTerm,
-                                                          currentResultIndex,
-                                                          onResultCountChange: setResultCount,
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                    </EditorProvider>
-                                </DrillInProvider>
+                                    <LanguageAwareViewer
+                                        initialValue={activeOutput}
+                                        language={viewMode}
+                                        searchProps={
+                                            isSearchOpen
+                                                ? {
+                                                      searchTerm,
+                                                      currentResultIndex,
+                                                      onResultCountChange: setResultCount,
+                                                  }
+                                                : undefined
+                                        }
+                                    />
+                                </EditorProvider>
                             ) : (
                                 <div className="mx-1 my-2 rounded-md bg-[#F6F8FB]">
                                     <TextModeViewer

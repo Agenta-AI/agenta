@@ -622,9 +622,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 }
             })
             // Skip if content already matches (no change needed)
-            if (currentContent === next) {
-                return
-            }
+            if (currentContent === next) return
             lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
                 hydrateWithRemoteContent: next,

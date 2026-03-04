@@ -91,7 +91,7 @@ export const chatTurnIdsAtom = atom(
             queueMicrotask(() => {
                 getDefaultStore().set(allChatTurnIdsMapAtom, (prev) => {
                     const current = prev[key]
-                    if (Array.isArray(current) && current.length > 0) return prev // Already updated
+                    if (current) return prev // Already updated
                     return {...prev, [key]: baselineList}
                 })
             })
@@ -111,7 +111,7 @@ export const chatTurnIdsAtom = atom(
             }
             store.set(allChatTurnIdsMapAtom, (prev) => {
                 const current = prev[key]
-                if (Array.isArray(current) && current.length > 0) return prev
+                if (current) return prev
                 return {...prev, [key]: nextList}
             })
         })

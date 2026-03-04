@@ -427,10 +427,8 @@ function createEnhancedPrompt(
     }
 
     // Process other properties
-    // Skip input_keys — it's dynamically computed from message content via
-    // syncInputKeysInPrompts and should not be carried from server parameters.
     Object.entries(mergedData).forEach(([propKey, propValue]) => {
-        if (propKey === "messages" || propKey === "llm_config" || propKey === "input_keys") return
+        if (propKey === "messages" || propKey === "llm_config") return
         const propSchema = schemaProperties?.[propKey]
         result[propKey] = createEnhancedValue(propValue, propSchema, propKey)
     })
@@ -525,10 +523,8 @@ function createEnhancedPromptFromValue(value: unknown, key: string): EnhancedPro
     }
 
     // Process other properties
-    // Skip input_keys — it's dynamically computed from message content via
-    // syncInputKeysInPrompts and should not be carried from server parameters.
     Object.entries(promptData).forEach(([propKey, propValue]) => {
-        if (propKey === "messages" || propKey === "llm_config" || propKey === "input_keys") return
+        if (propKey === "messages" || propKey === "llm_config") return
         // Check if already in enhanced format
         const actualValue = unwrapEnhancedValue(propValue)
         result[propKey] = createEnhancedValue(actualValue, undefined, propKey)
