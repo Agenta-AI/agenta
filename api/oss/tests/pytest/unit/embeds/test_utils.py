@@ -18,12 +18,16 @@ from oss.src.core.embeds.utils import (
     resolve_embeds,
     find_object_embeds,
     find_string_embeds,
+    find_snippet_embeds,
     extract_path,
     set_path,
     canonicalize_reference,
     AG_EMBED_KEY,
     AG_REFERENCES_KEY,
     AG_SELECTOR_KEY,
+    SHORTHAND_DEFAULT_PATH,
+    _find_snippet_tokens,
+    _parse_snippet_token,
 )
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
@@ -688,3 +692,290 @@ class TestResolveEmbeds:
                 configuration=config,
                 resolver_callback=resolver,
             )
+
+
+class TestFindSnippetTokens:
+    """Tests for _find_snippet_tokens — the @{{...}} token scanner."""
+
+    def test_single_token(self):
+        tokens = _find_snippet_tokens("Hello @{{environment.slug=prod, key=tip}} world")
+        assert tokens == ["@{{environment.slug=prod, key=tip}}"]
+
+    def test_no_tokens(self):
+        tokens = _find_snippet_tokens("Just a regular string")
+        assert tokens == []
+
+    def test_multiple_tokens(self):
+        text = "@{{environment.slug=prod, key=a}} and @{{environment.slug=dev, key=b}}"
+        tokens = _find_snippet_tokens(text)
+        assert len(tokens) == 2
+        assert "@{{environment.slug=prod, key=a}}" in tokens
+        assert "@{{environment.slug=dev, key=b}}" in tokens
+
+    def test_token_at_start(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod}}")
+        assert tokens == ["@{{environment.slug=prod}}"]
+
+    def test_incomplete_token_ignored(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod no closing")
+        assert tokens == []
+
+    def test_ampersand_separator(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod & key=tip}}")
+        assert tokens == ["@{{environment.slug=prod & key=tip}}"]
+
+
+class TestParseSnippetToken:
+    """Tests for _parse_snippet_token — the @{{...}} parser."""
+
+    def test_basic_with_key(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=production, key=my_snippet}}"
+        )
+        assert result is not None
+        references, selector = result
+        # bare "environment" stays as-is (resolver handles level inference)
+        assert "environment" in references
+        assert references["environment"].slug == "production"
+        assert selector is not None
+        assert selector.key == "my_snippet"
+        assert selector.path == SHORTHAND_DEFAULT_PATH
+
+    def test_auto_select_key(self):
+        """key= absent → selector.key == '' signals auto-select."""
+        result = _parse_snippet_token("@{{environment.slug=production}}")
+        assert result is not None
+        references, selector = result
+        assert selector is not None
+        assert selector.key == ""  # empty string = auto-select
+        assert selector.path == SHORTHAND_DEFAULT_PATH
+
+    def test_explicit_path(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=prod, key=tip, path=config.value}}"
+        )
+        assert result is not None
+        _, selector = result
+        assert selector is not None
+        assert selector.path == "config.value"
+
+    def test_ampersand_separator(self):
+        result = _parse_snippet_token("@{{environment.slug=prod & key=tip}}")
+        assert result is not None
+        references, selector = result
+        assert "environment" in references
+        assert selector is not None
+        assert selector.key == "tip"
+
+    def test_mixed_separators(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=prod, key=tip & path=foo.bar}}"
+        )
+        assert result is not None
+        _, selector = result
+        assert selector.path == "foo.bar"
+        assert selector.key == "tip"
+
+    def test_spaces_trimmed(self):
+        result = _parse_snippet_token("@{{  environment.slug = prod  ,  key = tip  }}")
+        assert result is not None
+        references, selector = result
+        assert references["environment"].slug == "prod"
+        assert selector.key == "tip"
+
+    def test_explicit_level_suffix(self):
+        """Full entity type with level suffix is preserved as-is."""
+        result = _parse_snippet_token("@{{environment_revision.slug=prod, key=tip}}")
+        assert result is not None
+        references, _ = result
+        assert "environment_revision" in references
+        assert references["environment_revision"].slug == "prod"
+
+    def test_workflow_entity_type(self):
+        result = _parse_snippet_token("@{{workflow.slug=my-flow, key=prompt}}")
+        assert result is not None
+        references, _ = result
+        assert "workflow" in references
+        assert references["workflow"].slug == "my-flow"
+
+    def test_id_field(self):
+        from uuid import uuid4
+
+        uid = str(uuid4())
+        result = _parse_snippet_token(f"@{{{{environment.id={uid}, key=tip}}}}")
+        assert result is not None
+        references, _ = result
+        assert str(references["environment"].id) == uid
+
+    def test_invalid_token_returns_none(self):
+        assert _parse_snippet_token("not a token") is None
+        assert _parse_snippet_token("@{{}}") is None  # no params → no references
+
+    def test_default_path_applied(self):
+        result = _parse_snippet_token("@{{environment.slug=prod, key=tip}}")
+        assert result is not None
+        _, selector = result
+        assert selector.path == SHORTHAND_DEFAULT_PATH
+
+
+class TestFindSnippetEmbeds:
+    """Tests for find_snippet_embeds — config traversal."""
+
+    def test_find_single_snippet(self):
+        config = {"greeting": "Hello @{{environment.slug=prod, key=tip}} world"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].key == "greeting"
+        assert embeds[0].location == "greeting"
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key == "tip"
+
+    def test_find_auto_key_snippet(self):
+        """key= absent → selector.key == '' (auto-select indicator)."""
+        config = {"msg": "@{{environment.slug=prod}}"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key == ""
+
+    def test_find_nested_snippet(self):
+        config = {"outer": {"inner": "@{{environment.slug=prod, key=tip}}"}}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "outer.inner"
+
+    def test_find_multiple_snippets_in_one_string(self):
+        config = {
+            "msg": "@{{environment.slug=prod, key=a}} and @{{environment.slug=dev, key=b}}"
+        }
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 2
+
+    def test_no_snippets_returns_empty(self):
+        config = {"msg": "no embeds here"}
+        embeds = find_snippet_embeds(config)
+        assert embeds == []
+
+    def test_snippet_in_list(self):
+        config = {"items": ["plain", "@{{environment.slug=prod, key=tip}}"]}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "items.1"
+        assert "environment" in embeds[0].references
+
+
+@pytest.mark.asyncio
+class TestSnippetEmbedResolution:
+    """Integration tests for snippet embed resolution via resolve_embeds."""
+
+    async def test_resolve_snippet_with_key(self):
+        """Basic: @{{environment.slug=prod, key=tip}} resolves through key selector."""
+        env_data = {
+            "references": {
+                "tip": {"workflow_revision": {"slug": "my-workflow-v1"}},
+            }
+        }
+        workflow_data = {"prompt": {"messages": [{"content": "Hello from workflow"}]}}
+
+        async def resolver(references: Dict[str, Reference]):
+            # bare "environment" category — resolver handles level inference
+            if "environment" in references:
+                return env_data
+            if "workflow_revision" in references:
+                return workflow_data
+            raise ValueError(f"Unexpected references: {references}")
+
+        config = {"greeting": "Say: @{{environment.slug=prod, key=tip}}"}
+        result_config, info = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["greeting"] == "Say: Hello from workflow"
+        assert info.embeds_resolved >= 1
+
+    async def test_resolve_snippet_auto_key(self):
+        """key= absent → auto-selects the single key in entity references."""
+        env_data = {
+            "references": {
+                "only_key": {"workflow_revision": {"slug": "my-workflow-v1"}},
+            }
+        }
+        workflow_data = {"prompt": {"messages": [{"content": "Auto-selected content"}]}}
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"msg": "@{{environment.slug=prod}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "Auto-selected content"
+
+    async def test_resolve_snippet_explicit_path(self):
+        """Explicit path= overrides the default path."""
+        env_data = {
+            "references": {
+                "tip": {"workflow_revision": {"slug": "wf-v1"}},
+            }
+        }
+        workflow_data = {"config": {"value": "explicit-path-result"}}
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"out": "@{{environment.slug=prod, key=tip, path=config.value}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["out"] == "explicit-path-result"
+
+    async def test_auto_key_fails_with_multiple_keys(self):
+        """auto_select_key raises ValueError when entity has multiple keys."""
+        env_data = {
+            "references": {
+                "key_a": {"workflow_revision": {"slug": "wf-a-v1"}},
+                "key_b": {"workflow_revision": {"slug": "wf-b-v1"}},
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return env_data
+
+        config = {"msg": "@{{environment.slug=prod}}"}
+        with pytest.raises(ValueError, match="Cannot auto-select key"):
+            await resolve_embeds(
+                configuration=config,
+                resolver_callback=resolver,
+            )
+
+    async def test_snippet_and_string_embed_coexist(self):
+        """Both @ag.embed[...] and @{{...}} can appear in the same config."""
+        env_data = {"references": {"tip": {"workflow_revision": {"slug": "wf-v1"}}}}
+        workflow_data = {"prompt": {"messages": [{"content": "snippet-value"}]}}
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            if "workflow_revision" in references:
+                ref = list(references.values())[0]
+                if ref.version == "v2":
+                    return {"data": "classic-value"}
+                return workflow_data
+            raise ValueError(f"Unexpected: {references}")
+
+        config = {
+            "a": "@{{environment.slug=prod, key=tip}}",
+            "b": "@ag.embed[@ag.references[workflow_revision.version=v2], @ag.selector[path=data]]",
+        }
+        result_config, info = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["a"] == "snippet-value"
+        assert result_config["b"] == "classic-value"

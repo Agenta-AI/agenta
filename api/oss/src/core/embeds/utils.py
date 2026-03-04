@@ -14,6 +14,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.embeds.dtos import (
     ObjectEmbed,
     StringEmbed,
+    SnippetEmbed,
     ResolutionInfo,
     ErrorPolicy,
 )
@@ -37,6 +38,7 @@ MAX_EMBEDS = 100
 AG_EMBED_KEY = "@ag.embed"
 AG_REFERENCES_KEY = "@ag.references"
 AG_SELECTOR_KEY = "@ag.selector"
+SHORTHAND_DEFAULT_PATH = "prompt.messages.0.content"
 
 # Entity hierarchy: category → ordered levels (shallow to deep)
 ENTITY_HIERARCHY: Dict[str, List[str]] = {
@@ -405,8 +407,9 @@ async def resolve_embeds(
         # Find embeds in current config state
         object_embeds = find_object_embeds(config_copy)
         string_embeds = find_string_embeds(config_copy)
+        shorthand_embeds = find_snippet_embeds(config_copy)
 
-        if not object_embeds and not string_embeds:
+        if not object_embeds and not string_embeds and not shorthand_embeds:
             # No more embeds to resolve
             break
 
@@ -487,6 +490,40 @@ async def resolve_embeds(
                     set_path(config_copy, embed.location, placeholder)
                 else:  # KEEP policy
                     # Mark location as failed to skip on subsequent iterations
+                    failed_locations.add(embed.location)
+
+        # Resolve snippet embeds (@{{...}} shorthand syntax)
+        for embed in shorthand_embeds:
+            if embed.location in failed_locations:
+                continue
+
+            try:
+                nested_embeds, nested_depth = await _resolve_and_inline_snippet_embed(
+                    config=config_copy,
+                    embed=embed,
+                    resolver_callback=resolver_callback,
+                    seen_by_iteration=seen_by_iteration,
+                    current_iteration=depth,
+                    max_depth=max_depth,
+                    max_embeds=max_embeds,
+                    error_policy=error_policy,
+                )
+                references_used.append(embed.references)
+                total_embeds += 1 + nested_embeds
+                depth_reached = max(depth_reached, depth + 1 + nested_depth)
+                processed_any = True
+
+                if total_embeds > max_embeds:
+                    raise MaxEmbedsExceededError(total_embeds)
+
+            except Exception as e:
+                errors.append(str(e))
+                if error_policy == ErrorPolicy.EXCEPTION:
+                    raise
+                elif error_policy == ErrorPolicy.PLACEHOLDER:
+                    placeholder = f"<error:{type(e).__name__}>"
+                    set_path(config_copy, embed.location, placeholder)
+                else:  # KEEP policy
                     failed_locations.add(embed.location)
 
         # If no embeds were processed this iteration, we're done
@@ -1162,6 +1199,333 @@ def set_path(
         current[final_key] = value
     elif isinstance(current, list):
         current[int(final_key)] = value
+
+
+def _find_snippet_tokens(text: str) -> List[str]:
+    """
+    Find all @{{...}} snippet tokens in a string.
+
+    Returns list of token strings including the @{{...}} wrapper.
+    Stops at the first }} found after the opening @{{.
+    """
+    tokens = []
+    i = 0
+    while i < len(text):
+        if text[i : i + 3] == "@{{":
+            start = i
+            i += 3  # skip @{{
+            while i < len(text):
+                if text[i : i + 2] == "}}":
+                    i += 2  # skip }}
+                    tokens.append(text[start:i])
+                    break
+                i += 1
+            # If loop ended without break (no closing }}), no token added
+        else:
+            i += 1
+    return tokens
+
+
+def _parse_snippet_token(
+    token: str,
+) -> Optional[Tuple[Dict[str, Reference], Selector]]:
+    """
+    Parse an @{{...}} snippet token into references and selector.
+
+    Format: @{{<entity_type>.<ref_field>=<value>[, key=<k>][, path=<p>]}}
+    - entity_type: bare category (workflow, environment, …) or with level suffix
+      (workflow_revision, environment_variant, …); same as full @ag.embed syntax
+    - ref_field: id, slug, or version
+    - separators: , or & (spaces trimmed)
+    - multiple reference params are merged into the same references dict
+    - path defaults to SHORTHAND_DEFAULT_PATH when omitted
+    - key="" (empty string) signals auto-select when key= is absent
+
+    Returns:
+        Tuple of (references, selector), or None if invalid.
+    """
+    match = re.match(r"@\{\{(.+)\}\}", token, re.DOTALL)
+    if not match:
+        return None
+
+    content = match.group(1).strip()
+
+    # Split on , or & and trim each part
+    parts = [p.strip() for p in re.split(r"[,&]", content) if p.strip()]
+
+    references: Dict[str, Reference] = {}
+    sel_key: Optional[str] = None
+    sel_path: Optional[str] = None
+    has_path = False
+    has_key = False
+
+    for part in parts:
+        if "=" not in part:
+            continue
+
+        field, _, value = part.partition("=")
+        field = field.strip()
+        value = value.strip()
+
+        # Entity reference: <entity_type>.<ref_field>=<value>
+        # entity_type may be a bare category ("environment") or include a level suffix
+        # ("environment_revision", "environment_variant", …).
+        if "." in field:
+            entity_type_str, ref_field = field.rsplit(".", 1)
+            entity_type_str = entity_type_str.strip()
+            ref_field = ref_field.strip()
+
+            # Validate entity_type_str: bare category or <category>_<level>
+            if "_" in entity_type_str:
+                cat, level = entity_type_str.split("_", 1)
+                valid = cat in ENTITY_HIERARCHY and level in LEVEL_ORDER
+            else:
+                valid = entity_type_str in ENTITY_HIERARCHY
+
+            if valid and ref_field in {"id", "slug", "version"}:
+                if entity_type_str in references:
+                    existing = references[entity_type_str]
+                    merged = existing.model_dump(mode="json")
+                    merged[ref_field] = value
+                    references[entity_type_str] = Reference.model_validate(merged)
+                else:
+                    references[entity_type_str] = Reference.model_validate(
+                        {ref_field: value}
+                    )
+            continue
+
+        # Selector fields
+        if field == "key":
+            sel_key = value if value else None
+            has_key = True
+        elif field == "path":
+            sel_path = value if value else None
+            has_path = True
+
+    if not references:
+        return None
+
+    # Default path when not specified
+    if not has_path:
+        sel_path = SHORTHAND_DEFAULT_PATH
+
+    # key="" signals auto-select (key= was absent); key=None means no key hop
+    resolved_key = "" if not has_key else sel_key
+    selector = Selector(key=resolved_key, path=sel_path)
+
+    return (references, selector)
+
+
+def find_snippet_embeds(
+    config: Dict[str, Any],
+    parent_path: str = "",
+    parent_key: str = "",
+) -> List[SnippetEmbed]:
+    """
+    Recursively traverse config to find @{{...}} snippet embeds.
+
+    Snippet embed pattern:
+    {
+        "greeting": "Say: @{{environment.slug=production, key=my_snippet}}"
+    }
+
+    Args:
+        config: Configuration to search
+        parent_path: Current JSON path (for recursion)
+        parent_key: Current JSON key (for tracking embed key)
+
+    Returns:
+        List of found snippet embeds
+    """
+    embeds: List[SnippetEmbed] = []
+
+    if isinstance(config, dict):
+        for key, value in config.items():
+            child_path = f"{parent_path}.{key}" if parent_path else key
+
+            if isinstance(value, str):
+                tokens = _find_snippet_tokens(value)
+                for token in tokens:
+                    try:
+                        parsed = _parse_snippet_token(token)
+                        if parsed:
+                            references, selector = parsed
+                            embeds.append(
+                                SnippetEmbed(
+                                    key=key,
+                                    location=child_path,
+                                    token=token,
+                                    references=references,
+                                    selector=selector,
+                                )
+                            )
+                    except Exception as e:
+                        log.warning(
+                            f"Invalid snippet embed token at {child_path}: {token} - {e}",
+                        )
+            else:
+                embeds.extend(find_snippet_embeds(value, child_path, key))
+
+    elif isinstance(config, list):
+        for idx, item in enumerate(config):
+            child_path = f"{parent_path}.{idx}"
+
+            if isinstance(item, str):
+                tokens = _find_snippet_tokens(item)
+                for token in tokens:
+                    try:
+                        parsed = _parse_snippet_token(token)
+                        if parsed:
+                            references, selector = parsed
+                            embeds.append(
+                                SnippetEmbed(
+                                    key=str(idx),
+                                    location=child_path,
+                                    token=token,
+                                    references=references,
+                                    selector=selector,
+                                )
+                            )
+                    except Exception as e:
+                        log.warning(
+                            f"Invalid snippet embed token at {child_path}: {token} - {e}",
+                        )
+            else:
+                embeds.extend(find_snippet_embeds(item, child_path, str(idx)))
+
+    return embeds
+
+
+async def _resolve_and_inline_snippet_embed(
+    *,
+    config: Dict[str, Any],
+    embed: SnippetEmbed,
+    resolver_callback: Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]],
+    seen_by_iteration: Dict[str, int],
+    current_iteration: int,
+    max_depth: int,
+    max_embeds: int,
+    error_policy: ErrorPolicy,
+) -> tuple[int, int]:
+    """
+    Resolve a @{{...}} snippet embed and inline it into config.
+
+    Handles auto-key selection (when key= was not specified) and default path.
+    Modifies config in-place.
+    """
+    if not embed.references:
+        raise ValueError(f"No references found in snippet embed at {embed.location}")
+
+    resolved_value = await _resolve_references(
+        references=embed.references,
+        resolver_callback=resolver_callback,
+        seen_by_iteration=seen_by_iteration,
+        current_iteration=current_iteration,
+    )
+
+    selector = embed.selector
+    auto_select_key = selector is not None and selector.key == ""
+
+    if auto_select_key:
+        # Auto-select the single key from the entity's references
+        if not isinstance(resolved_value, dict):
+            raise EmbedNotFoundError(
+                f"Expected dict from entity at {embed.location}, "
+                f"got {type(resolved_value).__name__}"
+            )
+        refs = resolved_value.get("references") or {}
+        if not isinstance(refs, dict) or not refs:
+            raise EmbedNotFoundError(
+                f"No references found in entity for auto-key selection at {embed.location}"
+            )
+        if len(refs) != 1:
+            raise ValueError(
+                f"Cannot auto-select key: {len(refs)} references found at "
+                f"{embed.location}, expected exactly 1. "
+                f"Available keys: {list(refs.keys())}"
+            )
+        auto_key = next(iter(refs))
+        resolved_value = await _follow_key_reference(
+            resolved_value=resolved_value,
+            selector_key=auto_key,
+            resolver_callback=resolver_callback,
+            seen_by_iteration=seen_by_iteration,
+            current_iteration=current_iteration,
+        )
+        (
+            resolved_value,
+            nested_embeds,
+            nested_depth,
+        ) = await _resolve_nested_embeds_in_value(
+            value=resolved_value,
+            resolver_callback=resolver_callback,
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=error_policy,
+        )
+        if selector and selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
+
+    elif selector and selector.key:
+        # Use the specified key
+        resolved_value = await _follow_key_reference(
+            resolved_value=resolved_value,
+            selector_key=selector.key,
+            resolver_callback=resolver_callback,
+            seen_by_iteration=seen_by_iteration,
+            current_iteration=current_iteration,
+        )
+        (
+            resolved_value,
+            nested_embeds,
+            nested_depth,
+        ) = await _resolve_nested_embeds_in_value(
+            value=resolved_value,
+            resolver_callback=resolver_callback,
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=error_policy,
+        )
+        if selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
+
+    else:
+        (
+            resolved_value,
+            nested_embeds,
+            nested_depth,
+        ) = await _resolve_nested_embeds_in_value(
+            value=resolved_value,
+            resolver_callback=resolver_callback,
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=error_policy,
+        )
+        if selector and selector.path:
+            resolved_value = extract_path(resolved_value, selector.path)
+
+    # Convert to string if needed
+    if not isinstance(resolved_value, str):
+        resolved_value = dumps(resolved_value)
+
+    original_string = extract_path(config, embed.location)
+    if not isinstance(original_string, str):
+        raise ValueError(
+            f"Expected string at {embed.location}, got {type(original_string)}"
+        )
+
+    new_string = original_string.replace(embed.token, resolved_value, 1)
+    set_path(config, embed.location, new_string)
+    return (nested_embeds, nested_depth)
+
+
+def find_shorthand_string_embeds(
+    config: Dict[str, Any],
+    parent_path: str = "",
+    parent_key: str = "",
+) -> List[SnippetEmbed]:
+    """Alias for find_snippet_embeds for backward compatibility."""
+    return find_snippet_embeds(config, parent_path, parent_key)
 
 
 def canonicalize_reference(

@@ -75,6 +75,39 @@ class StringEmbed(BaseModel):
     selector: Optional[Selector] = None  # Path selector extracted from token
 
 
+class SnippetEmbed(BaseModel):
+    """
+    Snippet embed for compact @{{...}} syntax.
+
+    Example:
+        {
+            "greeting": "Say: @{{environment.slug=production, key=my_snippet}}"
+        }
+
+    Syntax rules:
+    - Token: @{{<params>}}
+    - Params are flat key=value pairs separated by , or & ; spaces are trimmed
+    - Entity reference: <entity_type>.<field>=<value>
+      - entity_type: bare category (environment, workflow, …) or with level suffix
+        (environment_revision, workflow_variant, …); same as full @ag.embed syntax
+      - field: id, slug, or version
+      - multiple reference params merge into the same references dict
+    - key=<name>: selector key for two-hop resolution via data.references.<name>
+    - path=<dotpath>: dot-notation path into resolved data
+      - defaults to 'prompt.messages.0.content' when omitted
+    - missing key= auto-selects if entity has exactly one reference key
+    """
+
+    key: str  # JSON key where the embed is defined
+    location: str  # JSON path where string occurs
+    token: str  # Original @{{...}} token text
+    references: Dict[str, Reference]
+    selector: Optional[Selector] = None
+    # selector.key == ""  → auto-select (key= was absent; pick the single reference)
+    # selector.key == None → no key hop; apply path directly to entity data
+    # selector.key == "x"  → follow data.references["x"]
+
+
 class ResolutionInfo(BaseModel):
     references_used: List[Dict[str, Reference]]  # List of references dicts used
     depth_reached: int

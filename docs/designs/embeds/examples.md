@@ -299,6 +299,130 @@ Tests: `test_resolve_nested_string_embeds` (e2e string — 3 levels)
 
 ---
 
+## Snippet Embeds
+
+Snippet embeds are a compact alternative to the full `@ag.embed[...]` string syntax.
+They use the `@{{...}}` token, mixing reference and selector information in a flat key=value list.
+
+Token grammar:
+```
+@{{<entity_type>.<field>=<value>[, <entity_type>.<field>=<value>...][, key=<k>][, path=<p>]}}
+```
+
+Rules:
+- Separators: `,` or `&`; spaces around `=` and separators are trimmed
+- Entity reference: `<entity_type>.<ref_field>=<value>` — entity type can be a bare category
+  (`environment`, `workflow`, …) or a full type with level suffix (`environment_revision`,
+  `workflow_variant`, …); `ref_field` is one of `id`, `slug`, `version`
+- `key=<name>`: follow `data.references.<name>` on the fetched entity (two-hop resolution)
+- `path=<dotpath>`: dot-notation path into the resolved data
+- When `path=` is absent, defaults to `prompt.messages.0.content`
+- When `key=` is absent entirely, auto-select: if the resolved entity has exactly one
+  `references` entry, that entry is followed automatically; otherwise an error is raised
+
+---
+
+### Simple — bare category, default path
+
+```json
+{ "greeting": "Say: @{{environment.slug=production}}" }
+```
+
+The `environment` reference is resolved. Because `path=` is absent the resolver extracts
+`prompt.messages.0.content` from the entity data and inlines it.
+
+Tests: `TestSnippetEmbedResolution::test_snippet_embed_default_path` (utils)
+
+---
+
+### With explicit `path`
+
+```json
+{ "hint": "Use: @{{environment_revision.slug=prod, path=parameters.api_url}}" }
+```
+
+`path=parameters.api_url` overrides the default. The full entity type with level suffix
+(`environment_revision`) is also accepted.
+
+Tests: `TestSnippetEmbedResolution::test_snippet_embed_with_path` (utils)
+
+---
+
+### With explicit `key` — two-hop resolution
+
+```json
+{ "prompt": "Injected: @{{environment.slug=production, key=my_snippet}}" }
+```
+
+Steps:
+1. Fetch the environment entity.
+2. Follow `data.references.my_snippet` — a secondary `Reference` pointer.
+3. Fetch that secondary entity.
+4. Apply the default path (`prompt.messages.0.content`) to its data.
+
+Tests: `TestSnippetEmbedResolution::test_snippet_embed_with_key` (utils)
+
+---
+
+### Auto-select key (absent `key=`)
+
+```json
+{ "content": "@{{workflow.slug=my-flow}}" }
+```
+
+When `key=` is absent **and** the resolved entity has exactly one entry in `data.references`,
+that key is selected automatically (equivalent to `key=<that_single_key>`).
+
+```json
+{ "content": "@{{workflow.slug=my-flow, path=}}" }
+```
+
+When `key=` is present but empty (`key=`), no key-hop is performed; the path is applied
+directly to the fetched entity data.
+
+Tests: `TestSnippetEmbedResolution::test_snippet_embed_auto_select_key` (utils)
+
+---
+
+### Multiple tokens in a single string
+
+```json
+{
+  "prompt": "A: @{{environment.slug=prod}} B: @{{workflow_revision.version=v1, path=parameters.text}}"
+}
+```
+
+All `@{{...}}` tokens in the string are replaced left-to-right before the string is returned.
+
+Tests: `TestFindSnippetEmbeds::test_find_snippet_embed_in_string` (utils)
+
+---
+
+### `&` separator
+
+```json
+{ "greeting": "Say: @{{environment.slug=production & key=my_snippet & path=prompt.messages.0.content}}" }
+```
+
+`&` is interchangeable with `,`; spaces are trimmed on both sides of each `=`.
+
+Tests: `TestParseSnippetToken::test_ampersand_separator` (utils)
+
+---
+
+### Snippet vs full `@ag.embed` string token — comparison
+
+| Feature | Snippet `@{{...}}` | Full `@ag.embed[...]` |
+|---------|--------------------|-----------------------|
+| Separators | `,` or `&` | positional `@ag.references[...]`, `@ag.selector[...]` |
+| Default path | `prompt.messages.0.content` | none — full data inlined |
+| Auto-select key | `key=` absent → auto | must name key explicitly |
+| Multiple references | supported (same entity family) | supported |
+| Multi-token string | yes | yes |
+| Nesting depth | resolved per iteration pass | resolved per iteration pass |
+
+---
+
 ## Multi-Reference Embeds
 
 Multiple entries inside a single `@ag.references` block.
