@@ -57,10 +57,12 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
           RAILWAY_POST_BOOTSTRAP_SLEEP: "2"
           RAILWAY_INFRA_SETTLE_SECONDS: "20"
-          RAILWAY_APP_SETTLE_SECONDS: "30"
+          RAILWAY_APP_SETTLE_SECONDS: "0"
           SMOKE_AUTO_REPAIR: "false"
           SMOKE_MAX_RETRIES: "20"
           SMOKE_SLEEP_SECONDS: "5"
+          SMOKE_MAX_WAIT_SECONDS: "300"
+          SMOKE_DOMAIN_MAX_WAIT_SECONDS: "180"
         run: |
           chmod +x hosting/railway/oss/scripts/*.sh
           log_file="$(mktemp)"
@@ -74,25 +76,74 @@ jobs:
           deploy_status=${PIPESTATUS[0]}
           set -e
 
+          deploy_failed=false
           if [ "$deploy_status" -ne 0 ]; then
-            echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
-            exit 1
+            deploy_failed=true
           fi
 
           # Extract preview URL from output
           url="$(grep -oP 'Preview URL: \K.*' "$log_file" || true)"
           url="${url%%$'\n'*}"
           url="${url//$'\r'/}"
-          echo "preview_url=${url}" >> "$GITHUB_OUTPUT"
 
           # Extract project name from output
           project="$(grep -oP "Preview deploy completed for '\K[^']*" "$log_file" || true)"
+          if [ -z "$project" ]; then
+            project="$(grep -oP "Bootstrap completed for project '\K[^']*" "$log_file" || true)"
+          fi
           project="${project%%$'\n'*}"
           project="${project//$'\r'/}"
+
+          environment_name="$(grep -oP "Preview deploy completed for '[^']+' \(\K[^)]*" "$log_file" || true)"
+          if [ -z "$environment_name" ]; then
+            environment_name="$(grep -oP "Bootstrap completed for project '[^']*' environment '\K[^']*" "$log_file" || true)"
+          fi
+          environment_name="${environment_name%%$'\n'*}"
+          environment_name="${environment_name//$'\r'/}"
+          if [ -z "$environment_name" ]; then
+            environment_name="production"
+          fi
+
+          railway_logs_url=""
+          if [ -n "$project" ]; then
+            set +e
+            link_json="$(railway link --project "$project" --environment "$environment_name" --json 2>/dev/null)"
+
+            if [ -z "$url" ]; then
+              domain="$(railway variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
+              if [ -n "$domain" ]; then
+                url="https://${domain}/w"
+              fi
+            fi
+
+            project_id="$(printf "%s" "$link_json" | jq -r '.projectId // .project.id // .project // empty' 2>/dev/null || true)"
+            environment_id="$(printf "%s" "$link_json" | jq -r '.environmentId // .environment.id // .environment // empty' 2>/dev/null || true)"
+            set -e
+
+            if [ "$project_id" = "null" ]; then
+              project_id=""
+            fi
+            if [ "$environment_id" = "null" ]; then
+              environment_id=""
+            fi
+
+            if [ -n "$project_id" ] && [ -n "$environment_id" ]; then
+              railway_logs_url="https://railway.com/project/${project_id}/logs?environmentId=${environment_id}"
+            fi
+          fi
+
+          echo "preview_url=${url}" >> "$GITHUB_OUTPUT"
           echo "project_name=${project}" >> "$GITHUB_OUTPUT"
+          echo "environment_name=${environment_name}" >> "$GITHUB_OUTPUT"
+          echo "railway_logs_url=${railway_logs_url}" >> "$GITHUB_OUTPUT"
 
           trap - EXIT
           cleanup
+
+          if [ "$deploy_failed" = "true" ]; then
+            echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - name: Post preview URL as PR comment
         if: inputs.pr_number != '' && steps.deploy.outputs.preview_url != ''
@@ -104,6 +155,8 @@ jobs:
             const projectName = '${{ steps.deploy.outputs.project_name }}';
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url }}';
 
             const body = [
               marker,
@@ -115,9 +168,11 @@ jobs:
               `| **Project** | \`${projectName}\` |`,
               `| **Image tag** | \`${imageTag}\` |`,
               `| **Status** | Deployed |`,
+              railwayLogsUrl ? `| **Railway logs** | [Open logs](${railwayLogsUrl}) |` : null,
+              `| **Workflow logs** | [View workflow run](${runUrl}) |`,
               '',
               `_Updated at ${new Date().toISOString()}_`,
-            ].join('\n');
+            ].filter(Boolean).join('\n');
 
             // Find existing comment from this bot
             const { data: comments } = await github.rest.issues.listComments({
@@ -153,6 +208,8 @@ jobs:
             const imageTag = '${{ inputs.image_tag }}';
             const marker = '<!-- railway-preview-bot -->';
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const previewUrl = '${{ steps.deploy.outputs.preview_url }}';
+            const railwayLogsUrl = '${{ steps.deploy.outputs.railway_logs_url }}';
 
             const body = [
               marker,
@@ -160,12 +217,14 @@ jobs:
               '',
               `| | |`,
               `|---|---|`,
+              previewUrl ? `| **Preview URL** | ${previewUrl} |` : null,
               `| **Image tag** | \`${imageTag}\` |`,
               `| **Status** | Failed |`,
+              railwayLogsUrl ? `| **Railway logs** | [Open logs](${railwayLogsUrl}) |` : null,
               `| **Logs** | [View workflow run](${runUrl}) |`,
               '',
               `_Updated at ${new Date().toISOString()}_`,
-            ].join('\n');
+            ].filter(Boolean).join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -201,4 +260,8 @@ jobs:
           if [ -n "${{ steps.deploy.outputs.preview_url }}" ]; then
             echo "- **Preview URL:** ${{ steps.deploy.outputs.preview_url }}" >> "$GITHUB_STEP_SUMMARY"
           fi
+          if [ -n "${{ steps.deploy.outputs.railway_logs_url }}" ]; then
+            echo "- **Railway logs:** ${{ steps.deploy.outputs.railway_logs_url }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "- **Workflow logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Project:** \`${{ steps.deploy.outputs.project_name }}\`" >> "$GITHUB_STEP_SUMMARY"

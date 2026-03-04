@@ -194,7 +194,7 @@ The API image defaults to docker-compose hostnames for Redis (`redis-durable:638
 
 ### Build times on first deploy
 
-First deploys on Railway take longer because Docker layer caches are cold. The app settle window (`RAILWAY_APP_SETTLE_SECONDS`, default 60) may not be enough on very slow builds. If smoke fails because services are still DEPLOYING, wait and re-run smoke manually.
+First deploys on Railway take longer because Docker layer caches are cold. Deploy now relies mostly on readiness polling in smoke checks instead of fixed sleeps, so slower starts are less likely to fail prematurely.
 
 For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
@@ -202,9 +202,13 @@ For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`bui
 
 The smoke script supports these environment variables:
 
-- `SMOKE_MAX_RETRIES` (default `30`) - retries per endpoint
-- `SMOKE_SLEEP_SECONDS` (default `10`) - sleep between retries
-- `SMOKE_AUTO_REPAIR` (default `true`) - redeploy failing services automatically
+- `SMOKE_MAX_RETRIES` (default `10`) - legacy retry count used to derive timeout when `SMOKE_MAX_WAIT_SECONDS` is not set
+- `SMOKE_SLEEP_SECONDS` (default `5`) - poll interval between readiness checks
+- `SMOKE_MAX_WAIT_SECONDS` (default `SMOKE_MAX_RETRIES * SMOKE_SLEEP_SECONDS`) - max wait time per endpoint before failing
+- `SMOKE_DOMAIN_MAX_WAIT_SECONDS` (default `SMOKE_MAX_WAIT_SECONDS`) - max wait time for gateway domain resolution
+- `SMOKE_CURL_CONNECT_TIMEOUT` (default `5`) - per-request TCP/TLS connect timeout in seconds
+- `SMOKE_CURL_MAX_TIME` (default `10`) - max duration per health request in seconds
+- `SMOKE_AUTO_REPAIR` (default `false`) - redeploy failing services automatically
 
 For CI, consider `SMOKE_AUTO_REPAIR=false` to get clean pass/fail signals without side effects.
 
