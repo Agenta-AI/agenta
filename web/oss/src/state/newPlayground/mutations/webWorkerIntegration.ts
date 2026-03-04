@@ -204,17 +204,18 @@ function computeVariableValues(
 
 // Resolve the set of allowed variable keys for a given revision
 function resolveAllowedVariableKeys(get: any, revisionId: string): ResolvedVariableKeys {
-    // Prefer runnableBridge input ports (single source of truth)
-    const ports = (get(runnableBridge.inputPorts(revisionId)) || []) as {key?: string}[]
-    const ordered = ports.map((p) => p?.key).filter((k): k is string => !!k)
-    if (ordered.length > 0) {
-        return {ordered, set: new Set(ordered)}
-    }
-
-    // Fallback to prompt variables if bridge input ports are unavailable
+    // Prefer live prompt variables so renamed {{variables}} are reflected immediately
+    // during playground editing, even before entity-level input ports refresh.
     const promptVars = (get(promptVariablesAtomFamily(revisionId)) || []) as string[]
     const keys = (promptVars || []).filter((k) => typeof k === "string" && k.length > 0)
-    return {ordered: keys, set: new Set(keys)}
+    if (keys.length > 0) {
+        return {ordered: keys, set: new Set(keys)}
+    }
+
+    // Fallback to runnableBridge input ports (schema/entity-derived keys)
+    const ports = (get(runnableBridge.inputPorts(revisionId)) || []) as {key?: string}[]
+    const ordered = ports.map((p) => p?.key).filter((k): k is string => !!k)
+    return {ordered, set: new Set(ordered)}
 }
 
 export const triggerWebWorkerTestAtom = atom(
