@@ -3,12 +3,15 @@ import {memo, useEffect, useRef, useState} from "react"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Input, Modal, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
-import DiffView from "@/oss/components/Editor/DiffView"
 import {COMMIT_MESSAGE_MAX_LENGTH} from "@/oss/config/constants"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 const {Text} = Typography
+const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+    ssr: false,
+})
 
 export interface TestsetChangesSummary {
     /** Number of modified testcases */
