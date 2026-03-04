@@ -290,13 +290,7 @@ const ensureEvaluatorRevisions = async ({
                 },
             )
         }
-        console.info("[EvalRunDetails2] Skipping metrics refresh after patch (debug mode)", {
-            runId,
-            projectId,
-        })
-        console.info("[EvalRunDetails2] Patched run with evaluator revisions", {
-            runId,
-        })
+
         patchedRunRevisionSet.add(runId)
         return {run: patchedRun, patched: true}
     } catch (error) {
