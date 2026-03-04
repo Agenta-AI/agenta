@@ -107,7 +107,8 @@ jobs:
           railway_logs_url=""
           if [ -n "$project" ]; then
             set +e
-            link_json="$(railway link --project "$project" --environment "$environment_name" --json 2>/dev/null)"
+            railway link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
+            status_json="$(railway status --json 2>/dev/null)"
 
             if [ -z "$url" ]; then
               domain="$(railway variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
@@ -116,8 +117,16 @@ jobs:
               fi
             fi
 
-            project_id="$(printf "%s" "$link_json" | jq -r '.projectId // .project.id // .project // empty' 2>/dev/null || true)"
-            environment_id="$(printf "%s" "$link_json" | jq -r '.environmentId // .environment.id // .environment // empty' 2>/dev/null || true)"
+            project_id="$(printf "%s" "$status_json" | jq -r '.project.id // .projectId // empty' 2>/dev/null || true)"
+            environment_id="$(printf "%s" "$status_json" | jq -r '.environment.id // .environmentId // empty' 2>/dev/null || true)"
+
+            if [ -z "$project_id" ] || [ -z "$environment_id" ]; then
+              projects_json="$(railway list --json 2>/dev/null)"
+              project_id="$(printf "%s" "$projects_json" | jq -r --arg name "$project" '.[] | select(.name == $name) | .id' 2>/dev/null | head -n 1)"
+
+              environment_json="$(railway environment "$environment_name" --json 2>/dev/null)"
+              environment_id="$(printf "%s" "$environment_json" | jq -r '.id // .environment.id // .environmentId // empty' 2>/dev/null | head -n 1)"
+            fi
             set -e
 
             if [ "$project_id" = "null" ]; then
