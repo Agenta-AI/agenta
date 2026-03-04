@@ -214,6 +214,7 @@ export const moleculeBackedVariantAtomFamily = atomFamilyJotaiUtils((revisionId:
                 createdAt: moleculeData.createdAt ?? legacyRevision?.createdAt,
                 updatedAt: moleculeData.updatedAt ?? legacyRevision?.updatedAt,
                 modifiedById: moleculeData.modifiedById ?? legacyRevision?.modifiedById,
+                modifiedBy: moleculeData.modifiedBy ?? legacyRevision?.modifiedBy,
                 commitMessage: moleculeData.commitMessage ?? legacyRevision?.commitMessage,
             }
         }

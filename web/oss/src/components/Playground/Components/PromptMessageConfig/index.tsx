@@ -1,6 +1,7 @@
 import {useMemo, useCallback, useState, useEffect, useRef} from "react"
 
 import {getMetadataLazy} from "@agenta/entities/legacyAppRevision"
+import {useLexicalComposerContext, EditorProvider, $isCodeBlockNode} from "@agenta/ui/editor"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
@@ -9,8 +10,6 @@ import {useAtomValue} from "jotai"
 import {$getRoot} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
-import {useLexicalComposerContext, EditorProvider} from "@/oss/components/Editor/Editor"
-import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
 import PromptMessageHeader from "@/oss/components/Playground/Components/Shared/PromptMessageHeader"
 import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMessageContentHandlers"
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"

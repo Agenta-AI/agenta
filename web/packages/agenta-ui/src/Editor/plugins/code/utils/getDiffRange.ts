@@ -10,7 +10,7 @@ import {$isLongTextNode} from "../nodes/LongTextNode"
  * Two nodes are considered equal if they have:
  * 1. The same text content
  * 2. The same type (both highlight, both base64, or both longtext)
- * 3. For highlight nodes: same highlight type, validation error state, and message
+ * 3. For highlight nodes: same highlight type, style, validation error state, and message
  *
  * @param a - First node to compare
  * @param b - Second node to compare
@@ -48,6 +48,7 @@ export function isEqual(a: LexicalNode, b: LexicalNode): boolean {
         return (
             a.getTextContent() === b.getTextContent() &&
             (a.getHighlightType?.() ?? "") === (b.getHighlightType?.() ?? "") &&
+            (a.getStyle?.() ?? "") === (b.getStyle?.() ?? "") &&
             a.hasValidationError() === b.hasValidationError() &&
             (a.getValidationMessage() ?? null) === (b.getValidationMessage() ?? null)
         )
