@@ -68,6 +68,9 @@ jobs:
           SMOKE_DOMAIN_MAX_WAIT_SECONDS: "180"
         run: |
           chmod +x hosting/railway/oss/scripts/*.sh
+          # shellcheck source=/dev/null
+          source hosting/railway/oss/scripts/lib.sh
+
           log_file="$(mktemp)"
           cleanup() {
             rm -f "$log_file"
@@ -113,11 +116,11 @@ jobs:
 
           if [ -n "$project" ]; then
             set +e
-            railway link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
-            status_json="$(railway status --json 2>/dev/null)"
+            railway_call link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
+            status_json="$(railway_call status --json 2>/dev/null)"
 
             if [ -z "$url" ]; then
-              domain="$(railway variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
+              domain="$(railway_call variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
               if [ -n "$domain" ]; then
                 url="https://${domain}/w"
               fi
@@ -127,10 +130,10 @@ jobs:
             environment_id="$(printf "%s" "$status_json" | jq -r '.environment.id // .environmentId // empty' 2>/dev/null || true)"
 
             if [ -z "$project_id" ] || [ -z "$environment_id" ]; then
-              projects_json="$(railway list --json 2>/dev/null)"
+              projects_json="$(railway_call list --json 2>/dev/null)"
               project_id="$(printf "%s" "$projects_json" | jq -r --arg name "$project" '.[] | select(.name == $name) | .id' 2>/dev/null | head -n 1)"
 
-              environment_json="$(railway environment "$environment_name" --json 2>/dev/null)"
+              environment_json="$(railway_call environment "$environment_name" --json 2>/dev/null)"
               environment_id="$(printf "%s" "$environment_json" | jq -r '.id // .environment.id // .environmentId // empty' 2>/dev/null | head -n 1)"
             fi
             set -e
@@ -144,6 +147,8 @@ jobs:
 
             if [ -n "$project_id" ] && [ -n "$environment_id" ]; then
               railway_logs_url="https://railway.com/project/${project_id}/logs?environmentId=${environment_id}"
+            elif [ -n "$project_id" ]; then
+              railway_logs_url="https://railway.com/project/${project_id}/logs"
             fi
           fi
 
