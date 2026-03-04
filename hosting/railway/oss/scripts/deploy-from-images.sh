@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 
+# shellcheck source=lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 cleanup() {
     rm -rf "$TMP_DIR"
 }
@@ -37,8 +40,8 @@ fi
 redeploy_service_if_exists() {
     local service="$1"
 
-    if railway service "$service" >/dev/null 2>&1; then
-        railway redeploy --yes >/dev/null
+    if railway_call service "$service" >/dev/null 2>&1; then
+        railway_call redeploy --yes >/dev/null
     fi
 }
 
@@ -46,7 +49,7 @@ run_alembic_with_retries() {
     local attempt=1
 
     while [ "$attempt" -le "$ALEMBIC_MAX_ATTEMPTS" ]; do
-        if railway up "$TMP_DIR/alembic" --path-as-root --service alembic; then
+        if railway_call up "$TMP_DIR/alembic" --path-as-root --service alembic; then
             return 0
         fi
 
@@ -176,7 +179,7 @@ sleep "${RAILWAY_POST_BOOTSTRAP_SLEEP:-5}"
 "$ROOT_DIR/hosting/railway/oss/scripts/configure.sh"
 
 # Ensure infra picks up freshly configured credentials before migrations.
-railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
+railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 redeploy_service_if_exists "$POSTGRES_SERVICE"
 redeploy_service_if_exists "$REDIS_SERVICE"
 sleep "$INFRA_SETTLE_SECONDS"
@@ -184,12 +187,12 @@ sleep "$INFRA_SETTLE_SECONDS"
 # Alembic first. This also creates required databases.
 run_alembic_with_retries
 
-railway up "$TMP_DIR/api" --path-as-root --service api --detach
-railway up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
-railway up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
-railway up "$TMP_DIR/services" --path-as-root --service services --detach
-railway up "$TMP_DIR/cron" --path-as-root --service cron --detach
-railway up "$TMP_DIR/web" --path-as-root --service web --detach
+railway_call up "$TMP_DIR/api" --path-as-root --service api --detach
+railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
+railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
+railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
+railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
+railway_call up "$TMP_DIR/web" --path-as-root --service web --detach
 
 sleep "$APP_SETTLE_SECONDS"
 "$ROOT_DIR/hosting/railway/oss/scripts/deploy-gateway.sh"

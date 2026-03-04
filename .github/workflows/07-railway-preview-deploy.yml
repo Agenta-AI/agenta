@@ -58,6 +58,9 @@ jobs:
           RAILWAY_POST_BOOTSTRAP_SLEEP: "2"
           RAILWAY_INFRA_SETTLE_SECONDS: "20"
           RAILWAY_APP_SETTLE_SECONDS: "0"
+          RAILWAY_ALEMBIC_MAX_ATTEMPTS: "5"
+          RAILWAY_RETRY_MAX: "7"
+          RAILWAY_RETRY_DELAY: "5"
           SMOKE_AUTO_REPAIR: "false"
           SMOKE_MAX_RETRIES: "20"
           SMOKE_SLEEP_SECONDS: "5"
@@ -104,7 +107,10 @@ jobs:
             environment_name="production"
           fi
 
-          railway_logs_url=""
+          railway_logs_url="$(grep -oP 'Build Logs:\s*\Khttps://railway\.com\S+' "$log_file" | head -n 1 || true)"
+          railway_logs_url="${railway_logs_url%%$'\n'*}"
+          railway_logs_url="${railway_logs_url%%&}"
+
           if [ -n "$project" ]; then
             set +e
             railway link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
