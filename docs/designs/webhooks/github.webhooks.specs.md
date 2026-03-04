@@ -135,11 +135,32 @@ class WebhookSubscriptionData(BaseModel):
 ### New Behavior
 - New field on `WebhookSubscriptionData`: `event_fields: Optional[Dict[str, Any]] = None`
 - A single dict that defines the entire HTTP body structure
-- Each key becomes a top-level key in the HTTP body; each value is resolved via `resolve_json_selector` from `sdk/agenta/sdk/workflows/handlers.py`:
+- The structure is resolved **recursively** — dicts, lists, and primitives are all walked:
+  - **dict** → recurse into values (keys are always plain strings)
+  - **list** → recurse into items
+  - **primitive** (string, number, bool, null) → passed to `resolve_json_selector`
+- `resolve_json_selector` (from `sdk/agenta/sdk/workflows/handlers.py`) handles primitives only:
   - **JSON Path** (prefix `$`): resolved against the serialized event — `"$"` = entire event, `"$.event_type"` = `event["event_type"]`
   - **JSON Pointer** (prefix `/`): resolved against the serialized event — `"/event_type"` = `event["event_type"]`
-  - **Anything else** (plain strings, numbers, dicts, bools, null): used as a static value as-is
-- When `None` (default), delivery falls back to `{"event": "$"}` — the full event nested under `"event"`
+  - **Missing path or resolution error** → returns `None`
+  - **Anything else** (plain strings, numbers, bools, null): used as a static value as-is
+- `resolve_event_fields` is a thin recursive wrapper that walks the structure down to primitives, then delegates to `resolve_json_selector`
+- When `event_fields` is `None` (default), delivery falls back to `{"event": "$"}` — the full event nested under `"event"`
+
+### Resolution Logic
+
+```python
+def resolve_event_fields(fields, event):
+    if isinstance(fields, dict):
+        return {k: resolve_event_fields(v, event) for k, v in fields.items()}
+    if isinstance(fields, list):
+        return [resolve_event_fields(item, event) for item in fields]
+    return resolve_json_selector(fields, event)
+```
+
+- `resolve_json_selector` is flat — no recursion, primitives only
+- `resolve_event_fields` is the recursive wrapper — handles dicts, lists, delegates primitives
+- On missing path or any resolution error, `resolve_json_selector` returns `None` (never raises)
 
 ### Value Resolution Examples
 
@@ -151,7 +172,9 @@ class WebhookSubscriptionData(BaseModel):
 | `"/event_type"` | JSON Pointer | `event["event_type"]` |
 | `"main"` | Static string | `"main"` |
 | `42` | Static number | `42` |
-| `{"nested": "obj"}` | Static dict | `{"nested": "obj"}` |
+| `"$.attributes.nonexistent"` | Missing path | `None` |
+| `{"type": "$.event_type", "meta": {"id": "$.event_id"}}` | Nested dict | `{"type": "environments...", "meta": {"id": "019..."}}` |
+| `["$.event_type", "production"]` | List | `["environments...", "production"]` |
 
 ### Example — default (no `event_fields`)
 Fallback: `{"event": "$"}`
@@ -354,8 +377,6 @@ At delivery time, the final HTTP body is assembled in this order:
 ```
 1. Serialize event: event.model_dump(mode="json", exclude_none=True)
 2. Resolve event_fields: use subscription's event_fields if set, else {"event": "$"}
-3. Start with empty dict
-4. For each {key: value} in event_fields:
-   body[key] = resolve_json_selector(value, serialized_event)
-5. JSON-serialize with sort_keys=True
+3. body = resolve_event_fields(event_fields, serialized_event)
+4. JSON-serialize with sort_keys=True
 ```
