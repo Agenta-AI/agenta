@@ -99,11 +99,13 @@ def _validate_webhook_url(url: str) -> None:
 
     try:
         ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None:
         if _is_blocked_ip(ip):
             raise ValueError("Webhook URL resolves to a blocked IP range.")
         return
-    except ValueError:
-        pass
 
     try:
         addresses = {

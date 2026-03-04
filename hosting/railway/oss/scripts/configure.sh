@@ -10,6 +10,7 @@ ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
 SKIP_UNSETS="${CONFIGURE_SKIP_UNSETS:-false}"
 
 POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
+REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-0000000000000000000000000000000000000000000000000000000000000000}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-1111111111111111111111111111111111111111111111111111111111111111}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
@@ -177,6 +178,28 @@ main() {
 
     unset_vars worker-tracing AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
+    set_vars worker-webhooks \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        POSTGRES_URI_CORE="$pg_async_core" \
+        POSTGRES_URI_TRACING="$pg_async_tracing" \
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+
+    unset_vars worker-webhooks AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
+    set_vars worker-events \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
+        POSTGRES_URI_CORE="$pg_async_core" \
+        POSTGRES_URI_TRACING="$pg_async_tracing" \
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+
+    unset_vars worker-events AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+
     set_vars cron \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
@@ -205,6 +228,12 @@ main() {
     set_vars supertokens \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
         POSTGRESQL_CONNECTION_URI="$pg_sync_supertokens"
+
+    if railway service "$REDIS_SERVICE" >/dev/null 2>&1; then
+        set_vars "$REDIS_SERVICE" \
+            RAILWAY_RUN_UID=0 \
+            RAILWAY_RUN_GID=0
+    fi
 
     set_vars "$POSTGRES_REF_NS" \
         PGDATA=/var/lib/postgresql/data/pgdata \

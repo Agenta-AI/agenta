@@ -153,18 +153,18 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
         }
 
         // Layer 2: Per-revision schema (fallback for custom apps or failed service fetch)
-        const query = get(directSchemaQueryAtomFamily(revisionId))
 
-        // Distinguish between "entity still loading" and "entity loaded but no URI":
-        // - Entity null → still loading → treat as pending (data will arrive)
-        // - Entity exists but no URI → data loaded without URI → return empty schema
-        //   (prevents permanent loading hang when entity data lacks URI)
+        // Resolve entity state BEFORE reading the query atom so we can distinguish
+        // "entity still loading" from "entity loaded but no URI".
+        // When the entity has no URI, directSchemaQueryAtomFamily stays disabled
+        // (enabled = false) which causes TanStack Query to report isPending = true.
+        // We must short-circuit before that check to avoid a permanent loading hang.
         const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
         const hasUri = !!entityData?.uri
         const isEntityStillLoading = !entityData
 
-        // Pending if query is actively fetching or entity data hasn't loaded yet
-        if (query.isPending || isEntityStillLoading) {
+        // Entity data hasn't arrived yet — pending (data will arrive eventually)
+        if (isEntityStillLoading) {
             return {
                 data: emptySchemaState,
                 isPending: true,
@@ -179,6 +179,19 @@ export const legacyAppRevisionSchemaQueryAtomFamily = atomFamily((revisionId: st
             return {
                 data: emptySchemaState,
                 isPending: false,
+                isError: false,
+                error: null,
+            }
+        }
+
+        // Entity has URI — read the schema query (will be enabled)
+        const query = get(directSchemaQueryAtomFamily(revisionId))
+
+        // Pending only if the query is actively fetching
+        if (query.isPending) {
+            return {
+                data: emptySchemaState,
+                isPending: true,
                 isError: false,
                 error: null,
             }

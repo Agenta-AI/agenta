@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {TOGGLE_MARKDOWN_VIEW, markdownViewAtom} from "@agenta/ui/editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     ArrowClockwise,
@@ -19,8 +20,6 @@ import {Dropdown} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import TestsetDrawerButton from "@/oss/components/Playground/Components/Drawers/TestsetDrawer"
 import RepetitionNavigation from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/RepetitionNavigation"

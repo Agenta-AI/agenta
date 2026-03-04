@@ -1,10 +1,10 @@
 import React, {useMemo} from "react"
 
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import clsx from "clsx"
 
-import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 interface MessageEditorProps {
     role: string

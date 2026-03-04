@@ -1,4 +1,4 @@
-import {useEffect, useCallback} from "react"
+import {useEffect, useLayoutEffect, useCallback} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
@@ -19,6 +19,7 @@ import {
     $getRoot,
     $createTextNode,
     KEY_ENTER_COMMAND,
+    PASTE_COMMAND,
     $getSelection,
     $isRangeSelection,
     COMMAND_PRIORITY_HIGH,
@@ -28,7 +29,7 @@ import {
 import {markdownViewAtom} from "../../state/assets/atoms"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
-import {TOGGLE_MARKDOWN_VIEW} from "./commands"
+import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -82,32 +83,51 @@ const MarkdownPlugin = ({id}: {id: string}) => {
     const [, setMarkdownView] = useAtom(markdownViewAtom(id))
     const [editor] = useLexicalComposerContext()
 
+    // Core handler: when nextMarkdownView is provided, explicitly set to that state;
+    // when omitted, toggle the current state.
+    const handleSetMarkdownView = useCallback(
+        (nextMarkdownView?: boolean) => {
+            editor.update(() => {
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                const isCurrentlyMarkdown =
+                    $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+
+                // If explicit target matches current state, nothing to do
+                if (nextMarkdownView !== undefined && nextMarkdownView === isCurrentlyMarkdown) {
+                    return
+                }
+
+                if (isCurrentlyMarkdown) {
+                    // markdown → rich text
+                    $convertFromMarkdownString(
+                        firstChild.getTextContent(),
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                    setMarkdownView(false)
+                } else {
+                    // rich text → markdown
+                    const markdown = $convertToMarkdownStringCustom(
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                    const codeNode = $createCodeNode("markdown")
+                    codeNode.append($createTextNode(markdown))
+                    root.clear().append(codeNode)
+                    codeNode.selectStart()
+                    setMarkdownView(true)
+                }
+            })
+        },
+        [editor, setMarkdownView],
+    )
+
     const handleMarkdownToggle = useCallback(() => {
-        editor.update(() => {
-            const root = $getRoot()
-            const firstChild = root.getFirstChild()
-            if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
-                $convertFromMarkdownString(
-                    firstChild.getTextContent(),
-                    PLAYGROUND_TRANSFORMERS,
-                    undefined,
-                    true,
-                )
-                setMarkdownView(false)
-            } else {
-                const markdown = $convertToMarkdownStringCustom(
-                    PLAYGROUND_TRANSFORMERS,
-                    undefined,
-                    true,
-                )
-                const codeNode = $createCodeNode("markdown")
-                codeNode.append($createTextNode(markdown))
-                root.clear().append(codeNode)
-                codeNode.selectStart()
-                setMarkdownView(true)
-            }
-        })
-    }, [editor, setMarkdownView])
+        handleSetMarkdownView()
+    }, [handleSetMarkdownView])
 
     useEffect(() => {
         return editor.registerCommand(
@@ -119,6 +139,18 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             COMMAND_PRIORITY_HIGH,
         )
     }, [editor, handleMarkdownToggle])
+
+    // SET_MARKDOWN_VIEW: explicit state (true = markdown source, false = rich text)
+    useLayoutEffect(() => {
+        return editor.registerCommand(
+            SET_MARKDOWN_VIEW,
+            (nextMarkdownView) => {
+                handleSetMarkdownView(nextMarkdownView)
+                return true
+            },
+            COMMAND_PRIORITY_HIGH,
+        )
+    }, [editor, handleSetMarkdownView])
 
     useEffect(() => {
         return editor.registerCommand(
@@ -137,6 +169,80 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                         return true
                     }
                 })
+                return true
+            },
+            COMMAND_PRIORITY_HIGH,
+        )
+    }, [editor])
+
+    // Prevent monospace-styled HTML from being converted into code blocks.
+    //
+    // Lexical's CodeNode.importDOM() registers a `div` handler that converts
+    // any <div> whose font-family contains "monospace" into a CodeNode.
+    // Source-code editors (VS Code, JetBrains, terminals) put monospace-styled
+    // HTML in the clipboard, so pasting from them creates unwanted code blocks.
+    //
+    // For markdown/plaintext sources, we parse the plain text as markdown
+    // using $convertFromMarkdownString so all constructs (headings, code
+    // fences, lists, etc.) are converted to proper Lexical nodes.
+    useEffect(() => {
+        return editor.registerCommand(
+            PASTE_COMMAND,
+            (event: ClipboardEvent) => {
+                const htmlData = event.clipboardData?.getData("text/html")
+                if (!htmlData) return false
+
+                // Only intercept when HTML contains monospace font styling
+                if (!/font-family[^;]*monospace/i.test(htmlData)) return false
+
+                const plainText = event.clipboardData?.getData("text/plain")
+                if (!plainText) return false
+
+                // Check VS Code metadata to determine the source language.
+                const vscodeData = event.clipboardData?.getData("vscode-editor-data")
+                let sourceMode: string | undefined
+                if (vscodeData) {
+                    try {
+                        sourceMode = JSON.parse(vscodeData)?.mode
+                    } catch {
+                        // ignore parse errors
+                    }
+                }
+
+                // For actual code files (python, javascript, etc.), let Lexical
+                // handle the paste normally — code should render as a code block.
+                if (sourceMode && sourceMode !== "markdown" && sourceMode !== "plaintext") {
+                    return false
+                }
+
+                event.preventDefault()
+
+                // Parse the plain text as markdown so all constructs (headings,
+                // code fences, lists, etc.) become proper Lexical nodes.
+                editor.update(() => {
+                    const selection = $getSelection()
+                    if (!$isRangeSelection(selection)) return
+
+                    // If pasting into an empty editor, convert the whole root
+                    const root = $getRoot()
+                    const isEmpty =
+                        root.getChildrenSize() === 1 &&
+                        root.getFirstChild()?.getTextContent() === ""
+
+                    if (isEmpty) {
+                        $convertFromMarkdownString(
+                            plainText,
+                            PLAYGROUND_TRANSFORMERS,
+                            undefined,
+                            true,
+                        )
+                    } else {
+                        // Pasting into existing content — insert as raw text
+                        // since $convertFromMarkdownString replaces root content
+                        selection.insertRawText(plainText)
+                    }
+                })
+
                 return true
             },
             COMMAND_PRIORITY_HIGH,
@@ -171,6 +277,18 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             })
         })
     }, [editor])
+
+    // Sync markdown view atom to match the actual editor state on mount.
+    // This ensures external readers (e.g. MarkdownViewState) see the correct
+    // state immediately, even when the editor was hydrated with markdown content.
+    useLayoutEffect(() => {
+        editor.getEditorState().read(() => {
+            const root = $getRoot()
+            const firstChild = root.getFirstChild()
+            const isMarkdown = $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+            setMarkdownView(isMarkdown)
+        })
+    }, [editor, setMarkdownView])
 
     return (
         <>

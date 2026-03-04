@@ -88,7 +88,7 @@ export function calculateMultiLineIndentation(
 
 /**
  * Simple heuristic to decide if a line is foldable for a given language.
- * For JSON: line ending with "{".
+ * For JSON: line ending with "{" or "[".
  * For YAML: line ending with ':' (allow trailing spaces).
  */
 export function isFoldableLine(text: string, language: string): boolean {
@@ -100,7 +100,7 @@ export function isFoldableLine(text: string, language: string): boolean {
         language === "javascript" ||
         language === "typescript"
     ) {
-        return trimmed.endsWith("{")
+        return trimmed.endsWith("{") || trimmed.endsWith("[")
     }
     if (language === "yaml") {
         return /:\s*$/.test(trimmed)

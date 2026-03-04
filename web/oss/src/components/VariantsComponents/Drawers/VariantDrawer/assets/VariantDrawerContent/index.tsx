@@ -1,10 +1,12 @@
 import {memo, useEffect, useMemo} from "react"
 
 import {
+    legacyAppRevisionQueryAtomFamily,
     legacyAppRevisionSchemaQueryAtomFamily,
     revisionEnhancedCustomPropertiesAtomFamily,
     revisionEnhancedPromptsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {UserAuthorLabel} from "@agenta/entities/shared"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -12,7 +14,6 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {useRouter} from "next/router"
 
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
@@ -42,6 +43,9 @@ const EMPTY_REVISION_ID = "__variant-drawer-empty__"
  * Waits for both variant data AND schema before rendering, so prompts and
  * custom properties are derived with full metadata on first paint.
  * For completion/chat apps the schema is prefetched, so this adds no latency.
+ *
+ * When data cannot be loaded (e.g., deleted revision, API error), returns false
+ * so the drawer can render a "not found" state instead of loading forever.
  */
 export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
     atom((get) => {
@@ -51,6 +55,13 @@ export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) 
 
         const selectedVariant = get(moleculeBackedVariantAtomFamily(revisionId)) as any
         if (!selectedVariant) {
+            // Check if the underlying query has finished — if it completed without
+            // returning data (deleted revision, API error), stop loading so the
+            // drawer can render a "not found" state instead of spinning forever.
+            const query = get(legacyAppRevisionQueryAtomFamily(revisionId))
+            if (!query.isPending) {
+                return false
+            }
             return true
         }
 
@@ -213,6 +224,14 @@ const VariantDrawerContent = ({
         )
     }
 
+    if (!selectedVariant) {
+        return (
+            <div className="flex items-center justify-center w-full h-full">
+                <Text type="secondary">Revision not found</Text>
+            </div>
+        )
+    }
+
     return (
         <section className="flex w-full h-full overflow-hidden">
             <div
@@ -292,8 +311,11 @@ const VariantDrawerContent = ({
                 </div>
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>
-                    {/* Pass the revision id so selector can resolve modifiedBy correctly */}
-                    <UserAvatarTag variantId={(selectedVariant as any)?.id} />
+                    <UserAuthorLabel
+                        userId={(selectedVariant as any)?.modifiedById}
+                        fallback={(selectedVariant as any)?.modifiedBy ?? "-"}
+                        showPrefix={false}
+                    />
                 </div>
 
                 {commitMsg && (
