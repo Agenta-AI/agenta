@@ -113,7 +113,7 @@ render_services_wrapper() {
 FROM ${AGENTA_SERVICES_IMAGE}
 
 ENV AGENTA_LICENSE=oss
-ENV PORT=80
+ENV PORT=8080
 ENV SCRIPT_NAME=/services
 ENV AGENTA_API_INTERNAL_URL=http://api.railway.internal:8000/api
 ENV REDIS_URI=redis://redis.railway.internal:6379/0
@@ -122,7 +122,7 @@ ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV AGENTA_AUTH_KEY=0000000000000000000000000000000000000000000000000000000000000000
 ENV AGENTA_CRYPT_KEY=1111111111111111111111111111111111111111111111111111111111111111
 
-CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:80", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 
@@ -185,7 +185,7 @@ render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tra
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
 render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
-render_api_like_wrapper cron '["cron", "-f"]'
+render_api_like_wrapper cron '["supercronic", "/app/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"

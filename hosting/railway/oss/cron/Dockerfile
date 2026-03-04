@@ -10,5 +10,5 @@ ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.ini
 ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
 
-# Run scheduled maintenance jobs configured in image cron setup
-CMD ["cron", "-f"]
+# Run scheduled maintenance jobs via supercronic (non-root compatible)
+CMD ["supercronic", "/app/crontab"]
