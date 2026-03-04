@@ -1,0 +1,71 @@
+---
+id: query-events-rpc
+title: "Query Events"
+description: "Query Events"
+sidebar_label: "Query Events"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFWNtu2zgQ/RVjnuVLnFurp3XTAA3abdLE3QXWMAJaGttsJFIlKTteQ/++GFI3K46SzbrYvMSmhmdGM2fmkN6CYQsN/gQuVyiMhqkHMkHFDJfiKgQffqaoNvdon96rJAAPFP5MUZsPMtyAv4VACoPC0EeWJBEP7Ob+Dy0FrelgiTGjT4kiaMNR0zcLaTeJzfUc/EnTIHdzz8NdK7NJEHzQRnGxAA/mUsXMgA9pykPIvNJCpFEE2dQDw01EC7cOsXNFZiW+s27zgCKNKUepeBByLSgFMjWowIO1VA+o4KmTMWE8DSbz3Iu/ySuKFVdSxFSLnsIV11wK3QtkHHNjMKR4cLaU8kH3dDrTgeKJsSYGNT2vhWnr/VyQmVesyNkPDAw09n0jUux/uzUXoVzTG7SUVuAatXllWUNmsGt4vC/SKq6vDjLzQEbhocGvHWTmgcDH10K/SMevhJV5EPGY7wflwuACVSvKF7ub3luFqF5HKaYDFKFbC7H8Mm3NgYXPPBuUWrHozRFfFQDUhMzsbwORxrMXcG5pbxtX/yy5+FaO580MWZYPDK4wBN+oFO2CTqTQjtPDwYD+UTrztgMf7tIgQK3nadS5zY3Be+vEDGTqNjVyXQV+YS2KGWM3cYOx3oOlkBkM79lhG+XCwXZGNoo0CX+Fk+8ONncSYoS/wMlHB5s7KdI12xxQjopkfdjkilTk66BeimyVXoqEHdRLka7Si1M556AdttF3DXX+dwjtCn9AXW+o+P+n3UBM1obFSWueKtJXMONyZ+aBNsyk+j6QYeuxpI0Ddxaic0EQFWKMWrPFfwX9PUfJPGDGKD5LjRtkFSYLQ04ZY9FNbdTRqG5O+jZ/owp9n0RUGjCpKL7D1gbtdphSr1aznlB5Y0qxTbMvXo7H6UM5/JsOdK5ouQxlVtNOhsOnqvUHi3hoNalzqZRUb5esEA3jUYsORTLYefoKipRHjOnzGfsiXYCU1Fgv9rVGYVpj1nPdXKaRktEpGo+LJHVyXJ5raIHUwjzWYJ4cLy4ol3T0e6GelBsXfm5Xq2hVIleh51Px0ZWg7bzzaTy+eQLo+LFLDMugTk5HD2I0S0mXxERqwkuYWYIPfUfAvr06ggca1QqVtlVNVQQ+LI1JtN/vB5FMwx5boDCsx3ifJdw2o8YgVdxs7JbRzdVn3HxCZo+3k2nd4I5455i0a1ZmnyX8M1IUgsW2v1OzlIr/7ehBVaR43C56YWL0bXXBvXxkcRLhzoW1Lk1wPGfvTudnJ93T86Pz7snp2bA7O54H3WHw/ux4fnbG5uysORP8ui7UdKRcbt6jivsSDAfDk+7gvDt8Pz469U+P/OG73uD86C+orj1tNu728tqY83vJoLxa7NwbqmvAoDjGDzLbFnNZ74qRrW5ndHMFHhAPHJUGvaPeAJoE2zGmmcMCm/KiePYxeA0alQSifMZ24IBBFv9WPaDIiKUxEzW8Bp93YikZRL3aTyLGbV2s521O9Ukxaz33Owl16JJ6wZ/AdjtjGr+rKMto2T33J1MPVkxxNqPkTGiELQtmb+EBN8V8EKY7dpKxYlHqmNyYuzQT3Y5REGBiWm2ntXa9ub4bgwez/Aec2Go+KLYmorI1+EB8cscPS3ha20LExCK1Ug4Ok/7+AQV8NPo=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Query Events"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/events/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Query Events
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"event":{"anyOf":[{"properties":{"request_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Request Id"},"request_type":{"anyOf":[{"type":"string","enum":["unknown","router","worker"],"title":"RequestType"},{"type":"null"}]},"event_type":{"anyOf":[{"type":"string","enum":["unknown","environments.revisions.committed","webhooks.subscriptions.tested"],"title":"EventType"},{"type":"null"}]}},"type":"object","title":"EventQuery"},{"type":"null"}]},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"EventQueryRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count"},"events":{"items":{"properties":{"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"event_id":{"type":"string","format":"uuid","title":"Event Id"},"request_id":{"type":"string","format":"uuid","title":"Request Id"},"request_type":{"type":"string","enum":["unknown","router","worker"],"title":"RequestType"},"event_type":{"type":"string","enum":["unknown","environments.revisions.committed","webhooks.subscriptions.tested"],"title":"EventType"},"timestamp":{"type":"string","format":"date-time","title":"Timestamp"},"status_code":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Status Code"},"status_message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Status Message"},"attributes":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Attributes"}},"type":"object","required":["event_id","request_id","request_type","event_type","timestamp"],"title":"Event"},"type":"array","title":"Events"}},"type":"object","required":["count","events"],"title":"EventsQueryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
