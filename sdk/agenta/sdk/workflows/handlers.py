@@ -209,6 +209,21 @@ def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
     return resolve_dot_notation(expr, data)
 
 
+def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
+    """Resolve a value that may be a JSON Path or JSON Pointer expression.
+
+    - Strings starting with ``$`` are resolved as JSON Path against *data*.
+    - Strings starting with ``/`` are resolved as JSON Pointer against *data*.
+    - Everything else (plain strings, numbers, dicts, …) is returned as-is.
+    """
+    if isinstance(value, str):
+        if value.startswith("$"):
+            return resolve_json_path(value, data)
+        if value.startswith("/"):
+            return resolve_json_pointer(value, data)
+    return value
+
+
 # ========= Placeholder & coercion helpers =========
 
 
