@@ -86,6 +86,39 @@ def _merge_headers(
     return merged
 
 
+def _log_response(
+    response: httpx.Response,
+    *,
+    delivery_id: UUID,
+    url: str,
+) -> None:
+    status = response.status_code
+    body_preview = response.text[:500]
+
+    if 100 <= status < 200 or 200 <= status < 300:
+        # log.debug(
+        #     "[WEBHOOKS TASK] %d from %s delivery=%s body=%s",
+        #     status, url, delivery_id, body_preview,
+        # )
+        pass
+    elif 300 <= status < 400:
+        log.warning(
+            "[WEBHOOKS TASK] %d from %s delivery=%s body=%s",
+            status,
+            url,
+            delivery_id,
+            body_preview,
+        )
+    else:
+        log.error(
+            "[WEBHOOKS TASK] %d from %s delivery=%s body=%s",
+            status,
+            url,
+            delivery_id,
+            body_preview,
+        )
+
+
 def resolve_payload_fields(
     fields: Any,
     context: Dict[str, Any],
@@ -246,6 +279,8 @@ async def deliver_webhook(
             status_code=response.status_code,
             body=response.text[:2000],
         )
+
+        _log_response(response, delivery_id=delivery_id, url=url)
 
         final_data = base_data.model_copy(update={"response": response_info})
 
