@@ -52,7 +52,9 @@ from oss.src.dbs.postgres.environments.dbes import (
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -60,7 +62,9 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.events.service import EventsService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
@@ -82,9 +86,11 @@ from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
@@ -131,12 +137,10 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+from entrypoints.worker_webhooks import webhooks_worker
 import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
-
-from redis.asyncio import Redis
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 import agenta as ag
 
@@ -218,8 +222,10 @@ if ee and is_ee():
 # DAOS -------------------------------------------------------------------------
 
 secrets_dao = SecretsDAO()
+webhooks_dao = WebhooksDAO()
 
 tracing_dao = TracingDAO()
+events_dao = EventsDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,
@@ -260,21 +266,21 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+
+webhooks_service = WebhooksService(
+    webhooks_dao=webhooks_dao,
+    vault_service=vault_service,
+    webhooks_worker=webhooks_worker,
+)
+
+
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
+events_service = EventsService(
+    events_dao=events_dao,
+)
 
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
@@ -378,13 +384,18 @@ secrets = VaultRouter(
     vault_service=vault_service,
 )
 
-otlp = OTLPRouter(
-    tracing_worker=tracing_worker,
+webhooks = WebhooksRouter(
+    webhooks_service=webhooks_service,
 )
+
+otlp = OTLPRouter()
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
+)
+
+events = EventsRouter(
+    events_service=events_service,
 )
 
 testcases = TestcasesRouter(
@@ -487,9 +498,15 @@ ai_services = AIServicesRouter(
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
-    secrets.router,
+    router=secrets.router,
     prefix="/vault/v1",
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
 )
 
 app.include_router(
@@ -517,6 +534,12 @@ app.include_router(
     router=tracing.router,
     prefix="/tracing",
     tags=["Observability"],
+)
+
+app.include_router(
+    router=events.router,
+    prefix="/events",
+    tags=["Events"],
 )
 
 app.include_router(

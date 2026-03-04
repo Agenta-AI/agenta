@@ -22,6 +22,8 @@ The scripts create the following services inside one Railway project:
 - **Alembic** for database migrations
 - **Worker (tracing)** for OTLP trace ingestion
 - **Worker (evaluations)** for async evaluation jobs
+- **Worker (webhooks)** for async webhook deliveries
+- **Worker (events)** for async event processing
 - **Cron** for scheduled maintenance tasks
 
 All traffic enters through the gateway. The gateway routes `/` to web, `/api/` to the API, and `/services/` to the services backend.
