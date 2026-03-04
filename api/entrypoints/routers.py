@@ -82,6 +82,7 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -107,6 +108,7 @@ from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
@@ -139,9 +141,6 @@ from entrypoints.worker_webhooks import webhooks_worker
 import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
-
-from redis.asyncio import Redis
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 import agenta as ag
 
@@ -283,18 +282,6 @@ events_service = EventsService(
     events_dao=events_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
-
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
 )
@@ -364,6 +351,12 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluators_service=evaluators_service,
     evaluations_service=evaluations_service,
     evaluations_worker=evaluations_worker,
+)
+
+simple_queues_service = SimpleQueuesService(
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    simple_evaluations_service=simple_evaluations_service,
 )
 
 # Tools adapter + service
@@ -465,6 +458,10 @@ evaluations = EvaluationsRouter(
 
 simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
+)
+
+simple_queues = SimpleQueuesRouter(
+    simple_queues_service=simple_queues_service,
 )
 
 tools = ToolsRouter(
@@ -761,6 +758,12 @@ app.include_router(
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
+    tags=["Evaluations"],
 )
 
 app.include_router(

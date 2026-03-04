@@ -1,12 +1,10 @@
 from typing import Dict, Any, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
-from redis.asyncio import Redis
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -46,7 +44,6 @@ from oss.src.core.annotations.service import AnnotationsService
 # from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 from oss.src.core.evaluations.types import (
@@ -122,18 +119,6 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
-
 queries_service = QueriesService(
     queries_dao=queries_dao,
 )
@@ -197,8 +182,10 @@ async def evaluate_live_query(
     #
     run_id: UUID,
     #
-    newest: datetime,
-    oldest: datetime,
+    newest: Optional[datetime] = None,
+    oldest: Optional[datetime] = None,
+    #
+    use_windowing: bool = False,
 ):
     request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
 
@@ -206,8 +193,10 @@ async def evaluate_live_query(
     request.state.user_id = str(user_id)
 
     # count in minutes
-    timestamp = oldest
-    interval = int((newest - oldest).total_seconds() / 60)
+    timestamp = oldest or datetime.now(timezone.utc)
+    interval: Optional[int] = None
+    if newest and oldest:
+        interval = int((newest - oldest).total_seconds() / 60)
 
     try:
         # ----------------------------------------------------------------------
@@ -223,6 +212,9 @@ async def evaluate_live_query(
             run_id=run_id,
             timestamp=timestamp,
             interval=interval,
+            newest=newest,
+            oldest=oldest,
+            use_windowing=use_windowing,
         )
         # ----------------------------------------------------------------------
 
@@ -384,7 +376,20 @@ async def evaluate_live_query(
                     filtering = query_revision.data.filtering
 
                 if query_revision.data.windowing:
-                    windowing.rate = query_revision.data.windowing.rate
+                    query_windowing = query_revision.data.windowing
+
+                    if use_windowing:
+                        windowing = Windowing(
+                            oldest=query_windowing.oldest,
+                            newest=query_windowing.newest,
+                            limit=query_windowing.limit,
+                            order=query_windowing.order,
+                            rate=query_windowing.rate,
+                            # next=
+                            # interval=
+                        )
+                    else:
+                        windowing.rate = query_windowing.rate
 
             query = TracingQuery(
                 formatting=formatting,
