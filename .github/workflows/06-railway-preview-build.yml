@@ -7,6 +7,7 @@ on:
       - 'api/**'
       - 'web/**'
       - 'services/**'
+      - 'sdk/**'
       - 'hosting/railway/**'
       - '.github/workflows/06-railway-preview-build.yml'
       - '.github/workflows/07-railway-preview-deploy.yml'
@@ -91,12 +92,15 @@ jobs:
           - image_name: agenta-api
             context: api
             dockerfile: api/oss/docker/Dockerfile.gh
+            needs_sdk: true
           - image_name: agenta-web
             context: web
             dockerfile: web/oss/docker/Dockerfile.gh
+            needs_sdk: false
           - image_name: agenta-services
             context: services
             dockerfile: services/oss/docker/Dockerfile.gh
+            needs_sdk: true
     steps:
       - uses: actions/checkout@v4
 
@@ -109,6 +113,12 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Inject SDK into build context
+        if: matrix.needs_sdk
+        run: |
+          rm -rf "${{ matrix.context }}/sdk"
+          cp -R sdk "${{ matrix.context }}/sdk"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -123,6 +133,21 @@ jobs:
           cache-to: |
             type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared,mode=max
             type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }},mode=max
+
+      - name: Verify SDK source path in image
+        if: matrix.image_name == 'agenta-api' || matrix.image_name == 'agenta-services'
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)")"
+          echo "Resolved SDK path: $sdk_path"
+          case "$sdk_path" in
+            /app/sdk/*) ;;
+            *)
+              echo "Expected SDK to resolve from /app/sdk, got: $sdk_path"
+              exit 1
+              ;;
+          esac
 
       - name: Summary
         run: |
