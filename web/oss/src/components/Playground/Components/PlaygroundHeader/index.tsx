@@ -258,7 +258,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 )}
                 {...divProps}
             >
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                     {currentApp?.app_type === "custom" ? (
                         <Dropdown
                             trigger={["click"]}
@@ -283,21 +283,23 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             <Button type="text" icon={<MoreOutlined />} />
                         </Dropdown>
                     ) : null}
-                    <Typography className="text-[16px] leading-[18px] font-[600]">
+                    <Typography className="whitespace-nowrap text-[16px] leading-[18px] font-[600]">
                         Playground
                     </Typography>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                     {connectedEvaluatorNodes.length > 0 && (
-                        <div className="flex items-center gap-1">
-                            {connectedEvaluatorNodes.map((node) => (
-                                <EvaluatorTag
-                                    key={node.id}
-                                    node={node}
-                                    onDisconnect={handleDisconnectSingle}
-                                />
-                            ))}
+                        <div className="min-w-0 flex-1 overflow-x-auto">
+                            <div className="flex w-max items-center gap-1 pr-1">
+                                {connectedEvaluatorNodes.map((node) => (
+                                    <EvaluatorTag
+                                        key={node.id}
+                                        node={node}
+                                        onDisconnect={handleDisconnectSingle}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )}
                     <Popover
