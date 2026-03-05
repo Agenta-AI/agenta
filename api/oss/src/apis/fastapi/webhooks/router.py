@@ -14,6 +14,7 @@ from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.webhooks.types import WebhookSubscription
 from oss.src.core.webhooks.exceptions import (
+    WebhookAuthorizationSecretRequiredError,
     WebhookSubscriptionNotFoundError,
     WebhookTestDeliveryTimeoutError,
     WebhookTestEventPublishFailedError,
@@ -152,12 +153,15 @@ class WebhooksRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        subscription = await self.webhooks_service.create_subscription(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            subscription=body.subscription,
-        )
+        try:
+            subscription = await self.webhooks_service.create_subscription(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                subscription=body.subscription,
+            )
+        except WebhookAuthorizationSecretRequiredError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
 
         await set_cache(
             namespace="webhooks",
