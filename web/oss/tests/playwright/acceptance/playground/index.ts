@@ -6,6 +6,9 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
 const playgroundTests = () => {
@@ -19,6 +22,9 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Paid),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
         async ({apiHelpers, navigateToPlayground, runCompletionSingleViewVariant}) => {
@@ -39,6 +45,9 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Paid),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
         async ({apiHelpers, navigateToPlayground, runChatSingleViewVariant}) => {
@@ -59,6 +68,9 @@ const playgroundTests = () => {
                     createTagString("coverage", TestCoverage.LIGHT),
                     createTagString("coverage", TestCoverage.FULL),
                     createTagString("path", TestPath.HAPPY),
+                    createTagString("lens", TestLensType.FUNCTIONAL),
+                    createTagString("cost", TestCostType.Free),
+                    createTagString("license", TestLicenseType.OSS),
                 ],
             },
             async ({

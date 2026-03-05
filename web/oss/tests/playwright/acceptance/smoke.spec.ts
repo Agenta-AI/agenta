@@ -1,6 +1,6 @@
 import {test, expect} from "@playwright/test"
 
-test("smoke: auth works and can navigate to apps", async ({page}) => {
+test("smoke: auth works and can navigate to apps @scope:auth @coverage:smoke @path:happy @lens:functional @cost:free @license:oss", async ({page}) => {
     test.setTimeout(10000)
     await page.goto("/apps")
     await page.waitForURL("**/apps", {timeout: 5000})

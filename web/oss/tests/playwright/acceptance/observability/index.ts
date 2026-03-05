@@ -6,6 +6,9 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 const observabilityTests = () => {
     test(
@@ -17,6 +20,9 @@ const observabilityTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Free),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
         async ({page, uiHelpers}) => {

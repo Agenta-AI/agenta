@@ -54,7 +54,20 @@ Exit criteria:
 - Any test domain can run independently in its own project.
 - CI jobs can be split by domain without test code changes.
 
-## Phase 4 - Coverage Expansion
+## Phase 4 - Mock LLM for Tests
+
+Playground tests currently require a real OpenAI API key (`@cost:paid`). To eliminate this dependency and monetary cost in CI:
+
+Options (investigate in order):
+1. **LiteLLM mock provider** — LiteLLM (already in the stack) may support a `mock/` prefix that returns dummy responses. If so, configure `mock/gpt-4o-mini` as the model in test environments. Quickest win.
+2. **Agenta-level mock provider** — Add a built-in "test" or "echo" LLM provider in OSS that echoes input or returns a fixed string. Controlled via env var (e.g., `AGENTA_TEST_LLM_PROVIDER=mock`). Most robust long-term.
+3. **External mock server** — Run a lightweight stub (e.g., WireMock or Express) that implements the OpenAI API contract with canned responses. More infrastructure to manage.
+
+Exit criteria:
+- All playground tests are `@cost:free` and run without any API keys.
+- CI doesn't need OpenAI credentials.
+
+## Phase 5 - Coverage Expansion
 
 Milestones:
 1. Add regression test for playground variable rename payload behavior.
