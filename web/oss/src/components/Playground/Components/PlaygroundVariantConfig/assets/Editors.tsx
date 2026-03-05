@@ -3,7 +3,6 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {
     deriveEnhancedCustomProperties,
     deriveEnhancedPrompts,
-    fetchOssRevisionById,
     legacyAppRevisionMolecule,
 } from "@agenta/entities/legacyAppRevision"
 import {Spin} from "antd"
@@ -13,6 +12,8 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
 import {playgroundEmbedResolutionViewModeAtom} from "@/oss/components/Playground/state/atoms"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getJWT} from "@/oss/services/api"
 import {
     moleculeBackedPromptsAtomFamily,
     moleculeBackedVariantAtomFamily,
@@ -21,6 +22,28 @@ import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import PlaygroundVariantConfigPrompt from "../../PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "../../PlaygroundVariantCustomProperties"
+
+async function fetchResolvedRevisionView(revisionId: string, projectId: string): Promise<any | null> {
+    const jwt = await getJWT()
+    const url = `${getAgentaApiUrl()}/variants/revisions/query?project_id=${encodeURIComponent(projectId)}&resolve=true`
+    const response = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
+        },
+        body: JSON.stringify({
+            revision_ids: [revisionId],
+            resolve: true,
+        }),
+    })
+    if (!response.ok) return null
+    const json = (await response.json()) as any
+    const revisions = Array.isArray(json?.revisions) ? json.revisions : []
+    const first = revisions[0]
+    return first && typeof first === "object" ? first : null
+}
 
 const PlaygroundVariantConfigEditors = ({
     variantId,
@@ -47,7 +70,7 @@ const PlaygroundVariantConfigEditors = ({
                         queryKey: ["playgroundResolvedRevisionView", variantId, projectId],
                         queryFn: () =>
                             projectId
-                                ? fetchOssRevisionById(variantId, projectId, {resolve: true})
+                                ? fetchResolvedRevisionView(variantId, projectId)
                                 : Promise.resolve(null),
                         enabled: isResolved && !!variantId && !!projectId,
                         staleTime: 1000 * 60,
@@ -62,7 +85,9 @@ const PlaygroundVariantConfigEditors = ({
         useMemo(() => legacyAppRevisionMolecule.atoms.agConfigSchema(variantId), [variantId]),
     )
 
-    const resolvedParameters = resolvedServerData?.parameters as Record<string, unknown> | undefined
+    const resolvedConfig = resolvedServerData?.config as Record<string, unknown> | undefined
+    const resolvedParameters = (resolvedConfig?.parameters ||
+        resolvedServerData?.parameters) as Record<string, unknown> | undefined
     const resolvedPrompts = useMemo(() => {
         if (!resolvedParameters || !resolvedSchema) return []
         return deriveEnhancedPrompts(resolvedSchema, resolvedParameters)

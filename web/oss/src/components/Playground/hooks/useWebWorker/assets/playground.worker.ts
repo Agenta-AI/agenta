@@ -190,6 +190,7 @@ async function runVariantInputRow(payload: {
     isCustom?: boolean
     appType?: string
     repetitions?: number
+    resolvedAgConfig?: Record<string, unknown>
 }) {
     const {
         variant,
@@ -214,9 +215,24 @@ async function runVariantInputRow(payload: {
         isCustom,
         appType,
         repetitions = 1,
+        resolvedAgConfig,
     } = payload
 
     try {
+        if (!resolvedAgConfig || typeof resolvedAgConfig !== "object") {
+            self.postMessage({
+                type: "runVariantInputRowResult",
+                payload: {
+                    rowId,
+                    variantId: variantId || variant?.id || "",
+                    runId,
+                    messageId,
+                    error: "Missing resolved configuration for /test run",
+                },
+            })
+            return
+        }
+
         const requestBody = stripAgentaMetadataDeep(
             transformToRequestBody({
                 variant,
@@ -235,6 +251,9 @@ async function runVariantInputRow(payload: {
                 appType,
             }),
         )
+
+        // Force /test to use resolved ag_config from caller.
+        requestBody.ag_config = stripAgentaMetadataDeep(resolvedAgConfig)
 
         // Strip any remaining enhanced value wrappers (__id, __metadata, {value: X})
         // from messages — fallback content parts may bypass extractValueByMetadata

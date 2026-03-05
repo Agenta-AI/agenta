@@ -1,9 +1,5 @@
 import {
-    deriveEnhancedCustomProperties,
-    deriveEnhancedPrompts,
-    fetchOssRevisionById,
     getAllMetadata,
-    legacyAppRevisionMolecule,
 } from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {generateId} from "@agenta/shared/utils"
@@ -28,6 +24,7 @@ import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
 } from "@/oss/lib/shared/variant/valueHelpers"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getJWT} from "@/oss/services/api"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
@@ -54,7 +51,6 @@ import {
     buildToolMessages,
 } from "@/oss/state/newPlayground/helpers/messageFactory"
 import {
-    moleculeBackedCustomPropertiesAtomFamily,
     moleculeBackedPromptsAtomFamily,
     moleculeBackedVariantAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
@@ -131,6 +127,30 @@ function detectIsChatVariant(get: any, _rowId: string): boolean {
 interface ResolvedVariableKeys {
     ordered: string[]
     set: Set<string>
+}
+
+function extractResolvedAgConfigFromSnapshot(
+    snapshot: Record<string, unknown> | null,
+): Record<string, unknown> | undefined {
+    if (!snapshot || typeof snapshot !== "object") return undefined
+
+    const config = snapshot.config as Record<string, unknown> | undefined
+    const configParameters = config?.parameters as Record<string, unknown> | undefined
+    const directParameters = snapshot.parameters as Record<string, unknown> | undefined
+
+    const containers = [configParameters, directParameters]
+    for (const container of containers) {
+        if (!container || typeof container !== "object") continue
+        const agConfig = container.ag_config
+        if (agConfig && typeof agConfig === "object") {
+            return agConfig as Record<string, unknown>
+        }
+        if (container.prompt && typeof container.prompt === "object") {
+            return container
+        }
+    }
+
+    return undefined
 }
 
 function computeVariableValues(
@@ -210,17 +230,53 @@ function computeVariableValues(
 
 // Resolve the set of allowed variable keys for a given revision
 function resolveAllowedVariableKeys(get: any, revisionId: string): ResolvedVariableKeys {
+    const isEmbedSelectorKey = (key: string) =>
+        key.includes("=") ||
+        key.includes(",") ||
+        key.startsWith("workflow.") ||
+        key.startsWith("environment.") ||
+        key.startsWith("evaluator.") ||
+        key.startsWith("application.")
+
+    const sanitizeKeys = (keys: string[]) =>
+        keys.filter((k) => typeof k === "string" && k.length > 0 && !isEmbedSelectorKey(k))
+
     // Prefer runnableBridge input ports (single source of truth)
     const ports = (get(runnableBridge.inputPorts(revisionId)) || []) as {key?: string}[]
-    const ordered = ports.map((p) => p?.key).filter((k): k is string => !!k)
+    const ordered = sanitizeKeys(ports.map((p) => p?.key).filter((k): k is string => !!k))
     if (ordered.length > 0) {
         return {ordered, set: new Set(ordered)}
     }
 
     // Fallback to prompt variables if bridge input ports are unavailable
     const promptVars = (get(promptVariablesAtomFamily(revisionId)) || []) as string[]
-    const keys = (promptVars || []).filter((k) => typeof k === "string" && k.length > 0)
+    const keys = sanitizeKeys(promptVars || [])
     return {ordered: keys, set: new Set(keys)}
+}
+
+async function fetchResolvedRevisionSnapshot(
+    revisionId: string,
+    projectId: string,
+): Promise<Record<string, unknown> | null> {
+    const jwt = await getJWT()
+    const url = `${getAgentaApiUrl()}/variants/revisions/query?project_id=${encodeURIComponent(projectId)}&resolve=true`
+    const response = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json",
+            ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
+        },
+        body: JSON.stringify({
+            revision_ids: [revisionId],
+            resolve: true,
+        }),
+    })
+    if (!response.ok) return null
+    const json = (await response.json()) as any
+    const revisions = Array.isArray(json?.revisions) ? json.revisions : []
+    const first = revisions[0]
+    return first && typeof first === "object" ? (first as Record<string, unknown>) : null
 }
 
 export const triggerWebWorkerTestAtom = atom(
@@ -260,76 +316,21 @@ export const triggerWebWorkerTestAtom = atom(
         // Editor state can remain unresolved/draft for authoring, but execution
         // should use resolved revision data.
         const editableVariant = get(moleculeBackedVariantAtomFamily(effectiveId)) as any
-        const resolvedServerData = (
-            projectId ? await fetchOssRevisionById(effectiveId, projectId, {resolve: true}) : null
-        ) as {
-            id?: string
-            variantId?: string
-            appId?: string
-            revision?: number
-            variantName?: string
-            appName?: string
-            configName?: string
-            parameters?: Record<string, unknown>
-            uri?: string
-            createdAt?: string
-            updatedAt?: string
-            modifiedById?: string
-            commitMessage?: string
-        } | null
+        const resolvedServerSnapshot =
+            projectId && effectiveId
+                ? await fetchResolvedRevisionSnapshot(effectiveId, projectId)
+                : null
 
-        const resolvedSchema = get(legacyAppRevisionMolecule.atoms.agConfigSchema(effectiveId))
-        const resolvedParameters =
-            (resolvedServerData?.parameters as Record<string, unknown> | undefined) ??
-            editableVariant?.parameters
-        const promptsFromResolved =
-            resolvedParameters && resolvedSchema
-                ? deriveEnhancedPrompts(resolvedSchema, resolvedParameters)
-                : []
-        const customPropsFromResolved =
-            resolvedParameters && resolvedSchema
-                ? deriveEnhancedCustomProperties(resolvedSchema, resolvedParameters)
-                : {}
-
-        // const promptVars = get(promptVariablesAtomFamily(effectiveId))
-        const prompts =
-            promptsFromResolved.length > 0
-                ? promptsFromResolved
-                : get(moleculeBackedPromptsAtomFamily(effectiveId))
-        const customProps =
-            Object.keys(customPropsFromResolved).length > 0
-                ? customPropsFromResolved
-                : editableVariant
-                  ? get(moleculeBackedCustomPropertiesAtomFamily(effectiveId))
-                  : undefined
-        const variant = editableVariant
-            ? ({
-                  ...editableVariant,
-                  ...(resolvedServerData
-                      ? {
-                            id: resolvedServerData.id ?? editableVariant.id,
-                            variantId: resolvedServerData.variantId ?? editableVariant.variantId,
-                            appId: resolvedServerData.appId ?? editableVariant.appId,
-                            revision: resolvedServerData.revision ?? editableVariant.revision,
-                            variantName:
-                                resolvedServerData.variantName ?? editableVariant.variantName,
-                            appName: resolvedServerData.appName ?? editableVariant.appName,
-                            configName: resolvedServerData.configName ?? editableVariant.configName,
-                            parameters: resolvedParameters,
-                            uri: resolvedServerData.uri ?? editableVariant.uri,
-                            createdAt: resolvedServerData.createdAt ?? editableVariant.createdAt,
-                            updatedAt: resolvedServerData.updatedAt ?? editableVariant.updatedAt,
-                            modifiedById:
-                                resolvedServerData.modifiedById ?? editableVariant.modifiedById,
-                            commitMessage:
-                                resolvedServerData.commitMessage ?? editableVariant.commitMessage,
-                        }
-                      : {}),
-              } as any)
-            : undefined
-        const currentVariant = variant
-            ? ({...variant, prompts, customProperties: customProps} as any)
-            : undefined
+        const resolvedAgConfig = extractResolvedAgConfigFromSnapshot(resolvedServerSnapshot)
+        if (!resolvedServerSnapshot || !resolvedAgConfig) {
+            console.error("[playground.run] missing resolved revision snapshot for /test", {
+                revisionId: effectiveId,
+                projectId,
+            })
+            return
+        }
+        const prompts = (get(moleculeBackedPromptsAtomFamily(effectiveId)) || []) as any[]
+        const currentVariant = editableVariant as any
         const isChatVariant = detectIsChatVariant(get, rowId)
 
         const runId = generateId()
@@ -512,6 +513,7 @@ export const triggerWebWorkerTestAtom = atom(
             variantId: effectiveId,
             isChat: isChatVariant,
             appType,
+            resolvedAgConfig,
         }
         postMessageToWorker(createWorkerMessage("runVariantInputRow", payload))
     },
