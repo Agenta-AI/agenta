@@ -116,7 +116,7 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
 /**
  * Direct query atom family that fetches revision data from legacy API.
  *
- * Uses POST /variants/revisions/query/ to fetch by revision ID.
+ * Uses POST /variants/revisions/query to fetch by revision ID.
  * Returns minimal data without URI enrichment.
  * Skips queries for local draft IDs.
  */

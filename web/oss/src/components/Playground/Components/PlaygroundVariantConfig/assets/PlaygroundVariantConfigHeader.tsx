@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
@@ -149,13 +149,6 @@ const PlaygroundVariantConfigHeader = ({
         },
         [setResolutionMode],
     )
-
-    useEffect(() => {
-        if (typeof document === "undefined") return
-        const value = resolutionMode === "resolved" ? "resolved" : "unresolved"
-        // Keep backend fallback policy in sync for callers that omit `resolve`.
-        document.cookie = `agenta_embed_resolution_mode=${value}; Path=/; Max-Age=31536000; SameSite=Lax`
-    }, [resolutionMode])
 
     return (
         <section

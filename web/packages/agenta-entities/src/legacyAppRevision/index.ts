@@ -9,7 +9,7 @@
  *
  * This module uses the legacy backend API (AppVariantRevision model):
  * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
+ * - POST /variants/revisions/query
  *
  * @example
  * ```typescript

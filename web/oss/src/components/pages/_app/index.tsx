@@ -1,8 +1,9 @@
 import {default as AppContextComponent} from "@agenta/ui/app-message"
+import {configureAxios} from "@agenta/shared/api"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
 import {enableMapSet} from "immer"
-import {useAtomValue} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
@@ -10,6 +11,7 @@ import {Inter} from "next/font/google"
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import {OnboardingProvider} from "@/oss/components/Onboarding"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
+import {playgroundEmbedResolutionViewModeAtom} from "@/oss/components/Playground/state/atoms"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
@@ -22,80 +24,53 @@ import AppGlobalWrappers from "../../AppGlobalWrappers"
 
 enableMapSet()
 
-const RESOLVE_MODE_STORAGE_KEY = "agenta:playground:embed-resolution-view"
-const FETCH_PATCH_FLAG = "__agentaResolvePatched__"
+const isVariantsRevisionsQueryRequest = (url: string) =>
+    url.includes("/variants/revisions/query")
 
-const getResolveModeFromStorage = (): boolean => {
-    if (typeof window === "undefined") return false
-    const mode = window.localStorage.getItem(RESOLVE_MODE_STORAGE_KEY)
-    return mode === "resolved"
-}
-
-const tryParseJsonBody = (body: BodyInit | null | undefined): Record<string, unknown> => {
-    if (!body) return {}
-    if (typeof body === "string") {
+const parseJsonLikeData = (data: unknown): Record<string, unknown> => {
+    if (!data) return {}
+    if (typeof data === "string") {
         try {
-            const parsed = JSON.parse(body) as unknown
-            return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {}
+            const parsed = JSON.parse(data) as unknown
+            return parsed && typeof parsed === "object"
+                ? (parsed as Record<string, unknown>)
+                : {}
         } catch {
             return {}
         }
     }
+    if (typeof data === "object") {
+        return data as Record<string, unknown>
+    }
     return {}
 }
 
-const shouldPatchResolveUrl = (url: string): boolean => {
-    return (
-        url.includes("/api/variants/revisions/query") || url.includes("/variants/revisions/query")
-    )
-}
+configureAxios({
+    requestInterceptor: (config) => {
+        const fullUrl = `${config.baseURL ?? ""}${config.url ?? ""}`
+        if (!isVariantsRevisionsQueryRequest(fullUrl)) return config
 
-const patchGlobalFetchForResolve = () => {
-    if (typeof window === "undefined") return
-    const w = window as typeof window & {[FETCH_PATCH_FLAG]?: boolean}
-    if (w[FETCH_PATCH_FLAG]) return
+        const payload = parseJsonLikeData(config.data)
+        const paramsRecord =
+            config.params && typeof config.params === "object"
+                ? (config.params as Record<string, unknown>)
+                : {}
 
-    const originalFetch = window.fetch.bind(window)
+        const resolveFromBody =
+            typeof payload.resolve === "boolean" ? (payload.resolve as boolean) : undefined
+        const resolveFromQuery =
+            typeof paramsRecord.resolve === "boolean"
+                ? (paramsRecord.resolve as boolean)
+                : undefined
+        const mode = getDefaultStore().get(playgroundEmbedResolutionViewModeAtom)
+        const resolve = resolveFromBody ?? resolveFromQuery ?? mode === "resolved"
 
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url =
-            typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
-
-        if (!shouldPatchResolveUrl(url)) {
-            return originalFetch(input as any, init)
-        }
-
-        const effectiveResolve = getResolveModeFromStorage()
-
-        const reqInit: RequestInit = {...(init ?? {})}
-        const baseBody = tryParseJsonBody(reqInit.body)
-        const patchedBody = {
-            ...baseBody,
-            resolve: effectiveResolve,
-        }
-        reqInit.body = JSON.stringify(patchedBody)
-        reqInit.method = reqInit.method ?? "POST"
-
-        const headers = new Headers(reqInit.headers)
-        headers.set("Content-Type", "application/json")
-        headers.set("x-agenta-resolve-source", "oss.global-fetch-patch")
-        headers.set("x-agenta-resolve-value", String(effectiveResolve))
-        reqInit.headers = headers
-
-        const patchedUrl = new URL(url, window.location.origin)
-        patchedUrl.searchParams.set("resolve", String(effectiveResolve))
-
-        const targetUrl = url.startsWith("http")
-            ? patchedUrl.toString()
-            : `${patchedUrl.pathname}${patchedUrl.search}${patchedUrl.hash}`
-
-        return originalFetch(targetUrl, reqInit)
-    }
-
-    w[FETCH_PATCH_FLAG] = true
-}
-
-patchGlobalFetchForResolve()
+        payload.resolve = resolve
+        config.data = payload
+        config.params = {...paramsRecord, resolve}
+        return config
+    },
+})
 
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),

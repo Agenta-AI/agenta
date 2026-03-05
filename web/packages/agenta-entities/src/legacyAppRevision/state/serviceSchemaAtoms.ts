@@ -122,7 +122,7 @@ type ServiceTypeLookup =
 /**
  * Resolve appId for a revision, trying entity data first then the revisions list query.
  *
- * The direct revision query (POST /variants/revisions/query/) often returns data
+ * The direct revision query (POST /variants/revisions/query) often returns data
  * without appId. The entity's non-reactive cache scan may also miss it on first read.
  * When entity has variantId but no appId, we fall back to the reactive
  * revisionsQueryAtomFamily — this query is already fetched by the playground and

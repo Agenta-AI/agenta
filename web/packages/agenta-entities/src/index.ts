@@ -141,7 +141,7 @@ export {appRevisionMolecule as appRevision} from "./appRevision"
  *
  * Backend endpoints:
  * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
+ * - POST /variants/revisions/query
  *
  * @example
  * ```typescript
