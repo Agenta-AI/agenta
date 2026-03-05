@@ -13,6 +13,8 @@ services:
     build:
       context: ../../../api
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
@@ -20,6 +22,8 @@ services:
     build:
       context: ../../../api
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
@@ -27,6 +31,8 @@ services:
     build:
       context: ../../../api
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
@@ -34,6 +40,8 @@ services:
     build:
       context: ../../../api
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 
@@ -41,6 +49,8 @@ services:
     build:
       context: ../../../api
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     command: sh -c "python -m ee.databases.postgres.migrations.runner"
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
@@ -49,6 +59,8 @@ services:
     build:
       context: ../../../services
       dockerfile: ee/docker/Dockerfile.gh
+      additional_contexts:
+        sdk: ../../../sdk
     env_file:
       - ${ENV_FILE:-../ee/.env.ee.dev.jp}
 

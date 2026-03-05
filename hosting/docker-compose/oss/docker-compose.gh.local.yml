@@ -30,6 +30,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
@@ -80,6 +82,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command:
             [
@@ -115,6 +119,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command:
             [
@@ -150,6 +156,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command:
             [
@@ -191,6 +199,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command:
             [
@@ -232,6 +242,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command: cron -f
         # === CONFIGURATION ======================================== #
@@ -254,6 +266,8 @@ services:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
         # === CONFIGURATION ======================================== #
@@ -272,6 +286,8 @@ services:
         build:
             context: ../../../services
             dockerfile: oss/docker/Dockerfile.gh
+            additional_contexts:
+                sdk: ../../../sdk
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.main:app

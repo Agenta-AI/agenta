@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 FROM python:3.11-slim-bookworm AS builder
 
 ARG POETRY_VERSION=2.3.1
@@ -38,16 +40,14 @@ RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
     && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
 
 # Copy and install SDK first (changes less frequently than app code)
-RUN mkdir -p /app/sdk
-COPY ./sd[k] /app/sdk/
+COPY --from=sdk . /app/sdk/
 
 RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
-    if [ -f /app/sdk/pyproject.toml ]; then \
-        . /opt/venv/bin/activate && \
-        pip install pip && \
-        pip install --editable /app/sdk && \
-        (pip uninstall -y pip 2>/dev/null || true); \
-    fi
+    test -f /app/sdk/pyproject.toml \
+    && . /opt/venv/bin/activate \
+    && pip install pip \
+    && pip install --editable /app/sdk \
+    && (pip uninstall -y pip 2>/dev/null || true)
 
 # Copy app code last (changes more frequently)
 COPY ./oss /app/oss/

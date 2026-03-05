@@ -26,9 +26,9 @@ SERVICES_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-services:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 
-docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR/api"
+docker build --build-context sdk="$ROOT_DIR/sdk" -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR/api"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
-docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR/services"
+docker build --build-context sdk="$ROOT_DIR/sdk" -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR/services"
 
 if [ "$PUSH_IMAGES" = "true" ]; then
     printf "Pushing images to %s/%s\n" "$REGISTRY" "$NAMESPACE"
