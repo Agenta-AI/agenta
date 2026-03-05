@@ -25,6 +25,7 @@
 
 import {snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {atom} from "jotai"
+import {atomFamily} from "jotai-family"
 
 import {
     parseSnapshot,
@@ -310,6 +311,28 @@ const hydrationCompleteAtom = atom((get) => get(pendingHydrationsAtom).size === 
  */
 const pendingHydrationCountAtom = atom((get) => get(pendingHydrationsAtom).size)
 
+/**
+ * Per-revision selector that returns true when a specific revision has pending
+ * hydrations that haven't been applied yet.
+ *
+ * Used by PlaygroundVariantConfig to gate rendering until the draft patch is
+ * applied — prevents the "flash of unedited content" on page reload.
+ *
+ * Checks both `sourceRevisionId` (for single-draft variants) and
+ * `placeholderId` (for compare-mode local draft copies whose placeholder
+ * is in the selection before the real local draft ID replaces it).
+ */
+export const hasPendingHydrationAtomFamily = atomFamily((revisionId: string) =>
+    atom<boolean>((get) => {
+        const pending = get(pendingHydrationsAtom)
+        for (const hydration of pending.values()) {
+            if (hydration.sourceRevisionId === revisionId) return true
+            if (hydration.placeholderId === revisionId) return true
+        }
+        return false
+    }),
+)
+
 // ============================================================================
 // HYDRATION ACTIONS
 // ============================================================================
@@ -429,6 +452,12 @@ export const urlSnapshotController = {
          * Useful for debugging and progress tracking.
          */
         pendingHydrationCount: pendingHydrationCountAtom,
+
+        /**
+         * Returns true when a specific revision has pending hydrations.
+         * Used to gate rendering and avoid flash of unedited content.
+         */
+        hasPendingHydration: hasPendingHydrationAtomFamily,
     },
 
     /**

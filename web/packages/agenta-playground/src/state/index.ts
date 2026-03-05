@@ -331,6 +331,7 @@ export {
     executionController,
     executionItemController,
     getRunnableTypeResolver,
+    hasPendingHydrationAtomFamily,
     isPlaceholderId,
     outputConnectionController,
     pendingHydrations,

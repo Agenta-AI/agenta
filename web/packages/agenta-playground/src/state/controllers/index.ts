@@ -34,6 +34,7 @@ export type {
 
 export {
     urlSnapshotController,
+    hasPendingHydrationAtomFamily,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
     resetRunnableTypeResolver,

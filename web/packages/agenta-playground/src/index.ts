@@ -50,6 +50,7 @@ export {
     applyPendingHydrationsForRevision,
     pendingHydrations,
     pendingHydrationsAtom,
+    hasPendingHydrationAtomFamily,
     setSelectionUpdateCallback,
     setOnSelectionChangeCallback,
     isPlaceholderId,
