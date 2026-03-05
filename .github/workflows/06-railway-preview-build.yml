@@ -114,25 +114,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push image (with SDK context)
+      - name: Inject SDK into build context
         if: matrix.needs_sdk
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          build-contexts: |
-            sdk=./sdk
-          push: true
-          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}
-          cache-from: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}
-          cache-to: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared,mode=max
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }},mode=max
+        run: |
+          rm -rf "${{ matrix.context }}/sdk"
+          cp -R sdk "${{ matrix.context }}/sdk"
 
       - name: Build and push image
-        if: ${{ !matrix.needs_sdk }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}

@@ -20,15 +20,38 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
+SDK_SOURCE_DIR="$ROOT_DIR/sdk"
+API_SDK_DIR="$ROOT_DIR/api/sdk"
+SERVICES_SDK_DIR="$ROOT_DIR/services/sdk"
+
+if [ ! -d "$SDK_SOURCE_DIR" ]; then
+    printf "Missing SDK directory: %s\n" "$SDK_SOURCE_DIR" >&2
+    exit 1
+fi
+
+if [ -e "$API_SDK_DIR" ] || [ -e "$SERVICES_SDK_DIR" ]; then
+    printf "Refusing to overwrite existing sdk build directories in api/ or services/.\n" >&2
+    exit 1
+fi
+
+cleanup_sdk_dirs() {
+    rm -rf "$API_SDK_DIR" "$SERVICES_SDK_DIR"
+}
+
+trap cleanup_sdk_dirs EXIT
+
 API_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-api:${TAG}"
 WEB_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-web:${TAG}"
 SERVICES_IMAGE="${REGISTRY}/${NAMESPACE}/agenta-services:${TAG}"
 
 printf "Building local images with tag '%s'\n" "$TAG"
 
-docker build --build-context sdk="$ROOT_DIR/sdk" -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR/api"
+cp -R "$SDK_SOURCE_DIR" "$API_SDK_DIR"
+cp -R "$SDK_SOURCE_DIR" "$SERVICES_SDK_DIR"
+
+docker build -t "$API_IMAGE" -f "$ROOT_DIR/api/oss/docker/Dockerfile.gh" "$ROOT_DIR/api"
 docker build -t "$WEB_IMAGE" -f "$ROOT_DIR/web/oss/docker/Dockerfile.gh" "$ROOT_DIR/web"
-docker build --build-context sdk="$ROOT_DIR/sdk" -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR/services"
+docker build -t "$SERVICES_IMAGE" -f "$ROOT_DIR/services/oss/docker/Dockerfile.gh" "$ROOT_DIR/services"
 
 if [ "$PUSH_IMAGES" = "true" ]; then
     printf "Pushing images to %s/%s\n" "$REGISTRY" "$NAMESPACE"
