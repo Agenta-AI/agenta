@@ -72,7 +72,46 @@ const PromptMessageConfig = ({
     const editorIdRef = useRef(id || uuidv4())
     // Allow null to represent an empty upload slot
     // const [uploadedFileItems, setUploadedFileItems] = useState<(UploadFile | null)[]>([])
-    const [minimized, setMinimized] = useState(Boolean(defaultMinimized))
+    const minimizeStorageKey = useMemo(
+        () => `agenta:playground:message:minimized:${String(variantId)}:${String(messageId)}`,
+        [variantId, messageId],
+    )
+    const [minimized, setMinimized] = useState<boolean>(() => {
+        if (typeof window === "undefined") return Boolean(defaultMinimized)
+        try {
+            const saved = window.localStorage.getItem(minimizeStorageKey)
+            if (saved === "true") return true
+            if (saved === "false") return false
+        } catch {
+            // Ignore storage errors and use default.
+        }
+        return Boolean(defaultMinimized)
+    })
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        try {
+            const saved = window.localStorage.getItem(minimizeStorageKey)
+            if (saved === "true") {
+                setMinimized(true)
+                return
+            }
+            if (saved === "false") {
+                setMinimized(false)
+                return
+            }
+        } catch {
+            // Ignore storage errors and use default.
+        }
+        setMinimized(Boolean(defaultMinimized))
+    }, [minimizeStorageKey, defaultMinimized])
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        try {
+            window.localStorage.setItem(minimizeStorageKey, minimized ? "true" : "false")
+        } catch {
+            // Ignore storage errors.
+        }
+    }, [minimizeStorageKey, minimized])
 
     // Use optimized hook for chat detection and message data
     const {
@@ -338,9 +377,10 @@ const PromptMessageConfig = ({
             className={clsx([
                 "mt-2",
                 {
-                    "[&_.agenta-editor-wrapper]:h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0":
+                    "!min-h-0 [&_.agenta-editor-wrapper]:!h-[68px] [&_.agenta-editor-wrapper]:!min-h-[68px] [&_.agenta-editor-wrapper]:!max-h-[68px] [&_.agenta-editor-wrapper]:!overflow-hidden [&_.agenta-editor-wrapper]:!mb-0":
                         minimized,
-                    "[&_.agenta-editor-wrapper]:h-fit": !minimized,
+                    "!min-h-[210px] [&_.agenta-editor-wrapper]:!h-auto [&_.agenta-editor-wrapper]:!max-h-none [&_.agenta-editor-wrapper]:!min-h-[140px] [&_.agenta-editor-wrapper]:!overflow-visible [&_.agenta-rich-text-editor]:!min-h-[140px]":
+                        !minimized,
                 },
                 className,
             ])}

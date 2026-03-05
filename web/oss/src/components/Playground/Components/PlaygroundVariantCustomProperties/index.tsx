@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     metadataAtom,
@@ -141,8 +141,16 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
     const customPropertyIds = useMemo(() => {
         return providedCustomProps ? Object.keys(providedCustomProps) : atomCustomPropertyIds
     }, [providedCustomProps, atomCustomPropertyIds])
+    const [isOpen, setIsOpen] = useState<boolean | null>(null)
 
     const hasCustomProperties = customPropertyIds.length > 0
+    useEffect(() => {
+        if (!hasCustomProperties) {
+            setIsOpen(null)
+            return
+        }
+        setIsOpen((prev) => (prev === null ? Boolean(initialOpen) : prev))
+    }, [hasCustomProperties, initialOpen])
 
     const items = useMemo(() => {
         return hasCustomProperties
@@ -210,7 +218,10 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
             ghost
             className={clsx("rounded-none", className, classes.collapseContainer)}
             bordered={false}
-            defaultActiveKey={initialOpen ? "1" : undefined}
+            activeKey={isOpen ? ["1"] : []}
+            onChange={(activeKey) => {
+                setIsOpen(Array.isArray(activeKey) ? activeKey.length > 0 : Boolean(activeKey))
+            }}
             items={items}
         />
     )

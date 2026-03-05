@@ -1,4 +1,4 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     deriveEnhancedCustomProperties,
@@ -74,6 +74,13 @@ const PlaygroundVariantConfigEditors = ({
     }, [resolvedParameters, resolvedSchema])
 
     const promptsForView = isResolvedView ? resolvedPrompts : editablePrompts
+    const editablePromptIds = useMemo(
+        () =>
+            (editablePrompts || [])
+                .map((prompt: any) => prompt?.__id as string)
+                .filter((id: any): id is string => typeof id === "string" && id.length > 0),
+        [editablePrompts],
+    )
     const promptIds = useMemo(
         () =>
             (promptsForView || [])
@@ -81,6 +88,25 @@ const PlaygroundVariantConfigEditors = ({
                 .filter((id: any): id is string => typeof id === "string" && id.length > 0),
         [promptsForView],
     )
+    const promptEntries = useMemo(
+        () => promptIds.map((promptId, index) => ({promptId, index})),
+        [promptIds],
+    )
+    const [promptPanelOpenByIndex, setPromptPanelOpenByIndex] = useState<Record<number, boolean>>({})
+    useEffect(() => {
+        if (promptEntries.length === 0) {
+            setPromptPanelOpenByIndex({})
+            return
+        }
+
+        setPromptPanelOpenByIndex((prev) => {
+            const next: Record<number, boolean> = {}
+            for (const {index} of promptEntries) {
+                next[index] = prev[index] ?? true
+            }
+            return next
+        })
+    }, [promptEntries])
     const variantExists = Boolean(
         isResolvedView ? resolvedServerData || editableVariant : editableVariant,
     )
@@ -99,7 +125,15 @@ const PlaygroundVariantConfigEditors = ({
         )
     }
 
-    const disablePromptCollapse = promptIds.length === 1
+    // Keep layout defaults stable across resolved/unresolved modes.
+    const promptCountForDefaults =
+        editablePromptIds.length > 0 ? editablePromptIds.length : promptIds.length
+    const disablePromptCollapse = promptCountForDefaults === 1
+    const customPropsInitialOpen = promptCountForDefaults === 0
+    const handlePromptCollapseChange = useCallback((index: number, activeKey: string | string[]) => {
+        const nextOpen = Array.isArray(activeKey) ? activeKey.length > 0 : Boolean(activeKey)
+        setPromptPanelOpenByIndex((prev) => ({...prev, [index]: nextOpen}))
+    }, [])
 
     return (
         <PromptsSourceProvider
@@ -107,18 +141,20 @@ const PlaygroundVariantConfigEditors = ({
             preferProvided={isResolvedView}
         >
             <div className={clsx("flex flex-col", className)} {...divProps}>
-                {promptIds.map((promptId) => (
+                {promptEntries.map(({promptId, index}) => (
                     <PlaygroundVariantConfigPrompt
-                        key={`${variantId}:${promptId as string}`}
+                        key={`${variantId}:prompt:${index}`}
                         promptId={promptId}
                         variantId={variantId}
                         disableCollapse={disablePromptCollapse}
                         viewOnly={isResolvedView}
+                        activeKey={promptPanelOpenByIndex[index] === false ? [] : ["1"]}
+                        onChange={(activeKey) => handlePromptCollapseChange(index, activeKey)}
                     />
                 ))}
                 <PlaygroundVariantCustomProperties
                     variantId={variantId}
-                    initialOpen={promptIds.length === 0}
+                    initialOpen={customPropsInitialOpen}
                     viewOnly={isResolvedView}
                     customPropsRecord={isResolvedView ? (resolvedCustomProps as any) : undefined}
                 />

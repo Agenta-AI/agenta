@@ -72,11 +72,11 @@ const PromptMessageContentOptions = ({
 
     const minimizeButton = (
         <EnhancedButton
-            icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+            icon={!minimized ? <CaretUp size={14} /> : <CaretDown size={14} />}
             type="text"
             onClick={() => minimize?.(messageId)}
             disabled={disabled}
-            tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
+            tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
         />
     )
 
