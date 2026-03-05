@@ -37,6 +37,14 @@ export interface InvokeEvaluatorParams {
     options?: InvokeEvaluatorOptions
 }
 
+export interface InvokeApplicationParams {
+    uri?: string
+    url?: string
+    inputs?: Record<string, any>
+    parameters?: Record<string, any>
+    options?: InvokeEvaluatorOptions
+}
+
 const DEFAULT_EVALUATOR_TIMEOUT = 120_000
 
 export const invokeEvaluator = async ({
@@ -88,7 +96,45 @@ export const invokeEvaluator = async ({
     return response.data
 }
 
-export const mapWorkflowResponseToEvaluatorOutput = (
+export const invokeApplication = async ({
+    uri,
+    url,
+    inputs,
+    parameters,
+    options,
+}: InvokeApplicationParams): Promise<WorkflowServiceBatchResponse> => {
+    const {projectId} = getProjectValues()
+    const explicitUri = typeof uri === "string" ? uri.trim() : ""
+    const explicitUrl = typeof url === "string" ? url.trim() : ""
+
+    if (!explicitUri && !explicitUrl) {
+        throw new Error("Application interface is missing (uri/url)")
+    }
+
+    const request: Record<string, any> = {
+        interface: explicitUri ? {uri: explicitUri} : {url: explicitUrl},
+        configuration: parameters ? {parameters} : undefined,
+        data: {
+            inputs,
+            parameters,
+        },
+    }
+
+    const timeout = options?.timeout ?? DEFAULT_EVALUATOR_TIMEOUT
+
+    const response = await axios.post<WorkflowServiceBatchResponse>(
+        `${getAgentaApiUrl()}/preview/workflows/invoke?project_id=${projectId}`,
+        request,
+        {
+            signal: options?.signal,
+            timeout,
+        },
+    )
+
+    return response.data
+}
+
+export const mapWorkflowResponseToOutputs = (
     response: WorkflowServiceBatchResponse,
 ): {outputs: Record<string, any>} => {
     const statusType = response.status?.type?.toLowerCase()
@@ -102,3 +148,5 @@ export const mapWorkflowResponseToEvaluatorOutput = (
         outputs: response.data?.outputs ?? {},
     }
 }
+
+export const mapWorkflowResponseToEvaluatorOutput = mapWorkflowResponseToOutputs

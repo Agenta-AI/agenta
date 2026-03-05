@@ -126,6 +126,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             templateFormat,
             customRender,
             showToolbar = true,
+            showMarkdownToggleButton = false,
             enableTokens = false,
             debug = false,
             autoFocus = false,
@@ -649,6 +650,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             id={id}
                             autoFocus={autoFocus}
                             showToolbar={showToolbar}
+                            showMarkdownToggleButton={showMarkdownToggleButton}
                             singleLine={singleLine}
                             codeOnly={codeOnly}
                             debug={debug}
@@ -699,6 +701,7 @@ export const EditorProvider = ({
     codeOnly = false,
     language,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     tokens = EMPTY_TOKENS,
     templateFormat = "curly",
@@ -741,6 +744,10 @@ export const EditorProvider = ({
         disabled,
         useNativeCodeNodes,
     })
+    const tokenDependencyKey = useMemo(
+        () => (Array.isArray(tokens) ? tokens : EMPTY_TOKENS).join("\u0001"),
+        [tokens],
+    )
 
     const extension = useMemo(() => {
         if (!config) {
@@ -828,10 +835,11 @@ export const EditorProvider = ({
         }
 
         if (enableTokens) {
+            const stableTokens = tokenDependencyKey ? tokenDependencyKey.split("\u0001") : []
             extensionDependencies.push(
                 configExtension(TokenBehaviorExtension, {
                     templateFormat,
-                    tokens: tokens || [],
+                    tokens: stableTokens,
                 }),
             )
             extensionDependencyLabels.push("@agenta/editor/token/TokenBehavior")
@@ -875,7 +883,7 @@ export const EditorProvider = ({
         language,
         onPropertyClick,
         templateFormat,
-        tokens,
+        tokenDependencyKey,
         useNativeCodeNodes,
         validationSchema,
     ])
@@ -941,6 +949,7 @@ const Editor = ({
     templateFormat,
     customRender,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     autoFocus = false,
     debug = false,
@@ -990,6 +999,7 @@ const Editor = ({
                     language={language}
                     templateFormat={templateFormat}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     debug={debug}
                     autoFocus={autoFocus}
@@ -1026,6 +1036,7 @@ const Editor = ({
                     codeOnly={codeOnly}
                     language={language}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     tokens={tokens}
                     templateFormat={templateFormat}
@@ -1064,6 +1075,7 @@ const Editor = ({
                         language={language}
                         templateFormat={templateFormat}
                         showToolbar={showToolbar}
+                        showMarkdownToggleButton={showMarkdownToggleButton}
                         enableTokens={enableTokens}
                         debug={debug}
                         autoFocus={autoFocus}

@@ -1,5 +1,7 @@
 import {type FC, useEffect} from "react"
 
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {CloudArrowUpIcon, CodeSimpleIcon} from "@phosphor-icons/react"
 import {Button, Input, Space, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -12,9 +14,7 @@ import {
 } from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
-
-import {revisionListAtom} from "../Playground/state/atoms"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {
     deploymentSearchAtom,
@@ -61,7 +61,9 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
         setEnvRevisions(envRevisions)
     }, [envRevisions, setEnvRevisions])
 
-    const variants = useAtomValue(revisionListAtom) || []
+    const rawAppId = useAtomValue(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    const variants = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || "")) || []
 
     // Optimized state management with atoms
     const [searchTerm, setSearchTerm] = useAtom(deploymentSearchAtom)

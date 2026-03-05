@@ -1,5 +1,6 @@
 import {useEffect} from "react"
 
+import {setSessionAtom} from "@agenta/shared/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -19,6 +20,7 @@ export const useSession: () => {
 } = () => {
     const res = useSessionContext()
     const setSessionExists = useSetAtom(sessionExistsAtom)
+    const setSharedSession = useSetAtom(setSessionAtom)
     const setSessionLoading = useSetAtom(sessionLoadingAtom)
     const setAuthFlow = useSetAtom(authFlowAtom)
     const authFlow = useAtomValue(authFlowAtom)
@@ -30,6 +32,7 @@ export const useSession: () => {
         setSessionLoading(res.loading)
         if (!res.loading) {
             setSessionExists((res as any).doesSessionExist)
+            setSharedSession((res as any).doesSessionExist)
             if (authFlow !== "authing") {
                 setAuthFlow((res as any).doesSessionExist ? "authed" : "unauthed")
             }
@@ -38,6 +41,7 @@ export const useSession: () => {
         res.loading,
         (res as any).doesSessionExist,
         setSessionExists,
+        setSharedSession,
         setSessionLoading,
         setAuthFlow,
         authFlow,
@@ -93,6 +97,7 @@ export const useSession: () => {
 
             // Update session state
             setSessionExists(false)
+            setSharedSession(false)
             setAuthFlow("unauthed")
             setOnboardingStorageUserId(null)
 

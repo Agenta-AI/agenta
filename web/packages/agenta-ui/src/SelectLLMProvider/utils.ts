@@ -20,6 +20,7 @@ export const PROVIDER_ICON_MAP: Record<string, string> = {
     groq: "Groq",
     mistral: "Mistral AI",
     gemini: "Google Gemini",
+    google: "Google Gemini",
     cohere: "Cohere",
     deepinfra: "DeepInfra",
     openrouter: "OpenRouter",

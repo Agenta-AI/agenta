@@ -1,12 +1,12 @@
 import {useEffect, useMemo} from "react"
 
+import {ChatMessageEditor as MessageEditor} from "@agenta/ui/chat-message"
 import {PlusOutlined} from "@ant-design/icons"
 import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Form, Input} from "antd"
 import isEqual from "lodash/isEqual"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
-import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 
 interface Message {
     role: string

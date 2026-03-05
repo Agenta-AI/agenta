@@ -10,7 +10,7 @@
  * Designed for 2-level hierarchies like Variant → Revision.
  */
 
-import React, {useCallback, useId, useMemo} from "react"
+import React, {useCallback, useEffect, useId, useMemo, useRef} from "react"
 
 import {cn} from "@agenta/ui/styles"
 import {Input, Spin, TreeSelect} from "antd"
@@ -122,6 +122,30 @@ export function TreeSelectVariant<TSelection = EntitySelectionResult>({
         childFilter,
     })
 
+    // Ref for the scrollable area inside the popup — used to scroll to selection
+    const popupScrollRef = useRef<HTMLDivElement>(null)
+
+    // Auto-scroll to the selected item when the dropdown opens.
+    // Retries across frames since the TreeSelect popup renders asynchronously.
+    const scrollRetryRef = useRef(0)
+    useEffect(() => {
+        if (!selectedValue || treeData.length === 0) return
+        scrollRetryRef.current = 0
+        let rafId: number
+        const attempt = () => {
+            const el = popupScrollRef.current
+            if (!el) return
+            const hit = el.querySelector(".ant-select-tree-treenode-checkbox-checked")
+            if (hit) {
+                hit.scrollIntoView({block: "center"})
+                return
+            }
+            if (++scrollRetryRef.current < 5) rafId = requestAnimationFrame(attempt)
+        }
+        rafId = requestAnimationFrame(attempt)
+        return () => cancelAnimationFrame(rafId)
+    }, [selectedValue, treeData])
+
     // Get display messages
     const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
     const displayLoadingMessage = loadingMessage ?? resolvedAdapter.loadingMessage ?? "Loading..."
@@ -204,7 +228,11 @@ export function TreeSelectVariant<TSelection = EntitySelectionResult>({
 
                     {/* Tree menu */}
                     {!isLoadingParents && !parentsError && treeData.length > 0 && (
-                        <div style={{maxHeight, overflow: "auto"}} className={dropdownClassName}>
+                        <div
+                            ref={popupScrollRef}
+                            style={{maxHeight, overflow: "auto"}}
+                            className={dropdownClassName}
+                        >
                             {menu}
                         </div>
                     )}
@@ -295,6 +323,15 @@ export function TreeSelectVariant<TSelection = EntitySelectionResult>({
                         "[&_.ant-select-tree-treenode-active]:!bg-transparent",
                         // Disabled node styling - opacity handled in renderChildTitle, cursor here
                         "[&_.ant-select-tree-treenode-disabled]:cursor-not-allowed",
+                        // Allow sticky positioning through intermediate wrappers
+                        "[&_.ant-select-tree-list-holder]:!overflow-visible",
+                        "[&_.ant-select-tree-list-holder>div]:!overflow-visible",
+                        "[&_.ant-select-tree-list-holder-inner]:!overflow-visible",
+                        // Sticky parent group headers
+                        "[&_.ant-select-tree-treenode:not(.ant-select-tree-treenode-leaf)]:sticky",
+                        "[&_.ant-select-tree-treenode:not(.ant-select-tree-treenode-leaf)]:top-0",
+                        "[&_.ant-select-tree-treenode:not(.ant-select-tree-treenode-leaf)]:z-[1]",
+                        "[&_.ant-select-tree-treenode:not(.ant-select-tree-treenode-leaf)]:bg-[var(--ant-color-bg-elevated,#fff)]",
                         styles.popupRoot,
                     ]),
                 },

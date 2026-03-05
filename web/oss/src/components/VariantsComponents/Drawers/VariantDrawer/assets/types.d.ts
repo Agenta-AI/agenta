@@ -1,7 +1,7 @@
+import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
 import {DrawerProps} from "antd"
 
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 type DrawerType = "variant" | "deployment"
 type DrawerVariant = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>

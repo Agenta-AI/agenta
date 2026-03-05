@@ -3,7 +3,7 @@ import {Dispatch, SetStateAction} from "react"
 import {Modal} from "antd"
 import {KeyedMutator} from "swr"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {Variant} from "@/oss/lib/Types"
 
 export type CustomWorkflowModalProps = {

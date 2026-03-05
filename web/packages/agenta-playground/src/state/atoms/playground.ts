@@ -60,7 +60,15 @@ export const editingConnectionIdAtom = atom<string | null>(null) as PrimitiveAto
 // ============================================================================
 
 /**
- * Primary node (first node / root of DAG)
+ * Whether there are multiple nodes (chain mode)
+ */
+export const hasMultipleNodesAtom = atom((get) => {
+    const nodes = get(playgroundNodesAtom)
+    return nodes.length > 1
+})
+
+/**
+ * The primary (first) node in the playground, or null if empty.
  */
 export const primaryNodeAtom = atom((get) => {
     const nodes = get(playgroundNodesAtom)
@@ -68,12 +76,20 @@ export const primaryNodeAtom = atom((get) => {
 })
 
 /**
- * Whether there are multiple nodes (chain mode)
+ * The entity ID of the primary node, or null if no nodes.
  */
-export const hasMultipleNodesAtom = atom((get) => {
-    const nodes = get(playgroundNodesAtom)
-    return nodes.length > 1
-})
+export const primaryEntityIdAtom = atom((get) => get(playgroundNodesAtom)[0]?.entityId ?? null)
+
+/**
+ * Entity IDs from primary-level nodes only (depth 0).
+ * Downstream chain nodes (e.g. evaluators at depth > 0) are excluded
+ * so they don't trigger comparison mode.
+ */
+export const entityIdsAtom = atom((get) =>
+    get(playgroundNodesAtom)
+        .filter((n) => n.depth === 0)
+        .map((n) => n.entityId),
+)
 
 // ============================================================================
 // PLAYGROUND DISPATCH ATOM

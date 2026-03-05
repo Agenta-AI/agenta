@@ -1,25 +1,22 @@
 import {memo, useCallback} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
+import {
+    legacyAppRevisionMolecule,
+    latestServerRevisionIdAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {
-    playgroundLatestAppRevisionIdAtom,
-    playgroundRevisionDeploymentAtomFamily,
-} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
-import {
-    moleculeBackedVariantAtomFamily,
-    revisionIsDirtyAtomFamily,
-    discardRevisionDraftAtom,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type Rev = {
     id: string
     variantId: string
+    appId?: string
     revision?: number
     revisionNumber?: number
 } | null
@@ -30,6 +27,7 @@ interface VariantNameCellProps {
     showStable?: boolean
     revision?: Rev
     revisionName?: string | null
+    hideDiscard?: boolean
 }
 
 const VariantNameCell = memo(
@@ -39,44 +37,40 @@ const VariantNameCell = memo(
         revisionName,
         showBadges = false,
         showStable = false,
+        hideDiscard = false,
     }: VariantNameCellProps) => {
+        const currentRevisionId = revisionId || (revision?.id ?? "")
         const resolvedRevision = useAtomValue(
-            moleculeBackedVariantAtomFamily(revisionId || (revision?.id ?? "")),
+            legacyAppRevisionMolecule.atoms.data(currentRevisionId),
         ) as Rev
 
         const rev = resolvedRevision ?? revision
 
-        const latestIdForVariant = useAtomValue(playgroundLatestAppRevisionIdAtom)
+        const appId = rev?.appId ?? revision?.appId ?? ""
+        const latestRevisionId = useAtomValue(latestServerRevisionIdAtomFamily(appId))
+        const isLatestRevision = !!latestRevisionId && currentRevisionId === latestRevisionId
         const deployedInFromStore = useAtomValue(
-            playgroundRevisionDeploymentAtomFamily((rev && rev.id) || ""),
+            environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
         )
 
-        const _isDirty = useAtomValue(revisionIsDirtyAtomFamily(rev?.id || ""))
+        const _isDirty = useAtomValue(runnableBridge.isDirty(currentRevisionId))
         const isDirty = showStable ? false : _isDirty
-
-        const isLatestRevision =
-            typeof (rev as any)?.isLatestRevision === "boolean"
-                ? (rev as any).isLatestRevision
-                : rev?.id === latestIdForVariant
-
-        const discardDraft = useSetAtom(discardRevisionDraftAtom)
-        const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(rev?.id || "") as any)
+        const discard = useSetAtom(runnableBridge.discard)
 
         const handleDiscardDraft = useCallback(() => {
-            if (!rev?.id) return
+            if (!currentRevisionId) return
             try {
-                discardDraft(rev.id)
-                setParamsOverride(null)
+                discard(currentRevisionId)
                 message.success("Draft changes discarded")
             } catch (e) {
                 message.error("Failed to discard draft changes")
                 console.error(e)
             }
-        }, [rev?.id, discardDraft, setParamsOverride])
+        }, [currentRevisionId, discard])
 
         if (!rev) {
             return (
-                <Tag color="default" bordered={false} className="-ml-1">
+                <Tag color="default" variant="filled" className="-ml-1">
                     No deployment
                 </Tag>
             )
@@ -105,6 +99,7 @@ const VariantNameCell = memo(
                 hasChanges={isDirty}
                 isLatest={isLatestRevision}
                 onDiscardDraft={handleDiscardDraft}
+                hideDiscard={hideDiscard}
             />
         )
     },

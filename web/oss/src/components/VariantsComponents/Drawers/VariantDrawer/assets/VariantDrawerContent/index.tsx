@@ -1,35 +1,27 @@
 import {memo, useEffect, useMemo} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
 import {
+    legacyAppRevisionMolecule,
     legacyAppRevisionQueryAtomFamily,
     legacyAppRevisionSchemaQueryAtomFamily,
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionEnhancedPromptsAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
-import {UserAuthorLabel} from "@agenta/entities/shared"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {registerRunnableTypeHint, UserAuthorLabel} from "@agenta/entities/shared"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {useRouter} from "next/router"
 
+import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
-import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
-import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
-import {
-    moleculeBackedPromptsAtomFamily,
-    moleculeBackedVariantAtomFamily,
-    revisionIsDirtyAtomFamily,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
 
@@ -78,36 +70,33 @@ const VariantDrawerContent = ({
     showOriginal,
     onToggleOriginal,
 }: VariantDrawerContentProps) => {
-    const router = useRouter()
     const {goToPlayground} = usePlaygroundNavigation()
+    const resolvedVariantId = variantId || EMPTY_REVISION_ID
 
-    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
+    // Register type hint so runnableBridge skips probing evaluator/workflow
+    // molecules for this legacyAppRevision entity.
+    // Must run synchronously before bridge reads to prevent spurious queries.
+    if (resolvedVariantId && resolvedVariantId !== EMPTY_REVISION_ID) {
+        registerRunnableTypeHint(resolvedVariantId, "legacyAppRevision")
+    }
 
-    const selectedVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(resolvedVariantId))
+    const runnableData = useAtomValue(runnableBridge.data(resolvedVariantId))
 
-    const prompts = useAtomValue(moleculeBackedPromptsAtomFamily(variantId))
-    const promptIds = prompts?.map((p: any) => p?.__id as string)
+    const selectedVariant = useAtomValue(
+        legacyAppRevisionMolecule.atoms.data(resolvedVariantId),
+    ) as any
 
-    // Original (server-committed) prompts and custom properties from entity layer
-    const originalPrompts = useAtomValue(revisionEnhancedPromptsAtomFamily(variantId)) as any[]
-    const originalCustomPropsRecord = useAtomValue(
-        revisionEnhancedCustomPropertiesAtomFamily(variantId),
-    ) as Record<string, any>
+    const revisionId =
+        (runnableData as any)?.id || (selectedVariant as any)?.id || resolvedVariantId
 
-    const originalPromptIds = useMemo(
-        () => (originalPrompts || []).map((p: any) => p.__id || p.__name).filter(Boolean),
-        [originalPrompts],
-    )
-
-    // Show Overview tab if we have prompts or variant data
-    const appStatus = (promptIds && promptIds.length > 0) || !!selectedVariant
+    // Show Overview tab if we have variant data
+    const appStatus = !!runnableData || !!selectedVariant
 
     // Focused deployed environments by revision ID
-    const deployedIn = useAtomValue(playgroundRevisionDeploymentAtomFamily(variantId)) || []
+    const deployedIn = useAtomValue(environmentMolecule.atoms.revisionDeployment(revisionId))
     const commitMsg = selectedVariant?.commitMessage
-    const isDirty = useAtomValue(
-        revisionIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
-    )
+    const isDirty = useAtomValue(runnableBridge.isDirty(revisionId || resolvedVariantId))
 
     // Ensure clean revisions don't get stuck in Original mode
     useEffect(() => {
@@ -116,9 +105,6 @@ const VariantDrawerContent = ({
         }
     }, [isDirty, showOriginal, onToggleOriginal])
 
-    const disableOriginalPromptCollapse = originalPromptIds.length === 1
-    const disablePromptCollapse = (promptIds?.length || 0) === 1
-
     const tabItems = useMemo(() => {
         return [
             appStatus
@@ -126,49 +112,14 @@ const VariantDrawerContent = ({
                       key: "main",
                       label: type === "variant" ? "Overview" : "Variant",
                       className: "w-full h-full flex flex-col px-4",
-
-                      children: showOriginal ? (
-                          <PromptsSourceProvider
-                              promptsByRevision={{
-                                  [(selectedVariant as any)?.id || variantId]: originalPrompts,
-                              }}
-                          >
-                              <>
-                                  {originalPromptIds.map((promptId: string) => (
-                                      <PlaygroundVariantConfigPrompt
-                                          key={promptId}
-                                          promptId={promptId}
-                                          variantId={(selectedVariant as any)?.id || variantId}
-                                          className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
-                                          viewOnly
-                                          disableCollapse={disableOriginalPromptCollapse}
-                                      />
-                                  ))}
-                                  <PlaygroundVariantCustomProperties
-                                      variantId={(selectedVariant as any)?.id || variantId}
-                                      initialOpen={originalPromptIds.length === 0}
-                                      viewOnly
-                                      customPropsRecord={originalCustomPropsRecord}
-                                  />
-                              </>
-                          </PromptsSourceProvider>
-                      ) : (
-                          <>
-                              {(promptIds || [])?.map((promptId: string) => (
-                                  <PlaygroundVariantConfigPrompt
-                                      key={promptId}
-                                      promptId={promptId}
-                                      variantId={selectedVariant?.id}
-                                      className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
-                                      disableCollapse={disablePromptCollapse}
-                                  />
-                              ))}
-
-                              <PlaygroundVariantCustomProperties
-                                  variantId={selectedVariant?.id}
-                                  initialOpen={promptIds?.length === 0}
+                      children: (
+                          <OSSdrillInUIProvider>
+                              <PlaygroundConfigSection
+                                  revisionId={revisionId}
+                                  disabled={!!showOriginal}
+                                  useServerData={!!showOriginal}
                               />
-                          </>
+                          </OSSdrillInUIProvider>
                       ),
                   }
                 : undefined,
@@ -176,45 +127,12 @@ const VariantDrawerContent = ({
                 key: "json",
                 label: "JSON",
                 className: "h-full flex flex-col px-4",
-                children: isLoading ? null : selectedVariant ? (
-                    <NewVariantParametersView
-                        selectedVariant={selectedVariant}
-                        showOriginal={showOriginal}
-                    />
-                ) : null,
+                children: isLoading ? null : (
+                    <NewVariantParametersView revisionId={revisionId} showOriginal={showOriginal} />
+                ),
             },
         ].filter(Boolean) as TabsProps["items"]
-    }, [
-        appStatus,
-        selectedVariant,
-        promptIds,
-        type,
-        showOriginal,
-        originalPrompts,
-        originalPromptIds,
-        originalCustomPropsRecord,
-        isLoading,
-        disableOriginalPromptCollapse,
-        disablePromptCollapse,
-    ])
-    const drawerState = useAtomValue(variantDrawerAtom)
-    const clearJsonOverride = useSetAtom(
-        parametersOverrideAtomFamily((selectedVariant as any)?.id || ""),
-    )
-
-    useEffect(() => {
-        // Component mount/unmount lifecycle for drawer content
-        return () => {
-            // In React StrictMode, components mount then immediately unmount once.
-            // Only clear when the drawer is actually closed to avoid reopen loops.
-            if (!drawerState.open) {
-                const isPlaygroundRoute = router.pathname.includes("/playground")
-                if (!isPlaygroundRoute) {
-                    clearJsonOverride(null as any)
-                }
-            }
-        }
-    }, [clearJsonOverride, drawerState.open, router.pathname])
+    }, [appStatus, revisionId, type, showOriginal, isLoading])
 
     if (isLoading) {
         return (
@@ -290,7 +208,7 @@ const VariantDrawerContent = ({
                             <Button
                                 icon={<ArrowSquareOut size={16} />}
                                 size="small"
-                                onClick={() => goToPlayground((selectedVariant as any)?.id)}
+                                onClick={() => goToPlayground(revisionId)}
                             />
                         </div>
                     </div>

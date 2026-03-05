@@ -16,7 +16,7 @@
  * import { useCascadingMode, useBreadcrumbMode, useListPopoverMode } from '@agenta/entity-ui/selection'
  *
  * // Use pre-built adapters
- * import { appRevisionAdapter, testsetAdapter } from '@agenta/entity-ui/selection'
+ * import { testsetAdapter, legacyAppRevisionAdapter } from '@agenta/entity-ui/selection'
  *
  * // Use controller for modal management
  * import { entitySelectorController } from '@agenta/entity-ui/selection'
@@ -188,20 +188,30 @@ export type {
 
 // Pre-built adapters
 export {
-    appRevisionAdapter,
     legacyAppRevisionAdapter,
     createLegacyAppRevisionAdapter,
+    evaluatorAdapter,
+    setEvaluatorAtoms,
+    legacyEvaluatorAdapter,
+    setLegacyEvaluatorAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
+    evaluatorRevisionRelationAdapter,
     testsetAdapter,
+    workflowRevisionAdapter,
+    createWorkflowRevisionAdapter,
 } from "./adapters"
 
 export type {
-    AppRevisionSelectionResult,
     LegacyAppRevisionSelectionResult,
     CreateLegacyAppRevisionAdapterOptions,
+    EvaluatorSelectionResult,
+    LegacyEvaluatorSelectionResult,
     EvaluatorRevisionSelectionResult,
+    EvaluatorRevisionRelationSelectionResult,
     TestsetSelectionResult,
+    WorkflowRevisionSelectionResult,
+    CreateWorkflowRevisionAdapterOptions,
 } from "./adapters"
 
 // Initialization
@@ -211,4 +221,9 @@ export {
     isSelectionSystemInitialized,
 } from "./initializeSelection"
 
-export type {SelectionSystemConfig, EvaluatorRevisionSelectionConfig} from "./initializeSelection"
+export type {
+    SelectionSystemConfig,
+    EvaluatorSelectionConfig,
+    LegacyEvaluatorSelectionConfig,
+    EvaluatorRevisionSelectionConfig,
+} from "./initializeSelection"

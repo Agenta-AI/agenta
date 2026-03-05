@@ -4,6 +4,8 @@
  * Type definitions for the unified EntityPicker component with variant support.
  */
 
+import type {ReactNode} from "react"
+
 import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
 
 // ============================================================================
@@ -121,6 +123,13 @@ export interface CascadingVariantProps<
      * @default true
      */
     showAutoIndicator?: boolean
+
+    /**
+     * Initial selections to pre-populate levels.
+     * Array of entity IDs matching hierarchy levels (e.g., [workflowId, variantId, revisionId]).
+     * Null entries are skipped.
+     */
+    initialSelections?: (string | null)[]
 }
 
 // ============================================================================
@@ -160,6 +169,12 @@ export interface BreadcrumbVariantProps<
      * Root label for breadcrumb (e.g., "All Apps")
      */
     rootLabel?: string
+
+    /**
+     * Optional content rendered on the right side of breadcrumb header row.
+     * Useful for contextual actions (e.g., disconnect).
+     */
+    breadcrumbActions?: ReactNode
 
     /**
      * Maximum height for the list container
@@ -297,6 +312,13 @@ export interface ListPopoverVariantProps<
      * Callback when a parent entity is hovered (for preloading)
      */
     onParentHover?: (parentId: string) => void
+
+    /**
+     * Optional section label rendered between the search bar and the parent list.
+     * When provided, a horizontal divider and this label are shown (e.g., "Test sets").
+     * When omitted, no divider or label is rendered (backwards-compatible).
+     */
+    sectionLabel?: string
 }
 
 // ============================================================================

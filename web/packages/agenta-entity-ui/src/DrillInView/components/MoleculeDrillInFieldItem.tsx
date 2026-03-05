@@ -12,8 +12,10 @@
 
 import {useCallback, useMemo} from "react"
 
+import type {SchemaProperty} from "@agenta/entities"
 import {type PathItem, type DataPath, isExpandable, getChildCount} from "@agenta/shared/utils"
 import {copyToClipboard} from "@agenta/ui/utils"
+import {atom, useAtomValue} from "jotai"
 
 import type {FieldHeaderSlotProps, FieldContentSlotProps, FieldActionsSlotProps} from "../types"
 import {buildClassName} from "../utils/classNames"
@@ -50,10 +52,19 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
         isCollapsed,
         toggleCollapse,
         isDirty,
+        getSchemaAtPath,
     } = useDrillIn()
 
     // Full path to this field
     const fullPath: DataPath = useMemo(() => [...currentPath, item.key], [currentPath, item.key])
+
+    // ========== SCHEMA ==========
+    const nullAtom = useMemo(() => atom(null), [])
+    const schemaAtom = useMemo(
+        () => (getSchemaAtPath ? getSchemaAtPath(fullPath) : nullAtom),
+        [getSchemaAtPath, fullPath, nullAtom],
+    )
+    const schema = useAtomValue(schemaAtom) as SchemaProperty | null
 
     // Field state
     const fieldKey = fullPath.join(".")
@@ -187,12 +198,14 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
         return (
             <FieldItemContent
                 item={item}
+                path={fullPath.map(String)}
                 isExpandable={expandable}
                 childCount={childCount}
                 canDrillIn={canDrillIn}
                 isEditable={behaviors.editable}
                 onDrillIn={handleDrillIn}
                 onChange={handleChange}
+                schema={schema}
                 classNames={{
                     fieldContent: classNames.fieldContent,
                     valueRenderer: classNames.valueRenderer,
@@ -205,12 +218,14 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
         )
     }, [
         item,
+        fullPath,
         expandable,
         childCount,
         canDrillIn,
         behaviors.editable,
         handleDrillIn,
         handleChange,
+        schema,
         classNames,
         styles,
     ])

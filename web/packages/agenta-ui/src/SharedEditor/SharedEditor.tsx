@@ -54,6 +54,7 @@ const SharedEditor = ({
     autoFocus,
     error,
     useAntdInput = false,
+    disableContainerTransition = false,
     noProvider = false,
     debug = false,
     isTool,
@@ -113,7 +114,8 @@ const SharedEditor = ({
         <div
             className={clsx(
                 "agenta-shared-editor",
-                "w-auto flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid rounded-lg",
+                "w-auto flex flex-col items-start relative group/item border border-solid rounded-lg",
+                {"transition-all duration-300 ease-in-out": !disableContainerTransition},
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
@@ -143,9 +145,20 @@ const SharedEditor = ({
                 isEditorFocused && "!border-[#BDC7D1]",
                 className,
             )}
+            {...props}
+            style={
+                {
+                    ...props.style,
+                    interpolateSize: "allow-keywords",
+                    height: "var(--editor-h, auto)",
+                    overflow: "hidden",
+                    transitionProperty: "height",
+                    transitionDuration: "300ms",
+                    transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+                } as React.CSSProperties
+            }
             onFocus={() => setIsEditorFocused(true)}
             onBlur={() => setIsEditorFocused(false)}
-            {...props}
         >
             {header}
 
@@ -181,8 +194,8 @@ const SharedEditor = ({
                     enableTokens={!editorProps?.codeOnly}
                     // Use mount-time initial value for first render
                     initialValue={mountInitialValueRef.current}
-                    // Pass controlled value for undo/redo support - this triggers re-hydration when value changes
-                    value={value}
+                    // Pass local value to keep Editor in sync with user typing and prevent re-hydration jumps
+                    value={localValue}
                     className={editorClassName}
                     onChange={(val) => {
                         handleLocalValueChange(val.textContent)

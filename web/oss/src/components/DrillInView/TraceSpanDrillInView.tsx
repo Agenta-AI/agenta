@@ -3,8 +3,8 @@ import {
     type ReactNode,
     useCallback,
     useEffect,
-    useLayoutEffect,
     useId,
+    useLayoutEffect,
     useMemo,
     useState,
 } from "react"
@@ -42,7 +42,9 @@ import {traceSpan} from "@/oss/state/entities/trace"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
-const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
+const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
+    ssr: false,
+})
 
 // ============================================================================
 // TYPES

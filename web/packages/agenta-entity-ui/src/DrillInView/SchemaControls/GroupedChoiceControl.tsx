@@ -2,7 +2,8 @@
  * GroupedChoiceControl
  *
  * Schema-driven grouped select for model selection and other grouped choices.
- * Uses injected SelectLLMProvider for model selection or a grouped Select for other cases.
+ * Uses SelectLLMProviderBase from @agenta/ui for model selection (with config data
+ * from DrillInUIContext) or a grouped Select for other cases.
  *
  * Handles schema properties with:
  * - x-parameter: "grouped_choice"
@@ -13,6 +14,7 @@ import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import {LabeledField} from "@agenta/ui/components/presentational"
+import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Select} from "antd"
 
@@ -57,11 +59,11 @@ function isModelField(schema: SchemaProperty | null | undefined): boolean {
  * A controlled select component for choosing from grouped options.
  *
  * For model selection (x-parameter: "grouped_choice" or title: "Model"),
- * uses injected SelectLLMProvider which provides:
+ * uses SelectLLMProviderBase from @agenta/ui which provides:
  * - Grouped options by provider
  * - Search functionality
- * - Custom secrets indicator
- * - Add provider button
+ * - Custom secrets (via extraOptionGroups from context)
+ * - Add provider button (via footerContent from context)
  *
  * For other grouped choices, uses a standard grouped Select.
  */
@@ -76,12 +78,19 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     placeholder = "Select...",
     className,
 }: GroupedChoiceControlProps) {
-    // Get injected SelectLLMProvider component
-    const {SelectLLMProvider} = useDrillInUI()
+    // Get LLM provider config data from context (vault secrets, footer)
+    const {llmProviderConfig} = useDrillInUI()
 
     // All hooks must be called before any early returns
     const schemaOptions = useMemo(() => getOptionsFromSchema(schema), [schema])
     const isModel = useMemo(() => isModelField(schema), [schema])
+
+    // Merge schema options with extra option groups from vault/custom secrets
+    const mergedOptions = useMemo(() => {
+        const base = schemaOptions?.options ?? []
+        const extra = llmProviderConfig?.extraOptionGroups ?? []
+        return [...extra, ...base]
+    }, [schemaOptions, llmProviderConfig?.extraOptionGroups])
 
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
@@ -89,9 +98,8 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
     // Options are already in the correct format from getOptionsFromSchema (may be null)
     const selectOptions = schemaOptions?.options ?? []
 
-    // Model selection - use SelectLLMProvider if available
-    // SelectLLMProvider can fetch its own options, so it works even without schema options
-    if (isModel && SelectLLMProvider) {
+    // Model selection - use SelectLLMProviderBase with merged options
+    if (isModel) {
         return (
             <LabeledField
                 label={label}
@@ -99,17 +107,16 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
                 withTooltip={withTooltip && !!label}
                 className={className}
             >
-                <SelectLLMProvider
+                <SelectLLMProviderBase
                     showGroup
-                    showAddProvider
-                    showCustomSecretsOnOptions
-                    options={selectOptions}
+                    options={mergedOptions}
                     value={value ?? undefined}
-                    onChange={(val: string | undefined) => onChange(val ?? null)}
+                    onChange={(val) => onChange((val as string) ?? null)}
                     disabled={disabled}
                     placeholder={placeholder}
                     className="w-full"
                     size="small"
+                    footerContent={llmProviderConfig?.footerContent}
                 />
             </LabeledField>
         )
@@ -120,7 +127,7 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
         return null
     }
 
-    // Other grouped choices or no SelectLLMProvider - use standard grouped Select
+    // Other grouped choices - use standard grouped Select
     return (
         <LabeledField
             label={label}

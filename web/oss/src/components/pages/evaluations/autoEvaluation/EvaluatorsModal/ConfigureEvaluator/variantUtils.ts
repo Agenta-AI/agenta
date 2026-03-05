@@ -1,4 +1,4 @@
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import type {Variant} from "@/oss/lib/Types"
 
 export const buildVariantFromRevision = (

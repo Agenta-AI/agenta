@@ -34,33 +34,10 @@
  * ```
  */
 
-// ============================================================================
-// PATH UTILITIES - imported from @agenta/shared
-// ============================================================================
+// NOTE: Path utilities (getValueAtPath, parsePath, etc.) are available from @agenta/shared/utils
 
-export {
-    // Types
-    type PathSegment,
-    type DataPath,
-    type PathItem,
-    // Path operations
-    getValueAtPath,
-    setValueAtPath,
-    deleteValueAtPath,
-    hasValueAtPath,
-    // Inspection
-    isExpandable,
-    getValueType,
-    getChildCount,
-    getItemsAtPath,
-    // Path utilities
-    parsePath,
-    pathToString,
-    getParentPath,
-    getLastSegment,
-    isChildPath,
-    collectPaths,
-} from "@agenta/shared/utils"
+export {SharedGenerationResultUtils, type SharedGenerationResultUtilsProps} from "./shared"
+export {RunnableOutputValue, formatOutputValue, type RunnableOutputValueProps} from "./shared"
 
 // ============================================================================
 // DRILL-IN VIEW (Molecule-first API)
@@ -73,7 +50,11 @@ export {
     MoleculeDrillInFieldList,
     MoleculeDrillInFieldItem,
     MoleculeDrillInProvider,
+    PlaygroundConfigSection,
     useDrillIn,
+    type PlaygroundConfigSectionProps,
+    type ConfigSectionMoleculeAdapter,
+    type EvaluatorPresetConfig,
     // Types - Molecule Config
     type DrillInMoleculeConfig,
     type DrillInDisplayConfig,
@@ -194,6 +175,9 @@ export {
     PromptSchemaControl,
     isPromptSchema,
     isPromptValue,
+    ToolItemControl,
+    TOOL_PROVIDERS_META,
+    TOOL_SPECS,
     ObjectSchemaControl,
     CollapsibleObjectControl,
     SchemaPropertyRenderer,
@@ -220,7 +204,15 @@ export {
     type MessagesSchemaControlProps,
     type ResponseFormatValue,
     type ResponseFormatControlProps,
+    FeedbackConfigurationControl,
+    type FeedbackConfigurationControlProps,
+    type FeedbackConfig,
+    type ResponseFormatType,
+    type CategoricalOption,
     type PromptSchemaControlProps,
+    type ToolItemControlProps,
+    type ToolObj,
+    type ToolFunction,
     type ObjectSchemaControlProps,
     type SchemaPropertyRendererProps,
 } from "./DrillInView"
@@ -290,6 +282,9 @@ export {
     type UseBoundCommitOptions,
     type UseBoundCommitReturn,
     type EntityCommitModalProps,
+    type CommitSubmitParams,
+    type CommitSubmitResult,
+    type CommitModeOption,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -304,6 +299,8 @@ export {
     closeCommitModalAtom,
     resetCommitModalAtom,
     setCommitMessageAtom,
+    setCommitLoadingAtom,
+    setCommitErrorAtom,
     executeCommitAtom,
     // Save modal components
     EntitySaveModal,
@@ -371,6 +368,10 @@ export {
     // Combined provider (recommended)
     EntityModalsProvider,
     type EntityModalsProviderProps,
+    // Preset modal
+    LoadEvaluatorPresetModal,
+    type EvaluatorPreset,
+    type LoadEvaluatorPresetModalProps,
 } from "./modals"
 
 // ============================================================================
@@ -397,8 +398,11 @@ export {
     type ListQueryState,
     type CreateHierarchyLevelOptions,
     type CreateSelectionAdapterOptions,
-    type AppRevisionSelectionResult,
+    type EvaluatorSelectionResult,
+    type LegacyAppRevisionSelectionResult,
+    type LegacyEvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
+    type EvaluatorRevisionRelationSelectionResult,
     type TestsetSelectionResult,
     // Adapter factory
     createAdapter as createSelectionAdapter,
@@ -410,10 +414,14 @@ export {
     createAndRegisterAdapter as createAndRegisterSelectionAdapter,
     resolveAdapter as resolveSelectionAdapter,
     // Pre-built adapters
-    appRevisionAdapter,
     legacyAppRevisionAdapter,
+    evaluatorAdapter,
+    setEvaluatorAtoms,
+    legacyEvaluatorAdapter,
+    setLegacyEvaluatorAtoms,
     evaluatorRevisionAdapter,
     setEvaluatorRevisionAtoms,
+    evaluatorRevisionRelationAdapter,
     testsetAdapter,
     // State
     selectionMolecule,
@@ -478,6 +486,7 @@ export {
     resetSelectionSystem,
     isSelectionSystemInitialized,
     type SelectionSystemConfig,
+    type LegacyEvaluatorSelectionConfig,
     type EvaluatorRevisionSelectionConfig,
 } from "./selection"
 
@@ -491,4 +500,4 @@ export {EntityTable, type EntityTableProps} from "./shared"
 // ENTITY ADAPTERS (registration for entity modals)
 // ============================================================================
 
-export {testsetModalAdapter, revisionModalAdapter} from "./adapters"
+export {testsetModalAdapter, revisionModalAdapter, variantModalAdapter} from "./adapters"

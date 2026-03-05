@@ -1,3 +1,4 @@
+import {probeEndpointPath} from "@agenta/entities/legacyAppRevision"
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -20,7 +21,7 @@ import {
 } from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
+import {uriFixer} from "../lib/shared/variant"
 import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
 
 //Prefix convention:
@@ -130,12 +131,28 @@ export async function callVariant(
     variantId?: string,
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
+    const reservedInputKeys = new Set([
+        "ag_config",
+        "inputs",
+        "messages",
+        "environment",
+        "revision_id",
+        "variant_id",
+        "app_id",
+    ])
+    const normalizedInputParamDefinition = (inputParamDefinition || []).filter((param) => {
+        const name = param?.name
+        return typeof name === "string" && name.length > 0 && !reservedInputKeys.has(name)
+    })
+
     // Separate input parameters into two dictionaries based on the 'input' property
     const mainInputParams: Record<string, any> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
 
     for (const key of Object.keys(inputParametersDict)) {
-        const paramDefinition = inputParamDefinition.find((param) => param.name === key)
+        if (reservedInputKeys.has(key)) continue
+
+        const paramDefinition = normalizedInputParamDefinition.find((param) => param.name === key)
 
         // If parameter definition is found and its 'input' property is false,
         // then it goes to 'secondaryInputParams', otherwise to 'mainInputParams'
@@ -177,7 +194,7 @@ export async function callVariant(
         }
     } else {
         const inputs = {...secondaryInputParams}
-        for (const x of inputParamDefinition) {
+        for (const x of normalizedInputParamDefinition) {
             if (!inputs[x.name]) {
                 inputs[x.name] = null
             }
@@ -365,7 +382,7 @@ export const fetchAppContainerURL = async (
                 _ignoreError: true,
             } as any,
         )
-        const uriObject = await findCustomWorkflowPath(data.uri)
+        const uriObject = await probeEndpointPath(data.uri)
         if (uriObject) {
             return constructPlaygroundTestUrl(uriObject, "", true)
         } else {

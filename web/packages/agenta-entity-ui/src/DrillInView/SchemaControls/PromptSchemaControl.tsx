@@ -18,73 +18,25 @@ import {memo, useCallback, useMemo, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {CaretDown, Plus, Wrench} from "@phosphor-icons/react"
-import {Button, Popover, Select, Typography} from "antd"
+import {Plus} from "@phosphor-icons/react"
+import {Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 import {useDrillInUI} from "../context"
-import {formatLabel} from "../utils"
 
-import {GroupedChoiceControl} from "./GroupedChoiceControl"
-import {NumberSliderControl} from "./NumberSliderControl"
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
 import {
     denormalizeMessages,
-    getLLMConfigProperties,
     getLLMConfigValue,
-    getModelSchema,
-    getOptionsFromSchema,
     getResponseFormatSchema,
-    hasGroupedChoices,
     hasNestedLLMConfig,
     normalizeMessages,
 } from "./schemaUtils"
-
-/**
- * Known LLM config parameters with their metadata for value-based fallback rendering.
- * Used when schema doesn't have property definitions but value contains these keys.
- */
-const KNOWN_LLM_PARAMS: Record<
-    string,
-    {label: string; min: number; max: number; step: number; description: string}
-> = {
-    temperature: {
-        label: "Temperature",
-        min: 0,
-        max: 2,
-        step: 0.1,
-        description: "Controls randomness. Higher values make output more random.",
-    },
-    max_tokens: {
-        label: "Max Tokens",
-        min: 1,
-        max: 128000,
-        step: 1,
-        description: "Maximum number of tokens to generate.",
-    },
-    top_p: {
-        label: "Top P",
-        min: 0,
-        max: 1,
-        step: 0.1,
-        description: "Nucleus sampling. Consider tokens with top_p probability mass.",
-    },
-    frequency_penalty: {
-        label: "Frequency Penalty",
-        min: -2,
-        max: 2,
-        step: 0.1,
-        description: "Penalizes tokens based on their frequency in the text so far.",
-    },
-    presence_penalty: {
-        label: "Presence Penalty",
-        min: -2,
-        max: 2,
-        step: 0.1,
-        description: "Penalizes tokens based on whether they appear in the text so far.",
-    },
-}
+import {ToolItemControl} from "./ToolItemControl"
+import {ToolSelectorPopover, type ToolSelectionMeta} from "./ToolSelectorPopover"
+import {type ToolObj} from "./toolUtils"
 
 export interface PromptSchemaControlProps {
     /** The schema property defining the prompt object */
@@ -103,12 +55,16 @@ export interface PromptSchemaControlProps {
     className?: string
     /** Template format for variable highlighting */
     templateFormat?: "curly" | "fstring" | "jinja2"
+    /** Callback when template format changes (for syncing to entity) */
+    onTemplateFormatChange?: (format: "curly" | "fstring" | "jinja2") => void
     /** Available template variables for token highlighting */
     variables?: string[]
     /** Entity ID for response format modal state tracking */
     entityId?: string
     /** Hide the model selector (when it's shown elsewhere, e.g., in collapse header) */
     hideModelSelector?: boolean
+    /** Optional renderer for provider icons in tool headers (receives provider key, returns icon element) */
+    renderProviderIcon?: (providerKey: string) => React.ReactNode
 }
 
 /**
@@ -166,10 +122,39 @@ export function isPromptValue(value: unknown): value is Record<string, unknown> 
 
 // Template format options
 const TEMPLATE_FORMAT_OPTIONS = [
-    {label: "Curly {{var}}", value: "curly"},
-    {label: "F-string {var}", value: "fstring"},
-    {label: "Jinja2 {{ var }}", value: "jinja2"},
+    {label: "Prompt Syntax: Curly", value: "curly"},
+    {label: "Prompt Syntax: F-string", value: "fstring"},
+    {label: "Prompt Syntax: Jinja2", value: "jinja2"},
 ]
+const EMPTY_VARIABLES: string[] = []
+
+/**
+ * Default provider icon renderer using getProviderIcon from @agenta/ui
+ */
+function defaultRenderProviderIcon(providerKey: string): React.ReactNode {
+    const Icon = getProviderIcon(providerKey)
+    if (!Icon) return null
+    return <Icon className="w-4 h-4" />
+}
+
+function isBuiltinPayloadMatch(tool: unknown, payload: ToolObj): boolean {
+    if (!tool || typeof tool !== "object" || Array.isArray(tool)) return false
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return false
+
+    const toolObj = tool as Record<string, unknown>
+    const payloadObj = payload as Record<string, unknown>
+
+    if (typeof payloadObj.type === "string" && toolObj.type === payloadObj.type) return true
+    if (typeof payloadObj.name === "string" && toolObj.name === payloadObj.name) return true
+
+    const payloadKeys = Object.keys(payloadObj)
+    return (
+        payloadKeys.length === 1 &&
+        payloadKeys[0] !== "type" &&
+        payloadKeys[0] !== "name" &&
+        payloadKeys[0] in toolObj
+    )
+}
 
 /**
  * Schema-driven control for prompt objects.
@@ -194,27 +179,30 @@ const TEMPLATE_FORMAT_OPTIONS = [
  */
 export const PromptSchemaControl = memo(function PromptSchemaControl({
     schema,
-    label,
+    label: _label,
     value,
     onChange,
-    description,
+    description: _description,
     disabled = false,
     className,
     templateFormat = "curly",
-    variables = [],
+    onTemplateFormatChange,
+    variables,
     entityId,
-    hideModelSelector = false,
+    hideModelSelector: _hideModelSelector = false,
+    renderProviderIcon,
 }: PromptSchemaControlProps) {
-    // Get injected SelectLLMProvider from context
-    const {SelectLLMProvider} = useDrillInUI()
+    // Get injected EditorProvider from context
+    const {EditorProvider, gatewayTools} = useDrillInUI()
 
-    // Model config popover state
-    const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
+    // Use prop if provided, otherwise use default
+    const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
     // Local template format state (initialized from props, can be changed by user)
     const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
         templateFormat,
     )
+    const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
     const isNestedLLMConfig = useMemo(() => hasNestedLLMConfig(schema), [schema])
@@ -226,11 +214,13 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         return normalizeMessages(raw)
     }, [value?.messages])
 
+    const hasMessagesField = useMemo(
+        () => Boolean(value && typeof value === "object" && "messages" in value),
+        [value],
+    )
+
     // Get LLM config value (handles nested vs root level)
     const llmConfigValue = useMemo(() => getLLMConfigValue(value), [value])
-
-    // Extract model value from llm_config
-    const model = llmConfigValue?.model as string | undefined
 
     // Extract response format value from llm_config (full object with type and json_schema)
     const responseFormatValue = useMemo((): ResponseFormatValue | null => {
@@ -244,10 +234,14 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         return null
     }, [llmConfigValue])
 
-    // Extract LLM config values
-    const llmConfigProps = useMemo(() => getLLMConfigProperties(schema), [schema])
-    const modelSchema = useMemo(() => getModelSchema(schema), [schema])
     const responseFormatSchema = useMemo(() => getResponseFormatSchema(schema), [schema])
+
+    // Check if response format exists and should be shown
+    // If responseFormatSchema is null/empty, don't show the response format control
+    // (evaluators have feedback_config as a separate top-level section)
+    const hasResponseFormat = useMemo(() => {
+        return !!responseFormatSchema && Object.keys(responseFormatSchema).length > 0
+    }, [responseFormatSchema])
 
     // Handle messages change
     const handleMessagesChange = useCallback(
@@ -260,57 +254,18 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         [value, onChange],
     )
 
-    // Handle model change (respects nested llm_config structure)
-    const handleModelChange = useCallback(
-        (newModel: string | null) => {
-            if (isNestedLLMConfig) {
-                const llmConfigKey = value?.llm_config ? "llm_config" : "llmConfig"
-                const currentLLMConfig = (value?.[llmConfigKey] || {}) as Record<string, unknown>
-                onChange({
-                    ...value,
-                    [llmConfigKey]: {
-                        ...currentLLMConfig,
-                        model: newModel,
-                    },
-                })
-            } else {
-                onChange({
-                    ...value,
-                    model: newModel,
-                })
-            }
-        },
-        [value, onChange, isNestedLLMConfig],
-    )
-
-    // Handle LLM config property change (respects nested llm_config structure)
-    const handleConfigChange = useCallback(
-        (key: string, newValue: unknown) => {
-            if (isNestedLLMConfig) {
-                const llmConfigKey = value?.llm_config ? "llm_config" : "llmConfig"
-                const currentLLMConfig = (value?.[llmConfigKey] || {}) as Record<string, unknown>
-                onChange({
-                    ...value,
-                    [llmConfigKey]: {
-                        ...currentLLMConfig,
-                        [key]: newValue,
-                    },
-                })
-            } else {
-                onChange({
-                    ...value,
-                    [key]: newValue,
-                })
-            }
-        },
-        [value, onChange, isNestedLLMConfig],
+    // Detect nested llm_config from both schema AND value
+    // (schema may not declare it but the value can still have it)
+    const hasNestedLLMConfigValue = useMemo(
+        () => isNestedLLMConfig || !!(value?.llm_config || value?.llmConfig),
+        [isNestedLLMConfig, value],
     )
 
     // Handle response format change (respects nested llm_config structure)
     // Accepts full ResponseFormatValue object with type and optional json_schema
     const handleResponseFormatChange = useCallback(
         (newFormat: ResponseFormatValue) => {
-            if (isNestedLLMConfig) {
+            if (hasNestedLLMConfigValue) {
                 const llmConfigKey = value?.llm_config ? "llm_config" : "llmConfig"
                 const currentLLMConfig = (value?.[llmConfigKey] || {}) as Record<string, unknown>
                 onChange({
@@ -327,7 +282,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 })
             }
         },
-        [value, onChange, isNestedLLMConfig],
+        [value, onChange, hasNestedLLMConfigValue],
     )
 
     // Handle add message
@@ -340,207 +295,236 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
         handleMessagesChange([...messages, newMessage])
     }, [messages, handleMessagesChange])
 
-    // Handle add tool (placeholder - adds empty tool config)
-    const handleAddTool = useCallback(() => {
-        const tools = (value?.tools as unknown[]) || []
-        const newTool = {
-            type: "function",
-            function: {
-                name: `tool_${tools.length + 1}`,
-                description: "",
-                parameters: {type: "object", properties: {}},
-            },
-        }
-        onChange({
-            ...value,
-            tools: [...tools, newTool],
-        })
-    }, [value, onChange])
+    // Helper: get the current tools array from the correct location
+    const getToolsArray = useCallback((): unknown[] => {
+        const raw = hasNestedLLMConfigValue ? llmConfigValue?.tools : value?.tools
+        return Array.isArray(raw) ? (raw as unknown[]) : []
+    }, [hasNestedLLMConfigValue, llmConfigValue, value])
 
-    // Display model name
-    const displayModel = model ?? "Choose a model"
-
-    // Check if model schema has grouped choices (for GroupedChoiceControl fallback)
-    const hasSchemaChoices = useMemo(() => hasGroupedChoices(modelSchema), [modelSchema])
-
-    // Extract model options from schema for SelectLLMProvider
-    const modelOptions = useMemo(() => {
-        const result = getOptionsFromSchema(modelSchema)
-        return result?.options ?? []
-    }, [modelSchema])
-
-    // Get value-based LLM config params (used when schema doesn't have property definitions)
-    // Always show all known params so users can set them, using current value or default
-    const valueLLMConfigParams = useMemo(() => {
-        // If schema already has properties, don't use value-based fallback
-        if (Object.keys(llmConfigProps).length > 0) return []
-
-        // Show all known params - use current value if exists, otherwise use a reasonable default
-        const params: {
-            key: string
-            value: number | null
-            metadata: (typeof KNOWN_LLM_PARAMS)[string]
-        }[] = []
-        for (const [key, metadata] of Object.entries(KNOWN_LLM_PARAMS)) {
-            const val = llmConfigValue?.[key]
-            // Include the param with current value if number, or null to show as unset
-            params.push({
-                key,
-                value: typeof val === "number" ? val : null,
-                metadata,
-            })
-        }
-        return params
-    }, [llmConfigProps, llmConfigValue])
-
-    // Model config popover content (includes model selector + LLM config properties)
-    const modelConfigContent = (
-        <div className="flex flex-col gap-3 min-w-[300px]">
-            <div className="flex items-center justify-between border-b border-zinc-2 pb-2">
-                <Typography.Text className="text-sm text-zinc-9">Model Parameters</Typography.Text>
-            </div>
-
-            {/* Model selector - use SelectLLMProvider directly from context */}
-            <div className="flex flex-col gap-1">
-                <Typography.Text className="text-xs text-zinc-9">Model</Typography.Text>
-                {SelectLLMProvider ? (
-                    <SelectLLMProvider
-                        showGroup
-                        showAddProvider
-                        showCustomSecretsOnOptions
-                        options={modelOptions}
-                        value={model ?? undefined}
-                        onChange={(val: string | undefined) => handleModelChange(val ?? null)}
-                        disabled={disabled}
-                        placeholder="Select a model"
-                        size="small"
-                    />
-                ) : hasSchemaChoices ? (
-                    <GroupedChoiceControl
-                        schema={modelSchema}
-                        label=""
-                        value={model ?? null}
-                        onChange={handleModelChange}
-                        disabled={disabled}
-                        withTooltip={false}
-                    />
-                ) : (
-                    /* Fallback to read-only text when no dropdown available */
-                    <Typography.Text className="text-zinc-6">{model || "Not set"}</Typography.Text>
-                )}
-            </div>
-
-            {/* LLM config properties from schema */}
-            {Object.entries(llmConfigProps).map(([key, propSchema]) => {
-                const propValue = llmConfigValue?.[key]
-                return (
-                    <NumberSliderControl
-                        key={key}
-                        schema={propSchema}
-                        label={formatLabel(key)}
-                        value={propValue as number | null}
-                        onChange={(v) => handleConfigChange(key, v)}
-                        disabled={disabled}
-                        withTooltip
-                    />
-                )
-            })}
-
-            {/* Value-based fallback for LLM config params (when schema is missing) */}
-            {valueLLMConfigParams.map(({key, value, metadata}) => (
-                <NumberSliderControl
-                    key={key}
-                    label={metadata.label}
-                    value={value}
-                    onChange={(v) => handleConfigChange(key, v ?? metadata.min)}
-                    disabled={disabled}
-                    withTooltip
-                    description={metadata.description}
-                    min={metadata.min}
-                    max={metadata.max}
-                    step={metadata.step}
-                />
-            ))}
-
-            {/* No model settings available message */}
-            {!model &&
-                Object.keys(llmConfigProps).length === 0 &&
-                valueLLMConfigParams.length === 0 && (
-                    <Typography.Text type="secondary" className="text-xs">
-                        No model settings available
-                    </Typography.Text>
-                )}
-        </div>
+    // Helper: write tools to the correct location (respects nested llm_config)
+    const setToolsValue = useCallback(
+        (newTools: unknown[] | undefined) => {
+            if (hasNestedLLMConfigValue) {
+                const llmConfigKey = value?.llm_config ? "llm_config" : "llmConfig"
+                const currentLLMConfig = (value?.[llmConfigKey] || {}) as Record<string, unknown>
+                onChange({
+                    ...value,
+                    [llmConfigKey]: {
+                        ...currentLLMConfig,
+                        tools: newTools,
+                    },
+                })
+            } else {
+                onChange({
+                    ...value,
+                    tools: newTools,
+                })
+            }
+        },
+        [value, onChange, hasNestedLLMConfigValue],
     )
+
+    // Handle add tool (from ToolSelectorPopover)
+    // Preserve tool source metadata so the card renderer can recover the
+    // richer gateway/builtin header presentation after serialization.
+    const handleAddTool = useCallback(
+        (newTool: ToolObj, meta?: ToolSelectionMeta) => {
+            const currentTools = getToolsArray()
+            if (!newTool || typeof newTool !== "object" || Array.isArray(newTool)) {
+                setToolsValue([...currentTools, newTool])
+                return
+            }
+
+            const nextTool = meta
+                ? {
+                      ...(newTool as Record<string, unknown>),
+                      agenta_metadata: {
+                          ...(((newTool as Record<string, unknown>).agenta_metadata as
+                              | Record<string, unknown>
+                              | undefined) ?? {}),
+                          ...meta,
+                      },
+                  }
+                : newTool
+
+            setToolsValue([...currentTools, nextTool])
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    // Extract tools array from value (respects nested llm_config)
+    const tools = useMemo(() => getToolsArray(), [getToolsArray])
+
+    const selectedToolNames = useMemo(() => {
+        return new Set(
+            tools
+                .map((tool) => {
+                    if (!tool || typeof tool !== "object") return undefined
+                    const fn = (tool as Record<string, unknown>).function
+                    if (!fn || typeof fn !== "object") return undefined
+                    const name = (fn as Record<string, unknown>).name
+                    return typeof name === "string" ? name : undefined
+                })
+                .filter((name): name is string => Boolean(name)),
+        )
+    }, [tools])
+
+    // Handle individual tool change
+    const handleToolChange = useCallback(
+        (index: number, newToolValue: ToolObj) => {
+            const currentTools = getToolsArray()
+            const updated = [...currentTools]
+            updated[index] = newToolValue
+            setToolsValue(updated)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    // Handle tool deletion
+    const handleToolDelete = useCallback(
+        (index: number) => {
+            const currentTools = getToolsArray()
+            const updated = currentTools.filter((_, i) => i !== index)
+            setToolsValue(updated.length > 0 ? updated : undefined)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    const handleRemoveToolByName = useCallback(
+        (toolName: string) => {
+            const currentTools = getToolsArray()
+            const updated = currentTools.filter((tool) => {
+                if (!tool || typeof tool !== "object") return true
+                const fn = (tool as Record<string, unknown>).function
+                if (!fn || typeof fn !== "object") return true
+                return (fn as Record<string, unknown>).name !== toolName
+            })
+            setToolsValue(updated.length > 0 ? updated : undefined)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    const handleRemoveBuiltinTool = useCallback(
+        (toolToRemove: ToolObj) => {
+            const currentTools = getToolsArray()
+            let removed = false
+            const updated = currentTools.filter((tool) => {
+                if (removed) return true
+                const matches = isBuiltinPayloadMatch(tool, toolToRemove)
+                if (matches) {
+                    removed = true
+                    return false
+                }
+                return true
+            })
+            setToolsValue(updated.length > 0 ? updated : undefined)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    // Handle tool duplication
+    const handleToolDuplicate = useCallback(
+        (index: number) => {
+            const currentTools = getToolsArray()
+            const toolToDuplicate = currentTools[index]
+            if (!toolToDuplicate) return
+            const duplicated = JSON.parse(JSON.stringify(toolToDuplicate))
+            const updated = [...currentTools]
+            updated.splice(index + 1, 0, duplicated)
+            setToolsValue(updated)
+        },
+        [getToolsArray, setToolsValue],
+    )
+
+    if (!hasMessagesField) {
+        return <div className={cn("min-h-[260px]", className)} />
+    }
 
     return (
         <div className={cn("flex flex-col gap-3", className)}>
-            {/* Header with label and model config button */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    {label && (
-                        <>
-                            <Typography.Text className="font-medium">{label}</Typography.Text>
-                            {description && (
-                                <Typography.Text type="secondary" className="text-xs">
-                                    {description}
-                                </Typography.Text>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                {/* Model config button with popover - show if schema has model/llmConfig OR if value has model/llmParams */}
-                {!hideModelSelector &&
-                    (modelSchema ||
-                        Object.keys(llmConfigProps).length > 0 ||
-                        model ||
-                        valueLLMConfigParams.length > 0) && (
-                        <Popover
-                            open={!disabled && isModelConfigOpen}
-                            onOpenChange={disabled ? undefined : setIsModelConfigOpen}
-                            trigger={["click"]}
-                            placement="bottomRight"
-                            arrow={false}
-                            content={modelConfigContent}
-                        >
-                            <Button disabled={disabled} className="flex items-center gap-1">
-                                {displayModel}
-                                <CaretDown size={14} />
-                            </Button>
-                        </Popover>
-                    )}
-            </div>
-
             {/* Messages list */}
             <ChatMessageList
                 messages={messages}
                 onChange={handleMessagesChange}
                 disabled={disabled}
                 showControls={false}
-                allowFileUpload={!disabled}
+                showRemoveButton={true}
+                showCopyButton={true}
+                allowFileUpload={false}
                 placeholder="Enter message content..."
                 className="[&_.chat-message-editor]:border [&_.chat-message-editor]:border-zinc-2 [&_.chat-message-editor]:rounded-lg"
                 enableTokens={true}
                 templateFormat={localTemplateFormat}
-                tokens={variables}
+                tokens={stableVariables}
+                loadingFallback="static"
             />
+
+            {/* Tools list */}
+            {tools.length > 0 && (
+                <div className="flex flex-col gap-2">
+                    {tools.map((tool, index) => {
+                        const toolControl = (
+                            <ToolItemControl
+                                key={`tool-${index}`}
+                                value={tool}
+                                onChange={(newValue) => handleToolChange(index, newValue)}
+                                onDelete={disabled ? undefined : () => handleToolDelete(index)}
+                                onDuplicate={
+                                    disabled ? undefined : () => handleToolDuplicate(index)
+                                }
+                                disabled={disabled}
+                                renderProviderIcon={effectiveRenderProviderIcon}
+                            />
+                        )
+
+                        if (!EditorProvider) return toolControl
+
+                        return (
+                            <EditorProvider
+                                key={`tool-editor-${index}`}
+                                codeOnly
+                                language="json"
+                                showToolbar={false}
+                                enableTokens={false}
+                                id={`tool-editor-${index}`}
+                            >
+                                {toolControl}
+                            </EditorProvider>
+                        )
+                    })}
+                </div>
+            )}
 
             {/* Action bar - Message, Tool, Output type, Template format */}
             {!disabled && (
-                <div className="flex items-center flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1">
                     {/* Add Message */}
-                    <Button size="small" icon={<Plus size={14} />} onClick={handleAddMessage}>
+                    <Button
+                        variant="outlined"
+                        color="default"
+                        size="small"
+                        icon={<Plus size={14} />}
+                        onClick={handleAddMessage}
+                    >
                         Message
                     </Button>
 
                     {/* Add Tool */}
-                    <Button size="small" icon={<Wrench size={14} />} onClick={handleAddTool}>
-                        Tool
-                    </Button>
+                    <ToolSelectorPopover
+                        onAddTool={handleAddTool}
+                        onRemoveTool={handleRemoveToolByName}
+                        onRemoveBuiltinTool={handleRemoveBuiltinTool}
+                        selectedToolNames={selectedToolNames}
+                        selectedTools={tools as ToolObj[]}
+                        disabled={disabled}
+                        renderProviderIcon={effectiveRenderProviderIcon}
+                        existingToolCount={tools.length}
+                        gatewayTools={gatewayTools}
+                    />
 
                     {/* Output type (response format) with JSON schema editing */}
-                    {responseFormatSchema && (
+                    {/* Only show if responseFormatSchema exists (evaluators have feedback_config as separate section) */}
+                    {hasResponseFormat && (
                         <ResponseFormatControl
                             controlId={entityId || "response-format"}
                             schema={responseFormatSchema}
@@ -555,12 +539,15 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                     <Select
                         size="small"
                         value={localTemplateFormat}
-                        onChange={(val) =>
-                            setLocalTemplateFormat(val as "curly" | "fstring" | "jinja2")
-                        }
+                        onChange={(val) => {
+                            const format = val as "curly" | "fstring" | "jinja2"
+                            setLocalTemplateFormat(format)
+                            onTemplateFormatChange?.(format)
+                        }}
                         options={TEMPLATE_FORMAT_OPTIONS}
                         className="min-w-[130px]"
                         popupMatchSelectWidth={false}
+                        style={{height: 24}}
                     />
                 </div>
             )}

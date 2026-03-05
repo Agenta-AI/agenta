@@ -1,13 +1,13 @@
 import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {Card, Space, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {Environment} from "@/oss/lib/Types"
-import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {useDeploymentCardStyles} from "./styles"
 
@@ -19,11 +19,14 @@ type DeploymentCardProps = {
 const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
     const classes = useDeploymentCardStyles()
 
-    const envName = env?.name ?? ""
-    const revisionAtom = useMemo(() => deployedRevisionByEnvironmentAtomFamily(envName), [envName])
-    const revision = useAtomValue(revisionAtom)
-
-    const revisionId = revision?.id
+    const revisionId = env?.deployed_app_variant_revision_id || undefined
+    const revision = useAtomValue(
+        useMemo(
+            () =>
+                revisionId ? legacyAppRevisionMolecule.atoms.serverData(revisionId) : atom(null),
+            [revisionId],
+        ),
+    ) as any
 
     let lastModifiedText = "-"
     if (revision) {

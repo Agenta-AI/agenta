@@ -114,7 +114,6 @@ export const TextInputControl = memo(function TextInputControl({
             maxLength={maxLength}
             rows={rows}
             className="resize-y"
-            size="small"
         />
     ) : (
         <Input
@@ -123,16 +122,19 @@ export const TextInputControl = memo(function TextInputControl({
             disabled={disabled}
             placeholder={placeholder}
             maxLength={maxLength}
-            size="small"
         />
     )
+
+    // Use horizontal layout for single-line inputs, vertical for multiline
+    const layoutDirection = isMultiline ? "vertical" : "horizontal"
 
     return (
         <LabeledField
             label={label}
             description={tooltipText}
             withTooltip={withTooltip && !!label}
-            className={cn(className)}
+            direction={layoutDirection}
+            className={cn(layoutDirection === "horizontal" ? "justify-between" : "", className)}
         >
             {inputContent}
             {(maxLength || minLength) && (

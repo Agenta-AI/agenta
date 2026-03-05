@@ -1,58 +1,82 @@
+import {
+    environmentsListQueryAtomFamily,
+    type Environment as EntityEnvironment,
+} from "@agenta/entities/environment"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, unwrap} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
-import {atomWithQuery} from "jotai-tanstack-query"
 
-import {snakeToCamel} from "@/oss/lib/helpers/utils"
 import {Environment} from "@/oss/lib/Types"
-import {fetchEnvironments} from "@/oss/services/deployment/api"
 import {routerAppIdAtom, currentAppAtom} from "@/oss/state/app/selectors/app"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import {jwtReadyAtom} from "@/oss/state/session/jwt"
-import {devLog} from "@/oss/state/utils/devLog"
 
-// -------- Query atom --------------------------------------------------------
+interface EnvironmentReference {
+    application?: {id?: string; slug?: string}
+    application_variant?: {id?: string; slug?: string}
+    application_revision?: {id?: string; slug?: string; version?: string}
+}
 
-export const environmentsQueryAtom = atomWithQuery<Environment[]>((get) => {
+function getEnvironmentReferenceForApp(
+    env: EntityEnvironment,
+    appId: string,
+): EnvironmentReference | null {
+    const refs = env.data?.references
+    if (!refs) return null
+
+    for (const reference of Object.values(refs) as EnvironmentReference[]) {
+        if (reference?.application?.id === appId) {
+            return reference
+        }
+    }
+
+    return null
+}
+
+function toLegacyEnvironment(env: EntityEnvironment, appId: string): Environment {
+    const reference = getEnvironmentReferenceForApp(env, appId)
+    return {
+        name: env.name ?? env.slug ?? "",
+        app_id: appId,
+        deployed_app_variant_id: reference?.application_variant?.id ?? null,
+        deployed_variant_name: reference?.application_variant?.slug ?? null,
+        deployed_app_variant_revision_id: reference?.application_revision?.id ?? null,
+        revision: reference?.application_revision?.version ?? null,
+    }
+}
+
+// -------- Derived from entity system query ----------------------------------
+// Reads from the entity system's environmentsListQueryAtomFamily(false)
+// instead of making a separate fetch, eliminating the duplicate API call.
+
+export const environmentsQueryAtom = atom((get) => {
+    const listQuery = get(environmentsListQueryAtomFamily(false))
     const appIdFromRoute = get(routerAppIdAtom)
     const currentApp = get(currentAppAtom)
     const appId = appIdFromRoute || currentApp?.app_id || null
 
-    const projectId = get(projectIdAtom)
-    const jwtReady = get(jwtReadyAtom).data ?? false
-
-    const enabled = !!appId && !!projectId && jwtReady
+    const environments = listQuery.data?.environments ?? []
+    const data = appId
+        ? environments.map((env) => toLegacyEnvironment(env, appId))
+        : ([] as Environment[])
 
     return {
-        queryKey: ["environments", appId, projectId],
-        queryFn: async () => {
-            if (!appId) return []
-            const data = await fetchEnvironments(appId)
-            const camel = (data ?? []).map((env: any) =>
-                Object.fromEntries(Object.entries(env).map(([k, v]) => [snakeToCamel(k), v])),
-            ) as Environment[]
-            return camel
-        },
-        staleTime: 60_000,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        refetchOnMount: false,
-        enabled,
+        data,
+        isPending: listQuery.isPending,
+        isLoading: listQuery.isPending,
+        isFetching: listQuery.isFetching,
+        isError: listQuery.isError,
+        error: listQuery.error ?? null,
+        refetch: listQuery.refetch,
     }
 })
-
-const logEnv = process.env.NEXT_PUBLIC_LOG_ENV_ATOMS === "true"
-
-devLog(environmentsQueryAtom as any, "environmentsQueryAtom", logEnv)
 
 // -------- Derived atoms -----------------------------------------------------
 
 const EmptyEnvs: Environment[] = []
 
 export const environmentsAtom = selectAtom(
-    unwrap(environmentsQueryAtom),
-    (res) => (res as any)?.data ?? EmptyEnvs,
+    environmentsQueryAtom,
+    (res) => res?.data ?? EmptyEnvs,
     deepEqual,
 )
 

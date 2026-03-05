@@ -8,10 +8,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
 import {
-    recentRevisionsOverviewAtom,
-    playgroundRevisionsReadyAtom,
-} from "@/oss/components/Playground/state/atoms/variants"
-import {
     openComparisonModalAtom,
     comparisonSelectionScopeAtom,
 } from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
@@ -20,7 +16,9 @@ import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+
+import {recentRevisionsOverviewAtom, revisionsReadyAtom} from "./atoms"
 
 const {Title} = Typography
 
@@ -31,7 +29,7 @@ const VariantsOverview = () => {
     // Drawer open/close is handled in VariantDrawerWrapper based on URL param
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const isRevisionsReady = useAtomValue(playgroundRevisionsReadyAtom)
+    const isRevisionsReady = useAtomValue(revisionsReadyAtom)
     const slicedVariantList = useAtomValue(recentRevisionsOverviewAtom)
     const selectionScope = "overview/recent"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))

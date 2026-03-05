@@ -11,7 +11,79 @@
  * 3. If components are not provided, fallbacks are used
  */
 
-import {createContext, useContext, type ComponentType, type ReactNode} from "react"
+import {
+    createContext,
+    useContext,
+    type ComponentType,
+    type ReactNode,
+    type ReactElement,
+} from "react"
+
+/**
+ * Inline provider option/group types to avoid importing from @agenta/ui.
+ * These mirror the canonical types in @agenta/ui/select-llm-provider.
+ */
+interface LLMProviderOption {
+    label: string
+    value: string
+    key?: string
+    metadata?: Record<string, unknown>
+}
+
+interface LLMProviderGroup {
+    label?: string | null
+    options: LLMProviderOption[]
+}
+
+export interface GatewayToolConnectionUI {
+    id: string
+    slug: string
+    name?: string
+    integration_key: string
+    provider_key: string
+    flags?: {is_active?: boolean; is_valid?: boolean}
+}
+
+export interface GatewayToolActionUI {
+    key: string
+    name: string
+}
+
+export interface GatewayToolsBridge {
+    enabled: boolean
+    connections: GatewayToolConnectionUI[]
+    connectionsLoading: boolean
+    onOpenCatalog: () => void
+    renderIntegrationInfo?: (integrationKey: string) => {name?: string; logo?: string} | null
+    useIntegrationInfo?: (integrationKey: string) => {
+        name?: string
+        logo?: string
+        isLoading?: boolean
+    }
+    useActions: (integrationKey: string) => {
+        actions: GatewayToolActionUI[]
+        total: number
+        isLoading: boolean
+        isFetchingNextPage: boolean
+        hasNextPage: boolean
+        requestMore: () => void
+        setSearch: (search: string) => void
+        prefetchThreshold: number
+    }
+    buildToolSlug: (
+        provider: string,
+        integration: string,
+        action: string,
+        connectionSlug: string,
+    ) => string
+    fetchActionDetail: (
+        provider: string,
+        integration: string,
+        action: string,
+    ) => Promise<{
+        action: {description?: string; schemas?: {inputs?: unknown}}
+    }>
+}
 
 /**
  * Interface for injectable UI components
@@ -103,22 +175,22 @@ export interface DrillInUIComponents {
     }>
 
     /**
-     * SelectLLMProvider component for model selection
-     * Used by: GroupedChoiceControl, PromptSchemaControl
+     * LLM provider configuration data for model selection.
+     * Used by: GroupedChoiceControl, ConfigurationSection, LegacyPlaygroundConfigSection
+     *
+     * Instead of injecting a whole component, OSS provides:
+     * - extraOptionGroups: vault/custom secret options to merge into the dropdown
+     * - footerContent: "Add provider" button + drawer rendered in the dropdown footer
      */
-    SelectLLMProvider?: ComponentType<{
-        showGroup?: boolean
-        showAddProvider?: boolean
-        showCustomSecretsOnOptions?: boolean
-        options?: {label: string; options: {label: string; value: string}[]}[]
-        value?: string
-        onChange?: (value: string | undefined) => void
-        disabled?: boolean
-        placeholder?: string
-        className?: string
-        size?: "small" | "middle" | "large"
-        [key: string]: unknown
-    }>
+    llmProviderConfig?: {
+        /** Extra option groups from vault/custom secrets */
+        extraOptionGroups?: LLMProviderGroup[]
+        /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
+        footerContent?: ReactElement | null
+    }
+
+    /** Gateway tools integration for the tool selector */
+    gatewayTools?: GatewayToolsBridge
 
     /**
      * Lexical editor context hook

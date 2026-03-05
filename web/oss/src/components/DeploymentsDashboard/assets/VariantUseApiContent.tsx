@@ -1,5 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    appRevisionsWithDraftsAtomFamily,
+    legacyAppRevisionMolecule,
+    revisionsListAtomFamily,
+    variantsListAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs, Typography} from "antd"
@@ -17,12 +23,6 @@ import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVa
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {currentAppAtom, useURI} from "@/oss/state/app"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {revisionsByVariantIdAtomFamily, variantsAtom} from "@/oss/state/variant/atoms/fetcher"
-import {
-    latestRevisionInfoByVariantIdAtomFamily,
-    revisionListAtom,
-} from "@/oss/state/variant/selectors/variant"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -35,8 +35,8 @@ interface VariantUseApiContentProps {
 
 const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) => {
     const appId = useAppId()
-    const variants = useAtomValue(variantsAtom)
-    const revisionList = useAtomValue(revisionListAtom)
+    const variants = useAtomValue(variantsListAtomFamily(appId || "")) as any[]
+    const revisionList = useAtomValue(appRevisionsWithDraftsAtomFamily(appId || "")) as any[]
     const currentApp = useAtomValue(currentAppAtom)
 
     const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>()
@@ -49,9 +49,13 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const isLoading = Boolean(selectedVariantId) && isUriQueryLoading
 
     // Get variable names for the selected revision
-    const variableNames = useAtomValue(
-        stablePromptVariablesAtomFamily(selectedRevisionId || ""),
-    ) as string[]
+    const inputPorts = useAtomValue(
+        legacyAppRevisionMolecule.atoms.inputPorts(selectedRevisionId || ""),
+    ) as any[]
+    const variableNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
 
     const initialRevision = useMemo(
         () => revisionList.find((rev) => rev.id === initialRevisionId),
@@ -66,21 +70,25 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         }
 
         if (!selectedVariantId && variants.length) {
-            setSelectedVariantId(variants[0].variantId)
+            setSelectedVariantId((variants[0] as any).variantId ?? variants[0]?.id)
         }
     }, [initialRevision, selectedVariantId, variants])
 
     const variantRevisionsAtom = useMemo(
-        () => revisionsByVariantIdAtomFamily(selectedVariantId || ""),
-        [selectedVariantId],
-    )
-    const latestRevisionAtom = useMemo(
-        () => latestRevisionInfoByVariantIdAtomFamily(selectedVariantId || ""),
+        () => revisionsListAtomFamily(selectedVariantId || ""),
         [selectedVariantId],
     )
 
-    const variantRevisions = useAtomValue(variantRevisionsAtom)
-    const latestRevision = useAtomValue(latestRevisionAtom)
+    const variantRevisions = useAtomValue(variantRevisionsAtom) as any[]
+    const latestRevision = useMemo(() => {
+        if (!Array.isArray(variantRevisions) || variantRevisions.length === 0) return null
+        return variantRevisions.reduce((acc: any, r: any) => {
+            if (!acc) return r
+            const aTs = acc.createdAtTimestamp ?? 0
+            const rTs = r.createdAtTimestamp ?? 0
+            return aTs >= rTs ? acc : r
+        }, null as any)
+    }, [variantRevisions])
 
     useEffect(() => {
         if (!selectedVariantId) return
@@ -108,7 +116,11 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     ])
 
     const selectedVariant = useMemo(
-        () => variants.find((variant) => variant.variantId === selectedVariantId),
+        () =>
+            variants.find(
+                (variant: any) =>
+                    variant.variantId === selectedVariantId || variant.id === selectedVariantId,
+            ),
         [selectedVariantId, variants],
     )
 
@@ -127,7 +139,8 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
 
     const variantSlug =
         (selectedVariant as any)?.variantSlug ||
-        selectedVariant?.variantName ||
+        (selectedVariant as any)?.variantName ||
+        (selectedVariant as any)?.name ||
         (selectedRevision as any)?.variantName ||
         "my-variant-slug"
     const variantVersion = selectedRevision?.revision ?? latestRevision?.revision ?? 1

@@ -142,37 +142,6 @@ export function extractAgConfig(
 }
 
 /**
- * Extract revision parameters from enhanced variant data (cache redirect path)
- *
- * @param enhanced - Enhanced variant-like object with parameters
- * @returns The parameters object
- */
-export function extractRevisionParametersFromEnhanced(
-    enhanced:
-        | {
-              parameters?: Record<string, unknown>
-          }
-        | null
-        | undefined,
-): RawAgConfig {
-    return extractRevisionParameters(enhanced?.parameters)
-}
-
-/**
- * @deprecated Use extractRevisionParametersFromEnhanced instead.
- */
-export function extractAgConfigFromEnhanced(
-    enhanced:
-        | {
-              parameters?: Record<string, unknown>
-          }
-        | null
-        | undefined,
-): RawAgConfig {
-    return extractRevisionParametersFromEnhanced(enhanced)
-}
-
-/**
  * Extract revision parameters from API revision response
  *
  * API response structure: revision.config.parameters = { prompt: {...}, ... }
@@ -242,6 +211,10 @@ export interface VariantListItem {
     baseId?: string
     baseName?: string
     uri?: string
+    createdAt?: string
+    updatedAt?: string
+    createdAtTimestamp?: number
+    updatedAtTimestamp?: number
 }
 
 /**
@@ -251,10 +224,14 @@ export interface RevisionListItem {
     id: string
     revision: number
     variantId: string
+    variantName?: string
     appId?: string
     uri?: string
     commitMessage?: string
     createdAt?: string
+    updatedAt?: string
+    createdAtTimestamp: number
+    updatedAtTimestamp: number
     author?: string
     parameters?: Record<string, unknown>
 }
@@ -286,6 +263,7 @@ export interface ApiRevisionListItem {
     revision: number
     commit_message?: string
     created_at?: string
+    updated_at?: string
     modified_by?: string
     config?: {
         config_name?: string
@@ -332,6 +310,8 @@ export function transformVariantToListItem(
     variant: ApiVariant,
     fallbackAppId?: string,
 ): VariantListItem {
+    const createdAtTimestamp = safeTimestamp(variant.created_at)
+    const updatedAtTimestamp = safeTimestamp(variant.updated_at, createdAtTimestamp)
     return {
         id: variant.variant_id,
         name: variant.variant_name || variant.variant_id,
@@ -339,7 +319,21 @@ export function transformVariantToListItem(
         baseId: variant.base_id,
         baseName: variant.base_name,
         uri: variant.uri,
+        createdAt: variant.created_at,
+        updatedAt: variant.updated_at,
+        createdAtTimestamp,
+        updatedAtTimestamp,
     }
+}
+
+/**
+ * Safely parse an ISO date string to a numeric timestamp.
+ * Returns Date.now() when the input is missing or unparseable.
+ */
+function safeTimestamp(dateStr: string | undefined | null, fallback?: number): number {
+    if (!dateStr) return fallback ?? Date.now()
+    const ts = new Date(dateStr).valueOf()
+    return Number.isNaN(ts) ? (fallback ?? Date.now()) : ts
 }
 
 /**
@@ -348,75 +342,23 @@ export function transformVariantToListItem(
 export function transformRevisionToListItem(
     revision: ApiRevisionListItem,
     variantId: string,
-    context?: {appId?: string; uri?: string},
+    context?: {appId?: string; uri?: string; variantName?: string},
 ): RevisionListItem {
+    const createdAtTimestamp = safeTimestamp(revision.created_at)
+    const updatedAtTimestamp = safeTimestamp(revision.updated_at, createdAtTimestamp)
     return {
         id: revision.id,
         revision: revision.revision,
         variantId,
+        variantName: context?.variantName,
         appId: context?.appId,
         uri: context?.uri,
         commitMessage: revision.commit_message,
         createdAt: revision.created_at,
+        updatedAt: revision.updated_at,
+        createdAtTimestamp,
+        updatedAtTimestamp,
         author: revision.modified_by,
         parameters: revision.config?.parameters,
     }
-}
-
-// ============================================================================
-// ENHANCED VARIANT TYPES
-// ============================================================================
-
-/**
- * Enhanced variant structure (from variant revisions cache)
- *
- * This interface represents the cached variant data that may include
- * WorkflowRevisionData fields from the backend.
- */
-export interface EnhancedVariantLike {
-    id: string
-    variantId?: string
-    appId?: string
-    revision: number | string
-    prompts?: unknown[]
-    parameters?: Record<string, unknown>
-    uri?: string
-    url?: string
-    uriObject?: {
-        routePath?: string
-        runtimePrefix?: string
-    }
-    createdAt?: string
-    created_at?: string
-    updatedAt?: string
-    updated_at?: string
-    // WorkflowServiceConfiguration fields
-    headers?: Record<string, unknown>
-    schemas?: Record<string, unknown>
-    script?: Record<string, unknown>
-    runtime?: string | null
-    // Legacy fields
-    service?: Record<string, unknown>
-    configuration?: Record<string, unknown>
-}
-
-/**
- * Extract URI info from enhanced variant data
- */
-export function extractUriFromEnhanced(
-    enhanced: EnhancedVariantLike | null | undefined,
-): ParsedUriInfo | null {
-    if (!enhanced) return null
-
-    // Try uriObject first (pre-parsed)
-    if (enhanced.uriObject?.runtimePrefix) {
-        return {
-            uri: enhanced.uri || "",
-            runtimePrefix: enhanced.uriObject.runtimePrefix,
-            routePath: enhanced.uriObject.routePath,
-        }
-    }
-
-    // Fall back to parsing URI
-    return parseRevisionUri(enhanced.uri || enhanced.url)
 }

@@ -8,17 +8,25 @@
  * - playgroundFormRefAtom: Form instance for reading settings
  *
  * Data fetching:
- * - Variants: fetched internally via useAppVariantRevisions()
+ * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
  * - Apps: fetched internally via useAppsData()
  *
  * Data fetching:
- * - Variants: fetched internally via useAppVariantRevisions()
+ * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
  * - Apps: fetched internally via useAppsData()
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {
+    legacyAppRevisionMolecule,
+    legacyAppRevisionSchemaQueryAtomFamily,
+    extractAllEndpointSchemas,
+    extractInputKeysFromSchema,
+    transformToRequestBody,
+} from "@agenta/entities/legacyAppRevision"
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -34,7 +42,6 @@ import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import type {LoadTestsetSelectionPayload} from "@/oss/components/Playground/Components/Modals/LoadTestsetModal/assets/types"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
@@ -46,12 +53,6 @@ import {
     safeJson5Parse,
 } from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
@@ -62,18 +63,14 @@ import {BaseResponse, ChatMessage, JSSTheme, Parameter, Variant} from "@/oss/lib
 import {callVariant} from "@/oss/services/api"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
 import {
+    invokeApplication,
     invokeEvaluator,
+    mapWorkflowResponseToOutputs,
     mapWorkflowResponseToEvaluatorOutput,
 } from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {revision} from "@/oss/state/entities/testset"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    stablePromptVariablesAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {
@@ -146,8 +143,6 @@ const LoadTestsetModal = dynamic(
 const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
-    const uriObject = useAtomValue(appUriInfoAtom)
-    const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
 
     // ================================================================
@@ -223,7 +218,18 @@ const DebugSection = () => {
         return firstApp?.app_id ?? ""
     }, [_selectedVariant?.appId, appId, availableApps, lastAppId])
 
-    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
+    const allRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(defaultAppId || ""), [defaultAppId]),
+    )
+
+    const defaultRevisionMap = useMemo(() => {
+        return allRevisions.reduce<Record<string, typeof allRevisions>>((acc, revision) => {
+            const key = revision.variantId
+            if (!acc[key]) acc[key] = []
+            acc[key].push(revision)
+            return acc
+        }, {})
+    }, [allRevisions])
 
     const selectedVariant = useMemo(() => {
         if (!_selectedVariant) return undefined
@@ -239,12 +245,12 @@ const DebugSection = () => {
     // Build ALL variants from the app for localStorage restore and fallback selection
     const derivedVariants = useMemo(() => {
         if (_selectedVariant) return [] // Don't need fallbacks if already selected
-        if (!defaultAppId || !defaultRevisionMap) return []
+        if (!defaultAppId || !Object.keys(defaultRevisionMap).length) return []
 
         const variants: Variant[] = []
         Object.values(defaultRevisionMap).forEach((revisions) => {
             if (!revisions || revisions.length === 0) return
-            const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
+            const baseVariant = buildVariantFromRevision(revisions[0] as any, defaultAppId)
             baseVariant.revisions = [...revisions] as any
             variants.push(baseVariant)
         })
@@ -294,7 +300,7 @@ const DebugSection = () => {
         if (v.variantId) setLastVariantId(v.variantId)
     }, [_selectedVariant, setLastAppId, setLastVariantId])
 
-    // Seed molecule with revision data so atoms like transformedPromptsAtomFamily work correctly
+    // Seed molecule with revision data so stable prompt/transform atoms work correctly
     // This ensures the molecule has URI and parameters for schema-based prompts derivation
     useEffect(() => {
         if (!selectedVariant?.id) return
@@ -323,49 +329,55 @@ const DebugSection = () => {
         })
     }, [selectedVariant?.id, selectedVariant?.uri, selectedVariant?.parameters])
 
-    // Variant flags (custom/chat) from global atoms for the selected revision
-    const flags = useAtomValue(
+    // App context for custom/chat flags
+    const appContext = useAtomValue(currentAppContextAtom)
+    const isCustomFlag = appContext?.appType === "custom"
+
+    // Per-revision schema (replaces app-wide appSchemaAtom / appUriInfoAtom)
+    const revisionSchemaQuery = useAtomValue(
+        useMemo(
+            () =>
+                selectedVariant?.id
+                    ? legacyAppRevisionSchemaQueryAtomFamily(selectedVariant.id)
+                    : atom({data: null, isPending: false, isError: false, error: null}),
+            [selectedVariant?.id],
+        ),
+    ) as any
+    const revisionSchema = revisionSchemaQuery?.data?.openApiSchema ?? null
+    const revisionRoutePath = revisionSchemaQuery?.data?.routePath ?? ""
+
+    // Stable variables derived from molecule inputPorts (spec + saved parameters; no live edits)
+    const inputPorts = useAtomValue(
+        useMemo(
+            () =>
+                selectedVariant?.id
+                    ? legacyAppRevisionMolecule.atoms.inputPorts(selectedVariant.id)
+                    : (atom([]) as any),
+            [selectedVariant?.id],
+        ),
+    ) as any[]
+    const stableVarNames = useMemo(
+        () => (inputPorts || []).map((p: any) => p.key) as string[],
+        [inputPorts],
+    )
+
+    // Read raw entity data for variant parameters
+    const variantEntityData = useAtomValue(
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? variantFlagsAtomFamily({revisionId: selectedVariant?.id})
+                    ? (legacyAppRevisionMolecule.atoms.data(selectedVariant?.id) as any)
                     : (atom(null) as any)) as any,
             [selectedVariant?.id],
         ),
     ) as any
 
-    // Stable variables derived from saved prompts (spec + saved parameters; no live edits)
-    const stableVarNames = useAtomValue(
+    const revisionRequestPayload = useAtomValue(
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? (stablePromptVariablesAtomFamily(selectedVariant?.id) as any)
-                    : (atom([]) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as string[]
-
-    // Stable parameters (prompts + custom properties derived from saved revision + schema)
-    const stableTransformedParams = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (transformedPromptsAtomFamily({
-                          revisionId: selectedVariant?.id,
-                          useStableParams: true,
-                      }) as any)
+                    ? (legacyAppRevisionMolecule.atoms.requestPayload(selectedVariant?.id) as any)
                     : (atom(null) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    // Stable custom properties derived from spec + saved parameters (by revision)
-    const customProps = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (customPropertiesByRevisionAtomFamily(selectedVariant?.id) as any)
-                    : (atom({}) as any)) as any,
             [selectedVariant?.id],
         ),
     ) as any
@@ -607,14 +619,12 @@ const DebugSection = () => {
                 messages: ChatMessage[]
             }
 
-            // Only use schema/uri when they belong to the same app as the selected variant
-            const selectedAppId = (selectedVariant as any)?.appId
-            const uriAppId = (uriObject as any)?.appId || (uriObject as any)?.app_id
-            const isSameAppAsUri = selectedAppId && uriAppId && selectedAppId === uriAppId
-
-            const safeSpec: any | undefined = isSameAppAsUri ? appSchema : undefined
-            const safeRoutePath: string = isSameAppAsUri ? uriObject?.routePath || "" : ""
-            const safeUriObject = isSameAppAsUri ? uriObject : undefined
+            // Per-revision schema (always matches the selected variant)
+            const safeSpec: any | undefined = revisionSchema || undefined
+            const safeRoutePath: string = revisionRoutePath || ""
+            const safeUriObject = revisionSchemaQuery?.data?.runtimePrefix
+                ? {runtimePrefix: revisionSchemaQuery.data.runtimePrefix, routePath: safeRoutePath}
+                : undefined
 
             if (selectedVariant?.parameters) {
                 const fromParams = (() => {
@@ -633,21 +643,32 @@ const DebugSection = () => {
                     }
                 })()
 
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                    "chat",
+                ])
+
                 let effectiveKeys: string[] = Array.from(
                     new Set([...(fromParams || []), ...(stableVarNames || [])]),
-                ).filter((k) => k && k !== "chat")
+                ).filter((k) => k && !reservedInputKeys.has(k))
 
                 let hasInputsProp = false
                 let hasMessagesPropFromSchema = false
                 if (safeSpec) {
-                    const req = (getRequestSchema as any)(safeSpec, {routePath: safeRoutePath})
-                    hasInputsProp = Boolean(req?.properties?.inputs)
-                    hasMessagesPropFromSchema = Boolean(req?.properties?.messages)
+                    const {primaryEndpoint} = extractAllEndpointSchemas(
+                        safeSpec as any,
+                        safeRoutePath,
+                    )
+                    hasInputsProp = Boolean(primaryEndpoint?.inputsSchema)
+                    hasMessagesPropFromSchema = Boolean(primaryEndpoint?.messagesSchema)
                 }
 
-                const isCustomFromFlag = Boolean(
-                    flags?.isCustom ?? (selectedVariant as any)?.isCustom,
-                )
+                const isCustomFromFlag = Boolean(isCustomFlag ?? (selectedVariant as any)?.isCustom)
                 const isCustomBySchema = safeSpec
                     ? Boolean(safeSpec) && !hasInputsProp && !hasMessagesPropFromSchema
                     : false
@@ -662,25 +683,27 @@ const DebugSection = () => {
                 const isChatByKeys = (effectiveKeys || []).includes("messages")
                 const isChat = isChatBySchema !== null ? isChatBySchema : isChatByKeys
 
-                params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
+                params.inputs = (effectiveKeys || [])
+                    .filter((name) => name !== "messages")
+                    .map((name) => ({name, input: false}))
 
-                const baseParameters = isPlainObject(stableTransformedParams)
-                    ? {...stableTransformedParams}
-                    : transformToRequestBody({
-                          variant: selectedVariant,
-                          allMetadata: getAllMetadata(),
-                          prompts:
-                              safeSpec && selectedVariant
-                                  ? derivePromptsFromSpec(
-                                        selectedVariant as any,
-                                        safeSpec as any,
-                                        safeRoutePath,
-                                    ) || []
-                                  : [],
-                          isChat,
-                          isCustom,
-                          customProperties: isCustom ? customProps : undefined,
-                      })
+                // Build raw ag_config from variant parameters
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
+                const variantAgConfig =
+                    payloadAgConfig ||
+                    (variantParams as Record<string, unknown>)?.ag_config ||
+                    variantParams ||
+                    {}
+
+                const baseParameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    isChat,
+                    isCustom,
+                    rawAgConfig: variantAgConfig as Record<string, unknown>,
+                })
 
                 const variantParameters = isPlainObject(selectedVariant?.parameters)
                     ? (selectedVariant?.parameters as Record<string, any>)
@@ -741,13 +764,93 @@ const DebugSection = () => {
             } else {
                 const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
                 params.parameters = parameters
-                params.inputs = inputs
-                const hasMessagesInput = (inputs || []).some((p) => p.name === "messages")
+                const reservedInputKeys = new Set([
+                    "ag_config",
+                    "inputs",
+                    "environment",
+                    "revision_id",
+                    "variant_id",
+                    "app_id",
+                ])
+                let sanitizedInputs = (inputs || []).filter(
+                    (p) => p?.name && !reservedInputKeys.has(p.name),
+                )
+                if (sanitizedInputs.length === 0) {
+                    const schemaKeys = safeSpec
+                        ? extractInputKeysFromSchema(safeSpec as any, safeRoutePath)
+                        : []
+                    if (schemaKeys.length > 0) {
+                        sanitizedInputs = schemaKeys.map((name) => ({name, input: false}))
+                    } else if (selectedTestcase.testcase) {
+                        sanitizedInputs = Object.keys(selectedTestcase.testcase)
+                            .filter(
+                                (key) =>
+                                    key &&
+                                    !key.startsWith("__") &&
+                                    !reservedInputKeys.has(key) &&
+                                    key !== "messages",
+                            )
+                            .map((name) => ({name, input: false}))
+                    }
+                }
+                params.inputs = sanitizedInputs
+                const hasMessagesInput = Boolean(
+                    (inputs || []).some((p) => p.name === "messages") ||
+                    (safeSpec &&
+                        extractAllEndpointSchemas(safeSpec as any, safeRoutePath)?.primaryEndpoint
+                            ?.messagesSchema),
+                )
                 params.isChatVariant = hasMessagesInput
                 params.messages = hasMessagesInput
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
                 params.isCustom = selectedVariant?.isCustom
+
+                const openApiDefaults = Array.isArray(parameters)
+                    ? parameters.reduce<Record<string, unknown>>((acc, param) => {
+                          if (
+                              typeof param?.name === "string" &&
+                              param.name.length > 0 &&
+                              param.default !== undefined
+                          ) {
+                              acc[param.name] = param.default
+                          }
+                          return acc
+                      }, {})
+                    : isPlainObject(parameters)
+                      ? {...(parameters as Record<string, unknown>)}
+                      : {}
+
+                const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
+                    ? (revisionRequestPayload.ag_config as Record<string, unknown>)
+                    : undefined
+                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const variantAgConfig = isPlainObject((variantParams as any)?.ag_config)
+                    ? ((variantParams as any).ag_config as Record<string, unknown>)
+                    : isPlainObject(variantParams)
+                      ? (variantParams as Record<string, unknown>)
+                      : undefined
+
+                const transformedParameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    isChat: hasMessagesInput,
+                    isCustom: Boolean(params.isCustom),
+                    rawAgConfig: payloadAgConfig || variantAgConfig,
+                })
+
+                const mergedParameters = {
+                    ...openApiDefaults,
+                    ...(isPlainObject(transformedParameters) ? transformedParameters : {}),
+                }
+                if (
+                    !isPlainObject((mergedParameters as Record<string, unknown>).ag_config) &&
+                    (payloadAgConfig || variantAgConfig)
+                ) {
+                    ;(mergedParameters as Record<string, unknown>).ag_config =
+                        payloadAgConfig || variantAgConfig
+                }
+                params.parameters = mergedParameters
+
                 if (hasMessagesInput && params.messages.length === 0) {
                     setIsRunningVariant(false)
                     message.error(
@@ -764,6 +867,54 @@ const DebugSection = () => {
                     ([k]) => allowed.has(k) && k !== "messages",
                 ),
             )
+
+            const workflowParameters = isPlainObject((params.parameters as any)?.ag_config)
+                ? ((params.parameters as any).ag_config as Record<string, any>)
+                : isPlainObject(params.parameters)
+                  ? (params.parameters as Record<string, any>)
+                  : {}
+
+            const workflowInputs: Record<string, any> = {...filtered}
+            if (
+                params.isChatVariant &&
+                Array.isArray(params.messages) &&
+                params.messages.length > 0
+            ) {
+                workflowInputs.messages = params.messages
+            }
+
+            // Prefer unified workflow invocation for completion/chat app flows.
+            // Keep legacy /test fallback for custom apps and unknown interfaces.
+            const workflowUriCandidate = (() => {
+                const rawUri =
+                    typeof selectedVariant?.uri === "string" ? selectedVariant.uri.trim() : ""
+                if (rawUri && !rawUri.includes("://")) {
+                    return rawUri
+                }
+                if (params.isChatVariant) return "agenta:builtin:chat:v0"
+                if (!params.isCustom) return "agenta:builtin:completion:v0"
+                return ""
+            })()
+
+            if (!params.isCustom && workflowUriCandidate) {
+                const workflowResponse = await invokeApplication({
+                    uri: workflowUriCandidate,
+                    inputs: workflowInputs,
+                    parameters: workflowParameters,
+                    options: {signal: controller.signal},
+                })
+
+                const runResponse = mapWorkflowResponseToOutputs(workflowResponse)
+                const outputs = runResponse.outputs ?? {}
+                setBaseResponseData({
+                    version: workflowResponse.version,
+                    data: outputs,
+                })
+                setVariantResult(getStringOrJson(outputs))
+                setTraceTree({trace: null})
+                setVariantStatus({success: true, error: false})
+                return
+            }
 
             const result = await callVariant(
                 filtered,

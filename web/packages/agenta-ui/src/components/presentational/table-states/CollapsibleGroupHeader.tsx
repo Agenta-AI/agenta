@@ -117,7 +117,7 @@ export function CollapsibleGroupHeader({
         >
             <span
                 className={cn(
-                    "flex-shrink-0 rounded",
+                    "flex-shrink-0",
                     hasCustomLabel && "cursor-pointer",
                     hasCustomLabel && focusStyles.ring,
                 )}

@@ -19,12 +19,16 @@
  * ```
  */
 
+import {baseRunnableSnapshotAdapter} from "@agenta/entities/baseRunnable/snapshotAdapter"
 import {legacyAppRevisionSnapshotAdapter} from "@agenta/entities/legacyAppRevision"
+import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {
     snapshotAdapterRegistry,
     type RunnableDraftPatch,
     type RunnableType,
 } from "@agenta/entities/runnable"
+import {testcaseMolecule} from "@agenta/entities/testcase"
+import {workflowSnapshotAdapter} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {v4 as uuidv4} from "uuid"
@@ -34,13 +38,19 @@ import {
     type PlaygroundSnapshot,
     type SelectionItem,
     type SnapshotDraftEntry,
+    type SnapshotLoadableConnection,
+    type SnapshotLocalTestset,
     type EncodeResult,
     SNAPSHOT_VERSION,
 } from "../../snapshot"
+import {connectedTestsetAtom} from "../atoms/playground"
+import {derivedLoadableIdAtom} from "../execution/selectors"
 
-// Explicitly register the legacyAppRevision adapter
-// Side-effect imports don't work reliably across package boundaries
+// Ensure adapters are registered before any snapshot operations.
+// Cannot rely on side-effect imports — tree-shaken by sideEffects: false.
 snapshotAdapterRegistry.register(legacyAppRevisionSnapshotAdapter)
+snapshotAdapterRegistry.register(baseRunnableSnapshotAdapter)
+snapshotAdapterRegistry.register(workflowSnapshotAdapter)
 
 // ============================================================================
 // TYPES
@@ -54,6 +64,12 @@ export interface SnapshotSelectionInput {
     id: string
     /** Runnable type for this revision */
     runnableType: RunnableType
+    /** Playground entity type (e.g., "legacyAppRevision", "evaluatorRevision") */
+    entityType?: string
+    /** Node depth in the playground graph (0 = root) */
+    depth?: number
+    /** Optional display label to restore in the UI after hydration */
+    label?: string
 }
 
 /**
@@ -84,12 +100,26 @@ export interface HydrateSnapshotResult {
     ok: boolean
     /** The new selection (revision IDs to select) */
     selection?: string[]
+    /** Hydrated entity descriptors including runnable type and graph metadata */
+    entities?: HydratedSnapshotEntity[]
     /** Mapping from draftKey to source revision ID (used for patch application) */
     draftKeyToSourceRevisionId?: Record<string, string>
     /** Error message if hydration failed */
     error?: string
     /** Warnings for partial failures */
     warnings?: string[]
+    /** Testset connection to restore, if the snapshot was connected to an API-backed testset */
+    loadable?: SnapshotLoadableConnection
+    /** Local testcase data to restore, if the snapshot had local (non-connected) testcases */
+    localTestset?: SnapshotLocalTestset
+}
+
+export interface HydratedSnapshotEntity {
+    id: string
+    runnableType: RunnableType
+    entityType?: string
+    depth?: number
+    label?: string
 }
 
 // ============================================================================
@@ -122,20 +152,47 @@ function generateDraftKey(): string {
  */
 const createSnapshotAtom = atom(
     null,
-    (_get, _set, selection: SnapshotSelectionInput[]): CreateSnapshotResult => {
+    (get, _set, selection: SnapshotSelectionInput[]): CreateSnapshotResult => {
         try {
             const snapshotSelection: SelectionItem[] = []
             const drafts: SnapshotDraftEntry[] = []
             const warnings: string[] = []
 
-            for (const {id: revisionId, runnableType} of selection) {
+            for (const {id: revisionId, runnableType, entityType, depth, label} of selection) {
+                const selectionMetadata = {
+                    ...(entityType ? {entityType} : {}),
+                    ...(typeof depth === "number" ? {depth} : {}),
+                    ...(label ? {label} : {}),
+                }
+
                 // Get adapter for this runnable type
                 const adapter = snapshotAdapterRegistry.get(runnableType)
 
                 if (!adapter) {
                     warnings.push(`No adapter for runnable type: ${runnableType}`)
                     // Fall back to commit without draft check
-                    snapshotSelection.push({kind: "commit", id: revisionId, runnableType})
+                    snapshotSelection.push({
+                        kind: "commit",
+                        id: revisionId,
+                        runnableType,
+                        ...selectionMetadata,
+                    })
+                    continue
+                }
+
+                // Handle ephemeral entities (no server state, data serialized inline)
+                if (adapter.isEphemeral && adapter.serializeEntity) {
+                    const data = adapter.serializeEntity(revisionId)
+                    if (data) {
+                        snapshotSelection.push({
+                            kind: "ephemeral",
+                            runnableType,
+                            data,
+                            ...selectionMetadata,
+                        })
+                    } else {
+                        warnings.push(`Failed to serialize ephemeral entity: ${revisionId}`)
+                    }
                     continue
                 }
 
@@ -180,7 +237,12 @@ const createSnapshotAtom = atom(
                         })
                     }
 
-                    snapshotSelection.push({kind: "draft", draftKey, runnableType})
+                    snapshotSelection.push({
+                        kind: "draft",
+                        draftKey,
+                        runnableType,
+                        ...selectionMetadata,
+                    })
                 } else {
                     // Check if committed revision has draft changes
                     const patchResult = adapter.buildDraftPatch(revisionId)
@@ -194,10 +256,78 @@ const createSnapshotAtom = atom(
                             runnableType,
                             patch: patchResult.patch,
                         })
-                        snapshotSelection.push({kind: "draft", draftKey, runnableType})
+                        snapshotSelection.push({
+                            kind: "draft",
+                            draftKey,
+                            runnableType,
+                            ...selectionMetadata,
+                        })
                     } else {
                         // No draft changes - include as commit
-                        snapshotSelection.push({kind: "commit", id: revisionId, runnableType})
+                        snapshotSelection.push({
+                            kind: "commit",
+                            id: revisionId,
+                            runnableType,
+                            ...selectionMetadata,
+                        })
+                    }
+                }
+            }
+
+            // Capture loadable connection if connected to an API-backed testset
+            let loadable: SnapshotLoadableConnection | undefined
+            const loadableId = get(derivedLoadableIdAtom)
+            if (loadableId) {
+                const ls = get(loadableStateAtomFamily(loadableId))
+                if (ls.connectedSourceId) {
+                    const ct = get(connectedTestsetAtom)
+                    const hiddenIds = Array.from(ls.hiddenTestcaseIds)
+                    loadable = {
+                        revisionId: ls.connectedSourceId,
+                        sourceName: ls.connectedSourceName,
+                        testsetId: ct?.id ?? null,
+                        ...(hiddenIds.length > 0 ? {hiddenTestcaseIds: hiddenIds} : {}),
+                    }
+
+                    // Capture locally-added (new) testcase rows so they persist across reloads
+                    // NOTE: We use getDefaultStore().get(testcaseMolecule.data(id)) instead of
+                    // testcaseMolecule.get.data(id) because the imperative getter reads from
+                    // createMolecule's internal dataAtomFamily which doesn't resolve for new
+                    // entities. The top-level .data() alias points to testcaseEntityAtomFamily
+                    // which correctly checks the draft first.
+                    const store = getDefaultStore()
+                    const newIds = testcaseMolecule.get.newIds()
+                    if (newIds.length > 0) {
+                        const draftRows: {data: Record<string, unknown>}[] = []
+                        for (const newId of newIds) {
+                            const entity = store.get(testcaseMolecule.data(newId))
+                            if (entity?.data && typeof entity.data === "object") {
+                                draftRows.push({data: entity.data as Record<string, unknown>})
+                            }
+                        }
+                        if (draftRows.length > 0) {
+                            loadable.draftRows = draftRows
+                        }
+                    }
+                }
+            }
+
+            // Capture local testcase rows when NOT connected to an API-backed testset
+            let localTestset: SnapshotLocalTestset | undefined
+            if (!loadable && loadableId) {
+                const localStore = getDefaultStore()
+                const displayRowIds = testcaseMolecule.get.displayRowIds()
+                if (displayRowIds.length > 0) {
+                    const rows: {data: Record<string, unknown>}[] = []
+                    for (const rowId of displayRowIds) {
+                        const entity = localStore.get(testcaseMolecule.data(rowId))
+                        if (entity?.data && typeof entity.data === "object") {
+                            rows.push({data: entity.data as Record<string, unknown>})
+                        }
+                    }
+                    if (rows.length > 0) {
+                        const ct = get(connectedTestsetAtom)
+                        localTestset = {rows, name: ct?.name ?? null}
                     }
                 }
             }
@@ -207,14 +337,30 @@ const createSnapshotAtom = atom(
                 v: SNAPSHOT_VERSION,
                 selection: snapshotSelection,
                 drafts,
+                ...(loadable ? {loadable} : {}),
+                ...(localTestset ? {localTestset} : {}),
             }
 
-            // Encode
-            const encodeResult: EncodeResult = encodeSnapshot(snapshot)
+            // Encode (with size fallback: retry without localTestset if too large)
+            let encodeResult: EncodeResult = encodeSnapshot(snapshot)
+
+            if (!encodeResult.ok && localTestset) {
+                // Retry without local testset data
+                warnings.push(
+                    "Local testcase data was too large to include in the snapshot URL. " +
+                        "Testcase rows will not be preserved when sharing this URL.",
+                )
+                const fallbackSnapshot: PlaygroundSnapshot = {
+                    ...snapshot,
+                }
+                delete fallbackSnapshot.localTestset
+                encodeResult = encodeSnapshot(fallbackSnapshot)
+            }
 
             if (!encodeResult.ok) {
                 return {
                     ok: false,
+                    snapshot,
                     error: encodeResult.error,
                 }
             }
@@ -360,6 +506,7 @@ const hydrateSnapshotAtom = atom(
     (_get, set, snapshot: PlaygroundSnapshot): HydrateSnapshotResult => {
         try {
             const newSelection: string[] = []
+            const hydratedEntities: HydratedSnapshotEntity[] = []
             const draftKeyToSourceRevisionId: Record<string, string> = {}
             const warnings: string[] = []
 
@@ -393,9 +540,20 @@ const hydrateSnapshotAtom = atom(
 
             // PASS 2: Process each selection item
             for (const item of snapshot.selection) {
+                const itemMetadata = {
+                    ...(item.entityType ? {entityType: item.entityType} : {}),
+                    ...(typeof item.depth === "number" ? {depth: item.depth} : {}),
+                    ...(item.label ? {label: item.label} : {}),
+                }
+
                 if (item.kind === "commit") {
                     // Commit - add directly to selection
                     newSelection.push(item.id)
+                    hydratedEntities.push({
+                        id: item.id,
+                        runnableType: item.runnableType,
+                        ...itemMetadata,
+                    })
                     processedSourceIds.add(item.id)
                 } else if (item.kind === "draft") {
                     // Draft - need to create a new local draft with the patch applied
@@ -413,6 +571,11 @@ const hydrateSnapshotAtom = atom(
                         warnings.push(`No adapter for runnable type: ${draftEntry.runnableType}`)
                         // Fall back to source revision
                         newSelection.push(draftEntry.sourceRevisionId)
+                        hydratedEntities.push({
+                            id: draftEntry.sourceRevisionId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
                         processedSourceIds.add(draftEntry.sourceRevisionId)
                         continue
                     }
@@ -440,6 +603,11 @@ const hydrateSnapshotAtom = atom(
                             if (localDraftId) {
                                 // Successfully created local draft - add to selection
                                 newSelection.push(localDraftId)
+                                hydratedEntities.push({
+                                    id: localDraftId,
+                                    runnableType: item.runnableType,
+                                    ...itemMetadata,
+                                })
                                 draftKeyToSourceRevisionId[item.draftKey] =
                                     draftEntry.sourceRevisionId
                                 continue
@@ -452,6 +620,11 @@ const hydrateSnapshotAtom = atom(
                         const placeholderId = generatePlaceholderId(item.draftKey)
                         const selectionIndex = newSelection.length
                         newSelection.push(placeholderId)
+                        hydratedEntities.push({
+                            id: placeholderId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
 
                         // Queue the patch to be applied when revision data loads
                         // Mark this as needing to create a local draft
@@ -469,6 +642,11 @@ const hydrateSnapshotAtom = atom(
                         // Add source revision to selection
                         const selectionIndex = newSelection.length
                         newSelection.push(draftEntry.sourceRevisionId)
+                        hydratedEntities.push({
+                            id: draftEntry.sourceRevisionId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
 
                         // Queue the patch to be applied when revision data loads
                         // Don't create a local draft - just apply the patch to the source
@@ -484,6 +662,28 @@ const hydrateSnapshotAtom = atom(
 
                     // Track mapping for reference
                     draftKeyToSourceRevisionId[item.draftKey] = draftEntry.sourceRevisionId
+                } else if (item.kind === "ephemeral") {
+                    // Ephemeral entity — restore from inline data
+                    const adapter = snapshotAdapterRegistry.get(item.runnableType)
+
+                    if (!adapter?.restoreEntity) {
+                        warnings.push(
+                            `No adapter with restoreEntity for runnable type: ${item.runnableType}`,
+                        )
+                        continue
+                    }
+
+                    const entityId = adapter.restoreEntity(item.data)
+                    if (entityId) {
+                        newSelection.push(entityId)
+                        hydratedEntities.push({
+                            id: entityId,
+                            runnableType: item.runnableType,
+                            ...itemMetadata,
+                        })
+                    } else {
+                        warnings.push(`Failed to restore ephemeral entity: ${item.runnableType}`)
+                    }
                 }
             }
 
@@ -493,8 +693,13 @@ const hydrateSnapshotAtom = atom(
             return {
                 ok: true,
                 selection: newSelection,
+                entities: hydratedEntities,
                 draftKeyToSourceRevisionId,
                 warnings: warnings.length > 0 ? warnings : undefined,
+                // Pass through loadable connection for the OSS layer to restore after nodes are set up
+                loadable: snapshot.loadable,
+                // Pass through local testset data for restoration
+                localTestset: snapshot.localTestset,
             }
         } catch (err) {
             console.error("[Snapshot Controller] Hydration error:", err)

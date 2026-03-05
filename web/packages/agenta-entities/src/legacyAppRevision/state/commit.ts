@@ -53,10 +53,12 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, getDefaultStore} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {LegacyAppRevisionData} from "../core"
 
+import {clearPersistedDraft} from "./draftPersistence"
+import {invalidateEntityQueries} from "./invalidation"
 import {
     revisionsListAtomFamily,
     legacyAppRevisionDraftAtomFamily,
@@ -193,10 +195,8 @@ export const newestRevisionForVariantAtomFamily = atomFamily((variantId: string)
  *
  * This is the core workaround for the API not returning new revision IDs.
  * Polls the revision list until a revision different from prevRevisionId appears.
- *
- * @internal
  */
-async function waitForNewRevision(params: {
+export async function waitForNewRevision(params: {
     variantId: string
     prevRevisionId: string | null
     timeoutMs?: number
@@ -305,19 +305,56 @@ export const commitRevisionAtom = atom(
                 },
             )
 
-            // 2. Invoke query invalidation callback
-            // This allows playground to invalidate its TanStack Query caches
+            // 2. Invalidate entity-level queries
+            await invalidateEntityQueries()
+
+            // 2b. Invoke additional query invalidation callback
+            // This allows playground to invalidate playground-specific or OSS-specific caches
             if (_commitCallbacks.onQueryInvalidate) {
                 await _commitCallbacks.onQueryInvalidate()
             }
 
             // 3. Wait for new revision to appear
-            // This is the workaround for API not returning new revision ID
-            const {newestRevisionId, newestRevision} = await waitForNewRevision({
+            // Try polling first (works when revision list is populated),
+            // then fall back to direct API fetch via preview endpoint.
+            let newestRevisionId: string | null = null
+            let newestRevision: number | null = null
+
+            const polled = await waitForNewRevision({
                 variantId,
                 prevRevisionId: revisionId,
-                timeoutMs: 15_000,
+                timeoutMs: 5_000,
             })
+            newestRevisionId = polled.newestRevisionId
+            newestRevision = polled.newestRevision
+
+            // Fallback: use preview endpoint to fetch the latest revision directly
+            if (!newestRevisionId && projectId) {
+                for (let attempt = 0; attempt < 6; attempt++) {
+                    await new Promise((r) => setTimeout(r, 500))
+                    try {
+                        const resp = await axios.post(
+                            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+                            {
+                                application_variant_refs: [{id: variantId}],
+                                windowing: {limit: 1, order: "descending"},
+                            },
+                            {params: {project_id: projectId}},
+                        )
+                        const revs = resp.data?.application_revisions
+                        if (Array.isArray(revs) && revs.length > 0) {
+                            const latest = revs[0]
+                            if (latest.id && latest.id !== revisionId) {
+                                newestRevisionId = latest.id
+                                newestRevision = Number(latest.version) || null
+                                break
+                            }
+                        }
+                    } catch {
+                        // retry
+                    }
+                }
+            }
 
             if (!newestRevisionId || !newestRevision) {
                 throw new Error("Failed to detect new revision after commit")
@@ -338,6 +375,7 @@ export const commitRevisionAtom = atom(
             // 5. Clear draft state for the old revision
             set(legacyAppRevisionDraftAtomFamily(revisionId), null)
             set(legacyAppRevisionServerDataAtomFamily(revisionId), null)
+            clearPersistedDraft(revisionId)
 
             return result
         } catch (error) {

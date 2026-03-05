@@ -251,11 +251,22 @@ class WebhooksDispatcher:
                             subscription_id=str(sub.id),
                             event_id=str(event.event_id),
                             #
-                            event_type=event_type,
-                            #
                             url=str(sub.data.url),
                             headers=sub.data.headers or {},
-                            body=event.attributes or {},
+                            payload_fields=sub.data.payload_fields,
+                            auth_mode=sub.data.auth_mode,
+                            #
+                            event_type=event_type,
+                            #
+                            subscription=sub.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                                exclude={"secret", "secret_id"},
+                            ),
+                            event=event.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            ),
                             #
                             encrypted_secret=encrypt(sub.secret),
                         )

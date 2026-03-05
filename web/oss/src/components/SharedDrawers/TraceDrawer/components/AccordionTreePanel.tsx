@@ -30,7 +30,13 @@ import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
-const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
+const ImagePreview = dynamic(
+    () =>
+        import("@agenta/ui/components/presentational").then((mod) => ({
+            default: mod.ImagePreview,
+        })),
+    {ssr: false},
+)
 
 type AccordionTreePanelProps = {
     value: Record<string, any> | string | any[]

@@ -17,6 +17,7 @@ const VariantDetailsWithStatus = ({
     showLatestTag = true,
     isLatest = false,
     onDiscardDraft,
+    hideDiscard = false,
 }: {
     variant?: VariantStatusInfo
     hideName?: boolean
@@ -31,6 +32,7 @@ const VariantDetailsWithStatus = ({
     className?: string
     isLatest?: boolean
     onDiscardDraft?: () => void
+    hideDiscard?: boolean
 }) => {
     const effectiveHasChanges = showStable ? false : hasChanges
 
@@ -44,6 +46,7 @@ const VariantDetailsWithStatus = ({
                 showLatestTag={showLatestTag}
                 isLatest={isLatest}
                 onDiscardDraft={effectiveHasChanges ? onDiscardDraft : undefined}
+                hideDiscard={hideDiscard}
             />
             {showBadges && variant && <EnvironmentStatus variant={variant} />}
         </div>

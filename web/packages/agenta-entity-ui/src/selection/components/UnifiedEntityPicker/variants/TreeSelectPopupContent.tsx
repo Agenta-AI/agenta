@@ -8,10 +8,10 @@
  * Designed for use cases like the Compare button dropdown in Playground.
  */
 
-import React, {useCallback, useId} from "react"
+import React, {useCallback, useEffect, useId, useRef} from "react"
 
 import {cn} from "@agenta/ui/styles"
-import {Input, Spin, Tree} from "antd"
+import {Input, Spin, Tree, type InputRef} from "antd"
 
 import {useTreeSelectMode, type TreeSelectNode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
@@ -34,6 +34,11 @@ export type TreeSelectPopupContentProps<TSelection = EntitySelectionResult> = Om
 > & {
     /** Width of the popup content */
     width?: number | string
+    /**
+     * Whether to show dates/subtitles in labels.
+     * @default false
+     */
+    showDate?: boolean
 }
 
 // ============================================================================
@@ -65,6 +70,7 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
     popupHeaderAction,
     popupFooter,
     width = 280,
+    showDate = false,
 }: TreeSelectPopupContentProps<TSelection>) {
     const generatedId = useId()
     const instanceId = providedInstanceId ?? generatedId
@@ -96,7 +102,43 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         defaultExpandAll,
         parentFilter,
         childFilter,
+        showDate,
     })
+
+    // Ref for scroll container — used to auto-scroll to selected item
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
+    // Ref for search input — auto-focus on mount
+    const searchInputRef = useRef<InputRef>(null)
+
+    // Auto-focus the search input when the popup mounts
+    useEffect(() => {
+        if (!showSearch) return
+        const timer = setTimeout(() => searchInputRef.current?.focus(), 0)
+        return () => clearTimeout(timer)
+    }, [showSearch])
+
+    // Auto-scroll to the selected item when the popup opens.
+    // Retries across frames since the Tree component may render asynchronously.
+    const scrollRetryRef = useRef(0)
+    useEffect(() => {
+        if (!selectedValueProp || treeData.length === 0) return
+        scrollRetryRef.current = 0
+        let rafId: number
+        const attempt = () => {
+            const el = scrollContainerRef.current
+            if (!el) return
+            const hit = el.querySelector(
+                ".ant-tree-treenode-selected, .ant-tree-treenode-checkbox-checked",
+            )
+            if (hit) {
+                hit.scrollIntoView({block: "center"})
+                return
+            }
+            if (++scrollRetryRef.current < 5) rafId = requestAnimationFrame(attempt)
+        }
+        rafId = requestAnimationFrame(attempt)
+        return () => cancelAnimationFrame(rafId)
+    }, [selectedValueProp, treeData])
 
     // Get display messages
     const displayEmptyMessage = emptyMessage ?? resolvedAdapter.emptyMessage ?? "No items found"
@@ -126,9 +168,10 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
         <div className={cn("flex flex-col", className)} style={{width}}>
             {/* Search input row with optional action */}
             {(showSearch || popupHeaderAction) && (
-                <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100">
+                <div className="flex items-center gap-2 px-2 py-1 border-0 border-b border-solid border-gray-200 mb-2">
                     {showSearch && (
                         <Input
+                            ref={searchInputRef}
                             className="flex-1"
                             variant="borderless"
                             placeholder="Search"
@@ -144,8 +187,8 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
             {/* Custom header */}
             {popupHeader}
 
-            {/* Loading state */}
-            {(isLoadingParents || isLoadingChildren) && (
+            {/* Loading state — only shown when no tree data is available yet */}
+            {(isLoadingParents || isLoadingChildren) && treeData.length === 0 && (
                 <div className="flex items-center justify-center py-4">
                     <Spin size="small" />
                     <span className="ml-2 text-sm text-gray-500">{displayLoadingMessage}</span>
@@ -166,17 +209,29 @@ export function TreeSelectPopupContent<TSelection = EntitySelectionResult>({
 
             {/* Tree list */}
             {!isLoadingParents && !parentsError && treeData.length > 0 && (
-                <div style={{maxHeight, overflow: "auto"}} className="tree-popup-compact">
+                <div
+                    ref={scrollContainerRef}
+                    style={{maxHeight, overflow: "auto"}}
+                    className="tree-popup-compact px-2 pb-2"
+                >
                     <style>{`
                         .tree-popup-compact .ant-tree-treenode-leaf .ant-tree-indent { display: none !important; }
                         .tree-popup-compact .ant-tree-treenode-leaf { padding-left: 24px !important; }
                         .tree-popup-compact .ant-tree-checkbox { display: none; }
-                        .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); }
+                        .tree-popup-compact .ant-tree-treenode-selected > .ant-tree-node-content-wrapper { background: var(--ant-blue-1, #e6f4ff); opacity: 0.8; }
                         .tree-popup-compact .ant-tree-node-content-wrapper { padding-left: 4px !important; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; }
                         .tree-popup-compact .ant-tree-switcher { margin: 0 !important; display: flex; align-items: center; justify-content: center; }
+
                         .tree-popup-compact .ant-tree-switcher-noop { display: none !important; }
                         .tree-popup-compact .ant-tree-title { width: 100%; }
-                        .tree-popup-compact .ant-tree-treenode-disabled > .ant-tree-node-content-wrapper { opacity: 0.5; cursor: not-allowed; background: transparent !important; }
+                        .tree-popup-compact .ant-tree-treenode-disabled > .ant-tree-node-content-wrapper { opacity: 0.8; cursor: not-allowed; background: transparent !important; }
+                        /* Allow sticky positioning through intermediate Tree wrappers */
+                        .tree-popup-compact .ant-tree-list,
+                        .tree-popup-compact .ant-tree-list-holder,
+                        .tree-popup-compact .ant-tree-list-holder > div,
+                        .tree-popup-compact .ant-tree-list-holder-inner { overflow: visible !important; }
+                        /* Sticky parent group headers */
+                        .tree-popup-compact .ant-tree-treenode:not(.ant-tree-treenode-leaf) { position: sticky; top: 0; z-index: 1; background: var(--ant-color-bg-elevated, #fff); }
                     `}</style>
                     <Tree
                         treeData={treeData}

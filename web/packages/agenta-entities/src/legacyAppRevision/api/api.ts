@@ -13,40 +13,37 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {createBatchFetcher, dereferenceSchema} from "@agenta/shared/utils"
 
 import {
-    // URI parsing
-    parseRevisionUri,
     // Revision parameter extraction
     extractRevisionParameters,
-    // List item types (re-export)
-    type AppListItem,
-    type VariantListItem,
-    type RevisionListItem,
-    // API response types (re-export)
-    type ApiVariant,
-    type ApiRevisionListItem,
-    type ApiApp,
-    // Transform utilities
-    transformAppToListItem,
-    transformVariantToListItem,
-    transformRevisionToListItem,
     // Validation
     isValidUUID,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
+    // URI parsing
+    parseRevisionUri,
+    // Transform utilities
+    transformAppToListItem,
+    transformRevisionToListItem,
+    transformVariantToListItem,
+    type ApiApp,
+    type ApiRevisionListItem,
+    // API response types (re-export)
+    type ApiVariant,
+    // List item types (re-export)
+    type AppListItem,
+    type RevisionListItem,
+    type VariantListItem,
 } from "../../shared"
-import type {LegacyAppRevisionData, ApiAppVariantRevision} from "../core"
+import type {ApiAppVariantRevision, LegacyAppRevisionData} from "../core"
 
 // Re-export shared types for consumers
-export type {
-    AppListItem,
-    VariantListItem,
-    RevisionListItem,
-    ApiVariant,
-    ApiRevisionListItem,
-    ApiApp,
-}
 export {isValidUUID}
+export type {
+    ApiApp,
+    ApiRevisionListItem,
+    ApiVariant,
+    AppListItem,
+    RevisionListItem,
+    VariantListItem,
+}
 
 // ============================================================================
 // TYPES
@@ -148,37 +145,6 @@ export function transformApiRevision(
     return result
 }
 
-/**
- * Transform EnhancedVariantLike to LegacyAppRevisionData
- *
- * This enables transformation of enhanced variant data (from OSS playground)
- * to the legacyAppRevision format, similar to appRevision's transformEnhancedVariant.
- *
- * @param enhanced - Enhanced variant-like object with full data
- */
-export function transformEnhancedVariant(enhanced: EnhancedVariantLike): LegacyAppRevisionData {
-    // Extract URI info using shared utility
-    const uriInfo = extractUriFromEnhanced(enhanced)
-
-    // Extract revision parameters using shared utility
-    const revisionParameters = extractRevisionParameters(enhanced.parameters)
-
-    return {
-        id: enhanced.id,
-        variantId: enhanced.variantId,
-        appId: enhanced.appId,
-        revision: Number(enhanced.revision) || 1,
-        configName: undefined, // Not available in enhanced format
-        parameters: revisionParameters,
-        createdAt: enhanced.createdAt || enhanced.created_at,
-        updatedAt: enhanced.updatedAt || enhanced.updated_at,
-        // URI and runtime info
-        uri: enhanced.uri || enhanced.url,
-        runtimePrefix: uriInfo?.runtimePrefix,
-        routePath: uriInfo?.routePath,
-    }
-}
-
 // transformAppToListItem imported from shared/utils/revisionUtils
 
 // ============================================================================
@@ -226,8 +192,8 @@ export async function fetchOssRevision(
 /**
  * Fetch a single revision by its ID
  *
- * Uses: POST /variants/revisions/query/
- * Also fetches variant detail to get URI for schema fetching.
+ * Uses: POST /preview/applications/revisions/query (preferred, returns variant_id + uri)
+ * Falls back to: POST /variants/revisions/query/ (legacy, variant_id may be null)
  *
  * @param revisionId - The revision ID (UUID)
  * @param projectId - The project ID
@@ -239,6 +205,49 @@ export async function fetchOssRevisionById(
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
 
+    // Try preview endpoint first — returns variant_id, application_id, uri
+    try {
+        const previewResponse = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+            {
+                application_revision_refs: [{id: revisionId}],
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const previewRevisions = previewResponse.data?.application_revisions
+        if (Array.isArray(previewRevisions) && previewRevisions.length > 0) {
+            const rev = previewRevisions[0]
+            const parameters = rev.data?.parameters ?? rev.config?.parameters ?? {}
+            const revisionParameters = extractRevisionParameters(parameters)
+            const uri = rev.data?.uri ?? rev.data?.url
+            const uriInfo = parseRevisionUri(uri)
+
+            return {
+                id: rev.id,
+                variantId: rev.variant_id ?? rev.application_variant_id ?? undefined,
+                appId: rev.application_id ?? rev.artifact_id ?? undefined,
+                revision: Number(rev.version) || 1,
+                variantName: rev.name,
+                configName: rev.name,
+                parameters: revisionParameters,
+                modifiedBy: rev.author,
+                commitMessage: rev.message,
+                createdAt: rev.created_at,
+                uri,
+                runtimePrefix: uriInfo?.runtimePrefix,
+                routePath: uriInfo?.routePath,
+            }
+        }
+    } catch (previewError) {
+        // Preview endpoint not available — fall back to legacy
+        console.debug(
+            "[fetchOssRevisionById] Preview endpoint failed, falling back to legacy",
+            previewError,
+        )
+    }
+
+    // Fallback: legacy endpoint
     try {
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query/`,
@@ -262,18 +271,16 @@ export async function fetchOssRevisionById(
         if (variantId) {
             const variantDetail = await variantDetailBatchFetcher({variantId, projectId})
             if (variantDetail) {
-                const result = transformApiRevision(apiRevision, {
+                return transformApiRevision(apiRevision, {
                     variantId,
                     appId: variantDetail.appId,
                     variantName: variantDetail.name,
                     appName: variantDetail.appName,
                     uri: variantDetail.uri,
                 })
-                return result
             }
         }
 
-        // Fallback: return with variantId from API response if available
         return transformApiRevision(apiRevision, {variantId: variantId || undefined})
     } catch (error) {
         console.error("[fetchOssRevisionById] Failed to fetch revision", {
@@ -456,24 +463,69 @@ export function clearVariantDetailCache(variantId?: string): void {
 }
 
 /**
- * Batched variant detail fetcher — deduplicates individual variant detail
- * requests. Since there is no bulk variant endpoint, this executes individual
- * fetches in parallel but prevents the same variantId from being fetched
- * multiple times within the same window. Results are cached in memory for
- * 5 minutes to avoid re-fetches across different batch windows.
+ * Batch fetch variant details using the preview applications variants query endpoint.
+ *
+ * Endpoint: `POST /preview/applications/variants/query`
+ *
+ * The preview variant response includes `id`, `name`, `application_id` (= appId),
+ * but NOT `uri` or `appName`. Consumers already use fallback patterns
+ * (e.g., `variantDetail.uri || revision.uri`) so this is safe.
+ *
+ * @param projectId - Project ID
+ * @param variantIds - Array of variant IDs to fetch
+ * @returns Map of variant ID → VariantDetail
+ */
+async function fetchVariantDetailsBatch(
+    projectId: string,
+    variantIds: string[],
+): Promise<Map<string, VariantDetail>> {
+    const results = new Map<string, VariantDetail>()
+    if (!projectId || variantIds.length === 0) return results
+
+    try {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/variants/query`,
+            {
+                application_variant_refs: variantIds.map((id) => ({id})),
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const variants = response.data?.application_variants ?? []
+        for (const v of variants) {
+            if (!v?.id) continue
+            results.set(v.id, {
+                id: v.id,
+                name: v.name ?? v.slug ?? "",
+                appId: v.application_id ?? v.workflow_id ?? v.artifact_id ?? "",
+            })
+        }
+    } catch (error) {
+        console.error("[fetchVariantDetailsBatch] Failed to batch fetch variants:", error)
+    }
+
+    return results
+}
+
+/**
+ * Batched variant detail fetcher — collects individual variant detail
+ * requests within a short window and executes a single batch query via
+ * `POST /preview/applications/variants/query`. Results are cached in
+ * memory for 5 minutes to avoid re-fetches across different batch windows.
  */
 export const variantDetailBatchFetcher = createBatchFetcher<
     {variantId: string; projectId: string},
     VariantDetail | null
 >({
+    maxBatchSize: 50,
     flushDelay: 10,
     serializeKey: (req) => `${req.projectId}:${req.variantId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, VariantDetail | null>()
         const now = Date.now()
 
-        // Resolve from cache first, collect uncached requests
-        const uncached = new Map<string, {variantId: string; projectId: string}>()
+        // Resolve from cache first, collect uncached requests grouped by project
+        const byProject = new Map<string, {variantIds: string[]; keys: string[]}>()
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
             if (!req.variantId || !req.projectId) {
@@ -486,23 +538,33 @@ export const variantDetailBatchFetcher = createBatchFetcher<
                 results.set(key, cached.data)
                 return
             }
-            uncached.set(key, req)
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.variantIds.push(req.variantId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    variantIds: [req.variantId],
+                    keys: [key],
+                })
+            }
         })
 
-        // Fetch all uncached variants in parallel
-        if (uncached.size > 0) {
+        // Batch fetch all uncached variants
+        if (byProject.size > 0) {
             await Promise.all(
-                Array.from(uncached.entries()).map(async ([key, req]) => {
-                    try {
-                        const detail = await fetchVariantDetail(req.variantId, req.projectId)
+                Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                    const detailMap = await fetchVariantDetailsBatch(projectId, group.variantIds)
+                    group.variantIds.forEach((variantId, index) => {
+                        const key = group.keys[index]
+                        const detail = detailMap.get(variantId) ?? null
                         variantDetailCache.set(key, {
                             data: detail,
                             expiresAt: now + VARIANT_CACHE_TTL,
                         })
                         results.set(key, detail)
-                    } catch {
-                        results.set(key, null)
-                    }
+                    })
                 }),
             )
         }
@@ -512,9 +574,73 @@ export const variantDetailBatchFetcher = createBatchFetcher<
 })
 
 /**
+ * Batch fetch revision lists for multiple variants using the preview endpoint.
+ *
+ * Endpoint: `POST /preview/applications/revisions/query`
+ *
+ * @param projectId - Project ID
+ * @param variantIds - Array of variant IDs to fetch revisions for
+ * @returns Map of variant ID → array of raw revision items
+ */
+async function fetchRevisionsListByVariantsBatch(
+    projectId: string,
+    variantIds: string[],
+): Promise<Map<string, ApiRevisionListItem[]>> {
+    const results = new Map<string, ApiRevisionListItem[]>()
+    if (!projectId || variantIds.length === 0) return results
+
+    // Initialize empty arrays for each variant
+    for (const vid of variantIds) {
+        results.set(vid, [])
+    }
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+        {
+            application_variant_refs: variantIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const data = response.data as {
+        application_revisions?: {
+            id?: string
+            version?: number
+            message?: string
+            created_at?: string
+            updated_at?: string
+            created_by_id?: string
+            application_variant_id?: string
+            variant_id?: string
+            data?: {parameters?: Record<string, unknown>}
+            config?: {config_name?: string; parameters?: Record<string, unknown>}
+        }[]
+    }
+
+    for (const rev of data?.application_revisions ?? []) {
+        const variantId = rev.application_variant_id ?? rev.variant_id
+        if (!variantId || !rev.id) continue
+
+        const existing = results.get(variantId) ?? []
+        existing.push({
+            id: rev.id,
+            revision: rev.version ?? 0,
+            commit_message: rev.message,
+            created_at: rev.created_at,
+            updated_at: rev.updated_at,
+            modified_by: rev.created_by_id,
+            config: rev.config ?? (rev.data ? {parameters: rev.data.parameters} : undefined),
+        })
+        results.set(variantId, existing)
+    }
+
+    return results
+}
+
+/**
  * Batched revisions list fetcher — collects individual per-variant
- * revisions list requests within a short window and executes them in
- * parallel. Each request fetches `GET /variants/{variantId}/revisions`.
+ * revisions list requests within a short window and executes a single
+ * batch query via `POST /preview/applications/revisions/query`.
  * The variant detail needed for enrichment is resolved via
  * variantDetailBatchFetcher, which deduplicates across all callers.
  */
@@ -526,44 +652,74 @@ export const revisionsListBatchFetcher = createBatchFetcher<
     serializeKey: (req) => `${req.projectId}:${req.variantId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, RevisionListItem[]>()
+        const byProject = new Map<string, {variantIds: string[]; keys: string[]}>()
 
-        await Promise.all(
-            requests.map(async (req, index) => {
-                const key = serializedKeys[index]
-                if (!req.variantId || !req.projectId) {
-                    results.set(key, [])
-                    return
-                }
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.variantId || !req.projectId) {
+                results.set(key, [])
+                return
+            }
 
-                try {
-                    const [response, variantDetail] = await Promise.all([
-                        axios.get(`${getAgentaApiUrl()}/variants/${req.variantId}/revisions`, {
-                            params: {project_id: req.projectId},
-                        }),
-                        variantDetailBatchFetcher({
-                            variantId: req.variantId,
-                            projectId: req.projectId,
-                        }),
-                    ])
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.variantIds.push(req.variantId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    variantIds: [req.variantId],
+                    keys: [key],
+                })
+            }
+        })
 
-                    const data = response.data as ApiRevisionListItem[] | undefined
-                    if (!data || !Array.isArray(data)) {
-                        results.set(key, [])
-                        return
+        // Collect all variant IDs for variant detail enrichment
+        const allVariantRequests = requests
+            .filter((req) => req.variantId && req.projectId)
+            .map((req) =>
+                variantDetailBatchFetcher({variantId: req.variantId, projectId: req.projectId}),
+            )
+
+        // Run batch revision fetch and variant detail enrichment in parallel
+        const [variantDetails] = await Promise.all([
+            Promise.all(allVariantRequests),
+            Promise.all(
+                Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                    try {
+                        const revisionsMap = await fetchRevisionsListByVariantsBatch(
+                            projectId,
+                            group.variantIds,
+                        )
+                        group.variantIds.forEach((variantId, index) => {
+                            const key = group.keys[index]
+                            const revisions = revisionsMap.get(variantId) ?? []
+                            results.set(
+                                key,
+                                revisions.map((rev) => transformRevisionToListItem(rev, variantId)),
+                            )
+                        })
+                    } catch {
+                        group.keys.forEach((key) => results.set(key, []))
                     }
+                }),
+            ),
+        ])
 
-                    const context = variantDetail
-                        ? {appId: variantDetail.appId, uri: variantDetail.uri}
-                        : undefined
-                    results.set(
-                        key,
-                        data.map((rev) => transformRevisionToListItem(rev, req.variantId, context)),
-                    )
-                } catch {
-                    results.set(key, [])
-                }
-            }),
-        )
+        // Enrich results with variant detail context
+        let detailIndex = 0
+        for (const req of requests) {
+            if (!req.variantId || !req.projectId) continue
+            const key = `${req.projectId}:${req.variantId}`
+            const detail = variantDetails[detailIndex++]
+            if (detail) {
+                const current = results.get(key) ?? []
+                const context = {appId: detail.appId, uri: detail.uri, variantName: detail.name}
+                results.set(
+                    key,
+                    current.map((item) => ({...item, ...context})),
+                )
+            }
+        }
 
         return results
     },
@@ -741,6 +897,47 @@ export async function fetchOssRevisionEnriched(
 }
 
 // ============================================================================
+// LIGHTWEIGHT LATEST REVISION
+// ============================================================================
+
+/**
+ * Fetch the latest (most recently updated) server revision ID for an app.
+ *
+ * Uses the preview applications revisions query endpoint with windowing
+ * to return only the single most recent revision — **one API call** instead
+ * of fetching all variants and all their revisions.
+ *
+ * @param appId - The application ID
+ * @param projectId - The project ID
+ * @returns The latest revision ID, or null if none found
+ */
+export async function fetchLatestRevisionId(
+    appId: string,
+    projectId: string,
+): Promise<string | null> {
+    if (!appId || !projectId) return null
+
+    try {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+            {
+                application_refs: [{id: appId}],
+                windowing: {limit: 1, order: "descending"},
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const revisions = response.data?.application_revisions
+        if (!Array.isArray(revisions) || revisions.length === 0) return null
+
+        return revisions[0].id ?? null
+    } catch (error) {
+        console.error("[fetchLatestRevisionId] Failed:", error)
+        return null
+    }
+}
+
+// ============================================================================
 // LIST API FUNCTIONS
 // ============================================================================
 
@@ -825,7 +1022,7 @@ export async function fetchRevisionsList(
         if (!data || !Array.isArray(data)) return []
 
         const context = variantDetail
-            ? {appId: variantDetail.appId, uri: variantDetail.uri}
+            ? {appId: variantDetail.appId, uri: variantDetail.uri, variantName: variantDetail.name}
             : undefined
 
         // Transform using shared utility
@@ -906,15 +1103,191 @@ export async function fetchRevisionSchema(
 }
 
 // ============================================================================
+// RECURSIVE URI PROBING
+// ============================================================================
+
+/**
+ * Normalize a URI for probing: resolve relative paths, strip trailing slashes
+ * and trailing /openapi.json segments.
+ *
+ * Returns `null` when the URI is invalid or unresolvable.
+ */
+function normalizeUriForProbing(uri: string): string | null {
+    let normalized = uri
+
+    // Resolve relative URIs using window origin when available
+    if (typeof normalized === "string" && normalized.startsWith("/")) {
+        const origin = (globalThis as unknown as {location?: {origin?: string}})?.location?.origin
+        if (origin) {
+            normalized = `${origin}${normalized}`
+        }
+    }
+
+    // Trim trailing slashes
+    while (normalized.endsWith("/")) {
+        normalized = normalized.slice(0, -1)
+    }
+
+    // Strip trailing /openapi.json if present
+    if (normalized.endsWith("/openapi.json")) {
+        normalized = normalized.replace(/\/openapi\.json$/, "")
+    }
+
+    if (!normalized || typeof normalized !== "string") return null
+
+    // Guard: avoid fetching protocol-only strings like "http:" which produce invalid URLs
+    if (!normalized.includes("//")) return null
+
+    return normalized
+}
+
+/**
+ * Recursively probe a URI by stripping path segments until a given
+ * endpoint responds successfully. Used for custom workflows where
+ * the URI contains embedded route-path segments.
+ *
+ * Example: Given "https://host/my-app/v1" and endpoint "/openapi.json",
+ * tries: https://host/my-app/v1/openapi.json → 404
+ *        https://host/my-app/openapi.json → 404
+ *        https://host/openapi.json → 200 → returns {runtimePrefix: "https://host", routePath: "my-app/v1"}
+ *
+ * @param uri - The base URI to probe
+ * @param options - Optional endpoint, signal and projectId
+ * @returns Probe result with routePath and runtimePrefix, or null if not found
+ */
+export async function probeEndpointPath(
+    uri: string,
+    options?: {
+        endpoint?: string
+        signal?: AbortSignal
+        projectId?: string | null
+    },
+): Promise<{routePath: string; runtimePrefix: string; status?: boolean} | null> {
+    const endpoint = options?.endpoint ?? "/openapi.json"
+    const projectId = options?.projectId ?? undefined
+
+    const normalized = normalizeUriForProbing(uri)
+    if (!normalized) return null
+
+    const recurse = async (
+        current: string,
+        removedPaths: string,
+    ): Promise<{routePath: string; runtimePrefix: string; status?: boolean} | null> => {
+        try {
+            const url = `${current}${endpoint}`
+            const response = await axios.get(url, {
+                params: projectId ? {project_id: projectId} : undefined,
+                signal: options?.signal,
+                validateStatus: () => true, // Don't throw on non-2xx
+            })
+
+            if (response.status >= 200 && response.status < 300 && response.data) {
+                return {
+                    routePath: removedPaths,
+                    runtimePrefix: current,
+                    status: true,
+                }
+            }
+        } catch {
+            // Network error or abort — fall through to retry with shorter path
+        }
+
+        // Strip one path segment and retry
+        const parts = current.split("/")
+        const popped = parts.pop()
+
+        const newPath = parts.join("/")
+        // Guard against pathological recursion (protocol-only like "http:" or empty)
+        if (!newPath || newPath.endsWith(":") || newPath === "http:" || newPath === "https:") {
+            return null
+        }
+
+        return recurse(
+            newPath,
+            popped ? (removedPaths ? `${popped}/${removedPaths}` : popped) : removedPaths,
+        )
+    }
+
+    return recurse(normalized, "")
+}
+
+/**
+ * Fetch revision schema with recursive URI probing.
+ *
+ * Like fetchRevisionSchema, but when the initial URI doesn't respond,
+ * recursively strips path segments to discover the correct runtimePrefix
+ * and routePath. The schema is fetched and dereferenced from the
+ * discovered endpoint.
+ *
+ * @param uri - The base URI to probe and fetch schema from
+ * @param projectId - Optional project ID for auth
+ * @returns Schema result with runtimePrefix and routePath, or null
+ */
+export async function fetchRevisionSchemaWithProbe(
+    uri: string,
+    projectId?: string | null,
+): Promise<{schema: OpenAPISpec | null; runtimePrefix: string; routePath?: string} | null> {
+    const normalized = normalizeUriForProbing(uri)
+    if (!normalized) return null
+
+    const recurse = async (
+        current: string,
+        removed: string,
+    ): Promise<{schema: OpenAPISpec | null; runtimePrefix: string; routePath?: string} | null> => {
+        try {
+            const url = `${current}/openapi.json`
+            const response = await axios.get<OpenAPISpec>(url, {
+                params: projectId ? {project_id: projectId} : undefined,
+                validateStatus: () => true, // Don't throw on non-2xx
+            })
+
+            if (response.status >= 200 && response.status < 300 && response.data) {
+                const {schema: dereferencedSchema, errors} = await dereferenceSchema(response.data)
+
+                if (errors && errors.length > 0) {
+                    console.warn(
+                        "[fetchRevisionSchemaWithProbe] Schema dereference warnings:",
+                        errors,
+                    )
+                }
+
+                return {
+                    schema: dereferencedSchema,
+                    runtimePrefix: current,
+                    routePath: removed || undefined,
+                }
+            }
+        } catch {
+            // Network error — fall through to retry with shorter path
+        }
+
+        // Strip one path segment and retry
+        const parts = current.split("/")
+        const popped = parts.pop()
+
+        const newPath = parts.join("/")
+        if (!newPath || newPath.endsWith(":") || newPath === "http:" || newPath === "https:") {
+            return null
+        }
+
+        return recurse(newPath, popped ? (removed ? `${popped}/${removed}` : popped) : removed)
+    }
+
+    return recurse(normalized, "")
+}
+
+// ============================================================================
 // SCHEMA BUILDING
 // ============================================================================
 
-// Re-use schema building utilities from appRevision
+// Re-export pure schema building utilities (no network deps)
 export {
     buildRevisionSchemaState,
-    extractEndpointSchema,
-    extractAllEndpointSchemas,
     constructEndpointPath,
-} from "../../appRevision/api/schema"
+    convertOpenApiSchemaToJsonSchema,
+    extractAllEndpointSchemas,
+    extractEndpointSchema,
+    jsonSchemaToEntitySchema,
+} from "./schemaUtils"
 
 // Validation utilities imported from shared/utils/revisionUtils
