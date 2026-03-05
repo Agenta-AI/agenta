@@ -2,8 +2,8 @@ import {useMemo, useState} from "react"
 
 import {Dropdown, Typography} from "antd"
 import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import DiffView from "@/oss/components/Editor/DiffView"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 
@@ -14,6 +14,9 @@ import {
 } from "./store/comparisonModalStore"
 
 const {Title, Text} = Typography
+const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+    ssr: false,
+})
 
 // All required data is sourced from atoms; no props needed
 

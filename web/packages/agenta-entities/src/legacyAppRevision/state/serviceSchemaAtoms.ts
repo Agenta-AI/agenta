@@ -132,6 +132,7 @@ type ServiceTypeLookup =
 const resolvedAppIdForRevisionAtomFamily = atomFamily((revisionId: string) =>
     atom<{appId: string | undefined; isPending: boolean}>((get) => {
         const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+
         if (entity?.appId) {
             return {appId: entity.appId, isPending: false}
         }

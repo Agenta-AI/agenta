@@ -18,7 +18,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
     const [isLoadingApiKey, setIsLoadingApiKey] = useState(false)
     const {selectedOrg} = useOrgData()
 
-    const workspaceId: string = useMemo(
+    const defaultWorkspaceId: string = useMemo(
         () => selectedOrg?.default_workspace.id || "",
         [selectedOrg],
     )
@@ -28,47 +28,79 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
             setIsLoadingApiKey(true)
 
             let projectId = getProjectValues().projectId
-            let finalWorkspaceId = workspaceId
+            let finalWorkspaceId = defaultWorkspaceId
 
-            if (!projectId || !finalWorkspaceId) {
-                try {
-                    const context = await waitForWorkspaceContext({
-                        timeoutMs: 3000,
-                        requireProjectId: true,
-                        requireWorkspaceId: true,
-                        requireOrgData: true,
-                    })
+            try {
+                const context = await waitForWorkspaceContext({
+                    timeoutMs: 3000,
+                    requireProjectId: true,
+                    requireWorkspaceId: true,
+                    requireOrgData: true,
+                })
+
+                if (context.projectId) {
                     projectId = context.projectId
-                    finalWorkspaceId = context.workspaceId || ""
-                } catch (e) {
-                    console.warn("waitForWorkspaceContext failed or timed out", e)
                 }
 
-                if (!projectId && finalWorkspaceId) {
-                    try {
-                        const projects = await fetchAllProjects()
-                        if (projects.length > 0) {
-                            // Find a project that belongs to this workspace
-                            const project =
-                                projects.find(
-                                    (p) =>
-                                        p.workspace_id === finalWorkspaceId ||
-                                        p.organization_id === finalWorkspaceId,
-                                ) || projects[0]
-                            projectId = project.project_id
-                        }
-                    } catch (e) {
-                        console.error("Failed to fetch projects manually", e)
-                    }
+                if (context.workspaceId) {
+                    finalWorkspaceId = context.workspaceId
                 }
+            } catch (e) {
+                console.warn("waitForWorkspaceContext failed or timed out", e)
             }
 
-            if (finalWorkspaceId) {
+            try {
+                const projects = await fetchAllProjects()
+
+                if (projectId) {
+                    if (projects.length > 0) {
+                        const project = projects.find((p) => p.project_id === projectId)
+                        if (!project) {
+                            message.error(
+                                "Project context changed. Please refresh and try generating the API key again.",
+                            )
+                            return
+                        }
+
+                        finalWorkspaceId =
+                            project.workspace_id || project.organization_id || finalWorkspaceId
+                    }
+                } else {
+                    const scoped = finalWorkspaceId
+                        ? projects.filter(
+                              (project) =>
+                                  project.workspace_id === finalWorkspaceId ||
+                                  project.organization_id === finalWorkspaceId,
+                          )
+                        : projects
+
+                    if (finalWorkspaceId && scoped.length === 0) {
+                        message.error(
+                            "No project found for the current workspace. Please refresh and try again.",
+                        )
+                        return
+                    }
+
+                    const preferredProject = scoped.find((project) => !project.is_demo) || scoped[0]
+
+                    if (preferredProject) {
+                        projectId = preferredProject.project_id
+                        finalWorkspaceId =
+                            preferredProject.workspace_id ||
+                            preferredProject.organization_id ||
+                            finalWorkspaceId
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch projects manually", e)
+            }
+
+            if (finalWorkspaceId && projectId) {
                 const {data} = await createApiKey(finalWorkspaceId, false, projectId)
                 onApiKeyChange(data)
                 message.success("Successfully generated API Key")
             } else {
-                message.error("Could not determine workspace. Please try refreshing.")
+                message.error("Could not determine project/workspace. Please try refreshing.")
             }
         } catch (error) {
             console.error("handleGenerateApiKey error:", error)

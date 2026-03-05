@@ -1,12 +1,10 @@
 import {memo, useCallback} from "react"
 
+import {TOGGLE_MARKDOWN_VIEW, markdownViewAtom} from "@agenta/ui/editor"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtom} from "jotai"
-
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 
 interface MarkdownToggleButtonProps {
     id: string
