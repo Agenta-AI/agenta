@@ -2,13 +2,13 @@
 
 ## Current Architecture
 
-- Runner: `web/tests/playwright/scripts/run-tests.ts`
 - Config: `web/tests/playwright.config.ts`
 - Global auth setup: `web/tests/playwright/global-setup.ts`
 - Global teardown: `web/tests/playwright/global-teardown.ts`
 - Shared fixtures: `web/tests/tests/fixtures/*`
 - OSS acceptance specs: `web/oss/tests/playwright/acceptance/*`
 - EE acceptance specs: `web/ee/tests/playwright/acceptance/*`
+- BDD feature specs: `web/oss/tests/playwright/acceptance/features/*`
 
 ## How Targeting Works
 
@@ -17,35 +17,56 @@
 - `AGENTA_LICENSE=oss` -> `web/oss/tests/playwright/acceptance`
 - `AGENTA_LICENSE=ee` -> `web/ee/tests/playwright/acceptance`
 
-## Suite Inventory (Frontend)
+## Suite Inventory (OSS)
 
-OSS acceptance domains:
-
-- smoke
-- app
-- playground
-- prompt-registry
-- deployment
-- observability
-- settings (model-hub, api-keys)
-- testset (folder currently named `testsset`)
+| Domain | Spec File | Test File | Status |
+|---|---|---|---|
+| smoke | `smoke.spec.ts` | (inline) | Pass |
+| app | `app/create.spec.ts` | `app/index.ts`, `app/test.ts` | Pass |
+| playground | `playground/run-variant.spec.ts` | `playground/index.ts`, `playground/tests.ts` | Pass |
+| deployment | `deployment/deploy-variant.spec.ts` | `deployment/index.ts` | Pass |
+| observability | `observability/observability.spec.ts` | `observability/index.ts` | Pass |
+| prompt-registry | `prompt-registry/prompt-registry-flow.spec.ts` | `prompt-registry/index.ts` | Pass |
+| settings | `settings/model-hub.spec.ts` | `settings/model-hub.ts` | Pass |
+| settings | `settings/api-keys-management.spec.ts` | `settings/api-keys.ts` | Skip |
+| testset | `testsset/testset.spec.ts` | `testsset/index.ts` | Skip (conditional) |
 
 EE acceptance domains:
-
 - app, playground, prompt-registry, deployment, observability, settings, testset
 - EE-native: auto-evaluation, human-annotation
 
 ## Key Findings
 
-1. EE wrappers import OSS references via `@agenta/oss/tests/playwright/...` paths that appear brittle and need normalization.
-2. Runner documentation includes options that do not match current runner parsing behavior.
-3. Auth setup depends on UI branch detection and can flake under overlay/pointer interception.
-4. Some tests use random values and first-entity assumptions, increasing nondeterminism.
-5. Teardown can attempt destructive cleanup in OSS contexts and should be explicitly gated.
-6. Tag usage is inconsistent across suites, limiting reliable filtered runs.
+### Navigation Pattern (Critical)
 
-## Baseline Verified
+All workspace-scoped routes (`/prompts`, `/observability`, `/testsets`, `/settings`) return 404 without the workspace/project prefix. Tests must:
 
-Against deployed OSS URL, smoke auth test can pass with:
+1. Navigate to `/apps` (auto-redirects to `/w/{workspace_id}/p/{project_id}/apps`)
+2. Click sidebar links to reach other pages
 
-`AGENTA_LICENSE=oss AGENTA_WEB_URL=<deployment-url> corepack pnpm -C web/tests test:acceptance -- --grep "smoke: auth works and can navigate to apps" --max-failures=1`
+### Playground Direct URL Bug
+
+Direct navigation to `/apps/{id}/playground` renders the page shell but content area stays blank. Tests must navigate through Overview page → Playground sidebar click. This is a frontend client-side state dependency issue.
+
+### Table Locator Pattern
+
+The prompts table uses div-based rows (not `<tr>`). Use:
+- Search box to filter long lists
+- `page.getByText()` or `[class*="cursor"]` locators instead of `tr:has-text()`
+
+### API Interception Timing
+
+`page.waitForResponse()` must be set up BEFORE the navigation/click that triggers the API call. Setting it up after causes race conditions.
+
+### Auth Modes
+
+Global setup (`global-setup.ts`) supports:
+- `auto` (default) - detects flow from UI
+- `password` - enforces password flow (requires `AGENTA_OSS_OWNER_EMAIL`/`PASSWORD`)
+- `otp` - enforces OTP flow (requires Testmail config)
+
+### Teardown Safety
+
+`global-teardown.ts` has two cleanup actions:
+1. **Account deletion** - `POST /api/admin/accounts/delete-all` - only runs when `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` AND `AGENTA_AUTH_KEY` is set AND `AGENTA_LICENSE=oss`.
+2. **OpenAI secret cleanup** - Attempts to delete OpenAI secrets from vault. May fail with "Unauthorized" if session cookie expired (benign).

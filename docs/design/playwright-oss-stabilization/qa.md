@@ -1,51 +1,70 @@
 # QA Profile
 
-## OSS-against-Deployment Smoke Subset
+## OSS Deployment Acceptance Suite
 
-Primary goal: fast signal that auth/session/app navigation works on deployed OSS.
+All tests run from `web/tests/` with `AGENTA_LICENSE=oss`.
 
-### Tier A (Required Gate)
-
-- Test: `web/oss/tests/playwright/acceptance/smoke.spec.ts`
-- Grep: `smoke: auth works and can navigate to apps`
-
-Command:
+### Full Suite (all 12 tests)
 
 ```bash
+cd web/tests
 AGENTA_LICENSE=oss \
 AGENTA_WEB_URL="http://<deployment-url>" \
-corepack pnpm -C web/tests test:acceptance -- \
-  --grep "smoke: auth works and can navigate to apps" \
-  --max-failures=1 --workers=1 --retries=1
+AGENTA_OSS_OWNER_EMAIL="<email>" \
+AGENTA_OSS_OWNER_PASSWORD="<password>" \
+node_modules/.bin/playwright test
 ```
 
-### Tier B (Canary, optional initially)
+Expected: 10 pass, 2 skip.
 
-- File: `web/oss/tests/playwright/acceptance/app/create.spec.ts`
-- Grep: `creates new completion prompt app`
-
-Command:
+### Smoke Subset (fast gate)
 
 ```bash
-AGENTA_LICENSE=oss \
-AGENTA_WEB_URL="http://<deployment-url>" \
-corepack pnpm -C web/tests test:acceptance -- \
-  web/oss/tests/playwright/acceptance/app/create.spec.ts \
-  --grep "creates new completion prompt app" \
-  --max-failures=1 --workers=1 --retries=1
+node_modules/.bin/playwright test --grep "smoke"
+```
+
+Covers: auth, navigation, app creation, and one test from each domain tagged `@coverage:smoke`.
+
+### By Domain
+
+```bash
+node_modules/.bin/playwright test --grep "Playground"
+node_modules/.bin/playwright test --grep "deploy"
+node_modules/.bin/playwright test --grep "observability"
+node_modules/.bin/playwright test --grep "prompt"
+node_modules/.bin/playwright test --grep "Model Hub"
+node_modules/.bin/playwright test --grep "testset"
 ```
 
 ## Environment Contract
 
-- Required:
-  - `AGENTA_LICENSE=oss`
-  - `AGENTA_WEB_URL=<deployed-oss-url>`
-- Auth flow depends on deployment mode:
-  - Password flow: provide OSS owner email/password env vars.
-  - OTP flow: provide Testmail namespace/key env vars.
+Required env vars:
+- `AGENTA_LICENSE=oss`
+- `AGENTA_WEB_URL=<deployed-oss-url>`
+- `AGENTA_OSS_OWNER_EMAIL=<email>` (for password auth flow)
+- `AGENTA_OSS_OWNER_PASSWORD=<password>` (for password auth flow)
+
+Optional:
+- `AGENTA_AUTH_MODE=auto|password|otp` (default: `auto`)
+- `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
+- `TESTMAIL_API_KEY` + `TESTMAIL_NAMESPACE` (required for OTP auth flow)
+
+## Test Coverage Map
+
+| Domain | Tests | Scenarios |
+|---|---|---|
+| Smoke | 1 | Auth + navigate to apps |
+| App creation | 2 | Create completion app, create chat app |
+| Playground | 3 | Run completion, run chat, update prompt & save |
+| Deployment | 1 | Deploy variant to development |
+| Observability | 1 | View traces + open drawer |
+| Prompt registry | 1 | Browse registry + open details |
+| Settings | 1 (+1 skipped) | View model providers (API keys skipped) |
+| Testsets | 1 (conditional) | View testset details (skips if none exist) |
 
 ## Acceptance Criteria
 
-1. Tier A passes consistently in deployment pipeline.
-2. Failures are actionable (clear setup/test error source).
-3. Runtime is short enough for gating use.
+1. Full suite passes consistently (10 pass, 2 skip) on deployed OSS.
+2. Failures are actionable (clear error source, not flaky).
+3. Full suite runs in under 5 minutes.
+4. No test depends on data from a previous test run (except observability, which needs prior playground traces).
