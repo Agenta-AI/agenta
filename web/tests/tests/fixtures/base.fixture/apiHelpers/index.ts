@@ -47,13 +47,14 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
 }
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
-    await page.goto("/apps")
-    await page.waitForURL("**/apps")
-
-    const appsResponse = await waitForApiResponse<ListAppsItem[]>(page, {
+    const appsResponse = waitForApiResponse<ListAppsItem[]>(page, {
         route: "/api/apps",
         method: "GET",
     })
+
+    await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+
     const apps = await appsResponse
 
     expect(Array.isArray(apps)).toBe(true)
@@ -83,11 +84,12 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 }
 
 export const getTestsets = async (page: Page) => {
-    // 2. Fetch testsets from API using preview endpoint
-    const testsetsResponse = await waitForApiResponse<{testsets: testset[]}>(page, {
+    const testsetsResponse = waitForApiResponse<{testsets: testset[]}>(page, {
         route: "/api/preview/testsets/query",
         method: "POST",
     })
+
+    await page.goto("/testsets", {waitUntil: "domcontentloaded"})
     const response = await testsetsResponse
     const testsets = response.testsets
     expect(testsets.length).toBeGreaterThan(0)
@@ -96,21 +98,20 @@ export const getTestsets = async (page: Page) => {
 }
 
 export const getVariants = async (page: Page, appId: string) => {
-    // Wait for and extract variants from the API using apiHelpers
-    // Debug: log outgoing requests to see the actual URL
-    await page.goto(`/apps/${appId}/overview`)
+    await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    const appsPathname = new URL(page.url()).pathname
+    const appsSuffix = "/apps"
+    const scopedPrefix = appsPathname.endsWith(appsSuffix)
+        ? appsPathname.slice(0, -appsSuffix.length)
+        : ""
+    const overviewPath = `${scopedPrefix}/apps/${appId}/overview`
 
-    page.on("request", (request) => {
-        if (request.url().includes("/variants")) {
-            console.log("[E2E Debug] Outgoing request URL:", request.url())
-        }
-    })
-
-    const variantsResponse = await waitForApiResponse<(ApiVariant & {name: string})[]>(page, {
+    const variantsResponse = waitForApiResponse<(ApiVariant & {name: string})[]>(page, {
         route: `/apps/${appId}/variants`,
         method: "GET",
     })
 
+    await page.goto(overviewPath, {waitUntil: "domcontentloaded"})
     const variants = await variantsResponse
     expect(Array.isArray(variants)).toBe(true)
     expect(variants.length).toBeGreaterThan(0)
@@ -126,7 +127,7 @@ export const getVariants = async (page: Page, appId: string) => {
 }
 
 export const getEvaluationRuns = async (page: Page) => {
-    const evaluationRunsResponse = await waitForApiResponse<{
+    const evaluationRunsResponse = waitForApiResponse<{
         runs: SnakeToCamelCaseKeys<EvaluationRun>[]
         count: number
     }>(page, {
@@ -134,6 +135,7 @@ export const getEvaluationRuns = async (page: Page) => {
         method: "POST",
     })
 
+    await page.goto("/evaluations", {waitUntil: "domcontentloaded"})
     const evaluationRuns = await evaluationRunsResponse
 
     // Fix: Check for .runs array in the response

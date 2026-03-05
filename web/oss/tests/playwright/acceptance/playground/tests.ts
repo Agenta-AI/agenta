@@ -9,13 +9,24 @@ import {RoleType, VariantFixtures} from "./assets/types"
 const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
     navigateToPlayground: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/playground`)
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+
+            const appsPathname = new URL(page.url()).pathname
+            const appsSuffix = "/apps"
+            const scopedPrefix = appsPathname.endsWith(appsSuffix)
+                ? appsPathname.slice(0, -appsSuffix.length)
+                : ""
+            const playgroundPath = `${scopedPrefix}/apps/${appId}/playground`
+
+            await page.goto(playgroundPath, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
 
-            await uiHelpers.waitForLoadingState("Loading Playground...")
+            const loading = page.getByText("Loading Playground...").first()
+            if ((await loading.count()) > 0) {
+                await expect(loading).not.toBeVisible({timeout: 30000})
+            }
 
-            // Confirm Playground is loaded
-            await uiHelpers.expectText("Generations", {exact: true})
+            await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible()
         })
     },
 

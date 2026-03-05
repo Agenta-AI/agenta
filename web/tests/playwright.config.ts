@@ -13,14 +13,9 @@ const __dirname = dirname(__filename)
 // Load environment variables from .env file
 dotenv.config({path: resolve(__dirname, ".env")})
 
-// Verify required environment variables
-const requiredEnvVars = ["TESTMAIL_API_KEY", "TESTMAIL_NAMESPACE"]
-const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName])
-
-if (missingEnvVars.length > 0) {
-    console.error("Missing required environment variables:", missingEnvVars)
-    process.exit(1)
-}
+// Do not hard-fail here on auth provider env vars.
+// global-setup determines which auth flow is active and validates
+// only the variables required for that flow.
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -46,7 +41,7 @@ export default defineConfig({
     },
 
     use: {
-        baseURL: process.env.AGENTA_WEB_URL || "http://localhost",
+        baseURL: process.env.AGENTA_WEB_URL || "http://localhost:3000",
         trace: "on-first-retry",
         screenshot: "only-on-failure",
         video: "retain-on-failure",

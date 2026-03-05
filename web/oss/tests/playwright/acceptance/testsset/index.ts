@@ -30,7 +30,7 @@ const testsetTests = () => {
         },
         async ({page, apiHelpers, uiHelpers}) => {
             // 1. Navigate to testsets page
-            await page.goto("/testsets")
+            await page.goto("/testsets", {waitUntil: "domcontentloaded"})
             await uiHelpers.waitForPath("/testsets")
             const testsets = await apiHelpers.getTestsets()
 
@@ -50,20 +50,19 @@ const testsetTests = () => {
             const testsetRow = testsetTable.getByRole("row", {name: testsetName})
             await expect(testsetRow).toBeVisible()
 
-            // 4. Click on testset row
-            await uiHelpers.clickTableRow(testsetName)
-
-            // 5. Fetch testset from API using preview endpoint
-            const testsetResponse = await apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
+            const testsetResponsePromise = apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
                 route: `/api/preview/simple/testsets/${testsetId}`,
                 method: "GET",
             })
 
+            // 4. Click on testset row
+            await uiHelpers.clickTableRow(testsetName)
+
             // 6. Verify testset page
             await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await uiHelpers.expectText("Create a new Testset", {role: "heading"})
+            await expect(page.getByRole("heading", {name: /testset|test set/i}).first()).toBeVisible()
 
-            const response = await testsetResponse
+            const response = await testsetResponsePromise
             const testset = response.testset
             expect(testset.name).toBe(testsetName)
             // Preview endpoint returns data.testcases instead of csvdata

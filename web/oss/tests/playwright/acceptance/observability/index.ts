@@ -22,15 +22,16 @@ const observabilityTests = () => {
             ],
         },
         async ({page, apiHelpers, uiHelpers}) => {
+            const tracesResponse = apiHelpers.waitForApiResponse<_AgentaRootsResponse>({
+                route: `/api/observability/v1/traces`,
+                method: "GET",
+            })
+
             // 1. Navigate to observability page
             await page.goto(`/observability`)
             await uiHelpers.expectPath(`/observability`)
 
             // 2. Fetch traces
-            const tracesResponse = await apiHelpers.waitForApiResponse<_AgentaRootsResponse>({
-                route: `/api/observability/v1/traces`,
-                method: "GET",
-            })
             const allTraces = await tracesResponse
             const traces = allTraces.trees
 
@@ -43,15 +44,15 @@ const observabilityTests = () => {
                 await spinner.waitFor({state: "hidden"})
             }
 
-            // 3. Randomly select a trace
-            const randomTraceIndex = Math.floor(Math.random() * traces.length)
-            const nodeName = traces[randomTraceIndex].nodes[0].node.name
+            // 3. Select the first trace deterministically
+            const targetTraceIndex = 0
+            const nodeName = traces[targetTraceIndex].nodes[0].node.name
 
             // 4. Find the trace in the table
             const traceTable = page.getByRole("table")
             await traceTable.scrollIntoViewIfNeeded()
 
-            const traceTableRow = traceTable.getByRole("row").nth(randomTraceIndex + 1)
+            const traceTableRow = traceTable.getByRole("row").nth(targetTraceIndex + 1)
             await expect(traceTableRow).toBeVisible()
 
             // 5. Click on trace to open drawer

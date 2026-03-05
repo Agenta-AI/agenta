@@ -30,15 +30,24 @@ const deploymentTests = () => {
             const variantName = variant.variant_name || variant.name
 
             // 1. Navigate to deployments page
-            await page.goto(`/apps/${appId}/deployments`)
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+            const appsPathname = new URL(page.url()).pathname
+            const appsSuffix = "/apps"
+            const scopedPrefix = appsPathname.endsWith(appsSuffix)
+                ? appsPathname.slice(0, -appsSuffix.length)
+                : ""
+            const deploymentsPath = `${scopedPrefix}/apps/${appId}/deployments`
+
+            const envResponse = apiHelpers.waitForApiResponse<Environment[]>({
+                route: `/apps/${appId}/environments`,
+                method: "GET",
+            })
+
+            await page.goto(deploymentsPath, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/deployments`)
             await uiHelpers.expectText("Deployment", {exact: true})
 
             // 2. Listen to the environments endpoint
-            const envResponse = await apiHelpers.waitForApiResponse<Environment[]>({
-                route: `/apps/${appId}/environments`,
-                method: "GET",
-            })
             const envs = await envResponse
 
             // expect name to be there
@@ -72,14 +81,15 @@ const deploymentTests = () => {
 
             await uiHelpers.expectText("Are you sure you want to deploy")
             const button = page.getByRole("button", {name: "Deploy"}).last()
-            await button.click()
 
-            // 7. Listen to the deployed environment endpoint
-            const deployedEnvResponse = await apiHelpers.waitForApiResponse<DeploymentRevisions>({
+            const deployedEnvPromise = apiHelpers.waitForApiResponse<DeploymentRevisions>({
                 route: `/apps/${appId}/revisions/${environmentName}`,
                 method: "GET",
             })
-            const deployedEnv = await deployedEnvResponse
+            await button.click()
+
+            // 7. Listen to the deployed environment endpoint
+            const deployedEnv = await deployedEnvPromise
 
             expect(Array.isArray(deployedEnv.revisions)).toBe(true)
             expect(deployedEnv.revisions.length).toBeGreaterThan(0)
