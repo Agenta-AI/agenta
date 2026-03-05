@@ -245,14 +245,6 @@ export async function fetchOssRevisionById(
     const resolve = options?.resolve ?? false
 
     try {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[legacyAppRevision][fetchOssRevisionById] request", {
-                revisionId,
-                projectId,
-                resolve,
-            })
-        }
-
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query`,
             {
@@ -268,22 +260,6 @@ export async function fetchOssRevisionById(
         }
 
         const apiRevision = response.data.revisions[0]
-
-        if (process.env.NODE_ENV !== "production") {
-            const config = apiRevision?.config
-            const parameters = config?.parameters
-            const serialized = parameters ? JSON.stringify(parameters) : ""
-            const hasEmbedToken = serialized.includes("@{{")
-
-            console.info("[legacyAppRevision][fetchOssRevisionById] response", {
-                revisionId,
-                resolve,
-                fetchedRevisionId: apiRevision?.id,
-                fetchedRevisionNumber: apiRevision?.revision,
-                hasEmbedToken,
-                parametersSize: serialized.length,
-            })
-        }
 
         // If we have variant_id, fetch variant detail to get URI
         const variantId = apiRevision.variant_id
@@ -497,15 +473,6 @@ export async function fetchOssRevisionEnriched(
     const resolve = options?.resolve ?? false
 
     try {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[legacyAppRevision][fetchOssRevisionEnriched] request", {
-                revisionId,
-                variantId,
-                projectId,
-                resolve,
-            })
-        }
-
         // Fetch both revision and variant in parallel
         const [revisionResponse, variantDetail] = await Promise.all([
             axios.post<RevisionsQueryResponse>(
@@ -523,22 +490,6 @@ export async function fetchOssRevisionEnriched(
         if (!revisionResponse.data?.revisions?.length) return null
 
         const apiRevision = revisionResponse.data.revisions[0]
-
-        if (process.env.NODE_ENV !== "production") {
-            const config = apiRevision?.config
-            const parameters = config?.parameters
-            const serialized = parameters ? JSON.stringify(parameters) : ""
-            const hasEmbedToken = serialized.includes("@{{")
-
-            console.info("[legacyAppRevision][fetchOssRevisionEnriched] response", {
-                revisionId,
-                resolve,
-                fetchedRevisionId: apiRevision?.id,
-                fetchedRevisionNumber: apiRevision?.revision,
-                hasEmbedToken,
-                parametersSize: serialized.length,
-            })
-        }
 
         // Transform with enriched context from variant
         return transformApiRevision(apiRevision, {

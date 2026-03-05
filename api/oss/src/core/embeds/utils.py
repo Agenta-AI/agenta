@@ -1718,15 +1718,6 @@ async def _resolve_and_inline_snippet_embed(
                 selector_base = _require_revision_data_parameters(
                     resolved_value=resolved_value
                 )
-                log.info(
-                    "[embeds][snippet] applying selector after key-hop location=%s key=%s selector_path=%s full_path=%s shape=%s base_shape=%s",
-                    embed.location,
-                    effective_key,
-                    selector.path,
-                    selector_full_path,
-                    _debug_shape(resolved_value),
-                    _debug_shape(selector_base),
-                )
                 resolved_value = _extract_with_sdk_resolver(
                     data=selector_base,
                     path=selector_full_path,
@@ -1752,14 +1743,6 @@ async def _resolve_and_inline_snippet_embed(
                 selector_full_path = f"parameters.{selector.path}"
                 selector_base = _require_revision_data_parameters(
                     resolved_value=resolved_value
-                )
-                log.info(
-                    "[embeds][snippet] applying selector without key-hop location=%s selector_path=%s full_path=%s shape=%s base_shape=%s",
-                    embed.location,
-                    selector.path,
-                    selector_full_path,
-                    _debug_shape(resolved_value),
-                    _debug_shape(selector_base),
                 )
                 resolved_value = _extract_with_sdk_resolver(
                     data=selector_base,

@@ -1,9 +1,8 @@
 import {default as AppContextComponent} from "@agenta/ui/app-message"
-import {configureAxios} from "@agenta/shared/api"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
 import {enableMapSet} from "immer"
-import {getDefaultStore, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
@@ -11,7 +10,6 @@ import {Inter} from "next/font/google"
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import {OnboardingProvider} from "@/oss/components/Onboarding"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
-import {playgroundEmbedResolutionViewModeAtom} from "@/oss/components/Playground/state/atoms"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
 import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
@@ -23,31 +21,6 @@ import ThemeContextBridge from "@/oss/ThemeContextBridge"
 import AppGlobalWrappers from "../../AppGlobalWrappers"
 
 enableMapSet()
-
-const isVariantsRevisionsQueryRequest = (url: string) =>
-    url.includes("/variants/revisions/query")
-
-configureAxios({
-    requestInterceptor: (config) => {
-        const fullUrl = `${config.baseURL ?? ""}${config.url ?? ""}`
-        if (!isVariantsRevisionsQueryRequest(fullUrl)) return config
-
-        const paramsRecord =
-            config.params && typeof config.params === "object"
-                ? (config.params as Record<string, unknown>)
-                : {}
-
-        const resolveFromQuery =
-            typeof paramsRecord.resolve === "boolean"
-                ? (paramsRecord.resolve as boolean)
-                : undefined
-        const mode = getDefaultStore().get(playgroundEmbedResolutionViewModeAtom)
-        const resolve = resolveFromQuery ?? mode === "resolved"
-
-        config.params = {...paramsRecord, resolve}
-        return config
-    },
-})
 
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),

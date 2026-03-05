@@ -713,12 +713,6 @@ class LegacyApplicationsAdapter:
     ) -> Optional[ApplicationRevision]:
         """Fetch a revision by ID."""
         if resolve and user_id:
-            log.info(
-                "[legacy_adapter.fetch_revision_by_id] resolve path project_id=%s revision_id=%s user_id=%s",
-                project_id,
-                revision_id,
-                user_id,
-            )
             # =========================================================================
             # TEMPORARY SAFETY NET (REMOVE AFTER EMBEDS PATH MIGRATION IS STABLE)
             # -------------------------------------------------------------------------
@@ -761,14 +755,6 @@ class LegacyApplicationsAdapter:
                     project_id=project_id,
                     application_revision_ref=Reference(id=revision_id),
                 )
-
-        log.info(
-            "[legacy_adapter.fetch_revision_by_id] fetch path project_id=%s revision_id=%s resolve=%s has_user_id=%s",
-            project_id,
-            revision_id,
-            resolve,
-            user_id is not None,
-        )
         return await self.applications_service.fetch_application_revision(
             project_id=project_id,
             application_revision_ref=Reference(id=revision_id),

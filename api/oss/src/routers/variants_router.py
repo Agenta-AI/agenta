@@ -517,18 +517,6 @@ async def query_variant_revisions(
         if resolve is not None
         else False
     )
-    payload_fields = sorted(list(payload.model_fields_set))
-
-    log.info(
-        "[variants.revisions.query] request project_id=%s user_id=%s revision_ids_count=%s resolve_raw=%s resolve_query=%s resolve_effective=%s payload_fields=%s",
-        request.state.project_id,
-        request.state.user_id,
-        len(payload.revision_ids),
-        payload.resolve,
-        resolve,
-        resolve_flag,
-        payload_fields,
-    )
     if payload.resolve is None and resolve is None:
         log.warning(
             "[variants.revisions.query] missing explicit resolve; defaulting to unresolved project_id=%s user_id=%s",
@@ -554,13 +542,6 @@ async def query_variant_revisions(
         except Exception as e:
             log.warning(f"Failed to fetch revision {revision_id}: {e}")
             continue
-
-    log.info(
-        "[variants.revisions.query] response project_id=%s fetched_count=%s requested_count=%s",
-        request.state.project_id,
-        len(revisions),
-        len(payload.revision_ids),
-    )
 
     return RevisionsQueryResponse(
         count=len(revisions),
