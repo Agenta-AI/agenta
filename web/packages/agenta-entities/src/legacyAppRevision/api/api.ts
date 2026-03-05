@@ -249,6 +249,7 @@ export async function fetchOssRevisionById(
             `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: [revisionId],
+                resolve,
             } as RevisionsQueryRequest,
             {
                 params: {project_id: projectId, resolve},
@@ -312,6 +313,7 @@ export async function fetchOssRevisionsBatch(
             `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: revisionIds,
+                resolve,
             } as RevisionsQueryRequest,
             {
                 params: {project_id: projectId, resolve},
@@ -479,6 +481,7 @@ export async function fetchOssRevisionEnriched(
                 `${getAgentaApiUrl()}/variants/revisions/query`,
                 {
                     revision_ids: [revisionId],
+                    resolve,
                 } as RevisionsQueryRequest,
                 {
                     params: {project_id: projectId, resolve},
