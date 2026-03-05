@@ -27,46 +27,23 @@ enableMapSet()
 const isVariantsRevisionsQueryRequest = (url: string) =>
     url.includes("/variants/revisions/query")
 
-const parseJsonLikeData = (data: unknown): Record<string, unknown> => {
-    if (!data) return {}
-    if (typeof data === "string") {
-        try {
-            const parsed = JSON.parse(data) as unknown
-            return parsed && typeof parsed === "object"
-                ? (parsed as Record<string, unknown>)
-                : {}
-        } catch {
-            return {}
-        }
-    }
-    if (typeof data === "object") {
-        return data as Record<string, unknown>
-    }
-    return {}
-}
-
 configureAxios({
     requestInterceptor: (config) => {
         const fullUrl = `${config.baseURL ?? ""}${config.url ?? ""}`
         if (!isVariantsRevisionsQueryRequest(fullUrl)) return config
 
-        const payload = parseJsonLikeData(config.data)
         const paramsRecord =
             config.params && typeof config.params === "object"
                 ? (config.params as Record<string, unknown>)
                 : {}
 
-        const resolveFromBody =
-            typeof payload.resolve === "boolean" ? (payload.resolve as boolean) : undefined
         const resolveFromQuery =
             typeof paramsRecord.resolve === "boolean"
                 ? (paramsRecord.resolve as boolean)
                 : undefined
         const mode = getDefaultStore().get(playgroundEmbedResolutionViewModeAtom)
-        const resolve = resolveFromBody ?? resolveFromQuery ?? mode === "resolved"
+        const resolve = resolveFromQuery ?? mode === "resolved"
 
-        payload.resolve = resolve
-        config.data = payload
         config.params = {...paramsRecord, resolve}
         return config
     },
