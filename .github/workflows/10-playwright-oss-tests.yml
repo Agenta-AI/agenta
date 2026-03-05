@@ -57,9 +57,16 @@ jobs:
 
       - name: Wait for deployment readiness
         run: |
-          echo "Waiting for $AGENTA_WEB_URL to be ready..."
+          # Strip any path suffix (e.g. /w) to get the base origin for health checks
+          BASE_URL="$(echo "$AGENTA_WEB_URL" | sed 's|/[^/]*$||; s|/$||')"
+          # If the URL had no path, use it as-is
+          if ! echo "$BASE_URL" | grep -q '://'; then
+            BASE_URL="$AGENTA_WEB_URL"
+          fi
+          HEALTH_URL="${BASE_URL}/api/health"
+          echo "Waiting for ${HEALTH_URL} to be ready..."
           for i in $(seq 1 30); do
-            if curl -sf -o /dev/null "$AGENTA_WEB_URL/api/health" 2>/dev/null; then
+            if curl -sf -o /dev/null "$HEALTH_URL" 2>/dev/null; then
               echo "Deployment is ready."
               exit 0
             fi
