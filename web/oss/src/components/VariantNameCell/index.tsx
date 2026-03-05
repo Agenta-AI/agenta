@@ -1,7 +1,10 @@
 import {memo, useCallback} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {
+    legacyAppRevisionMolecule,
+    latestServerRevisionIdAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
@@ -13,6 +16,7 @@ import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/
 type Rev = {
     id: string
     variantId: string
+    appId?: string
     revision?: number
     revisionNumber?: number
 } | null
@@ -42,7 +46,9 @@ const VariantNameCell = memo(
 
         const rev = resolvedRevision ?? revision
 
-        const isLatestRevision = useAtomValue(runnableBridge.isLatestRevision(currentRevisionId))
+        const appId = rev?.appId ?? revision?.appId ?? ""
+        const latestRevisionId = useAtomValue(latestServerRevisionIdAtomFamily(appId))
+        const isLatestRevision = !!latestRevisionId && currentRevisionId === latestRevisionId
         const deployedInFromStore = useAtomValue(
             environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
         )
