@@ -137,29 +137,13 @@ const TitleActions = memo(
     ({
         variantId,
         viewAs,
-        variants,
         isLoading,
-    }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
+    }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
         const entityQuery = useAtomValue(runnableBridge.query(variantId))
         const entityReady = !entityQuery.isPending && !!entityQuery.data
         const isDirty = useAtomValue(runnableBridge.isDirty(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
-        const selectedVariant = useMemo(() => {
-            for (const variant of variants ?? []) {
-                if ((variant as any)?.id === variantId) {
-                    return variant as any
-                }
-
-                const revision = (variant as any)?.revisions?.find(
-                    (candidate: any) => candidate?.id === variantId,
-                )
-                if (revision) {
-                    return revision as any
-                }
-            }
-            return null
-        }, [variants, variantId])
 
         return (
             <div className="flex items-center gap-2">
@@ -179,10 +163,7 @@ const TitleActions = memo(
                     label="Deploy"
                     type="default"
                     size="small"
-                    variantId={
-                        !selectedVariant?._parentVariant ? selectedVariant?.variantId : undefined
-                    }
-                    revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
+                    revisionId={variantId}
                     disabled={isLoading}
                     data-tour="deploy-button"
                 />
@@ -243,12 +224,7 @@ const VariantDrawerTitle = ({
                 </div>
             </div>
 
-            <TitleActions
-                variantId={variantId}
-                viewAs={viewAs}
-                variants={variants}
-                isLoading={isLoading}
-            />
+            <TitleActions variantId={variantId} viewAs={viewAs} isLoading={isLoading} />
         </section>
     )
 }
