@@ -5,7 +5,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {parseEvaluatorKeyFromUri} from "@agenta/entities/evaluator"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {PlaygroundConfigSection, type EvaluatorPresetConfig} from "@agenta/entity-ui"
-import {playgroundController} from "@agenta/playground"
+import {hasPendingHydrationAtomFamily, playgroundController} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -36,6 +36,10 @@ const PlaygroundVariantConfig: React.FC<
 > = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
     const entityType = nodes.find((n) => n.entityId === variantId)?.entityType
+
+    // Gate rendering until pending draft hydrations are applied.
+    // Prevents flash of unedited content when reloading with draft patches in the URL.
+    const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
 
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
@@ -103,20 +107,30 @@ const PlaygroundVariantConfig: React.FC<
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
             />
-            <PlaygroundConfigSection
-                revisionId={variantId}
-                onRefinePrompt={handleRefinePrompt}
-                presets={evaluatorInfo?.presets}
-                onLoadPreset={handleLoadPreset}
-                evaluatorLabel={evaluatorInfo?.label}
-            />
-            {refinePromptKey && (
-                <RefinePromptModal
-                    open={refineModalOpen}
-                    onClose={handleRefineClose}
-                    revisionId={variantId}
-                    promptKey={refinePromptKey}
-                />
+            {hasPendingHydration ? (
+                <div className="p-4 flex flex-col gap-3">
+                    <div className="h-9 rounded bg-[rgba(5,23,41,0.06)] animate-pulse" />
+                    <div className="h-32 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
+                    <div className="h-24 rounded border border-solid border-[rgba(5,23,41,0.08)] bg-[rgba(5,23,41,0.02)] animate-pulse" />
+                </div>
+            ) : (
+                <>
+                    <PlaygroundConfigSection
+                        revisionId={variantId}
+                        onRefinePrompt={handleRefinePrompt}
+                        presets={evaluatorInfo?.presets}
+                        onLoadPreset={handleLoadPreset}
+                        evaluatorLabel={evaluatorInfo?.label}
+                    />
+                    {refinePromptKey && (
+                        <RefinePromptModal
+                            open={refineModalOpen}
+                            onClose={handleRefineClose}
+                            revisionId={variantId}
+                            promptKey={refinePromptKey}
+                        />
+                    )}
+                </>
             )}
         </div>
     )
