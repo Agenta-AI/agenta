@@ -12,7 +12,7 @@
 
 2. **Configure environment** - create/edit `web/tests/.env`:
    ```env
-   AGENTA_WEB_URL=http://gateway-production-99ee.up.railway.app
+   AGENTA_WEB_URL=<your-deployment-url>
    AGENTA_LICENSE=oss
    AGENTA_OSS_OWNER_EMAIL=<your-email>
    AGENTA_OSS_OWNER_PASSWORD=<your-password>
