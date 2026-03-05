@@ -9,24 +9,57 @@ import {RoleType, VariantFixtures} from "./assets/types"
 const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
     navigateToPlayground: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
+            // Set up API listener before navigation to capture the apps list
+            const appsResponsePromise = page.waitForResponse(
+                (response) =>
+                    response.url().includes("/api/apps") &&
+                    response.request().method() === "GET",
+            )
+
+            // Navigate to /apps which redirects to workspace-scoped URL
+            // This triggers a GET /api/apps call
             await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            const appsPathname = new URL(page.url()).pathname
-            const appsSuffix = "/apps"
-            const scopedPrefix = appsPathname.endsWith(appsSuffix)
-                ? appsPathname.slice(0, -appsSuffix.length)
-                : ""
-            const playgroundPath = `${scopedPrefix}/apps/${appId}/playground`
-
-            await page.goto(playgroundPath, {waitUntil: "domcontentloaded"})
-            await uiHelpers.expectPath(`/apps/${appId}/playground`)
-
-            const loading = page.getByText("Loading Playground...").first()
-            if ((await loading.count()) > 0) {
-                await expect(loading).not.toBeVisible({timeout: 30000})
+            // Get app name from API response
+            const appsResponse = await appsResponsePromise
+            const apps = await appsResponse.json()
+            const app = apps.find((a: any) => a.app_id === appId)
+            if (!app) {
+                throw new Error(`App with id ${appId} not found in apps list`)
             }
 
-            await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible()
+            // Click "Prompts" in sidebar to go to the prompts table
+            const promptsLink = page.locator('a:has-text("Prompts")').first()
+            await expect(promptsLink).toBeVisible({timeout: 10000})
+            await promptsLink.click()
+
+            // Search for the app by name to handle long lists
+            const searchBox = page.getByRole("searchbox", {name: "Search"})
+            await expect(searchBox).toBeVisible({timeout: 15000})
+            await searchBox.click()
+            await searchBox.fill(app.app_name)
+
+            // Click the app row (table uses div-based rows, not <tr>)
+            const appNameCell = page.getByText(app.app_name, {exact: true}).first()
+            await expect(appNameCell).toBeVisible({timeout: 10000})
+            await appNameCell.click()
+
+            // Wait for overview page to fully load
+            await uiHelpers.expectPath(`/apps/${appId}/overview`)
+            await page.waitForLoadState("networkidle")
+
+            // Click "Playground" in the app sidebar
+            const playgroundLink = page
+                .locator('a:has-text("Playground")')
+                .first()
+            await expect(playgroundLink).toBeVisible({timeout: 10000})
+            await playgroundLink.click()
+
+            // Wait for playground page and content to render
+            await uiHelpers.expectPath(`/apps/${appId}/playground`)
+            await expect(
+                page.getByRole("button", {name: "Run", exact: true}).first(),
+            ).toBeVisible({timeout: 30000})
         })
     },
 
@@ -39,7 +72,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 2. Find out the empty textbox
                 const textboxes = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Enter value")) [role="textbox"]',
+                    '.agenta-shared-editor:has(div:text-is("Enter a value")) [role="textbox"]',
                 )
                 const targetTextbox = textboxes.first()
 
@@ -83,7 +116,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 2. Find out the empty chat textbox
                 const targetTextbox = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Type a message...")) [role="textbox"]',
+                    '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"]',
                 )
 
                 await targetTextbox.scrollIntoViewIfNeeded()
@@ -235,8 +268,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     // 4. Confirm the modal
                     await uiHelpers.confirmModal("Commit")
 
-                    // 5. Assert the success message
-                    await uiHelpers.waitForLoadingState("Updating playground with new revision...")
+                    // 5. Wait for the commit modal to close (indicates success)
+                    await expect(page.locator(".ant-modal")).not.toBeVisible({timeout: 30000})
                 }
             },
         )

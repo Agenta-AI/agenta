@@ -83,6 +83,30 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     return targetApp
 }
 
+export const getAppById = async (page: Page, appId: string) => {
+    const appsResponse = waitForApiResponse<ListAppsItem[]>(page, {
+        route: "/api/apps",
+        method: "GET",
+    })
+
+    // Trigger the API call by going to apps page if not already there
+    const currentUrl = page.url()
+    if (!currentUrl.includes("/apps")) {
+        await page.goto("/apps", {waitUntil: "domcontentloaded"})
+        await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
+    }
+
+    const apps = await appsResponse
+
+    const app = apps.find((app) => app.app_id === appId)
+    if (!app) {
+        console.error(`[App Fixture] App not found with ID: ${appId}`)
+        throw new Error(`App not found with ID: ${appId}`)
+    }
+
+    return app
+}
+
 export const getTestsets = async (page: Page) => {
     const testsetsResponse = waitForApiResponse<{testsets: testset[]}>(page, {
         route: "/api/preview/testsets/query",
@@ -162,6 +186,9 @@ export const apiHelpers = () => {
             },
             getApp: async (type?: APP_TYPE): Promise<ListAppsItem> => {
                 return await getApp(page, type)
+            },
+            getAppById: async (appId: string): Promise<ListAppsItem> => {
+                return await getAppById(page, appId)
             },
             getTestsets: async () => {
                 return await getTestsets(page)

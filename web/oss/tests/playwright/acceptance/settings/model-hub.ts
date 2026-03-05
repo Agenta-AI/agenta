@@ -34,17 +34,17 @@ const modelHubTests = () => {
             ],
         },
         async ({page, uiHelpers}) => {
-            // 1. Navigate to settings
-            await page.goto("/settings", {waitUntil: "domcontentloaded"})
+            // 1. Navigate to settings via sidebar
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+            const settingsLink = page.locator('a:has-text("Settings")').first()
+            await expect(settingsLink).toBeVisible({timeout: 10000})
+            await settingsLink.click()
             await uiHelpers.expectPath("/settings")
 
-            // 2. Open Model Hub tab and assert table presence
-            const modelHubTab = page.getByRole("tab", {name: /model hub/i}).first()
-            if ((await modelHubTab.count()) > 0) {
-                await modelHubTab.click()
-            } else {
-                await page.getByText(/model hub/i).first().click()
-            }
+            // 2. Navigate to Models section in settings sidebar
+            const modelsMenuItem = page.getByRole("menuitem", {name: "Models"}).first()
+            await expect(modelsMenuItem).toBeVisible({timeout: 10000})
+            await modelsMenuItem.click()
 
             // 3. Assert model providers table is visible
             const providersTable = page.getByRole("table").filter({hasText: "OpenAI"})

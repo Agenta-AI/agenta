@@ -29,12 +29,32 @@ const testsetTests = () => {
             ],
         },
         async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to testsets page
-            await page.goto("/testsets", {waitUntil: "domcontentloaded"})
-            await uiHelpers.waitForPath("/testsets")
-            const testsets = await apiHelpers.getTestsets()
+            // 1. Navigate to testsets page via sidebar
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            await uiHelpers.expectText("Test sets", {role: "heading"})
+            // Set up API interception before clicking
+            const testsetsResponsePromise = page.waitForResponse(
+                (response) =>
+                    response.url().includes("/api/preview/testsets/query") &&
+                    response.request().method() === "POST",
+            )
+
+            const testSetsLink = page.locator('a:has-text("Test sets")').first()
+            await expect(testSetsLink).toBeVisible({timeout: 10000})
+            await testSetsLink.click()
+            await uiHelpers.waitForPath("/testsets")
+
+            const testsetsResponse = await testsetsResponsePromise
+            const testsetsData = await testsetsResponse.json()
+            const testsets = testsetsData.testsets
+
+            // Verify navigation and page title
+            await expect(
+                page.getByRole("heading", {name: /testsets|test sets/i}).first(),
+            ).toBeVisible({timeout: 10000})
+
+            // Skip if no testsets exist on this deployment
+            test.skip(!testsets || testsets.length === 0, "No testsets found on deployment")
 
             // 3. Verify testset is visible in table
             // Preview endpoint returns 'id' instead of '_id'

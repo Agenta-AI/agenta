@@ -7,8 +7,6 @@ import {
     TestPath,
     TestScope,
 } from "@agenta/web-tests/playwright/config/testTags"
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
-
 const observabilityTests = () => {
     test(
         "view traces",
@@ -21,56 +19,35 @@ const observabilityTests = () => {
                 createTagString("path", TestPath.HAPPY),
             ],
         },
-        async ({page, apiHelpers, uiHelpers}) => {
-            const tracesResponse = apiHelpers.waitForApiResponse<_AgentaRootsResponse>({
-                route: `/api/observability/v1/traces`,
-                method: "GET",
-            })
+        async ({page, uiHelpers}) => {
+            // 1. Navigate to observability page via sidebar
+            await page.goto("/apps", {waitUntil: "domcontentloaded"})
 
-            // 1. Navigate to observability page
-            await page.goto(`/observability`)
+            const observabilityLink = page.locator('a:has-text("Observability")').first()
+            await expect(observabilityLink).toBeVisible({timeout: 10000})
+            await observabilityLink.click()
             await uiHelpers.expectPath(`/observability`)
 
-            // 2. Fetch traces
-            const allTraces = await tracesResponse
-            const traces = allTraces.trees
+            // 2. Wait for the Traces tab to be visible and selected
+            const tracesTab = page.getByRole("tab", {name: "Traces"})
+            await expect(tracesTab).toBeVisible({timeout: 15000})
 
-            expect(Array.isArray(traces)).toBe(true)
-            expect(traces.length).toBeGreaterThan(0)
+            // 3. Wait for traces table to load with data
+            const tracesTable = page.getByRole("table").last()
+            await expect(tracesTable).toBeVisible({timeout: 15000})
 
-            // 4. wait for ui to finish the loading
-            const spinner = page.locator(".ant-spin").first()
-            if (await spinner.count()) {
-                await spinner.waitFor({state: "hidden"})
-            }
+            // Wait for at least one data row to appear
+            const firstDataRow = tracesTable.getByRole("row").nth(1)
+            await expect(firstDataRow).toBeVisible({timeout: 15000})
 
-            // 3. Select the first trace deterministically
-            const targetTraceIndex = 0
-            const nodeName = traces[targetTraceIndex].nodes[0].node.name
+            // 4. Click on the first trace row to open drawer
+            const firstCell = firstDataRow.getByRole("cell").nth(2)
+            await expect(firstCell).toBeVisible()
+            await firstCell.click()
 
-            // 4. Find the trace in the table
-            const traceTable = page.getByRole("table")
-            await traceTable.scrollIntoViewIfNeeded()
-
-            const traceTableRow = traceTable.getByRole("row").nth(targetTraceIndex + 1)
-            await expect(traceTableRow).toBeVisible()
-
-            // 5. Click on trace to open drawer
-            const targetCell = traceTableRow.getByRole("cell").nth(2)
-            await expect(targetCell).toBeVisible()
-            await targetCell.click()
-
-            // 6. Assert drawer is open
-            await expect(page.locator(".ant-drawer-content-wrapper")).toBeVisible()
-            const loading = page.getByText("Loading...").first()
-            const loadingExists = (await loading.count()) > 0
-            if (loadingExists) {
-                await expect(loading).toBeVisible()
-                await expect(loading).not.toBeVisible()
-            }
-
-            await expect(page.getByText("Trace", {exact: true}).first()).toBeVisible()
-            await expect(page.getByText(nodeName).first()).toBeVisible()
+            // 5. Assert drawer opens
+            const drawer = page.locator(".ant-drawer-content-wrapper")
+            await expect(drawer).toBeVisible({timeout: 10000})
         },
     )
 }

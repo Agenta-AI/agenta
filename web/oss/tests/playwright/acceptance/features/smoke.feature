@@ -1,0 +1,16 @@
+# Test: smoke.spec.ts
+# Tags: @coverage:smoke
+
+Feature: Authentication and Basic Navigation
+  As a user
+  I want to log in and access the application
+  So that I can verify the deployment is healthy
+
+  Background:
+    Given the user has valid credentials for the OSS deployment
+
+  @smoke
+  Scenario: Authenticate and navigate to apps
+    When the user logs in with their credentials
+    Then the user should be redirected to the workspace-scoped apps page
+    And the page URL should contain "/apps"
