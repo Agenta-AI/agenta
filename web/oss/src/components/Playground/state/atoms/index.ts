@@ -116,6 +116,11 @@ export {promptTemplateFormatAtomFamily, type PromptTemplateFormat} from "./promp
 
 // Parameters JSON override (JSON editor integration)
 export {parametersOverrideAtomFamily} from "./parametersOverride"
+export {
+    playgroundEmbedResolutionViewModeAtom,
+    playgroundResolvedViewEnabledAtom,
+    type EmbedResolutionViewMode,
+} from "./embedResolutionView"
 
 // Comparison chat helpers
 export {canRunAllChatComparisonAtom} from "./derived/canRunAllChatComparison"

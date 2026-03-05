@@ -27,8 +27,8 @@
 
 import axiosApi, {
     type AxiosInstance,
-    type AxiosResponse,
     type InternalAxiosRequestConfig,
+    type AxiosResponse,
 } from "axios"
 
 import {getAgentaApiUrl} from "./env"

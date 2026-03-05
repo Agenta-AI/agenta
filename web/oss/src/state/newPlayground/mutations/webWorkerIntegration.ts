@@ -1,4 +1,10 @@
-import {getAllMetadata} from "@agenta/entities/legacyAppRevision"
+import {
+    deriveEnhancedCustomProperties,
+    deriveEnhancedPrompts,
+    fetchOssRevisionById,
+    getAllMetadata,
+    legacyAppRevisionMolecule,
+} from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {generateId} from "@agenta/shared/utils"
 import {produce} from "immer"
@@ -231,6 +237,7 @@ export const triggerWebWorkerTestAtom = atom(
         const displayed = (get(displayedVariantsAtom) || []) as string[]
         const effectiveId = resolveEffectiveRevisionId(get, requestedRevisionId)
         if (!effectiveId) return
+        const {projectId} = getProjectValues() || ({} as any)
 
         // Derive logicalId from provided rowId (session id: turn-<rev>-<logicalId> or logical id itself)
         const sessionMatch = /^turn-([^-]+)-(lt-.+)$/.exec(String(rowId))
@@ -249,12 +256,76 @@ export const triggerWebWorkerTestAtom = atom(
             }
         }
 
-        // Use molecule-backed atoms for single source of truth (includes draft state)
-        const variant = get(moleculeBackedVariantAtomFamily(effectiveId)) as any
-        const prompts = get(moleculeBackedPromptsAtomFamily(effectiveId))
+        // Always run `/test` with the resolved server snapshot when available.
+        // Editor state can remain unresolved/draft for authoring, but execution
+        // should use resolved revision data.
+        const editableVariant = get(moleculeBackedVariantAtomFamily(effectiveId)) as any
+        const resolvedServerData = (
+            projectId ? await fetchOssRevisionById(effectiveId, projectId, {resolve: true}) : null
+        ) as {
+            id?: string
+            variantId?: string
+            appId?: string
+            revision?: number
+            variantName?: string
+            appName?: string
+            configName?: string
+            parameters?: Record<string, unknown>
+            uri?: string
+            createdAt?: string
+            updatedAt?: string
+            modifiedById?: string
+            commitMessage?: string
+        } | null
+
+        const resolvedSchema = get(legacyAppRevisionMolecule.atoms.agConfigSchema(effectiveId))
+        const resolvedParameters =
+            (resolvedServerData?.parameters as Record<string, unknown> | undefined) ??
+            editableVariant?.parameters
+        const promptsFromResolved =
+            resolvedParameters && resolvedSchema
+                ? deriveEnhancedPrompts(resolvedSchema, resolvedParameters)
+                : []
+        const customPropsFromResolved =
+            resolvedParameters && resolvedSchema
+                ? deriveEnhancedCustomProperties(resolvedSchema, resolvedParameters)
+                : {}
+
         // const promptVars = get(promptVariablesAtomFamily(effectiveId))
-        const customProps = variant
-            ? get(moleculeBackedCustomPropertiesAtomFamily(effectiveId))
+        const prompts =
+            promptsFromResolved.length > 0
+                ? promptsFromResolved
+                : get(moleculeBackedPromptsAtomFamily(effectiveId))
+        const customProps =
+            Object.keys(customPropsFromResolved).length > 0
+                ? customPropsFromResolved
+                : editableVariant
+                  ? get(moleculeBackedCustomPropertiesAtomFamily(effectiveId))
+                  : undefined
+        const variant = editableVariant
+            ? ({
+                  ...editableVariant,
+                  ...(resolvedServerData
+                      ? {
+                            id: resolvedServerData.id ?? editableVariant.id,
+                            variantId: resolvedServerData.variantId ?? editableVariant.variantId,
+                            appId: resolvedServerData.appId ?? editableVariant.appId,
+                            revision: resolvedServerData.revision ?? editableVariant.revision,
+                            variantName:
+                                resolvedServerData.variantName ?? editableVariant.variantName,
+                            appName: resolvedServerData.appName ?? editableVariant.appName,
+                            configName: resolvedServerData.configName ?? editableVariant.configName,
+                            parameters: resolvedParameters,
+                            uri: resolvedServerData.uri ?? editableVariant.uri,
+                            createdAt: resolvedServerData.createdAt ?? editableVariant.createdAt,
+                            updatedAt: resolvedServerData.updatedAt ?? editableVariant.updatedAt,
+                            modifiedById:
+                                resolvedServerData.modifiedById ?? editableVariant.modifiedById,
+                            commitMessage:
+                                resolvedServerData.commitMessage ?? editableVariant.commitMessage,
+                        }
+                      : {}),
+              } as any)
             : undefined
         const currentVariant = variant
             ? ({...variant, prompts, customProperties: customProps} as any)
@@ -396,7 +467,6 @@ export const triggerWebWorkerTestAtom = atom(
             return enhanced
         })()
 
-        const {projectId} = getProjectValues() || ({} as any)
         const appId = get(selectedAppIdAtom)
         const {appType} = (get(currentAppContextAtom) as any) || {}
         const jwt = await getJWT()

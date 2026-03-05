@@ -315,8 +315,8 @@ Rules:
 - Entity reference: `<entity_type>.<field>=<value>` — entity type can be a bare category
   (`environment`, `workflow`, …) or a full type with level suffix (`environment_revision`,
   `workflow_variant`, …); `field` is one of `id`, `slug`, `version`
-- `key=<name>`: follow `data.references.<name>` on the fetched entity (two-hop resolution)
-- `path=<dotpath>`: path **relative to `parameters.`** in the resolved data — write
+- `key=<name>`: follow `revision.data.references.<name>` on the fetched revision (two-hop resolution)
+- `path=<dotpath>`: path **relative to `parameters.`** in `revision.data` — write
   `path=system_prompt`, not `path=parameters.system_prompt`
 - When `path=` is absent, defaults to `prompt.messages.0.content`
   (resolved as `parameters.prompt.messages.0.content`)
@@ -331,15 +331,15 @@ Rules:
 { "greeting": "Say: @{{workflow.slug=my-flow}}" }
 ```
 
-The `workflow` reference is resolved. `path=` is absent, so the default
-`prompt.messages.0.content` is extracted from `parameters.prompt.messages.0.content`.
+The `workflow` reference is resolved to a revision. `path=` is absent, so the default
+`prompt.messages.0.content` is extracted from `revision.data.parameters.prompt.messages.0.content`.
 
 ```json
 { "greeting": "Say: @{{environment.slug=production}}" }
 ```
 
-For an environment without `key=`, auto-select kicks in if the environment has exactly
-one entry in `data.references` (see Auto-select section).
+For an environment without `key=`, auto-select kicks in if the resolved revision has exactly
+one entry in `revision.data.references` (see Auto-select section).
 
 Tests: `TestSnippetEmbedResolution::test_resolve_snippet_workflow_direct_path` (utils)
 
@@ -351,7 +351,7 @@ Tests: `TestSnippetEmbedResolution::test_resolve_snippet_workflow_direct_path` (
 { "hint": "Use: @{{environment_revision.slug=prod, path=api_url}}" }
 ```
 
-`path=api_url` is resolved as `parameters.api_url`. The full entity type with level suffix
+`path=api_url` is resolved as `revision.data.parameters.api_url`. The full entity type with level suffix
 (`environment_revision`) is also accepted.
 
 Tests: `TestSnippetEmbedResolution::test_snippet_embed_with_path` (utils)

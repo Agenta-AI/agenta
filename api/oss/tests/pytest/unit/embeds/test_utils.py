@@ -897,12 +897,18 @@ class TestSnippetEmbedResolution:
     async def test_resolve_snippet_with_key(self):
         """Basic: @{{environment.slug=prod, key=tip}} resolves through key selector."""
         env_data = {
-            "references": {
-                "tip": {"workflow_revision": {"slug": "my-workflow-v1"}},
+            "data": {
+                "references": {
+                    "tip": {"workflow_revision": {"slug": "my-workflow-v1"}},
+                }
             }
         }
         workflow_data = {
-            "parameters": {"prompt": {"messages": [{"content": "Hello from workflow"}]}}
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "Hello from workflow"}]}
+                }
+            }
         }
 
         async def resolver(references: Dict[str, Reference]):
@@ -924,13 +930,17 @@ class TestSnippetEmbedResolution:
     async def test_resolve_snippet_auto_key(self):
         """key= absent → auto-selects the single key in entity references."""
         env_data = {
-            "references": {
-                "only_key": {"workflow_revision": {"slug": "my-workflow-v1"}},
+            "data": {
+                "references": {
+                    "only_key": {"workflow_revision": {"slug": "my-workflow-v1"}},
+                }
             }
         }
         workflow_data = {
-            "parameters": {
-                "prompt": {"messages": [{"content": "Auto-selected content"}]}
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "Auto-selected content"}]}
+                }
             }
         }
 
@@ -949,8 +959,10 @@ class TestSnippetEmbedResolution:
     async def test_resolve_snippet_workflow_direct_path(self):
         """Workflow without key= applies path directly — no key-hop."""
         workflow_data = {
-            "parameters": {
-                "prompt": {"messages": [{"content": "direct-workflow-content"}]}
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "direct-workflow-content"}]}
+                }
             }
         }
 
@@ -964,14 +976,106 @@ class TestSnippetEmbedResolution:
         )
         assert result_config["msg"] == "direct-workflow-content"
 
+    async def test_resolve_snippet_key_matches_variant_slug(self):
+        """key can match application_variant.slug when references map key is <app>.revision."""
+        env_data = {
+            "data": {
+                "references": {
+                    "snippet.revision": {
+                        "application": {
+                            "id": "019cbd69-6e5d-7933-abed-2a7d1eded6ee",
+                            "slug": "snippet",
+                        },
+                        "application_variant": {
+                            "id": "019cbd69-74f1-77b2-9b81-121c98db1000",
+                            "slug": "snippet.default",
+                        },
+                        "application_revision": {
+                            "id": "019cbd6a-80ef-74d1-ad67-690d5f24d87b",
+                            "slug": "16e039ed9adc",
+                            "version": "3",
+                        },
+                    }
+                }
+            }
+        }
+        workflow_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "variant-slug-key-content"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"msg": "@{{environment.slug=staging, key=snippet.default}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "variant-slug-key-content"
+
+    async def test_resolve_snippet_key_revision_bundle(self):
+        """key can point to an app deployment bundle under <app>.revision."""
+        env_data = {
+            "data": {
+                "references": {
+                    "snippet.revision": {
+                        "application": {
+                            "id": "019cbd69-6e5d-7933-abed-2a7d1eded6ee",
+                            "slug": "snippet",
+                        },
+                        "application_variant": {
+                            "id": "019cbd69-74f1-77b2-9b81-121c98db1000",
+                            "slug": "snippet.default",
+                        },
+                        "application_revision": {
+                            "id": "019cbd6a-80ef-74d1-ad67-690d5f24d87b",
+                            "slug": "16e039ed9adc",
+                            "version": "3",
+                        },
+                    }
+                }
+            }
+        }
+        app_revision_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "from-snippet-revision-key"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            if "application_revision" in references:
+                return app_revision_data
+            raise ValueError(f"Unexpected refs: {references}")
+
+        config = {"msg": "@{{environment.slug=staging, key=snippet.revision}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "from-snippet-revision-key"
+
     async def test_resolve_snippet_explicit_path(self):
         """Explicit path= overrides the default path."""
         env_data = {
-            "references": {
-                "tip": {"workflow_revision": {"slug": "wf-v1"}},
+            "data": {
+                "references": {
+                    "tip": {"workflow_revision": {"slug": "wf-v1"}},
+                }
             }
         }
-        workflow_data = {"parameters": {"config": {"value": "explicit-path-result"}}}
+        workflow_data = {
+            "data": {"parameters": {"config": {"value": "explicit-path-result"}}}
+        }
 
         async def resolver(references: Dict[str, Reference]):
             if "environment" in references:
@@ -988,9 +1092,11 @@ class TestSnippetEmbedResolution:
     async def test_auto_key_fails_with_multiple_keys(self):
         """auto_select_key raises ValueError when entity has multiple keys."""
         env_data = {
-            "references": {
-                "key_a": {"workflow_revision": {"slug": "wf-a-v1"}},
-                "key_b": {"workflow_revision": {"slug": "wf-b-v1"}},
+            "data": {
+                "references": {
+                    "key_a": {"workflow_revision": {"slug": "wf-a-v1"}},
+                    "key_b": {"workflow_revision": {"slug": "wf-b-v1"}},
+                }
             }
         }
 
@@ -1006,9 +1112,13 @@ class TestSnippetEmbedResolution:
 
     async def test_snippet_and_string_embed_coexist(self):
         """Both @ag.embed[...] and @{{...}} can appear in the same config."""
-        env_data = {"references": {"tip": {"workflow_revision": {"slug": "wf-v1"}}}}
+        env_data = {
+            "data": {"references": {"tip": {"workflow_revision": {"slug": "wf-v1"}}}}
+        }
         workflow_data = {
-            "parameters": {"prompt": {"messages": [{"content": "snippet-value"}]}}
+            "data": {
+                "parameters": {"prompt": {"messages": [{"content": "snippet-value"}]}}
+            }
         }
 
         async def resolver(references: Dict[str, Reference]):
@@ -1017,13 +1127,13 @@ class TestSnippetEmbedResolution:
             if "workflow_revision" in references:
                 ref = list(references.values())[0]
                 if ref.version == "v2":
-                    return {"data": "classic-value"}
+                    return {"data": {"parameters": {"value": "classic-value"}}}
                 return workflow_data
             raise ValueError(f"Unexpected: {references}")
 
         config = {
             "a": "@{{environment.slug=prod, key=tip}}",
-            "b": "@ag.embed[@ag.references[workflow_revision.version=v2], @ag.selector[path=data]]",
+            "b": "@ag.embed[@ag.references[workflow_revision.version=v2], @ag.selector[path=parameters.value]]",
         }
         result_config, info = await resolve_embeds(
             configuration=config,

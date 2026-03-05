@@ -262,7 +262,9 @@ export const saveVariantMutationAtom = atom(
                     ? get(parametersOverrideAtomFamily(variantId))
                     : null
 
-            // Transform prompts when not using JSON override
+            // Commit source of truth stays UNRESOLVED draft data.
+            // UI resolved-view mode is read-only and does not alter this payload source.
+            // Transform prompts when not using JSON override.
             const transformedParameters =
                 jsonOverride ?? get(transformedPromptsAtomFamily(variantId))
 
