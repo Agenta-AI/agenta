@@ -42,18 +42,13 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Install dependencies
-        working-directory: web
-        run: pnpm install --frozen-lockfile --filter agenta-web-tests...
+        working-directory: web/tests
+        run: npm install
 
       - name: Install Playwright browsers
         working-directory: web/tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Wait for deployment readiness
         run: |
@@ -71,7 +66,7 @@ jobs:
 
       - name: Run Playwright tests
         working-directory: web/tests
-        run: pnpm exec playwright test --reporter=html,github
+        run: npx playwright test --reporter=html,github
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
