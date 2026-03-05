@@ -545,9 +545,20 @@ export function createRunnableBridge<
     const {runnables, crud} = config
 
     /**
+     * Helper: check if a runnable ID has a type hint that is NOT in
+     * the runnables config (e.g. "legacyAppRevision"). When true,
+     * callers should skip probing and return their default/empty value.
+     */
+    const isHintedNonRunnable = (runnableId: string): boolean => {
+        const hintedType = _runnableTypeHints.get(runnableId)
+        return !!hintedType && !runnables[hintedType]
+    }
+
+    /**
      * Helper: resolve the runnable config for a given ID.
-     * If a type hint exists, return only that config. Otherwise return null
-     * to indicate the caller should probe all types.
+     * If a type hint exists and matches a registered runnable, return that config.
+     * Otherwise return null — caller should check `isHintedNonRunnable` first
+     * to decide whether to probe or skip.
      */
     const getHintedConfig = (runnableId: string) => {
         const hintedType = _runnableTypeHints.get(runnableId)
@@ -566,6 +577,7 @@ export function createRunnableBridge<
                 const entity = get(hinted.config.molecule.selectors.data(runnableId))
                 return entity ? hinted.config.toRunnable(entity) : null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -595,18 +607,15 @@ export function createRunnableBridge<
                 const query = get(hinted.config.molecule.selectors.query(runnableId))
                 return query as BridgeQueryState<RunnableData>
             }
+            const emptyQuery = {data: null, isPending: false, isError: false, error: null}
+            if (isHintedNonRunnable(runnableId)) return emptyQuery
             for (const [_type, config] of Object.entries(runnables)) {
                 const query = get(config.molecule.selectors.query(runnableId))
                 if (query.data || query.isPending || query.isError) {
                     return query as BridgeQueryState<RunnableData>
                 }
             }
-            return {
-                data: null,
-                isPending: false,
-                isError: false,
-                error: null,
-            }
+            return emptyQuery
         }),
     )
 
@@ -616,6 +625,7 @@ export function createRunnableBridge<
             if (hinted) {
                 return get(hinted.config.molecule.selectors.isDirty(runnableId))
             }
+            if (isHintedNonRunnable(runnableId)) return false
             for (const [_type, config] of Object.entries(runnables)) {
                 const isDirty = get(config.molecule.selectors.isDirty(runnableId))
                 if (isDirty) return true
@@ -635,6 +645,7 @@ export function createRunnableBridge<
                 }
                 return hinted.config.getInputPorts(entity)
             }
+            if (isHintedNonRunnable(runnableId)) return []
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -659,6 +670,7 @@ export function createRunnableBridge<
                 }
                 return hinted.config.getOutputPorts(entity)
             }
+            if (isHintedNonRunnable(runnableId)) return []
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -691,6 +703,7 @@ export function createRunnableBridge<
                 const data = hinted.config.toRunnable(entity)
                 return data?.invocationUrl ?? null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -717,6 +730,7 @@ export function createRunnableBridge<
                 const data = hinted.config.toRunnable(entity)
                 return data?.schemas ?? null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (!entity) continue
@@ -741,6 +755,7 @@ export function createRunnableBridge<
                 }
                 return null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (!entity) continue
@@ -761,6 +776,7 @@ export function createRunnableBridge<
                 }
                 return null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -782,6 +798,7 @@ export function createRunnableBridge<
                 const entity = get(hinted.config.serverDataSelector(runnableId))
                 return entity ? hinted.config.toRunnable(entity) : null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 if (!config.serverDataSelector) continue
                 const entity = get(config.serverDataSelector(runnableId))
@@ -817,6 +834,7 @@ export function createRunnableBridge<
                 const latestId = get(hinted.config.latestRevisionIdSelector(parentId))
                 return runnableId === latestId
             }
+            if (isHintedNonRunnable(runnableId)) return false
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -842,6 +860,7 @@ export function createRunnableBridge<
                 }
                 return "completion"
             }
+            if (isHintedNonRunnable(runnableId)) return "completion"
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -866,6 +885,7 @@ export function createRunnableBridge<
                 }
                 return null
             }
+            if (isHintedNonRunnable(runnableId)) return null
             for (const [_type, config] of Object.entries(runnables)) {
                 const entity = get(config.molecule.selectors.data(runnableId))
                 if (entity) {
@@ -929,7 +949,7 @@ export function createRunnableBridge<
             if (entity && hinted.config.normalizeResponse) {
                 return hinted.config.normalizeResponse(responseData)
             }
-        } else {
+        } else if (!isHintedNonRunnable(runnableId)) {
             for (const [_type, cfg] of Object.entries(runnables)) {
                 const entity = store.get(cfg.molecule.selectors.data(runnableId))
                 if (entity && cfg.normalizeResponse) {
