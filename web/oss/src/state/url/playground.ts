@@ -789,6 +789,7 @@ const selectedDraftHashAtom = atom((get) => {
         const isDirty = get(runnableBridge.isDirty(revisionId))
         const draft = get(runnableBridge.draft(revisionId))
         const draftHash = draft ? JSON.stringify(draft) : ""
+
         return `${revisionId}:${isDirty}:${draftHash}`
     })
 
@@ -873,6 +874,13 @@ playgroundSyncAtom.onMount = (set) => {
                 unsubQuery()
                 unsubData()
             })
+
+            // Immediately check if data is already available.
+            // store.sub() only fires on FUTURE changes — if the query was
+            // already resolved (e.g. cache-primed by another query via
+            // initialData) before this subscription was set up, the sub
+            // would never fire and the draft would never be applied.
+            tryApplyHydrations()
         }
     }
 

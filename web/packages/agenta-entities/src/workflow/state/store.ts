@@ -1012,7 +1012,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // Deep compare normalized parameters using fast-deep-equal
         const normalizedEntity = normalizeForComparison(entityParams)
         const normalizedServer = normalizeForComparison(serverParams)
-        return !isEqual(normalizedEntity, normalizedServer)
+        const isDirty = !isEqual(normalizedEntity, normalizedServer)
+
+        return isDirty
     }),
 )
 
