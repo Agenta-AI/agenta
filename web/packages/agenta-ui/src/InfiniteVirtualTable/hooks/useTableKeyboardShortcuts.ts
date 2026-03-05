@@ -481,7 +481,7 @@ function useTableKeyboardShortcuts<RecordType extends object>({
         const entry = highlightEntryRef.current
         if (!entry) return false
         const isSelected = selectedKeySet.has(entry.key)
-        const nextKeys = isSelected
+        const nextKeys: Key[] = isSelected
             ? selectedKeys.filter((key) => key !== entry.key)
             : [...selectedKeys, entry.key]
         triggerSelectionChange(nextKeys)

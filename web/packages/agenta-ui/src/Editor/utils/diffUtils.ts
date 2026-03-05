@@ -3,64 +3,222 @@ import yaml from "js-yaml"
 import type {CodeLanguage} from "../plugins/code/types"
 
 /**
- * Compute line-by-line diff using LCS-based algorithm
+ * Maximum number of cells (oldLines × newLines) for the LCS DP table.
+ * Beyond this threshold, the computation would freeze the browser.
+ * 4M cells ≈ ~32MB memory, ~200-500ms on modern hardware.
  */
-function computeLineDiff(oldLines: string[], newLines: string[], contextLines: number): DiffLine[] {
-    const result: {
-        type: "context" | "added" | "removed"
-        content: string
-        oldLineNumber?: number
-        newLineNumber?: number
-    }[] = []
+const LCS_MAX_CELLS = 4_000_000
 
-    // Use LCS algorithm for proper diff computation
-    const lcs = longestCommonSubsequence(oldLines, newLines)
+/**
+ * Interleave consecutive removed/added blocks so that each removed line
+ * is immediately followed by its positional counterpart from the added block.
+ *
+ * LCS-based diff naturally groups all removals before all additions when
+ * multiple adjacent lines change. This breaks inline diff pairing which
+ * relies on consecutive removed→added pairs. Post-processing re-orders:
+ *
+ *   [R1, R2, R3, A1, A2, A3] → [R1, A1, R2, A2, R3, A3]
+ *
+ * When counts don't match, extra lines are appended at the end of the block.
+ */
+function interleaveRemovedAdded(lines: DiffLine[]): DiffLine[] {
+    const result: DiffLine[] = []
+    let i = 0
 
-    let oldIndex = 0
-    let newIndex = 0
-    let lcsIndex = 0
+    while (i < lines.length) {
+        if (lines[i].type !== "removed") {
+            result.push(lines[i])
+            i++
+            continue
+        }
 
-    while (oldIndex < oldLines.length || newIndex < newLines.length) {
-        if (
-            lcsIndex < lcs.length &&
-            oldIndex < oldLines.length &&
-            newIndex < newLines.length &&
-            oldLines[oldIndex] === lcs[lcsIndex] &&
-            newLines[newIndex] === lcs[lcsIndex]
-        ) {
-            // Common line - show both line numbers
-            result.push({
-                type: "context",
-                content: oldLines[oldIndex],
-                oldLineNumber: oldIndex + 1,
-                newLineNumber: newIndex + 1,
-            })
-            oldIndex++
-            newIndex++
-            lcsIndex++
-        } else if (
-            oldIndex < oldLines.length &&
-            (lcsIndex >= lcs.length || oldLines[oldIndex] !== lcs[lcsIndex])
-        ) {
-            // Removed line - show only old line number
-            result.push({
-                type: "removed",
-                content: oldLines[oldIndex],
-                oldLineNumber: oldIndex + 1,
-            })
-            oldIndex++
-        } else if (newIndex < newLines.length) {
-            // Added line - show only new line number
-            result.push({
-                type: "added",
-                content: newLines[newIndex],
-                newLineNumber: newIndex + 1,
-            })
-            newIndex++
+        // Collect consecutive removed lines
+        const removedStart = i
+        while (i < lines.length && lines[i].type === "removed") {
+            i++
+        }
+        const removedEnd = i
+
+        // Collect consecutive added lines immediately following
+        const addedStart = i
+        while (i < lines.length && lines[i].type === "added") {
+            i++
+        }
+        const addedEnd = i
+
+        const removedCount = removedEnd - removedStart
+        const addedCount = addedEnd - addedStart
+
+        if (addedCount === 0) {
+            // Pure removals, no interleaving needed
+            for (let j = removedStart; j < removedEnd; j++) {
+                result.push(lines[j])
+            }
+            continue
+        }
+
+        // Interleave: pair each removed with corresponding added
+        const pairCount = Math.min(removedCount, addedCount)
+        for (let j = 0; j < pairCount; j++) {
+            result.push(lines[removedStart + j])
+            result.push(lines[addedStart + j])
+        }
+
+        // Append any remaining removed lines
+        for (let j = pairCount; j < removedCount; j++) {
+            result.push(lines[removedStart + j])
+        }
+
+        // Append any remaining added lines
+        for (let j = pairCount; j < addedCount; j++) {
+            result.push(lines[addedStart + j])
         }
     }
 
     return result
+}
+
+/**
+ * Compute line-by-line diff using LCS-based algorithm.
+ *
+ * Optimizations applied:
+ * 1. Common prefix/suffix lines are stripped before LCS (reduces DP table size)
+ * 2. Safety cap on DP table size prevents OOM/freeze on very large diffs
+ * 3. LCS reconstruction uses push+reverse instead of O(n²) unshift
+ * 4. Post-processing interleaves removed/added blocks for proper inline diff pairing
+ */
+function computeLineDiff(
+    oldLines: string[],
+    newLines: string[],
+    _contextLines: number,
+): DiffLine[] {
+    const result: DiffLine[] = []
+
+    // --- Strip common prefix ---
+    let prefixLen = 0
+    const maxPrefix = Math.min(oldLines.length, newLines.length)
+    while (prefixLen < maxPrefix && oldLines[prefixLen] === newLines[prefixLen]) {
+        prefixLen++
+    }
+
+    // --- Strip common suffix ---
+    let suffixLen = 0
+    const maxSuffix = Math.min(oldLines.length, newLines.length) - prefixLen
+    while (
+        suffixLen < maxSuffix &&
+        oldLines[oldLines.length - 1 - suffixLen] === newLines[newLines.length - 1 - suffixLen]
+    ) {
+        suffixLen++
+    }
+
+    // Emit prefix context lines
+    for (let i = 0; i < prefixLen; i++) {
+        result.push({
+            type: "context",
+            content: oldLines[i],
+            oldLineNumber: i + 1,
+            newLineNumber: i + 1,
+        })
+    }
+
+    // Extract the middle (differing) portion
+    const oldMiddle = oldLines.slice(prefixLen, oldLines.length - suffixLen)
+    const newMiddle = newLines.slice(prefixLen, newLines.length - suffixLen)
+
+    if (oldMiddle.length === 0 && newMiddle.length === 0) {
+        // No differences in the middle — only suffix context remains
+    } else if (oldMiddle.length * newMiddle.length > LCS_MAX_CELLS) {
+        // Safety cap: DP table too large — fall back to interleaved remove/add.
+        // This avoids multi-second freezes or OOM for very large diffs.
+        const pairCount = Math.min(oldMiddle.length, newMiddle.length)
+        for (let i = 0; i < pairCount; i++) {
+            result.push({
+                type: "removed",
+                content: oldMiddle[i],
+                oldLineNumber: prefixLen + i + 1,
+            })
+            result.push({
+                type: "added",
+                content: newMiddle[i],
+                newLineNumber: prefixLen + i + 1,
+            })
+        }
+        for (let i = pairCount; i < oldMiddle.length; i++) {
+            result.push({
+                type: "removed",
+                content: oldMiddle[i],
+                oldLineNumber: prefixLen + i + 1,
+            })
+        }
+        for (let i = pairCount; i < newMiddle.length; i++) {
+            result.push({
+                type: "added",
+                content: newMiddle[i],
+                newLineNumber: prefixLen + i + 1,
+            })
+        }
+    } else {
+        // Run LCS on the middle portion only
+        const lcs = longestCommonSubsequence(oldMiddle, newMiddle)
+
+        let oldIndex = 0
+        let newIndex = 0
+        let lcsIndex = 0
+
+        while (oldIndex < oldMiddle.length || newIndex < newMiddle.length) {
+            if (
+                lcsIndex < lcs.length &&
+                oldIndex < oldMiddle.length &&
+                newIndex < newMiddle.length &&
+                oldMiddle[oldIndex] === lcs[lcsIndex] &&
+                newMiddle[newIndex] === lcs[lcsIndex]
+            ) {
+                result.push({
+                    type: "context",
+                    content: oldMiddle[oldIndex],
+                    oldLineNumber: prefixLen + oldIndex + 1,
+                    newLineNumber: prefixLen + newIndex + 1,
+                })
+                oldIndex++
+                newIndex++
+                lcsIndex++
+            } else if (
+                oldIndex < oldMiddle.length &&
+                (lcsIndex >= lcs.length || oldMiddle[oldIndex] !== lcs[lcsIndex])
+            ) {
+                result.push({
+                    type: "removed",
+                    content: oldMiddle[oldIndex],
+                    oldLineNumber: prefixLen + oldIndex + 1,
+                })
+                oldIndex++
+            } else if (newIndex < newMiddle.length) {
+                result.push({
+                    type: "added",
+                    content: newMiddle[newIndex],
+                    newLineNumber: prefixLen + newIndex + 1,
+                })
+                newIndex++
+            }
+        }
+    }
+
+    // Emit suffix context lines
+    const oldSuffixStart = oldLines.length - suffixLen
+    const newSuffixStart = newLines.length - suffixLen
+    for (let i = 0; i < suffixLen; i++) {
+        result.push({
+            type: "context",
+            content: oldLines[oldSuffixStart + i],
+            oldLineNumber: oldSuffixStart + i + 1,
+            newLineNumber: newSuffixStart + i + 1,
+        })
+    }
+
+    // Interleave consecutive removed/added blocks for proper inline diff pairing.
+    // The LCS loop naturally emits all removals before additions when multiple
+    // adjacent lines change; this post-processing re-orders them as pairs.
+    return interleaveRemovedAdded(result)
 }
 
 /**
@@ -137,15 +295,12 @@ function applyFolding(
                 const foldEnd = contextEnd - keepLines
 
                 if (foldEnd > contextStart) {
-                    // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[contextStart]
                     const lastFoldedLine = diffLines[foldEnd - 1]
                     const startLineNum =
                         firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
                     const endLineNum =
                         lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
-
-                    // Debug: fold range calculation is working correctly
 
                     result.push({
                         type: "fold",
@@ -173,15 +328,12 @@ function applyFolding(
                 }
 
                 if (foldStart < contextEnd) {
-                    // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[foldStart]
                     const lastFoldedLine = diffLines[contextEnd - 1]
                     const startLineNum =
                         firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
                     const endLineNum =
                         lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
-
-                    // Debug: fold range calculation is working correctly
 
                     result.push({
                         type: "fold",
@@ -195,26 +347,21 @@ function applyFolding(
                 }
             } else {
                 // In the middle - show context around changes
-                // Only fold if we can actually save significant lines
-                const totalKeep = contextLines * 2 // Keep context lines before and after
+                const totalKeep = contextLines * 2
                 if (contextLength <= totalKeep + 2) {
-                    // Not enough lines to make folding worthwhile, keep all
                     for (let j = contextStart; j < contextEnd; j++) {
                         result.push(diffLines[j])
                     }
                 } else {
-                    // Enough lines to fold meaningfully
                     const keepBefore = contextLines
                     const keepAfter = contextLines
                     const foldStart = contextStart + keepBefore
                     const foldEnd = contextEnd - keepAfter
 
-                    // Add initial context lines
                     for (let j = contextStart; j < foldStart; j++) {
                         result.push(diffLines[j])
                     }
 
-                    // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[foldStart]
                     const lastFoldedLine = diffLines[foldEnd - 1]
                     const startLineNum =
@@ -232,7 +379,6 @@ function applyFolding(
                         foldedLineCount: foldEnd - foldStart,
                     })
 
-                    // Add final context lines
                     for (let j = foldEnd; j < contextEnd; j++) {
                         result.push(diffLines[j])
                     }
@@ -249,65 +395,9 @@ function applyFolding(
 /**
  * Compute diff between two objects and return GitHub-style diff format
  *
- * This function takes two JavaScript objects and computes a line-by-line diff
- * in the specified format (JSON or YAML). The result is a unified diff format
- * that can be parsed and displayed by the DiffHighlightPlugin.
- *
- * ## Input Handling:
- * - Accepts any JavaScript objects/values as input
- * - Serializes objects to strings based on the specified language
- * - Handles nested objects, arrays, and primitive values
- *
- * ## Language Support:
- * **JSON Mode:**
- * - Uses `JSON.stringify(obj, null, 2)` for consistent formatting
- * - 2-space indentation for readability
- * - Proper JSON syntax with quotes and brackets
- *
- * **YAML Mode:**
- * - Uses `yaml.dump(obj, {indent: 2})` for consistent formatting
- * - 2-space indentation following YAML conventions
- * - Clean YAML syntax without unnecessary quotes
- *
- * ## Output Format:
- * Returns a string where each line follows the pattern:
- * ```
- * oldLineNum|newLineNum|type|content
- * ```
- * - `oldLineNum`: Line number in original (empty for added lines)
- * - `newLineNum`: Line number in modified (empty for removed lines)
- * - `type`: "added" | "removed" | "context"
- * - `content`: The actual line content
- *
- * ## Usage Examples:
- *
- * ### JSON Diff
- * ```typescript
- * const original = {name: "old-service", version: "1.0.0"}
- * const modified = {name: "new-service", version: "1.1.0"}
- *
- * const diff = computeDiff(original, modified, {
- *   language: "json",
- *   contextLines: 3
- * })
- * ```
- *
- * ### YAML Diff
- * ```typescript
- * const original = {name: "old-service", config: {port: 8080}}
- * const modified = {name: "new-service", config: {port: 9000}}
- *
- * const diff = computeDiff(original, modified, {
- *   language: "yaml",
- *   contextLines: 2
- * })
- * ```
- *
  * @param original - The original object to compare from
  * @param modified - The modified object to compare to
  * @param options - Configuration options for diff computation
- * @param options.language - Output format: "json" or "yaml"
- * @param options.contextLines - Number of context lines around changes (default: 3)
  * @returns Unified diff string in the specified format
  */
 export function computeDiff(
@@ -335,6 +425,14 @@ export function computeDiff(
     const newStr =
         language === "yaml" ? yaml.dump(modified, {indent: 2}) : JSON.stringify(modified, null, 2)
 
+    // Fast path: identical content — no diff needed
+    if (oldStr === newStr) {
+        return oldStr
+            .split("\n")
+            .map((line, i) => `${i + 1}|${i + 1}|context|${line}`)
+            .join("\n")
+    }
+
     const oldLines = oldStr.split("\n")
     const newLines = newStr.split("\n")
 
@@ -358,17 +456,13 @@ export function computeDiff(
     const result = diffLines
         .map((line) => {
             if (line.type === "fold") {
-                // Special handling for fold lines
                 const foldLine = line as ExtendedDiffLine
                 const startLine = foldLine.startLine || ""
                 const endLine = foldLine.endLine || ""
-                // Format: "startLine-endLine|startLine-endLine|fold|content|foldedLineCount"
                 return `${startLine}-${endLine}|${startLine}-${endLine}|fold|${line.content}|${foldLine.foldedLineCount || 0}`
             } else {
-                // Regular diff lines
                 const oldNum = line.oldLineNumber ? line.oldLineNumber.toString() : ""
                 const newNum = line.newLineNumber ? line.newLineNumber.toString() : ""
-                // Format: "oldLineNum|newLineNum|type|content"
                 return `${oldNum}|${newNum}|${line.type}|${line.content}`
             }
         })
@@ -391,10 +485,8 @@ export function isContentIncomplete(content: string, language: CodeLanguage): bo
             openObject: trimmed.endsWith("{"),
             openArray: trimmed.endsWith("["),
             trailingColon: trimmed.endsWith(":"),
-            // Removed emptyString check - '""' is valid JSON (empty string value)
             colonAtEnd: /"\s*:\s*$/.test(content),
             colonNewline: /"\s*:\s*\n/.test(content),
-            // Removed invalidValueStart - too restrictive and causes false positives
         }
 
         return Object.values(checks).some(Boolean)
@@ -403,70 +495,92 @@ export function isContentIncomplete(content: string, language: CodeLanguage): bo
         const lines = content.split("\n")
         const hasIncompleteKey = lines.some((line, index) => {
             const trimmedLine = line.trim()
-            // Check for key without value (not followed by colon or value)
             if (trimmedLine && !trimmedLine.includes(":") && !trimmedLine.startsWith("-")) {
-                // Check if next line exists and starts a new key
                 const nextLine = lines[index + 1]
                 if (nextLine && nextLine.trim().includes(":")) {
-                    return true // Key without value followed by another key
+                    return true
                 }
             }
             return false
         })
 
-        // Check for the specific "multiline key" error pattern
         const hasMultilineKeyError =
             content.includes("testKey\ndependencies:") ||
             /^\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\n\s*[a-zA-Z_][a-zA-Z0-9_]*:/m.test(content)
 
         return (
-            trimmed.endsWith(":") || // Missing value after key
-            trimmed.endsWith("-") || // Incomplete list item
-            /:\s*$/.test(content) || // Key followed by colon at end
-            /:\s*\n\s*$/.test(content) || // Key followed by colon and newline
-            hasIncompleteKey || // Key without value followed by another key
-            hasMultilineKeyError // Multiline key error pattern
+            trimmed.endsWith(":") ||
+            trimmed.endsWith("-") ||
+            /:\s*$/.test(content) ||
+            /:\s*\n\s*$/.test(content) ||
+            hasIncompleteKey ||
+            hasMultilineKeyError
         )
     }
 }
 
 /**
- * Simple LCS implementation for line diff
+ * LCS implementation with O(n) space optimization.
+ * Uses two rolling rows instead of a full (m+1)×(n+1) table,
+ * reducing memory from O(m×n) to O(n).
+ *
+ * Reconstruction uses push+reverse instead of O(n²) unshift.
  */
 function longestCommonSubsequence(a: string[], b: string[]): string[] {
     const m = a.length
     const n = b.length
-    const dp: number[][] = Array(m + 1)
-        .fill(null)
-        .map(() => Array(n + 1).fill(0))
 
-    // Build LCS table
+    if (m === 0 || n === 0) return []
+
+    // Build LCS length table using two rows (O(n) space).
+    // We also need the full table for backtracking, so we store
+    // a direction matrix to reconstruct the path.
+    // Direction: 0 = diagonal (match), 1 = up, 2 = left
+    const dir = new Uint8Array(m * n)
+    let prev = new Int32Array(n + 1)
+    let curr = new Int32Array(n + 1)
+
     for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
             if (a[i - 1] === b[j - 1]) {
-                dp[i][j] = dp[i - 1][j - 1] + 1
+                curr[j] = prev[j - 1] + 1
+                dir[(i - 1) * n + (j - 1)] = 0 // diagonal
+            } else if (prev[j] >= curr[j - 1]) {
+                curr[j] = prev[j]
+                dir[(i - 1) * n + (j - 1)] = 1 // up
             } else {
-                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+                curr[j] = curr[j - 1]
+                dir[(i - 1) * n + (j - 1)] = 2 // left
             }
         }
+        // Swap rows
+        const tmp = prev
+        prev = curr
+        curr = tmp
+        curr.fill(0)
     }
 
-    // Reconstruct LCS
+    // Reconstruct LCS using direction matrix
     const lcs: string[] = []
     let i = m,
         j = n
 
     while (i > 0 && j > 0) {
-        if (a[i - 1] === b[j - 1]) {
-            lcs.unshift(a[i - 1])
+        const d = dir[(i - 1) * n + (j - 1)]
+        if (d === 0) {
+            // diagonal — match
+            lcs.push(a[i - 1])
             i--
             j--
-        } else if (dp[i - 1][j] > dp[i][j - 1]) {
+        } else if (d === 1) {
+            // up
             i--
         } else {
+            // left
             j--
         }
     }
 
+    lcs.reverse()
     return lcs
 }

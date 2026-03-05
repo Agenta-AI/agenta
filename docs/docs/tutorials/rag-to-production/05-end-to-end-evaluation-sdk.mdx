@@ -1,0 +1,456 @@
+---
+title: "End-to-End Evaluation with the SDK"
+description: "Evaluate your entire RAG system programmatically. Test retrieval, prompts, and generation together using the Agenta SDK and DeepEval."
+sidebar_label: "End-to-end evaluation with the SDK"
+sidebar_position: 5
+---
+
+import Image from "@theme/IdealImage";
+
+:::info Full code and setup
+The complete code for this tutorial is in the [RAG QA Chatbot example](https://github.com/Agenta-AI/agenta/tree/main/examples/python/RAG_QA_chatbot). The evaluation script is at [`scripts/evaluate_rag.py`](https://github.com/Agenta-AI/agenta/blob/main/examples/python/RAG_QA_chatbot/scripts/evaluate_rag.py). See the [README](https://github.com/Agenta-AI/agenta/blob/main/examples/python/RAG_QA_chatbot/README.md) for setup instructions.
+
+```bash
+# Clone, install, and run the evaluation
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta/examples/python/RAG_QA_chatbot
+cp env.example .env  # fill in your keys
+uv sync
+uv run scripts/evaluate_rag.py
+```
+:::
+
+## What you will build
+
+By the end of this tutorial you will have a script that evaluates your entire RAG system in one command. The script runs every test query through the full pipeline (retrieval, prompt, generation), scores the output on three quality dimensions using [DeepEval](https://github.com/confident-ai/deepeval), and records the results in Agenta.
+
+You will be able to compare evaluation runs across different configurations. Change the model, the retrieval parameters, or the prompt, re-run the script, and see exactly what improved.
+
+The same script works locally and in CI/CD. You can run it on every pull request.
+
+### Why end-to-end evaluation?
+
+Previously, you evaluated the prompt in isolation using the UI. You gave the prompt a fixed context and checked whether the output was good. That answers one question: *is this prompt good?*
+
+But your users do not interact with the prompt alone. They interact with the full system. Their question goes through retrieval, the retrieved context gets formatted, and then the prompt generates an answer. A great prompt with bad retrieval still produces bad answers. A good retriever with a weak prompt wastes good context.
+
+End-to-end evaluation answers a different question: *does the whole pipeline work?* You feed it a user query and let the system do everything. Then you evaluate the final answer and the intermediate steps.
+
+{/* TODO: diagram showing prompt eval vs end-to-end eval */}
+
+## Prerequisites
+
+This tutorial builds on [Tracing and prompt management](./02-tracing-and-prompt-management.mdx). You need:
+
+- The RAG Q&A Chatbot example set up and working, with tracing and prompt management configured. See the [Tracing and prompt management](./02-tracing-and-prompt-management.mdx) tutorial for setup instructions.
+- An [Agenta Cloud](https://cloud.agenta.ai) account.
+- Python 3.11+.
+
+Install the Agenta SDK and DeepEval:
+
+```bash
+pip install agenta deepeval
+```
+
+Your `.env` file should have:
+
+```bash
+OPENAI_API_KEY=...
+QDRANT_URL=...
+QDRANT_API_KEY=...
+COLLECTION_NAME=...
+AGENTA_API_KEY=...
+AGENTA_HOST=https://cloud.agenta.ai
+```
+
+## How SDK evaluation works
+
+Before writing code, it helps to understand the three building blocks.
+
+An **application** is the function you want to test. You mark it with the `@ag.application` decorator. This registers the function in Agenta as a versioned, trackable entity. In our case the application is the full RAG pipeline: query in, answer and context out.
+
+An **evaluator** is a function that scores an application's output. You mark it with the `@ag.evaluator` decorator. Like applications, evaluators are saved and versioned in Agenta. Each evaluator receives the original test case fields plus the application's output, and returns a score.
+
+The **`aevaluate()`** function ties everything together. It takes a test set, runs each test case through the application, passes the results to every evaluator, and records everything in Agenta.
+
+:::info
+Each application run produces a full trace. You get the same trace you would see in production (all spans, costs, and latencies) with evaluation scores attached to it. You can parameterize your application (different models, different prompts) and compare evaluation runs side by side.
+:::
+
+## Step 1: Wrap your RAG pipeline as an application
+
+The `@ag.application` decorator marks the entry point for evaluation. When `aevaluate()` runs, it calls this function once per test case.
+
+Create a new file `scripts/evaluate_rag.py`:
+
+```python
+import agenta as ag
+import litellm
+from backend.rag import retrieve, format_context, generate
+
+ag.init()
+# highlight-next-line
+# Auto-instrument all LLM calls (costs, latencies, tokens) via LiteLLM
+# highlight-next-line
+litellm.callbacks = [ag.callbacks.litellm_handler()]
+
+# highlight-start
+@ag.application(
+    slug="rag-qa-chatbot",
+    name="RAG QA Chatbot",
+    description="Documentation Q&A using retrieval-augmented generation",
+)
+# highlight-end
+@ag.instrument(spankind="WORKFLOW")
+async def rag_pipeline(query: str) -> dict:
+    """Run the full RAG pipeline: retrieve, format, generate."""
+    docs = retrieve(query)
+    context = format_context(docs)
+    retrieval_context = [doc.content for doc in docs]
+
+    # Collect the streamed response into a single string
+    chunks = []
+    async for chunk in generate(query, context):
+        chunks.append(chunk)
+    answer = "".join(chunks)
+
+    # highlight-start
+    # Save retrieval details on the trace for debugging in the Agenta UI
+    ag.tracing.store_internals({
+        "retrieval_context": retrieval_context,
+        "retrieved_docs": [
+            {"title": doc.title, "url": doc.url, "score": doc.score}
+            for doc in docs
+        ],
+    })
+    # highlight-end
+
+    return {
+        "answer": answer,
+        "retrieval_context": retrieval_context,
+    }
+```
+
+Three things to note here.
+
+**`@ag.application`** registers this function as the evaluation entry point. The `@ag.instrument(spankind="WORKFLOW")` decorator below it ensures every call creates a proper root trace span. You need both.
+
+**The parameter name `query` must match a key in your test data.** The SDK maps test case fields to function parameters by name.
+
+**The function returns a dictionary** with both `answer` and `retrieval_context`. The evaluators will receive this entire dictionary as their `outputs` parameter. This way each evaluator has access to the retrieval context without running a second retrieval call. The evaluator scores the same context the application actually used.
+
+We also call **`store_internals`** to save the context and document metadata on the trace. This is not for the evaluators; it is for you. When you open a trace in the Agenta UI, you can see exactly which documents were retrieved and how they scored.
+
+:::note Alternative: read context from trace data
+If you prefer your application to return a plain string, you can store the retrieval context via `store_internals` and read it back from the `trace` parameter in your evaluator. This keeps the return type clean but adds complexity — the evaluator needs to navigate the trace structure to find the internals. See the [`evaluate_rag_trace_based.py`](https://github.com/Agenta-AI/agenta/blob/main/examples/python/RAG_QA_chatbot/scripts/evaluate_rag_trace_based.py) example for a working implementation.
+:::
+
+## Step 2: Create your test data
+
+For RAG evaluation without ground truth, you only need the queries themselves. The evaluators will assess quality based on what the system retrieves and generates.
+
+Put your test queries in a `queries.json` file:
+
+```json
+{
+  "queries": [
+    "How do I add tracing to my LLM application?",
+    "What evaluators does Agenta support?",
+    "How do I create a test set from production traces?",
+    "Can I use Agenta with LangChain?",
+    "How does prompt versioning work?"
+  ]
+}
+```
+
+Then load them and create a test set in Agenta:
+
+```python
+import json
+from pathlib import Path
+
+QUERIES_FILE = Path(__file__).parent / "queries.json"
+
+def load_queries(count: int = 5) -> list[str]:
+    with open(QUERIES_FILE) as f:
+        data = json.load(f)
+    return data["queries"][:count]
+```
+
+```python
+test_data = [{"query": q} for q in load_queries(5)]
+
+testset = await ag.testsets.acreate(
+    name="RAG Eval - 5 queries",
+    data=test_data,
+)
+```
+
+:::tip Where do good test queries come from?
+The best test cases come from real production data. You can create test sets from the Agenta UI (e.g. by annotating traces and adding them to a test set), then pass the test set ID directly to `aevaluate()` instead of creating one programmatically:
+
+```python
+# Use an existing test set created from the Agenta UI
+result = await aevaluate(
+    # highlight-next-line
+    testsets=["your-testset-id"],
+    applications=[rag_pipeline],
+    evaluators=[contextual_relevancy, answer_relevancy, faithfulness],
+)
+```
+
+You can find the test set ID in the Agenta UI under the test sets page. Start with manually curated queries, then expand with production data as your system sees real traffic. See the [managing test sets documentation](/evaluation/managing-test-sets/upload-csv) for more on creating test sets.
+:::
+
+## Step 3: Write evaluators
+
+You will write three evaluators, each testing a different quality dimension of your RAG system. We use [DeepEval](https://github.com/confident-ai/deepeval), an open-source evaluation framework with purpose-built RAG metrics.
+
+### The three RAG quality dimensions
+
+For a RAG system, there are three questions that matter most.
+
+**Contextual relevancy.** Did the retriever find the right information? If the retrieved chunks are not relevant to the question, even a perfect prompt cannot produce a good answer.
+
+**Answer relevancy.** Is the answer helpful? Does it actually address what the user asked, or does it ramble about something tangential?
+
+**Faithfulness.** Does the answer stick to the retrieved context? Or does it hallucinate information that the context does not contain?
+
+These three dimensions cover the main failure modes of a RAG pipeline: bad retrieval, unhelpful answers, and hallucinations.
+
+### The evaluator pattern
+
+Since the application returns a dictionary with `answer` and `retrieval_context`, each evaluator can unpack exactly what it needs. No evaluator has to re-run retrieval or call external services. It scores what the application actually produced.
+
+Each evaluator follows the same steps. First, unpack the answer and (where needed) the retrieval context from `outputs`. Second, create a DeepEval `LLMTestCase`. Third, run the metric. Fourth, return the score, whether it passed, and the reason.
+
+The `reason` is important. Each DeepEval metric produces a natural-language explanation of its score. We pass this through to the Agenta UI. When a particular answer scores low, you can read the reason and understand *why* without re-investigating manually.
+
+```python
+from deepeval.metrics import (
+    ContextualRelevancyMetric,
+    AnswerRelevancyMetric,
+    FaithfulnessMetric,
+)
+from deepeval.test_case import LLMTestCase
+```
+
+### Contextual relevancy
+
+This evaluator checks whether the retrieved chunks are relevant to the query.
+
+```python
+@ag.evaluator(slug="contextual_relevancy", name="Contextual Relevancy")
+async def contextual_relevancy(query: str, outputs: dict) -> dict:
+    test_case = LLMTestCase(
+        input=query,
+        actual_output=outputs["answer"],
+        retrieval_context=outputs["retrieval_context"],
+    )
+    metric = ContextualRelevancyMetric(threshold=0.5, verbose_mode=False)
+    metric.measure(test_case)
+    return {
+        "score": metric.score,
+        "success": metric.score >= metric.threshold,
+        "reason": metric.reason,
+    }
+```
+
+### Answer relevancy
+
+This evaluator checks whether the answer is actually helpful for the question. It only needs the query and the answer; it does not use the retrieval context.
+
+```python
+@ag.evaluator(slug="answer_relevancy", name="Answer Relevancy")
+async def answer_relevancy(query: str, outputs: dict) -> dict:
+    test_case = LLMTestCase(
+        input=query,
+        actual_output=outputs["answer"],
+    )
+    metric = AnswerRelevancyMetric(threshold=0.5, verbose_mode=False)
+    metric.measure(test_case)
+    return {
+        "score": metric.score,
+        "success": metric.score >= metric.threshold,
+        "reason": metric.reason,
+    }
+```
+
+### Faithfulness
+
+This evaluator checks whether the answer stays grounded in the retrieved context, without hallucinating.
+
+```python
+@ag.evaluator(slug="faithfulness", name="Faithfulness")
+async def faithfulness(query: str, outputs: dict) -> dict:
+    test_case = LLMTestCase(
+        input=query,
+        actual_output=outputs["answer"],
+        retrieval_context=outputs["retrieval_context"],
+    )
+    metric = FaithfulnessMetric(threshold=0.5, verbose_mode=False)
+    metric.measure(test_case)
+    return {
+        "score": metric.score,
+        "success": metric.score >= metric.threshold,
+        "reason": metric.reason,
+    }
+```
+
+### How `outputs` mapping works
+
+The `outputs` parameter is special. The SDK always passes the application's return value as `outputs`. Since `rag_pipeline` returns a dictionary, `outputs` is that dictionary. Each evaluator unpacks `outputs["answer"]` and `outputs["retrieval_context"]` as needed.
+
+Other parameters (like `query`) are mapped from the test case by name. If your test case has a field called `query`, the SDK passes it to any evaluator parameter also called `query`.
+
+All three metrics are reference-free. You do not need expected answers or golden labels. This matters for RAG systems where maintaining ground truth is expensive and breaks easily as your documentation changes.
+
+:::note What about ContextualPrecision and ContextualRecall?
+DeepEval also offers `ContextualPrecision` and `ContextualRecall` metrics, but both require `expected_output` (ground truth). If you have ground truth for your test cases, adding these gives you a more complete picture of retrieval quality. For this tutorial we stick to reference-free metrics.
+:::
+
+## Step 4: Run the evaluation
+
+Put everything together and run it:
+
+```python
+import asyncio
+from agenta.sdk.evaluations import aevaluate
+
+async def main():
+    queries = load_queries(5)
+    test_data = [{"query": q} for q in queries]
+
+    testset = await ag.testsets.acreate(
+        name=f"RAG Eval - {len(queries)} queries",
+        data=test_data,
+    )
+
+    result = await aevaluate(
+        testsets=[testset.id],
+        applications=[rag_pipeline],
+        evaluators=[
+            contextual_relevancy,
+            answer_relevancy,
+            faithfulness,
+        ],
+    )
+
+    return result
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```bash
+uv run scripts/evaluate_rag.py
+```
+
+The SDK does four things in sequence. It loads each test case from the test set. It calls `rag_pipeline(query=...)` for each one, creating a full trace. It calls each evaluator with the test case fields and the application's output dictionary. It records all results (traces, scores, and evaluator reasoning) in Agenta.
+
+{/* TODO: screenshot of terminal output showing evaluation progress */}
+
+## Step 5: View results in Agenta
+
+Open the evaluation run in Agenta. You will see three views.
+
+{/* TODO: screenshot of the evaluation overview with aggregate scores per evaluator */}
+
+The **overview** shows aggregate scores across all test cases. You can see average scores for each evaluator, the pass rate, and the distribution.
+
+{/* TODO: screenshot of the per-row results table */}
+
+The **per-row results** table shows each test case with its input, the application's output, and every evaluator's score. Click a row to see the full trace. This is the same trace view from the [Tracing and prompt management](./02-tracing-and-prompt-management.mdx) tutorial, with all spans, costs, and latencies.
+
+{/* TODO: screenshot of drill-down into a trace showing evaluator scores alongside the trace tree */}
+
+The **evaluator reasoning** is visible when you click on a score. This is the `reason` field we returned from each evaluator. A faithfulness score of 0.6 might say: "The answer correctly states X and Y from the context, but claims Z which is not supported by any retrieved document." This turns a number into something actionable.
+
+## Step 6: Compare runs
+
+The real power of programmatic evaluation is comparison. Change something about your system, run the evaluation again, and compare side by side.
+
+For example, to compare two models:
+
+```python
+# Run 1: gpt-4o-mini (the default)
+result_mini = await aevaluate(
+    testsets=[testset.id],
+    applications=[rag_pipeline],
+    evaluators=[contextual_relevancy, answer_relevancy, faithfulness],
+)
+
+# Run 2: change the model to gpt-4o and run again
+result_4o = await aevaluate(
+    testsets=[testset.id],
+    applications=[rag_pipeline],
+    evaluators=[contextual_relevancy, answer_relevancy, faithfulness],
+)
+```
+
+{/* TODO: show how to parameterize the model, either through env vars or by creating two @ag.application variants */}
+
+In the Agenta UI, select both runs and compare them. You can see which model performs better on each metric, which specific queries improved, and which regressed.
+
+{/* TODO: screenshot of the comparison view */}
+
+Other things worth comparing:
+
+- Retrieval parameters: `top_k=5` vs `top_k=10` vs `top_k=20`.
+- Embedding models: OpenAI vs Cohere.
+- Prompt versions: deploy a new prompt and evaluate the full system with it.
+- Chunking strategies: different chunk sizes or overlap settings.
+
+## Step 7: Run in CI/CD
+
+The evaluation script is just Python. You can run it in any CI/CD pipeline. Here is a GitHub Action example:
+
+```yaml
+name: RAG Evaluation
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'prompts/**'
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync
+      - run: uv run scripts/evaluate_rag.py --count 10
+        env:
+          AGENTA_API_KEY: ${{ secrets.AGENTA_API_KEY }}
+          AGENTA_HOST: https://cloud.agenta.ai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          COLLECTION_NAME: ${{ secrets.COLLECTION_NAME }}
+```
+
+Every PR that changes the backend or prompts triggers an evaluation run. Agenta records the results, so you can compare the PR branch against main before merging.
+
+:::tip Cost management
+Each DeepEval metric makes its own LLM calls to score the response. With 3 evaluators and 10 queries, that is roughly 30 LLM calls per evaluation run. For CI, use a small focused test set (5 to 10 queries covering critical paths). Run the full suite (50+ queries) on a weekly schedule or before major releases.
+:::
+
+## The complete script
+
+The full `evaluate_rag.py` is available on GitHub: [`scripts/evaluate_rag.py`](https://github.com/Agenta-AI/agenta/blob/main/examples/python/RAG_QA_chatbot/scripts/evaluate_rag.py).
+
+```bash
+uv run scripts/evaluate_rag.py           # default: 5 queries
+uv run scripts/evaluate_rag.py --count 10
+```
+
+## What you have now
+
+You have a repeatable evaluation pipeline that tests your full RAG system end-to-end. Three evaluators cover the main failure modes: bad retrieval (contextual relevancy), unhelpful answers (answer relevancy), and hallucinations (faithfulness). Every score comes with an explanation you can read in the Agenta UI.
+
+You can compare runs across different configurations (models, prompts, retrieval parameters) and run the same script in CI on every PR.
+
+## Next: monitor in production
+
+Next, you will take these evaluators and run them on live production traffic. Instead of evaluating test queries before deployment, you will evaluate real user queries after deployment. You will set up online evaluation to monitor quality continuously, detect regressions early, and use evaluators as runtime guardrails that protect users from bad responses before they see them.
