@@ -37,7 +37,6 @@ const PlaygroundVariantConfigEditors = ({
     const editableVariant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
     const editablePrompts = (useAtomValue(moleculeBackedPromptsAtomFamily(variantId)) ||
         []) as any[]
-    const revisionId = (editableVariant?.id as string | undefined) || variantId
     const resolvedQuery = useAtomValue(
         useMemo(
             () =>
@@ -45,22 +44,17 @@ const PlaygroundVariantConfigEditors = ({
                     const mode = get(playgroundEmbedResolutionViewModeAtom)
                     const isResolved = mode === "resolved"
                     return {
-                        queryKey: [
-                            "playgroundResolvedRevisionView",
-                            revisionId,
-                            projectId,
-                            mode,
-                        ],
+                        queryKey: ["playgroundResolvedRevisionView", variantId, projectId],
                         queryFn: () =>
                             projectId
-                                ? fetchOssRevisionById(revisionId, projectId, {resolve: true})
+                                ? fetchOssRevisionById(variantId, projectId, {resolve: true})
                                 : Promise.resolve(null),
-                        enabled: isResolved && !!revisionId && !!projectId,
+                        enabled: isResolved && !!variantId && !!projectId,
                         staleTime: 1000 * 60,
                         refetchOnWindowFocus: false,
                     }
                 }),
-            [revisionId, projectId],
+            [variantId, projectId],
         ),
     )
     const resolvedServerData = resolvedQuery?.data ?? null
