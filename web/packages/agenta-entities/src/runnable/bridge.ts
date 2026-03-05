@@ -933,60 +933,6 @@ function getBaseRunnableOutputPorts(entity: unknown): RunnablePort[] {
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
-        legacyAppRevision: {
-            molecule: legacyAppRevisionMolecule,
-            toRunnable: legacyAppRevisionToRunnable,
-            getInputPorts: getLegacyAppRevisionInputPorts,
-            getOutputPorts: getLegacyAppRevisionOutputPorts,
-            // Legacy revision updates expect top-level `parameters` instead of workflow-style `data.parameters`.
-            updatePayload: (params: Record<string, unknown>) => ({parameters: params}),
-            schemasSelector: (id: string) =>
-                atom((get) => {
-                    const schemaQuery = get(legacyAppRevisionMolecule.selectors.schemaQuery(id))
-                    return getSchemaFromRevisionState(schemaQuery.data)
-                }),
-            parametersSchemaSelector: (id: string) =>
-                atom<Record<string, unknown> | null>((get) => {
-                    const schema = get(legacyAppRevisionMolecule.atoms.agConfigSchema(id))
-                    if (!schema) return null
-                    // EntitySchema → JSON schema record
-                    return schema as unknown as Record<string, unknown>
-                }),
-            draftSelector: (id: string) => legacyAppRevisionMolecule.atoms.draft(id),
-            // Use molecule selectors for reactive derivation
-            inputPortsSelector: (id: string) => legacyAppRevisionMolecule.selectors.inputPorts(id),
-            outputPortsSelector: (id: string) =>
-                legacyAppRevisionMolecule.selectors.outputPorts(id),
-            invocationUrlSelector: (id: string) =>
-                legacyAppRevisionMolecule.atoms.invocationUrl(id),
-            executionModeSelector: createExecutionModeSelector((id: string) =>
-                legacyAppRevisionMolecule.selectors.isChatVariant(id),
-            ),
-            requestPayloadSelector: (id: string) =>
-                legacyAppRevisionMolecule.atoms.requestPayload(id),
-            serverDataSelector: (id: string) => legacyAppRevisionMolecule.selectors.serverData(id),
-            invalidateCache: () => legacyAppRevisionMolecule.set.invalidateCache(),
-            latestRevisionIdSelector: (parentId: string) =>
-                latestServerRevisionIdAtomFamily(parentId),
-            parentIdExtractor: (entity: unknown) => {
-                const e = entity as LegacyAppRevisionEntity
-                return e.appId ?? null
-            },
-            createLocalDraft: createLocalDraftFromRevision,
-        },
-        // appRevision: {
-        //     molecule: appRevisionMolecule,
-        //     toRunnable: appRevisionToRunnable,
-        //     getInputPorts: getAppRevisionInputPorts,
-        //     getOutputPorts: getAppRevisionOutputPorts,
-        //     // Use molecule selectors for reactive derivation (preferred over extraction functions)
-        //     inputPortsSelector: (id: string) => appRevisionMolecule.selectors.inputPorts(id),
-        //     outputPortsSelector: (id: string) => appRevisionMolecule.selectors.outputPorts(id),
-        //     invocationUrlSelector: (id: string) => appRevisionMolecule.atoms.invocationUrl(id),
-        //     executionModeSelector: createExecutionModeSelector((id: string) =>
-        //         appRevisionMolecule.selectors.isChatVariant(id),
-        //     ),
-        // },
         evaluator: {
             molecule: evaluatorMolecule,
             toRunnable: evaluatorToRunnable,
