@@ -45,6 +45,7 @@ class RevisionsQueryRequest(BaseModel):
     """Request model for querying revisions by IDs"""
 
     revision_ids: List[UUID]
+    resolve: Optional[bool] = None
 
 
 class RevisionsQueryResponse(BaseModel):
@@ -478,6 +479,7 @@ async def get_variant_revision(
 async def query_variant_revisions(
     request: Request,
     payload: RevisionsQueryRequest,
+    resolve: Optional[bool] = None,
 ):
     """Query variant revisions by their IDs.
 
@@ -504,6 +506,34 @@ async def query_variant_revisions(
                 status_code=403,
             )
 
+    # Resolution policy precedence:
+    # 1) explicit body payload.resolve
+    # 2) explicit query-string resolve (fallback for clients/interceptors that drop falsey body fields)
+    # 3) default policy (True)
+    resolve_flag = (
+        payload.resolve
+        if payload.resolve is not None
+        else resolve
+        if resolve is not None
+        else True
+    )
+    payload_fields = sorted(list(payload.model_fields_set))
+    resolve_source_header = request.headers.get("x-agenta-resolve-source")
+    resolve_value_header = request.headers.get("x-agenta-resolve-value")
+
+    log.info(
+        "[variants.revisions.query] request project_id=%s user_id=%s revision_ids_count=%s resolve_raw=%s resolve_query=%s resolve_effective=%s payload_fields=%s resolve_source_header=%s resolve_value_header=%s",
+        request.state.project_id,
+        request.state.user_id,
+        len(payload.revision_ids),
+        payload.resolve,
+        resolve,
+        resolve_flag,
+        payload_fields,
+        resolve_source_header,
+        resolve_value_header,
+    )
+
     adapter = get_legacy_adapter()
     revisions = []
     for revision_id in payload.revision_ids:
@@ -511,6 +541,8 @@ async def query_variant_revisions(
             revision = await adapter.fetch_revision_by_id(
                 project_id=UUID(request.state.project_id),
                 revision_id=revision_id,
+                user_id=UUID(request.state.user_id),
+                resolve=resolve_flag,
             )
             if revision:
                 revision_output = (
@@ -520,6 +552,13 @@ async def query_variant_revisions(
         except Exception as e:
             log.warning(f"Failed to fetch revision {revision_id}: {e}")
             continue
+
+    log.info(
+        "[variants.revisions.query] response project_id=%s fetched_count=%s requested_count=%s",
+        request.state.project_id,
+        len(revisions),
+        len(payload.revision_ids),
+    )
 
     return RevisionsQueryResponse(
         count=len(revisions),

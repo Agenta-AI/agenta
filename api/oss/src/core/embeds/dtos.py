@@ -94,7 +94,7 @@ class SnippetEmbed(BaseModel):
       - field: id, slug, or version
       - multiple reference params merge into the same references dict
     - key=<name>: selector key for two-hop resolution via data.references.<name>
-    - path=<dotpath>: path relative to parameters. in resolved data
+    - path=<dotpath>: path relative to parameters. in revision.data
       - auto-prefixed with 'parameters.' — write path=system_prompt not path=parameters.system_prompt
       - defaults to 'prompt.messages.0.content' (resolved as parameters.prompt.messages.0.content)
     - missing key= auto-selects (environments only) if entity has exactly one reference entry
@@ -106,8 +106,8 @@ class SnippetEmbed(BaseModel):
     references: Dict[str, Reference]
     selector: Optional[Selector] = None
     # selector.key == ""  → auto-select (environment only: pick single data.references entry)
-    # selector.key == None → no key-hop; apply path= to entity's parameters directly
-    # selector.key == "x"  → follow data.references["x"], then apply path= to secondary entity
+    # selector.key == None → no key-hop; apply path= to revision.data.parameters directly
+    # selector.key == "x"  → follow revision.data.references["x"], then apply path= to secondary revision.data
     # selector.path stores user-written path; "parameters." prefix applied at resolution time
 
 
