@@ -71,7 +71,7 @@ export const fetchTestsetRevisions = async ({
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/revisions/query`,
+            `${getAgentaApiUrl()}/testsets/revisions/query`,
             {
                 testset_refs: [{id: testsetId}],
                 windowing: {

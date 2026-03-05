@@ -14,7 +14,7 @@ export async function updateScenarioStatusRemote(
     try {
         // 1. Query results to validate scenario context (scenarios GET is deprecated)
         const res = await fetch(
-            `${apiUrl}/preview/evaluations/results/query?project_id=${projectId}`,
+            `${apiUrl}/evaluations/results/query?project_id=${projectId}`,
             {
                 method: "POST",
                 headers: {
@@ -38,7 +38,7 @@ export async function updateScenarioStatusRemote(
         }
         if (!scenarioFull) scenarioFull = {id: scenarioId}
         scenarioFull.status = status
-        await fetch(`${apiUrl}/preview/evaluations/scenarios/?project_id=${projectId}`, {
+        await fetch(`${apiUrl}/evaluations/scenarios/?project_id=${projectId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -80,7 +80,7 @@ export async function upsertScenarioStep(params: {
     } = params
     try {
         const res = await fetch(
-            `${apiUrl}/preview/evaluations/results/query?project_id=${projectId}`,
+            `${apiUrl}/evaluations/results/query?project_id=${projectId}`,
             {
                 method: "POST",
                 headers: {
@@ -113,7 +113,7 @@ export async function upsertScenarioStep(params: {
                     span_id: spanId,
                     references: {...((existing as any)?.references || {}), ...references},
                 }
-                await fetch(`${apiUrl}/preview/evaluations/results/?project_id=${projectId}`, {
+                await fetch(`${apiUrl}/evaluations/results/?project_id=${projectId}`, {
                     method: "PATCH",
                     headers: {
                         "Content-Type": "application/json",
@@ -143,7 +143,7 @@ export async function upsertScenarioStep(params: {
         ],
     }
     try {
-        await fetch(`${apiUrl}/preview/evaluations/results/?project_id=${projectId}`, {
+        await fetch(`${apiUrl}/evaluations/results/?project_id=${projectId}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

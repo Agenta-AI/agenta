@@ -149,7 +149,7 @@ const previewTestsetReferenceBatchFetcher = createBatchFetcher<
 
                 try {
                     const response = await axios.post(
-                        "/preview/testsets/query",
+                        "/testsets/query",
                         {
                             testset_refs: uniqueIds.map((id) => ({id})),
                             include_archived: true,
@@ -484,7 +484,7 @@ const evaluatorReferenceBatchFetcher = createBatchFetcher<
 
                 try {
                     const response = await axios.post(
-                        "/preview/simple/evaluators/query",
+                        "/simple/evaluators/query",
                         {
                             evaluator_refs: dedupRefs.map((ref) => ({
                                 slug: ref.slug,
@@ -968,7 +968,7 @@ const queryReferenceBatchFetcher = createBatchFetcher<
 
                 try {
                     const response = await axios.post(
-                        "/preview/queries/query",
+                        "/queries/query",
                         {
                             query_refs: dedupRefs.map((ref) => ({
                                 id: ref.id,

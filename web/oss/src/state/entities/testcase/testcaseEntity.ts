@@ -253,7 +253,7 @@ const testcaseBatchFetcher = createBatchFetcher<
             Array.from(byProject.entries()).map(async ([projectId, {ids, keys}]) => {
                 try {
                     const response = await axios.post(
-                        `${getAgentaApiUrl()}/preview/testcases/query`,
+                        `${getAgentaApiUrl()}/testcases/query`,
                         {testcase_ids: ids},
                         {params: {project_id: projectId}},
                     )

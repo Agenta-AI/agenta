@@ -55,7 +55,7 @@ const testsetTests = () => {
 
             // 5. Fetch testset from API using preview endpoint
             const testsetResponse = await apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
-                route: `/api/preview/simple/testsets/${testsetId}`,
+                route: `/api/simple/testsets/${testsetId}`,
                 method: "GET",
             })
 

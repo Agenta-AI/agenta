@@ -33,7 +33,7 @@ export const createEvaluator = async (evaluatorPayload: EvaluatorResponseDto<"pa
 
     try {
         const data = await axios.post(
-            `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/simple/evaluators/?project_id=${projectId}`,
             evaluatorPayload,
         )
 
@@ -51,7 +51,7 @@ export const updateEvaluator = async (
 
     try {
         const data = await axios.put(
-            `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
             evaluatorPayload,
         )
 
@@ -68,7 +68,7 @@ export const fetchEvaluatorById = async (evaluatorId: string): Promise<SimpleEva
     }
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
     )
     const payload = (response?.data as any)?.evaluator ?? response?.data ?? null
     if (!payload) return null
@@ -103,7 +103,7 @@ export const fetchAllEvaluators = async (includeArchived = false) => {
     const {projectId} = getProjectValues()
 
     const response = await axios.get<EvaluatorTemplatesResponse>(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/templates?project_id=${projectId}&include_archived=${includeArchived}`,
+        `${getAgentaApiUrl()}/simple/evaluators/templates?project_id=${projectId}&include_archived=${includeArchived}`,
     )
     const templates = response.data?.templates || []
 
@@ -150,7 +150,7 @@ export const fetchAllEvaluatorConfigs = async (
     }
 
     const response = await axios.post<SimpleEvaluatorsResponse>(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/query?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/query?project_id=${projectId}`,
         {
             include_archived: false,
         },
@@ -201,7 +201,7 @@ export const createEvaluatorConfig = async (
     }
 
     const response = await axios.post<SimpleEvaluatorResponse>(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/?project_id=${projectId}`,
         {evaluator: payload},
     )
 
@@ -220,7 +220,7 @@ export const updateEvaluatorConfig = async (
     const {projectId} = getProjectValues()
 
     const response = await axios.put<SimpleEvaluatorResponse>(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${configId}?project_id=${projectId}`,
         {evaluator: {...config, id: configId}},
     )
 
@@ -236,7 +236,7 @@ export const deleteEvaluatorConfig = async (configId: string) => {
     const {projectId} = getProjectValues()
 
     return axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${configId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${configId}/archive?project_id=${projectId}`,
     )
 }
 
@@ -244,6 +244,6 @@ export const deleteHumanEvaluator = async (evaluatorId: string) => {
     const {projectId} = getProjectValues()
 
     return axios.post(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
     )
 }

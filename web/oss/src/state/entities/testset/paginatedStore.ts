@@ -196,7 +196,7 @@ async function fetchTestsetsPage({
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/query`,
+            `${getAgentaApiUrl()}/testsets/query`,
             queryPayload,
             {
                 params: {project_id: meta.projectId},

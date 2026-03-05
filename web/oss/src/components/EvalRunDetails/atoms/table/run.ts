@@ -149,7 +149,7 @@ const ensureEvaluatorRevisions = async ({
 
             try {
                 const response = await axios.post(
-                    `/preview/evaluators/revisions/retrieve`,
+                    `/evaluators/revisions/retrieve`,
                     payload,
                     {
                         params: {project_id: projectId},
@@ -268,7 +268,7 @@ const ensureEvaluatorRevisions = async ({
             })
         }
         await axios.patch(
-            `/preview/evaluations/runs/${encodeURIComponent(runId)}`,
+            `/evaluations/runs/${encodeURIComponent(runId)}`,
             {run: patchedRun},
             {
                 params: {project_id: projectId},

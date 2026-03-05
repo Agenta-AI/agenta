@@ -84,7 +84,7 @@ export const fetchTestsetsWindow = async ({
     try {
         // Use /preview/testsets/query - returns Testset metadata without testcases
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/query`,
+            `${getAgentaApiUrl()}/testsets/query`,
             queryPayload,
             {
                 params: {project_id: projectId},

@@ -85,7 +85,7 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 export const getTestsets = async (page: Page) => {
     // 2. Fetch testsets from API using preview endpoint
     const testsetsResponse = await waitForApiResponse<{testsets: testset[]}>(page, {
-        route: "/api/preview/testsets/query",
+        route: "/api/testsets/query",
         method: "POST",
     })
     const response = await testsetsResponse
@@ -130,7 +130,7 @@ export const getEvaluationRuns = async (page: Page) => {
         runs: SnakeToCamelCaseKeys<EvaluationRun>[]
         count: number
     }>(page, {
-        route: `/api/preview/evaluations/runs/query`,
+        route: `/api/evaluations/runs/query`,
         method: "POST",
     })
 

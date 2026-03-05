@@ -10,7 +10,7 @@ import type {
     QueriesResponse,
 } from "./types"
 
-const base = () => `${getAgentaApiUrl()}/preview/queries`
+const base = () => `${getAgentaApiUrl()}/queries`
 
 export async function createQuery(payload: QueryCreateRequest): Promise<QueryResponse> {
     const {projectId} = getProjectValues()

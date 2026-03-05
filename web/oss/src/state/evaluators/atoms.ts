@@ -156,7 +156,7 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                             : {}
 
                         const response = await axios.post<EvaluatorsResponseDto>(
-                            `/preview/simple/evaluators/query?project_id=${projectId}`,
+                            `/simple/evaluators/query?project_id=${projectId}`,
                             requestBody,
                         )
                         let evaluators = (response?.data?.evaluators ?? []).map((item) => {
@@ -219,7 +219,7 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                                 try {
                                     const revisionResponse =
                                         await axios.post<EvaluatorRevisionsResponseDto>(
-                                            `/preview/evaluators/revisions/query?project_id=${projectId}`,
+                                            `/evaluators/revisions/query?project_id=${projectId}`,
                                             {
                                                 evaluator_refs: revisionRefs,
                                             },

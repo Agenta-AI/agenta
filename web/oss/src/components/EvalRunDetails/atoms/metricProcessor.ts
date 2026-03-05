@@ -483,7 +483,7 @@ export const createMetricProcessor = ({
                     const params = new URLSearchParams()
                     params.set("project_id", projectId)
                     const response = await axios.post(
-                        `/preview/evaluations/metrics/refresh`,
+                        `/evaluations/metrics/refresh`,
                         {
                             metrics: {
                                 run_id: runId,
@@ -540,7 +540,7 @@ export const createMetricProcessor = ({
                             const params = new URLSearchParams()
                             params.set("project_id", projectId)
                             const response = await axios.post(
-                                `/preview/evaluations/metrics/refresh`,
+                                `/evaluations/metrics/refresh`,
                                 {
                                     metrics: {
                                         run_id: runId,
@@ -671,7 +671,7 @@ export const createMetricProcessor = ({
                     const params = new URLSearchParams()
                     params.set("project_id", projectId)
                     const response = await axios.post(
-                        `/preview/evaluations/metrics/refresh`,
+                        `/evaluations/metrics/refresh`,
                         {
                             metrics: {
                                 run_id: runId,
