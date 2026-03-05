@@ -1,18 +1,14 @@
 import {
-    fetchEnvironmentsList,
+    environmentsListQueryAtomFamily,
     type Environment as EntityEnvironment,
 } from "@agenta/entities/environment"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, unwrap} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
-import {atomWithQuery} from "jotai-tanstack-query"
 
 import {Environment} from "@/oss/lib/Types"
 import {routerAppIdAtom, currentAppAtom} from "@/oss/state/app/selectors/app"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import {jwtReadyAtom} from "@/oss/state/session/jwt"
-import {devLog} from "@/oss/state/utils/devLog"
 
 interface EnvironmentReference {
     application?: {id?: string; slug?: string}
@@ -48,45 +44,39 @@ function toLegacyEnvironment(env: EntityEnvironment, appId: string): Environment
     }
 }
 
-// -------- Query atom --------------------------------------------------------
+// -------- Derived from entity system query ----------------------------------
+// Reads from the entity system's environmentsListQueryAtomFamily(false)
+// instead of making a separate fetch, eliminating the duplicate API call.
 
-export const environmentsQueryAtom = atomWithQuery<Environment[]>((get) => {
+export const environmentsQueryAtom = atom((get) => {
+    const listQuery = get(environmentsListQueryAtomFamily(false))
     const appIdFromRoute = get(routerAppIdAtom)
     const currentApp = get(currentAppAtom)
     const appId = appIdFromRoute || currentApp?.app_id || null
 
-    const projectId = get(projectIdAtom)
-    const jwtReady = get(jwtReadyAtom).data ?? false
-
-    const enabled = !!appId && !!projectId && jwtReady
+    const environments = listQuery.data?.environments ?? []
+    const data = appId
+        ? environments.map((env) => toLegacyEnvironment(env, appId))
+        : ([] as Environment[])
 
     return {
-        queryKey: ["environments", appId, projectId],
-        queryFn: async () => {
-            if (!appId) return []
-            if (!projectId) return []
-            const data = await fetchEnvironmentsList({projectId})
-            return (data.environments ?? []).map((env) => toLegacyEnvironment(env, appId))
-        },
-        staleTime: 60_000,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        refetchOnMount: false,
-        enabled,
+        data,
+        isPending: listQuery.isPending,
+        isLoading: listQuery.isPending,
+        isFetching: listQuery.isFetching,
+        isError: listQuery.isError,
+        error: listQuery.error ?? null,
+        refetch: listQuery.refetch,
     }
 })
-
-const logEnv = process.env.NEXT_PUBLIC_LOG_ENV_ATOMS === "true"
-
-devLog(environmentsQueryAtom as any, "environmentsQueryAtom", logEnv)
 
 // -------- Derived atoms -----------------------------------------------------
 
 const EmptyEnvs: Environment[] = []
 
 export const environmentsAtom = selectAtom(
-    unwrap(environmentsQueryAtom),
-    (res) => (res as any)?.data ?? EmptyEnvs,
+    environmentsQueryAtom,
+    (res) => res?.data ?? EmptyEnvs,
     deepEqual,
 )
 
