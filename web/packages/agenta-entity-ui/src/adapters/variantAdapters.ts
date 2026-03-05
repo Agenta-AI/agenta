@@ -1,27 +1,14 @@
 /**
- * LegacyAppRevision Modal Adapters
+ * Variant Modal Adapters
  *
- * Registers legacyAppRevision (variant) entity adapter for the unified modal system.
- * These adapters enable EntityDeleteModal and EntityCommitModal to work with
- * OSS app revision entities (variants in the playground).
+ * Registers the "variant" entity adapter for the unified modal system.
+ * These adapters enable EntityCommitModal to work with playground variants.
  *
- * Uses the unified entity API:
- * - `legacyAppRevisionMolecule.atoms.data(id)` - data with draft merged
- * - `legacyAppRevisionMolecule.atoms.serverData(id)` - raw server data
- * - `legacyAppRevisionMolecule.atoms.isDirty(id)` - check for unsaved changes
- * - `legacyAppRevisionMolecule.actions.commit` - commit with polling workaround
+ * Commit context reads from runnableBridge, which routes to the correct
+ * molecule (workflow, legacyAppRevision, etc.) based on entity type hints.
  *
- * ## Commit Flow
- *
- * The commit operation uses the molecule's commit action which:
- * 1. Calls the legacy API (PUT /variants/{variantId}/parameters)
- * 2. Invokes registered callbacks (query invalidation)
- * 3. Polls for new revision to appear
- * 4. Invokes registered callbacks (playground orchestration)
- * 5. Returns {newRevisionId, newRevision}
- *
- * Playground-specific orchestration (chat history, selection) is handled
- * via callbacks registered with `registerCommitCallbacks()`.
+ * The fallback commitAtom still uses legacyAppRevisionMolecule for non-playground
+ * commit paths; the playground bypasses it via custom onSubmit.
  */
 
 import {
@@ -29,7 +16,6 @@ import {
     fetchOssRevisionById,
     type LegacyAppRevisionData,
     type CommitRevisionParams,
-    stripVolatileKeys,
 } from "@agenta/entities/legacyAppRevision"
 import {
     enhancedPromptsToParameters,
@@ -110,17 +96,6 @@ function extractParametersCandidate(source: unknown): Record<string, unknown> | 
     return null
 }
 
-function pickFirstParameters(
-    ...candidates: (Record<string, unknown> | null | undefined)[]
-): Record<string, unknown> | null {
-    for (const candidate of candidates) {
-        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
-            return candidate
-        }
-    }
-    return null
-}
-
 // ============================================================================
 // DATA ATOM
 // ============================================================================
@@ -137,104 +112,6 @@ const legacyAppRevisionDataAtom = (id: string) =>
 // ============================================================================
 // DIFF DATA HELPERS
 // ============================================================================
-
-/**
- * Legacy prompt keys that are superseded by structured prompt format
- * and should not appear in the commit diff.
- */
-const LEGACY_PROMPT_KEYS = new Set([
-    "system_prompt",
-    "user_prompt",
-    "prompt_template",
-    "temperature",
-    "model",
-    "max_tokens",
-    "top_p",
-    "frequency_penalty",
-    "presence_penalty",
-    "input_keys",
-    "template_format",
-])
-
-/**
- * Parse JSON-like strings so prompt fields are diffed as nested objects
- * instead of a single JSON blob string.
- */
-function parseStructuredString(value: string): unknown {
-    const trimmed = value.trim()
-
-    if (!trimmed) return value
-    if (
-        !(
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            (trimmed.startsWith("[") && trimmed.endsWith("]"))
-        )
-    ) {
-        return value
-    }
-
-    try {
-        const parsed = JSON.parse(trimmed)
-        if (parsed && typeof parsed === "object") return parsed
-    } catch {
-        // Keep original string when parsing fails.
-    }
-
-    return value
-}
-
-/**
- * Normalize values recursively for stable field-level diff rendering.
- */
-function normalizeDiffValue(value: unknown): unknown {
-    if (typeof value === "string") {
-        const parsed = parseStructuredString(value)
-        if (parsed !== value) return normalizeDiffValue(parsed)
-        return value
-    }
-
-    if (Array.isArray(value)) {
-        return value.map(normalizeDiffValue)
-    }
-
-    if (!value || typeof value !== "object") {
-        return value
-    }
-
-    const normalized: Record<string, unknown> = {}
-    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
-        normalized[key] = normalizeDiffValue(nested)
-    }
-    return normalized
-}
-
-/**
- * Strip flattened legacy prompt fields when structured prompt fields exist.
- */
-function stripLegacyPromptFields(value: unknown): unknown {
-    if (Array.isArray(value)) {
-        return value.map(stripLegacyPromptFields)
-    }
-
-    if (!value || typeof value !== "object") {
-        return value
-    }
-
-    const result: Record<string, unknown> = {...(value as Record<string, unknown>)}
-    const hasStructuredPrompt = result.messages || result.llm_config || result.llmConfig
-
-    if (hasStructuredPrompt) {
-        for (const key of LEGACY_PROMPT_KEYS) {
-            delete result[key]
-        }
-    }
-
-    for (const [key, nested] of Object.entries(result)) {
-        result[key] = stripLegacyPromptFields(nested)
-    }
-
-    return result
-}
 
 /**
  * Extract diffable parameters from revision data.
@@ -294,30 +171,6 @@ function buildComparableParameters(
     return params
 }
 
-function extractDiffableData(
-    data: LegacyAppRevisionDataWithDraft | null,
-    baseParameters?: Record<string, unknown>,
-    explicitParameters?: Record<string, unknown> | null,
-): Record<string, unknown> {
-    if (!data) return {}
-
-    const rawParameters = buildComparableParameters(data, baseParameters, explicitParameters)
-    const unwrappedParameters =
-        rawParameters.ag_config &&
-        typeof rawParameters.ag_config === "object" &&
-        !Array.isArray(rawParameters.ag_config)
-            ? (rawParameters.ag_config as Record<string, unknown>)
-            : rawParameters
-
-    const strippedParameters = stripVolatileKeys(unwrappedParameters, true)
-    const normalizedParameters = normalizeDiffValue(strippedParameters)
-    const cleanedParameters = stripLegacyPromptFields(normalizedParameters)
-
-    return {
-        parameters: cleanedParameters,
-    }
-}
-
 function sortKeysDeep(value: unknown): unknown {
     if (value === null || value === undefined || typeof value !== "object") return value
     if (Array.isArray(value)) return value.map(sortKeysDeep)
@@ -330,253 +183,6 @@ function sortKeysDeep(value: unknown): unknown {
 
 function stableStringify(value: unknown): string {
     return JSON.stringify(sortKeysDeep(value), null, 2)
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-    return stableStringify(a) === stableStringify(b)
-}
-
-function isPromptRelatedKey(key: string): boolean {
-    return (
-        key === "messages" ||
-        key === "prompt" ||
-        key === "llm_config" ||
-        key === "llmConfig" ||
-        key === "system_prompt" ||
-        key === "user_prompt" ||
-        key === "prompt_template" ||
-        key === "template_format" ||
-        key.toLowerCase().includes("prompt")
-    )
-}
-
-function hasComparableContent(value: unknown): boolean {
-    if (value === undefined) {
-        return false
-    }
-
-    if (Array.isArray(value)) {
-        return value.length > 0
-    }
-
-    if (value && typeof value === "object") {
-        return Object.keys(value as Record<string, unknown>).length > 0
-    }
-
-    return true
-}
-
-function hasPromptContent(value: unknown): boolean {
-    if (Array.isArray(value)) {
-        return value.some(hasPromptContent)
-    }
-
-    if (!value || typeof value !== "object") {
-        return false
-    }
-
-    const obj = value as Record<string, unknown>
-    if (
-        obj.messages ||
-        obj.prompt ||
-        obj.prompt_template ||
-        obj.system_prompt ||
-        obj.user_prompt ||
-        obj.llm_config ||
-        obj.llmConfig
-    ) {
-        return true
-    }
-
-    return Object.values(obj).some(hasPromptContent)
-}
-
-function getPromptOnlyValue(value: unknown): unknown {
-    if (Array.isArray(value)) {
-        return value.map(getPromptOnlyValue).filter((entry) => entry !== undefined)
-    }
-
-    if (!value || typeof value !== "object") {
-        return undefined
-    }
-
-    const source = value as Record<string, unknown>
-    const filtered: Record<string, unknown> = {}
-
-    for (const [key, nested] of Object.entries(source)) {
-        if (isPromptRelatedKey(key)) {
-            filtered[key] = nested
-            continue
-        }
-
-        const child = getPromptOnlyValue(nested)
-        const hasChildContent = hasComparableContent(child)
-
-        if (hasChildContent) {
-            filtered[key] = child
-        }
-    }
-
-    return Object.keys(filtered).length > 0 ? filtered : undefined
-}
-
-function getNonPromptOnlyValue(value: unknown): unknown {
-    if (Array.isArray(value)) {
-        return value.map(getNonPromptOnlyValue).filter((entry) => entry !== undefined)
-    }
-
-    if (value === null || value === undefined) {
-        return value
-    }
-
-    if (typeof value !== "object") {
-        return value
-    }
-
-    const source = value as Record<string, unknown>
-    const filtered: Record<string, unknown> = {}
-
-    for (const [key, nested] of Object.entries(source)) {
-        if (isPromptRelatedKey(key)) {
-            continue
-        }
-
-        const child = getNonPromptOnlyValue(nested)
-        const hasChildContent = hasComparableContent(child)
-
-        if (hasChildContent) {
-            filtered[key] = child
-        }
-    }
-
-    return Object.keys(filtered).length > 0 ? filtered : undefined
-}
-
-/**
- * Count changes between server and draft data.
- * Returns a simple summary of what changed.
- */
-function countChanges(
-    serverData: LegacyAppRevisionDataWithDraft | null,
-    draftData: LegacyAppRevisionDataWithDraft | null,
-    draftParameters?: Record<string, unknown> | null,
-    serverParameters?: Record<string, unknown> | null,
-): {promptChanges: number; propertyChanges: number; description?: string} {
-    if (!draftData) {
-        return {promptChanges: 0, propertyChanges: 0}
-    }
-
-    const resolvedServerParameters =
-        pickFirstParameters(
-            serverParameters,
-            extractParametersCandidate(serverData),
-            serverData?.parameters,
-        ) ?? {}
-
-    const original = extractDiffableData(
-        serverData,
-        resolvedServerParameters,
-        resolvedServerParameters,
-    )
-    const modified = extractDiffableData(draftData, resolvedServerParameters, draftParameters)
-
-    const hasAnyChanges = !deepEqual(original, modified)
-    if (!hasAnyChanges) {
-        return {promptChanges: 0, propertyChanges: 0}
-    }
-
-    const originalPrompt = getPromptOnlyValue(original)
-    const modifiedPrompt = getPromptOnlyValue(modified)
-    const hasPromptSections = hasPromptContent(original) || hasPromptContent(modified)
-    const promptChanges =
-        hasPromptSections && !deepEqual(originalPrompt ?? {}, modifiedPrompt ?? {}) ? 1 : 0
-    const originalProperties = getNonPromptOnlyValue(original)
-    const modifiedProperties = getNonPromptOnlyValue(modified)
-    const propertyChanges = !deepEqual(originalProperties ?? {}, modifiedProperties ?? {}) ? 1 : 0
-
-    return {promptChanges, propertyChanges}
-}
-
-// ============================================================================
-// COMMIT CONTEXT ATOM
-// ============================================================================
-
-/**
- * Build commit context for legacy app revision entities.
- * Uses enhanced prompts extraction and volatile key stripping for accurate diffs.
- */
-function buildLegacyCommitContext(
-    draftData: LegacyAppRevisionDataWithDraft,
-    serverData: LegacyAppRevisionDataWithDraft | null,
-    isLocalDraft: boolean,
-    draftParameters?: Record<string, unknown> | null,
-    serverParameters?: Record<string, unknown> | null,
-): CommitContext {
-    let currentVersion: number
-    let targetVersion: number
-
-    if (isLocalDraft) {
-        const sourceRevision = (draftData as Record<string, unknown>)._sourceRevision as
-            | number
-            | null
-        currentVersion = sourceRevision ?? 0
-        targetVersion = currentVersion + 1
-    } else {
-        currentVersion = draftData.revision ?? 0
-        targetVersion = currentVersion + 1
-    }
-
-    const {promptChanges, propertyChanges} = countChanges(
-        serverData,
-        draftData,
-        draftParameters,
-        serverParameters,
-    )
-    const hasChanges = promptChanges > 0 || propertyChanges > 0 || isLocalDraft
-
-    const descriptions: string[] = []
-    if (promptChanges > 0) descriptions.push("Prompt configuration modified")
-    if (propertyChanges > 0) descriptions.push("Custom properties modified")
-    if (isLocalDraft && descriptions.length === 0) {
-        descriptions.push("New draft variant")
-    }
-
-    const resolvedServerParameters =
-        pickFirstParameters(
-            serverParameters,
-            extractParametersCandidate(serverData),
-            serverData?.parameters,
-        ) ?? {}
-    const originalStructure = extractDiffableData(
-        serverData,
-        resolvedServerParameters,
-        resolvedServerParameters,
-    )
-    const modifiedStructure = extractDiffableData(
-        draftData,
-        resolvedServerParameters,
-        draftParameters,
-    )
-
-    const original = stableStringify(originalStructure)
-    const modified = stableStringify(modifiedStructure)
-
-    return {
-        versionInfo: {
-            currentVersion,
-            targetVersion,
-            latestVersion: currentVersion,
-        },
-        changesSummary: hasChanges
-            ? {
-                  modifiedCount: promptChanges + propertyChanges,
-                  description: descriptions.join(", "),
-              }
-            : undefined,
-        // Always include diff payload so the modal can render a preview pane
-        // (matching legacy modal behavior), even when there are zero changes.
-        diffData: {original, modified, language: "json"},
-    }
 }
 
 /**
@@ -625,56 +231,22 @@ function buildGenericCommitContext(
  * Commit context atom factory for variant.
  * Provides version info, changes summary, and diff data for the commit modal.
  *
- * Supports both legacy app revision entities (with enhanced prompts) and
- * generic entities (workflow, evaluator, etc.) via the runnableBridge.
- *
- * Note: This does NOT include the actual commit atom because OSS variant commits
- * require complex orchestration that should stay in the playground layer.
+ * Reads current and server configuration via runnableBridge, which routes
+ * to the correct molecule (workflow, legacyAppRevision, etc.) based on
+ * entity type hints.
  */
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
         const isLocalDraft = isLocalDraftId(revisionId)
-        const serverData = get(legacyAppRevisionMolecule.atoms.serverData(revisionId))
-        const legacyData = get(legacyAppRevisionMolecule.atoms.data(revisionId))
-        const legacyDraft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
-        const draftParameters = get(legacyAppRevisionMolecule.atoms.draftParameters(revisionId))
         const runnableData = get(runnableBridge.data(revisionId))
-        const runnableCurrentConfig = get(runnableBridge.configuration(revisionId))
-        const runnableServerConfig = get(runnableBridge.serverConfiguration(revisionId))
+        const currentConfig = get(runnableBridge.configuration(revisionId))
+        const serverConfig = get(runnableBridge.serverConfiguration(revisionId))
 
-        // Variants should diff local draft state against server state.
-        // Priority: explicit legacy draft params → legacy draft object → bridge config
-        // (which reads from the correct molecule via type hints, including workflow drafts)
-        // → legacy merged data (fallback for entities without a separate molecule).
-        const localParameters = pickFirstParameters(
-            draftParameters,
-            extractParametersCandidate(legacyDraft),
-            runnableCurrentConfig,
-            extractParametersCandidate(legacyData),
-        )
-        const serverParameters = pickFirstParameters(
-            extractParametersCandidate(serverData),
-            runnableServerConfig,
-        )
-
-        // Try legacy app revision molecule first (has entity-specific diff logic)
-        const legacySnapshot = legacyData ?? legacyDraft ?? serverData
-        if (legacySnapshot) {
-            return buildLegacyCommitContext(
-                legacySnapshot,
-                serverData,
-                isLocalDraft,
-                localParameters,
-                serverParameters,
-            )
-        }
-
-        // Fallback: use runnableBridge for generic entities (workflow, evaluator, etc.)
         if (!runnableData) return null
 
         return buildGenericCommitContext(
-            localParameters ?? runnableCurrentConfig,
-            serverParameters ?? runnableServerConfig,
+            currentConfig,
+            serverConfig,
             runnableData.version,
             isLocalDraft,
         )
