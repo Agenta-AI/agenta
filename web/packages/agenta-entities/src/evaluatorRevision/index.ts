@@ -15,11 +15,12 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, type Atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {fetchEvaluatorRevisionById, inspectWorkflow} from "../evaluator/api"
+import {fetchEvaluatorRevisionsByIdsBatch, inspectWorkflow} from "../evaluator/api"
 import type {Evaluator} from "../evaluator/core"
 import type {EvaluatorRevisionsResponse} from "../evaluator/core"
 
@@ -41,6 +42,62 @@ interface QueryState<T = unknown> {
 }
 
 type QueryClient = import("@tanstack/react-query").QueryClient
+
+// ============================================================================
+// BATCH FETCHER
+// ============================================================================
+
+interface EvaluatorRevisionBatchRequest {
+    projectId: string
+    revisionId: string
+}
+
+const evaluatorRevisionBatchFetcher = createBatchFetcher<
+    EvaluatorRevisionBatchRequest,
+    Evaluator | null
+>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, Evaluator | null>()
+        const byProject = new Map<string, {revisionIds: string[]; keys: string[]}>()
+
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.projectId || !req.revisionId) {
+                results.set(key, null)
+                return
+            }
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.revisionIds.push(req.revisionId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    revisionIds: [req.revisionId],
+                    keys: [key],
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                const revisionMap = await fetchEvaluatorRevisionsByIdsBatch(
+                    projectId,
+                    group.revisionIds,
+                )
+                group.revisionIds.forEach((revisionId, index) => {
+                    const key = group.keys[index]
+                    results.set(key, revisionMap.get(revisionId) ?? null)
+                })
+            }),
+        )
+
+        return results
+    },
+})
 
 function findEvaluatorRevisionInDetailCache(
     queryClient: QueryClient,
@@ -130,7 +187,7 @@ function findEvaluatorRevisionInCache(
 
 /**
  * Query atom family for fetching a single revision by its revision ID.
- * Uses `GET /preview/workflows/revisions/{revision_id}`.
+ * Uses batched `POST /preview/workflows/revisions/query` via createBatchFetcher.
  */
 const evaluatorRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
@@ -147,7 +204,7 @@ const evaluatorRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !revisionId) return null
                 const cached = findEvaluatorRevisionInCache(queryClient, projectId, revisionId)
                 if (cached) return cached
-                return fetchEvaluatorRevisionById(revisionId, projectId)
+                return evaluatorRevisionBatchFetcher({projectId, revisionId})
             },
             initialData: detailCached ?? undefined,
             enabled: get(sessionAtom) && !!projectId && !!revisionId && !detailCached,
