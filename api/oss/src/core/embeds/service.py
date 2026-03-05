@@ -16,6 +16,43 @@ from oss.src.core.embeds.dtos import ErrorPolicy, ResolutionInfo
 log = get_module_logger(__name__)
 
 
+def _normalize_configuration_for_legacy_paths(
+    configuration: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Normalize config shape so embed path extraction works across old/new payloads.
+
+    Some revisions store prompt config under:
+    - parameters.prompt...
+    while others use:
+    - configuration.parameters.prompt...
+
+    The resolver may receive embed paths targeting either shape, so we expose both.
+    """
+    normalized = dict(configuration or {})
+
+    parameters = normalized.get("parameters")
+    config_obj = normalized.get("configuration")
+
+    # If only legacy configuration.parameters exists, expose top-level parameters.
+    if not isinstance(parameters, dict) and isinstance(config_obj, dict):
+        cfg_params = config_obj.get("parameters")
+        if isinstance(cfg_params, dict):
+            normalized["parameters"] = cfg_params
+            parameters = cfg_params
+
+    # If only top-level parameters exists, expose configuration.parameters too.
+    if isinstance(parameters, dict):
+        if not isinstance(config_obj, dict):
+            config_obj = {}
+        if not isinstance(config_obj.get("parameters"), dict):
+            config_obj = dict(config_obj)
+            config_obj["parameters"] = parameters
+            normalized["configuration"] = config_obj
+
+    return normalized
+
+
 class EmbedsService:
     """
     Centralized service for resolving embedded references.
@@ -64,6 +101,8 @@ class EmbedsService:
         Returns:
             Tuple of (resolved configuration dict, ResolutionInfo metadata)
         """
+        configuration = _normalize_configuration_for_legacy_paths(configuration)
+
         # Create universal resolver with all available services
         resolver_callback = create_universal_resolver(
             project_id=project_id,

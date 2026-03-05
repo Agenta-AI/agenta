@@ -506,33 +506,70 @@ async def query_variant_revisions(
                 status_code=403,
             )
 
+    resolve_header = request.headers.get("x-agenta-resolve-value")
+    resolve_header_bool: Optional[bool] = None
+    if isinstance(resolve_header, str):
+        header_value = resolve_header.strip().lower()
+        if header_value in {"true", "1", "yes", "on"}:
+            resolve_header_bool = True
+        elif header_value in {"false", "0", "no", "off"}:
+            resolve_header_bool = False
+
+    resolve_cookie = request.cookies.get("agenta_embed_resolution_mode")
+    resolve_cookie_bool: Optional[bool] = None
+    if isinstance(resolve_cookie, str):
+        cookie_value = resolve_cookie.strip().lower()
+        if cookie_value in {"resolved", "true", "1", "yes", "on"}:
+            resolve_cookie_bool = True
+        elif cookie_value in {"unresolved", "false", "0", "no", "off"}:
+            resolve_cookie_bool = False
+
     # Resolution policy precedence:
     # 1) explicit body payload.resolve
-    # 2) explicit query-string resolve (fallback for clients/interceptors that drop falsey body fields)
-    # 3) default policy (True)
+    # 2) explicit query-string resolve
+    # 3) explicit resolve header
+    # 4) per-user browser cookie fallback (set by playground switch)
+    # 5) safe default (False / unresolved)
     resolve_flag = (
         payload.resolve
         if payload.resolve is not None
         else resolve
         if resolve is not None
-        else True
+        else resolve_header_bool
+        if resolve_header_bool is not None
+        else resolve_cookie_bool
+        if resolve_cookie_bool is not None
+        else False
     )
     payload_fields = sorted(list(payload.model_fields_set))
     resolve_source_header = request.headers.get("x-agenta-resolve-source")
     resolve_value_header = request.headers.get("x-agenta-resolve-value")
 
     log.info(
-        "[variants.revisions.query] request project_id=%s user_id=%s revision_ids_count=%s resolve_raw=%s resolve_query=%s resolve_effective=%s payload_fields=%s resolve_source_header=%s resolve_value_header=%s",
+        "[variants.revisions.query] request project_id=%s user_id=%s revision_ids_count=%s resolve_raw=%s resolve_query=%s resolve_header=%s resolve_cookie=%s resolve_effective=%s payload_fields=%s resolve_source_header=%s resolve_value_header=%s",
         request.state.project_id,
         request.state.user_id,
         len(payload.revision_ids),
         payload.resolve,
         resolve,
+        resolve_header_bool,
+        resolve_cookie_bool,
         resolve_flag,
         payload_fields,
         resolve_source_header,
         resolve_value_header,
     )
+    if (
+        payload.resolve is None
+        and resolve is None
+        and resolve_header_bool is None
+        and resolve_cookie_bool is None
+    ):
+        log.warning(
+            "[variants.revisions.query] missing explicit resolve; defaulting to unresolved project_id=%s user_id=%s",
+            request.state.project_id,
+            request.state.user_id,
+        )
 
     adapter = get_legacy_adapter()
     revisions = []
