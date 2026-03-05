@@ -26,7 +26,7 @@ import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId}
 import {
     fetchAppsList,
     fetchLatestRevisionId,
-    fetchRevisionsList,
+    revisionsListBatchFetcher,
     fetchVariantsList,
     revisionBatchFetcher,
     variantDetailBatchFetcher,
@@ -492,7 +492,7 @@ export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],
-            queryFn: () => fetchRevisionsList(variantId, projectId!),
+            queryFn: () => revisionsListBatchFetcher({variantId, projectId: projectId!}),
             staleTime: 0,
             gcTime: 0,
             refetchOnWindowFocus: false,

@@ -463,24 +463,69 @@ export function clearVariantDetailCache(variantId?: string): void {
 }
 
 /**
- * Batched variant detail fetcher — deduplicates individual variant detail
- * requests. Since there is no bulk variant endpoint, this executes individual
- * fetches in parallel but prevents the same variantId from being fetched
- * multiple times within the same window. Results are cached in memory for
- * 5 minutes to avoid re-fetches across different batch windows.
+ * Batch fetch variant details using the preview applications variants query endpoint.
+ *
+ * Endpoint: `POST /preview/applications/variants/query`
+ *
+ * The preview variant response includes `id`, `name`, `application_id` (= appId),
+ * but NOT `uri` or `appName`. Consumers already use fallback patterns
+ * (e.g., `variantDetail.uri || revision.uri`) so this is safe.
+ *
+ * @param projectId - Project ID
+ * @param variantIds - Array of variant IDs to fetch
+ * @returns Map of variant ID → VariantDetail
+ */
+async function fetchVariantDetailsBatch(
+    projectId: string,
+    variantIds: string[],
+): Promise<Map<string, VariantDetail>> {
+    const results = new Map<string, VariantDetail>()
+    if (!projectId || variantIds.length === 0) return results
+
+    try {
+        const response = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/variants/query`,
+            {
+                application_variant_refs: variantIds.map((id) => ({id})),
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const variants = response.data?.application_variants ?? []
+        for (const v of variants) {
+            if (!v?.id) continue
+            results.set(v.id, {
+                id: v.id,
+                name: v.name ?? v.slug ?? "",
+                appId: v.application_id ?? v.workflow_id ?? v.artifact_id ?? "",
+            })
+        }
+    } catch (error) {
+        console.error("[fetchVariantDetailsBatch] Failed to batch fetch variants:", error)
+    }
+
+    return results
+}
+
+/**
+ * Batched variant detail fetcher — collects individual variant detail
+ * requests within a short window and executes a single batch query via
+ * `POST /preview/applications/variants/query`. Results are cached in
+ * memory for 5 minutes to avoid re-fetches across different batch windows.
  */
 export const variantDetailBatchFetcher = createBatchFetcher<
     {variantId: string; projectId: string},
     VariantDetail | null
 >({
+    maxBatchSize: 50,
     flushDelay: 10,
     serializeKey: (req) => `${req.projectId}:${req.variantId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, VariantDetail | null>()
         const now = Date.now()
 
-        // Resolve from cache first, collect uncached requests
-        const uncached = new Map<string, {variantId: string; projectId: string}>()
+        // Resolve from cache first, collect uncached requests grouped by project
+        const byProject = new Map<string, {variantIds: string[]; keys: string[]}>()
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
             if (!req.variantId || !req.projectId) {
@@ -493,23 +538,33 @@ export const variantDetailBatchFetcher = createBatchFetcher<
                 results.set(key, cached.data)
                 return
             }
-            uncached.set(key, req)
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.variantIds.push(req.variantId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    variantIds: [req.variantId],
+                    keys: [key],
+                })
+            }
         })
 
-        // Fetch all uncached variants in parallel
-        if (uncached.size > 0) {
+        // Batch fetch all uncached variants
+        if (byProject.size > 0) {
             await Promise.all(
-                Array.from(uncached.entries()).map(async ([key, req]) => {
-                    try {
-                        const detail = await fetchVariantDetail(req.variantId, req.projectId)
+                Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                    const detailMap = await fetchVariantDetailsBatch(projectId, group.variantIds)
+                    group.variantIds.forEach((variantId, index) => {
+                        const key = group.keys[index]
+                        const detail = detailMap.get(variantId) ?? null
                         variantDetailCache.set(key, {
                             data: detail,
                             expiresAt: now + VARIANT_CACHE_TTL,
                         })
                         results.set(key, detail)
-                    } catch {
-                        results.set(key, null)
-                    }
+                    })
                 }),
             )
         }
@@ -519,9 +574,73 @@ export const variantDetailBatchFetcher = createBatchFetcher<
 })
 
 /**
+ * Batch fetch revision lists for multiple variants using the preview endpoint.
+ *
+ * Endpoint: `POST /preview/applications/revisions/query`
+ *
+ * @param projectId - Project ID
+ * @param variantIds - Array of variant IDs to fetch revisions for
+ * @returns Map of variant ID → array of raw revision items
+ */
+async function fetchRevisionsListByVariantsBatch(
+    projectId: string,
+    variantIds: string[],
+): Promise<Map<string, ApiRevisionListItem[]>> {
+    const results = new Map<string, ApiRevisionListItem[]>()
+    if (!projectId || variantIds.length === 0) return results
+
+    // Initialize empty arrays for each variant
+    for (const vid of variantIds) {
+        results.set(vid, [])
+    }
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+        {
+            application_variant_refs: variantIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const data = response.data as {
+        application_revisions?: {
+            id?: string
+            version?: number
+            message?: string
+            created_at?: string
+            updated_at?: string
+            created_by_id?: string
+            application_variant_id?: string
+            variant_id?: string
+            data?: {parameters?: Record<string, unknown>}
+            config?: {config_name?: string; parameters?: Record<string, unknown>}
+        }[]
+    }
+
+    for (const rev of data?.application_revisions ?? []) {
+        const variantId = rev.application_variant_id ?? rev.variant_id
+        if (!variantId || !rev.id) continue
+
+        const existing = results.get(variantId) ?? []
+        existing.push({
+            id: rev.id,
+            revision: rev.version ?? 0,
+            commit_message: rev.message,
+            created_at: rev.created_at,
+            updated_at: rev.updated_at,
+            modified_by: rev.created_by_id,
+            config: rev.config ?? (rev.data ? {parameters: rev.data.parameters} : undefined),
+        })
+        results.set(variantId, existing)
+    }
+
+    return results
+}
+
+/**
  * Batched revisions list fetcher — collects individual per-variant
- * revisions list requests within a short window and executes them in
- * parallel. Each request fetches `GET /variants/{variantId}/revisions`.
+ * revisions list requests within a short window and executes a single
+ * batch query via `POST /preview/applications/revisions/query`.
  * The variant detail needed for enrichment is resolved via
  * variantDetailBatchFetcher, which deduplicates across all callers.
  */
@@ -533,44 +652,74 @@ export const revisionsListBatchFetcher = createBatchFetcher<
     serializeKey: (req) => `${req.projectId}:${req.variantId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, RevisionListItem[]>()
+        const byProject = new Map<string, {variantIds: string[]; keys: string[]}>()
 
-        await Promise.all(
-            requests.map(async (req, index) => {
-                const key = serializedKeys[index]
-                if (!req.variantId || !req.projectId) {
-                    results.set(key, [])
-                    return
-                }
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.variantId || !req.projectId) {
+                results.set(key, [])
+                return
+            }
 
-                try {
-                    const [response, variantDetail] = await Promise.all([
-                        axios.get(`${getAgentaApiUrl()}/variants/${req.variantId}/revisions`, {
-                            params: {project_id: req.projectId},
-                        }),
-                        variantDetailBatchFetcher({
-                            variantId: req.variantId,
-                            projectId: req.projectId,
-                        }),
-                    ])
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.variantIds.push(req.variantId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    variantIds: [req.variantId],
+                    keys: [key],
+                })
+            }
+        })
 
-                    const data = response.data as ApiRevisionListItem[] | undefined
-                    if (!data || !Array.isArray(data)) {
-                        results.set(key, [])
-                        return
+        // Collect all variant IDs for variant detail enrichment
+        const allVariantRequests = requests
+            .filter((req) => req.variantId && req.projectId)
+            .map((req) =>
+                variantDetailBatchFetcher({variantId: req.variantId, projectId: req.projectId}),
+            )
+
+        // Run batch revision fetch and variant detail enrichment in parallel
+        const [variantDetails] = await Promise.all([
+            Promise.all(allVariantRequests),
+            Promise.all(
+                Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                    try {
+                        const revisionsMap = await fetchRevisionsListByVariantsBatch(
+                            projectId,
+                            group.variantIds,
+                        )
+                        group.variantIds.forEach((variantId, index) => {
+                            const key = group.keys[index]
+                            const revisions = revisionsMap.get(variantId) ?? []
+                            results.set(
+                                key,
+                                revisions.map((rev) => transformRevisionToListItem(rev, variantId)),
+                            )
+                        })
+                    } catch {
+                        group.keys.forEach((key) => results.set(key, []))
                     }
+                }),
+            ),
+        ])
 
-                    const context = variantDetail
-                        ? {appId: variantDetail.appId, uri: variantDetail.uri}
-                        : undefined
-                    results.set(
-                        key,
-                        data.map((rev) => transformRevisionToListItem(rev, req.variantId, context)),
-                    )
-                } catch {
-                    results.set(key, [])
-                }
-            }),
-        )
+        // Enrich results with variant detail context
+        let detailIndex = 0
+        for (const req of requests) {
+            if (!req.variantId || !req.projectId) continue
+            const key = `${req.projectId}:${req.variantId}`
+            const detail = variantDetails[detailIndex++]
+            if (detail) {
+                const current = results.get(key) ?? []
+                const context = {appId: detail.appId, uri: detail.uri, variantName: detail.name}
+                results.set(
+                    key,
+                    current.map((item) => ({...item, ...context})),
+                )
+            }
+        }
 
         return results
     },
