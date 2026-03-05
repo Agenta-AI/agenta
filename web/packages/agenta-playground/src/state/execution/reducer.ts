@@ -340,9 +340,10 @@ export const failRunAtom = atom(
             stepId: string
             sessionId: string
             error: {message: string; code?: string}
+            traceId?: string | null
         },
     ) => {
-        const {loadableId, stepId, sessionId, error} = payload
+        const {loadableId, stepId, sessionId, error, traceId} = payload
         const resultsByKey = {...get(resultsByKeyAtomFamily(loadableId))}
         const key = buildResultKey(stepId, sessionId)
         const existing = resultsByKey[key] ?? {sessionId, status: "idle" as const}
@@ -351,6 +352,7 @@ export const failRunAtom = atom(
             ...existing,
             status: "error",
             error,
+            ...(traceId !== undefined ? {traceId} : {}),
             completedAt: Date.now(),
         }
 
@@ -512,8 +514,8 @@ export const runStepAtom = atom(
                         result,
                     })
                 },
-                onFail: ({error}) => {
-                    set(failRunAtom, {loadableId, stepId, sessionId: session.id, error})
+                onFail: ({error, traceId}) => {
+                    set(failRunAtom, {loadableId, stepId, sessionId: session.id, error, traceId})
                 },
                 onCancel: () => {
                     set(cancelRunAtom, {loadableId, stepId, sessionId: session.id})

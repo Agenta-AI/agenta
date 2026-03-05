@@ -28,6 +28,7 @@ import {
     updateChainProgressAtom,
 } from "./reducer"
 import {derivedLoadableIdAtom, isChatModeAtom} from "./selectors"
+import {extractTraceIdFromPayload} from "./trace"
 
 // ============================================================================
 // INJECTABLE AUTH HEADERS
@@ -425,22 +426,41 @@ export const triggerExecutionAtom = atom(
                     const qc = get(queryClientAtom)
                     qc.invalidateQueries({queryKey: ["tracing"]})
                 },
-                onFail: ({error: err}) => {
+                onFail: ({error: err, traceId: lifecycleTraceId}) => {
                     // For targeted downstream runs, fail the target session, not root
                     const failSessionId = isTargetingDownstream
                         ? `sess:${rootEntityId}:${targetNode.entityId}`
                         : sessionId
+                    const traceId = lifecycleTraceId ?? extractTraceIdFromPayload(err)
                     console.error("[triggerExecution] onFail:", {
                         error: err,
+                        traceId,
                         isTargetingDownstream,
                         failSessionId,
                         targetNodeId: params.targetNodeId,
                     })
+
+                    if (isChat && !isTargetingDownstream) {
+                        set(handleExecutionResultAtom, {
+                            loadableId,
+                            sessionId,
+                            rowId,
+                            result: {
+                                error: err.message,
+                                metadata: {
+                                    ...(traceId ? {traceId, trace_id: traceId} : {}),
+                                },
+                            },
+                        })
+                        return
+                    }
+
                     set(failRunAtom, {
                         loadableId,
                         stepId: rowId,
                         sessionId: failSessionId,
                         error: err,
+                        ...(traceId !== null ? {traceId} : {}),
                     })
                 },
                 onCancel: () => {
@@ -511,9 +531,24 @@ export const handleExecutionResultFromWorkerAtom = atom(
                     : isPlainObject(error) && typeof error.message === "string"
                       ? error.message
                       : "Unknown error"
+            const traceId = extractTraceIdFromPayload(error)
             // Register failure in package execution state
             const loadableId = get(derivedLoadableIdAtom)
             if (loadableId) {
+                if (get(isChatModeAtom) === true) {
+                    set(handleExecutionResultAtom, {
+                        loadableId,
+                        sessionId: `sess:${entityId}`,
+                        rowId,
+                        result: {
+                            error: errorMessage,
+                            metadata: {
+                                ...(traceId ? {traceId, trace_id: traceId} : {}),
+                            },
+                        },
+                    })
+                    return
+                }
                 set(failRunAtom, {
                     loadableId,
                     stepId: rowId,
@@ -521,6 +556,7 @@ export const handleExecutionResultFromWorkerAtom = atom(
                     error: {
                         message: errorMessage,
                     },
+                    ...(traceId ? {traceId} : {}),
                 })
             }
             return

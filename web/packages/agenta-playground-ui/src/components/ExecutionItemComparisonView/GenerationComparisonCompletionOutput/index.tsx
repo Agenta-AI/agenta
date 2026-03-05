@@ -177,10 +177,36 @@ const GenerationComparisonCompletionOutput = ({
     isLastRow,
 }: GenerationComparisonCompletionOutputProps) => {
     const isLoading = useRunnableLoading(entityId)
-    const {isRunning, currentResult, traceId, repetitionProps} = useExecutionCell({
+    const {
+        isRunning,
+        currentResult,
+        displayResult,
+        status,
+        errorMessage,
+        traceId,
+        repetitionProps,
+    } = useExecutionCell({
         entityId: entityId,
         stepId: rowId,
     })
+    const effectiveDisplayResult =
+        status === "error"
+            ? {error: errorMessage ?? "Error"}
+            : (displayResult ?? currentResult ?? null)
+    const primaryNodeStatus: NodeStatus =
+        isRunning || status === "running" || status === "pending"
+            ? "running"
+            : status === "error"
+              ? "error"
+              : status === "cancelled"
+                ? "cancelled"
+                : status === "skipped"
+                  ? "skipped"
+                  : status === "success"
+                    ? "success"
+                    : effectiveDisplayResult
+                      ? "success"
+                      : "idle"
 
     // Chain nodes for downstream results
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), [])) as
@@ -283,14 +309,11 @@ const GenerationComparisonCompletionOutput = ({
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[1] flex flex-col gap-3 px-3 py-2">
                     {/* Primary node */}
-                    <NodeResultCard
-                        name={primaryNodeLabel}
-                        status={isRunning ? "running" : currentResult ? "success" : "idle"}
-                    >
+                    <NodeResultCard name={primaryNodeLabel} status={primaryNodeStatus}>
                         <div className="min-w-0">
                             <ExecutionResultView
                                 isRunning={isRunning}
-                                currentResult={currentResult}
+                                currentResult={effectiveDisplayResult}
                                 traceId={traceId}
                                 repetitionProps={repetitionProps}
                                 feedbackConfig={feedbackConfig}
@@ -298,7 +321,7 @@ const GenerationComparisonCompletionOutput = ({
                         </div>
                     </NodeResultCard>
                     {/* Downstream nodes: only render when primary has been run */}
-                    {(currentResult || isRunning) &&
+                    {(effectiveDisplayResult || isRunning) &&
                         downstreamNodes.map((node) => {
                             const resolvedName = nodeNames[node.id]
                             const label =

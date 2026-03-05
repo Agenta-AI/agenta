@@ -22,6 +22,7 @@ import {
     addMessageAtom,
     addMessagesAtom,
     completeMessageExecutionAtom,
+    failMessageExecutionAtom,
     generateMessageId,
 } from "../chat/messageReducer"
 import type {ChatMessage} from "../chat/messageTypes"
@@ -37,7 +38,7 @@ import {
     resultAtomFamily,
     resultsByKeyAtomFamily,
 } from "./atoms"
-import {completeRunAtom} from "./reducer"
+import {completeRunAtom, failRunAtom} from "./reducer"
 import {isChatModeAtom} from "./selectors"
 import {extractTraceIdFromPayload} from "./trace"
 import type {ExecutionMode, RunResult, RunStatus} from "./types"
@@ -1241,19 +1242,41 @@ export const handleExecutionResultAtom = atom(
 
             // Write execution state on the assistant message
             const traceId = extractTraceIdFromPayload(testResult) ?? undefined
-            set(completeMessageExecutionAtom, {
-                loadableId,
-                messageId: assistantMsgId,
-                result: {output: testResult, traceId},
-            })
+            const errorMessage =
+                lastMessage.role === "Error"
+                    ? typeof lastMessage.content === "string"
+                        ? lastMessage.content
+                        : "Error"
+                    : null
 
-            // Register completion in execution reducer (for useExecutionCell compatibility)
-            set(completeRunAtom, {
-                loadableId,
-                stepId: parentUserMsgId ?? rowId,
-                sessionId,
-                result: {output: testResult, traceId},
-            })
+            if (errorMessage) {
+                set(failMessageExecutionAtom, {
+                    loadableId,
+                    messageId: assistantMsgId,
+                    error: errorMessage,
+                })
+                set(failRunAtom, {
+                    loadableId,
+                    stepId: parentUserMsgId ?? rowId,
+                    sessionId,
+                    error: {message: errorMessage},
+                    traceId: traceId ?? null,
+                })
+            } else {
+                set(completeMessageExecutionAtom, {
+                    loadableId,
+                    messageId: assistantMsgId,
+                    result: {output: testResult, traceId},
+                })
+
+                // Register completion in execution reducer (for useExecutionCell compatibility)
+                set(completeRunAtom, {
+                    loadableId,
+                    stepId: parentUserMsgId ?? rowId,
+                    sessionId,
+                    result: {output: testResult, traceId},
+                })
+            }
 
             // Auto-append blank user message if this was the last turn
             const updatedFlatIds = get(messageIdsAtomFamily(loadableId))

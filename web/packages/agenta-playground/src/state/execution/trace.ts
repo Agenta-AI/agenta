@@ -18,10 +18,18 @@ export const extractTraceIdFromPayload = (payload: unknown): string | null => {
     if (typeof payload !== "object") return null
 
     const obj = payload as Record<string, unknown>
+    const status = obj.status as Record<string, unknown> | undefined
+    const detail = obj.detail as Record<string, unknown> | undefined
     const directCandidates = [
         obj.traceId,
         obj.trace_id,
         (obj.trace as Record<string, unknown> | undefined)?.id,
+        status?.traceId,
+        status?.trace_id,
+        (status?.trace as Record<string, unknown> | undefined)?.id,
+        detail?.traceId,
+        detail?.trace_id,
+        (detail?.trace as Record<string, unknown> | undefined)?.id,
         (obj.response as Record<string, unknown> | undefined)?.traceId,
         (obj.response as Record<string, unknown> | undefined)?.trace_id,
         (obj.metadata as Record<string, unknown> | undefined)?.traceId,

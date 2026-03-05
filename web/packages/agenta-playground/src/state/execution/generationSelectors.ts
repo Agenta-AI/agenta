@@ -69,7 +69,14 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
         atom((get) => {
             const loadableId = get(derivedLoadableIdAtom)
             if (!loadableId)
-                return {isRunning: false, resultHash: null, result: null, traceId: null}
+                return {
+                    isRunning: false,
+                    resultHash: null,
+                    result: null,
+                    traceId: null,
+                    status: "idle" as const,
+                    error: null,
+                }
 
             // Single read: get the RunResult directly
             const fullResult = get(
@@ -85,8 +92,16 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
             const resultHash = fullResult?.resultHash ?? null
             const traceId =
                 fullResult?.traceId ?? extractTraceIdFromPayload(fullResult?.output) ?? null
+            const error = fullResult?.error ?? null
 
-            return {isRunning, resultHash, result, traceId}
+            return {
+                isRunning,
+                resultHash,
+                result,
+                traceId,
+                status: status ?? "idle",
+                error,
+            }
         }),
 )
 

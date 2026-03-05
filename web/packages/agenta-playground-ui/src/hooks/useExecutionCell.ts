@@ -17,6 +17,8 @@ interface ResolvedResult {
     isRunning?: boolean
     result?: unknown
     traceId?: string | null
+    status?: "idle" | "pending" | "running" | "success" | "error" | "cancelled" | "skipped"
+    error?: {message?: string; code?: string} | string | null
 }
 
 /**
@@ -35,13 +37,23 @@ const EMPTY_RESULT = {
     isRunning: false,
     result: null,
     currentResult: null,
+    displayResult: null,
     traceId: null,
     resultHash: null,
+    status: "idle" as const,
+    errorMessage: null,
     repetitionIndex: 0,
     repetitionProps: undefined,
     run: noop,
     cancel: noop,
 } as const
+
+function resolveErrorMessage(error: ResolvedResult["error"]): string | null {
+    if (!error) return null
+    if (typeof error === "string") return error
+    if (typeof error?.message === "string") return error.message
+    return null
+}
 
 export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParams) {
     const resolved = useAtomValue(
@@ -56,15 +68,18 @@ export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParam
     ) as ResolvedResult | undefined
 
     const isRunning = skip ? false : Boolean(resolved?.isRunning)
+    const status = skip ? "idle" : (resolved?.status ?? "idle")
     const result = skip ? null : (resolved?.result ?? null)
     const traceId = skip ? null : ((resolved?.traceId as string | null) ?? null)
     const resultHash = skip ? null : ((resolved?.resultHash as string | null) ?? null)
+    const errorMessage = skip ? null : resolveErrorMessage(resolved?.error)
 
     const {currentResult, repetitionIndex, repetitionProps} = useRepetitionResult({
         rowId: stepId,
         entityId: entityId,
         result,
     })
+    const displayResult = status === "error" ? {error: errorMessage ?? "Error"} : currentResult
 
     const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
     const cancelTests = useSetAtom(executionItemController.actions.cancelTests)
@@ -88,8 +103,11 @@ export function useExecutionCell({entityId, stepId, skip}: UseExecutionCellParam
         isRunning,
         result,
         currentResult,
+        displayResult,
         traceId,
         resultHash,
+        status,
+        errorMessage,
         repetitionIndex,
         repetitionProps,
         run,

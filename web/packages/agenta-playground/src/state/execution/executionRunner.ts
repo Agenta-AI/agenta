@@ -21,6 +21,7 @@ import {
     resultsByKeyAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
+import {extractTraceIdFromPayload} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
 interface RunnableNode {
@@ -66,7 +67,7 @@ interface ExecutionSessionLifecycleCallbacks {
         chainResults?: RunResult["chainResults"]
     }) => void
     onComplete: (payload: {result: Partial<RunResult>}) => void
-    onFail: (payload: {error: {message: string; code?: string}}) => void
+    onFail: (payload: {error: {message: string; code?: string}; traceId?: string | null}) => void
     onCancel: () => void
 }
 
@@ -433,6 +434,7 @@ export async function executeStepForSessionWithExecutionItems(
             if (level.includes(rootNode.id) && nodeResults[rootNode.id]?.status === "error") {
                 lifecycle.onFail({
                     error: nodeResults[rootNode.id].error || {message: "Execution failed"},
+                    traceId: nodeResults[rootNode.id].trace?.id ?? null,
                 })
                 return
             }
@@ -555,9 +557,11 @@ async function executeViaFetch(params: {
         if (!response.ok) {
             const errorText = await response.text()
             let errorMessage = `Request failed with status ${response.status}`
+            let traceId: string | null = null
 
             try {
                 const errorData = JSON.parse(errorText)
+                traceId = extractTraceIdFromPayload(errorData)
                 if (errorData?.status?.message) {
                     errorMessage = errorData.status.message
                 } else if (errorData?.detail?.message) {
@@ -575,6 +579,7 @@ async function executeViaFetch(params: {
                 startedAt,
                 completedAt: new Date().toISOString(),
                 error: {message: errorMessage},
+                ...(traceId ? {trace: {id: traceId}} : {}),
             }
         }
 

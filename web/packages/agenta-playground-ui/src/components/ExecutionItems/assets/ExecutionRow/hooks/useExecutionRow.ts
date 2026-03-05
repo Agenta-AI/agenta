@@ -31,6 +31,9 @@ export function useExecutionRow({entityId, rowId, inputOnly}: UseExecutionRowPar
     const result = !isChat && !inputOnly ? cell.result : undefined
     const resultHash = !isChat && !inputOnly ? (cell.resultHash ?? null) : null
     const traceId = !isChat && !inputOnly ? (cell.traceId ?? null) : null
+    const status = !isChat && !inputOnly ? cell.status : "idle"
+    const errorMessage = !isChat && !inputOnly ? (cell.errorMessage ?? null) : null
+    const displayResult = !isChat && !inputOnly ? cell.displayResult : null
 
     const isBusy = useAtomValue(
         useMemo(
@@ -64,6 +67,9 @@ export function useExecutionRow({entityId, rowId, inputOnly}: UseExecutionRowPar
         result,
         resultHash,
         traceId,
+        status,
+        errorMessage,
+        displayResult,
         runRow: inputOnly ? noop : runRow,
         cancelRow: inputOnly ? noop : cancelRow,
     }

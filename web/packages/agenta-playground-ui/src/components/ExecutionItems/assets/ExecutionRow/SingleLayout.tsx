@@ -56,8 +56,11 @@ interface Props {
     index?: number
 
     result: unknown
+    displayResult?: unknown
     resultHash: string | null
     traceId?: string | null
+    status?: "idle" | "pending" | "running" | "success" | "error" | "cancelled" | "skipped"
+    errorMessage?: string | null
     runRow: () => void
     cancelRow: () => void
     containerClassName?: string
@@ -350,8 +353,11 @@ const SingleView = ({
     isRunning,
     inputOnly,
     result,
+    displayResult,
     resultHash,
     traceId,
+    status = "idle",
+    errorMessage = null,
     runRow,
     cancelRow,
     containerClassName,
@@ -456,6 +462,18 @@ const SingleView = ({
         entityId,
         result,
     })
+    const currentDisplayResult =
+        status === "error"
+            ? {error: errorMessage ?? "Error"}
+            : (displayResult ?? currentResult ?? null)
+    const primaryNodeStatus = useMemo<NodeStatus>(() => {
+        if (isBusy || status === "running" || status === "pending") return "running"
+        if (status === "error") return "error"
+        if (status === "cancelled") return "cancelled"
+        if (status === "skipped") return "skipped"
+        if (status === "success") return "success"
+        return currentDisplayResult ? "success" : "idle"
+    }, [isBusy, status, currentDisplayResult])
 
     // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
@@ -705,19 +723,16 @@ const SingleView = ({
                         ])}
                     >
                         {/* Primary node */}
-                        <NodeResultCard
-                            name={primaryNodeLabel}
-                            status={isBusy ? "running" : currentResult ? "success" : "idle"}
-                        >
+                        <NodeResultCard name={primaryNodeLabel} status={primaryNodeStatus}>
                             <div
                                 className={clsx(
                                     "min-w-0",
-                                    !currentResult && !isBusy && "text-[#bdc7d1]",
+                                    !currentDisplayResult && !isBusy && "text-[#bdc7d1]",
                                 )}
                             >
                                 <ExecutionResultView
                                     isRunning={isBusy}
-                                    currentResult={currentResult}
+                                    currentResult={currentDisplayResult}
                                     traceId={traceId ?? null}
                                     repetitionProps={repetitionProps}
                                     feedbackConfig={feedbackConfig}

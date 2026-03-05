@@ -188,6 +188,9 @@ const ChatTurnView = ({
         isRunning,
         result,
         currentResult,
+        displayResult,
+        status,
+        errorMessage,
         traceId,
         repetitionIndex,
         repetitionProps,
@@ -249,11 +252,21 @@ const ChatTurnView = ({
         [lastAssistantMessage, messageOverride],
     )
 
-    const displayedAssistantMessage = lastAssistantMessage || fallbackAssistantMessage
+    const fallbackErrorAssistantMessage = useMemo(() => {
+        if (lastAssistantMessage || fallbackAssistantMessage || status !== "error") return null
+        return {
+            id: `error-${turnId}-${entityId || "session"}`,
+            role: "Error",
+            content: errorMessage ?? "Error",
+        } as SimpleChatMessage
+    }, [lastAssistantMessage, fallbackAssistantMessage, status, turnId, entityId, errorMessage])
+
+    const displayedAssistantMessage =
+        lastAssistantMessage || fallbackAssistantMessage || fallbackErrorAssistantMessage
 
     const displayAssistantValue = useMemo(
-        () => extractAssistantDisplayValue(displayedAssistantMessage?.content, currentResult),
-        [displayedAssistantMessage, currentResult],
+        () => extractAssistantDisplayValue(displayedAssistantMessage?.content, displayResult),
+        [displayedAssistantMessage, displayResult],
     )
 
     const hasAssistantContent = useMemo(
@@ -409,7 +422,7 @@ const ChatTurnView = ({
                                 className="w-full"
                                 headerClassName="border-0 border-b border-solid border-[rgba(5,23,41,0.06)]"
                                 messageProps={messageProps}
-                                messageOverride={messageOverride}
+                                messageOverride={displayedAssistantMessage ?? messageOverride}
                                 repetitionProps={repetitionProps}
                             />
                             {(() => {
