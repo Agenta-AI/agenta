@@ -517,12 +517,6 @@ async def query_variant_revisions(
         if resolve is not None
         else False
     )
-    if payload.resolve is None and resolve is None:
-        log.warning(
-            "[variants.revisions.query] missing explicit resolve; defaulting to unresolved project_id=%s user_id=%s",
-            request.state.project_id,
-            request.state.user_id,
-        )
 
     adapter = get_legacy_adapter()
     revisions = []
