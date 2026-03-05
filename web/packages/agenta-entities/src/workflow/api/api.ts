@@ -984,3 +984,56 @@ export async function fetchWorkflowsBatch(
 
     return results
 }
+
+/**
+ * Batch fetch workflow revisions by revision IDs.
+ *
+ * Uses the revision query endpoint with workflow_revision_refs to fetch
+ * specific revisions by their IDs in a single request.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/query`
+ *
+ * @param projectId - Project ID
+ * @param revisionIds - Array of revision IDs to fetch
+ * @returns Map of revision ID → Workflow
+ */
+export async function fetchWorkflowRevisionsByIdsBatch(
+    projectId: string,
+    revisionIds: string[],
+): Promise<Map<string, Workflow>> {
+    const results = new Map<string, Workflow>()
+
+    if (!projectId || revisionIds.length === 0) return results
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        {
+            workflow_revision_refs: revisionIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionsResponseSchema,
+        response.data,
+        "[fetchWorkflowRevisionsByIdsBatch]",
+    )
+    if (!validated) return results
+
+    for (const raw of validated.workflow_revisions) {
+        try {
+            const workflow = safeParseWithLogging(
+                workflowSchema,
+                raw,
+                "[fetchWorkflowRevisionsByIdsBatch:item]",
+            )
+            if (workflow) {
+                results.set(workflow.id, workflow)
+            }
+        } catch (e) {
+            console.error("[fetchWorkflowRevisionsByIdsBatch] Failed to parse workflow:", e, raw)
+        }
+    }
+
+    return results
+}
