@@ -201,6 +201,12 @@ First deploys on Railway take longer because Docker layer caches are cold. Deplo
 
 For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
+### SDK source in preview builds
+
+API and services Dockerfiles can install a local SDK from `./sdk` inside each image build context. In Railway preview CI, the workflow copies repo-root `sdk/` into `api/sdk` and `services/sdk` before building images. This guarantees preview images use the branch SDK instead of falling back to the pip package when SDK changes.
+
+The `hosting/docker-compose/*gh*.yml` files are not part of the Railway preview CI path. If you build locally with those compose files and need to force branch SDK usage, either use `hosting/railway/oss/scripts/build-and-push-images.sh` or copy `sdk/` into `api/sdk` and `services/sdk` before running `docker compose build`.
+
 ### Smoke check options
 
 The smoke script supports these environment variables:
