@@ -126,6 +126,7 @@ const TEMPLATE_FORMAT_OPTIONS = [
     {label: "Prompt Syntax: F-string", value: "fstring"},
     {label: "Prompt Syntax: Jinja2", value: "jinja2"},
 ]
+const EMPTY_VARIABLES: string[] = []
 
 /**
  * Default provider icon renderer using getProviderIcon from @agenta/ui
@@ -186,7 +187,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     className,
     templateFormat = "curly",
     onTemplateFormatChange,
-    variables = [],
+    variables,
     entityId,
     hideModelSelector: _hideModelSelector = false,
     renderProviderIcon,
@@ -201,6 +202,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
         templateFormat,
     )
+    const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
     const isNestedLLMConfig = useMemo(() => hasNestedLLMConfig(schema), [schema])
@@ -453,7 +455,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                 className="[&_.chat-message-editor]:border [&_.chat-message-editor]:border-zinc-2 [&_.chat-message-editor]:rounded-lg"
                 enableTokens={true}
                 templateFormat={localTemplateFormat}
-                tokens={variables}
+                tokens={stableVariables}
                 loadingFallback="static"
             />
 

@@ -116,6 +116,13 @@ export {
     fetchOssRevisionById,
     fetchOssRevisionEnriched,
     fetchOssRevisionsBatch,
+    // Batch fetchers
+    revisionBatchFetcher,
+    variantDetailBatchFetcher,
+    revisionsListBatchFetcher,
+    // Cache invalidation
+    clearVariantDetailCache,
+    // URI utilities
     // Schema functions
     fetchRevisionSchema,
     fetchRevisionSchemaWithProbe,

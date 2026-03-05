@@ -35,6 +35,7 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
 import type {RequestPayloadData} from "../../runnable/types"
+import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
 import {parseRevisionUri} from "../../shared"
 
@@ -50,6 +51,33 @@ export {resolveBuiltinAppServiceUrl} from "./helpers"
 
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
+}
+
+function extractSchemaInputKeys(schema: unknown): string[] {
+    if (!schema || typeof schema !== "object" || Array.isArray(schema)) return []
+
+    const properties = (schema as Record<string, unknown>).properties
+    if (!properties || typeof properties !== "object" || Array.isArray(properties)) return []
+
+    return Object.keys(properties as Record<string, unknown>).filter((key) => key.length > 0)
+}
+
+function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>): string[] {
+    const variables: string[] = []
+    for (const val of Object.values(agConfig)) {
+        const valRecord = val as Record<string, unknown> | null
+        if (!valRecord || typeof valRecord !== "object") continue
+        if (!("input_keys" in valRecord)) continue
+
+        const keys = valRecord.input_keys
+        if (!Array.isArray(keys)) continue
+        for (const k of keys) {
+            if (typeof k === "string" && !variables.includes(k)) {
+                variables.push(k)
+            }
+        }
+    }
+    return variables
 }
 
 // ============================================================================
@@ -275,24 +303,20 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         const params = entity.data.parameters as Record<string, unknown> | undefined
         const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
 
-        // Extract variables from ag_config prompt configs' input_keys
-        const variables: string[] = []
-        try {
-            for (const val of Object.values(agConfig)) {
-                const valRecord = val as Record<string, unknown> | null
-                if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
-                    const keys = valRecord.input_keys
-                    if (Array.isArray(keys)) {
-                        for (const k of keys) {
-                            if (typeof k === "string" && !variables.includes(k)) {
-                                variables.push(k)
-                            }
-                        }
-                    }
-                }
+        // Primary source of truth follows workflow input-port logic:
+        // 1) schema input keys, 2) prompt-template variables.
+        // Final fallback: persisted input_keys from ag_config.
+        const schemaVariables = extractSchemaInputKeys(entity.data?.schemas?.inputs)
+        const promptVariables =
+            schemaVariables.length > 0 ? [] : extractVariablesFromConfig(agConfig)
+        const variables = Array.from(new Set([...schemaVariables, ...promptVariables]))
+
+        if (variables.length === 0) {
+            try {
+                variables.push(...extractInputKeysFromConfigInputKeys(agConfig))
+            } catch {
+                // best-effort
             }
-        } catch {
-            // best-effort
         }
 
         return {

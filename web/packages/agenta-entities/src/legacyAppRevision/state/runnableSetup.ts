@@ -19,7 +19,10 @@ import {
     legacyAppRevisionSchemaQueryAtomFamily,
     revisionOpenApiSchemaAtomFamily,
 } from "./schemaAtoms"
-import {legacyAppRevisionEntityWithBridgeAtomFamily} from "./store"
+import {
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionInputPortsAtomFamily,
+} from "./store"
 
 // ============================================================================
 // HELPERS
@@ -267,24 +270,31 @@ export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
         const params = entityData.parameters as Record<string, unknown> | undefined
         const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
 
-        // Extract variables from ag_config prompt configs' input_keys
-        const variables: string[] = []
-        try {
-            for (const val of Object.values(agConfig)) {
-                const valRecord = val as Record<string, unknown> | null
-                if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
-                    const keys = valRecord.input_keys
-                    if (Array.isArray(keys)) {
-                        for (const k of keys) {
-                            if (typeof k === "string" && !variables.includes(k)) {
-                                variables.push(k)
+        // Primary source of truth: live input ports derived from current prompts/schema.
+        // Fallback to persisted input_keys only when ports are unavailable.
+        const variablesFromPorts = get(legacyAppRevisionInputPortsAtomFamily(revisionId))
+            .map((port) => port?.key)
+            .filter((key): key is string => typeof key === "string" && key.length > 0)
+        const variables = Array.from(new Set(variablesFromPorts))
+
+        if (variables.length === 0) {
+            try {
+                for (const val of Object.values(agConfig)) {
+                    const valRecord = val as Record<string, unknown> | null
+                    if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
+                        const keys = valRecord.input_keys
+                        if (Array.isArray(keys)) {
+                            for (const k of keys) {
+                                if (typeof k === "string" && !variables.includes(k)) {
+                                    variables.push(k)
+                                }
                             }
                         }
                     }
                 }
+            } catch {
+                // best-effort
             }
-        } catch {
-            // best-effort
         }
 
         // Build references for trace attribution

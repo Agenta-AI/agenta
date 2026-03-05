@@ -20,25 +20,30 @@ import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {extractVariablesFromConfig} from "../../runnable/utils"
+import {extractVariablesFromConfig, extractVariablesFromEnhancedPrompts} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
 import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
-    fetchOssRevisionById,
-    fetchOssRevisionEnriched,
-    fetchVariantDetail,
     fetchVariantsList,
-    fetchRevisionsList,
     fetchAppsList,
+    revisionBatchFetcher,
+    variantDetailBatchFetcher,
+    revisionsListBatchFetcher,
     fetchLatestRevisionId,
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
     type VariantDetail,
+    fetchRevisionsList,
 } from "../api"
 import type {LegacyAppRevisionData} from "../core"
-import {stripVolatileKeys} from "../utils"
+import {
+    stripVolatileKeys,
+    enhancedPromptsToParameters,
+    enhancedCustomPropertiesToParameters,
+} from "../utils"
+import {syncInputKeysInPrompts} from "../utils/syncInputKeys"
 
 import {clearPersistedDraft} from "./draftPersistence"
 import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
@@ -124,7 +129,7 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
 
         return {
             queryKey: ["variantDetail", variantId, projectId],
-            queryFn: () => fetchVariantDetail(variantId, projectId!),
+            queryFn: () => variantDetailBatchFetcher({variantId, projectId: projectId!}),
             staleTime: 1000 * 60 * 5, // 5 minutes - variants don't change often
             refetchOnWindowFocus: false,
             enabled,
@@ -155,7 +160,7 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
 
         return {
             queryKey: ["legacyAppRevision", revisionId, projectId],
-            queryFn: () => fetchOssRevisionById(revisionId, projectId!),
+            queryFn: () => revisionBatchFetcher({revisionId, projectId: projectId!}),
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,
@@ -183,7 +188,30 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
             queryKey: ["legacyAppRevisionEnriched", key, projectId],
             queryFn: async () => {
                 if (!parsed || !projectId) return null
-                return fetchOssRevisionEnriched(parsed.revisionId, parsed.variantId, projectId)
+                // Use batch fetchers for deduplication — revision + variant
+                // detail requests are collected across concurrent queries
+                const [revision, variantDetail] = await Promise.all([
+                    revisionBatchFetcher({
+                        revisionId: parsed.revisionId,
+                        projectId,
+                    }),
+                    variantDetailBatchFetcher({
+                        variantId: parsed.variantId,
+                        projectId,
+                    }),
+                ])
+                if (!revision) return null
+                if (variantDetail) {
+                    return {
+                        ...revision,
+                        variantId: parsed.variantId,
+                        appId: variantDetail.appId || revision.appId,
+                        variantName: variantDetail.name || revision.variantName,
+                        appName: variantDetail.appName || revision.appName,
+                        uri: variantDetail.uri || revision.uri,
+                    }
+                }
+                return revision
             },
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
@@ -195,7 +223,7 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
 /**
  * Query atom family - returns server data for a revision
  *
- * Uses legacy API via fetchOssRevisionById.
+ * Uses legacy API via revisionBatchFetcher.
  * Returns QueryState format for consistency with entity patterns.
  */
 export const legacyAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
@@ -354,6 +382,19 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
         const data = get(legacyAppRevisionEntityAtomFamily(revisionId))
         if (!data) return []
 
+        // Prefer enhanced prompts (includes unsaved draft edits) over raw parameters
+        const enhancedPrompts = data.enhancedPrompts as unknown[] | undefined
+        if (enhancedPrompts && Array.isArray(enhancedPrompts) && enhancedPrompts.length > 0) {
+            const dynamicKeys = extractVariablesFromEnhancedPrompts(enhancedPrompts)
+            return dynamicKeys.map((key) => ({
+                key,
+                name: key,
+                type: "string" as const,
+                required: true,
+            }))
+        }
+
+        // Fallback to raw parameters (server data before prompts are derived)
         const parameters = data.parameters as Record<string, unknown> | undefined
         const dynamicKeys = extractVariablesFromConfig(parameters)
 

@@ -146,6 +146,17 @@ const getLastWrittenSnapshotHash = () => _store().get(_lastWrittenSnapshotHashAt
 const setLastWrittenSnapshotHash = (v: string | null) =>
     _store().set(_lastWrittenSnapshotHashAtom, v)
 
+/**
+ * Track the current selection in memory to survive HMR.
+ * Replaces the old OSS selectedVariantsAtom bridge.
+ */
+const _selectedVariantsAtom = atom<string[]>([])
+
+/**
+ * Track the last processed URL revisions to prevent loops.
+ */
+const _urlRevisionsAtom = atom<string[]>([])
+
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
     const result: string[] = []
@@ -317,7 +328,60 @@ export const buildPlaygroundUrl = (selection: string[], basePath: string): strin
 }
 
 /**
+ * Synchronously build URL components and write to browser history.
+ * This is the core URL-writing logic extracted so it can be called
+ * both synchronously (for initial sync) and via RAF (for coalescing).
+ */
+const writeUrlNow = (selection: string[]): boolean => {
+    if (!isBrowser) return false
+
+    try {
+        const sanitized = sanitizeRevisionList(selection)
+        const store = getDefaultStore()
+
+        // Build the new URL with query params and hash
+        const url = new URL(window.location.href)
+
+        // Use package controller to build URL components
+        const urlComponents = store.set(urlSnapshotController.actions.buildUrlComponents, sanitized)
+
+        if (!urlComponents.ok) {
+            return false
+        }
+
+        // Set query param
+        if (urlComponents.queryParam) {
+            url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
+        } else {
+            url.searchParams.delete(REVISIONS_QUERY_PARAM)
+        }
+
+        // Set hash param
+        if (urlComponents.hashParam) {
+            url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
+            setLastWrittenSnapshotHash(urlComponents.hashParam)
+        } else {
+            url.hash = ""
+            setLastWrittenSnapshotHash(null)
+        }
+
+        const newUrl = `${url.pathname}${url.search}${url.hash}`
+
+        // Only update if URL actually changed and we didn't just write this URL
+        if (newUrl !== getLastWrittenUrl()) {
+            setLastWrittenUrl(newUrl)
+            window.history.replaceState(window.history.state, "", newUrl)
+        }
+
+        return true
+    } catch {
+        return false
+    }
+}
+
+/**
  * Write the current playground selection to the URL.
+ * Uses RAF to coalesce rapid updates (e.g., draft edits).
  * Uses urlSnapshotController.buildUrlComponents for entity-agnostic snapshot building.
  */
 export const writePlaygroundSelectionToQuery = (selection: string[]) => {
@@ -828,7 +892,10 @@ playgroundSyncAtom.onMount = (set) => {
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
         for (const hydration of pending.values()) {
-            const query = store.get(runnableBridge.query(hydration.sourceRevisionId))
+            const query = store.get(runnableBridge.query(hydration.sourceRevisionId)) as {
+                isPending: boolean
+                data: any
+            }
             if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
@@ -871,11 +938,11 @@ playgroundSyncAtom.onMount = (set) => {
     let currentLatestRevUnsub: (() => void) | null = null
     const bindRevisionsReady = () => {
         // Use URL-based app ID only — project-level playground has no app context
-        const currentAppId = store.get(routerAppIdAtom)
+        const currentAppId = store.get(routerAppIdAtom) as string | null
         let currentSelected = sanitizeRevisionList(
             store.get(playgroundController.selectors.entityIds()),
         )
-        const appState = store.get(appStateSnapshotAtom)
+        const appState = store.get(appStateSnapshotAtom) as {pathname?: string}
         const isPlaygroundRoute =
             appState.pathname?.includes("/playground") &&
             !appState.pathname?.includes("/playground-test")
@@ -1090,12 +1157,12 @@ playgroundSyncAtom.onMount = (set) => {
             const result = store.set(
                 playgroundSnapshotController.actions.createSnapshot,
                 snapshotInputs,
-            )
+            ) as {snapshot?: PlaygroundSnapshot}
 
             if (result.snapshot) {
                 const hasDraftChanges =
                     result.snapshot.drafts.length > 0 ||
-                    result.snapshot.selection.some((s) => s.kind === "ephemeral")
+                    result.snapshot.selection.some((s: any) => s.kind === "ephemeral")
 
                 if (hasDraftChanges) {
                     localStorage.setItem(
@@ -1205,6 +1272,22 @@ playgroundSyncAtom.onMount = (set) => {
 
             // Also try immediately in case selection is already populated
             tryHydrateSnapshot()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // INITIAL URL SYNC: ensure URL reflects in-memory selection
+    // -----------------------------------------------------------------------
+    // When navigating away from the playground, urlRevisionsAtom is cleared but
+    // selectedVariantsAtom persists in memory. On return, the URL has no
+    // ?revisions param even though a selection exists. Write synchronously
+    // (bypassing RAF) so a subsequent RAF-based call cannot cancel this write.
+    {
+        const initialSelection = sanitizeRevisionList(store.get(_selectedVariantsAtom))
+        const initialUrlRevisions = sanitizeRevisionList(store.get(_urlRevisionsAtom))
+        if (initialSelection.length > 0 && initialUrlRevisions.length === 0) {
+            store.set(_urlRevisionsAtom, initialSelection)
+            writeUrlNow(initialSelection)
         }
     }
 

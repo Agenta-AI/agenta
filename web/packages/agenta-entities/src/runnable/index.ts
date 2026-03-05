@@ -136,12 +136,7 @@ export {
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
     extractVariablesFromConfig,
-} from "./utils"
-export type {
-    PathSource,
-    ExecuteRunnableOptions,
-    EvaluatorInputContext,
-    EvaluatorInputValidation,
+    extractVariablesFromEnhancedPrompts,
 } from "./utils"
 
 // ============================================================================

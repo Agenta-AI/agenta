@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from uuid import UUID
 
 from taskiq import AsyncBroker, Context, TaskiqDepends
@@ -37,6 +37,7 @@ class WebhooksWorker:
             max_retries=WEBHOOK_MAX_RETRIES,
         )
         async def deliver_webhook(
+            *,
             project_id: str,
             #
             delivery_id: str,
@@ -46,10 +47,15 @@ class WebhooksWorker:
             #
             url: str,
             headers: Dict[str, str],
-            encrypted_secret: str,
+            payload_fields: Optional[Dict[str, Any]] = None,
+            auth_mode: Optional[str] = None,
             #
             event_type: str,
-            body: Dict[str, Any],
+            #
+            subscription: Dict[str, Any],
+            event: Dict[str, Any],
+            #
+            encrypted_secret: str,
             #
             context: Context = TaskiqDepends(),
         ) -> None:
@@ -72,11 +78,15 @@ class WebhooksWorker:
                 subscription_id=UUID(subscription_id),
                 event_id=UUID(event_id),
                 #
-                event_type=event_type,
-                #
                 url=url,
                 headers=headers,
-                body=body,
+                payload_fields=payload_fields,
+                auth_mode=auth_mode,
+                #
+                event_type=event_type,
+                #
+                subscription=subscription,
+                event=event,
                 #
                 encrypted_secret=encrypted_secret,
                 #

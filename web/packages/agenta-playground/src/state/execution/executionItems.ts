@@ -509,7 +509,19 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
         const entityData = runnableData ?? null
 
-        const variables = requestPayload?.variables ?? []
+        const inputPorts = (get(bridge.inputPorts(params.entityId)) ?? []) as {
+            key?: unknown
+        }[]
+        const variablesFromInputPorts = Array.from(
+            new Set(
+                inputPorts
+                    .map((port) => port?.key)
+                    .filter((key): key is string => typeof key === "string" && key.length > 0),
+            ),
+        )
+        const variablesFromPayload = requestPayload?.variables ?? []
+        const variables =
+            variablesFromInputPorts.length > 0 ? variablesFromInputPorts : variablesFromPayload
 
         const displayRowIds = get(loadableController.selectors.displayRowIds(params.loadableId))
         if (!Array.isArray(displayRowIds) || displayRowIds.length === 0) {

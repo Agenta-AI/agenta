@@ -623,11 +623,9 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 }
             })
             // Skip if content already matches (no change needed)
-            if (currentContent === next) return
-            // Skip re-hydration if this value is just our own change echoing back
-            // through the state management chain. This prevents cursor jumps caused
-            // by markdown round-trip differences (especially around token nodes).
-            if (next === lastEmittedTextRef.current) return
+            if (currentContent === next) {
+                return
+            }
             lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
                 hydrateWithRemoteContent: next,
@@ -746,6 +744,10 @@ export const EditorProvider = ({
         disabled,
         useNativeCodeNodes,
     })
+    const tokenDependencyKey = useMemo(
+        () => (Array.isArray(tokens) ? tokens : EMPTY_TOKENS).join("\u0001"),
+        [tokens],
+    )
 
     const extension = useMemo(() => {
         if (!config) {
@@ -833,10 +835,11 @@ export const EditorProvider = ({
         }
 
         if (enableTokens) {
+            const stableTokens = tokenDependencyKey ? tokenDependencyKey.split("\u0001") : []
             extensionDependencies.push(
                 configExtension(TokenBehaviorExtension, {
                     templateFormat,
-                    tokens: tokens || [],
+                    tokens: stableTokens,
                 }),
             )
             extensionDependencyLabels.push("@agenta/editor/token/TokenBehavior")
@@ -880,7 +883,7 @@ export const EditorProvider = ({
         language,
         onPropertyClick,
         templateFormat,
-        tokens,
+        tokenDependencyKey,
         useNativeCodeNodes,
         validationSchema,
     ])
