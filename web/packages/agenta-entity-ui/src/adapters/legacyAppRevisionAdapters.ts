@@ -318,8 +318,18 @@ function extractDiffableData(
     }
 }
 
+function sortKeysDeep(value: unknown): unknown {
+    if (value === null || value === undefined || typeof value !== "object") return value
+    if (Array.isArray(value)) return value.map(sortKeysDeep)
+    const sorted: Record<string, unknown> = {}
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+        sorted[key] = sortKeysDeep((value as Record<string, unknown>)[key])
+    }
+    return sorted
+}
+
 function stableStringify(value: unknown): string {
-    return JSON.stringify(value, null, 2)
+    return JSON.stringify(sortKeysDeep(value), null, 2)
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {
