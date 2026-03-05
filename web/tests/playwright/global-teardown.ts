@@ -28,13 +28,27 @@ function getSessionToken(statePath: string): string | null {
  * 2. Cleans up model hub secrets (OpenAI keys added during tests).
  * 3. Optionally deletes all accounts on disposable CI environments.
  */
+/**
+ * Derives the API base URL from AGENTA_WEB_URL.
+ * The web app may live at a subpath (e.g. /w) but the API is always at /api on the origin.
+ */
+function getApiURL(webURL: string): string {
+    if (process.env.AGENTA_API_URL) return process.env.AGENTA_API_URL
+    try {
+        const u = new URL(webURL)
+        return `${u.origin}/api`
+    } catch {
+        return `${webURL}/api`
+    }
+}
+
 async function globalTeardown() {
     console.log("[global-teardown] Starting global teardown...")
     const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     console.log(`[global-teardown] Using web-url: ${baseURL}`)
 
     const token = process.env.AGENTA_AUTH_KEY
-    const apiURL = process.env.AGENTA_API_URL || `${baseURL}/api`
+    const apiURL = getApiURL(baseURL)
     const allowDestructiveTeardown =
         String(process.env.AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN).toLowerCase() === "true"
     console.log(`[global-teardown] Using api-url: ${apiURL}`)

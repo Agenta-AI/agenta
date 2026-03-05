@@ -23,6 +23,20 @@ import {getTestmailClient} from "../utils/testmail"
  * When AGENTA_EPHEMERAL_PROJECT is enabled (default), creates a fresh
  * project scoped to this test run so data doesn't accumulate.
  */
+/**
+ * Derives the API base URL from AGENTA_WEB_URL.
+ * The web app may live at a subpath (e.g. /w) but the API is always at /api on the origin.
+ */
+function getApiURL(webURL: string): string {
+    if (process.env.AGENTA_API_URL) return process.env.AGENTA_API_URL
+    try {
+        const u = new URL(webURL)
+        return `${u.origin}/api`
+    } catch {
+        return `${webURL}/api`
+    }
+}
+
 async function globalSetup() {
     // Automate authentication before Playwright tests
     console.log("[global-setup] Starting global setup for authentication")
@@ -339,7 +353,7 @@ async function maybeCreateEphemeralProject(page: any, baseURL: string): Promise<
     console.log("[global-setup] Creating ephemeral project for test isolation...")
 
     try {
-        const apiURL = process.env.AGENTA_API_URL || `${baseURL}/api`
+        const apiURL = getApiURL(baseURL)
 
         // Find the current default project so we can restore it during teardown
         const projectsResponse = await page.request.get(`${apiURL}/projects/`)
