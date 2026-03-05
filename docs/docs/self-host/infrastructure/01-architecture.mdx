@@ -14,49 +14,50 @@ Agenta follows a modern microservices architecture with clear separation of conc
 
 ```
                                     ┌─────────────────────────────────────┐
-                                    │              Users                  │
+                                    │               Users                 │
                                     │    (Developers, AI Engineers)       │
                                     └─────────────────┬───────────────────┘
                                                       │
                                     ┌─────────────────▼───────────────────┐
-                                    │        Load Balancer/Proxy          │
-                                    │         (Traefik/Nginx)             │
-                                    │      Handles SSL, Routing           │
+                                    │        Load Balancer / Proxy        │
+                                    │         (Traefik or Nginx)          │
+                                    │      Handles SSL and routing        │
                                     └─────────────┬───────────────────────┘
                                                   │
                     ┌─────────────────────────────┼─────────────────────────────┐
                     │                             │                             │
                     ▼                             ▼                             ▼
           ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-          │   Frontend      │         │    Backend      │         │   AI Services   │
-          │   (Web UI)      │◄────────►    (API)        │◄────────►  (Completion)   │
-          │                 │         │                 │         │  (Chat)         │
-          │ • React App     │         │ • FastAPI       │         │ • LLM Providers │
-          │ • User Interface│         │ • Business Logic│         │ • Model Serving │
-          │ • Playground    │         │                 │         │                 │
+          │    Frontend     │         │   API Backend   │         │  Services API   │
+          │    (Web UI)     │◄────────►    (FastAPI)    │◄────────►   (FastAPI)     │
+          │                 │         │                 │         │                 │
+          │ • Next.js App   │         │ • REST API      │         │ • Completion    │
+          │ • Playground    │         │ • Core logic    │         │ • Chat          │
+          │ • Admin UI      │         │ • Persistence   │         │ • LLM adapters  │
           └─────────────────┘         └─────────┬───────┘         └─────────────────┘
                     │                           │
                     │                           ▼
-                    │                 ┌─────────────────┐
-                    │                 │     Worker      │
-                    │                 │  (Background)   │
-                    │                 │                 │
-                    │                 │ • TaskIQ Tasks  │
-                    │                 │ • Async Jobs    │
-                    │                 │ • Evaluations   │
-                    │                 └─────────┬───────┘
-                    │                           │
-                    ▼                           ▼
+                    │                 ┌─────────────────────────────┐
+                    │                 │      Worker Pool            │
+                    │                 │   (background processes)    │
+                    │                 │                             │
+                    │                 │ • worker-evaluations        │
+                    │                 │ • worker-tracing            │
+                    │                 │ • worker-webhooks           │
+                    │                 │ • worker-events             │
+                    │                 │ • cron                      │
+                    │                 └──────────────┬──────────────┘
+                    │                                │
+                    ▼                                ▼
           ┌───────────────────────────────────────────────────────────────────┐
           │                       Infrastructure Layer                        │
           │                                                                   │
           │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ │
           │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │ │
           │ │                   │ │                   │ │                   │ │
-          │ │• Core DB          │ │• Task Queue       │ │• Auth             │ │
-          │ │• Tracing DB       │ │  (TaskIQ)         │ │                   │ │
-          │ │                   │ │• Caching          │ │                   │ │
-          │ │                   │ │• Sessions         │ │                   │ │
+          │ │ • Core DB         │ │ • Task queues     │ │ • Authentication  │ │
+          │ │ • Tracing DB      │ │ • Streams         │ │ • Session mgmt    │ │
+          │ │ • Auth DB         │ │ • Caching         │ │                   │ │
           │ └───────────────────┘ └───────────────────┘ └───────────────────┘ │
           └───────────────────────────────────────────────────────────────────┘
 ```
@@ -90,23 +91,28 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Application Orchestration**: Manages application lifecycle and deployment
 - **Evaluation Management**: Coordinates evaluation runs and result collection
 
-### Worker Service (TaskIQ)
-- **Technology**: Python, TaskIQ (task queue library), Redis
-- **Purpose**: Background task processing and async operations
+### Worker Services (TaskIQ + Async Consumers)
+- **Technology**: Python workers, TaskIQ, asyncio consumers, Redis, PostgreSQL
+- **Purpose**: Background processing for evaluations, tracing, events, and webhooks
 
 **Key Responsibilities**:
-- **Evaluation Execution**: Runs AI model evaluations asynchronously
-- **Data Processing**: Batch processing of evaluation results
-- **Scheduled Tasks**: Periodic maintenance and cleanup operations
-- **Resource Management**: Manages compute resources for evaluations
-- **Job Monitoring**: Tracks task progress and handles failures
+- **Evaluation Execution**: `worker-evaluations` runs asynchronous evaluation workloads
+- **Tracing Ingestion**: `worker-tracing` consumes OTLP tracing pipelines
+- **Webhook Delivery**: `worker-webhooks` dispatches outbound webhook notifications
+- **Event Processing**: `worker-events` processes internal event streams
+- **Scheduled Tasks**: `cron` runs periodic maintenance and cleanup jobs
 
 **TaskIQ Integration**:
-- **Broker**: Uses Redis Streams via `RedisStreamBroker` for task distribution
-- **Task Registration**: Evaluation tasks registered with the broker at startup
-- **Execution**: Workers consume tasks from Redis and execute them asynchronously
+- **Broker**: Uses Redis streams for queueing and task distribution
+- **Task Registration**: Evaluation tasks are registered at worker startup
+- **Execution**: Workers consume Redis-backed jobs and process them asynchronously
 
-## AI Services
+## Services Backend
+
+### Services API (FastAPI)
+- **Technology**: Python, FastAPI
+- **Port**: 80 (internal)
+- **Purpose**: LLM-facing endpoints and service-layer APIs exposed under `/services/*`
 
 **Key Responsibilities**:
 - **LLM Integration**: Connects to various LLM providers (OpenAI, Anthropic, etc.)
@@ -114,16 +120,7 @@ Agenta follows a modern microservices architecture with clear separation of conc
 - **Response Generation**: Manages LLM API calls and response handling
 - **Provider Abstraction**: Unified interface across different LLM providers
 - **Error Handling**: Robust error handling for LLM API failures
-
-### Completion Service
-- **Technology**: Python, FastAPI
-- **Port**: 80 (internal)
-- **Purpose**: LLM completion and text generation
-
-### Chat Service
-- **Technology**: Python, FastAPI
-- **Port**: 80 (internal)
-- **Purpose**: Conversational AI and chat-based interactions
+- **Endpoint Groups**: Includes `/services/completion/*` and `/services/chat/*`
 
 ## Infrastructure Services
 
@@ -139,7 +136,7 @@ Agenta follows a modern microservices architecture with clear separation of conc
 
 ### Redis (Task Queue, Caching & Sessions)
 - **Technology**: Redis
-- **Port**: 6379
+- **Ports**: 6379 (volatile), 6381 (durable)
 - **Purpose**: Task queue, caching, pub/sub, streams
 
 **Use Cases**:
@@ -167,7 +164,7 @@ Agenta follows a modern microservices architecture with clear separation of conc
 ```
 Web UI depends on:
 ├── API Service (primary backend)
-├── AI Services (direct calls for playground)
+├── Services API (playground and model calls)
 └── Authentication (SuperTokens via API)
 ```
 
@@ -177,13 +174,14 @@ API Service depends on:
 ├── PostgreSQL (data persistence)
 ├── Redis (task queue, caching, sessions)
 ├── SuperTokens (authentication)
-└── Worker (async task execution)
+└── Worker pool (async task execution)
 ```
 
 ### Worker Dependencies
 ```
-Worker depends on:
-├── Redis (task queue via TaskIQ)
-├── PostgreSQL (data access)
-└── AI Services (evaluation execution)
+Worker pool depends on:
+├── Redis (queues and streams)
+├── PostgreSQL (state and persistence)
+├── API backend (coordination and config)
+└── Services API / external endpoints (workload-specific processing)
 ```

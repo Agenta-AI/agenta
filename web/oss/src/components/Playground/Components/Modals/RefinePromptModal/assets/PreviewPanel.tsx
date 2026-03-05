@@ -14,8 +14,8 @@ import {useCallback, useMemo} from "react"
 
 import {Typography} from "antd"
 import {useAtom, useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 
-import DiffView from "@/oss/components/Editor/DiffView"
 import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 
 import {
@@ -23,6 +23,10 @@ import {
     refineDiffViewAtomFamily,
     workingPromptAtomFamily,
 } from "../store/refinePromptStore"
+
+const DiffView = dynamic(() => import("@agenta/ui/editor").then((module) => module.DiffView), {
+    ssr: false,
+})
 
 interface PreviewPanelProps {
     variantId: string

@@ -117,7 +117,7 @@ export function transformToRequestBody({
         }
     }
     const enhancedPrompts = (prompts || variant?.prompts || []) as any[]
-    // Get original parameters to preserve fields like input_keys, template_format
+    // Get original parameters to preserve fields like template_format
     const originalParams = variant?.parameters?.ag_config || variant?.parameters || {}
     const promptConfigs = (enhancedPrompts || []).reduce(
         (acc, prompt) => {
@@ -125,12 +125,9 @@ export function transformToRequestBody({
             const name = prompt.__name
             if (!name) return acc
 
-            // Preserve input_keys and template_format from original parameters if they exist
+            // Preserve template_format from original parameters if not in extracted
             const originalPromptConfig = originalParams[name]
             if (originalPromptConfig) {
-                if (originalPromptConfig.input_keys && !extracted.input_keys) {
-                    extracted.input_keys = originalPromptConfig.input_keys
-                }
                 if (originalPromptConfig.template_format && !extracted.template_format) {
                     extracted.template_format = originalPromptConfig.template_format
                 }
@@ -340,14 +337,14 @@ export function transformToRequestBody({
             }
         }
         // Attach input_keys only for non-custom prompts (custom workflows have no prompt configs)
+        // Always set input_keys (even when empty) to overwrite stale values that may
+        // have been carried over from server parameters via extractValueByMetadata.
         if (!isCustomFinal) {
             const keys = resolvedVariables ?? (variableValues ? Object.keys(variableValues) : [])
-            if (keys && keys.length > 0) {
-                const promptKey = Object.keys(ag_config || {})[0]
-                const target = promptKey ? (ag_config as any)[promptKey] : undefined
-                if (target && typeof target === "object") {
-                    target.input_keys = keys
-                }
+            const promptKey = Object.keys(ag_config || {})[0]
+            const target = promptKey ? (ag_config as any)[promptKey] : undefined
+            if (target && typeof target === "object") {
+                target.input_keys = keys
             }
         }
     } else if (resolvedVariables || variableValues) {
@@ -357,8 +354,9 @@ export function transformToRequestBody({
                 ? extractInputKeysFromSchema(spec, routePath)
                 : []
             : (resolvedVariables ?? Object.keys(variableValues || {}))
-        // Try to set input_keys on the first prompt config if present (non-custom only)
-        if (!isCustomFinal && keys && keys.length > 0) {
+        // Always set input_keys on the first prompt config if present (non-custom only)
+        // Even when empty, to overwrite stale values from server parameter extraction.
+        if (!isCustomFinal) {
             const promptKey = Object.keys(ag_config || {})[0]
             const target = promptKey ? (ag_config as any)[promptKey] : undefined
             if (target && typeof target === "object") {

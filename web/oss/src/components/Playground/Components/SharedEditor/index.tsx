@@ -1,11 +1,10 @@
 import {ChangeEvent, useCallback, useRef, useState} from "react"
 
+import {Editor as EditorWrapper} from "@agenta/ui/editor"
+import {useDebounceInput} from "@agenta/ui/shared-editor"
 import {Input} from "antd"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
-
-import EditorWrapper from "@/oss/components/Editor/Editor"
-import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
 import type {SharedEditorProps} from "./types"
 

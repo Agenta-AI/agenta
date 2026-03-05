@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {legacyAppRevisionEntityWithBridgeAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {EditorProvider} from "@agenta/ui/editor"
 import {Input, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -8,7 +9,6 @@ import JSON5 from "json5"
 import Image from "next/image"
 import {v4 as uuidv4} from "uuid"
 
-import {EditorProvider} from "@/oss/components/Editor/Editor"
 import LLMIconMap from "@/oss/components/LLMIcons"
 import {
     moleculeBackedPromptsAtomFamily,

@@ -1,4 +1,4 @@
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy import Column, UUID, VARCHAR, TIMESTAMP, INTEGER
 
 from oss.src.dbs.postgres.shared.dbas import (
@@ -177,4 +177,8 @@ class EvaluationQueueDBA(
     run_id = Column(
         UUID(as_uuid=True),
         nullable=False,
+    )
+    user_ids = Column(
+        ARRAY(UUID(as_uuid=True)),
+        nullable=True,
     )

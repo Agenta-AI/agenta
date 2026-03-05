@@ -4,6 +4,8 @@ set -euo pipefail
 
 PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
 ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
+POSTGRES_SERVICE="${RAILWAY_POSTGRES_SERVICE:-Postgres}"
+REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 
 if [ -z "${RAILWAY_API_TOKEN:-}" ] && [ -z "${RAILWAY_TOKEN:-}" ]; then
     railway whoami >/dev/null 2>&1 || {
@@ -15,8 +17,10 @@ fi
 railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 
 # Bring stateful infra up first so credentials/volumes are applied.
-railway service Postgres >/dev/null && railway redeploy --yes
-railway service redis >/dev/null && railway redeploy --yes
+railway service "$POSTGRES_SERVICE" >/dev/null && railway redeploy --yes
+if railway service "$REDIS_SERVICE" >/dev/null 2>&1; then
+    railway up hosting/railway/oss/redis --path-as-root --service "$REDIS_SERVICE" --detach
+fi
 
 # Deployment order matters. Migrations first, gateway last.
 # Alembic runs as a job and should complete before API startup checks.
@@ -24,6 +28,8 @@ railway up hosting/railway/oss/alembic --path-as-root --service alembic
 railway up hosting/railway/oss/api --path-as-root --service api --detach
 railway up hosting/railway/oss/worker-tracing --path-as-root --service worker-tracing --detach
 railway up hosting/railway/oss/worker-evaluations --path-as-root --service worker-evaluations --detach
+railway up hosting/railway/oss/worker-webhooks --path-as-root --service worker-webhooks --detach
+railway up hosting/railway/oss/worker-events --path-as-root --service worker-events --detach
 railway up hosting/railway/oss/services --path-as-root --service services --detach
 railway up hosting/railway/oss/cron --path-as-root --service cron --detach
 railway up hosting/railway/oss/web --path-as-root --service web --detach

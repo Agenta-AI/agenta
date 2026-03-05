@@ -340,8 +340,8 @@ ENTITLEMENTS = {
                 ],
                 mode=Mode.INCLUDE,
                 bucket=Bucket(
-                    capacity=120,
-                    rate=120,
+                    capacity=480,
+                    rate=480,
                 ),
             ),
             Throttle(
@@ -422,8 +422,8 @@ ENTITLEMENTS = {
                 ],
                 mode=Mode.INCLUDE,
                 bucket=Bucket(
-                    capacity=360,
-                    rate=360,
+                    capacity=1440,
+                    rate=1440,
                 ),
             ),
             Throttle(

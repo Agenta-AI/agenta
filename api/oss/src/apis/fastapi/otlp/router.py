@@ -23,11 +23,7 @@ if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-# TYPE_CHECKING to avoid circular import at runtime
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+from oss.src.core.tracing.streaming import publish_spans
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -38,12 +34,7 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(
-        self,
-        tracing_worker: "TracingWorker",
-    ):
-        self.worker = tracing_worker
-
+    def __init__(self):
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -150,22 +141,27 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         # Parse OTel spans into internal spans
         # -------------------------------------------------------------------- #
-        spans = None
-        try:
-            spans = [parse_from_otel_span_dto(s) for s in otel_spans]
-            spans = [s for s in spans if s is not None]
-        except Exception:
-            log.error(
-                "Failed to parse spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
-            )
-            for otel_span in otel_spans:
-                log.error(
-                    "Span: [%s] %s",
-                    UUID(otel_span.context.trace_id[2:]),
-                    otel_span,
+        spans = []
+        for idx, otel_span in enumerate(otel_spans):
+            try:
+                span = parse_from_otel_span_dto(otel_span)
+                if span is not None:
+                    spans.append(span)
+                else:
+                    log.warning(
+                        "Skipping OTEL span from project %s: parser returned None (index=%s)",
+                        request.state.project_id,
+                        idx,
+                    )
+            except Exception:
+                log.warning(
+                    "Skipping malformed OTEL span from project %s (index=%s)",
+                    request.state.project_id,
+                    idx,
+                    exc_info=True,
                 )
+
+        if otel_spans and not spans:
             err_status = ProtoStatus(message="Failed to parse OTEL span.")
             return Response(
                 content=err_status.SerializeToString(),
@@ -230,7 +226,7 @@ class OTLPRouter:
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await self.worker.publish_to_stream(
+                await publish_spans(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),

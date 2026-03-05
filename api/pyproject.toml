@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.87.1"
+version = "0.90.3"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -29,6 +29,7 @@ httpx = "^0.28"
 structlog = "^25"
 python-dotenv = "^1"
 python-multipart = "^0.0.22"
+cryptography = "^46"
 
 # Database dependencies
 sqlalchemy = "^2"

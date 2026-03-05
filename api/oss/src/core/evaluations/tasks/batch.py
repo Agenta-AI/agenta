@@ -1,10 +1,6 @@
 from uuid import UUID
 
-from redis.asyncio import Redis
-
-
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 
 if is_ee():
@@ -49,7 +45,6 @@ from oss.src.core.annotations.service import AnnotationsService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 
 log = get_module_logger(__name__)
@@ -88,18 +83,6 @@ evaluations_dao = EvaluationsDAO()
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
-
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
@@ -143,7 +126,6 @@ evaluations_service = EvaluationsService(
 
 tracing_router = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
 )
 
 simple_testsets_router = SimpleTestsetsRouter(

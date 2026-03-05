@@ -66,67 +66,52 @@ Master table of all variables across all interfaces and modes:
 ### API
 
 ```bash
-# E2E tests (existing suite)
+# Acceptance tests
 cd api && pytest oss/tests/pytest/ -v
 
-# E2E tests with dimension filter
+# Acceptance tests with dimension filter
 cd api && pytest oss/tests/pytest/ -v -m "coverage_smoke and path_happy"
 
 # EE tests only
 cd api && pytest ee/tests/pytest/ -v
 
-# Future: unit tests
+# Unit tests
 cd api && pytest oss/tests/pytest/unit/ -v
 ```
 
 ### SDK
 
-**Current paths** (before migration):
-
 ```bash
-# Unit tests
-cd sdk && pytest tests/unit/ -v
-
-# Integration tests (requires credentials)
-AGENTA_API_KEY=<key> AGENTA_HOST=<url> cd sdk && pytest tests/integration/ -v
-
-# Healthcheck tests
-cd sdk && pytest tests/pytest/ -v
-```
-
-**Target paths** (after migration to `tests/pytest/`):
-
-```bash
-# All SDK tests (unit + E2E, E2E skips if no credentials)
-cd sdk && pytest tests/pytest/ -v
+# All SDK tests (unit + acceptance, acceptance skips if no credentials)
+cd sdk && pytest oss/tests/pytest/ -v
 
 # Unit tests only
-cd sdk && pytest tests/pytest/unit/ -v
+cd sdk && pytest oss/tests/pytest/unit/ -v
 
 # Unit tests with coverage
-cd sdk && pytest tests/pytest/unit/ --cov=agenta.sdk --cov-report=html
+cd sdk && pytest oss/tests/pytest/unit/ --cov=agenta.sdk --cov-report=html
 
-# E2E tests only (requires credentials)
-AGENTA_API_KEY=<key> AGENTA_HOST=<url> cd sdk && pytest tests/pytest/e2e/ -v
+# Acceptance tests only (requires credentials)
+AGENTA_API_KEY=<key> AGENTA_HOST=<url> cd sdk && pytest oss/tests/pytest/acceptance/ -v
 
-# Specific E2E domain
-AGENTA_API_KEY=<key> cd sdk && pytest tests/pytest/e2e/observability/ -v
+# Specific acceptance domain
+AGENTA_API_KEY=<key> cd sdk && pytest oss/tests/pytest/acceptance/observability/ -v
 
 # Specific test class
-cd sdk && pytest tests/pytest/unit/test_tracing_decorators.py::TestGeneratorTracing -v
+cd sdk && pytest oss/tests/pytest/unit/test_tracing_decorators.py::TestGeneratorTracing -v
 ```
 
 ### Web
 
 ```bash
-# E2E tests (from web/tests/)
-cd web/tests && pnpm test:e2e
+# Acceptance tests (from web/tests/)
+cd web/tests && pnpm test:acceptance
 
-# E2E with UI mode
-cd web/tests && pnpm test:e2e:ui
+# Acceptance with UI mode
+cd web/tests && pnpm test:acceptance:ui
 
-# E2E debug mode
-cd web/tests && pnpm test:e2e:debug
+# Acceptance debug mode
+cd web/tests && pnpm test:acceptance:debug
 
 # Data layer tests (from web/)
 cd web && pnpm test:datalayer
@@ -166,16 +151,16 @@ Dimension-specific CLI flags filter tests:
 
 ```bash
 # Smoke tests
-pnpm test:e2e -- -coverage smoke
+pnpm test:acceptance -- -coverage smoke
 
 # Happy path smoke tests
-pnpm test:e2e -- -coverage smoke -path happy
+pnpm test:acceptance -- -coverage smoke -path happy
 
 # Specific scope
-pnpm test:e2e -- -scope playground
+pnpm test:acceptance -- -scope playground
 
 # Functional tests for owner permission
-pnpm test:e2e -- -lens functional -permission owner
+pnpm test:acceptance -- -lens functional -permission owner
 ```
 
 ---
@@ -201,16 +186,16 @@ No test execution workflows are currently active.
 | Every PR | API unit tests | None (pure Python) | All |
 | Every PR | SDK unit tests | None (pure Python) | All |
 | Every PR | Web component unit tests | None (Node.js) | All |
-| Merge to main | API E2E tests | Postgres (docker-compose) | `coverage_smoke` |
+| Merge to main | API acceptance tests | Postgres (docker-compose) | `coverage_smoke` |
 | Merge to main | SDK integration tests | Running API + Postgres | `coverage_smoke` |
-| Merge to main | Web E2E tests | Running app + API + Postgres | `coverage_smoke` |
-| Nightly | API E2E tests | Postgres (docker-compose) | Full (no filter) |
+| Merge to main | Web acceptance tests | Running app + API + Postgres | `coverage_smoke` |
+| Nightly | API acceptance tests | Postgres (docker-compose) | Full (no filter) |
 | Nightly | SDK integration tests | Running API + Postgres | Full (no filter) |
-| Nightly | Web E2E tests | Running app + API + Postgres | Full (no filter) |
+| Nightly | Web acceptance tests | Running app + API + Postgres | Full (no filter) |
 
 ### Infrastructure requirements
 
-- **Postgres:** Service container or docker-compose for API E2E and SDK integration tests.
-- **API server:** Required for SDK integration and Web E2E (can run in-process or as container).
-- **Web app:** Required for Web E2E (Next.js dev server or built app).
+- **Postgres:** Service container or docker-compose for API acceptance and SDK integration tests.
+- **API server:** Required for SDK integration and Web acceptance (can run in-process or as container).
+- **Web app:** Required for Web acceptance (Next.js dev server or built app).
 - **Credentials:** Stored as GitHub Actions secrets (`AGENTA_AUTH_KEY`, `AGENTA_API_KEY`, `TESTMAIL_API_KEY`, `TESTMAIL_NAMESPACE`).

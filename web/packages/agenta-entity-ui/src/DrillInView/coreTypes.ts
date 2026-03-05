@@ -34,6 +34,14 @@ export type DataType =
  */
 export type ValueMode = "string" | "native"
 
+/**
+ * Field content view mode label/value pair for header dropdowns
+ */
+export interface FieldViewModeOption {
+    value: string
+    label: string
+}
+
 // ============================================================================
 // PATH & SCHEMA TYPES
 // ============================================================================
@@ -50,6 +58,8 @@ export interface PathItem {
     value: unknown
     /** If true, this item cannot be deleted (e.g., column definitions) */
     isColumn?: boolean
+    /** Original string value before auto-parsing (for Raw mode display) */
+    originalStringValue?: string
 }
 
 /**
@@ -95,6 +105,8 @@ export interface FieldRendererProps {
     lockedType?: DataType
     /** Callback to lock field type */
     onLockType?: (type: DataType) => void
+    /** Current selected field view mode, if enabled */
+    viewMode?: string
 }
 
 /**
@@ -192,6 +204,16 @@ export interface FieldHeaderProps {
     onUnmap?: () => void
     /** Callback for property click (with modifier key) */
     onPropertyClick?: () => void
+    /** Available content view modes for this field */
+    viewModeOptions?: FieldViewModeOption[]
+    /** Current content view mode */
+    viewMode?: string
+    /** Callback when content view mode changes */
+    onViewModeChange?: (mode: string) => void
+    /** Show collapse toggle in the header (default: true) */
+    showCollapseToggle?: boolean
+    /** Show drill-in action button in the header (default: true) */
+    showDrillInButton?: boolean
 }
 
 // ============================================================================
@@ -250,12 +272,41 @@ export interface DrillInContentProps {
     getSchemaAtPath?: (path: (string | number)[]) => SchemaInfo | null
     /** Whether to show collapse toggle for fields (default: true) */
     showCollapse?: boolean
+    /** Enables explicit view mode selector for field content */
+    enableFieldViewModes?: boolean
+    /** Hide all field headers and render only editor/content blocks */
+    hideFieldHeaders?: boolean
+    /** Hide field header when there is a single visible field at current level */
+    hideSingleFieldHeader?: boolean
+    /** Enables collapse toggle in field headers (defaults to showCollapse) */
+    showFieldCollapse?: boolean
+    /** Enables drill-in action button in field headers */
+    showFieldDrillIn?: boolean
+    /** Keys to exclude from display when at initial path level */
+    excludeKeys?: string[]
     /** Whether to hide the built-in breadcrumb (use when rendering breadcrumb externally) */
     hideBreadcrumb?: boolean
     /** Controlled current path (when managing path state externally) */
     currentPath?: string[]
     /** Callback when path changes (for controlled mode) */
     onPathChange?: (path: string[]) => void
+    /** Optional callback to resolve available view modes for a field */
+    getFieldViewModeOptions?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+    }) => FieldViewModeOption[]
+    /** Optional callback to select default view mode for a field */
+    getDefaultFieldViewMode?: (params: {
+        value: unknown
+        dataType: DataType
+        item: PathItem
+        fieldKey: string
+        fullPath: string[]
+        options: string[]
+    }) => string
 
     // ========== RENDERER INJECTION ==========
 
