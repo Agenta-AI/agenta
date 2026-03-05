@@ -1,9 +1,10 @@
 /**
  * Automates Playwright authentication and storage setup.
+ * Optionally creates an ephemeral project for test isolation.
  */
 
 import {chromium} from "@playwright/test"
-import {existsSync} from "fs"
+import {existsSync, writeFileSync} from "fs"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
 import {
@@ -19,6 +20,8 @@ import {getTestmailClient} from "../utils/testmail"
  * Runs before Playwright tests to automate authentication.
  * Handles both login and signup flows.
  * Stores authenticated state in a file to be reused by tests.
+ * When AGENTA_EPHEMERAL_PROJECT is enabled (default), creates a fresh
+ * project scoped to this test run so data doesn't accumulate.
  */
 async function globalSetup() {
     // Automate authentication before Playwright tests
@@ -186,6 +189,8 @@ async function globalSetup() {
 
     if (!new URL(page.url()).pathname.includes("/auth")) {
         await page.context().storageState({path: storageState as string})
+        // Create ephemeral project even when already authenticated
+        await maybeCreateEphemeralProject(page, baseURL)
         await browser.close()
         return
     }
@@ -311,7 +316,82 @@ async function globalSetup() {
     } finally {
         console.log("[global-setup] Saving storage state and closing browser")
         await page.context().storageState({path: storageState as string})
+        await maybeCreateEphemeralProject(page, baseURL)
         await browser.close()
+    }
+}
+
+/**
+ * Creates an ephemeral project for the test run when AGENTA_EPHEMERAL_PROJECT is enabled.
+ * Uses the already-authenticated page context (cookies) to call the projects API.
+ * Sets make_default=true so all test navigation to /apps auto-redirects to this project.
+ * Saves project metadata to test-project.json for teardown to clean up.
+ */
+async function maybeCreateEphemeralProject(page: any, baseURL: string): Promise<void> {
+    const ephemeralEnabled =
+        String(process.env.AGENTA_EPHEMERAL_PROJECT ?? "true").toLowerCase() !== "false"
+
+    if (!ephemeralEnabled) {
+        console.log("[global-setup] Ephemeral project disabled (AGENTA_EPHEMERAL_PROJECT=false)")
+        return
+    }
+
+    console.log("[global-setup] Creating ephemeral project for test isolation...")
+
+    try {
+        const apiURL = process.env.AGENTA_API_URL || `${baseURL}/api`
+
+        // Find the current default project so we can restore it during teardown
+        const projectsResponse = await page.request.get(`${apiURL}/projects/`)
+        let originalDefaultProjectId: string | null = null
+
+        if (projectsResponse.ok()) {
+            const projects = await projectsResponse.json()
+            const defaultProject = projects.find((p: any) => p.is_default_project)
+            if (defaultProject) {
+                originalDefaultProjectId = defaultProject.project_id
+                console.log(
+                    `[global-setup] Original default project: ${defaultProject.project_name} (${originalDefaultProjectId})`,
+                )
+            }
+        }
+
+        // Create the ephemeral project
+        const projectName = `e2e-${Date.now()}`
+        const response = await page.request.post(`${apiURL}/projects/`, {
+            data: {name: projectName, make_default: true},
+        })
+
+        if (!response.ok()) {
+            const text = await response.text()
+            console.warn(
+                `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
+            )
+            return
+        }
+
+        const project = await response.json()
+        console.log(
+            `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
+        )
+
+        // Save project metadata for teardown (including original default for restore)
+        writeFileSync(
+            "test-project.json",
+            JSON.stringify(
+                {
+                    project_id: project.project_id,
+                    project_name: project.project_name,
+                    workspace_id: project.workspace_id,
+                    original_default_project_id: originalDefaultProjectId,
+                    created_at: new Date().toISOString(),
+                },
+                null,
+                2,
+            ),
+        )
+    } catch (error) {
+        console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
     }
 }
 

@@ -1,0 +1,85 @@
+name: "10 - playwright: OSS acceptance tests"
+
+on:
+  workflow_call:
+    inputs:
+      web_url:
+        description: "URL of the Agenta deployment to test against"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: "URL of the Agenta deployment to test against"
+        required: true
+        type: string
+        default: "https://gateway-production-99ee.up.railway.app"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-oss-${{ inputs.web_url }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright OSS acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AGENTA_WEB_URL: ${{ inputs.web_url }}
+      AGENTA_LICENSE: oss
+      AGENTA_AUTH_MODE: password
+      AGENTA_OSS_OWNER_EMAIL: ${{ secrets.PLAYWRIGHT_OSS_OWNER_EMAIL }}
+      AGENTA_OSS_OWNER_PASSWORD: ${{ secrets.PLAYWRIGHT_OSS_OWNER_PASSWORD }}
+      AGENTA_EPHEMERAL_PROJECT: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: web/tests
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web/tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for deployment readiness
+        run: |
+          echo "Waiting for $AGENTA_WEB_URL to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null "$AGENTA_WEB_URL/api/health" 2>/dev/null; then
+              echo "Deployment is ready."
+              exit 0
+            fi
+            echo "Attempt $i/30: not ready, waiting 10s..."
+            sleep 10
+          done
+          echo "Deployment did not become ready within 5 minutes."
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: web/tests
+        run: npx playwright test --reporter=html,github
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: web/tests/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: web/tests/test-results/
+          retention-days: 7
