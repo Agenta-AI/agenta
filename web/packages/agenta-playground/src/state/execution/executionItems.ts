@@ -795,6 +795,28 @@ function appendQueryParams(
     }
 }
 
+function resolveApplicationId(
+    requestPayload: RequestPayloadData | null,
+    entityData: TransformVariantInput | null,
+): string | undefined {
+    const directAppId = readString(requestPayload?.appId)
+    if (directAppId) return directAppId
+
+    const payloadRefs = asRecord((requestPayload as Record<string, unknown> | null)?.references)
+    const appRef = asRecord(payloadRefs?.application)
+    const appIdFromRefs =
+        readString(appRef?.id) || readString(appRef?.app_id) || readString(appRef?.appId)
+    if (appIdFromRefs) return appIdFromRefs
+
+    const entity = asRecord(entityData)
+    return (
+        readString(entity?.appId) ||
+        readString(entity?.app_id) ||
+        readString(entity?.workflow_id) ||
+        undefined
+    )
+}
+
 export function resolveAgConfigCandidate(value: unknown): Record<string, unknown> {
     const rec = asRecord(value)
     if (!rec) return {}
@@ -1059,7 +1081,7 @@ function buildExecutionItem(
     const invocationUrlWithQuery = appendQueryParams(
         resolveInvocationUrl(params.invocationUrl, requestPayload, entityData),
         {
-            application_id: readString(requestPayload?.appId),
+            application_id: resolveApplicationId(requestPayload, entityData),
             project_id: params.headers.Authorization
                 ? readString(params.projectId || undefined)
                 : undefined,

@@ -319,6 +319,20 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
+        // Build references used by execution + tracing.
+        const appId = entity.workflow_id ?? null
+        const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+        const references: Record<string, Record<string, string | undefined>> = {}
+        if (appId) {
+            references.application = {id: appId}
+        }
+        if (variantId) {
+            references.application_variant = {id: variantId}
+        }
+        if (entity.id) {
+            references.application_revision = {id: entity.id}
+        }
+
         return {
             ag_config: agConfig,
             isChat,
@@ -328,6 +342,8 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             variables,
             spec: openApiSchema,
             routePath: routePath || undefined,
+            appId,
+            references: Object.keys(references).length > 0 ? references : undefined,
         } satisfies RequestPayloadData
     }),
 )

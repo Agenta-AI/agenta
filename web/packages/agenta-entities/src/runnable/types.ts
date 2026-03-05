@@ -432,6 +432,8 @@ export interface RequestPayloadData {
     isCustom?: boolean
     /** Application ID (needed for worker execution payload) */
     appId?: string | null
+    /** Optional trace references propagated with run payload */
+    references?: Record<string, Record<string, string | undefined>>
 }
 
 // ============================================================================
