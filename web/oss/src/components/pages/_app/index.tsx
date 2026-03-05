@@ -51,23 +51,13 @@ configureAxios({
         if (!isVariantsRevisionsQueryRequest(fullUrl)) return config
 
         const payload = parseJsonLikeData(config.data)
-        const paramsRecord =
-            config.params && typeof config.params === "object"
-                ? (config.params as Record<string, unknown>)
-                : {}
-
         const resolveFromBody =
             typeof payload.resolve === "boolean" ? (payload.resolve as boolean) : undefined
-        const resolveFromQuery =
-            typeof paramsRecord.resolve === "boolean"
-                ? (paramsRecord.resolve as boolean)
-                : undefined
         const mode = getDefaultStore().get(playgroundEmbedResolutionViewModeAtom)
-        const resolve = resolveFromBody ?? resolveFromQuery ?? mode === "resolved"
+        const resolve = resolveFromBody ?? mode === "resolved"
 
         payload.resolve = resolve
         config.data = payload
-        config.params = {...paramsRecord, resolve}
         return config
     },
 })
