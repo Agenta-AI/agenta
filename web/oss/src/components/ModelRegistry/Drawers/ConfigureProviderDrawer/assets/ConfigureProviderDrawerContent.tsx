@@ -30,7 +30,7 @@ const {Text} = Typography
  * }
  */
 type FieldAttributes =
-    | {kind: "text"; inputType?: "text" | "password" | "url"}
+    | {kind: "text"; type?: "text" | "password" | "url"; inputType?: "text" | "password" | "url"}
     | {kind: "textarea"; rows?: number; monospace?: boolean}
     | {kind: "json"; rows?: number; monospace?: boolean; strict?: boolean}
 
@@ -54,7 +54,7 @@ const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
             <LabelInput
                 label={`${field.label}${isRequired ? " *" : ""}`}
                 placeholder={field.placeholder}
-                inputType={(a?.inputType as any) ?? "text"}
+                type={a?.type ?? a?.inputType ?? "text"}
             />
         )
     }
