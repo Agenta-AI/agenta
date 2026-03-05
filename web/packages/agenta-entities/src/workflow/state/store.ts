@@ -19,10 +19,14 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
+import {
+    completionServiceSchemaAtom,
+    chatServiceSchemaAtom,
+} from "../../legacyAppRevision/state/serviceSchemaAtoms"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
-    fetchWorkflowRevisionById,
+    fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchWorkflowAppOpenApiSchema,
     fetchWorkflowsBatch,
@@ -40,7 +44,7 @@ import type {
     WorkflowRevisionsResponse,
 } from "../core"
 
-import {resolveBuiltinAppServiceUrl} from "./helpers"
+import {resolveBuiltinAppServiceUrl, resolveServiceTypeFromUrl} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -55,7 +59,6 @@ type QueryClient = import("@tanstack/react-query").QueryClient
 interface WorkflowRevisionRequest {
     projectId: string
     revisionId: string
-    queryClient?: QueryClient
 }
 
 interface WorkflowLatestRevisionRequest {
@@ -194,10 +197,7 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
     serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
     batchFn: async (requests, serializedKeys) => {
         const results = new Map<string, Workflow | null>()
-        const byProject = new Map<
-            string,
-            {revisionIds: string[]; keys: string[]; queryClients: Set<QueryClient>}
-        >()
+        const byProject = new Map<string, {revisionIds: string[]; keys: string[]}>()
 
         requests.forEach((req, index) => {
             const key = serializedKeys[index]
@@ -206,53 +206,28 @@ const workflowRevisionBatchFetcher = createBatchFetcher<WorkflowRevisionRequest,
                 return
             }
 
-            if (req.queryClient) {
-                const cached = findWorkflowRevisionInCache(
-                    req.queryClient,
-                    req.projectId,
-                    req.revisionId,
-                )
-                if (cached) {
-                    results.set(key, cached)
-                    return
-                }
-            }
-
             const existing = byProject.get(req.projectId)
             if (existing) {
                 existing.revisionIds.push(req.revisionId)
                 existing.keys.push(key)
-                if (req.queryClient) existing.queryClients.add(req.queryClient)
             } else {
                 byProject.set(req.projectId, {
                     revisionIds: [req.revisionId],
                     keys: [key],
-                    queryClients: new Set(req.queryClient ? [req.queryClient] : []),
                 })
             }
         })
 
         await Promise.all(
             Array.from(byProject.entries()).map(async ([projectId, group]) => {
-                await Promise.all(
-                    group.revisionIds.map(async (revisionId, index) => {
-                        const key = group.keys[index]
-                        try {
-                            const revision = await fetchWorkflowRevisionById(revisionId, projectId)
-                            results.set(key, revision)
-                            group.queryClients.forEach((queryClient) => {
-                                primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
-                            })
-                        } catch (error) {
-                            console.error(
-                                "[workflowRevisionBatchFetcher] Failed to fetch revision:",
-                                revisionId,
-                                error,
-                            )
-                            results.set(key, null)
-                        }
-                    }),
+                const revisionMap = await fetchWorkflowRevisionsByIdsBatch(
+                    projectId,
+                    group.revisionIds,
                 )
+                group.revisionIds.forEach((revisionId, index) => {
+                    const key = group.keys[index]
+                    results.set(key, revisionMap.get(revisionId) ?? null)
+                })
             }),
         )
 
@@ -659,8 +634,8 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
  * Query atom family for fetching a single workflow revision by its revision ID.
  * Returns the WorkflowRevision which contains `data` (uri, schemas, parameters).
  *
- * Uses `fetchWorkflowRevisionById` (GET /preview/workflows/revisions/{id})
- * because the playground stores revision IDs, not workflow IDs.
+ * Uses `fetchWorkflowRevisionsByIdsBatch` (POST /preview/workflows/revisions/query)
+ * via the batch fetcher because the playground stores revision IDs, not workflow IDs.
  */
 export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
@@ -677,7 +652,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !revisionId) return null
                 const cached = findWorkflowRevisionInCache(queryClient, projectId, revisionId)
                 if (cached) return cached
-                return workflowRevisionBatchFetcher({projectId, revisionId, queryClient})
+                return workflowRevisionBatchFetcher({projectId, revisionId})
             },
             initialData: detailCached ?? undefined,
             enabled:
@@ -731,11 +706,14 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
 
 /**
  * OpenAPI schema query atom family.
- * For app workflows (non-evaluator), fetches the OpenAPI spec from the
+ * For custom app workflows, fetches the OpenAPI spec from the
  * app's service URL and extracts input/output/parameter schemas.
  *
- * **Only fires for non-evaluator workflows** that have a `data.url`.
+ * **Only fires for custom, non-evaluator workflows** that have a `data.url`.
  * Evaluator workflows use the inspect endpoint above instead.
+ * Builtin apps (completion/chat) already have schemas from the server
+ * (`data.schemas`) and their service schema is prefetched by
+ * `serviceSchemaQueryAtomFamily`, so this fetch is skipped for them.
  */
 export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
@@ -743,6 +721,7 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
         const isEvaluator = serverData?.flags?.is_evaluator ?? false
+        const isCustom = serverData?.flags?.is_custom ?? false
 
         // --- Builtin app URL resolution (migration fix) ---
         // Use corrected URL for builtin apps with stale data.url.
@@ -757,8 +736,74 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !url) return null
                 return fetchWorkflowAppOpenApiSchema(url, projectId)
             },
-            enabled: get(sessionAtom) && !!projectId && !!url && !isEvaluator,
+            // Only fetch for custom app workflows. Builtin apps (completion/chat)
+            // already have schemas from the server (data.schemas) and the same
+            // endpoint is prefetched by serviceSchemaQueryAtomFamily, making this
+            // fetch redundant.
+            enabled: get(sessionAtom) && !!projectId && !!url && !isEvaluator && isCustom,
             staleTime: 60_000,
+        }
+    }),
+)
+
+// ============================================================================
+// SERVICE SCHEMA REUSE (builtin apps)
+// ============================================================================
+
+/**
+ * Resolve the service type for a builtin app workflow from its URI.
+ * Returns "completion" | "chat" for builtin apps, null otherwise.
+ */
+function resolveServiceTypeFromUri(uri: string | null | undefined): string | null {
+    if (!uri || !uri.startsWith("agenta:builtin:")) return null
+    const parts = uri.split(":")
+    const serviceType = parts[2]
+    if (!serviceType || !["completion", "chat"].includes(serviceType)) return null
+    return serviceType
+}
+
+/**
+ * Per-revision service schema selector for builtin apps.
+ *
+ * Reuses the already-prefetched service schemas from the legacy
+ * `serviceSchemaQueryAtomFamily` (completionServiceSchemaAtom / chatServiceSchemaAtom)
+ * and maps the result to `AppOpenApiSchemas`. This avoids a duplicate
+ * OpenAPI fetch — the legacy system already caches the same schema.
+ */
+const workflowServiceSchemaForRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom<AppOpenApiSchemas | null>((get) => {
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const serverData = revisionQuery.data ?? null
+        if (!serverData) return null
+        if (serverData.flags?.is_evaluator) return null
+        if (serverData.flags?.is_custom) return null
+
+        // Try URI first (canonical), fall back to extracting type from URL
+        const serviceType =
+            resolveServiceTypeFromUri(serverData.data?.uri) ??
+            resolveServiceTypeFromUrl(serverData.data?.url)
+        if (!serviceType) return null
+
+        // Read from the already-prefetched legacy service schema atoms
+        const schemaQuery =
+            serviceType === "completion"
+                ? get(completionServiceSchemaAtom)
+                : serviceType === "chat"
+                  ? get(chatServiceSchemaAtom)
+                  : null
+        const schemaData = schemaQuery?.data ?? null
+        if (!schemaData) return null
+
+        // Map RevisionSchemaState → AppOpenApiSchemas
+        return {
+            inputs:
+                (schemaData.primaryEndpoint?.inputsSchema as unknown as Record<string, unknown>) ??
+                null,
+            outputs: (schemaData.outputsSchema as unknown as Record<string, unknown>) ?? null,
+            parameters: (schemaData.agConfigSchema as unknown as Record<string, unknown>) ?? null,
+            routePath: schemaData.routePath ?? undefined,
+            runtimePrefix: schemaData.runtimePrefix,
+            openApiSchema: schemaData.openApiSchema,
         }
     }),
 )
@@ -890,9 +935,11 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                 } as Workflow
             }
         } else {
-            // App workflows: merge OpenAPI-derived schemas
+            // App workflows: merge OpenAPI-derived schemas.
+            // Custom apps fetch per-revision; builtin apps use shared service schema.
             const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
-            const appSchemas = appSchemaQuery.data ?? null
+            const serviceSchema = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
+            const appSchemas = appSchemaQuery.data ?? serviceSchema
 
             if (appSchemas) {
                 merged = {
