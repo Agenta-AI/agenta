@@ -58,6 +58,7 @@ export {isValidUUID}
  */
 export interface RevisionsQueryRequest {
     revision_ids: string[]
+    resolve?: boolean
 }
 
 /**
@@ -236,17 +237,34 @@ export async function fetchOssRevision(
 export async function fetchOssRevisionById(
     revisionId: string,
     projectId: string,
+    options?: {
+        resolve?: boolean
+    },
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
+    const resolve = options?.resolve ?? false
 
     try {
+        if (process.env.NODE_ENV !== "production") {
+            console.info("[legacyAppRevision][fetchOssRevisionById] request", {
+                revisionId,
+                projectId,
+                resolve,
+            })
+        }
+
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query/`,
             {
                 revision_ids: [revisionId],
+                resolve,
             } as RevisionsQueryRequest,
             {
-                params: {project_id: projectId},
+                params: {project_id: projectId, resolve},
+                headers: {
+                    "x-agenta-resolve-source": "legacyAppRevision.fetchOssRevisionById",
+                    "x-agenta-resolve-value": String(resolve),
+                },
             },
         )
 
@@ -255,6 +273,22 @@ export async function fetchOssRevisionById(
         }
 
         const apiRevision = response.data.revisions[0]
+
+        if (process.env.NODE_ENV !== "production") {
+            const config = apiRevision?.config
+            const parameters = config?.parameters
+            const serialized = parameters ? JSON.stringify(parameters) : ""
+            const hasEmbedToken = serialized.includes("@{{")
+
+            console.info("[legacyAppRevision][fetchOssRevisionById] response", {
+                revisionId,
+                resolve,
+                fetchedRevisionId: apiRevision?.id,
+                fetchedRevisionNumber: apiRevision?.revision,
+                hasEmbedToken,
+                parametersSize: serialized.length,
+            })
+        }
 
         // If we have variant_id, fetch variant detail to get URI
         const variantId = apiRevision.variant_id
@@ -295,17 +329,26 @@ export async function fetchOssRevisionById(
 export async function fetchOssRevisionsBatch(
     revisionIds: string[],
     projectId: string,
+    options?: {
+        resolve?: boolean
+    },
 ): Promise<LegacyAppRevisionData[]> {
     if (!revisionIds.length || !projectId) return []
+    const resolve = options?.resolve ?? false
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query/`,
             {
                 revision_ids: revisionIds,
+                resolve,
             } as RevisionsQueryRequest,
             {
-                params: {project_id: projectId},
+                params: {project_id: projectId, resolve},
+                headers: {
+                    "x-agenta-resolve-source": "legacyAppRevision.fetchOssRevisionsBatch",
+                    "x-agenta-resolve-value": String(resolve),
+                },
             },
         )
 
@@ -456,16 +499,38 @@ export async function fetchOssRevisionEnriched(
     revisionId: string,
     variantId: string,
     projectId: string,
+    options?: {
+        resolve?: boolean
+    },
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !variantId || !projectId) return null
+    const resolve = options?.resolve ?? false
 
     try {
+        if (process.env.NODE_ENV !== "production") {
+            console.info("[legacyAppRevision][fetchOssRevisionEnriched] request", {
+                revisionId,
+                variantId,
+                projectId,
+                resolve,
+            })
+        }
+
         // Fetch both revision and variant in parallel
         const [revisionResponse, variantDetail] = await Promise.all([
             axios.post<RevisionsQueryResponse>(
                 `${getAgentaApiUrl()}/variants/revisions/query/`,
-                {revision_ids: [revisionId]} as RevisionsQueryRequest,
-                {params: {project_id: projectId}},
+                {
+                    revision_ids: [revisionId],
+                    resolve,
+                } as RevisionsQueryRequest,
+                {
+                    params: {project_id: projectId, resolve},
+                    headers: {
+                        "x-agenta-resolve-source": "legacyAppRevision.fetchOssRevisionEnriched",
+                        "x-agenta-resolve-value": String(resolve),
+                    },
+                },
             ),
             fetchVariantDetail(variantId, projectId),
         ])
@@ -473,6 +538,22 @@ export async function fetchOssRevisionEnriched(
         if (!revisionResponse.data?.revisions?.length) return null
 
         const apiRevision = revisionResponse.data.revisions[0]
+
+        if (process.env.NODE_ENV !== "production") {
+            const config = apiRevision?.config
+            const parameters = config?.parameters
+            const serialized = parameters ? JSON.stringify(parameters) : ""
+            const hasEmbedToken = serialized.includes("@{{")
+
+            console.info("[legacyAppRevision][fetchOssRevisionEnriched] response", {
+                revisionId,
+                resolve,
+                fetchedRevisionId: apiRevision?.id,
+                fetchedRevisionNumber: apiRevision?.revision,
+                hasEmbedToken,
+                parametersSize: serialized.length,
+            })
+        }
 
         // Transform with enriched context from variant
         return transformApiRevision(apiRevision, {

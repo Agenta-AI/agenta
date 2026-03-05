@@ -32,6 +32,50 @@ const axios = axiosApi.create({
 })
 
 axios.interceptors.request.use(async (config) => {
+    const rawUrl = `${config.baseURL ?? ""}${config.url ?? ""}`
+    if (rawUrl.includes("/variants/revisions/query")) {
+        const paramsRecord =
+            config.params && typeof config.params === "object"
+                ? (config.params as Record<string, unknown>)
+                : {}
+
+        let payload: Record<string, unknown> = {}
+        if (typeof config.data === "string") {
+            try {
+                const parsed = JSON.parse(config.data) as unknown
+                if (parsed && typeof parsed === "object") {
+                    payload = parsed as Record<string, unknown>
+                }
+            } catch {
+                payload = {}
+            }
+        } else if (config.data && typeof config.data === "object") {
+            payload = config.data as Record<string, unknown>
+        }
+
+        const resolveFromBody = payload.resolve
+        const resolveFromParams = paramsRecord.resolve
+        let resolveFromStorage: boolean | undefined
+        if (typeof window !== "undefined") {
+            const stored = window.localStorage.getItem("agenta:playground:embed-resolution-view")
+            if (stored === "resolved") resolveFromStorage = true
+            if (stored === "unresolved") resolveFromStorage = false
+        }
+
+        const effectiveResolve =
+            typeof resolveFromBody === "boolean"
+                ? resolveFromBody
+                : typeof resolveFromParams === "boolean"
+                  ? resolveFromParams
+                  : (resolveFromStorage ?? false)
+
+        payload.resolve = effectiveResolve
+        config.data = payload
+        config.params = {...paramsRecord, resolve: effectiveResolve}
+        config.headers.set("x-agenta-resolve-source", "oss.axios-config-interceptor")
+        config.headers.set("x-agenta-resolve-value", String(effectiveResolve))
+    }
+
     const fullUri = axios.getUri(config)
     const agentaApiUrl = getAgentaApiUrl()
 

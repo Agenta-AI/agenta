@@ -27,8 +27,8 @@
 
 import axiosApi, {
     type AxiosInstance,
-    type AxiosResponse,
     type InternalAxiosRequestConfig,
+    type AxiosResponse,
 } from "axios"
 
 import {getAgentaApiUrl} from "./env"
@@ -37,12 +37,85 @@ import {getAgentaApiUrl} from "./env"
  * Create a new axios instance with Agenta API defaults.
  */
 export const createAxiosInstance = (): AxiosInstance => {
-    return axiosApi.create({
+    const instance = axiosApi.create({
         baseURL: getAgentaApiUrl(),
         headers: {
             "Content-Type": "application/json",
         },
     })
+
+    // Backward-compatible hardening for legacy revisions query:
+    // some callers still send only `revision_ids` and omit `resolve`.
+    // We inject `resolve` from local persisted playground mode when available.
+    instance.interceptors.request.use((config) => {
+        const rawUrl = `${config.baseURL ?? ""}${config.url ?? ""}`
+        if (!rawUrl.includes("/variants/revisions/query")) {
+            return config
+        }
+
+        const paramsRecord =
+            config.params && typeof config.params === "object"
+                ? (config.params as Record<string, unknown>)
+                : {}
+        const resolveFromParams = paramsRecord.resolve
+
+        let payload: Record<string, unknown> = {}
+        if (typeof config.data === "string") {
+            try {
+                const parsed = JSON.parse(config.data) as unknown
+                if (parsed && typeof parsed === "object") {
+                    payload = parsed as Record<string, unknown>
+                }
+            } catch {
+                payload = {}
+            }
+        } else if (config.data && typeof config.data === "object") {
+            payload = config.data as Record<string, unknown>
+        }
+
+        const resolveFromBody = payload.resolve
+        let resolveFromStorage: boolean | undefined
+        if (typeof window !== "undefined") {
+            const stored = window.localStorage.getItem("agenta:playground:embed-resolution-view")
+            if (stored === "resolved") resolveFromStorage = true
+            if (stored === "unresolved") resolveFromStorage = false
+        }
+
+        const effectiveResolve =
+            typeof resolveFromBody === "boolean"
+                ? resolveFromBody
+                : typeof resolveFromParams === "boolean"
+                  ? resolveFromParams
+                  : (resolveFromStorage ?? false)
+
+        payload.resolve = effectiveResolve
+        config.data = payload
+        config.params = {...paramsRecord, resolve: effectiveResolve}
+
+        const headersMaybe = config.headers as unknown
+        if (
+            headersMaybe &&
+            typeof headersMaybe === "object" &&
+            "set" in headersMaybe &&
+            typeof headersMaybe.set === "function"
+        ) {
+            const headersWithSet = headersMaybe as {
+                set: (name: string, value: string) => void
+            }
+            headersWithSet.set("x-agenta-resolve-source", "agenta-shared.axios-interceptor")
+            headersWithSet.set("x-agenta-resolve-value", String(effectiveResolve))
+        } else {
+            config.headers = {
+                ...(config.headers ?? {}),
+                "x-agenta-resolve-source": "agenta-shared.axios-interceptor",
+                "x-agenta-resolve-value": String(effectiveResolve),
+            }
+        }
+
+        return config
+    })
+
+    return instance
 }
 
 /**

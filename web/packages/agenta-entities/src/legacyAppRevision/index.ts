@@ -179,6 +179,7 @@ export {legacyAppRevisionSnapshotAdapter} from "./snapshotAdapter"
 export {
     // Query atoms
     legacyAppRevisionQueryAtomFamily,
+    resolvedDirectQueryAtomFamily,
     legacyAppRevisionDraftAtomFamily,
     legacyAppRevisionEntityAtomFamily,
     legacyAppRevisionIsDirtyAtomFamily,
@@ -193,6 +194,7 @@ export {
     // Entity atoms with enrichment support
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionServerDataSelectorFamily,
+    legacyAppRevisionResolvedDataAtomFamily,
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
     // Legacy atoms (deprecated - use enriched query pattern)
     legacyAppRevisionServerDataAtomFamily,
