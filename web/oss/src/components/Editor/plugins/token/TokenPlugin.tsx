@@ -12,18 +12,21 @@ type TemplateFormat = "curly" | "fstring" | "jinja2"
 
 function buildRegexes(templateFormat: TemplateFormat) {
     if (templateFormat === "jinja2") {
-        // Match complete Jinja2 tokens: variables {{ }}, blocks {% %} (with optional - trim markers), comments {# #}
-        const full = /(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})/
+        // Match complete Jinja2 tokens: embed refs @{{ }}, variables {{ }},
+        // blocks {% %} (with optional - trim markers), comments {# #}
+        const full =
+            /(@\{\{[\s\S]*?\}\}|\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})/
         // Match incomplete tokens at end of string: starts of any of the three
-        const input = /(\{\{[\s\S]*$|\{%-?[\s\S]*$|\{%[\s\S]*$|\{#[\s\S]*$)/
+        const input = /(@\{\{[\s\S]*$|\{\{[\s\S]*$|\{%-?[\s\S]*$|\{%[\s\S]*$|\{#[\s\S]*$)/
         // Exact match validator for token nodes (entire text content is one token)
-        const exact = /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
+        const exact =
+            /^(@\{\{[\s\S]*?\}\}|\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
         return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
     }
-    // Default: curly variable tokens only
-    const full = /\{\{[^{}]*\}\}/
-    const input = /\{\{[^{}]*$/
-    const exact = /^\{\{[^{}]*\}\}$/
+    // Default: curly variable tokens + embed refs @{{...}}
+    const full = /(@\{\{[^{}]*\}\}|\{\{[^{}]*\}\})/
+    const input = /(@\{\{[^{}]*$|\{\{[^{}]*$)/
+    const exact = /^(@\{\{[^{}]*\}\}|\{\{[^{}]*\}\})$/
     return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
 }
 

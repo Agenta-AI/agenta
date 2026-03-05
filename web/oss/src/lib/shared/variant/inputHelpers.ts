@@ -23,12 +23,15 @@ export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") =>
  * @returns Array of variable names found in the string
  */
 export function extractVariables(input: string): string[] {
+    // Embed references use the @{{...}} shape and must not be treated
+    // as template input variables.
+    const withoutEmbedRefs = input.replaceAll(/@\{\{((?:\\.|[^\}\\])*)\}\}/g, "")
     const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
 
     const variables: string[] = []
 
     let match: RegExpExecArray | null
-    while ((match = variablePattern.exec(input)) !== null) {
+    while ((match = variablePattern.exec(withoutEmbedRefs)) !== null) {
         const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
         if (variable) {
             variables.push(variable)

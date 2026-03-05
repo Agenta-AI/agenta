@@ -28,7 +28,11 @@ export class TokenNode extends TextNode {
         dom.style.borderRadius = "4px"
         dom.style.backgroundColor = "#e2e8f0"
         // Color by token type
-        if (text.startsWith("{#")) {
+        if (text.startsWith("@{{")) {
+            // Embed reference token -> purple
+            dom.style.color = "#9333ea" // purple-600
+            dom.style.backgroundColor = "#f3e8ff" // purple-100
+        } else if (text.startsWith("{#")) {
             // Jinja comment -> grey
             dom.style.color = "#6b7280" // gray-500
         } else if (text.startsWith("{%")) {
@@ -69,8 +73,8 @@ export class TokenNode extends TextNode {
 
     // Convert to regular text node if no longer valid token
     isValid(): boolean {
-        // Accept curly tokens and Jinja2 block/comment/variable tokens
-        return /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/.test(
+        // Accept embed refs, curly tokens, and Jinja2 block/comment/variable tokens
+        return /^(@\{\{[\s\S]*?\}\}|\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/.test(
             this.__text,
         )
     }

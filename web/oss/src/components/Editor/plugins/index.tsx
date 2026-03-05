@@ -58,6 +58,11 @@ const TokenTypeaheadPlugin = lazy(() =>
         default: module.TokenMenuPlugin,
     })),
 )
+const EmbedReferenceActionsPlugin = lazy(() =>
+    import("./token/EmbedReferenceActionsPlugin").then((module) => ({
+        default: module.default,
+    })),
+)
 
 const EditorPlugins = ({
     id,
@@ -128,6 +133,7 @@ const EditorPlugins = ({
                         <TokenPlugin templateFormat={templateFormat} />
                         <AutoCloseTokenBracesPlugin />
                         <TokenTypeaheadPlugin tokens={tokens || []} />
+                        <EmbedReferenceActionsPlugin />
                     </>
                 )}
                 {singleLine && <SingleLinePlugin />}
