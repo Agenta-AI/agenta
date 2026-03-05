@@ -20,7 +20,8 @@ const icons = [OpenAi, Gemini, Anthropic, Mistral, Together]
  *
  * Returns:
  * - extraOptionGroups: vault/custom secret models as ProviderGroup[]
- * - footerContent: "Add provider" button + ConfigureProviderDrawer
+ * - footerContent: "Add provider" button rendered in select popups
+ * - overlay: ConfigureProviderDrawer mounted outside popup lifecycle
  */
 export function useLLMProviderConfig() {
     const {customRowSecrets} = useVaultSecret()
@@ -58,18 +59,29 @@ export function useLLMProviderConfig() {
                     ))}
                 </div>
             </Button>
-            <ConfigureProviderDrawer
-                open={isConfigProviderOpen}
-                onClose={() => setIsConfigProviderOpen(false)}
-            />
         </>
     )
 
-    return useMemo(
+    const configureProviderDrawer = (
+        <ConfigureProviderDrawer
+            open={isConfigProviderOpen}
+            onClose={() => setIsConfigProviderOpen(false)}
+        />
+    )
+
+    const llmProviderConfig = useMemo(
         () => ({
             extraOptionGroups,
             footerContent,
         }),
         [extraOptionGroups, footerContent],
+    )
+
+    return useMemo(
+        () => ({
+            llmProviderConfig,
+            overlay: configureProviderDrawer,
+        }),
+        [llmProviderConfig, configureProviderDrawer],
     )
 }

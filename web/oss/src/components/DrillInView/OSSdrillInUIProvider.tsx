@@ -78,27 +78,33 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
  * directly from @agenta/ui in the entities package.
  */
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
-    const llmProviderConfig = useLLMProviderConfig()
+    const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
 
     if (!toolsEnabled) {
         return (
-            <DrillInUIProvider
-                components={{
-                    llmProviderConfig,
-                    EditorProvider,
-                    SharedEditor,
-                }}
-            >
-                {children}
-            </DrillInUIProvider>
+            <>
+                <DrillInUIProvider
+                    components={{
+                        llmProviderConfig,
+                        EditorProvider,
+                        SharedEditor,
+                    }}
+                >
+                    {children}
+                </DrillInUIProvider>
+                {llmProviderOverlay}
+            </>
         )
     }
 
     return (
-        <GatewayToolsEnabledProvider llmProviderConfig={llmProviderConfig}>
-            {children}
-        </GatewayToolsEnabledProvider>
+        <>
+            <GatewayToolsEnabledProvider llmProviderConfig={llmProviderConfig}>
+                {children}
+            </GatewayToolsEnabledProvider>
+            {llmProviderOverlay}
+        </>
     )
 }
 
@@ -107,7 +113,7 @@ function GatewayToolsEnabledProvider({
     llmProviderConfig,
 }: {
     children: ReactNode
-    llmProviderConfig: ReturnType<typeof useLLMProviderConfig>
+    llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
 }) {
     const {connections, isLoading} = useConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(catalogDrawerOpenAtom)
