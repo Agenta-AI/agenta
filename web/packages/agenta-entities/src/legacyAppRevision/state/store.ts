@@ -14,36 +14,29 @@
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {produce} from "immer"
-import {atom} from "jotai"
 import type {Atom, WritableAtom} from "jotai"
+import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {extractVariablesFromConfig, extractVariablesFromEnhancedPrompts} from "../../runnable/utils"
-import type {QueryState} from "../../shared"
-import type {ListQueryState} from "../../shared"
+import type {ListQueryState, QueryState} from "../../shared"
 import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
-    fetchVariantsList,
     fetchAppsList,
+    fetchLatestRevisionId,
+    fetchRevisionsList,
+    fetchVariantsList,
     revisionBatchFetcher,
     variantDetailBatchFetcher,
-    revisionsListBatchFetcher,
-    fetchLatestRevisionId,
     type AppListItem,
-    type VariantListItem,
     type RevisionListItem,
     type VariantDetail,
-    fetchRevisionsList,
+    type VariantListItem,
 } from "../api"
 import type {LegacyAppRevisionData} from "../core"
-import {
-    stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
-} from "../utils"
-import {syncInputKeysInPrompts} from "../utils/syncInputKeys"
+import {stripVolatileKeys} from "../utils"
 
 import {clearPersistedDraft} from "./draftPersistence"
 import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
@@ -445,7 +438,7 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
 // ============================================================================
 
 // Re-export types from API for convenience
-export type {AppListItem, VariantListItem, RevisionListItem}
+export type {AppListItem, RevisionListItem, VariantListItem}
 
 // ============================================================================
 // VARIANTS QUERY ATOMS

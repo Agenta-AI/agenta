@@ -52,9 +52,9 @@ import {
  * The molecule's `data` atom merges draft fields (enhancedPrompts, enhancedCustomProperties)
  * into the base LegacyAppRevisionData at runtime.
  */
-type LegacyAppRevisionDataWithDraft = LegacyAppRevisionData & {
+type LegacyAppRevisionDataWithDraft = Omit<LegacyAppRevisionData, "enhancedCustomProperties"> & {
     enhancedPrompts?: unknown[]
-    enhancedCustomProperties?: Record<string, unknown>
+    enhancedCustomProperties?: Record<string, unknown> | unknown[]
 }
 
 function extractParametersCandidate(source: unknown): Record<string, unknown> | null {
@@ -250,7 +250,9 @@ function buildComparableParameters(
 
     const hasEnhancedPrompts = data.enhancedPrompts && Array.isArray(data.enhancedPrompts)
     const hasEnhancedCustomProps =
-        data.enhancedCustomProperties && typeof data.enhancedCustomProperties === "object"
+        data.enhancedCustomProperties &&
+        typeof data.enhancedCustomProperties === "object" &&
+        !Array.isArray(data.enhancedCustomProperties)
     const dataParameters = extractParametersCandidate(data)
     const hasExplicitParameters =
         explicitParameters !== null &&
@@ -283,7 +285,10 @@ function buildComparableParameters(
     }
 
     if (hasEnhancedCustomProps) {
-        params = enhancedCustomPropertiesToParameters(data.enhancedCustomProperties!, params)
+        params = enhancedCustomPropertiesToParameters(
+            data.enhancedCustomProperties as Record<string, unknown>,
+            params,
+        )
     }
 
     return params

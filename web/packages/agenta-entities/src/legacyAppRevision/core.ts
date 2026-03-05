@@ -114,6 +114,21 @@ export const legacyAppRevisionDataSchema = z.object({
 
     /** Extracted route path from URI */
     routePath: z.string().optional(),
+
+    /** Enhanced prompt templates (Jotai-managed) */
+    enhancedPrompts: z.array(z.unknown()).optional(),
+
+    /** Enhanced custom properties (Jotai-managed) */
+    enhancedCustomProperties: z.array(z.unknown()).optional(),
+
+    /** Source revision ID for local drafts */
+    _sourceRevisionId: z.string().optional(),
+
+    /** Source variant ID for local drafts */
+    _sourceVariantId: z.string().optional(),
+
+    /** Base ID for local drafts */
+    _baseId: z.string().optional(),
 })
 export type LegacyAppRevisionData = z.infer<typeof legacyAppRevisionDataSchema>
 

@@ -1,6 +1,12 @@
 import {memo, useEffect} from "react"
 
+import {
+    chatServiceSchemaAtom,
+    completionServiceSchemaAtom,
+    revisionCacheVersionAtom,
+} from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
+import {playgroundRevisionsReadyAtom} from "@agenta/playground/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
@@ -9,12 +15,6 @@ import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appStat
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
-import {
-    chatServiceSchemaAtom,
-    completionServiceSchemaAtom,
-    revisionCacheVersionAtom,
-} from "@agenta/entities/legacyAppRevision"
-import {playgroundRevisionsReadyAtom} from "@agenta/playground/state"
 
 // Initialize user atoms for @agenta/entities shared user resolution
 // This enables UserAuthorLabel and other user resolution features

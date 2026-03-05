@@ -1,29 +1,29 @@
 import {memo, useEffect, useMemo} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
 import {
     legacyAppRevisionMolecule,
     legacyAppRevisionQueryAtomFamily,
     legacyAppRevisionSchemaQueryAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {UserAuthorLabel} from "@agenta/entities/shared"
+import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
+import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
-import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
-import {PlaygroundConfigSection} from "@agenta/entity-ui"
-import {environmentMolecule} from "@agenta/entities/environment"
-import {runnableBridge} from "@agenta/entities/runnable"
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 const {Text} = Typography
 

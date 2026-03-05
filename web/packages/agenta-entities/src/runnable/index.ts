@@ -138,6 +138,7 @@ export {
     extractVariablesFromConfig,
     extractVariablesFromEnhancedPrompts,
 } from "./utils"
+export type {ExecuteRunnableOptions} from "./utils"
 
 // ============================================================================
 // DEPLOYMENT

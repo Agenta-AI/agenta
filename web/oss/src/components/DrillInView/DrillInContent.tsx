@@ -8,6 +8,7 @@ import {
     useState,
 } from "react"
 
+import {ChatMessageEditor, ChatMessageList} from "@agenta/ui"
 import {
     DrillInProvider,
     EditorProvider,
@@ -36,7 +37,6 @@ import DrillInFieldHeader from "./DrillInFieldHeader"
 import {EditorMarkdownToggleExposer} from "./EditorMarkdownToggleExposer"
 import {JsonEditorWithLocalState} from "./JsonEditorWithLocalState"
 import {canToggleRawMode} from "./utils"
-import { ChatMessageEditor, ChatMessageList } from "@agenta/ui"
 
 // Helper component to read markdown view state for a field
 function MarkdownViewState({

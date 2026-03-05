@@ -13,7 +13,6 @@ import {useAtomValue} from "jotai"
 import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
-import MarkdownHoverToggleButton from "./markdown/MarkdownHoverToggleButton"
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
 const importTabIndentationPlugin = () =>

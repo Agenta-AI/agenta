@@ -1,5 +1,7 @@
 import {memo, useCallback, useState} from "react"
 
+import {SimpleChatMessage} from "@agenta/playground"
+import {ChatMessageList} from "@agenta/ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, Check, Copy, Plus, Trash} from "@phosphor-icons/react"
@@ -23,8 +25,6 @@ import {
     isMessagesArray,
 } from "./fieldUtils"
 import {useTreeStyles} from "./useTreeStyles"
-import { SimpleChatMessage } from "@agenta/playground"
-import { ChatMessageList } from "@agenta/ui"
 
 /**
  * Parse a single message object into SimpleChatMessage format
