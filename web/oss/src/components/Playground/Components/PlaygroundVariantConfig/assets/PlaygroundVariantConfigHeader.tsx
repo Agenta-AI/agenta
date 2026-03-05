@@ -3,9 +3,9 @@ import {useCallback, useMemo} from "react"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
 import {Trash} from "@phosphor-icons/react"
-import {Button, Switch, Tooltip} from "antd"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
@@ -18,11 +18,7 @@ import {
     revisionIsDirtyAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {
-    selectedVariantsAtom,
-    parametersOverrideAtomFamily,
-    playgroundEmbedResolutionViewModeAtom,
-} from "../../../state/atoms"
+import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
 import {
     playgroundRevisionDeploymentAtomFamily,
     playgroundLatestAppRevisionIdAtom,
@@ -50,7 +46,6 @@ const PlaygroundVariantConfigHeader = ({
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
     const setSelectedVariants = useSetAtom(selectedVariantsAtom)
-    const [resolutionMode, setResolutionMode] = useAtom(playgroundEmbedResolutionViewModeAtom)
 
     // Check if this is a local draft
     const isLocalDraftVariant = variantId ? isLocalDraft(variantId) : false
@@ -85,7 +80,6 @@ const PlaygroundVariantConfigHeader = ({
             ? (effectiveData as any).isLatestRevision
             : _variantId === latestAppRevisionId
     const isDirty = useAtomValue(revisionIsDirtyAtomFamily((_variantId as string) || ""))
-    const isResolvedView = resolutionMode === "resolved"
     // Keep the full deployment objects so downstream components (e.g., EnvironmentStatus)
     // can access env.name and other fields.
     // Local drafts have no deployments
@@ -142,13 +136,6 @@ const PlaygroundVariantConfigHeader = ({
             console.error(e)
         }
     }, [_variantId, discardDraft, setParamsOverride])
-
-    const handleResolutionToggle = useCallback(
-        (checked: boolean) => {
-            setResolutionMode(checked ? "resolved" : "unresolved")
-        },
-        [setResolutionMode],
-    )
 
     return (
         <section
@@ -213,27 +200,6 @@ const PlaygroundVariantConfigHeader = ({
             </div>
             {!embedded && (
                 <div className="flex items-center gap-2">
-                    <Tooltip
-                        title={
-                            isLocalDraftVariant
-                                ? "Resolved view is unavailable for local drafts"
-                                : isResolvedView
-                                  ? "Showing resolved embeds (read-only)"
-                                  : "Showing unresolved embeds (editable)"
-                        }
-                    >
-                        <div className="flex items-center gap-2 pr-1">
-                            <span className="text-[11px] font-semibold tracking-wide text-gray-500">
-                                {isResolvedView ? "RESOLVED" : "UNRESOLVED"}
-                            </span>
-                            <Switch
-                                size="small"
-                                checked={isResolvedView}
-                                onChange={handleResolutionToggle}
-                                disabled={isLocalDraftVariant}
-                            />
-                        </div>
-                    </Tooltip>
                     {isLocalDraftVariant ? (
                         // Local draft actions
                         <>

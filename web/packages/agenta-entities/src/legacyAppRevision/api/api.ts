@@ -58,7 +58,6 @@ export {isValidUUID}
  */
 export interface RevisionsQueryRequest {
     revision_ids: string[]
-    resolve?: boolean
 }
 
 /**
@@ -237,12 +236,8 @@ export async function fetchOssRevision(
 export async function fetchOssRevisionById(
     revisionId: string,
     projectId: string,
-    options?: {
-        resolve?: boolean
-    },
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
-    const resolve = options?.resolve ?? false
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
@@ -251,7 +246,7 @@ export async function fetchOssRevisionById(
                 revision_ids: [revisionId],
             } as RevisionsQueryRequest,
             {
-                params: {project_id: projectId, resolve},
+                params: {project_id: projectId},
             },
         )
 
@@ -300,12 +295,8 @@ export async function fetchOssRevisionById(
 export async function fetchOssRevisionsBatch(
     revisionIds: string[],
     projectId: string,
-    options?: {
-        resolve?: boolean
-    },
 ): Promise<LegacyAppRevisionData[]> {
     if (!revisionIds.length || !projectId) return []
-    const resolve = options?.resolve ?? false
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
@@ -314,7 +305,7 @@ export async function fetchOssRevisionsBatch(
                 revision_ids: revisionIds,
             } as RevisionsQueryRequest,
             {
-                params: {project_id: projectId, resolve},
+                params: {project_id: projectId},
             },
         )
 
@@ -465,12 +456,8 @@ export async function fetchOssRevisionEnriched(
     revisionId: string,
     variantId: string,
     projectId: string,
-    options?: {
-        resolve?: boolean
-    },
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !variantId || !projectId) return null
-    const resolve = options?.resolve ?? false
 
     try {
         // Fetch both revision and variant in parallel
@@ -481,7 +468,7 @@ export async function fetchOssRevisionEnriched(
                     revision_ids: [revisionId],
                 } as RevisionsQueryRequest,
                 {
-                    params: {project_id: projectId, resolve},
+                    params: {project_id: projectId},
                 },
             ),
             fetchVariantDetail(variantId, projectId),

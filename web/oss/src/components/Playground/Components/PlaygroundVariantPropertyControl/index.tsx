@@ -15,7 +15,7 @@ import {
     moleculeBackedCustomPropertiesAtomFamily,
 } from "@/oss/state/newPlayground/legacyEntityBridge"
 
-import {usePromptsSource, usePromptsSourcePreference} from "../../context/PromptsSource"
+import {usePromptsSource} from "../../context/PromptsSource"
 import {findPropertyInObject, findPropertyById} from "../../hooks/usePlayground/assets/helpers"
 import {
     // updateGenerationDataPropertyMutationAtom,
@@ -162,11 +162,10 @@ const PlaygroundVariantPropertyControl = ({
 
     // Provider-aware fallback: if atom lookup misses but provider prompts have the node, synthesize data
     const providerPrompts = usePromptsSource(actualVariantId || "")
-    const preferProviderPrompts = usePromptsSourcePreference()
     let providerNode: any = null
-    if (Array.isArray(providerPrompts) && providerPrompts.length > 0) {
+    if (!propertyData && Array.isArray(providerPrompts) && providerPrompts.length > 0) {
         const node = findPropertyInObject(providerPrompts, propertyId)
-        if (node && (preferProviderPrompts || !propertyData)) {
+        if (node) {
             providerNode = node
             propertyData = {
                 value: (node as any)?.content?.value ?? (node as any)?.value,

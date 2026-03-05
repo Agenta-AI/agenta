@@ -116,7 +116,7 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
 /**
  * Direct query atom family that fetches revision data from legacy API.
  *
- * Uses POST /variants/revisions/query to fetch by revision ID.
+ * Uses POST /variants/revisions/query/ to fetch by revision ID.
  * Returns minimal data without URI enrichment.
  * Skips queries for local draft IDs.
  */
@@ -130,31 +130,8 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
         const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
 
         return {
-            queryKey: ["legacyAppRevision", "unresolved", revisionId, projectId],
-            queryFn: () => fetchOssRevisionById(revisionId, projectId!, {resolve: false}),
-            staleTime: 1000 * 60, // 1 minute
-            refetchOnWindowFocus: false,
-            enabled,
-        }
-    }),
-)
-
-/**
- * Resolved query atom family for read-only/rendering/invocation views.
- *
- * Uses the same endpoint but with resolve=true and an isolated query key to
- * avoid cache collisions with unresolved authoring data.
- */
-export const resolvedDirectQueryAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery<LegacyAppRevisionData | null>((get) => {
-        const projectId = get(projectIdAtom)
-        const isLocal = isLocalDraftId(revisionId)
-        const isPlaceholder = isPlaceholderId(revisionId)
-        const enabled = !!revisionId && !!projectId && !isLocal && !isPlaceholder
-
-        return {
-            queryKey: ["legacyAppRevision", "resolved", revisionId, projectId],
-            queryFn: () => fetchOssRevisionById(revisionId, projectId!, {resolve: true}),
+            queryKey: ["legacyAppRevision", revisionId, projectId],
+            queryFn: () => fetchOssRevisionById(revisionId, projectId!),
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,
@@ -179,28 +156,15 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
         const enabled = !!parsed && !!projectId && !isLocal && !isPlaceholder
 
         return {
-            queryKey: ["legacyAppRevisionEnriched", "unresolved", key, projectId],
+            queryKey: ["legacyAppRevisionEnriched", key, projectId],
             queryFn: async () => {
                 if (!parsed || !projectId) return null
-                return fetchOssRevisionEnriched(parsed.revisionId, parsed.variantId, projectId, {
-                    resolve: false,
-                })
+                return fetchOssRevisionEnriched(parsed.revisionId, parsed.variantId, projectId)
             },
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,
         }
-    }),
-)
-
-/**
- * Resolved server data atom family.
- * Intended for read-only RESOLVED views and run/invocation paths.
- */
-export const legacyAppRevisionResolvedDataAtomFamily = atomFamily((revisionId: string) =>
-    atom<LegacyAppRevisionData | null>((get) => {
-        const query = get(resolvedDirectQueryAtomFamily(revisionId))
-        return query.data ?? null
     }),
 )
 
@@ -837,40 +801,11 @@ export const legacyAppRevisionServerDataSelectorFamily = atomFamily((revisionId:
     atom<LegacyAppRevisionData | null>((get) => {
         const bridgeData = get(legacyAppRevisionServerDataAtomFamily(revisionId))
         const listItem = get(revisionListItemFromCacheAtomFamily(revisionId))
-
-        const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
-
-        // For normal (server-backed) revisions, always prefer fresh query data
-        // as the source of truth for parameters. Bridge data may contain stale
-        // snapshots (e.g., from prior resolved fetches) and should only provide
-        // seeded enhanced UI fields.
-        if (!isLocalDraftId(revisionId) && enrichedData) {
-            if (!bridgeData) {
-                return mergeRevisionListContext(enrichedData, listItem)
-            }
-
-            const merged = mergeRevisionListContext(enrichedData, listItem)
-            if (!merged) return null
-
-            return {
-                ...merged,
-                enhancedPrompts:
-                    bridgeData.enhancedPrompts && bridgeData.enhancedPrompts.length > 0
-                        ? bridgeData.enhancedPrompts
-                        : merged.enhancedPrompts,
-                enhancedCustomProperties:
-                    bridgeData.enhancedCustomProperties &&
-                    Object.keys(bridgeData.enhancedCustomProperties).length > 0
-                        ? bridgeData.enhancedCustomProperties
-                        : merged.enhancedCustomProperties,
-            }
-        }
-
-        // For local drafts or when enriched data is unavailable, bridge is authoritative.
         if (bridgeData) {
             return mergeRevisionListContext(bridgeData, listItem)
         }
 
+        const enrichedData = get(legacyAppRevisionEnrichedDataFamily(revisionId))
         return mergeRevisionListContext(enrichedData, listItem)
     }),
 )
