@@ -4,7 +4,7 @@
  * HTTP functions and data transformers for OSS app revision entity.
  * Uses the legacy backend API endpoints:
  * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
+ * - POST /variants/revisions/query
  *
  * @packageDocumentation
  */
@@ -201,10 +201,10 @@ export async function fetchOssRevision(
  */
 export async function fetchOssRevisionById(
     revisionId: string,
-    projectId: string,
+    projectId: string
+,
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
-
     // Try preview endpoint first — returns variant_id, application_id, uri
     try {
         const previewResponse = await axios.post(
@@ -250,7 +250,7 @@ export async function fetchOssRevisionById(
     // Fallback: legacy endpoint
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: [revisionId],
             } as RevisionsQueryRequest,
@@ -294,7 +294,7 @@ export async function fetchOssRevisionById(
 /**
  * Batch fetch multiple revisions by their IDs
  *
- * Uses: POST /variants/revisions/query/
+ * Uses: POST /variants/revisions/query
  *
  * @param revisionIds - Array of revision IDs (UUIDs)
  * @param projectId - The project ID
@@ -308,7 +308,7 @@ export async function fetchOssRevisionsBatch(
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: revisionIds,
             } as RevisionsQueryRequest,

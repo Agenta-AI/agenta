@@ -198,7 +198,7 @@ class TestWorkflowVariantsQueries:
         revision_id = mock_data["workflows"][1]["variants"][1]["revisions"][1]["id"]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_revision_ref": {"id": revision_id},
@@ -220,7 +220,7 @@ class TestWorkflowVariantsQueries:
         revision_slug = mock_data["workflows"][1]["variants"][1]["revisions"][1]["slug"]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_revision_ref": {"slug": revision_slug},
@@ -245,7 +245,7 @@ class TestWorkflowVariantsQueries:
         ]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"id": variant_id},
@@ -271,7 +271,7 @@ class TestWorkflowVariantsQueries:
         ]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"slug": variant_slug},
@@ -294,7 +294,7 @@ class TestWorkflowVariantsQueries:
         revision_id = mock_data["workflows"][1]["variants"][1]["revisions"][1]["id"]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"id": variant_id},
@@ -316,7 +316,7 @@ class TestWorkflowVariantsQueries:
         revision_id = mock_data["workflows"][1]["variants"][1]["revisions"][1]["id"]
 
         response = authed_api(
-            "GET",
+            "POST",
             "/preview/workflows/revisions/retrieve",
             json={
                 "workflow_variant_ref": {"slug": variant_slug},

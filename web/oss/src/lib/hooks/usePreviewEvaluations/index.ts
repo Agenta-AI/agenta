@@ -367,7 +367,7 @@ const usePreviewEvaluations = ({
                     const response = await axios.post(
                         "/preview/testcases/query",
                         {
-                            testset_revision_id: revision.id,
+                            testset_revision_ref: {id: revision.id},
                             windowing: {
                                 limit: 500,
                                 ...(cursor ? {next: cursor} : {}),

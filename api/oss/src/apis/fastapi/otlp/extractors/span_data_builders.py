@@ -3,14 +3,14 @@ from abc import ABC, abstractmethod
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.apis.fastapi.tracing.utils import _parse_span_from_request
+from oss.src.core.tracing.utils.parsing import _parse_span_from_request
 from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     SpanFeatures,
 )
 
 from oss.src.core.otel.dtos import OTelSpanDTO
 from oss.src.core.tracing.dtos import OTelSpan, OTelFlatSpan, OTelEvent, OTelLink
-from oss.src.core.tracing.utils import (
+from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_to_uuid,
     parse_span_id_to_uuid,
     parse_timestamp_to_datetime,

@@ -90,7 +90,7 @@ from oss.src.core.testsets.dtos import TestsetRevision
 from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.service import ApplicationsService
 
 from oss.src.core.evaluations.utils import (
     filter_scenario_ids,

@@ -22,6 +22,10 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
+from oss.src.services.legacy_adapter import (
+    configure_legacy_adapter,
+    configure_legacy_environments_adapter,
+)
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -72,8 +76,8 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
-from oss.src.core.applications.services import ApplicationsService
-from oss.src.core.applications.services import SimpleApplicationsService
+from oss.src.core.applications.service import ApplicationsService
+from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
@@ -82,6 +86,7 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
@@ -90,6 +95,8 @@ from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter
 from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
@@ -282,6 +289,7 @@ events_service = EventsService(
     events_dao=events_dao,
 )
 
+
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
 )
@@ -297,6 +305,7 @@ simple_testsets_service = SimpleTestsetsService(
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
+    tracing_service=tracing_service,
 )
 
 simple_queries_service = SimpleQueriesService(
@@ -311,6 +320,10 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
 applications_service = ApplicationsService(
     workflows_service=workflows_service,
 )
@@ -323,16 +336,36 @@ evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
 
+embeds_service = EmbedsService(
+    workflows_service=workflows_service,
+    environments_service=environments_service,
+    applications_service=applications_service,
+    evaluators_service=evaluators_service,
+)
+
+# Inject embeds_service into all services that need it
+workflows_service.embeds_service = embeds_service
+environments_service.embeds_service = embeds_service
+applications_service.embeds_service = embeds_service
+evaluators_service.embeds_service = embeds_service
+
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
-environments_service = EnvironmentsService(
-    environments_dao=environments_dao,
-)
-
 simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
+)
+
+# Ensure legacy adapters reuse the same pre-wired services (including embeds_service).
+configure_legacy_adapter(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+)
+configure_legacy_environments_adapter(
+    environments_service=environments_service,
+    simple_environments_service=simple_environments_service,
+    applications_service=applications_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -392,6 +425,16 @@ otlp = OTLPRouter()
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
+)
+
+traces = TracesRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+spans = SpansRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
 )
 
 events = EventsRouter(
@@ -469,13 +512,13 @@ tools = ToolsRouter(
 )
 
 invocations_service = InvocationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     applications_service=applications_service,
     simple_applications_service=simple_applications_service,
 )
 
 annotations_service = AnnotationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
@@ -533,6 +576,18 @@ app.include_router(
 app.include_router(
     router=tracing.router,
     prefix="/tracing",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/preview/traces",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/preview/spans",
     tags=["Observability"],
 )
 
