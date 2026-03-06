@@ -40,6 +40,69 @@
 - name: help wanted
   description: Extra attention is needed
   color: 008672
+- name: provider/local
+  description: Local infrastructure or developer machine setup
+  color: 0052cc
+- name: provider/hetzner
+  description: Hetzner-hosted infrastructure topic
+  color: 0052cc
+- name: provider/railway
+  description: Railway-hosted infrastructure topic
+  color: 0052cc
+- name: provider/aws
+  description: AWS-hosted infrastructure topic
+  color: 0052cc
+- name: provider/azure
+  description: Azure-hosted infrastructure topic
+  color: 0052cc
+- name: provider/gcp
+  description: GCP-hosted infrastructure topic
+  color: 0052cc
+- name: platform/local
+  description: Local platform target
+  color: 1d76db
+- name: platform/vps
+  description: VPS-style deployment target
+  color: 1d76db
+- name: platform/eks
+  description: Amazon EKS platform target
+  color: 1d76db
+- name: platform/aks
+  description: Azure AKS platform target
+  color: 1d76db
+- name: platform/gke
+  description: Google GKE platform target
+  color: 1d76db
+- name: runtime/docker-compose
+  description: Docker Compose runtime
+  color: 5319e7
+- name: runtime/kubernetes
+  description: Kubernetes runtime
+  color: 5319e7
+- name: olap/local
+  description: Local OLAP / storage backend for self-hosted local setups
+  color: 0e8a16
+- name: olap/postgres
+  description: Managed vanilla Postgres backend
+  color: 0e8a16
+- name: olap/tigerdata
+  description: Managed TigerData backend
+  color: 0e8a16
+- name: olap/clickhouse
+  description: Managed ClickHouse backend
+  color: 0e8a16
+- name: maintenance/internal
+  description: Primarily under core team maintenance
+  color: b60205
+- name: maintenance/community
+  description: Primarily under community maintenance
+  color: b60205
+- name: support/official
+  description: Officially supported repository surface
+  color: fbca04
+- name: support/experimental
+  description: Experimental or best-effort repository surface
+  color: fbca04
 - name: invalid
   description: This doesn't seem right
   color: e4e669
