@@ -201,8 +201,7 @@ export async function fetchOssRevision(
  */
 export async function fetchOssRevisionById(
     revisionId: string,
-    projectId: string
-,
+    projectId: string,
 ): Promise<LegacyAppRevisionData | null> {
     if (!revisionId || !projectId) return null
     // Try preview endpoint first — returns variant_id, application_id, uri

@@ -115,6 +115,7 @@ export async function executeStepForSessionWithExecutionItems(
 
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     const perSession = sessionOptions?.[session.id]
+    const projectId = perSession?.projectId
     const rootExecutionHandle = createExecutionItemHandle({
         loadableId,
         rowId: stepId,
@@ -372,6 +373,7 @@ export async function executeStepForSessionWithExecutionItems(
                         repetitions: 1,
                         runId,
                         inputValues: nodeInputs,
+                        projectId,
                     })
                     if (!stageExecutionItem) {
                         throw new Error(`Failed to build execution item for ${stageRunnableId}`)
@@ -468,6 +470,7 @@ export async function executeStepForSessionWithExecutionItems(
                     headers: perSession2?.headers ?? {},
                     repetitions: 1,
                     inputValues: nodeInputs2,
+                    projectId: perSession2?.projectId ?? projectId,
                 })
                 if (!repetitionItem) break
 

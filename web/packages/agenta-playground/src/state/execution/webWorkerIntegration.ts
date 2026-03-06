@@ -10,6 +10,7 @@
  */
 
 import {loadableController, type RunnableType} from "@agenta/entities/runnable"
+import {projectIdAtom} from "@agenta/shared/state"
 import {isPlainObject} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -176,6 +177,7 @@ export const triggerExecutionAtom = atom(
 
         const getHeaders = get(executionHeadersAtom)
         const headers: Record<string, string> = getHeaders ? await getHeaders() : {}
+        const projectId = get(projectIdAtom)
         const isChat = get(isChatModeAtom) === true
         const mode = isChat ? "chat" : "completion"
         const logicalRowId = extractLogicalRowId(rowId)
@@ -289,7 +291,12 @@ export const triggerExecutionAtom = atom(
             data: testcaseData,
             nodes: executionNodes,
             allConnections: executionConnections,
-            sessionOptions: {[sessionId]: {headers}},
+            sessionOptions: {
+                [sessionId]: {
+                    headers,
+                    ...(projectId ? {projectId} : {}),
+                },
+            },
             targetNodeId: params.targetNodeId,
             lifecycle: {
                 onStart: () => {},
