@@ -111,12 +111,21 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
     const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
     const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
-    const [isMessageCollapsed, setIsMessageCollapsed] = useState(() => kind === "tool")
+    const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
     const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
     const sessionId = `sess:${entityId}`
 
     const editorCollapseStyle = getCollapseStyle(isMessageCollapsed)
+
+    const handleEditorFocusChange = useCallback(
+        (focused: boolean) => {
+            if (focused && isMessageCollapsed) {
+                setIsMessageCollapsed(false)
+            }
+        },
+        [isMessageCollapsed],
+    )
 
     // Build the message target for reducer dispatches
     const messageTarget: MessageTarget = useMemo(
@@ -392,12 +401,22 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return createToolCallPayloads(msg?.tool_calls)
     }, [kind, msg])
 
+    const msgId = msg?.id
     useEffect(() => {
-        const shouldAutoMinimize = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
-        if (!shouldAutoMinimize || autoMinimizedRef.current) return
+        // Auto-collapse tool/assistant-with-tool-calls messages that already
+        // have content (loaded from history). Messages created blank (for user
+        // input) stay expanded. Keyed on msgId so this only runs once per
+        // message identity — never mid-edit as the user types.
+        if (autoMinimizedRef.current) return
+        const isCollapsible = isToolKind || (kind === "assistant" && toolPayloads.length > 0)
+        if (!isCollapsible) return
+        const hasExistingContent = Boolean(
+            msg?.content && (typeof msg.content !== "string" || msg.content.length > 0),
+        )
+        if (!hasExistingContent) return
         setIsMessageCollapsed(true)
         autoMinimizedRef.current = true
-    }, [isToolKind, kind, toolPayloads.length])
+    }, [msgId]) // intentionally only msgId — avoid re-running as user types
 
     return toolPayloads?.length ? (
         toolPayloads.map((p) => (
@@ -417,6 +436,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     role={editorRole}
                     isJSON={true}
                     isTool
+                    onFocusChange={handleEditorFocusChange}
                     text={p?.json}
                     enableTokens={false}
                     disabled={effectiveDisabled}
@@ -492,6 +512,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 role={editorRole}
                 text={editorText}
                 disabled={effectiveDisabled}
+                onFocusChange={handleEditorFocusChange}
                 className={clsx([className])}
                 editorClassName={editorClassName}
                 headerClassName={headerClassName}
