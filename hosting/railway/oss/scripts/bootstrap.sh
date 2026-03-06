@@ -118,6 +118,8 @@ main() {
     add_service_image services "$SERVICES_IMAGE"
     add_service_image worker-evaluations "$API_IMAGE"
     add_service_image worker-tracing "$API_IMAGE"
+    add_service_image worker-webhooks "$API_IMAGE"
+    add_service_image worker-events "$API_IMAGE"
     add_service_image cron "$API_IMAGE"
     add_service_image alembic "$API_IMAGE"
     add_service_image supertokens "$SUPERTOKENS_IMAGE"

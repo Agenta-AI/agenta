@@ -205,15 +205,19 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
     $getEditorCodeAsString,
+    $isCodeBlockNode,
     tryParsePartialJson,
     safeJson5Parse,
     // Drill-in context for Editor integration
     DrillInProvider,
     // Markdown utilities
     TOGGLE_MARKDOWN_VIEW,
+    SET_MARKDOWN_VIEW,
     ON_CHANGE_COMMAND,
     $convertToMarkdownStringCustom,
     PLAYGROUND_TRANSFORMERS,
+    // Search plugin
+    SearchPlugin,
     // Hooks
     useEditorConfig,
     useEditorInvariant,

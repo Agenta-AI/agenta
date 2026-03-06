@@ -56,6 +56,7 @@ api/tests/results/
 api/oss/tests/results/
 api/ee/tests/results/
 sdk/tests/results/
+tests/results/
 sdk/oss/tests/results/
 sdk/ee/tests/results/
 services/tests/results/

@@ -1,0 +1,71 @@
+---
+id: delete-webhook-subscription
+title: "Delete Subscription"
+description: "Delete Subscription"
+sidebar_label: "Delete Subscription"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1VE1v2zAM/SsBTxsgNF3Rk08L1gAN2mFFm22HICgYm4nV2pYq0d0yQ/99oGwnzkdziS0+0tR7fGyAceMhWcBvWuXGvHpYKjCWHLI21SyDBDIqiOn5Twt49vXKp05biYMCiw5LYnJSpYEKS4IEhqBnnYECXUECFjkHBY7eau0og4RdTQp8mlOJkDTAWxvT2elqAwrWxpXIkEBdxyqsuRDA06D+aJZBCEsp662pPHmpdHV5LX8Z7ZuVtDQl79d1MXrswBAUXF9dnWJ/YaGzyMJo6pxxoCA1FVPFgkVrC53G8PjFS0IzuIZ1QiHrtpWMGHUhT5qp9KeAwqQHUay2P9aRzkM+gtqd6IppQw7CMqj+DJ3D7YCke9M2KFcs/eYcvz30O3mPm0hGC/kYGskYzSUaRFZbR0L68CweBAUp/x2UMasXSnlQ5ptw+Zch7PvfYfbzsYjctO13uOW+xl6iVqGPqbhpJTj3sR5yO58/nBSUnzoajJvoh9HToQ9K4tzs7RKdwTkkMO6M48fNkSsCKPDk3nvv1K6ABHJm65PxOC1MnV3ghirGC9RjtBpkyj2ltdO8jSmTh9kdbW8JM3KQLJZDwJOMYztgh7CdKGj1HQlNnWsnNefG6X/Y3Sl6Nm+zQhR7bYZaT2Jzo8nDDBTINVqCLi++XFzCMW0HYHESpnFw+m/HMKgjFnb3BwVURhsBE5Zf9wHpzBrPJVaDeudVOmhpx4MM4tgWqKNVYgNNJ98CevlAQXK81pYKcuNZYE2zQk8/XRGCHL/V5ESipYJ3dBpXQtiigUx7ec4gWWPh6aSj3YqBT4+dCz6PQJ3vtJexEg3fsajlDRS80vbMDo6rIu9HpelQkzQly4P8k80mM7Wb7pvp/XQ+hRD+A/ACIOo=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Subscription"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/webhooks/{subscription_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Subscription
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"subscription_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Subscription Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"204":{"description":"Successful Response"},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

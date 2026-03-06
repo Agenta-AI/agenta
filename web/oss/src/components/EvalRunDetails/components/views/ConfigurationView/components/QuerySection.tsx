@@ -17,8 +17,9 @@ import {ReadOnlyContainer} from "./CopyableFields"
 import {SectionHeaderRow} from "./SectionPrimitives"
 
 const {Text} = Typography
-const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
-
+const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
+    ssr: false,
+})
 interface QuerySectionProps {
     runId: string
 }

@@ -28,12 +28,13 @@ from ee.src.dbs.postgres.organizations.dao import (
     OrganizationDomainsDAO,
     OrganizationProvidersDAO,
 )
-from ee.src.apis.fastapi.organizations.models import (
+from ee.src.core.organizations.types import (
+    OrganizationDomain,
     OrganizationDomainCreate,
-    OrganizationDomainResponse,
+    OrganizationProvider,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
-    OrganizationProviderResponse,
+    OrganizationUpdate,
 )
 
 from ee.src.services import db_manager_ee
@@ -42,9 +43,6 @@ from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import (
     WorkspaceDB,
     OrganizationDB,
-)
-from ee.src.models.api.organization_models import (
-    OrganizationUpdate,
 )
 
 
@@ -277,7 +275,7 @@ class OrganizationDomainsService:
         organization_id: str,
         payload: OrganizationDomainCreate,
         user_id: str,
-    ) -> OrganizationDomainResponse:
+    ) -> OrganizationDomain:
         """Create a new domain for verification.
 
         Token expires after 48 hours and can be refreshed.
@@ -286,16 +284,16 @@ class OrganizationDomainsService:
             dao = OrganizationDomainsDAO(session)
 
             # Block if a verified domain already exists anywhere
-            existing_verified = await dao.get_verified_by_slug(slug=payload.domain)
+            existing_verified = await dao.get_verified_by_slug(slug=payload.slug)
             if existing_verified:
                 raise HTTPException(
                     status_code=409,
-                    detail=f"Domain {payload.domain} is already verified",
+                    detail=f"Domain {payload.slug} is already verified",
                 )
 
             # Reuse existing unverified domain for this organization, if any
             existing = await dao.get_by_slug(
-                slug=payload.domain, organization_id=organization_id
+                slug=payload.slug, organization_id=organization_id
             )
             if existing and not (existing.flags or {}).get("is_verified"):
                 token = self.generate_verification_token()
@@ -313,7 +311,7 @@ class OrganizationDomainsService:
                 # Create domain with token
                 domain = await dao.create(
                     created_by_id=user_id,
-                    slug=payload.domain,
+                    slug=payload.slug,
                     name=payload.name,
                     description=payload.description,
                     token=token,
@@ -323,9 +321,9 @@ class OrganizationDomainsService:
                 await session.commit()
                 await session.refresh(domain)
 
-            return OrganizationDomainResponse(
-                id=str(domain.id),
-                organization_id=str(domain.organization_id),
+            return OrganizationDomain(
+                id=domain.id,
+                organization_id=domain.organization_id,
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
@@ -337,7 +335,7 @@ class OrganizationDomainsService:
 
     async def verify_domain(
         self, organization_id: str, domain_id: str, user_id: str
-    ) -> OrganizationDomainResponse:
+    ) -> OrganizationDomain:
         """Verify a domain via DNS check."""
         async with engine.core_session() as session:
             dao = OrganizationDomainsDAO(session)
@@ -387,9 +385,9 @@ class OrganizationDomainsService:
             await session.commit()
             await session.refresh(domain)
 
-            return OrganizationDomainResponse(
-                id=str(domain.id),
-                organization_id=str(domain.organization_id),
+            return OrganizationDomain(
+                id=domain.id,
+                organization_id=domain.organization_id,
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
@@ -399,9 +397,7 @@ class OrganizationDomainsService:
                 updated_at=domain.updated_at,
             )
 
-    async def list_domains(
-        self, organization_id: str
-    ) -> List[OrganizationDomainResponse]:
+    async def list_domains(self, organization_id: str) -> List[OrganizationDomain]:
         """List all domains for an organization.
 
         Tokens are returned for unverified domains (within expiry period).
@@ -412,9 +408,9 @@ class OrganizationDomainsService:
             domains = await dao.list_by_organization(organization_id=organization_id)
 
             return [
-                OrganizationDomainResponse(
-                    id=str(d.id),
-                    organization_id=str(d.organization_id),
+                OrganizationDomain(
+                    id=d.id,
+                    organization_id=d.organization_id,
                     slug=d.slug,
                     name=d.name,
                     description=d.description,
@@ -428,7 +424,7 @@ class OrganizationDomainsService:
 
     async def refresh_token(
         self, organization_id: str, domain_id: str, user_id: str
-    ) -> OrganizationDomainResponse:
+    ) -> OrganizationDomain:
         """Refresh the verification token for a domain.
 
         Generates a new token and resets the 48-hour expiry window.
@@ -455,9 +451,9 @@ class OrganizationDomainsService:
             await session.commit()
             await session.refresh(domain)
 
-            return OrganizationDomainResponse(
-                id=str(domain.id),
-                organization_id=str(domain.organization_id),
+            return OrganizationDomain(
+                id=domain.id,
+                organization_id=domain.organization_id,
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
@@ -469,7 +465,7 @@ class OrganizationDomainsService:
 
     async def reset_domain(
         self, organization_id: str, domain_id: str, user_id: str
-    ) -> OrganizationDomainResponse:
+    ) -> OrganizationDomain:
         """Reset a verified domain to unverified state for re-verification.
 
         Generates a new token and marks the domain as unverified.
@@ -494,9 +490,9 @@ class OrganizationDomainsService:
             await session.commit()
             await session.refresh(domain)
 
-            return OrganizationDomainResponse(
-                id=str(domain.id),
-                organization_id=str(domain.organization_id),
+            return OrganizationDomain(
+                id=domain.id,
+                organization_id=domain.organization_id,
                 slug=domain.slug,
                 name=domain.name,
                 description=domain.description,
@@ -575,7 +571,7 @@ class OrganizationProvidersService:
         organization_id: str,
         payload: OrganizationProviderCreate,
         user_id: str,
-    ) -> OrganizationProviderResponse:
+    ) -> OrganizationProvider:
         """Create a new SSO provider."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
@@ -650,7 +646,7 @@ class OrganizationProvidersService:
         provider_id: str,
         payload: OrganizationProviderUpdate,
         user_id: str,
-    ) -> OrganizationProviderResponse:
+    ) -> OrganizationProvider:
         """Update an SSO provider."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
@@ -737,22 +733,20 @@ class OrganizationProvidersService:
 
             return await self._to_response(provider, organization_id)
 
-    async def list_providers(
-        self, organization_id: str
-    ) -> List[OrganizationProviderResponse]:
+    async def list_providers(self, organization_id: str) -> List[OrganizationProvider]:
         """List all SSO providers for an organization."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
             providers = await dao.list_by_organization(organization_id=organization_id)
 
-            responses: List[OrganizationProviderResponse] = []
+            responses: List[OrganizationProvider] = []
             for provider in providers:
                 responses.append(await self._to_response(provider, organization_id))
             return responses
 
     async def get_provider(
         self, organization_id: str, provider_id: str
-    ) -> OrganizationProviderResponse:
+    ) -> OrganizationProvider:
         """Get a single SSO provider by ID."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
@@ -765,7 +759,7 @@ class OrganizationProvidersService:
 
     async def test_provider(
         self, organization_id: str, provider_id: str, user_id: str
-    ) -> OrganizationProviderResponse:
+    ) -> OrganizationProvider:
         """Test SSO provider connection and mark as valid if successful."""
         async with engine.core_session() as session:
             dao = OrganizationProvidersDAO(session)
@@ -872,15 +866,15 @@ class OrganizationProvidersService:
 
     async def _to_response(
         self, provider, organization_id: str
-    ) -> OrganizationProviderResponse:
+    ) -> OrganizationProvider:
         """Convert DBE to response model."""
         settings = await self._get_provider_settings(
             organization_id, str(provider.secret_id)
         )
 
-        return OrganizationProviderResponse(
-            id=str(provider.id),
-            organization_id=str(provider.organization_id),
+        return OrganizationProvider(
+            id=provider.id,
+            organization_id=provider.organization_id,
             slug=provider.slug,
             name=provider.name,
             description=provider.description,

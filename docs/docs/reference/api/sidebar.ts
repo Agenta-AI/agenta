@@ -368,9 +368,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/fetch-queue-scenarios-evaluations-queues-queue-id-scenarios-get",
-          label: "Fetch Queue Scenarios",
-          className: "api-method get",
+          id: "reference/api/query-evaluation-queue-scenarios",
+          label: "Query Queue Scenarios",
+          className: "api-method post",
         },
         {
           type: "doc",
@@ -424,6 +424,42 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/open-evaluation-simple-evaluations-evaluation-id-open-post",
           label: "Open Evaluation",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-simple-queue",
+          label: "Create Queue",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-simple-queues",
+          label: "Query Queues",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-simple-queue",
+          label: "Fetch Queue",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-simple-queue-scenarios",
+          label: "Query Queue Scenarios",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/add-simple-queue-traces",
+          label: "Add Queue Traces",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/add-simple-queue-testcases",
+          label: "Add Queue Testcases",
           className: "api-method post",
         },
       ],
@@ -1518,6 +1554,66 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Webhooks",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/create-webhook-subscription",
+          label: "Create Subscription",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-webhook-subscription",
+          label: "Fetch Subscription",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/edit-webhook-subscription",
+          label: "Edit Subscription",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-webhook-subscription",
+          label: "Delete Subscription",
+          className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-webhook-subscriptions",
+          label: "Query Subscriptions",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-webhook-delivery",
+          label: "Create Delivery",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-webhook-delivery",
+          label: "Fetch Delivery",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-webhook-deliveries",
+          label: "Query Deliveries",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/test-webhook",
+          label: "Test Webhook",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Auth",
       items: [
         {
@@ -1543,6 +1639,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/sso-callback-redirect-auth-sso-callback-organization-slug-provider-slug-get",
           label: "Sso Callback Redirect",
           className: "api-method get",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Events",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/query-events-rpc",
+          label: "Query Events",
+          className: "api-method post",
         },
       ],
     },

@@ -1,12 +1,8 @@
 from typing import Dict, Any, Optional
 from uuid import UUID
-from datetime import datetime
-
-from redis.asyncio import Redis
-from fastapi import Request
+from datetime import datetime, timezone
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -43,11 +39,6 @@ from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.annotations.service import AnnotationsService
 
-# from oss.src.apis.fastapi.tracing.utils import make_hash_id
-from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
-
 
 from oss.src.core.evaluations.types import (
     EvaluationMetricsRefresh,
@@ -58,6 +49,7 @@ from oss.src.core.evaluations.types import (
 )
 from oss.src.core.shared.dtos import (
     Reference,
+    Traces,
 )
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -66,7 +58,6 @@ from oss.src.core.tracing.dtos import (
     Format,
     Focus,
     TracingQuery,
-    OTelSpansTree as Trace,
     LogicalOperator,
 )
 from oss.src.core.workflows.dtos import (
@@ -122,18 +113,6 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
-
 queries_service = QueriesService(
     queries_dao=queries_dao,
 )
@@ -174,20 +153,11 @@ evaluations_service = EvaluationsService(
 
 # APIS -------------------------------------------------------------------------
 
-tracing_router = TracingRouter(
-    tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
-)
-
 annotations_service = AnnotationsService(
-    tracing_router=tracing_router,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
-
-annotations_router = AnnotationsRouter(
-    annotations_service=annotations_service,
-)  # TODO: REMOVE/REPLACE ONCE ANNOTATE IS MOVED TO 'core'
 
 # ------------------------------------------------------------------------------
 
@@ -198,17 +168,16 @@ async def evaluate_live_query(
     #
     run_id: UUID,
     #
-    newest: datetime,
-    oldest: datetime,
+    newest: Optional[datetime] = None,
+    oldest: Optional[datetime] = None,
+    #
+    use_windowing: bool = False,
 ):
-    request = Request(scope={"type": "http", "http_version": "1.1", "scheme": "http"})
-
-    request.state.project_id = str(project_id)
-    request.state.user_id = str(user_id)
-
     # count in minutes
-    timestamp = oldest
-    interval = int((newest - oldest).total_seconds() / 60)
+    timestamp = oldest or datetime.now(timezone.utc)
+    interval: Optional[int] = None
+    if newest and oldest:
+        interval = int((newest - oldest).total_seconds() / 60)
 
     try:
         # ----------------------------------------------------------------------
@@ -224,6 +193,9 @@ async def evaluate_live_query(
             run_id=run_id,
             timestamp=timestamp,
             interval=interval,
+            newest=newest,
+            oldest=oldest,
+            use_windowing=use_windowing,
         )
         # ----------------------------------------------------------------------
 
@@ -269,7 +241,7 @@ async def evaluate_live_query(
         query_revisions: Dict[str, QueryRevision] = dict()
         query_references: Dict[str, Dict[str, Reference]] = dict()
         #
-        query_traces: Dict[str, Dict[str, Trace]] = dict()
+        query_traces: Dict[str, Traces] = dict()
         # ----------------------------------------------------------------------
 
         # initialize evaluator variables ---------------------------------------
@@ -385,7 +357,20 @@ async def evaluate_live_query(
                     filtering = query_revision.data.filtering
 
                 if query_revision.data.windowing:
-                    windowing.rate = query_revision.data.windowing.rate
+                    query_windowing = query_revision.data.windowing
+
+                    if use_windowing:
+                        windowing = Windowing(
+                            oldest=query_windowing.oldest,
+                            newest=query_windowing.newest,
+                            limit=query_windowing.limit,
+                            order=query_windowing.order,
+                            rate=query_windowing.rate,
+                            # next=
+                            # interval=
+                        )
+                    else:
+                        windowing.rate = query_windowing.rate
 
             query = TracingQuery(
                 formatting=formatting,
@@ -393,13 +378,16 @@ async def evaluate_live_query(
                 windowing=windowing,
             )
 
-            tracing_response = await tracing_router.query_spans(
-                request=request,
-                #
-                query=query,
+            query_traces_result = await tracing_service.query_traces(
+                project_id=project_id,
+                query=TracingQuery(
+                    formatting=query.formatting,
+                    filtering=query.filtering,
+                    windowing=query.windowing,
+                ),
             )
 
-            nof_traces = tracing_response.count
+            nof_traces = len(query_traces_result)
 
             log.info(
                 "[TRACES]    ",
@@ -407,7 +395,7 @@ async def evaluate_live_query(
                 count=nof_traces,
             )
 
-            query_traces[query_step_key] = tracing_response.traces or dict()
+            query_traces[query_step_key] = query_traces_result or []
         # ----------------------------------------------------------------------
 
         total_traces = sum(len(traces) for traces in query_traces.values())
@@ -417,12 +405,17 @@ async def evaluate_live_query(
         # run online evaluation ------------------------------------------------
         any_results_created = False
         for query_step_key in query_traces.keys():
-            if not query_traces[query_step_key].keys():
+            query_step_traces = [
+                trace
+                for trace in query_traces[query_step_key]
+                if trace and trace.trace_id
+            ]
+            if not query_step_traces:
                 continue
 
             # create scenarios -------------------------------------------------
 
-            nof_traces = len(query_traces[query_step_key].keys())
+            nof_traces = len(query_step_traces)
 
             scenarios_create = [
                 EvaluationScenarioCreate(
@@ -451,7 +444,9 @@ async def evaluate_live_query(
             # ------------------------------------------------------------------
 
             # create query steps -----------------------------------------------
-            query_trace_ids = list(query_traces[query_step_key].keys())
+            query_trace_ids = [
+                trace.trace_id for trace in query_step_traces if trace.trace_id
+            ]
             scenario_ids = [scenario.id for scenario in scenarios if scenario.id]
 
             results_create = [
@@ -487,7 +482,7 @@ async def evaluate_live_query(
             scenario_status: Dict[int, EvaluationStatus] = dict()
 
             # iterate over query traces ----------------------------------------
-            for idx, trace in enumerate(query_traces[query_step_key].values()):
+            for idx, trace in enumerate(query_step_traces):
                 scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
@@ -710,8 +705,8 @@ async def evaluate_live_query(
                         trace = None
                         if annotation.trace_id:
                             trace = await fetch_trace(
-                                tracing_router=tracing_router,
-                                request=request,
+                                tracing_service=tracing_service,
+                                project_id=project_id,
                                 trace_id=annotation.trace_id,
                             )
 

@@ -100,6 +100,15 @@ export class CodeHighlightNode extends TextNode {
             dom.classList.add("token-empty")
         }
 
+        // Lexical's setTextContent("") on a new element does NOT create a DOM
+        // Text node (dom.textContent = "" is a no-op on an empty element).
+        // Without a Text child, getDOMTextNode() returns null and Lexical
+        // silently skips the DOM selection update — so the caret never moves
+        // to an empty placeholder node (e.g. after Enter).  Ensure one exists.
+        if (dom.firstChild === null) {
+            dom.appendChild(document.createTextNode(""))
+        }
+
         // Add validation error styling if needed
         if (latest.hasValidationError()) {
             dom.classList.add("validation-error", "has-tooltip")
@@ -164,6 +173,30 @@ export class CodeHighlightNode extends TextNode {
             json.hasValidationError,
             json.validationMessage,
         )
+    }
+
+    /**
+     * Prevents Lexical from merging or removing CodeHighlightNodes.
+     *
+     * Lexical's `$normalizeTextNode` does two things to "simple" text nodes:
+     *   1. Removes empty nodes (`text === ""`)
+     *   2. Merges adjacent nodes with matching `isSimpleText() && !isUnmergeable()`
+     *
+     * Both are destructive for syntax highlighting:
+     *   - Removing empty nodes destroys the cursor placeholder created by Enter
+     *   - Merging collapses separate token nodes (string, punctuation, number, …)
+     *     into a single node.  On the next transform pass the cache sees unchanged
+     *     text and returns early, leaving the merged (un-highlighted) state.
+     *
+     * Always returning `true` here means:
+     *   - Empty placeholder nodes survive normalization
+     *   - Token boundaries are never collapsed by Lexical internals
+     *   - `isSimpleText() = true` (inherited) is preserved, so typing still
+     *     directly modifies the node's text content
+     *   - The highlight transform remains the sole authority on token structure
+     */
+    isUnmergeable(): boolean {
+        return true
     }
 
     // Prevent formatting (bold, underline, etc)

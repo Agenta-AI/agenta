@@ -11,10 +11,11 @@ from oss.src.utils.caching import set_cache
 from oss.src.core.shared.dtos import (
     Reference,
 )
-from oss.src.core.applications.services import (
+from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )
+from oss.src.core.applications.dtos import ApplicationRevisionData
 
 from oss.src.apis.fastapi.applications.models import (
     ApplicationCreateRequest,
@@ -38,6 +39,8 @@ from oss.src.apis.fastapi.applications.models import (
     ApplicationRevisionRetrieveRequest,
     ApplicationRevisionResponse,
     ApplicationRevisionsResponse,
+    ApplicationRevisionResolveRequest,
+    ApplicationRevisionResolveResponse,
     #
     SimpleApplicationCreateRequest,
     SimpleApplicationEditRequest,
@@ -304,6 +307,16 @@ class ApplicationsRouter:
             operation_id="log_application_revisions",
             status_code=status.HTTP_200_OK,
             response_model=ApplicationRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/resolve",
+            self.resolve_application_revision,
+            methods=["POST"],
+            operation_id="resolve_application_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=ApplicationRevisionResolveResponse,
             response_model_exclude_none=True,
         )
 
@@ -789,6 +802,16 @@ class ApplicationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        log.info(
+            "[applications.revisions.retrieve] request project_id=%s user_id=%s resolve=%s app_ref=%s variant_ref=%s revision_ref=%s",
+            request.state.project_id,
+            request.state.user_id,
+            application_revision_retrieve_request.resolve,
+            application_revision_retrieve_request.application_ref,
+            application_revision_retrieve_request.application_variant_ref,
+            application_revision_retrieve_request.application_revision_ref,
+        )
+
         cache_key = {
             "artifact_ref": application_revision_retrieve_request.application_ref,  # type: ignore
             "variant_ref": application_revision_retrieve_request.application_variant_ref,  # type: ignore
@@ -813,6 +836,13 @@ class ApplicationsRouter:
                 application_revision_ref=application_revision_retrieve_request.application_revision_ref,  # type: ignore
             )
 
+            log.info(
+                "[applications.revisions.retrieve] fetched project_id=%s revision_id=%s has_data=%s",
+                request.state.project_id,
+                getattr(application_revision, "id", None),
+                bool(application_revision and application_revision.data),
+            )
+
             await set_cache(
                 namespace="applications:retrieve",
                 project_id=request.state.project_id,
@@ -821,9 +851,46 @@ class ApplicationsRouter:
                 value=application_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if application_revision and application_revision_retrieve_request.resolve:
+            log.info(
+                "[applications.revisions.retrieve] resolve-start project_id=%s revision_id=%s",
+                request.state.project_id,
+                getattr(application_revision, "id", None),
+            )
+            embeds_service = self.applications_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=application_revision.data.model_dump()
+                if application_revision.data
+                else {},
+            )
+
+            if application_revision.data:
+                application_revision.data = ApplicationRevisionData(**resolved_config)
+
+            log.info(
+                "[applications.revisions.retrieve] resolve-done project_id=%s revision_id=%s has_resolution_info=%s",
+                request.state.project_id,
+                getattr(application_revision, "id", None),
+                resolution_info is not None,
+            )
+
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
             application_revision=application_revision,
+            resolution_info=resolution_info,
+        )
+
+        log.info(
+            "[applications.revisions.retrieve] response project_id=%s count=%s revision_id=%s",
+            request.state.project_id,
+            application_revision_response.count,
+            getattr(application_revision, "id", None),
         )
 
         return application_revision_response
@@ -1009,6 +1076,23 @@ class ApplicationsRouter:
             windowing=application_revision_query_request.windowing,
         )
 
+        # Optionally resolve embeds for all revisions if requested
+        if application_revisions and application_revision_query_request.resolve:
+            embeds_service = self.applications_service.embeds_service
+
+            for revision in application_revisions:
+                if revision and revision.data:
+                    try:
+                        resolved_config, _ = await embeds_service.resolve_configuration(
+                            project_id=UUID(request.state.project_id),
+                            configuration=revision.data.model_dump(),
+                        )
+                        revision.data = ApplicationRevisionData(**resolved_config)
+                    except Exception as e:
+                        log.error(
+                            f"Failed to resolve embeds for revision {revision.id}: {e}"
+                        )
+
         return ApplicationRevisionsResponse(
             count=len(application_revisions),
             application_revisions=application_revisions,
@@ -1070,6 +1154,47 @@ class ApplicationsRouter:
         )
 
         return revisions_response
+
+    @intercept_exceptions()
+    async def resolve_application_revision(
+        self,
+        request: Request,
+        *,
+        application_revision_resolve_request: ApplicationRevisionResolveRequest,
+    ) -> ApplicationRevisionResolveResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result = await self.applications_service.resolve_application_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            application_ref=application_revision_resolve_request.application_ref,
+            application_variant_ref=application_revision_resolve_request.application_variant_ref,
+            application_revision_ref=application_revision_resolve_request.application_revision_ref,
+            #
+            max_depth=application_revision_resolve_request.max_depth or 10,
+            max_embeds=application_revision_resolve_request.max_embeds or 100,
+            error_policy=application_revision_resolve_request.error_policy.value
+            if application_revision_resolve_request.error_policy
+            else "exception",
+        )
+
+        if not result:
+            return ApplicationRevisionResolveResponse()
+
+        application_revision, resolution_info = result
+
+        return ApplicationRevisionResolveResponse(
+            count=1,
+            application_revision=application_revision,
+            resolution_info=resolution_info,
+        )
 
 
 class SimpleApplicationsRouter:

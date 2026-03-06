@@ -1,13 +1,10 @@
-from sqlalchemy import (
-    PrimaryKeyConstraint,
-    Index,
-    desc,
-    text,
-)
+from sqlalchemy import PrimaryKeyConstraint, Index, desc, text
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.tracing.dbas import SpanDBA
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
+
+# TODO: Add OrganizationScopeDBA, WorkspaceScopeDBA, and UserScopeDBA
 
 
 class SpanDBE(
@@ -15,7 +12,6 @@ class SpanDBE(
     ProjectScopeDBA,
     LifecycleDBA,
     SpanDBA,
-    # FullTextSearchDBA,
 ):
     __tablename__ = "spans"
 

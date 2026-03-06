@@ -1,30 +1,36 @@
 from typing import Optional, List, Tuple, Dict, Union
 from uuid import UUID
-from datetime import datetime
 
-from fastapi import APIRouter, Request, Depends, status, HTTPException
+from fastapi import APIRouter, Query, Request, Depends, status, HTTPException, Body
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
-from oss.src.core.tracing.dtos import ListOperator, ComparisonOperator, Condition
-
 from oss.src.apis.fastapi.tracing.utils import (
-    merge_queries,
     parse_query_from_params_request,
     parse_query_from_body_request,
-    parse_trace_id_to_uuid,
-    parse_spans_from_request,
-    parse_spans_into_response,
     parse_analytics_from_params_request,
     parse_analytics_from_body_request,
-    merge_analytics,
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
+    LinkResponse,
+    LinksResponse,
+    TraceIdResponse,
+    TraceIdsResponse,
     OTelTracingRequest,
+    TraceRequest,
+    TracesRequest,
+    SpanRequest,
+    SpansRequest,
     OTelTracingResponse,
+    TraceResponse,
+    TracesResponse,
+    SpanResponse,
+    SpansResponse,
+    TracesQueryRequest,
+    SpansQueryRequest,
     OldAnalyticsResponse,
     AnalyticsResponse,
     SessionsQueryRequest,
@@ -33,8 +39,12 @@ from oss.src.apis.fastapi.tracing.models import (
     UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.utils import (
-    FilteringException,
+from oss.src.core.tracing.utils.parsing import (
+    parse_trace_id_to_uuid,
+    parse_spans_from_request,
+)
+from oss.src.core.tracing.utils.trees import (
+    traces_to_trace_map,
     calculate_and_propagate_metrics,
 )
 
@@ -42,26 +52,29 @@ from oss.src.core.tracing.utils import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+    from oss.src.core.queries.service import QueriesService
+
+from oss.src.core.tracing.streaming import publish_spans
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelLinks,
     OTelSpan,
-    OTelFlatSpans,
     OTelFlatSpan,
+    OTelFlatSpans,
+    Span,
     OTelTraceTree,
     TracingQuery,
     Focus,
-    Format,
-    MetricType,
     MetricSpec,
+    QueryFocusConflictError,
+    FilteringException,
 )
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Link
 
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
+    from ee.src.utils.entitlements import check_entitlements, Counter  # type: ignore
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
@@ -70,10 +83,8 @@ class TracingRouter:
     def __init__(
         self,
         tracing_service: TracingService,
-        tracing_worker: "TracingWorker",
     ):
         self.service = tracing_service
-        self.worker = tracing_worker
 
         self.router = APIRouter()
 
@@ -125,7 +136,7 @@ class TracingRouter:
             "/traces/",
             self.create_trace,
             methods=["POST"],
-            operation_id="create_trace",
+            operation_id="create_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -135,7 +146,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.fetch_trace,
             methods=["GET"],
-            operation_id="fetch_trace",
+            operation_id="fetch_trace_tracing",
             status_code=status.HTTP_200_OK,
             response_model=OTelTracingResponse,
             response_model_exclude_none=True,
@@ -145,7 +156,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.edit_trace,
             methods=["PUT"],
-            operation_id="edit_trace",
+            operation_id="edit_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -155,7 +166,7 @@ class TracingRouter:
             "/traces/{trace_id}",
             self.delete_trace,
             methods=["DELETE"],
-            operation_id="delete_trace",
+            operation_id="delete_trace_tracing",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -199,11 +210,10 @@ class TracingRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        links = await self._upsert(
+        links = await self.service.ingest_spans(
+            organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
-            organization_id=UUID(request.state.organization_id),
-            #
             spans=spans_request.spans,
             traces=spans_request.traces,
         )
@@ -242,40 +252,21 @@ class TracingRouter:
         except Exception:
             pass
 
-        merged_query = merge_queries(query, query_from_body)
-
-        # Optimize: detect simple trace_id queries and use fetch() instead
-        trace_ids = self._extract_trace_ids_from_query(merged_query)
-
-        if trace_ids is not None:
-            span_dtos = await self.service.fetch(
+        merged_query = self.service.merge_queries(query, query_from_body)
+        try:
+            spans_or_traces = await self.service.query_spans_or_traces(
                 project_id=UUID(request.state.project_id),
-                trace_ids=trace_ids,
+                query=merged_query,
             )
-        else:
-            try:
-                span_dtos = await self.service.query(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    query=merged_query,
-                )
-            except FilteringException as e:
-                log.error(
-                    "Error in filtering conditions while querying spans",
-                    exc_info=True,
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail=str(e),
-                ) from e
-
-        spans_or_traces = parse_spans_into_response(
-            span_dtos,
-            focus=(merged_query.formatting.focus if merged_query.formatting else None)
-            or Focus.TRACE,
-            format=(merged_query.formatting.format if merged_query.formatting else None)
-            or Format.AGENTA,
-        )
+        except FilteringException as e:
+            log.error(
+                "Error in filtering conditions while querying spans",
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            ) from e
 
         spans: Optional[OTelFlatSpans] = None
         traces: Optional[OTelTraceTree] = None
@@ -300,42 +291,6 @@ class TracingRouter:
         )
 
         return spans_response
-
-    def _extract_trace_ids_from_query(
-        self, query: TracingQuery
-    ) -> Optional[List[UUID]]:
-        """
-        Detect if query is a simple trace_id filter and extract trace IDs.
-        Returns trace_ids if query can be optimized to use fetch(), else None.
-        """
-        if not query.filtering or not query.filtering.conditions:
-            return None
-
-        if len(query.filtering.conditions) != 1:
-            return None
-
-        condition = query.filtering.conditions[0]
-
-        if not isinstance(condition, Condition):
-            return None
-
-        if condition.field != "trace_id":
-            return None
-
-        if condition.operator not in [ComparisonOperator.IS, ListOperator.IN]:
-            return None
-
-        # Extract trace IDs from value
-        try:
-            if isinstance(condition.value, list):
-                # IN operator with list of trace_ids
-                return [UUID(str(tid)) for tid in condition.value]
-            else:
-                # IS operator with single trace_id
-                return [UUID(str(condition.value))]
-        except (ValueError, TypeError):
-            # Invalid UUID format
-            return None
 
     @intercept_exceptions()
     @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
@@ -368,41 +323,10 @@ class TracingRouter:
         except Exception:  # pylint: disable=bare-except
             pass
 
-        (
-            query,
-            specs,
-        ) = merge_analytics(
+        query, specs = self.service.merge_analytics(
             analytics,
             analytics_from_body,
         )
-
-        if not specs:
-            specs = [
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.duration.cumulative",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.errors.cumulative",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.costs.cumulative.total",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.tokens.cumulative.total",
-                ),
-                MetricSpec(
-                    type=MetricType.CATEGORICAL_SINGLE,
-                    path="attributes.ag.type.trace",
-                ),
-                MetricSpec(
-                    type=MetricType.CATEGORICAL_SINGLE,
-                    path="attributes.ag.type.span",
-                ),
-            ]
 
         buckets = await self.service.analytics(
             project_id=UUID(request.state.project_id),
@@ -446,7 +370,7 @@ class TracingRouter:
         except Exception:  # pylint: disable=bare-except
             pass
 
-        merged_query = merge_queries(
+        merged_query = self.service.merge_queries(
             query,
             query_from_body,
         )
@@ -507,7 +431,7 @@ class TracingRouter:
                                 )
                             )
 
-        span_dtos = parse_spans_from_request(_spans)
+        span_dtos = parse_spans_from_request(_spans) or []
 
         # Calculate and propagate costs/tokens BEFORE batching
         # This ensures complete trace trees for proper metric propagation
@@ -541,7 +465,7 @@ class TracingRouter:
         else:
             # Async path for high-volume operations (observability, evaluations)
             # Publish to Redis Streams for async processing with entitlements check
-            await self.worker.publish_to_stream(
+            await publish_spans(
                 organization_id=organization_id,
                 project_id=project_id,
                 user_id=user_id,
@@ -566,7 +490,7 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
-        sync: bool = False,
+        sync: bool = True,
     ) -> OTelLinksResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -575,66 +499,19 @@ class TracingRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        spans = None
-
-        if trace_request.traces:
-            if len(trace_request.traces) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing trace",
-                )
-
-            if len(trace_request.traces) > 1:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Too many traces",
-                )
-
-            spans = list(trace_request.traces.values())[0].spans
-
-        elif trace_request.spans:
-            spans = {span.span_id: span for span in trace_request.spans}
-
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing spans",
+        try:
+            links = await self.service.create_trace(
+                organization_id=UUID(request.state.organization_id),
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                spans=trace_request.spans,
+                traces=trace_request.traces,
+                sync=sync,
             )
-
-        if not spans:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing spans",
-            )
-
-        root_spans = 0
-
-        for span in spans.values():
-            if not isinstance(span, list) and span.parent_id is None:
-                root_spans += 1
-
-        if root_spans == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing root span",
-            )
-
-        if root_spans > 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Too many root spans",
-            )
-
-        links = await self._upsert(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            organization_id=UUID(request.state.organization_id),
-            #
-            spans=trace_request.spans,
-            traces=trace_request.traces,
-            sync=sync,
-        )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
 
         link_response = OTelLinksResponse(
             count=len(links),
@@ -659,35 +536,21 @@ class TracingRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
-            trace_id = parse_trace_id_to_uuid(trace_id)
-
-        except Exception as e:
+            trace = await self.service.fetch_trace(
+                project_id=UUID(request.state.project_id),
+                trace_id=trace_id,
+            )
+        except TypeError as e:
             raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
-        spans = await self.service.fetch(
-            project_id=UUID(request.state.project_id),
-            #
-            trace_ids=[UUID(trace_id)],
+        if not trace:
+            return OTelTracingResponse()
+
+        traces = traces_to_trace_map([trace])
+        return OTelTracingResponse(
+            count=len(traces.keys()),
+            traces=traces,
         )
-
-        trace_response = OTelTracingResponse()
-
-        if spans is not None:
-            traces = parse_spans_into_response(
-                spans,
-                focus=Focus.TRACE,
-                format=Format.AGENTA,
-            )
-
-            if not traces or isinstance(traces, list):
-                return OTelTracingResponse()
-
-            trace_response = OTelTracingResponse(
-                count=len(traces.keys()),
-                traces=traces,
-            )
-
-        return trace_response
 
     @intercept_exceptions()
     async def edit_trace(  # UPDATE
@@ -707,66 +570,50 @@ class TracingRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        spans = None
-
-        if trace_request.traces:
-            if len(trace_request.traces) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Missing trace",
-                )
-
-            if len(trace_request.traces) > 1:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Too many traces",
-                )
-
-            spans = list(trace_request.traces.values())[0].spans
-
-        elif trace_request.spans:
-            spans = {span.span_id: span for span in trace_request.spans}
-
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing spans",
+        try:
+            extracted_spans = TracingService._extract_single_trace_spans(
+                spans=trace_request.spans,
+                traces=trace_request.traces,
             )
-
-        if not spans:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing spans",
+            payload_trace_ids = TracingService._extract_trace_ids_from_spans(
+                extracted_spans
             )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
-        root_spans = 0
-
-        for span in spans.values():
-            if not isinstance(span, list) and span.parent_id is None:
-                root_spans += 1
-
-        if root_spans == 0:
+        if len(payload_trace_ids) != 1:
             raise HTTPException(
                 status_code=400,
-                detail="Missing root span",
-            )
-
-        if root_spans > 1:
-            raise HTTPException(
-                status_code=400,
-                detail="Too many root spans",
+                detail="Trace payload must contain exactly one trace_id.",
             )
 
         try:
-            links = await self._upsert(
+            normalized_path_trace_id = parse_trace_id_to_uuid(trace_id)
+            normalized_payload_trace_id = parse_trace_id_to_uuid(payload_trace_ids[0])
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400, detail="Invalid trace_id in path or payload."
+            ) from e
+
+        if normalized_path_trace_id != normalized_payload_trace_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Path trace_id '{trace_id}' does not match payload trace_id '{payload_trace_ids[0]}'.",
+            )
+
+        try:
+            links = await self.service.edit_trace(
+                organization_id=UUID(request.state.organization_id),
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
-                organization_id=UUID(request.state.organization_id),
-                #
                 spans=trace_request.spans,
                 traces=trace_request.traces,
                 sync=sync,
             )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
         except Exception as e:
             log.error(f"Error editing trace {trace_id}: {e}", exc_info=True)
             raise
@@ -793,19 +640,15 @@ class TracingRouter:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
         try:
-            trace_id = parse_trace_id_to_uuid(trace_id)
-
-        except Exception as e:
+            links = await self.service.delete_trace(
+                project_id=UUID(request.state.project_id),
+                trace_id=trace_id,
+            )
+        except TypeError as e:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid trace_id",
             ) from e
-
-        links = await self.service.delete(
-            project_id=UUID(request.state.project_id),
-            #
-            trace_ids=[UUID(trace_id)],
-        )
 
         link_response = OTelLinksResponse(
             count=len(links),
@@ -840,7 +683,7 @@ class TracingRouter:
         )
 
         # Compute next windowing cursor for time-based pagination
-        windowing = self._compute_next_windowing(
+        windowing = self.service.build_next_windowing(
             input_windowing=sessions_query_request.windowing,
             result_ids=session_ids,
             activity_cursor=activity_cursor,
@@ -878,7 +721,7 @@ class TracingRouter:
         )
 
         # Compute next windowing cursor for time-based pagination
-        windowing = self._compute_next_windowing(
+        windowing = self.service.build_next_windowing(
             input_windowing=users_query_request.windowing,
             result_ids=user_ids,
             activity_cursor=activity_cursor,
@@ -892,55 +735,631 @@ class TracingRouter:
 
         return user_ids_response
 
-    def _compute_next_windowing(
+
+class SpansRouter:
+    def __init__(
         self,
         *,
-        input_windowing: Optional[Windowing],
-        result_ids: List[str],
-        activity_cursor: Optional[datetime],
-    ) -> Optional[Windowing]:
-        """
-        Compute next windowing cursor for time-based pagination.
+        tracing_service: TracingService,
+        queries_service: Optional["QueriesService"] = None,
+    ):
+        self.service = tracing_service
+        self.queries_service = queries_service
+        self.router = APIRouter()
 
-        Args:
-            input_windowing: The windowing parameters from the request
-            result_ids: The list of IDs returned from the query
-            activity_cursor: The activity timestamp (first_active or last_active)
+        # SPANS ----------------------------------------------------------------
 
-        Returns:
-            Windowing object for the next page, or None if no more pages
-        """
-        # Only compute cursor if we have all required conditions
-        if not (
-            input_windowing
-            and input_windowing.limit
-            and result_ids
-            and len(result_ids) >= input_windowing.limit
-            and activity_cursor
-        ):
-            return None
-
-        # Determine order direction
-        order_direction = (
-            input_windowing.order.lower() if input_windowing.order else "descending"
+        self.router.add_api_route(
+            "/",
+            self.fetch_spans,
+            methods=["GET"],
+            operation_id="fetch_spans",
+            status_code=status.HTTP_200_OK,
+            response_model=SpansResponse,
+            response_model_exclude_none=True,
         )
 
-        # Move cursor based on order direction:
-        # DESC (default): newest moves backward, oldest stays fixed
-        # ASC: oldest moves forward, newest stays fixed
-        if order_direction == "ascending":
-            # ASC: Move oldest forward, keep newest fixed
-            return Windowing(
-                newest=input_windowing.newest,
-                oldest=activity_cursor,
-                limit=input_windowing.limit,
-                order=input_windowing.order,
+        self.router.add_api_route(
+            "/query",
+            self.query_spans,
+            methods=["POST"],
+            operation_id="query_spans",
+            status_code=status.HTTP_200_OK,
+            response_model=SpansResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/ingest",
+            self.ingest_spans,
+            methods=["POST"],
+            operation_id="ingest_spans",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=LinksResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{trace_id}/{span_id}",
+            self.fetch_span,
+            methods=["GET"],
+            operation_id="fetch_span",
+            status_code=status.HTTP_200_OK,
+            response_model=SpanResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/",
+            self.create_span,
+            methods=["POST"],
+            operation_id="create_span",
+            status_code=status.HTTP_201_CREATED,
+            response_model=LinkResponse,
+            response_model_exclude_none=True,
+        )
+
+    @staticmethod
+    def _spans_from_list(
+        spans: Optional[List[Span]],
+        span_ids: Optional[List[str]] = None,
+    ) -> List[Span]:
+        if not spans:
+            return []
+        if not span_ids:
+            return spans
+        span_id_set = set(span_ids)
+        return [span for span in spans if span and span.span_id in span_id_set]
+
+    @staticmethod
+    def _ids_from_query_params(
+        values: Optional[List[str]],
+        csv_values: Optional[str],
+    ) -> List[str]:
+        ids: List[str] = list(values or [])
+        if csv_values:
+            ids.extend(i.strip() for i in csv_values.split(",") if i.strip())
+        return ids
+
+    @staticmethod
+    def _links_from_otel_links(otel_links: Optional[OTelLinks]) -> List[Link]:
+        links: List[Link] = []
+        seen = set()
+        for otel_link in otel_links or []:
+            pair = (str(otel_link.trace_id), str(otel_link.span_id))
+            if pair in seen:
+                continue
+            seen.add(pair)
+            links.append(
+                Link(
+                    trace_id=pair[0],
+                    span_id=pair[1],
+                )
             )
-        else:
-            # DESC: Move newest backward, keep oldest fixed
-            return Windowing(
-                newest=activity_cursor,
-                oldest=input_windowing.oldest,
-                limit=input_windowing.limit,
-                order=input_windowing.order,
+        return links
+
+    @intercept_exceptions()
+    async def create_span(
+        self,
+        request: Request,
+        span_request: SpanRequest,
+        sync: bool = True,
+    ) -> LinkResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not span_request.span:
+            raise HTTPException(status_code=400, detail="Missing span")
+
+        try:
+            links = await self.service.ingest_spans(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                spans=[span_request.span],
+                sync=sync,
             )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+        normalized_links = self._links_from_otel_links(links)
+        link = normalized_links[0] if normalized_links else None
+        return LinkResponse(
+            count=1 if link else 0,
+            link=link,
+        )
+
+    @intercept_exceptions()
+    async def ingest_spans(
+        self,
+        request: Request,
+        spans_request: SpansRequest,
+    ) -> LinksResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not spans_request.spans:
+            raise HTTPException(status_code=400, detail="Missing spans")
+
+        try:
+            links = await self.service.ingest_spans(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                spans=spans_request.spans,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+        normalized_links = self._links_from_otel_links(links)
+        return LinksResponse(
+            count=len(normalized_links),
+            links=normalized_links,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SpansResponse(), exclude=[HTTPException])
+    async def query_spans(
+        self,
+        request: Request,
+        spans_query_request: SpansQueryRequest = Body(
+            default_factory=SpansQueryRequest
+        ),
+    ) -> SpansResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        project_id = UUID(request.state.project_id)
+        has_query_refs = bool(
+            spans_query_request.query_ref
+            or spans_query_request.query_variant_ref
+            or spans_query_request.query_revision_ref
+        )
+        if has_query_refs:
+            if is_ee():
+                if not await check_action_access(  # type: ignore
+                    user_uid=request.state.user_id,
+                    project_id=request.state.project_id,
+                    permission=Permission.VIEW_QUERIES,  # type: ignore
+                ):
+                    raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            query = await self.service.resolve_query_request(
+                project_id=project_id,
+                queries_service=self.queries_service,
+                query_ref=spans_query_request.query_ref,
+                query_variant_ref=spans_query_request.query_variant_ref,
+                query_revision_ref=spans_query_request.query_revision_ref,
+                filtering=spans_query_request.filtering,
+                windowing=spans_query_request.windowing,
+                default_focus=Focus.SPAN,
+                conflict_focus=Focus.TRACE,
+                conflict_detail=(
+                    "Query revision formatting.focus=trace. "
+                    "Use /preview/traces/query for this query revision."
+                ),
+            )
+        except QueryFocusConflictError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=e.detail,
+            ) from e
+
+        if query is None:
+            return SpansResponse()
+
+        try:
+            spans = await self.service.query_spans(
+                project_id=project_id,
+                query=query,
+            )
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return SpansResponse(
+            count=len(spans),
+            spans=spans,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SpansResponse(), exclude=[HTTPException])
+    async def fetch_spans(
+        self,
+        request: Request,
+        *,
+        trace_id: Optional[List[str]] = Query(default=None),
+        trace_ids: Optional[str] = Query(default=None),
+        span_id: Optional[List[str]] = Query(default=None),
+        span_ids: Optional[str] = Query(default=None),
+    ) -> SpansResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        trace_id_values = self._ids_from_query_params(trace_id, trace_ids)
+        span_id_values = self._ids_from_query_params(span_id, span_ids)
+
+        if not trace_id_values and not span_id_values:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "At least one trace_id or span_id query parameter is required."
+                ),
+            )
+
+        try:
+            spans = await self.service.fetch_spans(
+                project_id=UUID(request.state.project_id),
+                trace_ids=trace_id_values,
+                span_ids=span_id_values,
+            )
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return SpansResponse(
+            count=len(spans),
+            spans=spans,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SpanResponse(), exclude=[HTTPException])
+    async def fetch_span(
+        self,
+        request: Request,
+        *,
+        trace_id: str,
+        span_id: str,
+    ) -> SpanResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            span = await self.service.fetch_span(
+                project_id=UUID(request.state.project_id),
+                trace_id=trace_id,
+                span_id=span_id,
+            )
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return SpanResponse(
+            count=1 if span else 0,
+            span=span,
+        )
+
+
+class TracesRouter:
+    def __init__(
+        self,
+        *,
+        tracing_service: TracingService,
+        queries_service: Optional["QueriesService"] = None,
+    ):
+        self.service = tracing_service
+        self.queries_service = queries_service
+        self.router = APIRouter()
+
+        # TRACES ---------------------------------------------------------------
+
+        self.router.add_api_route(
+            "/",
+            self.fetch_traces,
+            methods=["GET"],
+            operation_id="fetch_traces",
+            status_code=status.HTTP_200_OK,
+            response_model=TracesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/query",
+            self.query_traces,
+            methods=["POST"],
+            operation_id="query_traces",
+            status_code=status.HTTP_200_OK,
+            response_model=TracesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/ingest",
+            self.ingest_traces,
+            methods=["POST"],
+            operation_id="ingest_traces",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=TraceIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{trace_id}",
+            self.fetch_trace,
+            methods=["GET"],
+            operation_id="fetch_trace",
+            status_code=status.HTTP_200_OK,
+            response_model=TraceResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/",
+            self.create_trace,
+            methods=["POST"],
+            operation_id="create_trace",
+            status_code=status.HTTP_201_CREATED,
+            response_model=TraceIdResponse,
+            response_model_exclude_none=True,
+        )
+
+    def _extract_trace_map(
+        self, traces_request: TracesRequest
+    ) -> Optional[OTelTraceTree]:
+        if not traces_request.traces:
+            return None
+        return traces_to_trace_map(traces_request.traces)
+
+    def _extract_single_trace_map(
+        self, trace_request: TraceRequest
+    ) -> Optional[OTelTraceTree]:
+        if not trace_request.trace:
+            return None
+        return traces_to_trace_map([trace_request.trace])
+
+    @staticmethod
+    def _trace_ids_from_links(links: Optional[OTelLinks]) -> List[str]:
+        trace_ids: List[str] = []
+        seen = set()
+        for link in links or []:
+            tid = str(link.trace_id)
+            if tid not in seen:
+                seen.add(tid)
+                trace_ids.append(tid)
+        return trace_ids
+
+    # TRACES -------------------------------------------------------------------
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
+    async def query_traces(  # QUERY
+        self,
+        request: Request,
+        traces_query_request: TracesQueryRequest = Body(
+            default_factory=TracesQueryRequest
+        ),
+    ) -> TracesResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        project_id = UUID(request.state.project_id)
+        has_query_refs = bool(
+            traces_query_request.query_ref
+            or traces_query_request.query_variant_ref
+            or traces_query_request.query_revision_ref
+        )
+        if has_query_refs:
+            if is_ee():
+                if not await check_action_access(  # type: ignore
+                    user_uid=request.state.user_id,
+                    project_id=request.state.project_id,
+                    permission=Permission.VIEW_QUERIES,  # type: ignore
+                ):
+                    raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            query = await self.service.resolve_query_request(
+                project_id=project_id,
+                queries_service=self.queries_service,
+                query_ref=traces_query_request.query_ref,
+                query_variant_ref=traces_query_request.query_variant_ref,
+                query_revision_ref=traces_query_request.query_revision_ref,
+                filtering=traces_query_request.filtering,
+                windowing=traces_query_request.windowing,
+                default_focus=Focus.TRACE,
+                conflict_focus=Focus.SPAN,
+                conflict_detail=(
+                    "Query revision formatting.focus=span. "
+                    "Use /preview/spans/query for this query revision."
+                ),
+            )
+        except QueryFocusConflictError as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=e.detail,
+            ) from e
+
+        if query is None:
+            return TracesResponse()
+
+        try:
+            traces = await self.service.query_traces(
+                project_id=project_id,
+                query=query,
+            )
+        except FilteringException as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return TracesResponse(count=len(traces), traces=traces)
+
+    @intercept_exceptions()
+    async def create_trace(
+        self,
+        request: Request,
+        trace_request: TraceRequest,
+        sync: bool = True,
+    ) -> TraceIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        traces = self._extract_single_trace_map(trace_request)
+        if not traces:
+            raise HTTPException(status_code=400, detail="Missing trace")
+
+        try:
+            links = await self.service.create_trace(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                traces=traces,
+                sync=sync,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+        trace_ids = self._trace_ids_from_links(links)
+        trace_id = trace_ids[0] if trace_ids else None
+        return TraceIdResponse(
+            count=1 if trace_id else 0,
+            trace_id=trace_id,
+        )
+
+    @intercept_exceptions()
+    async def ingest_traces(  # MUTATION
+        self,
+        request: Request,
+        traces_request: TracesRequest,
+    ) -> TraceIdsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        traces = self._extract_trace_map(traces_request)
+        if not traces:
+            raise HTTPException(status_code=400, detail="Missing traces")
+
+        try:
+            links = await self.service.ingest_spans(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                organization_id=UUID(request.state.organization_id),
+                traces=traces,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+        trace_ids = self._trace_ids_from_links(links)
+        return TraceIdsResponse(
+            count=len(trace_ids),
+            trace_ids=trace_ids,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
+    async def fetch_traces(
+        self,
+        request: Request,
+        *,
+        trace_id: Optional[List[str]] = Query(default=None),
+        trace_ids: Optional[str] = Query(default=None),
+    ) -> TracesResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        ids: List[str] = list(trace_id or [])
+        if trace_ids:
+            ids.extend(i.strip() for i in trace_ids.split(",") if i.strip())
+
+        if not ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one trace_id query parameter is required.",
+            )
+
+        try:
+            traces_list = await self.service.fetch_traces(
+                project_id=UUID(request.state.project_id),
+                trace_ids=ids,
+            )
+        except TypeError as e:
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+
+        return TracesResponse(
+            count=len(traces_list),
+            traces=traces_list,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
+    async def fetch_trace(
+        self,
+        request: Request,
+        *,
+        trace_id: str,
+    ) -> TraceResponse:
+        if trace_id.lower() in {"query", "ingest"}:
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail=f"GET /preview/traces/{trace_id} is not supported.",
+            )
+
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            trace = await self.service.fetch_trace(
+                project_id=UUID(request.state.project_id),
+                trace_id=trace_id,
+            )
+        except TypeError as e:
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
+
+        return TraceResponse(
+            count=1 if trace else 0,
+            trace=trace,
+        )

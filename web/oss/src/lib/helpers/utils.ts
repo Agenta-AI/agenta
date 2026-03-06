@@ -1,3 +1,4 @@
+import {tryParsePartialJson} from "@agenta/ui"
 import {notification} from "antd"
 import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
@@ -6,7 +7,6 @@ import Router from "next/router"
 import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
-import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {waitForValidURL} from "@/oss/state/url"

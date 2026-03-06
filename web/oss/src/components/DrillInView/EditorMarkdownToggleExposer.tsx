@@ -1,8 +1,6 @@
 import {useEffect, useCallback, useRef} from "react"
 
-import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import {useLexicalComposerContext, TOGGLE_MARKDOWN_VIEW} from "@agenta/ui"
 
 interface EditorMarkdownToggleExposerProps {
     /** Callback to expose the toggle function to the parent */

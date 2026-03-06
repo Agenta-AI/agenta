@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class TimestampModel(BaseModel):
-    created_at: str = Field(str(datetime.now(timezone.utc)))
-    updated_at: str = Field(str(datetime.now(timezone.utc)))
+    created_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
+    updated_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))
 
 
 class User(TimestampModel):
@@ -20,4 +20,4 @@ class User(TimestampModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
-    updated_at: str = Field(str(datetime.now(timezone.utc)))
+    updated_at: str = Field(default_factory=lambda: str(datetime.now(timezone.utc)))

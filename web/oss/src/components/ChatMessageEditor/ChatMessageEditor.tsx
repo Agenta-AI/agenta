@@ -1,5 +1,7 @@
 import React, {useCallback, useMemo, useRef} from "react"
 
+import {EditorProvider} from "@agenta/ui/editor"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
     FileArchive,
     Image as ImageIcon,
@@ -12,9 +14,7 @@ import {Button, Dropdown, MenuProps, Tooltip} from "antd"
 import clsx from "clsx"
 
 import ImagePreview from "@/oss/components/Common/ImagePreview"
-import {EditorProvider} from "@/oss/components/Editor/Editor"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 
 import MarkdownToggleButton from "./MarkdownToggleButton"
 

@@ -10,6 +10,8 @@ class EvaluationQueueData(UniversalBaseModel):
     user_ids: typing.Optional[typing.List[typing.List[str]]] = None
     scenario_ids: typing.Optional[typing.List[str]] = None
     step_keys: typing.Optional[typing.List[str]] = None
+    batch_size: typing.Optional[int] = None
+    batch_offset: typing.Optional[int] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
