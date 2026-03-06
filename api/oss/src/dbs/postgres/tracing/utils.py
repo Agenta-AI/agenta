@@ -263,7 +263,12 @@ def _handle_list_operator(
 
     elif marshalled:
         for v in value:
-            bound = bindparam(None, dumps([v]), type_=Text)  # Wrap in array
+            v_clean = (
+                {k: val for k, val in v.items() if val is not None}
+                if isinstance(v, dict)
+                else v
+            )
+            bound = bindparam(None, dumps([v_clean]), type_=Text)  # Wrap in array
             casted = cast(bound, JSONB)
             subclauses.append(attribute.contains(casted))
 

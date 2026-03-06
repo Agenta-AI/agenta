@@ -236,7 +236,7 @@ The **embeds** feature enables workflow-in-workflow composition using `@ag.embed
 
 # Level 3: Environment has final config
 {
-  "api_key": "sk-prod-12345",
+  "api_key": "your-api-key",
   "base_url": "https://api.openai.com/v1"
 }
 
@@ -245,7 +245,7 @@ The **embeds** feature enables workflow-in-workflow composition using `@ag.embed
   "app_config": {
     "parameters": {
       "api_config": {
-        "api_key": "sk-prod-12345",
+        "api_key": "your-api-key",
         "base_url": "https://api.openai.com/v1"
       }
     }

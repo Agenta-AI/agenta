@@ -14,13 +14,12 @@ from ee.src.models.api.api_models import (
     InviteRequest,
     ReseendInviteRequest,
 )
-from ee.src.models.api.workspace_models import (
-    Permission,
-    WorkspaceRole,
+from ee.src.core.workspaces.types import (
     WorkspaceResponse,
     CreateWorkspace,
     UpdateWorkspace,
 )
+from ee.src.models.shared_models import Permission, WorkspaceRole
 from oss.src.services.organization_service import (
     create_invitation,
     check_existing_invitation,

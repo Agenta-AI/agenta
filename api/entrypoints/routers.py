@@ -95,6 +95,8 @@ from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter
 from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
@@ -287,6 +289,7 @@ events_service = EventsService(
     events_dao=events_dao,
 )
 
+
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
 )
@@ -302,6 +305,7 @@ simple_testsets_service = SimpleTestsetsService(
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
+    tracing_service=tracing_service,
 )
 
 simple_queries_service = SimpleQueriesService(
@@ -423,6 +427,16 @@ tracing = TracingRouter(
     tracing_service=tracing_service,
 )
 
+traces = TracesRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+spans = SpansRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
 events = EventsRouter(
     events_service=events_service,
 )
@@ -498,13 +512,13 @@ tools = ToolsRouter(
 )
 
 invocations_service = InvocationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     applications_service=applications_service,
     simple_applications_service=simple_applications_service,
 )
 
 annotations_service = AnnotationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
@@ -562,6 +576,18 @@ app.include_router(
 app.include_router(
     router=tracing.router,
     prefix="/tracing",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/preview/traces",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/preview/spans",
     tags=["Observability"],
 )
 

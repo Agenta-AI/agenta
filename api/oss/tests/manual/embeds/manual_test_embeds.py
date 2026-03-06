@@ -282,7 +282,7 @@ async def test_cross_entity_references():
                 }
             }
         elif entity_type == "environment_revision":
-            return {"api_key": "sk-prod-12345", "base_url": "https://api.openai.com/v1"}
+            return {"api_key": "your-api-key", "base_url": "https://api.openai.com/v1"}
         elif entity_type == "application_revision":
             return {
                 "app": "Chat Assistant",

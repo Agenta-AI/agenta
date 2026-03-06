@@ -37,7 +37,6 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
-from oss.src.apis.fastapi.tracing.router import TracingRouter
 
 import agenta as ag
 
@@ -142,14 +141,10 @@ evaluations_service = EvaluationsService(
     #
 )
 
-tracing_router = TracingRouter(
-    tracing_service=tracing_service,
-)
-
 evaluations_worker = EvaluationsWorker(
     broker=broker,
     #
-    tracing_router=tracing_router,
+    tracing_service=tracing_service,
     simple_evaluators_service=simple_evaluators_service,
     #
     testsets_service=testsets_service,

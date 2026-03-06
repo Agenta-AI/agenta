@@ -29,7 +29,7 @@ This feature is implemented across backend, frontend, and API E2E tests.
 - [x] Research: Verified no validation blockers
 - [x] Implementation: Allow numeric operators for string fields in parser
 - [x] Implementation: Route numeric operators for string fields in DAO
-- [x] Testing: Add E2E tests to `api/oss/tests/pytest/e2e/tracing/test_spans_queries.py`
+- [x] Testing: Add E2E tests to `api/oss/tests/pytest/acceptance/tracing/test_spans_queries.py`
 - [x] Testing: Run test class against running API
 
 ### Frontend
@@ -57,5 +57,5 @@ None.
 - The `between` operator is intentionally deferred (can be composed with `gte` + `lte`)
 - API lint/format completed with: `uvx --from ruff==0.14.0 ruff format ...` and `ruff check --fix ...`
 - Validated against deployed instance at `http://144.76.237.122:8280` using:
-  - `AGENTA_API_URL=http://144.76.237.122:8280/api AGENTA_AUTH_KEY=replace-me uvx --from pytest --with requests --with python-dotenv pytest -c /dev/null oss/tests/pytest/e2e/tracing/test_spans_queries.py::TestSpanStringComparisonOperators -v`
+  - `AGENTA_API_URL=http://144.76.237.122:8280/api AGENTA_AUTH_KEY=replace-me uvx --from pytest --with requests --with python-dotenv pytest -c /dev/null oss/tests/pytest/acceptance/tracing/test_spans_queries.py::TestSpanStringComparisonOperators -v`
   - Result: `5 passed`
