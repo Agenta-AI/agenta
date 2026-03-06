@@ -8,7 +8,7 @@ from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
-from ee.src.models.api.organization_models import Organization
+from ee.src.core.organizations.types import Organization
 
 from oss.src.models.db_models import (
     WorkspaceDB,

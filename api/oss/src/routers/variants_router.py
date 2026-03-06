@@ -45,6 +45,7 @@ class RevisionsQueryRequest(BaseModel):
     """Request model for querying revisions by IDs"""
 
     revision_ids: List[UUID]
+    resolve: Optional[bool] = None
 
 
 class RevisionsQueryResponse(BaseModel):
@@ -471,13 +472,14 @@ async def get_variant_revision(
 
 
 @router.post(
-    "/revisions/query/",
+    "/revisions/query",
     operation_id="query_variant_revisions",
     response_model=RevisionsQueryResponse,
 )
 async def query_variant_revisions(
     request: Request,
     payload: RevisionsQueryRequest,
+    resolve: Optional[bool] = None,
 ):
     """Query variant revisions by their IDs.
 
@@ -504,6 +506,18 @@ async def query_variant_revisions(
                 status_code=403,
             )
 
+    # Resolution policy precedence:
+    # 1) explicit body payload.resolve
+    # 2) explicit query-string resolve
+    # 3) safe default (False / unresolved)
+    resolve_flag = (
+        payload.resolve
+        if payload.resolve is not None
+        else resolve
+        if resolve is not None
+        else False
+    )
+
     adapter = get_legacy_adapter()
     revisions = []
     for revision_id in payload.revision_ids:
@@ -511,6 +525,8 @@ async def query_variant_revisions(
             revision = await adapter.fetch_revision_by_id(
                 project_id=UUID(request.state.project_id),
                 revision_id=revision_id,
+                user_id=UUID(request.state.user_id),
+                resolve=resolve_flag,
             )
             if revision:
                 revision_output = (

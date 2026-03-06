@@ -37,6 +37,7 @@ export interface RunFlagsFilter {
     is_live?: boolean
     is_active?: boolean
     is_closed?: boolean
+    is_queue?: boolean
     has_queries?: boolean
     has_testsets?: boolean
     has_evaluators?: boolean
@@ -366,7 +367,7 @@ const usePreviewEvaluations = ({
                     const response = await axios.post(
                         "/preview/testcases/query",
                         {
-                            testset_revision_id: revision.id,
+                            testset_revision_ref: {id: revision.id},
                             windowing: {
                                 limit: 500,
                                 ...(cursor ? {next: cursor} : {}),

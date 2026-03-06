@@ -31,6 +31,7 @@
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
+        "@lexical/code-shiki": ">=0.38.0",
         "@lexical/hashtag": ">=0.38.0",
         "@lexical/link": ">=0.38.0",
         "@lexical/list": ">=0.38.0",
@@ -70,19 +71,19 @@
         "react-resizable": "^3.0.5"
     },
     "devDependencies": {
-        "typescript": "5.8.3",
         "@floating-ui/react": "^0.26.0",
-        "@lexical/code": "^0.38.2",
-        "@lexical/hashtag": "^0.38.2",
-        "@lexical/link": "^0.38.2",
-        "@lexical/list": "^0.38.2",
-        "@lexical/mark": "^0.38.2",
-        "@lexical/markdown": "^0.38.2",
-        "@lexical/overflow": "^0.38.2",
-        "@lexical/react": "^0.38.2",
-        "@lexical/rich-text": "^0.38.2",
-        "@lexical/table": "^0.38.2",
-        "@lexical/utils": "^0.38.2",
+        "@lexical/code": "^0.40.0",
+        "@lexical/code-shiki": "^0.40.0",
+        "@lexical/hashtag": "^0.40.0",
+        "@lexical/link": "^0.40.0",
+        "@lexical/list": "^0.40.0",
+        "@lexical/mark": "^0.40.0",
+        "@lexical/markdown": "^0.40.0",
+        "@lexical/overflow": "^0.40.0",
+        "@lexical/react": "^0.40.0",
+        "@lexical/rich-text": "^0.40.0",
+        "@lexical/table": "^0.40.0",
+        "@lexical/utils": "^0.40.0",
         "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.17.18",
         "@types/node": "^20.8.10",
@@ -93,7 +94,8 @@
         "@types/uuid": "^9.0.8",
         "ajv": "^8.18.0",
         "js-yaml": "^4.1.1",
-        "lexical": "^0.38.2",
-        "lodash": "^4.17.21"
+        "lexical": "^0.40.0",
+        "lodash": ">=4.17.23",
+        "typescript": "5.8.3"
     }
 }

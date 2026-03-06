@@ -99,11 +99,13 @@ def _validate_webhook_url(url: str) -> None:
 
     try:
         ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None:
         if _is_blocked_ip(ip):
             raise ValueError("Webhook URL resolves to a blocked IP range.")
         return
-    except ValueError:
-        pass
 
     try:
         addresses = {
@@ -205,6 +207,31 @@ def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
     if scheme == "json-pointer":
         return resolve_json_pointer(expr, data)
     return resolve_dot_notation(expr, data)
+
+
+def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
+    """Resolve a value that may be a JSON Path or JSON Pointer expression.
+
+    - Strings starting with ``$`` are resolved as JSON Path against *data*.
+    - Strings starting with ``/`` are resolved as JSON Pointer against *data*.
+    - Everything else (plain strings, numbers, dicts, …) is returned as-is.
+
+    On resolution failure (missing library, invalid syntax, missing path, etc.),
+    this helper returns ``None`` instead of raising, as expected by webhook
+    callers and design spec.
+    """
+    if isinstance(value, str):
+        try:
+            if value.startswith("$"):
+                return resolve_json_path(value, data)
+            if value.startswith("/"):
+                return resolve_json_pointer(value, data)
+        except Exception as exc:
+            # Selector resolution is intentionally non-throwing; log at debug
+            # level and signal failure via ``None``.
+            log.debug("Failed to resolve JSON selector %r: %s", value, exc)
+            return None
+    return value
 
 
 # ========= Placeholder & coercion helpers =========

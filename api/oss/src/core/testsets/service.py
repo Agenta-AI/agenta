@@ -17,18 +17,7 @@ from oss.src.core.git.dtos import (
     RevisionQuery,
     RevisionCommit,
 )
-from oss.src.models.db_models import TestsetDB
 from oss.src.core.testcases.dtos import Testcase
-from oss.src.services.db_manager import fetch_testset_by_id
-from oss.src.utils.helpers import get_slug_from_name_and_id
-from oss.src.apis.fastapi.testsets.models import (
-    SimpleTestset,
-    SimpleTestsetCreate,
-    SimpleTestsetEdit,
-    #
-    SimpleTestsetCreateRequest,
-    SimpleTestsetEditRequest,
-)
 from oss.src.core.testsets.dtos import (
     Testset,
     TestsetCreate,
@@ -47,8 +36,12 @@ from oss.src.core.testsets.dtos import (
     TestsetRevisionEdit,
     TestsetRevisionQuery,
     TestsetRevisionCommit,
+    #
+    SimpleTestset,
+    SimpleTestsetCreate,
+    SimpleTestsetEdit,
 )
-from oss.src.apis.fastapi.testsets.utils import (
+from oss.src.core.testsets.utils import (
     json_array_to_json_object,
     validate_testset_limits,
 )
@@ -66,45 +59,132 @@ class TestsetsService:
         self.testsets_dao = testsets_dao
         self.testcases_service = testcases_service
 
+    @staticmethod
+    def _sanitize_persisted_testset_revision_data(
+        data: Optional[Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Persist only canonical testset revision fields (testcase_ids)."""
+        if data is None:
+            return None
+
+        try:
+            parsed = TestsetRevisionData.model_validate(data)
+        except Exception:
+            return None
+        if parsed.testcase_ids is None:
+            return None
+
+        return {"testcase_ids": [str(id) for id in parsed.testcase_ids]}
+
+    @classmethod
+    def _sanitize_testset_revision_payload(
+        cls,
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if "data" not in payload:
+            return payload
+
+        sanitized_data = cls._sanitize_persisted_testset_revision_data(
+            payload.get("data")
+        )
+        if sanitized_data is None:
+            payload.pop("data", None)
+        else:
+            payload["data"] = sanitized_data
+
+        return payload
+
     async def _populate_testcases(
         self,
         project_id: UUID,
         #
         testset_revision: TestsetRevision,
         #
+        include_testcase_ids: Optional[bool] = None,
         include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> None:
         """Conditionally populate testcases in revision data.
 
-        Args:
-            testset_revision: The testset revision to populate
-            project_id: Project ID for fetching testcases
-            include_testcases: If None or True, fetch and include testcases.
-                              If False, leave testcases as None (only testcase_ids).
+        Flag defaults (both True when None):
+          include_testcase_ids=True  — return testcase_ids
+          include_testcases=True     — fetch and return full testcases
+
+        [A.0] include_testcase_ids=False, include_testcases=False
+              → clear both; return revision metadata only
+        [A.1] include_testcase_ids=True,  include_testcases=False
+              → return testcase_ids only (paginated by windowing)
+        [A.2] include_testcase_ids=True,  include_testcases=True (default)
+              → return both testcase_ids and full testcases
         """
         if not testset_revision.data:
             return
 
-        # Default to True if None (backward compatible)
-        if include_testcases is None or include_testcases:
-            # Include full testcases, exclude testcase_ids
-            if testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = (
-                    await self.testcases_service.fetch_testcases(
-                        project_id=project_id,
-                        testcase_ids=testset_revision.data.testcase_ids,
-                    )
-                )
-                # Clear testcase_ids when including full testcases
-                testset_revision.data.testcase_ids = None
+        # Opt-out semantics (asymmetric with queries): both flags default True
+        # to preserve legacy behaviour where retrieve always returned full content.
+        _include_ids = include_testcase_ids is not False
+        _include_items = include_testcases is not False
 
-                # Clear alias fields from testcases for clean API responses
-                if testset_revision.data.testcases:
-                    for testcase in testset_revision.data.testcases:
-                        testcase.set_id = None
-        else:
-            # Include only testcase_ids, exclude full testcases
+        # [A.0] — opt out of everything
+        if not _include_ids and not _include_items:
+            testset_revision.data.testcase_ids = None
             testset_revision.data.testcases = None
+            return
+
+        # Apply ID-based pagination for deterministic testcase ordering
+        ids = testset_revision.data.testcase_ids or []
+        ids = self._apply_ids_windowing(
+            ids=ids,
+            windowing=windowing,
+        )
+
+        # [A.1] — IDs only
+        if _include_ids and not _include_items:
+            testset_revision.data.testcase_ids = ids
+            testset_revision.data.testcases = None
+            return
+
+        # [A.2] — both IDs and full items
+        testset_revision.data.testcase_ids = ids
+        if ids:
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    testcase_ids=ids,
+                )
+            )
+            # Clear alias fields from testcases for clean API responses
+            if testset_revision.data.testcases:
+                for testcase in testset_revision.data.testcases:
+                    testcase.set_id = None
+        else:
+            testset_revision.data.testcases = None
+
+    @staticmethod
+    def _apply_ids_windowing(
+        *,
+        ids: List[UUID],
+        windowing: Optional[Windowing] = None,
+    ) -> List[UUID]:
+        if not windowing:
+            return ids
+
+        ordered = list(ids)
+        if windowing.order == "descending":
+            ordered.reverse()
+
+        if windowing.next is not None:
+            try:
+                index = ordered.index(windowing.next)
+                ordered = ordered[index + 1 :]
+            except ValueError:
+                return []
+
+        if windowing.limit is not None:
+            ordered = ordered[: windowing.limit]
+
+        return ordered
 
     ## -- testset --------------------------------------------------------------
 
@@ -506,11 +586,13 @@ class TestsetsService:
         #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
-        revision_create = RevisionCreate(
-            **testset_revision_create.model_dump(
+        revision_create_payload = self._sanitize_testset_revision_payload(
+            testset_revision_create.model_dump(
                 mode="json",
-            ),
+                exclude_none=True,
+            )
         )
+        revision_create = RevisionCreate(**revision_create_payload)
 
         revision = await self.testsets_dao.create_revision(
             project_id=project_id,
@@ -529,9 +611,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -545,7 +627,10 @@ class TestsetsService:
         testset_variant_ref: Optional[Reference] = None,
         testset_revision_ref: Optional[Reference] = None,
         #
+        include_testcase_ids: Optional[bool] = None,
         include_testcases: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> Optional[TestsetRevision]:
         if not testset_ref and not testset_variant_ref and not testset_revision_ref:
             return None
@@ -597,8 +682,13 @@ class TestsetsService:
 
         await self._populate_testcases(
             project_id,
+            #
             testset_revision,
-            include_testcases,
+            #
+            include_testcase_ids=include_testcase_ids,
+            include_testcases=include_testcases,
+            #
+            windowing=windowing,
         )
 
         return testset_revision
@@ -613,11 +703,13 @@ class TestsetsService:
         #
         include_testcases: Optional[bool] = None,
     ) -> Optional[TestsetRevision]:
-        revision_edit = TestsetRevisionEdit(
-            **testset_revision_edit.model_dump(
+        revision_edit_payload = self._sanitize_testset_revision_payload(
+            testset_revision_edit.model_dump(
                 mode="json",
-            ),
+                exclude_none=True,
+            )
         )
+        revision_edit = TestsetRevisionEdit(**revision_edit_payload)
 
         revision = await self.testsets_dao.edit_revision(
             project_id=project_id,
@@ -636,9 +728,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -748,9 +840,9 @@ class TestsetsService:
             )
 
             await self._populate_testcases(
-                project_id,
-                testset_revision,
-                include_testcases,
+                project_id=project_id,
+                testset_revision=testset_revision,
+                include_testcases=include_testcases,
             )
 
             testset_revisions.append(testset_revision)
@@ -795,9 +887,13 @@ class TestsetsService:
 
             testset_revision_commit.data.testcases = None
 
-        revision_commit = RevisionCommit(
-            **testset_revision_commit.model_dump(mode="json", exclude_none=True),
+        revision_commit_payload = self._sanitize_testset_revision_payload(
+            testset_revision_commit.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
         )
+        revision_commit = RevisionCommit(**revision_commit_payload)
 
         revision = await self.testsets_dao.commit_revision(
             project_id=project_id,
@@ -816,9 +912,9 @@ class TestsetsService:
         )
 
         await self._populate_testcases(
-            project_id,
-            testset_revision,
-            include_testcases,
+            project_id=project_id,
+            testset_revision=testset_revision,
+            include_testcases=include_testcases,
         )
 
         return testset_revision
@@ -854,9 +950,9 @@ class TestsetsService:
             )
 
             await self._populate_testcases(
-                project_id,
-                testset_revision,
-                include_testcases,
+                project_id=project_id,
+                testset_revision=testset_revision,
+                include_testcases=include_testcases,
             )
 
             testset_revisions.append(testset_revision)
@@ -1018,46 +1114,46 @@ class SimpleTestsetsService:
         project_id: UUID,
         user_id: UUID,
         #
-        simple_testset_create_request: SimpleTestsetCreateRequest,
+        simple_testset_create: SimpleTestsetCreate,
         #
         testset_id: Optional[UUID] = None,
     ):
         try:
-            testcases = simple_testset_create_request.testset.data.testcases
+            testcases = simple_testset_create.data.testcases
 
             testcases_data = [testcase.data for testcase in testcases]
 
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
             )
+            if testcases_data is None:
+                return None
 
             validate_testset_limits(testcases_data)
 
             for i, testcase_data in enumerate(testcases_data.values()):
-                simple_testset_create_request.testset.data.testcases[
-                    i
-                ].data = testcase_data
+                simple_testset_create.data.testcases[i].data = testcase_data
 
         except Exception:
             return None
 
         try:
             testset_revision_data = TestsetRevisionData(
-                testcases=simple_testset_create_request.testset.data.testcases,
+                testcases=simple_testset_create.data.testcases,
             )
 
         except Exception:
             return None
 
         testset_create = TestsetCreate(
-            slug=simple_testset_create_request.testset.slug,
+            slug=simple_testset_create.slug,
             #
-            name=simple_testset_create_request.testset.name,
-            description=simple_testset_create_request.testset.description,
+            name=simple_testset_create.name,
+            description=simple_testset_create.description,
             #
             # flags =
-            tags=simple_testset_create_request.testset.tags,
-            meta=simple_testset_create_request.testset.meta,
+            tags=simple_testset_create.tags,
+            meta=simple_testset_create.meta,
         )
 
         testset: Optional[Testset] = await self.testsets_service.create_testset(
@@ -1077,12 +1173,12 @@ class SimpleTestsetsService:
         testset_variant_create = TestsetVariantCreate(
             slug=testset_variant_slug,
             #
-            name=simple_testset_create_request.testset.name,
-            description=simple_testset_create_request.testset.description,
+            name=simple_testset_create.name,
+            description=simple_testset_create.description,
             #
             # flags =
-            tags=simple_testset_create_request.testset.tags,
-            meta=simple_testset_create_request.testset.meta,
+            tags=simple_testset_create.tags,
+            meta=simple_testset_create.meta,
             #
             testset_id=testset.id,
         )
@@ -1104,12 +1200,12 @@ class SimpleTestsetsService:
         testset_revision_create = TestsetRevisionCreate(
             slug=testset_revision_slug,
             #
-            name=simple_testset_create_request.testset.name,
-            description=simple_testset_create_request.testset.description,
+            name=simple_testset_create.name,
+            description=simple_testset_create.description,
             #
             # flags =
-            tags=simple_testset_create_request.testset.tags,
-            meta=simple_testset_create_request.testset.meta,
+            tags=simple_testset_create.tags,
+            meta=simple_testset_create.meta,
             #
             testset_id=testset.id,
             testset_variant_id=testset_variant.id,
@@ -1132,12 +1228,12 @@ class SimpleTestsetsService:
         testset_revision_commit = TestsetRevisionCommit(
             slug=testset_revision_slug,
             #
-            name=simple_testset_create_request.testset.name,
-            description=simple_testset_create_request.testset.description,
+            name=simple_testset_create.name,
+            description=simple_testset_create.description,
             #
             # flags =
-            tags=simple_testset_create_request.testset.tags,
-            meta=simple_testset_create_request.testset.meta,
+            tags=simple_testset_create.tags,
+            meta=simple_testset_create.meta,
             #
             data=testset_revision_data,
             #
@@ -1186,23 +1282,23 @@ class SimpleTestsetsService:
         project_id: UUID,
         user_id: UUID,
         #
-        simple_testset_edit_request: SimpleTestsetEditRequest,
+        simple_testset_edit: SimpleTestsetEdit,
     ) -> Optional[SimpleTestset]:
         try:
-            testcases = simple_testset_edit_request.testset.data.testcases
+            testcases = simple_testset_edit.data.testcases
 
             testcases_data = [testcase.data for testcase in testcases]
 
             testcases_data = json_array_to_json_object(
                 data=testcases_data,
             )
+            if testcases_data is None:
+                return None
 
             validate_testset_limits(testcases_data)
 
             for i, testcase_data in enumerate(testcases_data.values()):
-                simple_testset_edit_request.testset.data.testcases[
-                    i
-                ].data = testcase_data
+                simple_testset_edit.data.testcases[i].data = testcase_data
 
         except Exception:
             return None
@@ -1216,7 +1312,7 @@ class SimpleTestsetsService:
             return None
 
         testset_ref = Reference(
-            id=simple_testset_edit_request.testset.id,
+            id=simple_testset_edit.id,
         )
 
         testset: Optional[Testset] = await self.testsets_service.fetch_testset(
@@ -1229,22 +1325,22 @@ class SimpleTestsetsService:
             return None
 
         has_changes = (
-            testset.name != simple_testset_edit_request.testset.name
-            or testset.description != simple_testset_edit_request.testset.description
-            or testset.tags != simple_testset_edit_request.testset.tags
-            or testset.meta != simple_testset_edit_request.testset.meta
+            testset.name != simple_testset_edit.name
+            or testset.description != simple_testset_edit.description
+            or testset.tags != simple_testset_edit.tags
+            or testset.meta != simple_testset_edit.meta
         )
 
         if has_changes:
             testset_edit = TestsetEdit(
                 id=testset.id,
                 #
-                name=simple_testset_edit_request.testset.name,
-                description=simple_testset_edit_request.testset.description,
+                name=simple_testset_edit.name,
+                description=simple_testset_edit.description,
                 #
                 # flags =
-                tags=simple_testset_edit_request.testset.tags,
-                meta=simple_testset_edit_request.testset.meta,
+                tags=simple_testset_edit.tags,
+                meta=simple_testset_edit.meta,
             )
 
             testset: Optional[Testset] = await self.testsets_service.edit_testset(  # type: ignore
@@ -1269,23 +1365,22 @@ class SimpleTestsetsService:
             return None
 
         has_changes = (
-            testset_variant.name != simple_testset_edit_request.testset.name
-            or testset_variant.description
-            != simple_testset_edit_request.testset.description
-            or testset_variant.tags != simple_testset_edit_request.testset.tags
-            or testset_variant.meta != simple_testset_edit_request.testset.meta
+            testset_variant.name != simple_testset_edit.name
+            or testset_variant.description != simple_testset_edit.description
+            or testset_variant.tags != simple_testset_edit.tags
+            or testset_variant.meta != simple_testset_edit.meta
         )
 
         if has_changes:
             testset_variant_edit = TestsetVariant(
                 id=testset_variant.id,
                 #
-                name=simple_testset_edit_request.testset.name,
-                description=simple_testset_edit_request.testset.description,
+                name=simple_testset_edit.name,
+                description=simple_testset_edit.description,
                 #
                 # flags =
-                tags=simple_testset_edit_request.testset.tags,
-                meta=simple_testset_edit_request.testset.meta,
+                tags=simple_testset_edit.tags,
+                meta=simple_testset_edit.meta,
             )
 
             testset_variant: Optional[TestsetVariant] = (  # type: ignore
@@ -1320,16 +1415,14 @@ class SimpleTestsetsService:
         ]
 
         new_testcase_ids = [
-            testcase.data
-            for testcase in simple_testset_edit_request.testset.data.testcases
+            testcase.data for testcase in simple_testset_edit.data.testcases
         ]
 
         has_changes = (
-            testset_revision.name != simple_testset_edit_request.testset.name
-            or testset_revision.description
-            != simple_testset_edit_request.testset.description
-            or testset_revision.tags != simple_testset_edit_request.testset.tags
-            or testset_revision.meta != simple_testset_edit_request.testset.meta
+            testset_revision.name != simple_testset_edit.name
+            or testset_revision.description != simple_testset_edit.description
+            or testset_revision.tags != simple_testset_edit.tags
+            or testset_revision.meta != simple_testset_edit.meta
             or old_testcase_ids != new_testcase_ids
         )
 
@@ -1339,12 +1432,12 @@ class SimpleTestsetsService:
             testset_revision_commit = TestsetRevisionCommit(
                 slug=testset_revision_slug,
                 #
-                name=simple_testset_edit_request.testset.name,
-                description=simple_testset_edit_request.testset.description,
+                name=simple_testset_edit.name,
+                description=simple_testset_edit.description,
                 #
                 # flags =
-                tags=simple_testset_edit_request.testset.tags,
-                meta=simple_testset_edit_request.testset.meta,
+                tags=simple_testset_edit.tags,
+                meta=simple_testset_edit.meta,
                 #
                 data=testset_revision_data,
                 #
@@ -1388,94 +1481,3 @@ class SimpleTestsetsService:
         )
 
         return simple_testset
-
-    async def transfer(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        testset_id: UUID,
-    ):
-        old_testset = await fetch_testset_by_id(
-            project_id=str(project_id),
-            #
-            testset_id=str(testset_id),
-        )
-
-        if old_testset is None:
-            return None
-
-        testset_revision_data = self._transfer_simple_testset_revision_data(
-            old_testset=old_testset,
-        )
-
-        new_testset = await self.testsets_service.fetch_testset(
-            project_id=project_id,
-            #
-            testset_ref=Reference(id=testset_id),
-        )
-
-        if not new_testset:
-            name = str(old_testset.name)
-            slug = get_slug_from_name_and_id(
-                name=name,
-                id=testset_id,
-            )
-
-            simple_testset_create_request = SimpleTestsetCreateRequest(
-                testset=SimpleTestsetCreate(
-                    slug=slug,
-                    name=name,
-                    description=None,
-                    # flags=None,
-                    tags=None,
-                    meta=None,
-                    data=testset_revision_data,
-                )
-            )
-
-            testset = await self.create(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                simple_testset_create_request=simple_testset_create_request,
-                #
-                testset_id=testset_id,
-            )
-
-        else:
-            simple_testset_edit_request = SimpleTestsetEditRequest(
-                testset=SimpleTestsetEdit(
-                    id=testset_id,
-                    #
-                    name=new_testset.name,
-                    description=new_testset.description,
-                    #
-                    # flags=new_testset.flags,
-                    tags=new_testset.tags,
-                    meta=new_testset.meta,
-                    #
-                    data=testset_revision_data,
-                )
-            )
-
-            testset = await self.edit(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                simple_testset_edit_request=simple_testset_edit_request,
-            )
-
-        return testset
-
-    def _transfer_simple_testset_revision_data(
-        self,
-        *,
-        old_testset: TestsetDB,
-    ) -> TestsetRevisionData:
-        return TestsetRevisionData(
-            testcases=[
-                Testcase(data=testcase_data) for testcase_data in old_testset.csvdata
-            ],
-        )

@@ -22,6 +22,10 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
+from oss.src.services.legacy_adapter import (
+    configure_legacy_adapter,
+    configure_legacy_environments_adapter,
+)
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -52,7 +56,9 @@ from oss.src.dbs.postgres.environments.dbes import (
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -60,7 +66,9 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
+from oss.src.core.events.service import EventsService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
@@ -68,8 +76,8 @@ from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.queries.service import SimpleQueriesService
-from oss.src.core.applications.services import ApplicationsService
-from oss.src.core.applications.services import SimpleApplicationsService
+from oss.src.core.applications.service import ApplicationsService
+from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
@@ -78,12 +86,18 @@ from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.environments.service import SimpleEnvironmentsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.evaluations.service import SimpleQueuesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
 from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter
+from oss.src.apis.fastapi.events.router import EventsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
@@ -101,6 +115,7 @@ from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
@@ -129,12 +144,10 @@ from oss.src.routers import (
 
 from oss.src.utils.env import env
 from entrypoints.worker_evaluations import evaluations_worker
+from entrypoints.worker_webhooks import webhooks_worker
 import oss.src.core.evaluations.tasks.live  # noqa: F401
 import oss.src.core.evaluations.tasks.legacy  # noqa: F401
 import oss.src.core.evaluations.tasks.batch  # noqa: F401
-
-from redis.asyncio import Redis
-from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 import agenta as ag
 
@@ -216,8 +229,10 @@ if ee and is_ee():
 # DAOS -------------------------------------------------------------------------
 
 secrets_dao = SecretsDAO()
+webhooks_dao = WebhooksDAO()
 
 tracing_dao = TracingDAO()
+events_dao = EventsDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,
@@ -258,21 +273,22 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+
+webhooks_service = WebhooksService(
+    webhooks_dao=webhooks_dao,
+    vault_service=vault_service,
+    webhooks_worker=webhooks_worker,
+)
+
+
 tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
-# Redis client and TracingWorker for publishing spans to Redis Streams
-if env.redis.uri_durable:
-    redis_client = Redis.from_url(env.redis.uri_durable, decode_responses=False)
-    tracing_worker = TracingWorker(
-        service=tracing_service,
-        redis_client=redis_client,
-        stream_name="streams:tracing",
-        consumer_group="worker-tracing",
-    )
-else:
-    raise RuntimeError("REDIS_URI_DURABLE is required for tracing worker")
+events_service = EventsService(
+    events_dao=events_dao,
+)
+
 
 testcases_service = TestcasesService(
     testcases_dao=testcases_dao,
@@ -289,6 +305,7 @@ simple_testsets_service = SimpleTestsetsService(
 
 queries_service = QueriesService(
     queries_dao=queries_dao,
+    tracing_service=tracing_service,
 )
 
 simple_queries_service = SimpleQueriesService(
@@ -303,6 +320,10 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
 )
 
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
 applications_service = ApplicationsService(
     workflows_service=workflows_service,
 )
@@ -315,16 +336,36 @@ evaluators_service = EvaluatorsService(
     workflows_service=workflows_service,
 )
 
+embeds_service = EmbedsService(
+    workflows_service=workflows_service,
+    environments_service=environments_service,
+    applications_service=applications_service,
+    evaluators_service=evaluators_service,
+)
+
+# Inject embeds_service into all services that need it
+workflows_service.embeds_service = embeds_service
+environments_service.embeds_service = embeds_service
+applications_service.embeds_service = embeds_service
+evaluators_service.embeds_service = embeds_service
+
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
-environments_service = EnvironmentsService(
-    environments_dao=environments_dao,
-)
-
 simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
+)
+
+# Ensure legacy adapters reuse the same pre-wired services (including embeds_service).
+configure_legacy_adapter(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+)
+configure_legacy_environments_adapter(
+    environments_service=environments_service,
+    simple_environments_service=simple_environments_service,
+    applications_service=applications_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -343,6 +384,12 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluators_service=evaluators_service,
     evaluations_service=evaluations_service,
     evaluations_worker=evaluations_worker,
+)
+
+simple_queues_service = SimpleQueuesService(
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    simple_evaluations_service=simple_evaluations_service,
 )
 
 # Tools adapter + service
@@ -370,13 +417,28 @@ secrets = VaultRouter(
     vault_service=vault_service,
 )
 
-otlp = OTLPRouter(
-    tracing_worker=tracing_worker,
+webhooks = WebhooksRouter(
+    webhooks_service=webhooks_service,
 )
+
+otlp = OTLPRouter()
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
-    tracing_worker=tracing_worker,
+)
+
+traces = TracesRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+spans = SpansRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+events = EventsRouter(
+    events_service=events_service,
 )
 
 testcases = TestcasesRouter(
@@ -441,18 +503,22 @@ simple_evaluations = SimpleEvaluationsRouter(
     simple_evaluations_service=simple_evaluations_service,
 )
 
+simple_queues = SimpleQueuesRouter(
+    simple_queues_service=simple_queues_service,
+)
+
 tools = ToolsRouter(
     tools_service=tools_service,
 )
 
 invocations_service = InvocationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     applications_service=applications_service,
     simple_applications_service=simple_applications_service,
 )
 
 annotations_service = AnnotationsService(
-    tracing_router=tracing,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
@@ -475,9 +541,15 @@ ai_services = AIServicesRouter(
 # MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
 
 app.include_router(
-    secrets.router,
+    router=secrets.router,
     prefix="/vault/v1",
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
 )
 
 app.include_router(
@@ -505,6 +577,24 @@ app.include_router(
     router=tracing.router,
     prefix="/tracing",
     tags=["Observability"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/preview/traces",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/preview/spans",
+    tags=["Observability"],
+)
+
+app.include_router(
+    router=events.router,
+    prefix="/events",
+    tags=["Events"],
 )
 
 app.include_router(
@@ -723,6 +813,12 @@ app.include_router(
     prefix="/preview/simple/evaluations",
     tags=["Evaluations"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
+    tags=["Evaluations"],
 )
 
 app.include_router(

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.applications.services import (
+from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )
@@ -29,6 +29,7 @@ from oss.src.core.applications.dtos import (
     #
     ApplicationRevision,
     ApplicationRevisionCommit,
+    ApplicationRevisionData,
     ApplicationRevisionsLog,
 )
 
@@ -337,8 +338,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Create a new variant (fork from default) in legacy format."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -405,8 +404,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantRevision]:
         """Update variant parameters (create new revision)."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -536,8 +533,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Create a new variant from a URL in legacy format."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Build compound slug: {app_slug}.{variant_name}
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -713,8 +708,53 @@ class LegacyApplicationsAdapter:
         *,
         project_id: UUID,
         revision_id: UUID,
+        user_id: Optional[UUID] = None,
+        resolve: bool = False,
     ) -> Optional[ApplicationRevision]:
         """Fetch a revision by ID."""
+        if resolve and user_id:
+            # =========================================================================
+            # TEMPORARY SAFETY NET (REMOVE AFTER EMBEDS PATH MIGRATION IS STABLE)
+            # -------------------------------------------------------------------------
+            # We resolve with KEEP policy for legacy variants/revisions/query callers:
+            # - KEEP avoids hard-failing when a selector/path is missing in some legacy
+            #   revision payload shapes.
+            # - On any remaining resolver exception, we fall back to unresolved fetch
+            #   so FE still receives revision data instead of count=0.
+            # TODO(embeds): remove fallback and switch back to strict exception policy
+            # once all legacy selector paths are normalized.
+            # =========================================================================
+            try:
+                resolved = await self.applications_service.resolve_application_revision(
+                    project_id=project_id,
+                    user_id=user_id,
+                    application_revision_ref=Reference(id=revision_id),
+                    error_policy="keep",
+                )
+                if not resolved:
+                    return None
+                revision, resolution_info = resolved
+
+                if resolution_info and resolution_info.errors:
+                    log.warning(
+                        "[legacy_adapter.fetch_revision_by_id] resolved with keep policy project_id=%s revision_id=%s errors=%s",
+                        project_id,
+                        revision_id,
+                        resolution_info.errors,
+                    )
+
+                return revision
+            except Exception as e:
+                log.warning(
+                    "[legacy_adapter.fetch_revision_by_id] resolve failed, returning unresolved revision project_id=%s revision_id=%s error=%s",
+                    project_id,
+                    revision_id,
+                    e,
+                )
+                return await self.applications_service.fetch_application_revision(
+                    project_id=project_id,
+                    application_revision_ref=Reference(id=revision_id),
+                )
         return await self.applications_service.fetch_application_revision(
             project_id=project_id,
             application_revision_ref=Reference(id=revision_id),
@@ -790,8 +830,6 @@ class LegacyApplicationsAdapter:
         The variant_slug should already be the compound slug
         ('{app_slug}.{variant_name}') when coming from legacy callers.
         """
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # Fetch the application to get its flags
         application = await self.applications_service.fetch_application(
             project_id=project_id,
@@ -861,8 +899,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[ApplicationRevision]:
         """Commit a new revision to a variant with updated parameters."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -944,8 +980,6 @@ class LegacyApplicationsAdapter:
         commit_message: Optional[str] = None,
     ) -> Optional[AppVariantResponse]:
         """Update the URL for a variant (creates a new revision)."""
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         variant = await self.applications_service.fetch_application_variant(
             project_id=project_id,
             application_variant_ref=Reference(id=variant_id),
@@ -1029,8 +1063,6 @@ class LegacyApplicationsAdapter:
         In the new system, base_id is actually a variant_id, so we fetch the variant
         to get the app_id and URL from its latest revision.
         """
-        from oss.src.core.applications.dtos import ApplicationRevisionData
-
         # In the new system, base_id is actually a variant_id
         # Fetch the source variant to get app info
         source_variant = await self.applications_service.fetch_application_variant(
@@ -1367,6 +1399,22 @@ class LegacyApplicationsAdapter:
 # -----------------------------------------------------------------------------
 
 _legacy_adapter: Optional[LegacyApplicationsAdapter] = None
+
+
+def configure_legacy_adapter(
+    *,
+    applications_service: ApplicationsService,
+    simple_applications_service: SimpleApplicationsService,
+) -> LegacyApplicationsAdapter:
+    """
+    Configure legacy applications adapter singleton with pre-wired services.
+    """
+    global _legacy_adapter
+    _legacy_adapter = LegacyApplicationsAdapter(
+        applications_service=applications_service,
+        simple_applications_service=simple_applications_service,
+    )
+    return _legacy_adapter
 
 
 def get_legacy_adapter() -> LegacyApplicationsAdapter:
@@ -2085,6 +2133,24 @@ class LegacyEnvironmentsAdapter:
 # -----------------------------------------------------------------------------
 
 _legacy_env_adapter: Optional[LegacyEnvironmentsAdapter] = None
+
+
+def configure_legacy_environments_adapter(
+    *,
+    environments_service: Any,
+    simple_environments_service: Any,
+    applications_service: ApplicationsService,
+) -> LegacyEnvironmentsAdapter:
+    """
+    Configure legacy environments adapter singleton with pre-wired services.
+    """
+    global _legacy_env_adapter
+    _legacy_env_adapter = LegacyEnvironmentsAdapter(
+        environments_service=environments_service,
+        simple_environments_service=simple_environments_service,
+        applications_service=applications_service,
+    )
+    return _legacy_env_adapter
 
 
 def get_legacy_environments_adapter() -> LegacyEnvironmentsAdapter:

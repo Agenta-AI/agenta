@@ -16,18 +16,13 @@ from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
-from oss.src.core.tracing.utils import calculate_and_propagate_metrics
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 
-# TYPE_CHECKING to avoid circular import at runtime
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from oss.src.tasks.asyncio.tracing.worker import TracingWorker
+from oss.src.core.tracing.streaming import publish_spans
 
 
 MAX_OTLP_BATCH_SIZE = env.otlp.max_batch_bytes
@@ -38,12 +33,7 @@ log = get_module_logger(__name__)
 
 
 class OTLPRouter:
-    def __init__(
-        self,
-        tracing_worker: "TracingWorker",
-    ):
-        self.worker = tracing_worker
-
+    def __init__(self):
         self.sdk_router = APIRouter()
         self.router = APIRouter()
 
@@ -216,26 +206,12 @@ class OTLPRouter:
                 )
 
         # -------------------------------------------------------------------- #
-        # Calculate and propagate costs/tokens BEFORE batching
-        # This ensures complete trace trees for proper metric propagation
-        # -------------------------------------------------------------------- #
-        if spans:
-            try:
-                spans = calculate_and_propagate_metrics(spans)
-            except Exception as e:
-                log.error(
-                    f"[OTLP] Failed to calculate metrics: {e}",
-                    exc_info=True,
-                )
-                # Continue without metrics rather than failing the entire request
-
-        # -------------------------------------------------------------------- #
         # Write spans to Redis Streams for async processing
         # Layer 2 Hard Check and database storage deferred to worker
         # -------------------------------------------------------------------- #
         if spans:
             try:
-                await self.worker.publish_to_stream(
+                await publish_spans(
                     organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),

@@ -17,8 +17,11 @@ This directory contains a CLI-first bootstrap path to deploy Agenta OSS on Railw
 - `web/` - web wrapper image and runtime config
 - `api/` - api wrapper image with explicit gunicorn command
 - `services/` - services wrapper image with explicit gunicorn command
+- `redis/` - redis wrapper to ensure volume permissions are writable
 - `worker-evaluations/` - Taskiq worker image for evaluations
 - `worker-tracing/` - tracing ingestion worker image
+- `worker-webhooks/` - webhook delivery worker image
+- `worker-events/` - event stream worker image
 - `cron/` - cron service image
 - `alembic/` - migration runner image
 - `scripts/bootstrap.sh` - create project, environment, and services
@@ -198,6 +201,12 @@ First deploys on Railway take longer because Docker layer caches are cold. Deplo
 
 For GitHub preview builds, CI now uses shared BuildKit registry cache tags (`buildcache-shared`) plus PR-scoped tags (`buildcache-pr-<number>`). It also builds API, web, and services images in parallel matrix jobs. This keeps repeated PR builds fast and also improves first builds on new PRs by reusing layers from previous runs. Manual workflow dispatches without a PR number use `manual-<sha>` image tags and skip deploy.
 
+### SDK source in preview builds
+
+API and services Dockerfiles can install a local SDK from `./sdk` inside each image build context. In Railway preview CI, the workflow copies repo-root `sdk/` into `api/sdk` and `services/sdk` before building images. This guarantees preview images use the branch SDK instead of falling back to the pip package when SDK changes.
+
+The `hosting/docker-compose/*gh*.yml` files are not part of the Railway preview CI path. If you build locally with those compose files and need to force branch SDK usage, either use `hosting/railway/oss/scripts/build-and-push-images.sh` or copy `sdk/` into `api/sdk` and `services/sdk` before running `docker compose build`.
+
 ### Smoke check options
 
 The smoke script supports these environment variables:
@@ -259,7 +268,14 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
 - CI is wired for Railway preview environments via `.github/workflows/06-railway-preview-build.yml`, `.github/workflows/07-railway-preview-deploy.yml`, and `.github/workflows/08-railway-preview-cleanup.yml`.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
+- `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis
+  service (when present) so Railway does not force a non-root runtime UID.
+- Redis deployments use a wrapper entrypoint to prepare `/data` before handing
+  off to the official Redis entrypoint, preventing `MISCONF` from RDB write
+  permission failures.
 - Alembic now creates `agenta_oss_core`, `agenta_oss_tracing`, and `agenta_oss_supertokens` automatically before running migrations.
 - OTLP traces require `worker-tracing` to be deployed and healthy.
 - Evaluation jobs require `worker-evaluations` to be deployed and healthy.
+- Webhook deliveries require `worker-webhooks` to be deployed and healthy.
+- Event processing requires `worker-events` to be deployed and healthy.
 - The scripts intentionally do not persist secrets in git-tracked files.

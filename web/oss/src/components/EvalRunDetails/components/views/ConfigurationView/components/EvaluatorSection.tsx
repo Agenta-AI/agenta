@@ -21,8 +21,9 @@ import {stringifyError} from "../utils"
 import {SectionCard, SectionLabel} from "./SectionPrimitives"
 
 const {Text} = Typography
-const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
-
+const JsonEditor = dynamic(() => import("@agenta/ui/editor").then((module) => module.Editor), {
+    ssr: false,
+})
 interface EvaluatorSectionProps {
     runId: string
 }

@@ -147,6 +147,88 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    worker-webhooks:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_webhooks",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_webhooks' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
+    worker-events:
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "-m",
+                "entrypoints.worker_events",
+            ]
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        # === ORCHESTRATION ======================================== #
+        depends_on:
+            postgres:
+                condition: service_healthy
+            alembic:
+                condition: service_completed_successfully
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
+                condition: service_healthy
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "python", "-c", "import pathlib,sys; cmd=pathlib.Path('/proc/1/cmdline').read_bytes().decode('utf-8','ignore'); sys.exit(0 if 'entrypoints.worker_events' in cmd else 1)"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+
     cron:
         # === IMAGE ================================================ #
         build:

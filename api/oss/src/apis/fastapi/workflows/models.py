@@ -26,6 +26,10 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
 )
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
+)
 
 
 # WORKFLOWS --------------------------------------------------------------------
@@ -126,6 +130,8 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     workflow_ref: Optional[Reference] = None
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
+    #
+    resolve: bool = False  # Optionally resolve embeds on retrieve
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
@@ -135,8 +141,30 @@ class WorkflowRevisionsLogRequest(BaseModel):
 class WorkflowRevisionResponse(BaseModel):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None  # Included when resolve=True
 
 
 class WorkflowRevisionsResponse(BaseModel):
     count: int = 0
     workflow_revisions: List[WorkflowRevision] = []
+
+
+# WORKFLOW REVISION RESOLUTION -------------------------------------------------
+
+
+class WorkflowRevisionResolveRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
+    #
+    workflow_revision: Optional[WorkflowRevision] = None
+    #
+    max_depth: Optional[int] = 10
+    max_embeds: Optional[int] = 100
+    error_policy: Optional[ErrorPolicy] = ErrorPolicy.EXCEPTION
+
+
+class WorkflowRevisionResolveResponse(BaseModel):
+    count: int = 0
+    workflow_revision: Optional[WorkflowRevision] = None
+    resolution_info: Optional[ResolutionInfo] = None

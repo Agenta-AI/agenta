@@ -558,6 +558,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "endoze",
+      "name": "Endoze",
+      "avatar_url": "https://avatars.githubusercontent.com/u/997161?v=4",
+      "profile": "https://endoze.github.io",
+      "contributions": [
+        "infra",
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

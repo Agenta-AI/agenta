@@ -433,6 +433,58 @@ export function extractVariablesFromAgConfig(
     return extractVariablesFromPrompts([{messages}])
 }
 
+/**
+ * Extract template variables from enhanced prompts (draft format).
+ *
+ * Enhanced prompts use a wrapped value structure:
+ *   [{ messages: { value: [{ content: { value: "string" | ContentPart[] } }] } }]
+ *
+ * This is different from the raw agConfig format where content is a plain string.
+ * Used to derive input ports from locally-edited prompts that haven't been saved yet.
+ *
+ * @param enhancedPrompts - Array of enhanced prompt objects
+ * @returns Array of unique variable names
+ */
+export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]): string[] {
+    if (!enhancedPrompts || enhancedPrompts.length === 0) return []
+
+    const variables: string[] = []
+
+    for (const prompt of enhancedPrompts) {
+        const promptObj = prompt as Record<string, unknown> | null | undefined
+        const messagesWrapper = promptObj?.messages as Record<string, unknown> | undefined
+        const messages = messagesWrapper?.value
+        if (!Array.isArray(messages)) continue
+
+        for (const message of messages) {
+            const msgObj = message as Record<string, unknown> | null | undefined
+            const contentWrapper = msgObj?.content as Record<string, unknown> | undefined
+            const content = contentWrapper?.value
+            if (typeof content === "string") {
+                for (const v of extractTemplateVariables(content)) {
+                    if (!variables.includes(v)) variables.push(v)
+                }
+            } else if (Array.isArray(content)) {
+                for (const part of content) {
+                    const partObj = part as Record<string, unknown> | null | undefined
+                    const text =
+                        typeof part === "string"
+                            ? part
+                            : ((partObj?.text as Record<string, unknown> | undefined)?.value ??
+                              partObj?.text)
+                    if (typeof text === "string") {
+                        for (const v of extractTemplateVariables(text)) {
+                            if (!variables.includes(v)) variables.push(v)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return variables
+}
+
 // ============================================================================
 // EXECUTION
 // ============================================================================
