@@ -1038,23 +1038,6 @@ class EvaluatorsRouter:
             windowing=evaluator_revision_query_request.windowing,
         )
 
-        # Optionally resolve embeds for all revisions if requested
-        if evaluator_revisions and evaluator_revision_query_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
-
-            for revision in evaluator_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EvaluatorRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
-
         return EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,

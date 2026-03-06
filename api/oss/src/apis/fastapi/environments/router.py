@@ -1047,23 +1047,6 @@ class EnvironmentsRouter:
             windowing=environment_revision_query_request.windowing,
         )
 
-        # Optionally resolve embeds for all revisions if requested
-        if environment_revisions and environment_revision_query_request.resolve:
-            embeds_service = self.environments_service.embeds_service
-
-            for revision in environment_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = EnvironmentRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
-
         return EnvironmentRevisionsResponse(
             count=len(environment_revisions),
             environment_revisions=environment_revisions,

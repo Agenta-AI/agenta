@@ -1079,23 +1079,6 @@ class ApplicationsRouter:
             windowing=application_revision_query_request.windowing,
         )
 
-        # Optionally resolve embeds for all revisions if requested
-        if application_revisions and application_revision_query_request.resolve:
-            embeds_service = self.applications_service.embeds_service
-
-            for revision in application_revisions:
-                if revision and revision.data:
-                    try:
-                        resolved_config, _ = await embeds_service.resolve_configuration(
-                            project_id=UUID(request.state.project_id),
-                            configuration=revision.data.model_dump(),
-                        )
-                        revision.data = ApplicationRevisionData(**resolved_config)
-                    except Exception as e:
-                        log.error(
-                            f"Failed to resolve embeds for revision {revision.id}: {e}"
-                        )
-
         return ApplicationRevisionsResponse(
             count=len(application_revisions),
             application_revisions=application_revisions,

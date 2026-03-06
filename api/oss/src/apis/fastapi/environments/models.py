@@ -119,7 +119,6 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
 
 
 class EnvironmentRevisionCommitRequest(BaseModel):
