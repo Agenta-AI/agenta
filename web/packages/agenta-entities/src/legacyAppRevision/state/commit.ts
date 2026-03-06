@@ -52,6 +52,7 @@
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 
@@ -292,7 +293,8 @@ export const commitRevisionAtom = atom(
 
             // 1. Call legacy API
             // The API expects parameters in ag_config format
-            const apiParams = parameters.ag_config ?? parameters
+            // Strip frontend-only metadata (e.g. agenta_metadata on tools) before sending
+            const apiParams = stripAgentaMetadataDeep(parameters.ag_config ?? parameters)
 
             await axios.put(
                 `${getAgentaApiUrl()}/variants/${variantId}/parameters`,
