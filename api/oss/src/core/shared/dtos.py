@@ -34,6 +34,8 @@ from agenta.sdk.models.shared import (  # noqa: F401
     Version,
     Reference,
     #
+    Selector,  # Base selector for data extraction
+    #
     AliasConfig,
     sync_alias,
     #

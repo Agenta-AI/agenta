@@ -13,6 +13,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorQueryFlags,
+    EvaluatorRevisionData,
     #
     EvaluatorQuery,
     #
@@ -50,6 +51,8 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorRevisionRetrieveRequest,
     EvaluatorRevisionResponse,
     EvaluatorRevisionsResponse,
+    EvaluatorRevisionResolveRequest,
+    EvaluatorRevisionResolveResponse,
     #
     SimpleEvaluatorCreateRequest,
     SimpleEvaluatorEditRequest,
@@ -319,6 +322,16 @@ class EvaluatorsRouter:
             operation_id="log_evaluator_revisions",
             status_code=status.HTTP_200_OK,
             response_model=EvaluatorRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/resolve",
+            self.resolve_evaluator_revision,
+            methods=["POST"],
+            operation_id="resolve_evaluator_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorRevisionResolveResponse,
             response_model_exclude_none=True,
         )
 
@@ -825,9 +838,27 @@ class EvaluatorsRouter:
                 value=evaluator_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if evaluator_revision and evaluator_revision_retrieve_request.resolve:
+            embeds_service = self.evaluators_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=evaluator_revision.data.model_dump()
+                if evaluator_revision.data
+                else {},
+            )
+
+            if evaluator_revision.data:
+                evaluator_revision.data = EvaluatorRevisionData(**resolved_config)
+
         evaluator_revision_response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
             evaluator_revision=evaluator_revision,
+            resolution_info=resolution_info,
         )
 
         return evaluator_revision_response
@@ -1004,6 +1035,23 @@ class EvaluatorsRouter:
             windowing=evaluator_revision_query_request.windowing,
         )
 
+        # Optionally resolve embeds for all revisions if requested
+        if evaluator_revisions and evaluator_revision_query_request.resolve:
+            embeds_service = self.evaluators_service.embeds_service
+
+            for revision in evaluator_revisions:
+                if revision and revision.data:
+                    try:
+                        resolved_config, _ = await embeds_service.resolve_configuration(
+                            project_id=UUID(request.state.project_id),
+                            configuration=revision.data.model_dump(),
+                        )
+                        revision.data = EvaluatorRevisionData(**resolved_config)
+                    except Exception as e:
+                        log.error(
+                            f"Failed to resolve embeds for revision {revision.id}: {e}"
+                        )
+
         return EvaluatorRevisionsResponse(
             count=len(evaluator_revisions),
             evaluator_revisions=evaluator_revisions,
@@ -1063,6 +1111,47 @@ class EvaluatorsRouter:
         )
 
         return revisions_response
+
+    @intercept_exceptions()
+    async def resolve_evaluator_revision(
+        self,
+        request: Request,
+        *,
+        evaluator_revision_resolve_request: EvaluatorRevisionResolveRequest,
+    ) -> EvaluatorRevisionResolveResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result = await self.evaluators_service.resolve_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
+            evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_resolve_request.evaluator_revision_ref,
+            #
+            max_depth=evaluator_revision_resolve_request.max_depth or 10,
+            max_embeds=evaluator_revision_resolve_request.max_embeds or 100,
+            error_policy=evaluator_revision_resolve_request.error_policy.value
+            if evaluator_revision_resolve_request.error_policy
+            else "exception",
+        )
+
+        if not result:
+            return EvaluatorRevisionResolveResponse()
+
+        evaluator_revision, resolution_info = result
+
+        return EvaluatorRevisionResolveResponse(
+            count=1,
+            evaluator_revision=evaluator_revision,
+            resolution_info=resolution_info,
+        )
 
 
 class SimpleEvaluatorsRouter:

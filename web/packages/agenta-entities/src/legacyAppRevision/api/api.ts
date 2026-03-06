@@ -4,7 +4,7 @@
  * HTTP functions and data transformers for OSS app revision entity.
  * Uses the legacy backend API endpoints:
  * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
+ * - POST /variants/revisions/query
  *
  * @packageDocumentation
  */
@@ -226,7 +226,7 @@ export async function fetchOssRevision(
 /**
  * Fetch a single revision by its ID
  *
- * Uses: POST /variants/revisions/query/
+ * Uses: POST /variants/revisions/query
  * Also fetches variant detail to get URI for schema fetching.
  *
  * @param revisionId - The revision ID (UUID)
@@ -241,7 +241,7 @@ export async function fetchOssRevisionById(
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: [revisionId],
             } as RevisionsQueryRequest,
@@ -287,7 +287,7 @@ export async function fetchOssRevisionById(
 /**
  * Batch fetch multiple revisions by their IDs
  *
- * Uses: POST /variants/revisions/query/
+ * Uses: POST /variants/revisions/query
  *
  * @param revisionIds - Array of revision IDs (UUIDs)
  * @param projectId - The project ID
@@ -301,7 +301,7 @@ export async function fetchOssRevisionsBatch(
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: revisionIds,
             } as RevisionsQueryRequest,
