@@ -49,6 +49,7 @@ from ee.src.core.organizations.types import (
     OrganizationDomainCreate,
     OrganizationProviderCreate,
     OrganizationProviderUpdate,
+    OrganizationUpdate as OrganizationUpdateDTO,
 )
 from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
 
@@ -195,7 +196,16 @@ async def update_organization(
             if not check:
                 return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
-        organization = await update_an_organization(organization_id, payload)
+        organization = await update_an_organization(
+            organization_id,
+            OrganizationUpdateDTO(
+                slug=payload.slug,
+                name=payload.name,
+                description=payload.description,
+                flags=payload.flags,
+                updated_at=payload.updated_at,
+            ),
+        )
 
         return organization
 
@@ -562,7 +572,10 @@ async def create_organization_domain(
         domain_service = OrganizationDomainsService()
         created_domain = await domain_service.create_domain(
             organization_id=organization_id,
-            payload=OrganizationDomainCreate(domain=domain),
+            payload=OrganizationDomainCreate(
+                slug=domain,
+                organization_id=UUID(organization_id),
+            ),
             user_id=str(request.state.user_id),
         )
 

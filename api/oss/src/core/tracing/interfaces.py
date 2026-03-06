@@ -70,7 +70,8 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        trace_ids: List[UUID],
+        trace_ids: Optional[List[UUID]] = None,
+        span_ids: Optional[List[UUID]] = None,
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
