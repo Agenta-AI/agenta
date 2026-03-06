@@ -1,6 +1,5 @@
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState, createElement} from "react"
 
-import {GithubOutlined, LinkOutlined} from "@ant-design/icons"
 import {Button, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -22,17 +21,13 @@ import {
     selectedProviderAtom,
 } from "@/oss/state/automations/state"
 
-import {EVENT_OPTIONS} from "./constants"
-import {GitHubFields, WebhookFields} from "./providers"
+import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
+import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./constants"
 import SecretRevealModal from "./SecretRevealModal"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"
 
-interface Props {
-    onSuccess: () => void
-}
-
-const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
+const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
     const [open, setOpen] = useAtom(isAutomationDrawerOpenAtom)
     const [initialValues, setEditingWebhook] = useAtom(editingAutomationAtom)
@@ -87,7 +82,7 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
                     if (workflowMatch) github_workflow = workflowMatch[1]
 
                     if (initialValues.data.payload_fields?.ref) {
-                        github_branch = initialValues.data.payload_fields.ref
+                        github_branch = initialValues.data.payload_fields.ref as string
                     }
                 }
             }
@@ -190,27 +185,22 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
     ])
 
     const providerOptions = useMemo(
-        () => [
-            {
+        () =>
+            AUTOMATION_SCHEMA.map((provider) => ({
                 label: (
                     <div className="flex items-center gap-2">
-                        <LinkOutlined />
-                        <span>Webhook</span>
+                        {createElement(provider.icon)}
+                        <span>{provider.label}</span>
                     </div>
                 ),
-                value: "webhook",
-            },
-            {
-                label: (
-                    <div className="flex items-center gap-2">
-                        <GithubOutlined />
-                        <span>GitHub</span>
-                    </div>
-                ),
-                value: "github",
-            },
-        ],
+                value: provider.provider,
+            })),
         [],
+    )
+
+    const selectedProviderConfig = useMemo(
+        () => AUTOMATION_SCHEMA.find((s) => s.provider === selectedProvider),
+        [selectedProvider],
     )
 
     return (
@@ -298,18 +288,18 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
                             />
                         </Form.Item>
 
-                        <div className="mt-4 mb-2">
-                            <Typography.Text type="secondary" className="font-medium">
-                                {selectedProvider === "github"
-                                    ? "GitHub configuration"
-                                    : "Webhook configuration"}
-                            </Typography.Text>
-                        </div>
-
-                        {selectedProvider === "github" ? (
-                            <GitHubFields isEditMode={isEdit} />
-                        ) : (
-                            <WebhookFields isEditMode={isEdit} />
+                        {selectedProviderConfig && (
+                            <>
+                                <div className="mt-4 mb-2">
+                                    <Typography.Text type="secondary" className="font-medium">
+                                        {selectedProviderConfig.subtitle}
+                                    </Typography.Text>
+                                </div>
+                                <AutomationFieldRenderer
+                                    fields={selectedProviderConfig.fields}
+                                    isEditMode={isEdit}
+                                />
+                            </>
                         )}
                     </div>
                 </Form>
