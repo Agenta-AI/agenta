@@ -64,6 +64,9 @@
 - name: platform/vps
   description: VPS-style deployment target
   color: 1d76db
+- name: platform/k3s
+  description: K3s platform target
+  color: 1d76db
 - name: platform/eks
   description: Amazon EKS platform target
   color: 1d76db
