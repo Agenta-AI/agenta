@@ -170,16 +170,21 @@ function normalizeFunctionParametersSchema(inputs: unknown): Record<string, unkn
     return schema
 }
 
-function buildInlineFunctionTool(existingToolCount: number): ToolObj {
+function buildInlineFunctionTool(_existingToolCount: number): ToolObj {
     return {
         type: "function",
         function: {
-            name: `tool_${existingToolCount + 1}`,
-            description: "",
+            name: "get_weather",
+            description: "Get current weather",
             parameters: {
                 type: "object",
-                properties: {},
-                required: [],
+                properties: {
+                    location: {
+                        type: "string",
+                        description: "City name",
+                    },
+                },
+                required: ["location"],
                 additionalProperties: false,
             },
         },
