@@ -42,9 +42,12 @@ const Organization = dynamic(() => import("@/oss/components/pages/settings/Organ
     ssr: false,
 })
 
-const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/Webhooks"), {
-    ssr: false,
-})
+const Automations = dynamic(
+    () => import("@/oss/components/pages/settings/Automations/Automations"),
+    {
+        ssr: false,
+    },
+)
 
 const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
@@ -107,8 +110,8 @@ const Settings: React.FC = () => {
                             return "Tools"
                         case "apiKeys":
                             return "API Keys"
-                        case "webhooks":
-                            return "Webhooks"
+                        case "automations":
+                            return "Automations"
                         case "billing":
                             return "Usage & Billing"
                         default:
@@ -155,8 +158,8 @@ const Settings: React.FC = () => {
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
                 return {content: <Billing />, title: "Usage & Billing"}
-            case "webhooks":
-                return {content: <Webhooks />, title: "Webhooks"}
+            case "automations":
+                return {content: <Automations />, title: "Automations"}
             case "projects":
                 return {content: <ProjectsSettings />, title: "Projects"}
             default:

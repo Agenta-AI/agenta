@@ -10,7 +10,28 @@ export type WebhookEventType = "environments.revisions.committed" | "webhooks.su
 export interface WebhookSubscriptionData {
     url: string
     headers?: Record<string, string>
+    payload_fields?: Record<string, unknown>
+    auth_mode?: "signature" | "authorization"
     event_types?: WebhookEventType[]
+}
+
+export type AutomationProvider = "webhook" | "github"
+
+export type GitHubDispatchType = "repository_dispatch" | "workflow_dispatch"
+
+export interface AutomationFormValues {
+    provider: AutomationProvider
+    name?: string
+    event_types?: WebhookEventType[]
+    url?: string
+    headers?: Record<string, string>
+    auth_mode?: "signature" | "authorization"
+    auth_value?: string
+    github_sub_type?: GitHubDispatchType
+    github_repo?: string
+    github_pat?: string
+    github_workflow?: string
+    github_branch?: string
 }
 
 export interface WebhookSubscriptionFlags {
@@ -39,10 +60,13 @@ export interface WebhookSubscriptionCreateRequest {
         name?: string
         description?: string
         flags?: Pick<WebhookSubscriptionFlags, "is_valid">
+        secret?: string
         data: {
             url: string
             event_types?: WebhookEventType[]
             headers?: Record<string, string>
+            payload_fields?: Record<string, unknown>
+            auth_mode?: "signature" | "authorization"
         }
     }
 }
@@ -60,6 +84,8 @@ export interface WebhookSubscriptionEditRequest {
             url: string
             event_types?: WebhookEventType[]
             headers?: Record<string, string>
+            payload_fields?: Record<string, unknown>
+            auth_mode?: "signature" | "authorization"
         }
     }
 }

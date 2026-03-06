@@ -2,13 +2,13 @@ import {FC, useEffect, useMemo} from "react"
 
 import {
     ArrowLeft,
-    Sparkle,
-    Receipt,
-    Key,
     Buildings,
+    Key,
+    Link,
+    Receipt,
+    Sparkle,
     UsersThree,
     Wrench,
-    Link,
 } from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
@@ -62,8 +62,8 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
             {
-                key: "webhooks",
-                title: "Webhooks",
+                key: "automations",
+                title: "Automations",
                 icon: <Link size={16} className="mt-0.5" />,
                 divider: !canShowTools,
             },

@@ -5,9 +5,9 @@ import {Typography} from "antd"
 import {useAtom} from "jotai"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {createdWebhookSecretAtom} from "@/oss/state/webhooks/state"
+import {createdWebhookSecretAtom} from "@/oss/state/automations/state"
 
-const CreatedWebhookSecretModal: React.FC = () => {
+const SecretRevealModal: React.FC = () => {
     const [createdWebhookSecret, setCreatedWebhookSecret] = useAtom(createdWebhookSecretAtom)
 
     const handleCopySecret = useCallback(async () => {
@@ -46,4 +46,4 @@ const CreatedWebhookSecretModal: React.FC = () => {
     )
 }
 
-export default CreatedWebhookSecretModal
+export default SecretRevealModal
