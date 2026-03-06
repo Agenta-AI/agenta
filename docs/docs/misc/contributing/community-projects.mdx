@@ -1,38 +1,60 @@
 ---
-title: Community Projects Overview
-sidebar_label: Overview
-description: Overview of community projects for self-hosting Agenta, including the topic dimensions used to classify and support them.
-sidebar_position: 1
+title: "Community Projects"
+description: "How Agenta tracks deployment-focused community projects and how to contribute to them"
+sidebar_position: 2
 ---
 
-This is the beginning of the community projects section for self-hosting Agenta.
+If you want to help Agenta run well in more environments, community projects are the place to contribute.
 
-Community projects are first-class repository topics for self-hosting and deployment surfaces that are tracked explicitly.
+Community projects give deployment work a clear home. They help contributors understand:
 
-They exist to make three things clear:
-
-- what setup a guide or contribution is about
+- which setup or environment the work is about
 - who is expected to maintain it
 - what level of support users should expect
 
-This section will be populated as community projects develop. For now, this page defines the dimensions used across community projects and links each taxonomy value to the matching GitHub issues and discussions views.
+## Where Contributors Can Help Today
 
-## How To Read A Community Project
+The source of truth for the current matrix lives in `docs/community-topics.md` in the repository.
 
-Each community project is described with a small set of dimensions:
+Use the official OSS quick start as the reference deployment surface. Community projects extend Agenta to additional environments beyond that baseline.
+
+| Surface | Role | Support expectation | Start here |
+| --- | --- | --- | --- |
+| Local OSS with Docker Compose | Official baseline and reference point for new deployment work | `support/official` | [Quick Start](/self-host/quick-start) |
+| Railway OSS | Current community-managed deployment surface for Agenta OSS | `support/experimental` | [Deploy on Railway](/self-host/guides/deploy-on-railway) |
+
+## How To Contribute
+
+1. Pick a tracked deployment surface and read the matching guide before changing scripts or docs.
+2. Use the label families in the appendix to find the right GitHub issues and discussions for that setup.
+3. When you improve a tracked surface, update the docs, scripts, and ownership or support metadata together.
+4. If you want to propose a new deployment surface, open an issue or discussion first and describe the provider, platform, runtime, OLAP backend, maintenance owner, and support level.
+
+## When A Deployment Surface Becomes A Community Project
+
+Update these items in the same change:
+
+- `docs/community-topics.md`
+- `.github/.labels.yml`
+- `CODEOWNERS`
+- the relevant setup docs and README files
+
+## Appendix: Label Taxonomy
+
+Each tracked deployment surface is described with a small set of dimensions:
 
 | Dimension | Label family | Meaning |
 | --- | --- | --- |
 | Provider | `provider/*` | Who provides the infrastructure or hosting environment |
 | Platform | `platform/*` | The deployment target or environment shape |
 | Runtime | `runtime/*` | How Agenta is run or orchestrated |
-| OLAP | `olap/*` | The storage / analytics backend classification used by the setup |
+| OLAP | `olap/*` | The storage or analytics backend classification used by the setup |
 | Maintenance | `maintenance/*` | Who is expected to keep the setup working |
 | Support | `support/*` | The level of promise made to users |
 
-## Provider Labels
+Use `maintenance/*` to understand who is expected to fix and update a setup. Use `support/*` to understand whether a deployment surface is official or best-effort.
 
-The `provider/*` dimension describes where the infrastructure comes from.
+## Provider Labels
 
 | Label | Issues | Discussions |
 | --- | --- | --- |
@@ -45,8 +67,6 @@ The `provider/*` dimension describes where the infrastructure comes from.
 
 ## Platform Labels
 
-The `platform/*` dimension describes the shape of the deployment target.
-
 | Label | Issues | Discussions |
 | --- | --- | --- |
 | `platform/local` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22platform%2Flocal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22platform%2Flocal%22) |
@@ -58,16 +78,12 @@ The `platform/*` dimension describes the shape of the deployment target.
 
 ## Runtime Labels
 
-The `runtime/*` dimension describes how Agenta is started and orchestrated.
-
 | Label | Issues | Discussions |
 | --- | --- | --- |
 | `runtime/docker-compose` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22runtime%2Fdocker-compose%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22runtime%2Fdocker-compose%22) |
 | `runtime/kubernetes` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22runtime%2Fkubernetes%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22runtime%2Fkubernetes%22) |
 
 ## OLAP Labels
-
-The `olap/*` dimension classifies the storage / analytics backend used by the setup.
 
 | Label | Issues | Discussions |
 | --- | --- | --- |
@@ -78,46 +94,14 @@ The `olap/*` dimension classifies the storage / analytics backend used by the se
 
 ## Maintenance Labels
 
-The `maintenance/*` dimension answers who is expected to do the work.
-
 | Label | Issues | Discussions |
 | --- | --- | --- |
 | `maintenance/internal` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22maintenance%2Finternal%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22maintenance%2Finternal%22) |
 | `maintenance/community` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22maintenance%2Fcommunity%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22maintenance%2Fcommunity%22) |
 
-Use this to answer:
-
-- who is expected to fix issues
-- who is expected to keep the setup current
-- who is expected to drive follow-up work
-
 ## Support Labels
-
-The `support/*` dimension answers what level of promise the repository makes to users.
 
 | Label | Issues | Discussions |
 | --- | --- | --- |
 | `support/official` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22support%2Fofficial%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22support%2Fofficial%22) |
 | `support/experimental` | [Issues](https://github.com/Agenta-AI/agenta/issues?q=is%3Aissue+label%3A%22support%2Fexperimental%22) | [Discussions](https://github.com/Agenta-AI/agenta/discussions?discussions_q=label%3A%22support%2Fexperimental%22) |
-
-Use this to answer:
-
-- whether users should rely on the setup as a recommended path
-- whether the setup is best-effort or actively backed
-- whether the surface should be treated as stable or exploratory
-
-## Current Source Of Truth
-
-The repository-level matrix for current community projects lives in `docs/community-topics.md` in the repository.
-
-When a setup becomes a first-class community project, update:
-
-- the topic matrix
-- the GitHub labels
-- the relevant docs and ownership metadata
-
-## What Comes Next
-
-This page is intentionally acting as the initial directory for community projects.
-
-As community projects develop, this section can grow with project-specific pages, contribution guidance, and topic-specific documentation linked from the taxonomy above.
