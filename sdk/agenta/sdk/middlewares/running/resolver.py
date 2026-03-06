@@ -184,6 +184,9 @@ async def resolve_embeds(
         if credentials:
             headers["Authorization"] = credentials
 
+        # Call the API to resolve embeds in the parameters
+        # We use a stub for the workflow revision,
+        # with just 'parameters' to avoid unnecessary data fetching.
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{api_url}/preview/workflows/revisions/resolve",

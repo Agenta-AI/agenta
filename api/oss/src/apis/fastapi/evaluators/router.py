@@ -847,7 +847,10 @@ class EvaluatorsRouter:
                 resolution_info,
             ) = await embeds_service.resolve_configuration(
                 project_id=UUID(request.state.project_id),
-                configuration=evaluator_revision.data.model_dump()
+                configuration=evaluator_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 if evaluator_revision.data
                 else {},
             )

@@ -1123,7 +1123,10 @@ class WorkflowsRouter:
                 resolution_info,
             ) = await embeds_service.resolve_configuration(
                 project_id=UUID(request.state.project_id),
-                configuration=workflow_revision.data.model_dump()
+                configuration=workflow_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 if workflow_revision.data
                 else {},
             )

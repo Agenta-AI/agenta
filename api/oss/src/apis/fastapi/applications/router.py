@@ -865,7 +865,10 @@ class ApplicationsRouter:
                 resolution_info,
             ) = await embeds_service.resolve_configuration(
                 project_id=UUID(request.state.project_id),
-                configuration=application_revision.data.model_dump()
+                configuration=application_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 if application_revision.data
                 else {},
             )

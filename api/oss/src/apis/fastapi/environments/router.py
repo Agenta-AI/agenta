@@ -763,7 +763,10 @@ class EnvironmentsRouter:
                 resolution_info,
             ) = await embeds_service.resolve_configuration(
                 project_id=UUID(request.state.project_id),
-                configuration=environment_revision.data.model_dump()
+                configuration=environment_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
                 if environment_revision.data
                 else {},
             )
