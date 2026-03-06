@@ -176,6 +176,32 @@ See full documentation and usage in [`uiHelpers/README.md`](../tests/fixtures/ba
 
 ---
 
+## Test Provider Helpers
+
+Project scoped test provider setup is handled through the base fixture helper namespace.
+
+### Usage
+```typescript
+test("example", async ({testProviderHelpers}) => {
+  await testProviderHelpers.ensureTestProvider()
+  await testProviderHelpers.selectTestModel()
+})
+```
+
+### Available Helpers
+- `ensureTestProvider(options?: { recreate?: boolean })`
+- `selectTestModel()`
+- `getActiveProfile()`
+
+### Current behavior
+- The active provider mode comes from `AGENTA_TEST_PROVIDER`
+- The default mode is `mock`
+- The `mock` profile creates or reuses a custom provider named `mock`
+- The `mock` profile selects the `gpt-6` model in the Playground
+- Provider setup is lazy. Only tests that need model execution should call it
+
+---
+
 ## Authentication Strategy
 
 Authentication for all E2E tests is handled globally using Playwright's `globalSetup` and storage state features. The login flow is executed once before the test suite runs, and the authenticated session is saved to a state file. All tests automatically use this session, so you should:

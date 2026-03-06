@@ -13,6 +13,18 @@ import {
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import type {ApiHandlerOptions, ApiHelpers} from "./types"
 
+const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
+    completion: "Completion Prompt",
+    chat: "Chat Prompt",
+    custom: "Custom Prompt",
+}
+
+const latestRevisionIdByAppId = new Map<string, string>()
+
+export const getKnownLatestRevisionId = (appId: string): string | null => {
+    return latestRevisionIdByAppId.get(appId) ?? null
+}
+
 export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptions<T>) => {
     const {route, method = "POST", validateStatus = true, responseHandler} = options
 
@@ -46,6 +58,75 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
     return data
 }
 
+async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
+    const appName = `e2e-${type}-${Date.now()}`
+    const createAppResponse = page.waitForResponse((response) => {
+        if (!response.url().includes("/api/apps") || response.request().method() !== "POST") {
+            return false
+        }
+
+        const payload = response.request().postData() || ""
+        return payload.includes(appName)
+    })
+    const createVariantResponse = page.waitForResponse((response) => {
+        return (
+            response.url().includes("/variant/from-template") &&
+            response.request().method() === "POST"
+        )
+    })
+    const updateVariantParametersResponse = page.waitForResponse((response) => {
+        return response.url().includes("/api/variants/") && response.request().method() === "PUT"
+    })
+
+    const createButton = page.getByRole("button", {name: "Create New Prompt"}).first()
+    await expect(createButton).toBeVisible({timeout: 15000})
+    await createButton.click()
+
+    const dialog = page.getByRole("dialog").first()
+    await expect(dialog).toBeVisible({timeout: 15000})
+    await dialog.getByPlaceholder("Enter a name").fill(appName)
+
+    const appTypeLabel = APP_TYPE_LABELS[type]
+    if (!appTypeLabel) {
+        throw new Error(`App creation is not implemented for app type '${type}'.`)
+    }
+
+    await page.getByText(appTypeLabel, {exact: true}).first().click()
+    await dialog.getByRole("button", {name: "Create New Prompt"}).click()
+
+    const response = await createAppResponse
+    expect(response.ok()).toBe(true)
+
+    const createdApp = await response.json()
+    const createdAppId = createdApp.app_id
+
+    expect(createdAppId).toBeTruthy()
+
+    const createdVariantResponse = await createVariantResponse
+    expect(createdVariantResponse.ok()).toBe(true)
+
+    const createdVariant = await createdVariantResponse.json()
+    const createdVariantId =
+        createdVariant.variant_id ?? createdVariant.variantId ?? createdVariant.id ?? null
+
+    const parametersResponse = await updateVariantParametersResponse
+    expect(parametersResponse.ok()).toBe(true)
+
+    const updatedRevision = await parametersResponse.json()
+    const latestRevisionId = updatedRevision?.id ?? null
+
+    if (createdVariantId && latestRevisionId) {
+        latestRevisionIdByAppId.set(createdAppId, latestRevisionId)
+    }
+
+    return {
+        ...createdApp,
+        app_id: createdAppId,
+        app_name: createdApp.app_name ?? appName,
+        app_type: type,
+    } as ListAppsItem
+}
+
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const appsResponse = waitForApiResponse<ListAppsItem[]>(page, {
         route: "/api/apps",
@@ -58,15 +139,14 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const apps = await appsResponse
 
     expect(Array.isArray(apps)).toBe(true)
-    expect(apps.length).toBeGreaterThan(0)
 
     let targetApp
-    if (type) {
+    if (!apps.length) {
+        targetApp = await createApp(page, type)
+    } else if (type) {
         const app = apps.find((app) => app.app_type === type)
         if (!app) {
-            targetApp = apps[0] // Fallback to first app if requested type not found
-        } else if (Array.isArray(app)) {
-            targetApp = app[0]
+            targetApp = await createApp(page, type)
         } else {
             targetApp = app
         }

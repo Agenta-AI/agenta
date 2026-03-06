@@ -33,6 +33,7 @@ jobs:
       AGENTA_AUTH_MODE: password
       AGENTA_OSS_OWNER_EMAIL: ${{ secrets.PLAYWRIGHT_OSS_OWNER_EMAIL }}
       AGENTA_OSS_OWNER_PASSWORD: ${{ secrets.PLAYWRIGHT_OSS_OWNER_PASSWORD }}
+      AGENTA_TEST_PROVIDER: mock
       AGENTA_EPHEMERAL_PROJECT: "true"
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +82,7 @@ jobs:
         run: pnpm exec playwright test --reporter=html,github
 
       - name: Upload test report
+        id: upload_report
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -89,9 +91,41 @@ jobs:
           retention-days: 14
 
       - name: Upload test results
+        id: upload_results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: playwright-results
           path: web/tests/test-results/
           retention-days: 7
+
+      - name: Write job summary
+        if: always()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          REPORT_URL="${{ steps.upload_report.outputs.artifact-url }}"
+          RESULTS_URL="${{ steps.upload_results.outputs.artifact-url }}"
+          JOB_STATUS="${{ job.status }}"
+
+          {
+            echo "## Playwright Test Summary"
+            echo
+            echo "| Item | Link | Notes |"
+            echo "| --- | --- | --- |"
+            echo "| Workflow run | [Open run](${RUN_URL}) | Full logs and step output |"
+
+            if [ -n "${REPORT_URL}" ]; then
+              echo "| Playwright HTML report | [Download artifact](${REPORT_URL}) | Download the zip, then open \`index.html\` locally |"
+            else
+              echo "| Playwright HTML report | Not available | Report upload did not complete |"
+            fi
+
+            if [ -n "${RESULTS_URL}" ]; then
+              echo "| Raw failure artifacts | [Download artifact](${RESULTS_URL}) | Includes failure screenshots, videos, and traces when present |"
+            else
+              echo "| Raw failure artifacts | Not uploaded | Only uploaded when the job fails |"
+            fi
+
+            echo
+            echo "**Job status:** \`${JOB_STATUS}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

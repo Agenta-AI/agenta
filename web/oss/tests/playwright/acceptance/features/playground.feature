@@ -5,6 +5,8 @@
 # - navigateToPlayground uses: /apps -> Prompts sidebar -> search box -> click app -> Overview -> Playground sidebar
 # - Direct URL to /apps/{id}/playground renders blank (known frontend issue)
 # - The prompts table uses div-based rows, so search box is used to find apps in long lists
+# - Runtime tests ensure the active project has a configured test provider before execution
+# - Runtime tests select the configured test model before clicking Run
 
 Feature: Playground Variant Execution
   As a user
@@ -17,7 +19,9 @@ Feature: Playground Variant Execution
 
   @smoke @happy @scope:playground @scope:observability
   Scenario: Run single view variant for completion
-    Given the user navigates to the playground for a completion app
+    Given the active project has a configured test provider
+    And the user navigates to the playground for a completion app
+    And the user selects the configured test model
     When the user enters a message in the input field
     And the user clicks the "Run" button
     Then the API should return a successful response
@@ -28,7 +32,9 @@ Feature: Playground Variant Execution
 
   @smoke @happy @scope:playground
   Scenario: Run single view variant for chat
-    Given the user navigates to the playground for a chat app
+    Given the active project has a configured test provider
+    And the user navigates to the playground for a chat app
+    And the user selects the configured test model
     When the user types a message in the chat input
     And the user clicks the "Run" button
     Then the API should return a successful response

@@ -36,6 +36,16 @@ Exit criteria:
 - Full acceptance suite runs on every PR and is green.
 - Repeated runs against the same environment don't leave stale data.
 
+### Test provider fixture update
+
+The suite now uses a project scoped test provider fixture for runtime tests.
+
+- Provider setup stays in the normal Playwright fixture layer, not in `global-setup`.
+- The active provider is selected through `AGENTA_TEST_PROVIDER`, with `mock` as the default.
+- The `mock` profile creates a custom provider named `mock` with model `gpt-6`.
+- Runtime tests call the provider fixture lazily. Navigation only tests do not.
+- The `openai` profile remains part of the fixture design, but it is not wired in this phase.
+
 ## Phase 3 - Test Independence and Parallelization
 
 Currently tests run sequentially because of a dependency chain: app creation -> playground (produces traces) -> observability (reads traces). To enable future parallelization:

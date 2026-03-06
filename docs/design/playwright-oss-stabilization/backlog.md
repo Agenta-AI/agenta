@@ -12,12 +12,15 @@
 8. ~~Add all required dimension tags (`coverage`, `path`, `lens`, `cost`, `license`) to every test~~
 9. ~~Analyze 15 legacy BDD feature files and produce prioritized coverage plan~~
 10. ~~Document E2E vs API/SDK test boundary and data seeding strategy~~
+11. ~~Add a project scoped mock provider fixture for runtime tests~~
+12. ~~Move Playground runtime tests from paid provider assumptions to the mock provider path~~
 
 ## P1 (Structural cleanup — Phase 1)
 
 1. Rename `testsset` folder to `testset` (requires updating EE wrapper imports).
 2. Unskip or clearly document API keys test with rationale for what setup it needs.
 3. Fix playground direct URL blank content (frontend bug, not test issue).
+4. Wire the `openai` test provider profile into the generic fixture abstraction.
 
 ## P2 (CI integration — Phase 2)
 

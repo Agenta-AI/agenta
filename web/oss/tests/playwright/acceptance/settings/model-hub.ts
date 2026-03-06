@@ -39,23 +39,21 @@ const modelHubTests = () => {
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({page, uiHelpers}) => {
-            // 1. Navigate to settings via sidebar
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
-            const settingsLink = page.locator('a:has-text("Settings")').first()
-            await expect(settingsLink).toBeVisible({timeout: 10000})
-            await settingsLink.click()
-            await uiHelpers.expectPath("/settings")
+        async ({page, testProviderHelpers}) => {
+            await testProviderHelpers.ensureTestProvider({recreate: true})
 
-            // 2. Navigate to Models section in settings sidebar
-            const modelsMenuItem = page.getByRole("menuitem", {name: "Models"}).first()
-            await expect(modelsMenuItem).toBeVisible({timeout: 10000})
-            await modelsMenuItem.click()
+            const customProvidersSection = page
+                .getByText("Custom providers", {exact: true})
+                .locator("xpath=ancestor::section[1]")
+                .first()
+            const providersTable = customProvidersSection.getByRole("table").first()
+            const mockRow = providersTable
+                .getByRole("row")
+                .filter({has: page.getByRole("cell", {name: "mock", exact: true})})
+                .first()
 
-            // 3. Assert model providers table is visible
-            const providersTable = page.getByRole("table").filter({hasText: "OpenAI"})
-            const openapiRow = providersTable.getByRole("row", {name: /OpenAI/})
-            await expect(openapiRow).toBeVisible()
+            await expect(mockRow).toBeVisible({timeout: 15000})
+            await expect(mockRow).toContainText("mock")
         },
     )
 }

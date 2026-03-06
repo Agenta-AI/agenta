@@ -1,6 +1,7 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 import {RoleType, VariantFixtures} from "./assets/types"
+import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 
 /**
  * Playground-specific test fixtures extending the base test fixture.
@@ -9,6 +10,11 @@ import {RoleType, VariantFixtures} from "./assets/types"
 const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
     navigateToPlayground: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
+            const currentPathname = new URL(page.url()).pathname
+            const scopedPrefixMatch = currentPathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)
+            const scopedPrefix = scopedPrefixMatch?.[1] ?? ""
+            const appsUrl = scopedPrefix ? `${scopedPrefix}/apps` : "/apps"
+
             // Set up API listener before navigation to capture the apps list
             const appsResponsePromise = page.waitForResponse(
                 (response) =>
@@ -16,9 +22,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     response.request().method() === "GET",
             )
 
-            // Navigate to /apps which redirects to workspace-scoped URL
-            // This triggers a GET /api/apps call
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
+            // Keep navigation pinned to the current project scope.
+            await page.goto(appsUrl, {waitUntil: "domcontentloaded"})
 
             // Get app name from API response
             const appsResponse = await appsResponsePromise
@@ -57,14 +62,34 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
             // Wait for playground page and content to render
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
+
+            const latestRevisionId = getKnownLatestRevisionId(appId)
+            if (latestRevisionId) {
+                await page.evaluate((revisionId: string) => {
+                    const url = new URL(window.location.href)
+                    url.searchParams.set("revisions", revisionId)
+                    window.history.replaceState(
+                        window.history.state,
+                        "",
+                        `${url.pathname}${url.search}${url.hash}`,
+                    )
+                    window.dispatchEvent(new PopStateEvent("popstate"))
+                }, latestRevisionId)
+            }
+
             await expect(
                 page.getByRole("button", {name: "Run", exact: true}).first(),
             ).toBeVisible({timeout: 30000})
         })
     },
 
-    runCompletionSingleViewVariant: async ({page, uiHelpers, apiHelpers}, use) => {
+    runCompletionSingleViewVariant: async (
+        {page, uiHelpers, apiHelpers, testProviderHelpers},
+        use,
+    ) => {
         await use(async (appId: string, messages: string[]) => {
+            await testProviderHelpers.selectTestModel()
+
             for (let i = 0; i < messages.length; i++) {
                 // 1. Load the message
                 const message = messages[i]
@@ -82,13 +107,14 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-
-                await runButtons.nth(i).click()
-
-                await apiHelpers.waitForApiResponse<Record<string, any>>({
+                const runResponsePromise = apiHelpers.waitForApiResponse<Record<string, any>>({
                     route: /\/test(\?|$)/,
                     method: "POST",
                 })
+
+                await runButtons.nth(i).click()
+
+                await runResponsePromise
 
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
@@ -101,9 +127,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
         })
     },
 
-    runChatSingleViewVariant: async ({page, uiHelpers, apiHelpers}, use) => {
+    runChatSingleViewVariant: async ({page, uiHelpers, apiHelpers, testProviderHelpers}, use) => {
         await use(async (appId: string, messages: string[]) => {
             let isMessageButtonDisabled = false
+            await testProviderHelpers.selectTestModel()
 
             for (let i = 0; i < messages.length; i++) {
                 if (isMessageButtonDisabled) {
@@ -125,13 +152,14 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-
-                await runButtons.click()
-
-                await apiHelpers.waitForApiResponse<Record<string, any>>({
+                const runResponsePromise = apiHelpers.waitForApiResponse<Record<string, any>>({
                     route: /\/test(\?|$)/,
                     method: "POST",
                 })
+
+                await runButtons.click()
+
+                await runResponsePromise
 
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 

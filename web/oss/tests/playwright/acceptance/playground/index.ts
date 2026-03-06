@@ -23,14 +23,20 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
                 createTagString("lens", TestLensType.FUNCTIONAL),
-                createTagString("cost", TestCostType.Paid),
+                createTagString("cost", TestCostType.Free),
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({apiHelpers, navigateToPlayground, runCompletionSingleViewVariant}) => {
+        async ({
+            apiHelpers,
+            navigateToPlayground,
+            runCompletionSingleViewVariant,
+            testProviderHelpers,
+        }) => {
             const app = await apiHelpers.getApp("completion")
             const appId = app.app_id
 
+            await testProviderHelpers.ensureTestProvider()
             await navigateToPlayground(appId)
 
             await runCompletionSingleViewVariant(appId, COMPLETION_MESSAGES)
@@ -46,14 +52,20 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
                 createTagString("lens", TestLensType.FUNCTIONAL),
-                createTagString("cost", TestCostType.Paid),
+                createTagString("cost", TestCostType.Free),
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({apiHelpers, navigateToPlayground, runChatSingleViewVariant}) => {
+        async ({
+            apiHelpers,
+            navigateToPlayground,
+            runChatSingleViewVariant,
+            testProviderHelpers,
+        }) => {
             const app = await apiHelpers.getApp("chat")
             const appId = app.app_id
 
+            await testProviderHelpers.ensureTestProvider()
             await navigateToPlayground(appId)
 
             await runChatSingleViewVariant(appId, COMPLETION_MESSAGES)
