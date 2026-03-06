@@ -44,3 +44,9 @@ body:
       placeholder: Ownership expectations, screenshots, path references, or examples
     validations:
       required: false
+  - type: input
+    id: contact
+    attributes:
+      label: LinkedIn details
+      description: (optional) We announce new features on LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out! 
+      placeholder: ex. https://www.linkedin.com/in/username/

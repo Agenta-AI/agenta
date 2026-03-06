@@ -71,10 +71,19 @@ body:
       label: Important Context
       description: |
         (optional) Add context about the problem here.
-        Include environment details, relevant paths, screenshots, or logs that help locate the affected setup.
+        
+        1. **Network Logs in the Browser:** If applicable, take a screenshot of the network logs or copy and paste any relevant log entries.
+        2. **Docker Containers Information:** If applicable, provide a screenshot showing the list of running and stopped containers. Please provide us with a screenshot of the logs for the agenta-backend docker container.
+        3. **Additional Information:** Include any additional details, error messages, or observations that may be helpful.
       placeholder: |
         Repository paths, logs, screenshots, error messages, or any other relevant details...
       value: |
         <!-- If this relates to self-hosting, describe whether it is local or on a cloud provider, which platform/runtime you use, and any backend details that matter. -->
     validations:
       required: false
+  - type: input
+    id: contact
+    attributes:
+      label: LinkedIn details
+      description: (optional) We announce new features on LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out! 
+      placeholder: ex. https://www.linkedin.com/in/username/
