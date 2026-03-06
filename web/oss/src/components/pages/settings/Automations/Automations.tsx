@@ -2,62 +2,50 @@ import {useCallback, useMemo, useState} from "react"
 
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Lightning, PencilLineIcon, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps, Modal, Tag, Typography, message} from "antd"
+import {Button, Dropdown, MenuProps, Tag, Typography, message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import AutomationDrawer from "@/oss/components/Automations/AutomationDrawer"
+import DeleteAutomationModal from "@/oss/components/Automations/DeleteAutomationModal"
+import SecretRevealModal from "@/oss/components/Automations/SecretRevealModal"
 import {handleTestResult} from "@/oss/components/Automations/utils/handleTestResult"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
 import {AutomationProvider, WebhookSubscription} from "@/oss/services/automations/types"
+import {automationsAtom, testAutomationAtom} from "@/oss/state/automations/atoms"
 import {
-    automationsAtom,
-    deleteAutomationAtom,
-    testAutomationAtom,
-} from "@/oss/state/automations/atoms"
-import {editingAutomationAtom, isAutomationDrawerOpenAtom} from "@/oss/state/automations/state"
+    editingAutomationAtom,
+    isAutomationDrawerOpenAtom,
+    webhookToDeleteAtom,
+} from "@/oss/state/automations/state"
 
 const {Title} = Typography
 
 const Automations: React.FC = () => {
     const [{data: webhooks, isPending: isLoading}] = useAtom(automationsAtom)
-    const setIsModalOpen = useSetAtom(isAutomationDrawerOpenAtom)
+    const setIsDrawerOpen = useSetAtom(isAutomationDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingAutomationAtom)
-    const deleteWebhook = useSetAtom(deleteAutomationAtom)
     const testWebhook = useSetAtom(testAutomationAtom)
+    const setWebhookToDelete = useSetAtom(webhookToDeleteAtom)
 
     const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null)
 
     const handleCreate = useCallback(() => {
         setEditingWebhook(undefined)
-        setIsModalOpen(true)
-    }, [setEditingWebhook, setIsModalOpen])
+        setIsDrawerOpen(true)
+    }, [setEditingWebhook, setIsDrawerOpen])
 
     const handleEdit = useCallback(
         (webhook: WebhookSubscription) => {
             setEditingWebhook(webhook)
-            setIsModalOpen(true)
+            setIsDrawerOpen(true)
         },
-        [setEditingWebhook, setIsModalOpen],
+        [setEditingWebhook, setIsDrawerOpen],
     )
 
-    const handleDelete = useCallback(
-        (webhook: WebhookSubscription) => {
-            Modal.confirm({
-                title: "Delete Automation",
-                content: "Are you sure you want to delete this automation?",
-                onOk: async () => {
-                    try {
-                        await deleteWebhook(webhook.id)
-                        message.success("Automation deleted successfully")
-                    } catch (error) {
-                        message.error("Failed to delete automation")
-                    }
-                },
-            })
-        },
-        [deleteWebhook],
-    )
+    const handleDeleteClick = useCallback((webhook: WebhookSubscription) => {
+        setWebhookToDelete(webhook)
+    }, [])
 
     const handleTestWebhook = useCallback(
         async (webhook: WebhookSubscription) => {
@@ -76,9 +64,9 @@ const Automations: React.FC = () => {
     )
 
     const handleModalSuccess = useCallback(() => {
-        setIsModalOpen(false)
+        setIsDrawerOpen(false)
         setEditingWebhook(undefined)
-    }, [setIsModalOpen, setEditingWebhook])
+    }, [setIsDrawerOpen, setEditingWebhook])
 
     const webhooksWithKey = useMemo(() => webhooks?.map((w) => ({...w, key: w.id})), [webhooks])
 
@@ -179,7 +167,7 @@ const Automations: React.FC = () => {
                             label: "Delete",
                             icon: <Trash size={14} />,
                             danger: true,
-                            onClick: () => handleDelete(record),
+                            onClick: () => handleDeleteClick(record),
                         },
                     ]
 
@@ -195,7 +183,7 @@ const Automations: React.FC = () => {
                 },
             },
         ],
-        [handleEdit, handleDelete, handleTestWebhook, testingWebhookId],
+        [handleEdit, handleDeleteClick, handleTestWebhook, testingWebhookId],
     )
 
     return (
@@ -218,6 +206,10 @@ const Automations: React.FC = () => {
             />
 
             <AutomationDrawer onSuccess={handleModalSuccess} />
+
+            <DeleteAutomationModal />
+
+            <SecretRevealModal />
         </div>
     )
 }

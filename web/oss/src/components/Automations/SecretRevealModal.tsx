@@ -18,7 +18,7 @@ const SecretRevealModal: React.FC = () => {
 
     return (
         <EnhancedModal
-            title="Important: Save Your Webhook Secret"
+            title="Save Your Webhook Secret"
             open={!!createdWebhookSecret}
             onCancel={() => setCreatedWebhookSecret(null)}
             onOk={handleCopySecret}
@@ -32,7 +32,7 @@ const SecretRevealModal: React.FC = () => {
                     Agenta.
                 </Typography.Text>
 
-                <div className="flex items-center justify-between overflow-hidden rounded-md border border-slate-200 bg-slate-50 py-1 pl-3 pr-1 font-mono text-sm dark:border-slate-700 dark:bg-slate-900">
+                <div className="flex items-center justify-between overflow-hidden rounded-md border border-slate-200 bg-slate-50 py-1 pl-3 pr-1 dark:border-slate-700">
                     <span className="truncate">{createdWebhookSecret}</span>
                     <CopyButton
                         text={createdWebhookSecret || ""}

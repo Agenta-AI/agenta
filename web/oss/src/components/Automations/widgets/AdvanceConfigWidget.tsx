@@ -11,7 +11,7 @@ export const AdvanceConfigWidget = ({isEditMode}: {isEditMode: boolean}) => {
 
     return (
         <Collapse className="[&_.ant-collapse-content]:bg-transparent" size="small">
-            <Collapse.Panel header="Advance config" key="1">
+            <Collapse.Panel header="Advance config" key="1" forceRender>
                 <Form.Item
                     name="auth_mode"
                     label="Authentication Mode"

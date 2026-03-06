@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState, createElement} from "react"
+import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
@@ -23,7 +23,6 @@ import {
 
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./constants"
-import SecretRevealModal from "./SecretRevealModal"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"
 
@@ -47,7 +46,12 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     }, [setOpen, setEditingWebhook])
 
     useEffect(() => {
-        if (open && initialValues) {
+        if (!open) {
+            form.resetFields()
+            return
+        }
+
+        if (initialValues) {
             // Determine provider via heuristic since no meta field is stored.
             const isGitHub = initialValues.data.url.includes("api.github.com")
             const provider: AutomationProvider = isGitHub ? "github" : "webhook"
@@ -99,7 +103,8 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 github_workflow,
                 github_branch,
             })
-        } else if (open) {
+        } else {
+            form.resetFields()
             setSelectedProvider("webhook")
             form.setFieldsValue({
                 provider: "webhook",
@@ -159,8 +164,14 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 const webhookSecret =
                     response.subscription?.secret || response.subscription?.secret_id
 
-                if (selectedProvider === "webhook" && rawValues.auth_mode === "signature") {
-                    setCreatedWebhookSecret(webhookSecret ?? null)
+                const isSignatureWebhook =
+                    selectedProvider === "webhook" && rawValues.auth_mode === "signature"
+                const isGithub = selectedProvider === "github"
+
+                if (isSignatureWebhook || isGithub) {
+                    if (webhookSecret) {
+                        setCreatedWebhookSecret(webhookSecret)
+                    }
                 }
 
                 message.success("Automation created successfully")
@@ -304,7 +315,6 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     </div>
                 </Form>
             </EnhancedDrawer>
-            <SecretRevealModal />
         </>
     )
 }
