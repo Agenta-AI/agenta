@@ -12,75 +12,6 @@ body:
       placeholder: ex. hosting/railway/oss or local Docker Compose
     validations:
       required: true
-  - type: dropdown
-    id: provider
-    attributes:
-      label: Provider
-      options:
-        - not applicable
-        - provider/local
-        - provider/hetzner
-        - provider/railway
-        - provider/aws
-        - provider/azure
-        - provider/gcp
-    validations:
-      required: true
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - not applicable
-        - platform/local
-        - platform/vps
-        - platform/eks
-        - platform/aks
-        - platform/gke
-    validations:
-      required: true
-  - type: dropdown
-    id: runtime
-    attributes:
-      label: Runtime
-      options:
-        - not applicable
-        - runtime/docker-compose
-        - runtime/kubernetes
-    validations:
-      required: true
-  - type: dropdown
-    id: olap
-    attributes:
-      label: OLAP
-      options:
-        - not applicable
-        - olap/local
-        - olap/postgres
-        - olap/tigerdata
-        - olap/clickhouse
-    validations:
-      required: true
-  - type: dropdown
-    id: maintenance
-    attributes:
-      label: Maintenance model
-      options:
-        - not sure
-        - maintenance/internal
-        - maintenance/community
-    validations:
-      required: true
-  - type: dropdown
-    id: support
-    attributes:
-      label: Support expectation
-      options:
-        - not sure
-        - support/official
-        - support/experimental
-    validations:
-      required: true
   - type: textarea
     id: problem
     attributes:
@@ -109,7 +40,7 @@ body:
     id: additional-context
     attributes:
       label: Additional context
-      description: Add labels, ownership expectations, screenshots, or path references that help scope the request.
-      placeholder: Relevant labels, ownership expectations, screenshots, or examples
+      description: Add ownership expectations, screenshots, path references, or other details that help scope the request.
+      placeholder: Ownership expectations, screenshots, path references, or examples
     validations:
       required: false

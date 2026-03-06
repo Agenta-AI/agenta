@@ -4,55 +4,6 @@ description: Ask for help with setup, usage, or repository topics
 title: "[Question]: "
 labels: ["question"]
 body:
-  - type: dropdown
-    id: provider
-    attributes:
-      label: Provider
-      options:
-        - not applicable
-        - provider/local
-        - provider/hetzner
-        - provider/railway
-        - provider/aws
-        - provider/azure
-        - provider/gcp
-    validations:
-      required: true
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - not applicable
-        - platform/local
-        - platform/vps
-        - platform/eks
-        - platform/aks
-        - platform/gke
-    validations:
-      required: true
-  - type: dropdown
-    id: runtime
-    attributes:
-      label: Runtime
-      options:
-        - not applicable
-        - runtime/docker-compose
-        - runtime/kubernetes
-    validations:
-      required: true
-  - type: dropdown
-    id: olap
-    attributes:
-      label: OLAP
-      options:
-        - not applicable
-        - olap/local
-        - olap/postgres
-        - olap/tigerdata
-        - olap/clickhouse
-    validations:
-      required: true
   - type: textarea
     id: question
     attributes:

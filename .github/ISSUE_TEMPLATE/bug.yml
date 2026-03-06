@@ -4,75 +4,6 @@ description: Create a report to help us improve
 title: "[Bug] "
 labels: ["bug"]
 body:
-  - type: dropdown
-    id: provider
-    attributes:
-      label: Provider
-      options:
-        - not applicable
-        - provider/local
-        - provider/hetzner
-        - provider/railway
-        - provider/aws
-        - provider/azure
-        - provider/gcp
-    validations:
-      required: true
-  - type: dropdown
-    id: platform
-    attributes:
-      label: Platform
-      options:
-        - not applicable
-        - platform/local
-        - platform/vps
-        - platform/eks
-        - platform/aks
-        - platform/gke
-    validations:
-      required: true
-  - type: dropdown
-    id: runtime
-    attributes:
-      label: Runtime
-      options:
-        - not applicable
-        - runtime/docker-compose
-        - runtime/kubernetes
-    validations:
-      required: true
-  - type: dropdown
-    id: olap
-    attributes:
-      label: OLAP
-      options:
-        - not applicable
-        - olap/local
-        - olap/postgres
-        - olap/tigerdata
-        - olap/clickhouse
-    validations:
-      required: true
-  - type: dropdown
-    id: maintenance
-    attributes:
-      label: Maintenance model
-      options:
-        - not sure
-        - maintenance/internal
-        - maintenance/community
-    validations:
-      required: true
-  - type: dropdown
-    id: support
-    attributes:
-      label: Support level
-      options:
-        - not sure
-        - support/official
-        - support/experimental
-    validations:
-      required: true
   - type: textarea
     id: bug-description
     attributes:
@@ -81,6 +12,15 @@ body:
       placeholder: What went wrong?
     validations:
       required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Describe the setup
+      placeholder: |
+        Example: local or cloud provider, platform, runtime/orchestration, and any relevant storage/backend details.
+    validations:
+      required: false
   - type: textarea
     id: reproduce
     attributes:
@@ -131,10 +71,10 @@ body:
       label: Important Context
       description: |
         (optional) Add context about the problem here.
-        Include paths, labels, environment details, screenshots, or logs that help locate the affected topic.
+        Include environment details, relevant paths, screenshots, or logs that help locate the affected setup.
       placeholder: |
         Repository paths, logs, screenshots, error messages, or any other relevant details...
       value: |
-        <!-- If this relates to a self-hosted setup, include the provider/platform/runtime/olap combination if known. -->
+        <!-- If this relates to self-hosting, describe whether it is local or on a cloud provider, which platform/runtime you use, and any backend details that matter. -->
     validations:
       required: false
