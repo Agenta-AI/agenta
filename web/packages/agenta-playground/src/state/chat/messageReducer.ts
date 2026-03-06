@@ -547,7 +547,10 @@ export const patchMessageAtom = atom(
 
 /**
  * Delete a specific message by target.
- * Resolves the target and delegates to removeMessagesAtom.
+ *
+ * Removes the targeted message and everything after it in the conversation
+ * — later turns are invalid without the deleted context. A fresh blank
+ * user message is appended so the user can continue typing.
  */
 export const deleteMessageAtom = atom(
     null,
@@ -559,7 +562,33 @@ export const deleteMessageAtom = atom(
         const msgId = resolveTargetMessageId(ids, byId, target)
         if (!msgId) return
 
-        set(removeMessagesAtom, {loadableId, messageIds: [msgId]})
+        const idx = ids.indexOf(msgId)
+        if (idx < 0) return
+
+        // Truncate: remove this message and everything after it
+        const toRemove = ids.slice(idx)
+        set(removeMessagesAtom, {loadableId, messageIds: toRemove})
+
+        // Append a blank user message only when the last remaining message
+        // is NOT already a user message. If the tail is a user message (e.g.
+        // the user deleted the assistant response below it), that user message
+        // is the natural next input — no extra blank needed.
+        const remaining = get(messageIdsAtomFamily(loadableId))
+        const remainingById = get(messagesByIdAtomFamily(loadableId))
+        const last = remainingById[remaining[remaining.length - 1]]
+        const tailIsUserMsg = last && last.sessionId === SHARED_SESSION_ID && last.role === "user"
+
+        if (!tailIsUserMsg) {
+            set(addMessageAtom, {
+                loadableId,
+                message: {
+                    id: generateMessageId(),
+                    role: "user",
+                    content: "",
+                    sessionId: SHARED_SESSION_ID,
+                },
+            })
+        }
     },
 )
 
