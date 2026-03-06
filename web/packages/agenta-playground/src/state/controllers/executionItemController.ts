@@ -34,6 +34,7 @@ import {
     patchMessageWithContextAtom,
     deleteMessageWithContextAtom,
     truncateChatWithContextAtom,
+    clearSessionResponsesWithContextAtom,
 } from "../chat"
 import {
     executionRowIdsAtom,
@@ -329,6 +330,9 @@ export const executionItemController = {
 
         /** Truncate chat after a turn (for re-run) */
         truncateChat: truncateChatWithContextAtom,
+
+        /** Clear all session-scoped responses after a user message (session-safe re-run) */
+        clearSessionResponses: clearSessionResponsesWithContextAtom,
 
         // ----------------------------------------------------------------
         // Row mutations

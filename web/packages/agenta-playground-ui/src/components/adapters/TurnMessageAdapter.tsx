@@ -306,6 +306,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
     const truncateChat = useSetAtom(executionItemController.actions.truncateChat)
+    const clearSessionResponses = useSetAtom(executionItemController.actions.clearSessionResponses)
     const runStatusMap = useAtomValue(
         useMemo(() => executionItemController.selectors.runStatusByRowEntity, []),
     ) as Record<string, {resultHash?: string | null} | undefined>
@@ -314,19 +315,42 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (isToolKind) return
         const logicalId = String(rowId)
         const messageId = msg?.id
-        if (kind === "assistant" && messageId) {
-            deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
-        } else if (kind === "user") {
-            deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
+
+        if (isComparisonView) {
+            // Comparison mode: session-scoped cleanup — only clear this entity's
+            // responses from this turn onward. Shared messages and other entities'
+            // responses are preserved.
+            clearSessionResponses({sessionId, afterUserMessageId: logicalId})
+        } else {
+            // Single mode: delete the assistant for this turn, then truncate
+            // everything after (subsequent turns depend on this response).
+            if (kind === "assistant" && messageId) {
+                deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
+            } else if (kind === "user") {
+                deleteMsg({target: {turnId: rowId, kind: "assistant", sessionId}})
+            }
+            if (messageId) {
+                truncateChat({afterTurnId: logicalId})
+            }
         }
-        if (messageId) {
-            truncateChat({afterTurnId: logicalId})
-        }
+
         triggerTest({
             executionId: entityId,
             step: {id: logicalId, messageId},
         })
-    }, [triggerTest, truncateChat, rowId, entityId, sessionId, msg, kind, deleteMsg, isToolKind])
+    }, [
+        triggerTest,
+        truncateChat,
+        clearSessionResponses,
+        rowId,
+        entityId,
+        sessionId,
+        msg,
+        kind,
+        deleteMsg,
+        isToolKind,
+        isComparisonView,
+    ])
 
     const resultHashes = useMemo(() => {
         try {
