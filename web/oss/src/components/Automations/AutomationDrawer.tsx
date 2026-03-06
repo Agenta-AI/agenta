@@ -53,7 +53,13 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
         if (initialValues) {
             // Determine provider via heuristic since no meta field is stored.
-            const isGitHub = initialValues.data.url.includes("api.github.com")
+            let isGitHub = false
+            try {
+                const parsedUrl = new URL(initialValues.data.url)
+                isGitHub = parsedUrl.hostname === "api.github.com"
+            } catch {
+                isGitHub = false
+            }
             const provider: AutomationProvider = isGitHub ? "github" : "webhook"
             setSelectedProvider(provider)
 
