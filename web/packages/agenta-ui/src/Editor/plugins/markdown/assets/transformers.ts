@@ -35,10 +35,19 @@ export function $convertToMarkdownStringCustom(
 ): string {
     const markdown = originalConvert(transformers, node, shouldPreserveNewLines)
 
-    return markdown.replace(/{{(.*?)}}/g, (_, content) => {
-        const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
-        return `{{${unescapedContent}}}`
-    })
+    return markdown
+        .replace(/\{\{(.*?)\}\}/g, (_, content) => {
+            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
+            return `{{${unescapedContent}}}`
+        })
+        .replace(/\{%([-]?)(.*?)([-]?)%\}/g, (_, trimL, content, trimR) => {
+            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
+            return `{%${trimL}${unescapedContent}${trimR}%}`
+        })
+        .replace(/\{#(.*?)#\}/g, (_, content) => {
+            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
+            return `{#${unescapedContent}#}`
+        })
 }
 
 export const HR: ElementTransformer = {
