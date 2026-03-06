@@ -20,7 +20,7 @@ if is_ee():
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
