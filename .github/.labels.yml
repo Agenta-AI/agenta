@@ -7,7 +7,7 @@
 - name: breaking
   description: Breaking Changes
   color: 7c3ea5
-- name: bug
+- name: Bug Report
   description: Something isn't working
   color: d73a4a
 - name: build
@@ -28,7 +28,7 @@
 - name: duplicate
   description: This issue or pull request already exists
   color: cfd3d7
-- name: enhancement
+- name: Feature Request
   description: New feature or request
   color: a2eeef
 - name: github_actions
@@ -38,8 +38,74 @@
   description: Good for newcomers
   color: 7057ff
 - name: help wanted
-  description: Extra attention is needed
+  description: Extra help is welcome
   color: 008672
+- name: provider/local
+  description: Local infrastructure or developer machine setup
+  color: 0052cc
+- name: provider/hetzner
+  description: Hetzner-hosted infrastructure topic
+  color: 0052cc
+- name: provider/railway
+  description: Railway-hosted infrastructure topic
+  color: 0052cc
+- name: provider/aws
+  description: AWS-hosted infrastructure topic
+  color: 0052cc
+- name: provider/azure
+  description: Azure-hosted infrastructure topic
+  color: 0052cc
+- name: provider/gcp
+  description: GCP-hosted infrastructure topic
+  color: 0052cc
+- name: platform/local
+  description: Local platform target
+  color: 1d76db
+- name: platform/vps
+  description: VPS-style deployment target
+  color: 1d76db
+- name: platform/k3s
+  description: K3s platform target
+  color: 1d76db
+- name: platform/eks
+  description: Amazon EKS platform target
+  color: 1d76db
+- name: platform/aks
+  description: Azure AKS platform target
+  color: 1d76db
+- name: platform/gke
+  description: Google GKE platform target
+  color: 1d76db
+- name: runtime/docker-compose
+  description: Docker Compose runtime
+  color: 5319e7
+- name: runtime/kubernetes
+  description: Kubernetes runtime
+  color: 5319e7
+- name: olap/local
+  description: Local vanilla Postgres database
+  color: 0e8a16
+- name: olap/postgres
+  description: Managed vanilla Postgres database
+  color: 0e8a16
+- name: olap/tigerdata
+  description: Managed TigerData database
+  color: 0e8a16
+- name: olap/clickhouse
+  description: Managed ClickHouse database
+  color: 0e8a16
+- name: maintenance/internal
+  description: Primarily under core team maintenance
+  color: b60205
+- name: maintenance/community
+  description: Primarily under community maintenance
+  color: b60205
+- name: support/official
+  description: Officially supported repository surface
+  color: fbca04
+- name: support/experimental
+  description: Experimental or best-effort repository surface
+  color: fbca04
 - name: invalid
   description: This doesn't seem right
   color: e4e669
@@ -49,7 +115,7 @@
 - name: python
   description: Pull requests that update Python code
   color: 2b67c6
-- name: question
+- name: Question
   description: Further information is requested
   color: d876e3
 - name: refactoring
