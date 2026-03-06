@@ -70,6 +70,18 @@ const Automations: React.FC = () => {
 
     const webhooksWithKey = useMemo(() => webhooks?.map((w) => ({...w, key: w.id})), [webhooks])
 
+    const isGitHubApiUrl = (url?: string | null): boolean => {
+        if (!url) {
+            return false
+        }
+        try {
+            const parsed = new URL(url)
+            return parsed.hostname === "api.github.com"
+        } catch {
+            return false
+        }
+    }
+
     const columns: EnhancedColumnType<WebhookSubscription & {key: string}>[] = useMemo(
         () => [
             {
@@ -85,7 +97,7 @@ const Automations: React.FC = () => {
                 key: "provider",
                 width: 120,
                 render: (_: any, record: WebhookSubscription) => {
-                    const isGitHub = record.data?.url?.includes("api.github.com")
+                    const isGitHub = isGitHubApiUrl(record.data?.url)
                     const provider: AutomationProvider = isGitHub ? "github" : "webhook"
                     return (
                         <Tag color={isGitHub ? "default" : "blue"}>
@@ -100,7 +112,7 @@ const Automations: React.FC = () => {
                 key: "url",
                 width: 250,
                 render: (url: string) => {
-                    const isGitHub = url.includes("api.github.com")
+                    const isGitHub = isGitHubApiUrl(url)
                     let displayUrl = url
                     if (isGitHub) {
                         const repoMatch = url.match(/repos\/([^\/]+\/[^\/]+)\//)
