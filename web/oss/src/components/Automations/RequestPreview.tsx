@@ -46,7 +46,7 @@ const HighlightedJson: React.FC<{data: Record<string, unknown>}> = ({data}) => {
 
             parts.push(
                 <span key={`${i}-${keyIdx++}`} className={className}>
-                    {escapeHtml(token)}
+                    {token}
                 </span>,
             )
             lastIndex = match.index + token.length
