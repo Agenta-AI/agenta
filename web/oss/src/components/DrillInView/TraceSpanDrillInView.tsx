@@ -185,6 +185,46 @@ const renderStringifiedJson = (value: unknown): {value: unknown; didRender: bool
     return {value, didRender: false}
 }
 
+const decodeEscapedLineBreaks = (value: string): string => {
+    let decoded = value
+
+    // Handle both "\n" and "\\n" style payload encodings.
+    for (let i = 0; i < 2; i += 1) {
+        const next = decoded
+            .replace(/\\\\r\\\\n/g, "\r\n")
+            .replace(/\\\\n/g, "\n")
+            .replace(/\\r\\n/g, "\r\n")
+            .replace(/\\n/g, "\n")
+
+        if (next === decoded) break
+        decoded = next
+    }
+
+    return decoded
+}
+
+const formatRenderedJsonStringsForDisplay = (value: unknown): unknown => {
+    if (typeof value === "string") {
+        // Decode escaped line breaks and preserve multiline rendering in JSON code view.
+        return decodeEscapedLineBreaks(value).replace(/\r\n|\n|\r/g, "\u2028")
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => formatRenderedJsonStringsForDisplay(item))
+    }
+
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value).map(([key, nestedValue]) => [
+                key,
+                formatRenderedJsonStringsForDisplay(nestedValue),
+            ]),
+        )
+    }
+
+    return value
+}
+
 const LanguageAwareViewer = ({
     initialValue,
     language,
@@ -392,7 +432,12 @@ export const TraceSpanDrillInView = memo(
             [renderedJsonSource],
         )
         const renderedJsonOutput = useMemo(
-            () => JSON.stringify(renderedJsonResult.value, null, 2) ?? "null",
+            () =>
+                JSON.stringify(
+                    formatRenderedJsonStringsForDisplay(renderedJsonResult.value),
+                    null,
+                    2,
+                ) ?? "null",
             [renderedJsonResult.value],
         )
         const yamlOutput = useMemo(() => {
