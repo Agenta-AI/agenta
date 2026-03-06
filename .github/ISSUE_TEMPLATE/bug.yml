@@ -2,7 +2,7 @@
 name: Bug Report
 description: Create a report to help us improve
 title: "[Bug] "
-labels: ["bug"]
+labels: ["Bug Report"]
 body:
   - type: textarea
     id: bug-description

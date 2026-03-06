@@ -7,7 +7,7 @@
 - name: breaking
   description: Breaking Changes
   color: 7c3ea5
-- name: bug
+- name: Bug Report
   description: Something isn't working
   color: d73a4a
 - name: build
@@ -28,7 +28,7 @@
 - name: duplicate
   description: This issue or pull request already exists
   color: cfd3d7
-- name: feature
+- name: Feature Request
   description: New feature or request
   color: a2eeef
 - name: github_actions
@@ -115,7 +115,7 @@
 - name: python
   description: Pull requests that update Python code
   color: 2b67c6
-- name: question
+- name: Question
   description: Further information is requested
   color: d876e3
 - name: refactoring

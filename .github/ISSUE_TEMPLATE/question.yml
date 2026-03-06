@@ -2,7 +2,7 @@
 name: Question
 description: Ask for help with setup, usage, or repository topics
 title: "[Question]: "
-labels: ["question"]
+labels: ["Question"]
 body:
   - type: textarea
     id: question

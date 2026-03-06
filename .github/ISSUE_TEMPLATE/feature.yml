@@ -2,7 +2,7 @@
 name: Feature Request
 description: Suggest an idea for this project
 title: "[Feature]: "
-labels: ["feature"]
+labels: ["Feature Request"]
 body:
   - type: input
     id: target-topic
@@ -40,8 +40,8 @@ body:
     id: additional-context
     attributes:
       label: Additional context
-      description: Add ownership expectations, screenshots, path references, or other details that help scope the request.
-      placeholder: Ownership expectations, screenshots, path references, or examples
+      description: Add screenshots, path references, or other details that help scope the request.
+      placeholder: screenshots, path references, or examples
     validations:
       required: false
   - type: input
