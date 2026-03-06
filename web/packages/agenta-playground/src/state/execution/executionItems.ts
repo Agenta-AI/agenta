@@ -1323,6 +1323,35 @@ export const handleExecutionResultAtom = atom(
                 })
             }
 
+            // When the assistant returns tool_calls, create blank tool response
+            // messages so the user (or gateway) can fill them in before continuing.
+            if (hasToolCalls && lastMessage.tool_calls) {
+                const existingToolMsgIds = get(messageIdsAtomFamily(loadableId))
+                const existingToolById = get(messagesByIdAtomFamily(loadableId))
+                const existingToolCount = existingToolMsgIds.filter((mid) => {
+                    const m = existingToolById[mid]
+                    return (
+                        m &&
+                        m.parentId === parentUserMsgId &&
+                        m.sessionId === sessionId &&
+                        m.role === "tool"
+                    )
+                }).length
+
+                if (existingToolCount === 0) {
+                    const toolMsgs: ChatMessage[] = lastMessage.tool_calls.map((tc, idx) => ({
+                        id: generateMessageId(),
+                        role: "tool",
+                        name: tc.function.name || `tool_${idx + 1}`,
+                        tool_call_id: tc.id,
+                        content: "",
+                        sessionId,
+                        ...(parentUserMsgId ? {parentId: parentUserMsgId} : {}),
+                    }))
+                    set(addMessagesAtom, {loadableId, messages: toolMsgs})
+                }
+            }
+
             // Auto-append blank user message so the user can type the next turn.
             // In comparison mode multiple variants complete independently and
             // their assistant messages are appended in arrival order. A blank
