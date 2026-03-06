@@ -1,6 +1,6 @@
 import {GithubOutlined, LinkOutlined} from "@ant-design/icons"
 
-import {AutomationSchemaEntry} from "./types"
+import {AutomationSchemaEntry} from "../assets/types"
 
 export const EVENT_OPTIONS = [
     {

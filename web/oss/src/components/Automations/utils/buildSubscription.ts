@@ -4,7 +4,7 @@ import {
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/automations/types"
 
-import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../constants"
+import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../assets/constants"
 
 /**
  * Transforms form values into the backend subscription shape per provider.

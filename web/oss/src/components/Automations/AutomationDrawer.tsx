@@ -22,7 +22,7 @@ import {
 } from "@/oss/state/automations/state"
 
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
-import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./constants"
+import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"

@@ -2,7 +2,7 @@ import {Fragment} from "react"
 
 import {Button, Divider, Form, Input, Select} from "antd"
 
-import {FieldDescriptor} from "./types"
+import {FieldDescriptor} from "./assets/types"
 import {AdvanceConfigWidget} from "./widgets/AdvanceConfigWidget"
 import {DispatchAlertWidget} from "./widgets/DispatchAlertWidget"
 import {HeaderListWidget} from "./widgets/HeaderListWidget"

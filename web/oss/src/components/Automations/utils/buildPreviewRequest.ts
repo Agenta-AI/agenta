@@ -1,6 +1,6 @@
 import {AutomationFormValues} from "@/oss/services/automations/types"
 
-import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../constants"
+import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../assets/constants"
 
 export interface PreviewRequest {
     method: "POST"
