@@ -13,6 +13,15 @@ body:
     validations:
       required: true
   - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Describe the setup
+      placeholder: |
+        Example: local or cloud provider, platform, runtime/orchestration, and any relevant storage/backend details.
+    validations:
+      required: false
+  - type: textarea
     id: reproduce
     attributes:
       label: To Reproduce
@@ -49,9 +58,9 @@ body:
     validations:
       required: false
   - type: input
-    id: agenta-self-hosted-version
+    id: agenta-image-tag
     attributes:
-      label: Agenta Self-Hosted Version
+      label: Agenta Image Tag
       description: (optional) The version of your self-hosted Agenta instance (if applicable)
       placeholder: e.g., 0.1.0
     validations:
@@ -64,21 +73,17 @@ body:
         (optional) Add context about the problem here.
         
         1. **Network Logs in the Browser:** If applicable, take a screenshot of the network logs or copy and paste any relevant log entries.
-        
         2. **Docker Containers Information:** If applicable, provide a screenshot showing the list of running and stopped containers. Please provide us with a screenshot of the logs for the agenta-backend docker container.
-        
         3. **Additional Information:** Include any additional details, error messages, or observations that may be helpful.
       placeholder: |
-        Network logs, Docker container information, error messages, or any other relevant details...
+        Repository paths, logs, screenshots, error messages, or any other relevant details...
       value: |
-        <!-- To help us investigate and resolve this issue more effectively, please follow this guide to provide additional information; https://docs.agenta.ai/contributing/file-issue -->
+        <!-- If this relates to self-hosting, describe whether it is local or on a cloud provider, which platform/runtime you use, and any backend details that matter. -->
     validations:
       required: false
   - type: input
     id: contact
     attributes:
-      label: Twitter / LinkedIn details
-      description: (optional) We announce new features on Twitter + LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out!
-      placeholder: ex. @username / https://www.linkedin.com/in/username/
-    validations:
-      required: false
+      label: LinkedIn details
+      description: (optional) We announce new features on LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out! 
+      placeholder: ex. https://www.linkedin.com/in/username/
