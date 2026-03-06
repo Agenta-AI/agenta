@@ -12,7 +12,6 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.tracing.dtos import OTelFlatSpan
 
 log = get_module_logger(__name__)
-
 _redis: Optional[Redis] = None
 
 

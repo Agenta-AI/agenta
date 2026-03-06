@@ -154,7 +154,7 @@ export async function fetchTestcasesPage(
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/testcases/query`,
         {
-            testset_revision_id: revisionId,
+            testset_revision_ref: {id: revisionId},
             windowing: {
                 limit: PAGE_SIZE,
                 ...(cursor && {next: cursor}),

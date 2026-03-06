@@ -173,13 +173,16 @@ def run_tests(
     else:
         test_dirs = [f"{license}/tests/pytest"]
 
-    cmd = ["pytest"] + test_dirs
+    # If pytest_args contains test paths, use them instead of test_dirs
+    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
 
     if marker_args:
         marker_expr = " and ".join(marker_args)
         cmd += ["-m", marker_expr]
     if pytest_args:
-        cmd += list(pytest_args)
+        flags_only = [a for a in pytest_args if a.startswith("-")]
+        cmd += flags_only
 
     click.echo(f"Executing: {' '.join(cmd)}")
 

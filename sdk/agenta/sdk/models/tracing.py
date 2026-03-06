@@ -1,11 +1,9 @@
-import random
-import string
-from enum import Enum
 from datetime import datetime, timezone
+from enum import Enum
 from typing import List, Dict, Any, Union, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel, model_validator, Field
-
 
 from agenta.sdk.models.shared import (
     Json,
@@ -15,10 +13,10 @@ from agenta.sdk.models.shared import (
     Meta,
     Metrics,
     Lifecycle,
-    TraceID,
-    SpanID,
     Identifier,
     Reference,
+    TraceID,
+    SpanID,
 )
 
 
@@ -47,12 +45,16 @@ class AgMetricEntryAttributes(BaseModel):
     cumulative: Optional[Metrics] = None
     incremental: Optional[Metrics] = None
 
+    model_config = {"ser_json_exclude_none": True}
+
 
 class AgMetricsAttributes(BaseModel):
     duration: Optional[AgMetricEntryAttributes] = None
     errors: Optional[AgMetricEntryAttributes] = None
     tokens: Optional[AgMetricEntryAttributes] = None
     costs: Optional[AgMetricEntryAttributes] = None
+
+    model_config = {"ser_json_exclude_none": True}
 
 
 class AgTypeAttributes(BaseModel):
@@ -61,14 +63,32 @@ class AgTypeAttributes(BaseModel):
 
 
 class AgDataAttributes(BaseModel):
+    parameters: Optional[Dict[str, Any]] = None
     inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[Any] = None
     internals: Optional[Dict[str, Any]] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgSessionAttributes(BaseModel):
+    id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgUserAttributes(BaseModel):
+    id: Optional[str] = None
+
+    model_config = {"ser_json_exclude_none": True}
 
 
 class AgAttributes(BaseModel):
     type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
     data: AgDataAttributes = Field(default_factory=AgDataAttributes)
+
+    session: Optional[AgSessionAttributes] = None
+    user: Optional[AgUserAttributes] = None
 
     metrics: Optional[AgMetricsAttributes] = None
     flags: Optional[Flags] = None
@@ -77,6 +97,8 @@ class AgAttributes(BaseModel):
     exception: Optional[Data] = None
     references: Optional[Dict[str, "OTelReference"]] = None
     unsupported: Optional[Data] = None
+
+    model_config = {"ser_json_exclude_none": True}
 
 
 class OTelStatusCode(Enum):
@@ -97,6 +119,7 @@ class OTelSpanKind(Enum):
 OTelAttributes = Json
 OTelMetrics = Metrics
 OTelTags = Tags
+Attributes = OTelAttributes
 
 
 class OTelEvent(BaseModel):
@@ -121,6 +144,8 @@ class OTelLink(TraceID, SpanID):
 
 
 OTelLinks = List[OTelLink]
+Link = OTelLink
+Links = OTelLinks
 
 
 class OTelReference(Reference):
@@ -130,14 +155,26 @@ class OTelReference(Reference):
 OTelReferences = List[OTelReference]
 
 
-class OTelSpansTree(BaseModel):
-    spans: Optional["OTelNestedSpans"] = None
+class SpansTree(BaseModel):
+    spans: Optional[Dict[str, Union["SpansNode", List["SpansNode"]]]] = None
 
 
-OTelSpansTrees = List[OTelSpansTree]
+# Backward-compatible aliases for legacy names.
+OTelSpansTree = SpansTree
+
+SpansTrees = List[SpansTree]
+OTelSpansTrees = SpansTrees
 
 
-class OTelFlatSpan(Lifecycle):
+class Trace(TraceID, SpansTree):
+    # Canonical single-trace model (trace_id + spans tree).
+    pass
+
+
+Traces = List[Trace]
+
+
+class Span(Lifecycle):
     trace_id: str
     span_id: str
     parent_id: Optional[str] = None
@@ -182,21 +219,24 @@ class OTelFlatSpan(Lifecycle):
             self.start_time = now
             self.end_time = now
         if self.span_name is None:
-            self.span_name = "".join(
-                random.choices(string.ascii_letters + string.digits, k=8)
-            )
+            self.span_name = uuid4().hex[-12:]
         return self
 
 
-class OTelSpan(OTelFlatSpan, OTelSpansTree):
+class SpansNode(Span, SpansTree):
     pass
 
 
-OTelFlatSpans = List[OTelFlatSpan]
-OTelNestedSpans = Dict[str, Union[OTelSpan, List[OTelSpan]]]
-OTelTraceTree = Dict[str, OTelSpansTree]
-OTelTraceTrees = List[OTelTraceTree]
-OTelSpans = List[OTelSpan]
+Spans = List[Span]
+NestedSpans = Dict[str, Union[SpansNode, List[SpansNode]]]
+TraceTree = Dict[str, SpansTree]
+TraceTrees = List[TraceTree]
 
-Attributes = OTelAttributes
-Trace = OTelTraceTree
+# Backward-compatible aliases for legacy names.
+OTelFlatSpan = Span
+OTelFlatSpans = Spans
+OTelSpan = SpansNode
+OTelNestedSpans = NestedSpans
+OTelTraceTree = TraceTree
+OTelTraceTrees = TraceTrees
+OTelSpans = List[SpansNode]

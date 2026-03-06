@@ -9,7 +9,7 @@ Requires a running Agenta instance. Set environment variables:
   AGENTA_AUTH_KEY=<admin auth key>
 
 Run:
-  pytest oss/tests/pytest/e2e/tracing/test_vercelai_ingestion.py -v -k vercelai
+  pytest oss/tests/pytest/acceptance/tracing/test_vercelai_ingestion.py -v -k vercelai
 """
 
 import time

@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
-from oss.src.core.tracing.dtos import Filtering
+from oss.src.core.tracing.dtos import Filtering, Formatting
 from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
@@ -13,6 +13,7 @@ from oss.src.core.shared.dtos import (
     Tags,
     Meta,
     Windowing,
+    Trace,
 )
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.git.dtos import (
@@ -118,8 +119,12 @@ class QueryVariantQuery(VariantQuery):
 
 
 class QueryRevisionData(BaseModel):
-    windowing: Optional[Windowing] = None
+    formatting: Optional[Formatting] = None
     filtering: Optional[Filtering] = None
+    windowing: Optional[Windowing] = None
+    #
+    trace_ids: Optional[List[str]] = None
+    traces: Optional[List[Trace]] = None
 
 
 class QueryRevision(

@@ -19,17 +19,19 @@ import type {Atom, WritableAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {extractVariablesFromAgConfig} from "../../runnable/utils"
+import {
+    extractVariablesFromAgConfig,
+    extractVariablesFromEnhancedPrompts,
+} from "../../runnable/utils"
 import type {QueryState} from "../../shared"
 import type {ListQueryState} from "../../shared"
 import {extractRoutePath, extractRuntimePrefix, isLocalDraftId, isPlaceholderId} from "../../shared"
 import {
-    fetchOssRevisionById,
-    fetchOssRevisionEnriched,
-    fetchVariantDetail,
     fetchVariantsList,
-    fetchRevisionsList,
     fetchAppsList,
+    revisionBatchFetcher,
+    variantDetailBatchFetcher,
+    revisionsListBatchFetcher,
     type AppListItem,
     type VariantListItem,
     type RevisionListItem,
@@ -41,6 +43,7 @@ import {
     enhancedPromptsToParameters,
     enhancedCustomPropertiesToParameters,
 } from "../utils"
+import {syncInputKeysInPrompts} from "../utils/syncInputKeys"
 
 // ============================================================================
 // INPUT PORTS TYPE
@@ -101,7 +104,7 @@ export const variantDetailCacheAtomFamily = atomFamily((variantId: string) =>
 
         return {
             queryKey: ["variantDetail", variantId, projectId],
-            queryFn: () => fetchVariantDetail(variantId, projectId!),
+            queryFn: () => variantDetailBatchFetcher({variantId, projectId: projectId!}),
             staleTime: 1000 * 60 * 5, // 5 minutes - variants don't change often
             refetchOnWindowFocus: false,
             enabled,
@@ -131,7 +134,7 @@ const directQueryAtomFamily = atomFamily((revisionId: string) =>
 
         return {
             queryKey: ["legacyAppRevision", revisionId, projectId],
-            queryFn: () => fetchOssRevisionById(revisionId, projectId!),
+            queryFn: () => revisionBatchFetcher({revisionId, projectId: projectId!}),
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
             enabled,
@@ -159,7 +162,30 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
             queryKey: ["legacyAppRevisionEnriched", key, projectId],
             queryFn: async () => {
                 if (!parsed || !projectId) return null
-                return fetchOssRevisionEnriched(parsed.revisionId, parsed.variantId, projectId)
+                // Use batch fetchers for deduplication — revision + variant
+                // detail requests are collected across concurrent queries
+                const [revision, variantDetail] = await Promise.all([
+                    revisionBatchFetcher({
+                        revisionId: parsed.revisionId,
+                        projectId,
+                    }),
+                    variantDetailBatchFetcher({
+                        variantId: parsed.variantId,
+                        projectId,
+                    }),
+                ])
+                if (!revision) return null
+                if (variantDetail) {
+                    return {
+                        ...revision,
+                        variantId: parsed.variantId,
+                        appId: variantDetail.appId || revision.appId,
+                        variantName: variantDetail.name || revision.variantName,
+                        appName: variantDetail.appName || revision.appName,
+                        uri: variantDetail.uri || revision.uri,
+                    }
+                }
+                return revision
             },
             staleTime: 1000 * 60, // 1 minute
             refetchOnWindowFocus: false,
@@ -171,7 +197,7 @@ export const enrichedQueryAtomFamily = atomFamily((key: string) =>
 /**
  * Query atom family - returns server data for a revision
  *
- * Uses legacy API via fetchOssRevisionById.
+ * Uses legacy API via revisionBatchFetcher.
  * Returns QueryState format for consistency with entity patterns.
  */
 export const legacyAppRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
@@ -277,6 +303,9 @@ export const legacyAppRevisionIsDirtyAtomFamily = atomFamily((revisionId: string
  *
  * Extracts template variables ({{variableName}}) from prompt messages
  * and returns them as input port definitions.
+ *
+ * Prefers enhanced prompts (draft edits) over raw parameters, so that
+ * newly added template variables are reflected immediately without saving.
  */
 export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: string) =>
     atom<LegacyAppRevisionInputPort[]>((get) => {
@@ -284,6 +313,19 @@ export const legacyAppRevisionInputPortsAtomFamily = atomFamily((revisionId: str
         const data = get(legacyAppRevisionEntityAtomFamily(revisionId))
         if (!data) return []
 
+        // Prefer enhanced prompts (includes unsaved draft edits) over raw parameters
+        const enhancedPrompts = data.enhancedPrompts as unknown[] | undefined
+        if (enhancedPrompts && Array.isArray(enhancedPrompts) && enhancedPrompts.length > 0) {
+            const dynamicKeys = extractVariablesFromEnhancedPrompts(enhancedPrompts)
+            return dynamicKeys.map((key) => ({
+                key,
+                name: key,
+                type: "string" as const,
+                required: true,
+            }))
+        }
+
+        // Fallback to raw parameters (server data before prompts are derived)
         const parameters = data.parameters as Record<string, unknown> | undefined
         const dynamicKeys = extractVariablesFromAgConfig(parameters)
 
@@ -349,7 +391,7 @@ export const revisionsQueryAtomFamily = atomFamily((variantId: string) =>
 
         return {
             queryKey: ["oss-revisions-for-selection", variantId, projectId],
-            queryFn: () => fetchRevisionsList(variantId, projectId!),
+            queryFn: () => revisionsListBatchFetcher({variantId, projectId: projectId!}),
             staleTime: 1000 * 60,
             refetchOnWindowFocus: false,
             enabled,
@@ -974,6 +1016,7 @@ export const setEnhancedPromptsAtom = atom(
         ) {
             const updatedServerData = produce(serverData!, (draft) => {
                 draft.enhancedPrompts = prompts
+                syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
             })
             // Update the legacy server data atom (which feeds into serverDataSelector)
             set(legacyAppRevisionServerDataAtomFamily(revisionId), updatedServerData)
@@ -983,6 +1026,7 @@ export const setEnhancedPromptsAtom = atom(
         // Otherwise, create/update the draft
         const updated = produce(base, (draft) => {
             draft.enhancedPrompts = prompts
+            syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
         })
 
         set(getDraftAtom(revisionId), updated)
@@ -994,7 +1038,7 @@ export const setEnhancedPromptsAtom = atom(
  */
 export const mutateEnhancedPromptsAtom = atom(
     null,
-    (get, set, revisionId: string, recipe: (draft: unknown[]) => void) => {
+    (get, set, revisionId: string, recipe: (draft: unknown[]) => unknown[] | void) => {
         const currentDraft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
         const base = currentDraft || serverData
@@ -1004,7 +1048,14 @@ export const mutateEnhancedPromptsAtom = atom(
         }
 
         const currentPrompts = base.enhancedPrompts || []
-        const updatedPrompts = produce(currentPrompts, recipe)
+        // Apply the recipe first, then sync input_keys on the result.
+        // The recipe may either mutate the Immer draft in place (returning void)
+        // or return a new array (functional style via .map()). We use produce
+        // for the recipe alone, then sync input_keys on the produced result.
+        const afterRecipe = produce(currentPrompts, recipe)
+        const updatedPrompts = produce(afterRecipe, (draft) => {
+            syncInputKeysInPrompts(draft as unknown[])
+        })
 
         // Skip creating draft if prompts didn't actually change
         // Use stripVolatileKeys to ignore __id and __test fields that change on every derivation
@@ -1135,6 +1186,8 @@ export const updatePropertyAtom = atom(
             if (draft.enhancedPrompts && Array.isArray(draft.enhancedPrompts)) {
                 const found = updatePropertyInArray(draft.enhancedPrompts, propertyId, value)
                 if (found) {
+                    // Recalculate input_keys from current message content
+                    syncInputKeysInPrompts(draft.enhancedPrompts as unknown[])
                     propertyFound = true
                     return
                 }
