@@ -166,7 +166,7 @@ That matrix records, for each first-class topic:
 - provider
 - platform
 - runtime
-- OLAP / storage backend
+- OLAP database
 - maintenance mode
 - support level
 

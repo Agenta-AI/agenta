@@ -80,16 +80,16 @@
   description: Kubernetes runtime
   color: 5319e7
 - name: olap/local
-  description: Local OLAP / storage backend for self-hosted local setups
+  description: Local vanilla Postgres database
   color: 0e8a16
 - name: olap/postgres
-  description: Managed vanilla Postgres backend
+  description: Managed vanilla Postgres database
   color: 0e8a16
 - name: olap/tigerdata
-  description: Managed TigerData backend
+  description: Managed TigerData database
   color: 0e8a16
 - name: olap/clickhouse
-  description: Managed ClickHouse backend
+  description: Managed ClickHouse database
   color: 0e8a16
 - name: maintenance/internal
   description: Primarily under core team maintenance
