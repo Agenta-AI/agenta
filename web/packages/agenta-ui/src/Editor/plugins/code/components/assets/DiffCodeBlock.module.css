@@ -40,6 +40,23 @@
         line-height: inherit;
     }
 
+    &:global(.diff-modified) {
+        background-color: rgba(99, 102, 241, 0.06);
+        border-left: 3px solid #6366f1;
+        padding-left: 8px;
+        position: relative;
+    }
+
+    &:global(.diff-modified::before) {
+        content: "~";
+        color: #6366f1;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        position: absolute;
+        line-height: inherit;
+    }
+
     &:global(.diff-context) {
         background-color: #f9f9fa;
         border-left: 3px solid var(--editor-bg);

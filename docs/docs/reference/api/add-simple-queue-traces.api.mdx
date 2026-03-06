@@ -1,0 +1,71 @@
+---
+id: add-simple-queue-traces
+title: "Add Queue Traces"
+description: "Add Queue Traces"
+sidebar_label: "Add Queue Traces"
+hide_title: true
+hide_table_of_contents: true
+api: eJydVk1v4zYQ/SvGnFqAjdygJ53qzQZYY3exaeL2YgjBRBzb3Eoiw480rqD/XgwpWXKUpMD6YEvkzHDmzZtHt+Bx7yDfwvUTVgG90o2DQoA2ZOPbWkIOKOW9U7Wp6P4xUKB7b7EkBwIMWqzJk+UgLTRYE+SQjJQEAaqBHAz6Awiw9BiUJQm5t4EEuPJANULegj8a9nPeqmYPAnba1ughhxBiFK98xQZ/cODFWkLXFSkeOf9ByyMHeRm+1I2nxvMWGlOpMhaUfXe64bXxdGO5XK/IxVy4tnsl44vyVLt5hp0YFtBaPE4y3LD3Yi0ddKORfvhOpT9DYDs5pxjd7yLKscwYyV1ZQk+3qVLoOo5qyRnduJTu5XLJP5JcaZXhCjlMKEtybheqxW1vDD8MSKlDcuqrUY2nPdlJ0VfRQoCkHYbKQ77sxEgCPq45fttFhrzf6U6cLJpQVdAVr/Z+Duwr+K3lqfQE22+Xl3Ok/sJKyYjD4tpabX8cJkkeVXVGmnODSpdnu2+BMgFhgLor3mbcF50SZFLWbv/aOA2mX8k53NNI37dNIxiLDe92PMUmJAr02+u40Ako/fMkzKwfV4zls//fYWBsUvq93aTxY4tSh96G4mNqwXsE+bTZ3MwCJn6cE2Ml5SJRbjOIXU3+oFkPjXY+ip8/QA6ZsfSk6J8sSWQWie+ydhiALktymYEAR/ZpEMtgK8jh4L1xeZaVlQ7yAvfUeLxAlaFRkf6OymCVP0aX1c36Mx0/EUqykG+LqcEd8zIx7dzs1B006jMxXr1Mr4I/aKv+TfTptfqQvBgQZvztqLHXz8j1vdDI7cCdIvJkp6c0WcVyFqubNQjgwhO2y4tfL5YwQ3xqzEOIZeTckG3cBvECtxNiIIDqOIHgCevfxw2uhVtWYzONN2/wWT4n2JjAmalQxRGLp7d977fQ955bG7sPvfBxuHxyD55uTGb2gfmTb6FtH9DRn7bqOl5+DGS5z4WAJ7QKHxjDbQtSOX6WkO+wcjTL8yRY8NNtP1M/L0C8nv/AhYaJwJc+v4GAv+k4vbmj4hwGorX99lU66ZeoC6P7TCZZwpLHqizJ+Hdti8lk3Xy724CAh/5Kr7VkH4sMMH/HVLVJ/1P4zue1Fips9oGVLYcUkz//ASUjB1I=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Add Queue Traces"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/simple/queues/{queue_id}/traces/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Add Queue Traces
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"queue_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Queue Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"trace_ids":{"items":{"type":"string"},"type":"array","title":"Trace Ids"}},"type":"object","required":["trace_ids"],"title":"SimpleQueueTracesCreateRequest"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"queue_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Queue Id"}},"type":"object","title":"SimpleQueueIdResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -106,13 +106,12 @@
  * ```
  */
 
-import React, {useState, useEffect} from "react"
+import React, {useState, useEffect, useMemo} from "react"
 
 import {getContentLanguage} from "@agenta/shared/utils"
 import yaml from "js-yaml"
 
 import EditorWrapper from "./Editor"
-import DiffHighlightPlugin from "./plugins/code/plugins/DiffHighlightPlugin"
 
 /**
  * Detect the language of a string content.
@@ -305,6 +304,25 @@ const DiffView: React.FC<DiffViewProps> = ({
         setDiffKey((prev) => prev + 1)
     }, [enableFolding, foldThreshold, showFoldedLineCount, computeOnMountOnly])
 
+    const diffExtensionConfig = useMemo(
+        () => ({
+            originalContent: processedContent.original,
+            modifiedContent: processedContent.modified,
+            language: processedContent.language,
+            enableFolding,
+            foldThreshold,
+            showFoldedLineCount,
+        }),
+        [
+            processedContent.original,
+            processedContent.modified,
+            processedContent.language,
+            enableFolding,
+            foldThreshold,
+            showFoldedLineCount,
+        ],
+    )
+
     return (
         <div className={className}>
             {error && showErrors && (
@@ -316,17 +334,7 @@ const DiffView: React.FC<DiffViewProps> = ({
                 key={diffKey}
                 initialValue=""
                 language={processedContent.language}
-                additionalCodePlugins={[
-                    <DiffHighlightPlugin
-                        key="diff-highlight"
-                        originalContent={processedContent.original}
-                        modifiedContent={processedContent.modified}
-                        language={processedContent.language}
-                        enableFolding={enableFolding}
-                        foldThreshold={foldThreshold}
-                        showFoldedLineCount={showFoldedLineCount}
-                    />,
-                ]}
+                diffExtensionConfig={diffExtensionConfig}
                 className="w-full"
                 disabled={true}
                 codeOnly={true}

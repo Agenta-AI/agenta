@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 
+# shellcheck source=lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 cleanup() {
     rm -rf "$TMP_DIR"
 }
@@ -17,6 +20,7 @@ REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 INFRA_SETTLE_SECONDS="${RAILWAY_INFRA_SETTLE_SECONDS:-40}"
 APP_SETTLE_SECONDS="${RAILWAY_APP_SETTLE_SECONDS:-60}"
 ALEMBIC_MAX_ATTEMPTS="${RAILWAY_ALEMBIC_MAX_ATTEMPTS:-3}"
+REDIS_IMAGE="${REDIS_IMAGE:-redis:8.2.1}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
@@ -37,8 +41,8 @@ fi
 redeploy_service_if_exists() {
     local service="$1"
 
-    if railway service "$service" >/dev/null 2>&1; then
-        railway redeploy --yes >/dev/null
+    if railway_call service "$service" >/dev/null 2>&1; then
+        railway_call redeploy --yes >/dev/null
     fi
 }
 
@@ -46,7 +50,7 @@ run_alembic_with_retries() {
     local attempt=1
 
     while [ "$attempt" -le "$ALEMBIC_MAX_ATTEMPTS" ]; do
-        if railway up "$TMP_DIR/alembic" --path-as-root --service alembic; then
+        if railway_call up "$TMP_DIR/alembic" --path-as-root --service alembic; then
             return 0
         fi
 
@@ -158,10 +162,28 @@ CMD ["sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin
 EOF
 }
 
+render_redis_wrapper() {
+    local dir="$TMP_DIR/redis"
+    mkdir -p "$dir"
+    cp "$ROOT_DIR/hosting/railway/oss/redis/entrypoint.sh" "$dir/entrypoint.sh"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${REDIS_IMAGE}
+
+COPY entrypoint.sh /usr/local/bin/railway-redis-entrypoint.sh
+RUN chmod +x /usr/local/bin/railway-redis-entrypoint.sh
+
+USER root
+
+ENTRYPOINT ["/usr/local/bin/railway-redis-entrypoint.sh"]
+CMD ["redis-server"]
+EOF
+}
+
 render_api_wrapper
 render_services_wrapper
 render_web_wrapper
 render_alembic_wrapper
+render_redis_wrapper
 render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tracing"]'
 render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
 render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
@@ -178,22 +200,24 @@ sleep "${RAILWAY_POST_BOOTSTRAP_SLEEP:-5}"
 "$ROOT_DIR/hosting/railway/oss/scripts/configure.sh"
 
 # Ensure infra picks up freshly configured credentials before migrations.
-railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
+railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
 redeploy_service_if_exists "$POSTGRES_SERVICE"
-redeploy_service_if_exists "$REDIS_SERVICE"
+if railway_call service "$REDIS_SERVICE" >/dev/null 2>&1; then
+    railway_call up "$TMP_DIR/redis" --path-as-root --service "$REDIS_SERVICE" --detach
+fi
 sleep "$INFRA_SETTLE_SECONDS"
 
 # Alembic first. This also creates required databases.
 run_alembic_with_retries
 
-railway up "$TMP_DIR/api" --path-as-root --service api --detach
-railway up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
-railway up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
-railway up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
-railway up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
-railway up "$TMP_DIR/services" --path-as-root --service services --detach
-railway up "$TMP_DIR/cron" --path-as-root --service cron --detach
-railway up "$TMP_DIR/web" --path-as-root --service web --detach
+railway_call up "$TMP_DIR/api" --path-as-root --service api --detach
+railway_call up "$TMP_DIR/worker-tracing" --path-as-root --service worker-tracing --detach
+railway_call up "$TMP_DIR/worker-evaluations" --path-as-root --service worker-evaluations --detach
+railway_call up "$TMP_DIR/worker-webhooks" --path-as-root --service worker-webhooks --detach
+railway_call up "$TMP_DIR/worker-events" --path-as-root --service worker-events --detach
+railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
+railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
+railway_call up "$TMP_DIR/web" --path-as-root --service web --detach
 
 sleep "$APP_SETTLE_SECONDS"
 "$ROOT_DIR/hosting/railway/oss/scripts/deploy-gateway.sh"
