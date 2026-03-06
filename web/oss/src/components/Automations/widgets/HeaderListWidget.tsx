@@ -6,8 +6,8 @@ const {Text} = Typography
 export const HeaderListWidget = () => {
     return (
         <div>
-            <Text strong className="mb-2 block">
-                Headers
+            <Text className="mb-2 block">
+                Custom Headers (optional)
             </Text>
             <Form.List name="header_list">
                 {(fields, {add, remove}) => (

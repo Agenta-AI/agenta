@@ -84,9 +84,9 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                 label={field.label}
                 className="!mb-0"
                 extra={
-                    field.secret && field.extra ? (
+                    field.secret ? (
                         <div className="flex items-start justify-between">
-                            <span>{field.extra}</span>
+                            {field.extra && <span>{field.extra}</span>}
                             {isEditMode && !isChangingSecret && (
                                 <Button
                                     type="link"

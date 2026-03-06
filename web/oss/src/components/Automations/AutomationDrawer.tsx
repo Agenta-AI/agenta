@@ -1,6 +1,6 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {Button, Collapse, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -23,6 +23,7 @@ import {
 
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./constants"
+import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"
 
@@ -172,12 +173,9 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                 const isSignatureWebhook =
                     selectedProvider === "webhook" && rawValues.auth_mode === "signature"
-                const isGithub = selectedProvider === "github"
 
-                if (isSignatureWebhook || isGithub) {
-                    if (webhookSecret) {
-                        setCreatedWebhookSecret(webhookSecret)
-                    }
+                if (isSignatureWebhook && webhookSecret) {
+                    setCreatedWebhookSecret(webhookSecret)
                 }
 
                 message.success("Automation created successfully")
@@ -223,7 +221,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     return (
         <>
             <EnhancedDrawer
-                title={isEdit ? "Edit Automation" : "Create Automation"}
+                title={isEdit ? "Edit Automation" : "Add Automation"}
                 open={open}
                 onClose={onCancel}
                 width={450}
@@ -248,7 +246,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                 </Button>
                             </Tooltip>
                             <Button type="primary" onClick={handleOk}>
-                                {isEdit ? "Update" : "Create"}
+                                {isEdit ? "Update Automation" : "Create Automation"}
                             </Button>
                         </div>
                     </div>
@@ -272,7 +270,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     <div className="flex flex-col gap-3">
                         <Form.Item
                             name="provider"
-                            label="Select automation"
+                            label="Destination"
                             initialValue="webhook"
                             className="!mb-0"
                         >
@@ -289,7 +287,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                             className="!mb-0"
                             rules={[{required: true, message: "Please enter a name"}]}
                         >
-                            <Input placeholder="Automation name" />
+                            <Input placeholder="Production deploy hook" />
                         </Form.Item>
 
                         <Form.Item
@@ -318,6 +316,12 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                 />
                             </>
                         )}
+
+                        <Collapse className="[&_.ant-collapse-content]:bg-transparent" size="small">
+                            <Collapse.Panel header="Example Request" key="preview" forceRender>
+                                <RequestPreview form={form} />
+                            </Collapse.Panel>
+                        </Collapse>
                     </div>
                 </Form>
             </EnhancedDrawer>

@@ -60,7 +60,7 @@ export const AdvanceConfigWidget = ({isEditMode}: {isEditMode: boolean}) => {
                             placeholder={
                                 isEditMode && !isChangingAuthValue
                                     ? "•••••••••••••••••"
-                                    : "Enter Bearer token"
+                                    : "your-token"
                             }
                             disabled={isEditMode && !isChangingAuthValue}
                         />

@@ -11,6 +11,34 @@ export const EVENT_OPTIONS = [
 
 export const REPO_PATTERN = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/
 
+export const GITHUB_HEADERS: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+export const GITHUB_URL_TEMPLATES: Record<string, string> = {
+    repository_dispatch: "https://api.github.com/repos/{repo}/dispatches",
+    workflow_dispatch:
+        "https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches",
+}
+
+export const GITHUB_PAYLOAD_TEMPLATES: Record<string, Record<string, unknown>> = {
+    repository_dispatch: {
+        event_type: "$.event.event_type",
+        client_payload: "$.event",
+    },
+    workflow_dispatch: {
+        ref: "{branch}",
+        inputs: {
+            event_id: "$.event.event_id",
+            event_type: "$.event.event_type",
+            timestamp: "$.event.timestamp",
+            subscription_id: "$.subscription.id",
+            project_id: "$.scope.project_id",
+        },
+    },
+}
+
 export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
     {
         provider: "webhook",
@@ -23,7 +51,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 key: "url",
                 label: "Webhook URL",
                 component: "input",
-                placeholder: "URL",
+                placeholder: "https://example.com/webhook",
                 rules: [
                     {required: true, message: "Payload URL is required"},
                     {type: "url", message: "Please enter a valid URL (e.g. https://...)"},
@@ -51,31 +79,9 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
         icon: GithubOutlined,
         description: "Trigger a GitHub Actions workflow",
         subtitle: "GitHub configuration",
-        headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-        urlTemplates: {
-            repository_dispatch: "https://api.github.com/repos/{repo}/dispatches",
-            workflow_dispatch:
-                "https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches",
-        },
-        payloadTemplates: {
-            repository_dispatch: {
-                event_type: "$.event.event_type",
-                client_payload: "$.event",
-            },
-            workflow_dispatch: {
-                ref: "{branch}",
-                inputs: {
-                    event_id: "$.event.event_id",
-                    event_type: "$.event.event_type",
-                    timestamp: "$.event.timestamp",
-                    subscription_id: "$.subscription.id",
-                    project_id: "$.scope.project_id",
-                },
-            },
-        },
+        headers: GITHUB_HEADERS,
+        urlTemplates: GITHUB_URL_TEMPLATES,
+        payloadTemplates: GITHUB_PAYLOAD_TEMPLATES,
         fields: [
             {
                 key: "github_sub_type",
@@ -123,6 +129,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 component: "input",
                 initialValue: "main",
                 placeholder: "main",
+                extra: "The git ref to run the workflow on.",
                 rules: [{required: true, message: "Branch name is required"}],
                 visibleWhen: {field: "github_sub_type", value: "workflow_dispatch"},
             },
@@ -132,6 +139,7 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 component: "input.password",
                 secret: true,
                 placeholder: "ghp_...",
+                extra: "A GitHub PAT with repo scope.",
                 rules: [{required: true, message: "PAT is required"}],
             },
         ],

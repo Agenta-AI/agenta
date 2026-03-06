@@ -4,9 +4,7 @@ import {
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/automations/types"
 
-import {AUTOMATION_SCHEMA} from "../constants"
-
-const githubSchema = AUTOMATION_SCHEMA.find((s) => s.provider === "github")!
+import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../constants"
 
 /**
  * Transforms form values into the backend subscription shape per provider.
@@ -60,14 +58,16 @@ export const buildSubscription = (
     } else if (provider === "github") {
         const subType = github_sub_type || "repository_dispatch"
         const repo = github_repo || ""
-        let finalUrl = githubSchema.urlTemplates![subType].replace("{repo}", repo)
-        const payload_fields: any = {...githubSchema.payloadTemplates![subType]}
+        let finalUrl = GITHUB_URL_TEMPLATES[subType].replace("{repo}", repo)
+        const payload_fields: Record<string, unknown> = structuredClone(
+            GITHUB_PAYLOAD_TEMPLATES[subType],
+        )
 
         if (subType === "workflow_dispatch") {
             const workflow = github_workflow || ""
             const branch = github_branch || "main"
             finalUrl = finalUrl.replace("{workflow}", workflow)
-            payload_fields.ref = payload_fields.ref.replace("{branch}", branch)
+            payload_fields.ref = (payload_fields.ref as string).replace("{branch}", branch)
         }
 
         const subscription: WebhookSubscriptionCreateRequest["subscription"] = {
@@ -75,7 +75,7 @@ export const buildSubscription = (
             data: {
                 url: finalUrl,
                 event_types,
-                headers: githubSchema.headers,
+                headers: GITHUB_HEADERS,
                 auth_mode: "authorization",
                 payload_fields,
             },
