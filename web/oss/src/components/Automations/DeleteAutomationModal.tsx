@@ -26,7 +26,7 @@ const DeleteAutomationModal = () => {
     }
 
     return (
-        <Modal
+        <EnhancedModal
             title="Delete Automation"
             open={!!webhookToDelete}
             onOk={handleDeleteConfirm}
@@ -38,7 +38,7 @@ const DeleteAutomationModal = () => {
             okButtonProps={{danger: true}}
         >
             <p>Are you sure you want to delete this automation?</p>
-        </Modal>
+        </EnhancedModal>
     )
 }
 
