@@ -11,21 +11,22 @@ import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {RevisionLabel} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Popover, Space, Tag, Typography} from "antd"
+import {Button, Dropdown, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-
-import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {currentAppAtom} from "@/oss/state/app"
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 import {useEvaluatorOnlyAdapter} from "../../hooks/useEvaluatorBrowseAdapter"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
 import {useStyles} from "./styles"
+
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {currentAppAtom} from "@/oss/state/app"
+import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
@@ -138,6 +139,8 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
     const {displayedEntities} = usePlaygroundLayout()
 
     const currentApp = useAtomValue(currentAppAtom)
+    const routeAppId = useAtomValue(routerAppIdAtom)
+    const isProjectLevelPlayground = !routeAppId
 
     // Evaluator chaining state
     const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
@@ -351,12 +354,27 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     </Popover>
                     <RunEvaluationButton />
                     <TestsetDropdown />
-                    <SelectVariant
-                        showAsCompare
-                        multiple
-                        onChange={(value) => onAddVariant(value)}
-                        value={displayedEntities}
-                    />
+                    {isProjectLevelPlayground ? (
+                        <Tooltip title="Compare mode is unavailable in project-level playground">
+                            <Space.Compact size="small">
+                                <Button
+                                    className="flex items-center gap-1"
+                                    icon={<Plus size={14} />}
+                                    disabled
+                                >
+                                    Compare
+                                </Button>
+                                <Button icon={<DownOutlined style={{fontSize: 10}} />} disabled />
+                            </Space.Compact>
+                        </Tooltip>
+                    ) : (
+                        <SelectVariant
+                            showAsCompare
+                            multiple
+                            onChange={(value) => onAddVariant(value)}
+                            value={displayedEntities}
+                        />
+                    )}
                 </div>
             </div>
         </>

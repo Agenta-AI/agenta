@@ -40,7 +40,11 @@ import type {StoreOptions} from "../../shared"
 import {parseRevisionUri} from "../../shared"
 
 import {resolveBuiltinAppServiceUrl} from "./helpers"
-import {workflowAppSchemaAtomFamily, workflowEntityAtomFamily} from "./store"
+import {
+    workflowAppSchemaAtomFamily,
+    workflowEntityAtomFamily,
+    workflowServiceSchemaForRevisionAtomFamily,
+} from "./store"
 
 // Re-export for external consumers
 export {resolveBuiltinAppServiceUrl} from "./helpers"
@@ -100,22 +104,33 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
 // ============================================================================
 
 /**
- * Route path derived from the app schema query.
- * Only populated for non-evaluator app workflows with a `data.url`.
+ * Route path derived from the app schema.
+ * Prefers the prefetched service schema for builtin apps (completion/chat),
+ * falls back to per-revision OpenAPI fetch for custom apps.
  */
 export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
     atom<string>((get) => {
+        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
+        if (serviceResult.isServiceType) {
+            return serviceResult.schemas?.routePath || ""
+        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.routePath || ""
     }),
 )
 
 /**
- * Raw dereferenced OpenAPI spec from the app schema query.
+ * Raw dereferenced OpenAPI spec from the app schema.
+ * Prefers the prefetched service schema for builtin apps (completion/chat),
+ * falls back to per-revision OpenAPI fetch for custom apps.
  * Needed by `buildRequestBody()` for input mapping and custom workflow detection.
  */
 export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<unknown | null>((get) => {
+        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
+        if (serviceResult.isServiceType) {
+            return serviceResult.schemas?.openApiSchema ?? null
+        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.openApiSchema ?? null
     }),

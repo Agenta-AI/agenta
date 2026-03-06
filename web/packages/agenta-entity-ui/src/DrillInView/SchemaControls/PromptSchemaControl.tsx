@@ -13,7 +13,7 @@
  * - Object with "messages" property that is an array of role/content items
  */
 
-import {memo, useCallback, useMemo, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {SimpleChatMessage} from "@agenta/shared/types"
@@ -198,10 +198,33 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
     // Use prop if provided, otherwise use default
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
 
-    // Local template format state (initialized from props, can be changed by user)
+    // Detect which key variant the value uses for template format (snake_case vs camelCase)
+    const templateFormatKey = useMemo((): string => {
+        if (!value) return "template_format"
+        if ("template_format" in value) return "template_format"
+        if ("templateFormat" in value) return "templateFormat"
+        return "template_format"
+    }, [value])
+
+    // Read template format from value, falling back to prop
+    const resolvedTemplateFormat = useMemo((): "curly" | "fstring" | "jinja2" => {
+        if (!value) return templateFormat
+        const raw = value.template_format ?? value.templateFormat
+        if (raw === "fstring") return "fstring"
+        if (raw === "jinja2" || raw === "jinja") return "jinja2"
+        if (raw === "curly") return "curly"
+        return templateFormat
+    }, [value, templateFormat])
+
+    // Local template format state (initialized from value or prop)
     const [localTemplateFormat, setLocalTemplateFormat] = useState<"curly" | "fstring" | "jinja2">(
-        templateFormat,
+        resolvedTemplateFormat,
     )
+
+    // Sync local state when value changes externally (e.g., discard/revert)
+    useEffect(() => {
+        setLocalTemplateFormat(resolvedTemplateFormat)
+    }, [resolvedTemplateFormat])
     const stableVariables = variables ?? EMPTY_VARIABLES
 
     // Determine if llm_config is nested
@@ -543,6 +566,11 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                             const format = val as "curly" | "fstring" | "jinja2"
                             setLocalTemplateFormat(format)
                             onTemplateFormatChange?.(format)
+                            // Propagate to entity draft via onChange
+                            onChange({
+                                ...value,
+                                [templateFormatKey]: format,
+                            })
                         }}
                         options={TEMPLATE_FORMAT_OPTIONS}
                         className="min-w-[130px]"
