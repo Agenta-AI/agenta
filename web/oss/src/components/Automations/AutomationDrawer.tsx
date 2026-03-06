@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Form, Input, message, Segmented, Select, Tooltip, Typography} from "antd"
+import {GithubOutlined, LinkOutlined} from "@ant-design/icons"
+import {Button, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -21,9 +22,8 @@ import {
     selectedProviderAtom,
 } from "@/oss/state/automations/state"
 
-import {EVENT_OPTIONS, PROVIDER_OPTIONS} from "./constants"
+import {EVENT_OPTIONS} from "./constants"
 import {GitHubFields, WebhookFields} from "./providers"
-import {RequestPreview} from "./RequestPreview"
 import SecretRevealModal from "./SecretRevealModal"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"
@@ -189,19 +189,27 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
         selectedProvider,
     ])
 
-    const segmentedOptions = useMemo(
-        () =>
-            PROVIDER_OPTIONS.map((opt) => ({
+    const providerOptions = useMemo(
+        () => [
+            {
                 label: (
-                    <div className="p-2">
-                        <div className="font-medium">{opt.label}</div>
-                        <div className="text-xs text-[var(--color-text-tertiary)]">
-                            {opt.description}
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <LinkOutlined />
+                        <span>Webhook</span>
                     </div>
                 ),
-                value: opt.value,
-            })),
+                value: "webhook",
+            },
+            {
+                label: (
+                    <div className="flex items-center gap-2">
+                        <GithubOutlined />
+                        <span>GitHub</span>
+                    </div>
+                ),
+                value: "github",
+            },
+        ],
         [],
     )
 
@@ -211,7 +219,7 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
                 title={isEdit ? "Edit Automation" : "Create Automation"}
                 open={open}
                 onClose={onCancel}
-                width={800}
+                width={450}
                 destroyOnHidden
                 footer={
                     <div className="flex items-center justify-between gap-2">
@@ -254,60 +262,55 @@ const AutomationDrawer: React.FC<Props> = ({onSuccess}) => {
                         }
                     }}
                 >
-                    <div className="flex gap-6">
-                        <div className="flex-1">
-                            <Form.Item name="provider" initialValue="webhook" className="!mb-6">
-                                <Segmented block disabled={isEdit} options={segmentedOptions} />
-                            </Form.Item>
+                    <div className="flex flex-col gap-3">
+                        <Form.Item
+                            name="provider"
+                            label="Select automation"
+                            initialValue="webhook"
+                            className="!mb-0"
+                        >
+                            <Select
+                                disabled={isEdit}
+                                options={providerOptions}
+                                placeholder="Select webhook/github"
+                            />
+                        </Form.Item>
 
-                            <Form.Item
-                                name="name"
-                                label="Name"
-                                rules={[{required: true, message: "Please enter a name"}]}
-                            >
-                                <Input placeholder="My Automation" />
-                            </Form.Item>
+                        <Form.Item
+                            name="name"
+                            label="Name"
+                            className="!mb-0"
+                            rules={[{required: true, message: "Please enter a name"}]}
+                        >
+                            <Input placeholder="Automation name" />
+                        </Form.Item>
 
-                            <Form.Item
-                                name="events"
-                                label="Events"
-                                rules={[
-                                    {required: true, message: "Please select at least one event"},
-                                ]}
-                            >
-                                <Select
-                                    mode="multiple"
-                                    placeholder="Select events"
-                                    options={EVENT_OPTIONS}
-                                />
-                            </Form.Item>
+                        <Form.Item
+                            name="events"
+                            label="Event types"
+                            className="!mb-0"
+                            rules={[{required: true, message: "Please select at least one event"}]}
+                        >
+                            <Select
+                                mode="multiple"
+                                placeholder="Select events"
+                                options={EVENT_OPTIONS}
+                            />
+                        </Form.Item>
 
-                            <div className="mt-8 mb-4 border-b border-[var(--color-border)]">
-                                <Typography.Title level={5}>
-                                    {selectedProvider === "github"
-                                        ? "GitHub Configuration"
-                                        : "Webhook Configuration"}
-                                </Typography.Title>
-                            </div>
-
-                            {selectedProvider === "github" ? (
-                                <GitHubFields isEditMode={isEdit} />
-                            ) : (
-                                <WebhookFields isEditMode={isEdit} />
-                            )}
+                        <div className="mt-4 mb-2">
+                            <Typography.Text type="secondary" className="font-medium">
+                                {selectedProvider === "github"
+                                    ? "GitHub configuration"
+                                    : "Webhook configuration"}
+                            </Typography.Text>
                         </div>
 
-                        {/* <div className="w-[40%] border-l border-[var(--color-border)] pl-6">
-                            <Typography.Title level={5} className="!mb-4">
-                                Request Preview
-                            </Typography.Title>
-                            <Typography.Text type="secondary" className="mb-4 block text-[13px]">
-                                This is a simulation of the HTTP request that Agenta will send when
-                                the event occurs.
-                            </Typography.Text>
-
-                            <RequestPreview form={form} />
-                        </div> */}
+                        {selectedProvider === "github" ? (
+                            <GitHubFields isEditMode={isEdit} />
+                        ) : (
+                            <WebhookFields isEditMode={isEdit} />
+                        )}
                     </div>
                 </Form>
             </EnhancedDrawer>

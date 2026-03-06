@@ -1,6 +1,6 @@
 import React from "react"
 
-import {Alert, Button, Form, Input, Radio, Space} from "antd"
+import {Alert, Button, Form, Input, Select} from "antd"
 
 import {REPO_PATTERN} from "../constants"
 
@@ -14,17 +14,18 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
     const [isChangingPat, setIsChangingPat] = React.useState(false)
 
     return (
-        <Space direction="vertical" size="large" className="w-full">
+        <div className="flex w-full flex-col gap-3">
             {/* Event Type selector */}
-            <Form.Item name="github_sub_type" initialValue="repository_dispatch" className="!mb-2">
-                <Radio.Group disabled={isEditMode} className="flex w-full">
-                    <Radio.Button value="repository_dispatch" className="flex-1 text-center">
-                        Repository Dispatch
-                    </Radio.Button>
-                    <Radio.Button value="workflow_dispatch" className="flex-1 text-center">
-                        Workflow Dispatch
-                    </Radio.Button>
-                </Radio.Group>
+            <Form.Item
+                name="github_sub_type"
+                label="Dispatch"
+                initialValue="repository_dispatch"
+                className="!mb-0"
+            >
+                <Select disabled={isEditMode} placeholder="Select dispatch">
+                    <Select.Option value="repository_dispatch">Repository Dispatch</Select.Option>
+                    <Select.Option value="workflow_dispatch">Workflow Dispatch</Select.Option>
+                </Select>
             </Form.Item>
 
             <Alert
@@ -35,13 +36,14 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
                         ? "Triggers a generic 'repository_dispatch' Github event."
                         : "Triggers a specific workflow file manually based on inputs."
                 }
-                className="mb-4"
+                className="mb-0"
             />
 
             {/* Target Repository */}
             <Form.Item
                 name="github_repo"
                 label="Target Repository"
+                className="!mb-0"
                 rules={[
                     {required: true, message: "Repository is required"},
                     {
@@ -60,6 +62,7 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
                     <Form.Item
                         name="github_workflow"
                         label="Workflow File"
+                        className="!mb-0"
                         rules={[{required: true, message: "Workflow file name is required"}]}
                         extra="e.g. deploy.yml or action.yaml"
                     >
@@ -69,6 +72,7 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
                     <Form.Item
                         name="github_branch"
                         label="Branch/Ref"
+                        className="!mb-0"
                         initialValue="main"
                         rules={[{required: true, message: "Branch name is required"}]}
                     >
@@ -81,6 +85,7 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
             <Form.Item
                 name="github_pat"
                 label="Personal Access Token"
+                className="!mb-0"
                 rules={[{required: !isEditMode || isChangingPat, message: "PAT is required"}]}
                 extra={
                     <div className="flex items-start justify-between">
@@ -106,6 +111,6 @@ export const GitHubFields: React.FC<Props> = ({isEditMode}) => {
                     disabled={isEditMode && !isChangingPat}
                 />
             </Form.Item>
-        </Space>
+        </div>
     )
 }

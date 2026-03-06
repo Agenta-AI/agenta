@@ -1,7 +1,7 @@
 import React from "react"
 
 import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Collapse, Form, Input, Select, Space, Typography} from "antd"
+import {Button, Collapse, Divider, Form, Input, Select, Typography} from "antd"
 
 const {Text} = Typography
 const {Option} = Select
@@ -16,11 +16,12 @@ export const WebhookFields: React.FC<Props> = ({isEditMode}) => {
     const [isChangingAuthValue, setIsChangingAuthValue] = React.useState(false)
 
     return (
-        <Space direction="vertical" size="large" className="w-full">
+        <div className="flex w-full flex-col gap-3">
             {/* Payload URL */}
             <Form.Item
                 name="url"
-                label="Payload URL"
+                label="Webhook URL"
+                className="!mb-0"
                 rules={[
                     {required: true, message: "Payload URL is required"},
                     {type: "url", message: "Please enter a valid URL (e.g. https://...)"},
@@ -30,7 +31,7 @@ export const WebhookFields: React.FC<Props> = ({isEditMode}) => {
                     },
                 ]}
             >
-                <Input placeholder="https://example.com/webhook" />
+                <Input placeholder="URL" />
             </Form.Item>
 
             {/* Headers Configuration */}
@@ -77,19 +78,21 @@ export const WebhookFields: React.FC<Props> = ({isEditMode}) => {
                                 block
                                 icon={<PlusOutlined />}
                             >
-                                Add Header
+                                Add header
                             </Button>
                         </div>
                     )}
                 </Form.List>
             </div>
+            <Divider className="!my-0" />
 
             {/* Advanced Settings */}
             <Collapse className="border-none bg-transparent [&_.ant-collapse-content]:border-none [&_.ant-collapse-content]:bg-transparent [&_.ant-collapse-content]:!p-0 [&_.ant-collapse-header]:!px-0 [&_.ant-collapse-header]:!py-2 [&_.ant-collapse-header]:!text-[var(--color-text-secondary)] [&_.ant-collapse-item]:border-none">
-                <Collapse.Panel header="Advanced Settings" key="1">
+                <Collapse.Panel header="Advance config" key="1">
                     <Form.Item
                         name="auth_mode"
                         label="Authentication Mode"
+                        className="!mb-4"
                         initialValue="signature"
                     >
                         <Select>
@@ -142,6 +145,6 @@ export const WebhookFields: React.FC<Props> = ({isEditMode}) => {
                     )}
                 </Collapse.Panel>
             </Collapse>
-        </Space>
+        </div>
     )
 }
