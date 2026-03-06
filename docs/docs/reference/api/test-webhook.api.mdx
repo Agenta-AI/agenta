@@ -1,0 +1,71 @@
+---
+id: test-webhook
+title: "Test Webhook"
+description: "Test Webhook"
+sidebar_label: "Test Webhook"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1WNtu20YQ/ZXFPLUAKzluHwo+VbEDxEiKGLGcPNiGseKOpI3JXWZ3qJgVCPQj+oX9kmKWF1FXO6rzJImc2545c1ktgeTMQ3wDn3Eyt/bBw10ENkcnSVtzoSAGQk/33+rXEEEuncyQ0LHaEozMEGLwxcQnTuesda8VRKANxJBLmkMEDr8W2qGCmFyBEfhkjpmEeAlU5kGdnDYziGBqXSYJYiiKYIU0pSxw1bMvLhRU1R2b9bk1Hj1bOj054Q+FnVxQSxL0flqk4mMjDBEk1hAaYnGZ56lOwmGHXzzrLHvR5Y6hIF17SGxRKzVBa0M4Q9eL8ixIRKBwKouUID6p+EeqF+jK4M6UH6YBtw3TDiWhupe0LrUXHiUJfyGdIVRRJ2aKNAUGpounNitGBFUERa5+hJPr2mzjRGGKP8DJeW22cdLCNSmZa8/zEwj1HLBel4FgK7xe1EuLVuelBexFvbRwdV5eznRtz5Okwm/XCCfSk8zyg8W9yvnK7rjTrKJGc3/AhwIc83MmiVVH2zhj3SqCDL2Xs6PN/Nmo14AlD+RkcrSxq5WFqoMI7OQLJgRrYpwZZpYkeajp4AIN3T8FdQRoioxHBJqFdtZkaMgPHC6019b4QWKzTBMht+tmTPhBfx74AY8QVNA7TDNu3nAIIWHRVucOBiZykqIIkQqOy4t///5HSMHBJSTYDZKwU9FZGtyaW/NJpgV6IR0KhU4vUImps9lKSngraI6iPqQXnmQptBG+NMng1oytkEoJKQx+E353KJHQJLLCk5hq50ngo/bENlah7Mgn9xWX7qqOTD6+RzOjOcSnJ7//GkGmTfvgVb9Cne6l+9qlnOs5ShVGcj+RUinNcMr0cr1INzi3waVDJHzb+Kl4EShTK9VzXNZT//leLhvT1WrGHyJy3Yzu9xZ8O6ifqC4qvGgLf2JVeWyhvmbdQyXakP+8WQzazeTCTO1uxqBz1h0bzpugvCue1Vp2E0i5XZ9tiOfcSnaGtrn4/Z+dLmpa0veZCeVW74SHj9jMrO2Ye373Q7Dr+N+fY6gq1vrt9HR7Wf0kU63CKirqnB29qSokqUOT0YTZjjGd2mTt7TN41RXR3erU0jlZ9g793tYBhtHpZ7uyuGM0thNon2gAQ7RjXZu8qLfwdiEJD3jg02PPzFZGzhjLR3qSJoxNHX4j1+PEKkVNVe2F4rxOwSGKvB2PL7cM1vxYJ8YYPYnP3Q0sQ5pbvpnl1lO4kfGIgGE7fIc8bofLDZZXTHx0i/biFqYQzIlyHw+HSWoLNZAzNCQHUg9lrkMT8ZgUTlMZVEaXF++wrEcAxDd3fYErpmJNrnWxLiEy1++QIWqujKOC5tbpv2rGNBfGeo4F2DS3w16eRyE4Mbq8gAj4GDU4J4NXg5Ot9WFNmKtIJoE0re/wGqINFLrzc0vIQgkBocz+WL3gyBj3TJqevY0MrcXSAcDsG+ap1KE+mi2gTt5NtzkxPzCkNd5sU3cRzDnj8Q0slxPp8dqlVcWPvxbhfnlzF8FCOs2LSkiY0p6/K4inMvW4FVjXXuCnj00F/Cwg2h1wm0bDOVzwggUxQAQPWO74AyC0iXlLlWUjNUoSzKmnv9XVmFMdwS8/XI2hqv4DeRK18A==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Test Webhook"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/webhooks/test/{subscription_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Test Webhook
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"subscription_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Subscription Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"delivery":{"anyOf":[{"properties":{"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"status":{"properties":{"timestamp":{"type":"string","format":"date-time","title":"Timestamp"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"},"code":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Code"},"message":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Message"},"stacktrace":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Stacktrace"}},"type":"object","title":"Status"},"data":{"anyOf":[{"properties":{"event_type":{"anyOf":[{"type":"string","enum":["environments.revisions.committed","webhooks.subscriptions.tested"],"title":"WebhookEventType","description":"Subscribable event types — a strict subset of EventType.\n\nValues are derived from EventType so the strings stay in sync.\nTo add a new subscribable event type, it must first exist in EventType."},{"type":"null"}]},"url":{"type":"string","maxLength":2083,"minLength":1,"format":"uri","title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"type":"string"},"type":"object"},{"type":"null"}],"title":"Headers"},"payload":{"anyOf":[{"additionalProperties":true,"type":"object"},{"type":"null"}],"title":"Payload"},"response":{"anyOf":[{"properties":{"status_code":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Status Code"},"body":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Body"}},"type":"object","title":"WebhookDeliveryResponseInfo"},{"type":"null"}]},"error":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Error"}},"type":"object","required":["url"],"title":"WebhookDeliveryData"},{"type":"null"}]},"subscription_id":{"type":"string","format":"uuid","title":"Subscription Id"},"event_id":{"type":"string","format":"uuid","title":"Event Id"}},"type":"object","required":["status","subscription_id","event_id"],"title":"WebhookDelivery"},{"type":"null"}]}},"type":"object","title":"WebhookDeliveryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

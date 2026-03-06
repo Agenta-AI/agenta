@@ -12,17 +12,22 @@ Tests cover:
 
 import pytest
 from uuid import uuid4
+from typing import Dict
 
 from oss.src.core.embeds.utils import (
     resolve_embeds,
     find_object_embeds,
     find_string_embeds,
+    find_snippet_embeds,
     extract_path,
     set_path,
     canonicalize_reference,
     AG_EMBED_KEY,
     AG_REFERENCES_KEY,
     AG_SELECTOR_KEY,
+    SNIPPET_DEFAULT_PATH,
+    _find_snippet_tokens,
+    _parse_snippet_token,
 )
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
@@ -31,6 +36,7 @@ from oss.src.core.embeds.exceptions import (
     CircularEmbedError,
     MaxDepthExceededError,
     MaxEmbedsExceededError,
+    MixedEntityTypesError,
     PathExtractionError,
 )
 from oss.src.core.shared.dtos import Reference
@@ -174,7 +180,7 @@ class TestFindStringEmbeds:
         """Test finding string embed with path selector in token."""
         workflow_variant_id = str(uuid4())
         config = {
-            "message": f"Content: @ag.embed[@ag.references[workflow_variant.id={workflow_variant_id}], @ag.selector[path:params.message.content]]"
+            "message": f"Content: @ag.embed[@ag.references[workflow_variant.id={workflow_variant_id}], @ag.selector[path=params.message.content]]"
         }
 
         embeds = find_string_embeds(config)
@@ -186,10 +192,10 @@ class TestFindStringEmbeds:
         assert str(embeds[0].references["workflow_variant"].id) == workflow_variant_id
 
     def test_find_environment_revision_key_selector(self):
-        """environment_revision.key should target data.references.<key>."""
+        """@ag.selector[key=...] should set selector.key for two-hop resolution."""
         environment_revision_id = str(uuid4())
         config = {
-            "auth": f"@ag.embed[@ag.references[environment_revision.id={environment_revision_id}, environment_revision.key=api_config]]"
+            "auth": f"@ag.embed[@ag.references[environment_revision.id={environment_revision_id}], @ag.selector[key=api_config]]"
         }
 
         embeds = find_string_embeds(config)
@@ -200,7 +206,8 @@ class TestFindStringEmbeds:
             == environment_revision_id
         )
         assert embeds[0].selector is not None
-        assert embeds[0].selector.path == "references.api_config"
+        assert embeds[0].selector.key == "api_config"
+        assert embeds[0].selector.path is None
 
     def test_no_string_embed_without_token(self):
         """Test that strings without @ag.embed token are not detected."""
@@ -364,9 +371,9 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
-            assert entity_type == "workflow_revision"
-            assert ref.id == workflow_id
+        async def resolver(references: Dict[str, Reference]):
+            assert "workflow_revision" in references
+            assert references["workflow_revision"].id == workflow_id
             return resolved_config
 
         result_config, resolution_info = await resolve_embeds(
@@ -399,7 +406,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             return full_config
 
         result_config, resolution_info = await resolve_embeds(
@@ -419,7 +426,8 @@ class TestResolveEmbeds:
             "greeting": "Say: @ag.embed[@ag.references[workflow_revision.version=v1]]"
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
+            ref = next(iter(references.values()))
             assert ref.version == "v1"
             return resolved_value
 
@@ -459,9 +467,10 @@ class TestResolveEmbeds:
 
         call_count = 0
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             nonlocal call_count
             call_count += 1
+            ref = next(iter(references.values()))
 
             if ref.id == id1:
                 return intermediate_config
@@ -490,7 +499,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             # Return config with reference to itself
             return {
                 "self_ref": {
@@ -516,7 +525,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             # Always return another embed
             return {
                 "nested": {
@@ -553,7 +562,7 @@ class TestResolveEmbeds:
             },
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             return {"value": "resolved"}
 
         with pytest.raises(MaxEmbedsExceededError):
@@ -573,7 +582,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         with pytest.raises(ValueError, match="Resolver failed"):
@@ -593,7 +602,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         result_config, resolution_info = await resolve_embeds(
@@ -617,7 +626,7 @@ class TestResolveEmbeds:
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
+        async def resolver(references: Dict[str, Reference]):
             raise ValueError("Resolver failed")
 
         result_config, resolution_info = await resolve_embeds(
@@ -630,37 +639,505 @@ class TestResolveEmbeds:
         assert AG_EMBED_KEY in result_config["embed"]
         assert len(resolution_info.errors) == 1
 
-    async def test_multiple_references_in_same_embed(self):
-        """Test embed with multiple references in dict."""
-        workflow_id = uuid4()
-        env_id = uuid4()
+    async def test_multiple_references_same_family(self):
+        """Test embed with same-family multi-reference (variant + revision)."""
+        variant_id = uuid4()
+        revision_resolved = {"model": "gpt-4", "temperature": 0.7}
 
         config = {
             "combined": {
                 AG_EMBED_KEY: {
                     AG_REFERENCES_KEY: {
-                        "workflow_revision": {"id": str(workflow_id)},
-                        "environment_revision": {"id": str(env_id)},
+                        "workflow_variant": {"id": str(variant_id)},
+                        "workflow_revision": {"version": "v1"},
                     }
                 }
             }
         }
 
-        async def resolver(entity_type: str, ref: Reference):
-            return {"resolved": str(ref.id)}
+        async def resolver(references: Dict[str, Reference]):
+            assert "workflow_variant" in references
+            assert "workflow_revision" in references
+            assert references["workflow_variant"].id == variant_id
+            assert references["workflow_revision"].version == "v1"
+            return revision_resolved
 
         result_config, resolution_info = await resolve_embeds(
             configuration=config,
             resolver_callback=resolver,
         )
 
-        # Should resolve all references into a mapping keyed by entity_type
-        assert "workflow_revision" in result_config["combined"]
-        assert "environment_revision" in result_config["combined"]
-        assert result_config["combined"]["workflow_revision"]["resolved"] == str(
-            workflow_id
-        )
-        assert result_config["combined"]["environment_revision"]["resolved"] == str(
-            env_id
-        )
+        # Single resolver call returns the resolved entity directly
+        assert result_config["combined"] == revision_resolved
         assert resolution_info.embeds_resolved == 1
+
+    async def test_mixed_family_references_raises_error(self):
+        """Test that references spanning different entity families raise MixedEntityTypesError."""
+        config = {
+            "bad": {
+                AG_EMBED_KEY: {
+                    AG_REFERENCES_KEY: {
+                        "workflow_revision": {"version": "v1"},
+                        "environment_revision": {"slug": "prod"},
+                    }
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return {}
+
+        with pytest.raises(MixedEntityTypesError):
+            await resolve_embeds(
+                configuration=config,
+                resolver_callback=resolver,
+            )
+
+
+class TestFindSnippetTokens:
+    """Tests for _find_snippet_tokens — the @{{...}} token scanner."""
+
+    def test_single_token(self):
+        tokens = _find_snippet_tokens("Hello @{{environment.slug=prod, key=tip}} world")
+        assert tokens == ["@{{environment.slug=prod, key=tip}}"]
+
+    def test_no_tokens(self):
+        tokens = _find_snippet_tokens("Just a regular string")
+        assert tokens == []
+
+    def test_multiple_tokens(self):
+        text = "@{{environment.slug=prod, key=a}} and @{{environment.slug=dev, key=b}}"
+        tokens = _find_snippet_tokens(text)
+        assert len(tokens) == 2
+        assert "@{{environment.slug=prod, key=a}}" in tokens
+        assert "@{{environment.slug=dev, key=b}}" in tokens
+
+    def test_token_at_start(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod}}")
+        assert tokens == ["@{{environment.slug=prod}}"]
+
+    def test_incomplete_token_ignored(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod no closing")
+        assert tokens == []
+
+    def test_ampersand_separator(self):
+        tokens = _find_snippet_tokens("@{{environment.slug=prod & key=tip}}")
+        assert tokens == ["@{{environment.slug=prod & key=tip}}"]
+
+
+class TestParseSnippetToken:
+    """Tests for _parse_snippet_token — the @{{...}} parser."""
+
+    def test_basic_with_key(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=production, key=my_snippet}}"
+        )
+        assert result is not None
+        references, selector = result
+        # bare "environment" stays as-is (resolver handles level inference)
+        assert "environment" in references
+        assert references["environment"].slug == "production"
+        assert selector is not None
+        assert selector.key == "my_snippet"
+        assert selector.path == SNIPPET_DEFAULT_PATH
+
+    def test_auto_select_key_environment(self):
+        """key= absent + environment → selector.key == '' (auto-select)."""
+        result = _parse_snippet_token("@{{environment.slug=production}}")
+        assert result is not None
+        references, selector = result
+        assert selector is not None
+        assert selector.key == ""  # empty string = auto-select (environment only)
+        assert selector.path == SNIPPET_DEFAULT_PATH
+
+    def test_no_auto_select_for_workflow(self):
+        """key= absent + workflow → selector.key is None (direct path, no key-hop)."""
+        result = _parse_snippet_token("@{{workflow.slug=my-flow}}")
+        assert result is not None
+        _, selector = result
+        assert selector is not None
+        assert selector.key is None  # no auto-select for non-environments
+
+    def test_explicit_path(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=prod, key=tip, path=config.value}}"
+        )
+        assert result is not None
+        _, selector = result
+        assert selector is not None
+        assert selector.path == "config.value"
+
+    def test_colon_separator(self):
+        """`:` is supported as an alternative name-value separator."""
+        result = _parse_snippet_token("@{{environment.slug:prod, key:tip}}")
+        assert result is not None
+        references, selector = result
+        assert "environment" in references
+        assert references["environment"].slug == "prod"
+        assert selector is not None
+        assert selector.key == "tip"
+
+    def test_ampersand_separator(self):
+        result = _parse_snippet_token("@{{environment.slug=prod & key=tip}}")
+        assert result is not None
+        references, selector = result
+        assert "environment" in references
+        assert selector is not None
+        assert selector.key == "tip"
+
+    def test_mixed_separators(self):
+        result = _parse_snippet_token(
+            "@{{environment.slug=prod, key=tip & path=foo.bar}}"
+        )
+        assert result is not None
+        _, selector = result
+        assert selector.path == "foo.bar"
+        assert selector.key == "tip"
+
+    def test_spaces_trimmed(self):
+        result = _parse_snippet_token("@{{  environment.slug = prod  ,  key = tip  }}")
+        assert result is not None
+        references, selector = result
+        assert references["environment"].slug == "prod"
+        assert selector.key == "tip"
+
+    def test_explicit_level_suffix(self):
+        """Full entity type with level suffix is preserved as-is."""
+        result = _parse_snippet_token("@{{environment_revision.slug=prod, key=tip}}")
+        assert result is not None
+        references, _ = result
+        assert "environment_revision" in references
+        assert references["environment_revision"].slug == "prod"
+
+    def test_workflow_entity_type(self):
+        result = _parse_snippet_token("@{{workflow.slug=my-flow, key=prompt}}")
+        assert result is not None
+        references, _ = result
+        assert "workflow" in references
+        assert references["workflow"].slug == "my-flow"
+
+    def test_id_field(self):
+        from uuid import uuid4
+
+        uid = str(uuid4())
+        result = _parse_snippet_token(f"@{{{{environment.id={uid}, key=tip}}}}")
+        assert result is not None
+        references, _ = result
+        assert str(references["environment"].id) == uid
+
+    def test_invalid_token_returns_none(self):
+        assert _parse_snippet_token("not a token") is None
+        assert _parse_snippet_token("@{{}}") is None  # no params → no references
+
+    def test_default_path_applied(self):
+        result = _parse_snippet_token("@{{environment.slug=prod, key=tip}}")
+        assert result is not None
+        _, selector = result
+        assert selector.path == SNIPPET_DEFAULT_PATH
+
+
+class TestFindSnippetEmbeds:
+    """Tests for find_snippet_embeds — config traversal."""
+
+    def test_find_single_snippet(self):
+        config = {"greeting": "Hello @{{environment.slug=prod, key=tip}} world"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].key == "greeting"
+        assert embeds[0].location == "greeting"
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key == "tip"
+
+    def test_find_auto_key_snippet_environment(self):
+        """key= absent on environment → selector.key == '' (auto-select)."""
+        config = {"msg": "@{{environment.slug=prod}}"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key == ""
+
+    def test_find_direct_path_snippet_workflow(self):
+        """key= absent on workflow → selector.key is None (direct path, no auto-select)."""
+        config = {"msg": "@{{workflow.slug=my-flow}}"}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].selector is not None
+        assert embeds[0].selector.key is None
+
+    def test_find_nested_snippet(self):
+        config = {"outer": {"inner": "@{{environment.slug=prod, key=tip}}"}}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "outer.inner"
+
+    def test_find_multiple_snippets_in_one_string(self):
+        config = {
+            "msg": "@{{environment.slug=prod, key=a}} and @{{environment.slug=dev, key=b}}"
+        }
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 2
+
+    def test_no_snippets_returns_empty(self):
+        config = {"msg": "no embeds here"}
+        embeds = find_snippet_embeds(config)
+        assert embeds == []
+
+    def test_snippet_in_list(self):
+        config = {"items": ["plain", "@{{environment.slug=prod, key=tip}}"]}
+        embeds = find_snippet_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "items.1"
+        assert "environment" in embeds[0].references
+
+
+@pytest.mark.asyncio
+class TestSnippetEmbedResolution:
+    """Integration tests for snippet embed resolution via resolve_embeds."""
+
+    async def test_resolve_snippet_with_key(self):
+        """Basic: @{{environment.slug=prod, key=tip}} resolves through key selector."""
+        env_data = {
+            "data": {
+                "references": {
+                    "tip": {"workflow_revision": {"slug": "my-workflow-v1"}},
+                }
+            }
+        }
+        workflow_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "Hello from workflow"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            # bare "environment" category — resolver handles level inference
+            if "environment" in references:
+                return env_data
+            if "workflow_revision" in references:
+                return workflow_data
+            raise ValueError(f"Unexpected references: {references}")
+
+        config = {"greeting": "Say: @{{environment.slug=prod, key=tip}}"}
+        result_config, info = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["greeting"] == "Say: Hello from workflow"
+        assert info.embeds_resolved >= 1
+
+    async def test_resolve_snippet_auto_key(self):
+        """key= absent → auto-selects the single key in entity references."""
+        env_data = {
+            "data": {
+                "references": {
+                    "only_key": {"workflow_revision": {"slug": "my-workflow-v1"}},
+                }
+            }
+        }
+        workflow_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "Auto-selected content"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"msg": "@{{environment.slug=prod}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "Auto-selected content"
+
+    async def test_resolve_snippet_workflow_direct_path(self):
+        """Workflow without key= applies path directly — no key-hop."""
+        workflow_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "direct-workflow-content"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return workflow_data
+
+        config = {"msg": "@{{workflow.slug=my-flow}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "direct-workflow-content"
+
+    async def test_resolve_snippet_key_matches_variant_slug(self):
+        """key can match application_variant.slug when references map key is <app>.revision."""
+        env_data = {
+            "data": {
+                "references": {
+                    "snippet.revision": {
+                        "application": {
+                            "id": "019cbd69-6e5d-7933-abed-2a7d1eded6ee",
+                            "slug": "snippet",
+                        },
+                        "application_variant": {
+                            "id": "019cbd69-74f1-77b2-9b81-121c98db1000",
+                            "slug": "snippet.default",
+                        },
+                        "application_revision": {
+                            "id": "019cbd6a-80ef-74d1-ad67-690d5f24d87b",
+                            "slug": "16e039ed9adc",
+                            "version": "3",
+                        },
+                    }
+                }
+            }
+        }
+        workflow_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "variant-slug-key-content"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"msg": "@{{environment.slug=staging, key=snippet.default}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "variant-slug-key-content"
+
+    async def test_resolve_snippet_key_revision_bundle(self):
+        """key can point to an app deployment bundle under <app>.revision."""
+        env_data = {
+            "data": {
+                "references": {
+                    "snippet.revision": {
+                        "application": {
+                            "id": "019cbd69-6e5d-7933-abed-2a7d1eded6ee",
+                            "slug": "snippet",
+                        },
+                        "application_variant": {
+                            "id": "019cbd69-74f1-77b2-9b81-121c98db1000",
+                            "slug": "snippet.default",
+                        },
+                        "application_revision": {
+                            "id": "019cbd6a-80ef-74d1-ad67-690d5f24d87b",
+                            "slug": "16e039ed9adc",
+                            "version": "3",
+                        },
+                    }
+                }
+            }
+        }
+        app_revision_data = {
+            "data": {
+                "parameters": {
+                    "prompt": {"messages": [{"content": "from-snippet-revision-key"}]}
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            if "application_revision" in references:
+                return app_revision_data
+            raise ValueError(f"Unexpected refs: {references}")
+
+        config = {"msg": "@{{environment.slug=staging, key=snippet.revision}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["msg"] == "from-snippet-revision-key"
+
+    async def test_resolve_snippet_explicit_path(self):
+        """Explicit path= overrides the default path."""
+        env_data = {
+            "data": {
+                "references": {
+                    "tip": {"workflow_revision": {"slug": "wf-v1"}},
+                }
+            }
+        }
+        workflow_data = {
+            "data": {"parameters": {"config": {"value": "explicit-path-result"}}}
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            return workflow_data
+
+        config = {"out": "@{{environment.slug=prod, key=tip, path=config.value}}"}
+        result_config, _ = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["out"] == "explicit-path-result"
+
+    async def test_auto_key_fails_with_multiple_keys(self):
+        """auto_select_key raises ValueError when entity has multiple keys."""
+        env_data = {
+            "data": {
+                "references": {
+                    "key_a": {"workflow_revision": {"slug": "wf-a-v1"}},
+                    "key_b": {"workflow_revision": {"slug": "wf-b-v1"}},
+                }
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            return env_data
+
+        config = {"msg": "@{{environment.slug=prod}}"}
+        with pytest.raises(ValueError, match="Cannot auto-select key"):
+            await resolve_embeds(
+                configuration=config,
+                resolver_callback=resolver,
+            )
+
+    async def test_snippet_and_string_embed_coexist(self):
+        """Both @ag.embed[...] and @{{...}} can appear in the same config."""
+        env_data = {
+            "data": {"references": {"tip": {"workflow_revision": {"slug": "wf-v1"}}}}
+        }
+        workflow_data = {
+            "data": {
+                "parameters": {"prompt": {"messages": [{"content": "snippet-value"}]}}
+            }
+        }
+
+        async def resolver(references: Dict[str, Reference]):
+            if "environment" in references:
+                return env_data
+            if "workflow_revision" in references:
+                ref = list(references.values())[0]
+                if ref.version == "v2":
+                    return {"data": {"parameters": {"value": "classic-value"}}}
+                return workflow_data
+            raise ValueError(f"Unexpected: {references}")
+
+        config = {
+            "a": "@{{environment.slug=prod, key=tip}}",
+            "b": "@ag.embed[@ag.references[workflow_revision.version=v2], @ag.selector[path=parameters.value]]",
+        }
+        result_config, info = await resolve_embeds(
+            configuration=config,
+            resolver_callback=resolver,
+        )
+        assert result_config["a"] == "snippet-value"
+        assert result_config["b"] == "classic-value"

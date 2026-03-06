@@ -1,8 +1,9 @@
 import {LexicalNode} from "lexical"
 
 import {$isCodeBlockNode, CodeBlockNode} from "../nodes/CodeBlockNode"
-import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
+
+import {$getAllCodeLines} from "./segmentUtils"
 
 /**
  * Analyzes and corrects the indentation of all lines in a code block node.
@@ -16,7 +17,7 @@ import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
  */
 export function $fixCodeBlockIndentation(codeBlock: LexicalNode | CodeBlockNode | null) {
     if (!$isCodeBlockNode(codeBlock)) return
-    const lines = codeBlock.getChildren().filter($isCodeLineNode) as CodeLineNode[]
+    const lines = $getAllCodeLines(codeBlock)
 
     let indentLevel = 0
     for (const line of lines) {

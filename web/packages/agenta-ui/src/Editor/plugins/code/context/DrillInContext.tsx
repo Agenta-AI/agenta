@@ -9,9 +9,14 @@ import {createContext, useContext} from "react"
 interface DrillInContextValue {
     /** Whether drill-in functionality is enabled */
     enabled: boolean
+    /** Whether escaped JSON string characters should be rendered as readable text in LongTextNode */
+    decodeEscapedJsonStrings: boolean
 }
 
-const DrillInContext = createContext<DrillInContextValue>({enabled: false})
+const DrillInContext = createContext<DrillInContextValue>({
+    enabled: false,
+    decodeEscapedJsonStrings: false,
+})
 
 export const DrillInProvider = DrillInContext.Provider
 

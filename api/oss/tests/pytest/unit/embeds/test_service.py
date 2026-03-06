@@ -36,7 +36,29 @@ def mock_workflows_service():
         workflow_revision_ref: Optional[Reference] = None,
         include_archived: bool = True,
     ) -> Optional[WorkflowRevision]:
-        if workflow_revision_ref and workflow_revision_ref.version == "v1":
+        if workflow_ref and workflow_ref.slug:
+            data = WorkflowRevisionData.model_validate(
+                {
+                    "parameters": {
+                        "prompt": {
+                            "messages": [{"content": "Hello from workflow ref"}]
+                        },
+                        "system_prompt": "You are a helpful AI assistant",
+                        "temperature": 0.7,
+                        "model": "gpt-4",
+                    }
+                }
+            )
+            return WorkflowRevision(
+                id=uuid4(),
+                variant_id=uuid4(),
+                artifact_id=uuid4(),
+                project_id=project_id,
+                version="v1",
+                data=data,
+                created_by_id=uuid4(),
+            )
+        elif workflow_revision_ref and workflow_revision_ref.version == "v1":
             data = WorkflowRevisionData.model_validate(
                 {
                     "parameters": {
@@ -307,7 +329,7 @@ class TestStringEmbeds:
         """Test resolving a simple string embed."""
         project_id = uuid4()
         config = {
-            "prompt": "System: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.system_prompt]]"
+            "prompt": "System: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.system_prompt]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
@@ -324,7 +346,7 @@ class TestStringEmbeds:
         """Test multiple string embeds in the same string value."""
         project_id = uuid4()
         config = {
-            "prompt": "Model: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path:parameters.temperature]]"
+            "prompt": "Model: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.model]] Temp: @ag.embed[@ag.references[workflow_revision.version=v1], @ag.selector[path=parameters.temperature]]"
         }
 
         resolved_config, resolution_info = await embeds_service.resolve_configuration(
@@ -336,6 +358,20 @@ class TestStringEmbeds:
         assert "Temp: 0.7" in resolved_config["prompt"]
         assert "@ag.embed" not in resolved_config["prompt"]
         assert resolution_info.embeds_resolved == 2
+
+    @pytest.mark.asyncio
+    async def test_snippet_workflow_slug_uses_revision_data(self, embeds_service):
+        """@{{workflow.slug=...}} resolves to a revision and applies default path on revision.data."""
+        project_id = uuid4()
+        config = {"prompt": "Say: @{{workflow.slug=instructions}}"}
+
+        resolved_config, resolution_info = await embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=config,
+        )
+
+        assert resolved_config["prompt"] == "Say: Hello from workflow ref"
+        assert resolution_info.embeds_resolved == 1
 
 
 class TestCrossEntityReferences:

@@ -78,7 +78,11 @@ export function JsonEditorWithLocalState({
 
     // Wrap with DrillInProvider if onPropertyClick is set
     if (onPropertyClick) {
-        return <DrillInProvider value={{enabled: true}}>{editorContent}</DrillInProvider>
+        return (
+            <DrillInProvider value={{enabled: true, decodeEscapedJsonStrings: false}}>
+                {editorContent}
+            </DrillInProvider>
+        )
     }
 
     return editorContent

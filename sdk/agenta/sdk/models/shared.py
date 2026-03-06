@@ -106,19 +106,19 @@ class Selector(BaseModel):
 
     Placed alongside Reference for data extraction from referenced entities.
 
-    Supported selector formats:
-    - **Dot notation** (default): "params.prompt.messages.0.content"
-      Simple path using dots to navigate nested structures
-    - **JSONPath**: Future support for complex queries like "$.data[?(@.status=='active')]"
-      More powerful querying with filters and wildcards
-    - **JSONPointer**: Future support for RFC 6901 paths like "/data/0/value"
-      Standardized pointer format with escape sequences
-
-    Currently only dot notation is implemented. Future versions may add a
-    selector_type field to specify the format explicitly.
+    Fields:
+    - **key**: For environment revisions only. Navigates to data.references.<key>,
+      follows the entity pointer found there (e.g. workflow_revision), fetches that
+      entity, then applies path against its data.
+    - **path**: Dot notation path into the resolved entity's data.
+      If key is set, path applies to the secondary entity's data.
+      If key is not set, path applies directly to the referenced entity's data.
     """
 
-    path: str  # Dot notation path, e.g., "params.prompt.messages.0.content"
+    key: Optional[str] = (
+        None  # Environment revision reference key for two-hop resolution
+    )
+    path: Optional[str] = None  # Dot notation path, e.g., "parameters.system_prompt"
 
 
 class Header(BaseModel):

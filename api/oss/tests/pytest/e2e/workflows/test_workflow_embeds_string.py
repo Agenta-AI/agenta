@@ -100,7 +100,7 @@ class TestWorkflowEmbedsString:
                     "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
-                            "message": f"Say: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path:parameters.greeting]]"
+                            "message": f"Say: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path=parameters.greeting]]"
                         }
                     },
                 }
@@ -365,7 +365,7 @@ class TestWorkflowEmbedsString:
                     "workflow_variant_id": ref_variant_id,
                     "data": {
                         "parameters": {
-                            "combined": f"Use @ag.embed[@ag.references[workflow_revision.slug={base1_slug}-v1], @ag.selector[path:parameters.value]] and @ag.embed[@ag.references[workflow_revision.slug={base2_slug}-v1], @ag.selector[path:parameters.value]]"
+                            "combined": f"Use @ag.embed[@ag.references[workflow_revision.slug={base1_slug}-v1], @ag.selector[path=parameters.value]] and @ag.embed[@ag.references[workflow_revision.slug={base2_slug}-v1], @ag.selector[path=parameters.value]]"
                         }
                     },
                 }
@@ -490,7 +490,7 @@ class TestWorkflowEmbedsNested:
                     "workflow_variant_id": level2_variant_id,
                     "data": {
                         "parameters": {
-                            "middle": f"Mid: @ag.embed[@ag.references[workflow_revision.slug={level3_slug}-v1], @ag.selector[path:parameters.final]]"
+                            "middle": f"Mid: @ag.embed[@ag.references[workflow_revision.slug={level3_slug}-v1], @ag.selector[path=parameters.final]]"
                         }
                     },
                 }
@@ -533,7 +533,7 @@ class TestWorkflowEmbedsNested:
                     "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "top": f"Top: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.middle]]"
+                            "top": f"Top: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path=parameters.middle]]"
                         }
                     },
                 }
@@ -658,7 +658,7 @@ class TestWorkflowEmbedsMixedTypes:
                     "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "prompt": f"Prompt: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.final_msg]]",
+                            "prompt": f"Prompt: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path=parameters.final_msg]]",
                             "model": "gpt-4",
                         }
                     },
@@ -1068,7 +1068,7 @@ class TestWorkflowEmbedsMixedTypes:
                     "workflow_variant_id": level1_variant_id,
                     "data": {
                         "parameters": {
-                            "str_msg": f"Message: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path:parameters.obj_config.parameters.base]]"
+                            "str_msg": f"Message: @ag.embed[@ag.references[workflow_revision.slug={level2_slug}-v1], @ag.selector[path=parameters.obj_config.parameters.base]]"
                         }
                     },
                 }

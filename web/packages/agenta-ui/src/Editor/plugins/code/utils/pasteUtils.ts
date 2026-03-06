@@ -1,7 +1,7 @@
 import {$copyNode, $createRangeSelection, $setSelection, LexicalNode} from "lexical"
 
 import {$createBase64Node, isBase64String, parseBase64String} from "../nodes/Base64Node"
-import {CodeBlockNode} from "../nodes/CodeBlockNode"
+import {$isCodeBlockNode, CodeBlockNode} from "../nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
@@ -9,6 +9,7 @@ import {$createLongTextNode, isLongTextString, parseLongTextString} from "../nod
 import type {CodeLanguage} from "../types"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
+import {$getAllCodeLines, $getCodeBlockForLine, $getLineAtIndex} from "./segmentUtils"
 import {tokenizeCodeLine} from "./tokenizer"
 
 /**
@@ -35,7 +36,14 @@ export function $insertLinesWithSelectionAndIndent({
         console.error("[pasteUtils] Missing currentLine or parentBlock, aborting paste logic")
         return
     }
-    const allLines = parentBlock.getChildren() as CodeLineNode[]
+    // Resolve through CodeSegmentNode to actual CodeBlockNode if needed
+    if (!$isCodeBlockNode(parentBlock) && currentLine) {
+        const resolved = $getCodeBlockForLine(currentLine)
+        if (resolved) {
+            parentBlock = resolved
+        }
+    }
+    const allLines = $getAllCodeLines(parentBlock)
     const lineIdx = allLines.findIndex((n) => n.getKey() === currentLine.getKey())
     if (lineIdx === -1) {
         console.error("[pasteUtils] Could not find currentLine in parentBlock children")
@@ -123,7 +131,7 @@ export function $insertLinesWithSelectionAndIndent({
         for (let i = beforeInLine.length - 1; i >= 0; i--) {
             firstLine.getFirstChild()?.insertBefore(beforeInLine[i])
         }
-        const lineBefore = parentBlock.getChildAtIndex(insertIdx - 1)
+        const lineBefore = $getLineAtIndex(parentBlock, insertIdx - 1)
         if (lineBefore) {
             lineBefore.insertAfter(firstLine)
         } else {
@@ -157,7 +165,7 @@ export function $insertLinesWithSelectionAndIndent({
         const lineNode = $createCodeLineNode()
         beforeInLine.forEach((n) => lineNode.append(n))
         afterInLine.forEach((n) => lineNode.append(n))
-        const childAtIdx = parentBlock.getChildAtIndex(insertIdx)
+        const childAtIdx = $getLineAtIndex(parentBlock, insertIdx)
         if (childAtIdx) {
             childAtIdx.insertBefore(lineNode)
         } else {
@@ -168,14 +176,14 @@ export function $insertLinesWithSelectionAndIndent({
 
     // Add trailing lines (use clones)
     clonedTrailingLines.forEach((l, i) => {
-        const prevChild = parentBlock.getChildAtIndex(insertIdx - 1 + i)
+        const prevChild = $getLineAtIndex(parentBlock, insertIdx - 1 + i)
         if (prevChild) {
             prevChild.insertAfter(l)
         }
     })
 
     // --- Selection restore: put cursor at the end of the pasted block ---
-    const lastInsertedLine = parentBlock.getChildAtIndex(insertIdx - 1) as CodeLineNode | null
+    const lastInsertedLine = $getLineAtIndex(parentBlock, insertIdx - 1) as CodeLineNode | null
     if (!lastInsertedLine) {
         return
     }
@@ -268,7 +276,11 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
             const longTextNode = $createLongTextNode(parsed.fullValue, token.type)
             codeLine.append(longTextNode)
         } else {
-            codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
+            const highlightNode = $createCodeHighlightNode(token.content, token.type, false, null)
+            if (token.style) {
+                highlightNode.setStyle(token.style)
+            }
+            codeLine.append(highlightNode)
         }
     })
     return codeLine

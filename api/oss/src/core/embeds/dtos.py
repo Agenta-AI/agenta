@@ -75,6 +75,42 @@ class StringEmbed(BaseModel):
     selector: Optional[Selector] = None  # Path selector extracted from token
 
 
+class SnippetEmbed(BaseModel):
+    """
+    Snippet embed for compact @{{...}} syntax.
+
+    Example:
+        {
+            "greeting": "Say: @{{environment.slug=production, key=my_snippet}}"
+        }
+
+    Syntax rules:
+    - Token: @{{<params>}}
+    - Part separators: , or & ; spaces trimmed
+    - Name-value separator: = or : (both supported; spaces trimmed on both sides)
+    - Entity reference: <entity_type>.<field>=<value>  (or using :)
+      - entity_type: bare category (environment, workflow, …) or with level suffix
+        (environment_revision, workflow_variant, …); same as full @ag.embed syntax
+      - field: id, slug, or version
+      - multiple reference params merge into the same references dict
+    - key=<name>: selector key for two-hop resolution via data.references.<name>
+    - path=<dotpath>: path relative to parameters. in revision.data
+      - auto-prefixed with 'parameters.' — write path=system_prompt not path=parameters.system_prompt
+      - defaults to 'prompt.messages.0.content' (resolved as parameters.prompt.messages.0.content)
+    - missing key= auto-selects (environments only) if entity has exactly one reference entry
+    """
+
+    key: str  # JSON key where the embed is defined
+    location: str  # JSON path where string occurs
+    token: str  # Original @{{...}} token text
+    references: Dict[str, Reference]
+    selector: Optional[Selector] = None
+    # selector.key == ""  → auto-select (environment only: pick single data.references entry)
+    # selector.key == None → no key-hop; apply path= to revision.data.parameters directly
+    # selector.key == "x"  → follow revision.data.references["x"], then apply path= to secondary revision.data
+    # selector.path stores user-written path; "parameters." prefix applied at resolution time
+
+
 class ResolutionInfo(BaseModel):
     references_used: List[Dict[str, Reference]]  # List of references dicts used
     depth_reached: int

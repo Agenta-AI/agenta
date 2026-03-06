@@ -22,6 +22,10 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
+from oss.src.services.legacy_adapter import (
+    configure_legacy_adapter,
+    configure_legacy_environments_adapter,
+)
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -351,6 +355,17 @@ simple_evaluators_service = SimpleEvaluatorsService(
 
 simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
+)
+
+# Ensure legacy adapters reuse the same pre-wired services (including embeds_service).
+configure_legacy_adapter(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+)
+configure_legacy_environments_adapter(
+    environments_service=environments_service,
+    simple_environments_service=simple_environments_service,
+    applications_service=applications_service,
 )
 
 evaluations_service = EvaluationsService(

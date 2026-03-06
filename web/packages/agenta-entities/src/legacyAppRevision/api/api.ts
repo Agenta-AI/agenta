@@ -4,13 +4,13 @@
  * HTTP functions and data transformers for OSS app revision entity.
  * Uses the legacy backend API endpoints:
  * - GET /variants/{variant_id}/revisions/{revision_number}/
- * - POST /variants/revisions/query/
+ * - POST /variants/revisions/query
  *
  * @packageDocumentation
  */
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {dereferenceSchema} from "@agenta/shared/utils"
+import {createBatchFetcher, dereferenceSchema} from "@agenta/shared/utils"
 
 import {
     // URI parsing
@@ -226,7 +226,7 @@ export async function fetchOssRevision(
 /**
  * Fetch a single revision by its ID
  *
- * Uses: POST /variants/revisions/query/
+ * Uses: POST /variants/revisions/query
  * Also fetches variant detail to get URI for schema fetching.
  *
  * @param revisionId - The revision ID (UUID)
@@ -241,7 +241,7 @@ export async function fetchOssRevisionById(
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: [revisionId],
             } as RevisionsQueryRequest,
@@ -257,9 +257,10 @@ export async function fetchOssRevisionById(
         const apiRevision = response.data.revisions[0]
 
         // If we have variant_id, fetch variant detail to get URI
+        // Uses batch fetcher for deduplication across concurrent revision fetches
         const variantId = apiRevision.variant_id
         if (variantId) {
-            const variantDetail = await fetchVariantDetail(variantId, projectId)
+            const variantDetail = await variantDetailBatchFetcher({variantId, projectId})
             if (variantDetail) {
                 const result = transformApiRevision(apiRevision, {
                     variantId,
@@ -286,7 +287,7 @@ export async function fetchOssRevisionById(
 /**
  * Batch fetch multiple revisions by their IDs
  *
- * Uses: POST /variants/revisions/query/
+ * Uses: POST /variants/revisions/query
  *
  * @param revisionIds - Array of revision IDs (UUIDs)
  * @param projectId - The project ID
@@ -300,7 +301,7 @@ export async function fetchOssRevisionsBatch(
 
     try {
         const response = await axios.post<RevisionsQueryResponse>(
-            `${getAgentaApiUrl()}/variants/revisions/query/`,
+            `${getAgentaApiUrl()}/variants/revisions/query`,
             {
                 revision_ids: revisionIds,
             } as RevisionsQueryRequest,
@@ -320,6 +321,253 @@ export async function fetchOssRevisionsBatch(
         return []
     }
 }
+
+// ============================================================================
+// BATCH FETCHERS
+// ============================================================================
+
+/**
+ * Batched revision fetcher — collects individual revision requests within a
+ * short window and executes a single bulk `POST /variants/revisions/query/`.
+ *
+ * Each result is enriched with variant detail (URI, app context) via the
+ * variant detail batch fetcher, which deduplicates across callers.
+ */
+export const revisionBatchFetcher = createBatchFetcher<
+    {revisionId: string; projectId: string},
+    LegacyAppRevisionData | null
+>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.revisionId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, LegacyAppRevisionData | null>()
+
+        // Group by projectId
+        const byProject = new Map<string, {revisionIds: string[]; keyMap: Map<string, string>}>()
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.revisionId || !req.projectId) {
+                results.set(key, null)
+                return
+            }
+            let group = byProject.get(req.projectId)
+            if (!group) {
+                group = {revisionIds: [], keyMap: new Map()}
+                byProject.set(req.projectId, group)
+            }
+            group.revisionIds.push(req.revisionId)
+            group.keyMap.set(req.revisionId, key)
+        })
+
+        for (const [projectId, group] of byProject) {
+            try {
+                const revisions = await fetchOssRevisionsBatch(group.revisionIds, projectId)
+
+                // Index by revision ID for lookup
+                const byId = new Map<string, LegacyAppRevisionData>()
+                for (const rev of revisions) {
+                    if (rev.id) byId.set(rev.id, rev)
+                }
+
+                // Collect unique variant IDs for batch enrichment
+                const variantIds = new Set<string>()
+                for (const rev of revisions) {
+                    const vid = rev.variantId || (rev as Record<string, unknown>).variant_id
+                    if (typeof vid === "string" && vid) variantIds.add(vid)
+                }
+
+                // Fetch all variant details in parallel (deduplicated by variantDetailBatchFetcher)
+                const variantDetails = new Map<string, VariantDetail | null>()
+                if (variantIds.size > 0) {
+                    const entries = Array.from(variantIds)
+                    const details = await Promise.all(
+                        entries.map((vid) =>
+                            variantDetailBatchFetcher({variantId: vid, projectId}),
+                        ),
+                    )
+                    entries.forEach((vid, i) => variantDetails.set(vid, details[i]))
+                }
+
+                // Map results with enrichment
+                for (const revisionId of group.revisionIds) {
+                    const key = group.keyMap.get(revisionId)!
+                    const rev = byId.get(revisionId)
+                    if (!rev) {
+                        results.set(key, null)
+                        continue
+                    }
+
+                    const vid = rev.variantId || (rev as Record<string, unknown>).variant_id
+                    const variant = typeof vid === "string" ? variantDetails.get(vid) : undefined
+                    if (variant) {
+                        results.set(key, {
+                            ...rev,
+                            variantId: vid as string,
+                            appId: variant.appId || rev.appId,
+                            variantName: variant.name || rev.variantName,
+                            appName: variant.appName || rev.appName,
+                            uri: variant.uri || rev.uri,
+                        })
+                    } else {
+                        results.set(key, rev)
+                    }
+                }
+            } catch (error) {
+                // On batch failure, set null for all revisions in this project
+                for (const revisionId of group.revisionIds) {
+                    const key = group.keyMap.get(revisionId)!
+                    results.set(key, null)
+                }
+            }
+        }
+
+        return results
+    },
+})
+
+/**
+ * In-memory cache for variant details with 5-minute TTL.
+ * Prevents re-fetching the same variant across different batch windows
+ * (e.g., when fetchRevisionsList, revisionBatchFetcher, and
+ * variantDetailCacheAtomFamily all request the same variant at slightly
+ * different times).
+ */
+const variantDetailCache = new Map<string, {data: VariantDetail | null; expiresAt: number}>()
+const VARIANT_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Clear the in-memory variant detail cache.
+ * Call after mutations that change variant data (name, URI, etc.)
+ * so subsequent fetches get fresh data.
+ *
+ * @param variantId - Clear a specific variant (across all projects), or omit to clear all
+ */
+export function clearVariantDetailCache(variantId?: string): void {
+    if (!variantId) {
+        variantDetailCache.clear()
+        return
+    }
+    for (const key of variantDetailCache.keys()) {
+        if (key.endsWith(`:${variantId}`)) {
+            variantDetailCache.delete(key)
+        }
+    }
+}
+
+/**
+ * Batched variant detail fetcher — deduplicates individual variant detail
+ * requests. Since there is no bulk variant endpoint, this executes individual
+ * fetches in parallel but prevents the same variantId from being fetched
+ * multiple times within the same window. Results are cached in memory for
+ * 5 minutes to avoid re-fetches across different batch windows.
+ */
+export const variantDetailBatchFetcher = createBatchFetcher<
+    {variantId: string; projectId: string},
+    VariantDetail | null
+>({
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.variantId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, VariantDetail | null>()
+        const now = Date.now()
+
+        // Resolve from cache first, collect uncached requests
+        const uncached = new Map<string, {variantId: string; projectId: string}>()
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.variantId || !req.projectId) {
+                results.set(key, null)
+                return
+            }
+
+            const cached = variantDetailCache.get(key)
+            if (cached && cached.expiresAt > now) {
+                results.set(key, cached.data)
+                return
+            }
+            uncached.set(key, req)
+        })
+
+        // Fetch all uncached variants in parallel
+        if (uncached.size > 0) {
+            await Promise.all(
+                Array.from(uncached.entries()).map(async ([key, req]) => {
+                    try {
+                        const detail = await fetchVariantDetail(req.variantId, req.projectId)
+                        variantDetailCache.set(key, {
+                            data: detail,
+                            expiresAt: now + VARIANT_CACHE_TTL,
+                        })
+                        results.set(key, detail)
+                    } catch {
+                        results.set(key, null)
+                    }
+                }),
+            )
+        }
+
+        return results
+    },
+})
+
+/**
+ * Batched revisions list fetcher — collects individual per-variant
+ * revisions list requests within a short window and executes them in
+ * parallel. Each request fetches `GET /variants/{variantId}/revisions`.
+ * The variant detail needed for enrichment is resolved via
+ * variantDetailBatchFetcher, which deduplicates across all callers.
+ */
+export const revisionsListBatchFetcher = createBatchFetcher<
+    {variantId: string; projectId: string},
+    RevisionListItem[]
+>({
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.variantId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, RevisionListItem[]>()
+
+        await Promise.all(
+            requests.map(async (req, index) => {
+                const key = serializedKeys[index]
+                if (!req.variantId || !req.projectId) {
+                    results.set(key, [])
+                    return
+                }
+
+                try {
+                    const [response, variantDetail] = await Promise.all([
+                        axios.get(`${getAgentaApiUrl()}/variants/${req.variantId}/revisions`, {
+                            params: {project_id: req.projectId},
+                        }),
+                        variantDetailBatchFetcher({
+                            variantId: req.variantId,
+                            projectId: req.projectId,
+                        }),
+                    ])
+
+                    const data = response.data as ApiRevisionListItem[] | undefined
+                    if (!data || !Array.isArray(data)) {
+                        results.set(key, [])
+                        return
+                    }
+
+                    const context = variantDetail
+                        ? {appId: variantDetail.appId, uri: variantDetail.uri}
+                        : undefined
+                    results.set(
+                        key,
+                        data.map((rev) => transformRevisionToListItem(rev, req.variantId, context)),
+                    )
+                } catch {
+                    results.set(key, [])
+                }
+            }),
+        )
+
+        return results
+    },
+})
 
 // ============================================================================
 // URI UTILITIES
@@ -460,28 +708,28 @@ export async function fetchOssRevisionEnriched(
     if (!revisionId || !variantId || !projectId) return null
 
     try {
-        // Fetch both revision and variant in parallel
-        const [revisionResponse, variantDetail] = await Promise.all([
-            axios.post<RevisionsQueryResponse>(
-                `${getAgentaApiUrl()}/variants/revisions/query/`,
-                {revision_ids: [revisionId]} as RevisionsQueryRequest,
-                {params: {project_id: projectId}},
-            ),
-            fetchVariantDetail(variantId, projectId),
+        // Use batch fetchers for deduplication — the revision batch fetcher
+        // already enriches with variant detail internally
+        const [revision, variantDetail] = await Promise.all([
+            revisionBatchFetcher({revisionId, projectId}),
+            variantDetailBatchFetcher({variantId, projectId}),
         ])
 
-        if (!revisionResponse.data?.revisions?.length) return null
+        if (!revision) return null
 
-        const apiRevision = revisionResponse.data.revisions[0]
+        // Merge variant detail into revision if available
+        if (variantDetail) {
+            return {
+                ...revision,
+                variantId,
+                appId: variantDetail.appId || revision.appId,
+                variantName: variantDetail.name || revision.variantName,
+                appName: variantDetail.appName || revision.appName,
+                uri: variantDetail.uri || revision.uri,
+            }
+        }
 
-        // Transform with enriched context from variant
-        return transformApiRevision(apiRevision, {
-            variantId,
-            appId: variantDetail?.appId,
-            variantName: variantDetail?.name,
-            appName: variantDetail?.appName,
-            uri: variantDetail?.uri,
-        })
+        return revision
     } catch (error) {
         console.error("[fetchOssRevisionEnriched] Failed to fetch enriched revision", {
             revisionId,
@@ -570,7 +818,7 @@ export async function fetchRevisionsList(
             axios.get(`${getAgentaApiUrl()}/variants/${variantId}/revisions`, {
                 params: {project_id: projectId},
             }),
-            fetchVariantDetail(variantId, projectId),
+            variantDetailBatchFetcher({variantId, projectId}),
         ])
 
         const data = response.data as ApiRevisionListItem[] | undefined

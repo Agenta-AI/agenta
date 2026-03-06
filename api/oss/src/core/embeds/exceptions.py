@@ -37,6 +37,16 @@ class UnsupportedReferenceTypeError(EmbedError):
         super().__init__(f"Unsupported reference type: {ref_type}")
 
 
+class MixedEntityTypesError(EmbedError):
+    def __init__(self, categories: List[str]):
+        self.categories = categories
+        super().__init__(
+            f"References span multiple entity families: {', '.join(categories)}. "
+            "All references in a single embed must belong to the same family "
+            "(e.g., workflow_variant + workflow_revision, not workflow_revision + environment_revision)."
+        )
+
+
 class PathExtractionError(EmbedError):
     def __init__(self, path: str, config: Dict[str, Any]):
         self.path = path

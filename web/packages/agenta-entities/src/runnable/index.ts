@@ -131,6 +131,7 @@ export {
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
     extractVariablesFromAgConfig,
+    extractVariablesFromEnhancedPrompts,
 } from "./utils"
 export type {PathSource, ExecuteRunnableOptions} from "./utils"
 
