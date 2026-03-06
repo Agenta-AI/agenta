@@ -19,6 +19,7 @@ import {outputConnectionsAtom} from "../atoms/connections"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 
+import {repetitionCountAtom} from "./atoms"
 import {handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
@@ -184,6 +185,12 @@ export const triggerExecutionAtom = atom(
 
         const sessionId = `sess:${rootEntityId}`
         const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const rawRepetitionCount = get(repetitionCountAtom)
+        // Keep repeats disabled in comparison mode (multiple entities).
+        const repetitionCount =
+            Array.isArray(entityIds) && entityIds.length > 1
+                ? 1
+                : Math.max(1, Number(rawRepetitionCount) || 1)
 
         // Clear previous responses for re-runs, but preserve history for
         // tool continuations so the LLM can consume the tool result context.
@@ -297,6 +304,7 @@ export const triggerExecutionAtom = atom(
                     ...(projectId ? {projectId} : {}),
                 },
             },
+            repetitionCount,
             targetNodeId: params.targetNodeId,
             lifecycle: {
                 onStart: () => {},

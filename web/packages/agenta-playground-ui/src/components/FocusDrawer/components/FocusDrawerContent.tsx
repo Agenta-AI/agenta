@@ -10,6 +10,7 @@ import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundUIOptional} from "../../../context/PlaygroundUIContext"
+import {useRepetitionResult} from "../../../hooks/useRepetitionResult"
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
 import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
@@ -34,13 +35,31 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
                 }),
             [rowId, entityId],
         ),
-    ) as {status?: string; output?: unknown; traceId?: string | null; error?: unknown} | null
+    ) as {
+        status?: string
+        output?: unknown
+        traceId?: string | null
+        error?: unknown
+        repetitions?: {output?: unknown}[]
+    } | null
 
     const status = fullResult?.status
     const isRunning = status === "running" || status === "pending"
     const traceId = (fullResult?.traceId as string | null) ?? null
-    const output = fullResult?.output ?? null
+    const repetitionOutputs =
+        Array.isArray(fullResult?.repetitions) && fullResult.repetitions.length > 1
+            ? fullResult.repetitions.map((rep, idx) => {
+                  if (rep?.output !== undefined) return rep.output
+                  return idx === 0 ? (fullResult?.output ?? null) : null
+              })
+            : null
+    const output = repetitionOutputs ?? fullResult?.output ?? null
     const error = fullResult?.error
+    const {currentResult: currentRepetitionResult, repetitionProps} = useRepetitionResult({
+        rowId,
+        entityId,
+        result: output,
+    })
 
     // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
@@ -56,14 +75,15 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
                     : String(error)
             return {error: errorMsg}
         }
-        return output as {response?: unknown; error?: unknown} | null
-    }, [fullResult, status, error, output])
+        return currentRepetitionResult as {response?: unknown; error?: unknown} | null
+    }, [fullResult, status, error, currentRepetitionResult])
 
     return (
         <ExecutionResultView
             isRunning={isRunning}
             currentResult={currentResult}
             traceId={traceId}
+            repetitionProps={repetitionProps}
             showEmptyPlaceholder={false}
             feedbackConfig={feedbackConfig}
         />

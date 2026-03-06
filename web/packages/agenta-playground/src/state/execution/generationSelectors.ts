@@ -84,7 +84,15 @@ export const resolvedGenerationResultAtomFamily = atomFamily(
             )
 
             const status = fullResult?.status
-            const result = fullResult?.output ?? null
+            const repetitionOutputs =
+                Array.isArray(fullResult?.repetitions) && fullResult.repetitions.length > 1
+                    ? fullResult.repetitions.map((rep, idx) => {
+                          if (rep?.output !== undefined) return rep.output
+                          // Keep index alignment when an entry misses output.
+                          return idx === 0 ? (fullResult?.output ?? null) : null
+                      })
+                    : null
+            const result = repetitionOutputs ?? fullResult?.output ?? null
             // If the root node's output has already been surfaced (via
             // chainResults) but the chain is still running, treat the root
             // as no longer loading so the UI shows the output immediately.
