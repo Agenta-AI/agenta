@@ -167,7 +167,7 @@ interface TracesApiResponse {
 
 /**
  * Batch fetcher that combines concurrent trace requests into a single API call
- * Uses the /preview/tracing/spans/query endpoint with trace_id IN filter
+ * Uses the /tracing/spans/query endpoint with trace_id IN filter
  * Same pattern as evaluationTraceBatcherFamily in EvalRunDetails
  */
 const traceBatchFetcher = createBatchFetcher<

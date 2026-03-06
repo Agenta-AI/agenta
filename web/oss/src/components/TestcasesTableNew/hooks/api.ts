@@ -19,7 +19,7 @@ export async function fetchRevision(projectId: string, revisionId: string) {
 }
 
 /**
- * Fetch paginated testcases using /preview/testcases/query endpoint
+ * Fetch paginated testcases using /testcases/query endpoint
  * Uses testset_revision_id to fetch testcases for a specific revision
  */
 export async function fetchTestcasesPage(

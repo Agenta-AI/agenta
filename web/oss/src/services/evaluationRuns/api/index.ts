@@ -289,7 +289,7 @@ const buildMappings = (
  * Builds the payload required for submitting multiple evaluation runs to the backend.
  * Each revision will be wrapped in its own run configuration.
  * This function returns an object with a `runs` array that can be sent to
- * the POST `/preview/evaluations/runs/` endpoint.
+ * the POST `/evaluations/runs/` endpoint.
  *
  * @param name - Base name used in each run
  * @param testset - The testset being used in this evaluation (must include variantId & revisionId).

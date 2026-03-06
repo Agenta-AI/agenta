@@ -38,7 +38,7 @@ export async function createNewTestset(
 
     const baseSlug = testsetName.toLowerCase().replace(/\s+/g, "_")
 
-    // Use /preview/simple/testsets endpoint - creates testset, variant, and revision in one call
+    // Use /simple/testsets endpoint - creates testset, variant, and revision in one call
     const response = await axios.post(
         `${getAgentaApiUrl()}/simple/testsets/?project_id=${projectId}`,
         {

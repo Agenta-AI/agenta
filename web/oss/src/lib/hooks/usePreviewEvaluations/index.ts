@@ -362,7 +362,7 @@ const usePreviewEvaluations = ({
                 const allTestcases: PreviewTestcase[] = []
                 let cursor: string | null = null
 
-                // Paginate through /preview/testcases/query until no more pages
+                // Paginate through /testcases/query until no more pages
                 do {
                     const response = await axios.post(
                         "/testcases/query",

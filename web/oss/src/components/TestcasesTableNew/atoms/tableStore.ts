@@ -109,7 +109,7 @@ export const testcasesRefreshTriggerAtom = testcase.paginated.refreshAtom
 export type {TestcasePaginatedMeta as TestcaseTableMeta, TestcaseTableRow}
 
 /**
- * API response from /preview/testsets/{testset_id}
+ * API response from /testsets/{testset_id}
  */
 export interface TestcaseRevisionResponse {
     id: string // revision ID

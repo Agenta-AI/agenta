@@ -76,7 +76,7 @@ interface FetchTestsetsWindowResponse {
 }
 
 /**
- * Fetch testsets window from API using the preview/testsets/query endpoint
+ * Fetch testsets window from API using the testsets/query endpoint
  */
 async function fetchTestsetsWindow(
     params: FetchTestsetsWindowParams,
@@ -117,7 +117,7 @@ async function fetchTestsetsWindow(
     }
 
     try {
-        // Use POST to /preview/testsets/query with project_id as query param
+        // Use POST to /testsets/query with project_id as query param
         let url = `${getAgentaApiUrl()}/testsets/query?project_id=${projectId}`
 
         // Add search term as query param if provided
