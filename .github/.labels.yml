@@ -28,7 +28,7 @@
 - name: duplicate
   description: This issue or pull request already exists
   color: cfd3d7
-- name: enhancement
+- name: feature
   description: New feature or request
   color: a2eeef
 - name: github_actions
@@ -38,7 +38,7 @@
   description: Good for newcomers
   color: 7057ff
 - name: help wanted
-  description: Extra attention is needed
+  description: Extra help is welcome
   color: 008672
 - name: provider/local
   description: Local infrastructure or developer machine setup
