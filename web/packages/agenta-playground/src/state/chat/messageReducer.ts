@@ -548,9 +548,13 @@ export const patchMessageAtom = atom(
 /**
  * Delete a specific message by target.
  *
- * Removes the targeted message and everything after it in the conversation
- * — later turns are invalid without the deleted context. A fresh blank
- * user message is appended so the user can continue typing.
+ * For **shared messages** (user turns): removes the message and everything
+ * after it — later turns are invalid without the deleted context. A fresh
+ * blank user message is appended so the user can continue typing.
+ *
+ * For **session-scoped messages** (assistant/tool in comparison mode): only
+ * removes messages from the SAME session from this position onward,
+ * preserving other entities' responses and shared user messages.
  */
 export const deleteMessageAtom = atom(
     null,
@@ -565,29 +569,100 @@ export const deleteMessageAtom = atom(
         const idx = ids.indexOf(msgId)
         if (idx < 0) return
 
-        // Truncate: remove this message and everything after it
-        const toRemove = ids.slice(idx)
-        set(removeMessagesAtom, {loadableId, messageIds: toRemove})
+        const deletedMsg = byId[msgId]
+        const isSessionScoped = deletedMsg && deletedMsg.sessionId !== SHARED_SESSION_ID
 
-        // Append a blank user message only when the last remaining message
-        // is NOT already a user message. If the tail is a user message (e.g.
-        // the user deleted the assistant response below it), that user message
-        // is the natural next input — no extra blank needed.
-        const remaining = get(messageIdsAtomFamily(loadableId))
-        const remainingById = get(messagesByIdAtomFamily(loadableId))
-        const last = remainingById[remaining[remaining.length - 1]]
-        const tailIsUserMsg = last && last.sessionId === SHARED_SESSION_ID && last.role === "user"
-
-        if (!tailIsUserMsg) {
-            set(addMessageAtom, {
-                loadableId,
-                message: {
-                    id: generateMessageId(),
-                    role: "user",
-                    content: "",
-                    sessionId: SHARED_SESSION_ID,
-                },
+        if (isSessionScoped) {
+            // Session-scoped delete (comparison mode safe):
+            // Only remove messages from the same session at or after this position.
+            // Shared user messages and other entities' responses are preserved.
+            const sessionId = deletedMsg.sessionId
+            const toRemove = ids.slice(idx).filter((mid) => {
+                const m = byId[mid]
+                return m && m.sessionId === sessionId
             })
+            set(removeMessagesAtom, {loadableId, messageIds: toRemove})
+
+            // Check if this session's last remaining message is an assistant
+            // with tool_calls — if so, re-create blank tool response messages.
+            const remaining = get(messageIdsAtomFamily(loadableId))
+            const remainingById = get(messagesByIdAtomFamily(loadableId))
+            let lastSessionMsg: ChatMessage | undefined
+            for (let i = remaining.length - 1; i >= 0; i--) {
+                const m = remainingById[remaining[i]]
+                if (m && m.sessionId === sessionId) {
+                    lastSessionMsg = m
+                    break
+                }
+            }
+
+            if (
+                lastSessionMsg &&
+                lastSessionMsg.role === "assistant" &&
+                Array.isArray(lastSessionMsg.tool_calls) &&
+                lastSessionMsg.tool_calls.length > 0
+            ) {
+                const toolMsgs: ChatMessage[] = lastSessionMsg.tool_calls.map((tc, i) => ({
+                    id: generateMessageId(),
+                    role: "tool",
+                    name: tc.function?.name || `tool_${i + 1}`,
+                    tool_call_id: tc.id,
+                    content: "",
+                    sessionId,
+                    ...(lastSessionMsg.parentId ? {parentId: lastSessionMsg.parentId} : {}),
+                }))
+                for (const toolMsg of toolMsgs) {
+                    set(addMessageAtom, {loadableId, message: toolMsg})
+                }
+            }
+        } else {
+            // Shared message delete: truncate everything from this position onward
+            const toRemove = ids.slice(idx)
+            set(removeMessagesAtom, {loadableId, messageIds: toRemove})
+
+            // Decide what to append after truncation:
+            // - If the tail is a user message → nothing (user can continue typing)
+            // - If the tail is an assistant with tool_calls → re-create blank tool
+            //   response messages so the user can fill them in
+            // - Otherwise → append a blank user message
+            const remaining = get(messageIdsAtomFamily(loadableId))
+            const remainingById = get(messagesByIdAtomFamily(loadableId))
+            const last = remainingById[remaining[remaining.length - 1]]
+            const tailIsUserMsg =
+                last && last.sessionId === SHARED_SESSION_ID && last.role === "user"
+
+            if (tailIsUserMsg) {
+                // User message is already the natural next input — nothing to add
+            } else if (
+                last &&
+                last.role === "assistant" &&
+                Array.isArray(last.tool_calls) &&
+                last.tool_calls.length > 0
+            ) {
+                // Re-create blank tool response messages for each tool call
+                const toolMsgs: ChatMessage[] = last.tool_calls.map((tc, i) => ({
+                    id: generateMessageId(),
+                    role: "tool",
+                    name: tc.function?.name || `tool_${i + 1}`,
+                    tool_call_id: tc.id,
+                    content: "",
+                    sessionId: last.sessionId,
+                    ...(last.parentId ? {parentId: last.parentId} : {}),
+                }))
+                for (const toolMsg of toolMsgs) {
+                    set(addMessageAtom, {loadableId, message: toolMsg})
+                }
+            } else {
+                set(addMessageAtom, {
+                    loadableId,
+                    message: {
+                        id: generateMessageId(),
+                        role: "user",
+                        content: "",
+                        sessionId: SHARED_SESSION_ID,
+                    },
+                })
+            }
         }
     },
 )
