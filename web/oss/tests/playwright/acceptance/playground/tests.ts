@@ -14,53 +14,23 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             const scopedPrefixMatch = currentPathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)
             const scopedPrefix = scopedPrefixMatch?.[1] ?? ""
             const appsUrl = scopedPrefix ? `${scopedPrefix}/apps` : "/apps"
+            const overviewUrl = scopedPrefix
+                ? `${scopedPrefix}/apps/${appId}/overview`
+                : `/apps/${appId}/overview`
 
-            // Set up API listener before navigation to capture the apps list
-            const appsResponsePromise = page.waitForResponse(
-                (response) =>
-                    response.url().includes("/api/apps") &&
-                    response.request().method() === "GET",
-            )
-
-            // Keep navigation pinned to the current project scope.
             await page.goto(appsUrl, {waitUntil: "domcontentloaded"})
+            await uiHelpers.expectPath("/apps")
 
-            // Get app name from API response
-            const appsResponse = await appsResponsePromise
-            const apps = await appsResponse.json()
-            const app = apps.find((a: any) => a.app_id === appId)
-            if (!app) {
-                throw new Error(`App with id ${appId} not found in apps list`)
-            }
-
-            // Click "Prompts" in sidebar to go to the prompts table
-            const promptsLink = page.locator('a:has-text("Prompts")').first()
-            await expect(promptsLink).toBeVisible({timeout: 10000})
-            await promptsLink.click()
-
-            // Search for the app by name to handle long lists
-            const searchBox = page.getByRole("searchbox", {name: "Search"})
-            await expect(searchBox).toBeVisible({timeout: 15000})
-            await searchBox.click()
-            await searchBox.fill(app.app_name)
-
-            // Click the app row (table uses div-based rows, not <tr>)
-            const appNameCell = page.getByText(app.app_name, {exact: true}).first()
-            await expect(appNameCell).toBeVisible({timeout: 10000})
-            await appNameCell.click()
-
-            // Wait for overview page to fully load
+            // Enter the app through its scoped overview route, then switch to Playground
+            // from the in-app sidebar. Direct Playground entry is still flaky on this branch.
+            await page.goto(overviewUrl, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/overview`)
             await page.waitForLoadState("networkidle")
 
-            // Click "Playground" in the app sidebar
-            const playgroundLink = page
-                .locator('a:has-text("Playground")')
-                .first()
+            const playgroundLink = page.getByRole("link", {name: "Playground"}).first()
             await expect(playgroundLink).toBeVisible({timeout: 10000})
             await playgroundLink.click()
 
-            // Wait for playground page and content to render
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
 
             const latestRevisionId = getKnownLatestRevisionId(appId)

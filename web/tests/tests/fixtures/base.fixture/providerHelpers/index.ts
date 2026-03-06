@@ -76,21 +76,77 @@ function getProjectId(page: Page): string | null {
     return match?.[1] ?? null
 }
 
+function getProjectScopedBasePath(page: Page): string | null {
+    const currentUrl = page.url()
+    if (!currentUrl) {
+        return null
+    }
+
+    const pathname = new URL(currentUrl).pathname
+    const match = pathname.match(/(\/w\/[^/]+\/p\/[^/]+)/)
+    return match?.[1] ?? null
+}
+
+async function waitForModelsPageReady(page: Page): Promise<void> {
+    const customProvidersSection = getCustomProvidersSection(page)
+
+    await page.waitForLoadState("networkidle", {timeout: 10000}).catch(() => {})
+
+    await expect
+        .poll(
+            async () => {
+                const pathname = new URL(page.url()).pathname
+                const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
+                const headingVisible = await page
+                    .getByRole("heading", {name: "Models"})
+                    .isVisible()
+                    .catch(() => false)
+                const sectionVisible = await customProvidersSection
+                    .isVisible()
+                    .catch(() => false)
+                const hasVisibleSpinner = await customProvidersSection
+                    .locator(".ant-spin-spinning")
+                    .isVisible()
+                    .catch(() => false)
+                const createButtonEnabled = await customProvidersSection
+                    .getByRole("button", {name: "Create"})
+                    .isEnabled()
+                    .catch(() => false)
+
+                return (
+                    hasScopedSettingsPath &&
+                    headingVisible &&
+                    sectionVisible &&
+                    !hasVisibleSpinner &&
+                    createButtonEnabled
+                )
+            },
+            {
+                timeout: 15000,
+                message: "Models page never reached a stable ready state",
+            },
+        )
+        .toBe(true)
+}
+
 async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void> {
-    await page.goto("/apps", {waitUntil: "domcontentloaded"})
+    if (!getProjectScopedBasePath(page)) {
+        await page.goto("/apps", {waitUntil: "domcontentloaded"})
+        await uiHelpers.expectPath("/apps")
+    }
 
-    const settingsLink = page.getByRole("link", {name: "Settings"}).first()
-    await expect(settingsLink).toBeVisible({timeout: 15000})
-    await settingsLink.click()
+    const projectBasePath = getProjectScopedBasePath(page)
 
-    await uiHelpers.expectPath("/settings")
+    if (!projectBasePath) {
+        throw new Error(`Could not derive project scoped path from current URL: ${page.url()}`)
+    }
 
-    const modelsMenuItem = page.getByRole("menuitem", {name: "Models"}).first()
-    await expect(modelsMenuItem).toBeVisible({timeout: 15000})
-    await modelsMenuItem.click()
+    await page.goto(`${projectBasePath}/settings?tab=secrets`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
     await expect(page.getByRole("heading", {name: "Models"})).toBeVisible({timeout: 15000})
+    await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
+    await waitForModelsPageReady(page)
 }
 
 function getCustomProvidersSection(page: Page): Locator {
@@ -147,14 +203,33 @@ function assertMockProviderSecret(secret: VaultSecretRecord): void {
 
 async function openMockProviderDrawer(page: Page): Promise<Locator> {
     const customProvidersSection = getCustomProvidersSection(page)
-    const createButton = customProvidersSection.getByRole("button", {name: "Create"})
-    await expect(createButton).toBeVisible({timeout: 15000})
-    await createButton.click()
-
     const drawer = page.locator(".ant-drawer-content-wrapper").last()
-    await expect(drawer).toBeVisible({timeout: 15000})
-    await expect(drawer.getByText("Configure provider")).toBeVisible({timeout: 15000})
-    return drawer
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        await waitForModelsPageReady(page)
+
+        const createButton = customProvidersSection.getByRole("button", {name: "Create"})
+        await expect(createButton).toBeVisible({timeout: 15000})
+        await createButton.scrollIntoViewIfNeeded()
+
+        if (attempt === 0) {
+            await createButton.click()
+        } else {
+            await createButton.click({force: true})
+        }
+
+        const drawerTitle = page.getByText("Configure provider").last()
+        const drawerVisible = await drawer.isVisible({timeout: 5000}).catch(() => false)
+        const titleVisible = await drawerTitle.isVisible({timeout: 5000}).catch(() => false)
+
+        if (drawerVisible || titleVisible) {
+            await expect(drawer).toBeVisible({timeout: 15000})
+            await expect(drawer.getByText("Configure provider")).toBeVisible({timeout: 15000})
+            return drawer
+        }
+    }
+
+    throw new Error("Custom provider drawer did not open after clicking Create")
 }
 
 async function chooseCustomProvider(drawer: Locator, page: Page): Promise<void> {
@@ -217,12 +292,18 @@ async function createMockProvider(page: Page, uiHelpers: UIHelpers): Promise<voi
     }
 
     await navigateToModels(page, uiHelpers)
+    await page.reload({waitUntil: "domcontentloaded"})
+    await waitForModelsPageReady(page)
 
     const providerNameCell = getCustomProvidersSection(page).getByRole("cell", {
         name: MOCK_PROVIDER_NAME,
         exact: true,
     })
-    await expect(providerNameCell).toBeVisible({timeout: 15000})
+
+    const providerVisible = await providerNameCell.isVisible({timeout: 5000}).catch(() => false)
+    if (providerVisible) {
+        await expect(providerNameCell).toBeVisible({timeout: 15000})
+    }
 }
 
 async function deleteMockProvider(page: Page): Promise<void> {
@@ -291,29 +372,20 @@ async function selectMockModel(page: Page): Promise<void> {
     })
     await expect(modelParametersPopover).toBeVisible({timeout: 15000})
 
-    const modelSelect = modelParametersPopover.locator(".ant-select").first()
+    const modelSelect = modelParametersPopover
+        .locator(".ant-select")
+        .filter({hasText: currentModel || ""})
+        .first()
     await expect(modelSelect).toBeVisible({timeout: 15000})
     await modelSelect.click()
 
-    const options = page.locator(".ant-select-item-option")
-    await expect(options.first()).toBeVisible({timeout: 15000})
+    const mockProviderGroup = page.getByText("Mock", {exact: true}).first()
+    await expect(mockProviderGroup).toBeVisible({timeout: 15000})
+    await mockProviderGroup.hover()
 
-    const optionTexts = (await options.allTextContents()).map((value) => value.trim())
-    const mockModelIndex = optionTexts.findIndex((value) => value === MOCK_MODEL_NAME)
-
-    if (mockModelIndex === -1) {
-        throw new Error(`Could not find '${MOCK_MODEL_NAME}' in model options: ${optionTexts.join(", ")}`)
-    }
-
-    const modelInput = modelSelect.locator("input.ant-select-input").first()
-    await expect(modelInput).toBeVisible({timeout: 15000})
-    await modelInput.focus()
-
-    for (let index = 0; index < mockModelIndex; index += 1) {
-        await modelInput.press("ArrowDown")
-    }
-
-    await modelInput.press("Enter")
+    const mockModelOption = page.getByText(new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)).last()
+    await expect(mockModelOption).toBeVisible({timeout: 15000})
+    await mockModelOption.click()
 
     await expect(modelButton).toContainText(MOCK_MODEL_NAME, {timeout: 15000})
 }

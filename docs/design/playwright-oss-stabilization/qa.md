@@ -15,7 +15,10 @@ AGENTA_OSS_OWNER_PASSWORD="<password>" \
 node_modules/.bin/playwright test
 ```
 
-Expected: 10 pass, 2 skip.
+Expected today:
+- Settings mock-provider coverage should pass.
+- Playground runtime tests are currently blocked by the custom-provider runtime credential issue.
+- The full suite is not expected to be all green until that blocker and the remaining CI failures are fixed.
 
 ### Smoke Subset (fast gate)
 
@@ -68,3 +71,4 @@ Optional:
 2. Failures are actionable (clear error source, not flaky).
 3. Full suite runs in under 5 minutes.
 4. No test depends on data from a previous test run (except observability, which needs prior playground traces).
+5. Local verification is run serially. Two Playwright invocations in parallel are not a valid result while `global-setup` still shares project bookkeeping.

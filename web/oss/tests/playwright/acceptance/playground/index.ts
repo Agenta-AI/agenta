@@ -33,10 +33,11 @@ const playgroundTests = () => {
             runCompletionSingleViewVariant,
             testProviderHelpers,
         }) => {
+            await testProviderHelpers.ensureTestProvider()
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.app_id
 
-            await testProviderHelpers.ensureTestProvider()
             await navigateToPlayground(appId)
 
             await runCompletionSingleViewVariant(appId, COMPLETION_MESSAGES)
@@ -62,10 +63,11 @@ const playgroundTests = () => {
             runChatSingleViewVariant,
             testProviderHelpers,
         }) => {
+            await testProviderHelpers.ensureTestProvider()
+
             const app = await apiHelpers.getApp("chat")
             const appId = app.app_id
 
-            await testProviderHelpers.ensureTestProvider()
             await navigateToPlayground(appId)
 
             await runChatSingleViewVariant(appId, COMPLETION_MESSAGES)

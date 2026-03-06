@@ -1,16 +1,22 @@
 # Plan
 
-## Phase 0 - Stabilize OSS Deployment Smoke -- COMPLETE
+## Phase 0 - Stabilize OSS Deployment Smoke
 
-All 12 OSS acceptance tests stabilized (10 pass, 2 skip gracefully).
+Phase 0 is no longer complete.
 
-What was done:
-1. Fixed all tests to use sidebar navigation instead of direct URL navigation.
-2. Fixed API response interception race conditions.
-3. Fixed locator mismatches (div-based rows, placeholder text, role selectors).
-4. Added graceful skip for testset test when no data exists.
-5. Added BDD feature specs in Gherkin format.
-6. Added all required dimension tags (`coverage`, `path`, `lens`, `cost`, `license`) to every test.
+The suite moved forward in one important way. Runtime tests now have a project-scoped mock provider fixture, and the Playground flow reaches the real execution request with `mock/custom/gpt-6`. At the same time, the latest verification against preview exposed that the runtime still rejects the custom provider model as missing credentials. That keeps the Playground and Observability domains blocked.
+
+What is complete in this phase:
+1. Fixed unscoped Settings navigation. The fixture now uses the project-scoped route.
+2. Added a readiness gate for Settings Models content. The helper waits for content hydration instead of clicking as soon as the shell appears.
+3. Replaced the Prompts-table detour in Playground navigation with scoped app navigation through Overview.
+4. Added the generic test-provider fixture with a working `mock` profile in the UI flow.
+5. Added all required dimension tags (`coverage`, `path`, `lens`, `cost`, `license`) to every test.
+
+What is still open in this phase:
+1. Fix the runtime custom-provider credential path for `mock/custom/gpt-6`.
+2. Revalidate chat Playground and Observability after the runtime fix.
+3. Fix the remaining CI failures in Prompt Registry, Testsets, and Deployment.
 
 ## Phase 1 - Structural Cleanup (Next)
 
@@ -45,6 +51,7 @@ The suite now uses a project scoped test provider fixture for runtime tests.
 - The `mock` profile creates a custom provider named `mock` with model `gpt-6`.
 - Runtime tests call the provider fixture lazily. Navigation only tests do not.
 - The `openai` profile remains part of the fixture design, but it is not wired in this phase.
+- The fixture is backend-authoritative for creation. It verifies the created secret through the vault API first, then treats the Settings table row as explicit UI coverage in the dedicated Settings spec.
 
 ## Phase 3 - Test Independence and Parallelization
 
@@ -59,6 +66,7 @@ Design constraints:
 - OSS allows only one organization. Projects are unlimited within the workspace and almost everything (apps, variants, testsets, traces, deployments) is scoped to `project_id`.
 - The first run against a fresh env needs account creation (org/workspace/project). Subsequent runs reuse the same account. Global-setup already handles sign-up vs sign-in detection.
 - Project creation/deletion is available via API (`POST /api/projects`, `DELETE /api/projects/{id}`), so ephemeral projects are straightforward.
+- Local Playwright verification must remain serial until the suite stops sharing `test-project.json` and default-project switching across invocations.
 
 Data seeding strategy (two-phase global-setup):
 - Phase 1: Browser auth -> `state.json` (already implemented).
@@ -72,16 +80,20 @@ Exit criteria:
 
 ## Phase 4 - Mock LLM for Tests
 
-Playground tests currently require a real OpenAI API key (`@cost:paid`). To eliminate this dependency and monetary cost in CI:
+Playground tests now select a custom mock model through the UI, but the runtime still rejects that model as missing provider credentials. This phase therefore has two sub-steps.
 
-Options (investigate in order):
-1. **LiteLLM mock provider** — LiteLLM (already in the stack) may support a `mock/` prefix that returns dummy responses. If so, configure `mock/gpt-4o-mini` as the model in test environments. Quickest win.
-2. **Agenta-level mock provider** — Add a built-in "test" or "echo" LLM provider in OSS that echoes input or returns a fixed string. Controlled via env var (e.g., `AGENTA_TEST_LLM_PROVIDER=mock`). Most robust long-term.
-3. **External mock server** — Run a lightweight stub (e.g., WireMock or Express) that implements the OpenAI API contract with canned responses. More infrastructure to manage.
+Step 1. Fix the current custom-provider runtime path.
+- Confirm that the `Secret` token path receives the project-scoped custom provider secret.
+- Fix the runtime secret resolution so `mock/custom/gpt-6` resolves its `api_key` and `api_base`.
+
+Step 2. If the current path remains blocked, choose a simpler free runtime.
+1. LiteLLM `mock/` prefix, if the existing stack supports it.
+2. An Agenta-level mock or echo provider.
+3. An external mock server only if the first two options are not viable.
 
 Exit criteria:
-- All playground tests are `@cost:free` and run without any API keys.
-- CI doesn't need OpenAI credentials.
+- All Playground runtime tests are truly free and green.
+- CI does not need OpenAI credentials.
 
 ## Phase 5 - Coverage Expansion
 
