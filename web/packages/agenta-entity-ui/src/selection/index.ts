@@ -147,8 +147,10 @@ export {
     // Unified EntityPicker with variants
     EntityPicker,
     CascadingVariant,
+    CascaderVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
+    PopoverCascaderVariant,
     TreeSelectPopupContent,
     // Shared components (for customization)
     LevelSelect,
@@ -176,8 +178,10 @@ export type {
     EntityPickerProps,
     EntityPickerBaseProps,
     CascadingVariantProps,
+    CascaderVariantProps,
     BreadcrumbVariantProps,
     ListPopoverVariantProps,
+    PopoverCascaderVariantProps,
     TreeSelectPopupContentProps,
     LevelSelectProps,
     ChildPopoverContentProps,
