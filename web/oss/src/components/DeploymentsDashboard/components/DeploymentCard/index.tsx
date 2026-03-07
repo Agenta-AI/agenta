@@ -2,6 +2,7 @@ import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {dayjs} from "@agenta/shared/utils"
 import {Card, Space, Tag, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 
@@ -28,19 +29,17 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
         ),
     ) as any
 
-    let lastModifiedText = "-"
-    if (revision) {
-        const ts = (revision as any)?.updatedAtTimestamp ?? (revision as any)?.createdAtTimestamp
-        if (typeof ts === "number") {
-            try {
-                lastModifiedText = new Date(ts).toLocaleString()
-            } catch {
-                lastModifiedText = String(ts)
-            }
-        } else {
-            lastModifiedText = (revision as any)?.updatedAt ?? (revision as any)?.createdAt ?? "-"
-        }
-    }
+    const lastModifiedText = useMemo(() => {
+        if (!revision) return "-"
+        const raw =
+            (revision as any)?.updatedAtTimestamp ??
+            (revision as any)?.createdAtTimestamp ??
+            (revision as any)?.updatedAt ??
+            (revision as any)?.createdAt
+        if (!raw) return "-"
+        const d = dayjs.utc(typeof raw === "number" ? raw : String(raw))
+        return d.isValid() ? d.local().format("MMM D, YYYY h:mm A") : "-"
+    }, [revision])
 
     return (
         <Card
