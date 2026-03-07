@@ -38,6 +38,7 @@ import type {EntityRelation} from "@agenta/entities/shared"
 import {
     workflowsListQueryStateAtom,
     workflowToVariantRelation,
+    workflowToRevisionRelation,
     workflowVariantToRevisionRelation,
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
@@ -357,6 +358,15 @@ export interface CreateWorkflowRevisionAdapterOptions {
      * ```
      */
     filterWorkflows?: (entity: unknown) => boolean
+
+    /**
+     * Skip the variant level in the hierarchy.
+     * When true, creates a 2-level adapter: Workflow → Revision (skipping variant).
+     * Useful when each workflow has only one variant (e.g., evaluators).
+     * Uses the `workflowToRevisionRelation` to fetch revisions directly by workflow ID.
+     * @default false
+     */
+    skipVariantLevel?: boolean
 }
 
 /**
@@ -395,6 +405,7 @@ export function createWorkflowRevisionAdapter(
         loadingMessage,
         flags,
         filterWorkflows,
+        skipVariantLevel = false,
     } = options
 
     const emptyListState: ListQueryState<unknown> = {
@@ -402,6 +413,79 @@ export function createWorkflowRevisionAdapter(
         isPending: false,
         isError: false,
         error: null,
+    }
+
+    // Skip-variant mode: Workflow → Revision (2-level, uses workflowToRevisionRelation)
+    if (skipVariantLevel && !workflowId && !workflowIdAtom) {
+        const needsFiltering = !!flags || !!filterWorkflows
+        const filteredWorkflowsListAtom = needsFiltering
+            ? atom<ListQueryState<unknown>>((get) => {
+                  const state = get(workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+                  const filtered = (state.data ?? []).filter((w) => {
+                      if (flags) {
+                          const wf = w as {flags?: Record<string, boolean> | null}
+                          if (!wf.flags) return false
+                          const flagsMatch = Object.entries(flags).every(
+                              ([key, val]) => wf.flags?.[key] === val,
+                          )
+                          if (!flagsMatch) return false
+                      }
+                      if (filterWorkflows && !filterWorkflows(w)) return false
+                      return true
+                  })
+                  return {...state, data: filtered}
+              })
+            : (workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>)
+
+        return createTwoLevelAdapter<WorkflowRevisionSelectionResult>({
+            name: "workflowRevision",
+            parentType: "workflow",
+            parentLabel: "Evaluator",
+            parentListAtom: filteredWorkflowsListAtom,
+            parentOverrides: {
+                getId: (entity: unknown) => (entity as {id: string}).id,
+                getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+                getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
+                hasChildren: true,
+                isSelectable: false,
+            },
+            childType: "workflowRevision",
+            childLabel: "Revision",
+            childRelation: workflowToRevisionRelation as EntityRelation<unknown, unknown>,
+            childOverrides: {
+                autoSelectSingle: true,
+                getId: revisionOverrides.getId ?? workflowRevisionLevel.getId,
+                getLabel: revisionOverrides.getLabel ?? workflowRevisionLevel.getLabel,
+                getLabelNode: revisionOverrides.getLabelNode ?? workflowRevisionLevel.getLabelNode,
+                getPlaceholderNode: workflowRevisionLevel.getPlaceholderNode,
+                filterItems: excludeRevisionZero
+                    ? (r: unknown) => (r as {version?: number}).version !== 0
+                    : undefined,
+            },
+            selectionType: "workflowRevision",
+            toSelection:
+                toSelection ??
+                ((path, leafEntity) => {
+                    const revision = leafEntity as {id: string; version?: number}
+                    const workflow = path[0]
+
+                    return {
+                        type: "workflowRevision",
+                        id: revision.id,
+                        label: `${workflow?.label ?? "Evaluator"} / v${revision.version ?? 0}`,
+                        path,
+                        metadata: {
+                            workflowId: workflow?.id ?? "",
+                            workflowName: workflow?.label ?? "",
+                            variantId: "",
+                            variantName: "",
+                            revision: revision.version ?? 0,
+                        },
+                    }
+                }),
+            emptyMessage: emptyMessage ?? "No evaluators found",
+            loadingMessage: loadingMessage ?? "Loading evaluators...",
+        })
     }
 
     // Determine the variants list atom to use
