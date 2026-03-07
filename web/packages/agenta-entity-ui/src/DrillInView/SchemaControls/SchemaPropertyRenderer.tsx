@@ -61,6 +61,8 @@ export interface SchemaPropertyRendererProps {
     hideModelSelector?: boolean
     /** Optional renderer for provider icons in tool headers */
     renderProviderIcon?: (providerKey: string) => React.ReactNode
+    /** Entity ID for scoping modal state per variant (e.g., response format modal) */
+    entityId?: string
     /**
      * Original server value for preserving custom descriptions.
      * Used by FeedbackConfigurationControl to maintain custom descriptions
@@ -235,6 +237,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
     hideModelSelector = false,
     renderProviderIcon,
     originalValue,
+    entityId,
 }: SchemaPropertyRendererProps) {
     // Resolve anyOf/oneOf schemas for rendering
     const resolvedSchema = useMemo(() => resolveAnyOfSchema(schema), [schema])
@@ -385,6 +388,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     className={className}
                     hideModelSelector={hideModelSelector}
                     renderProviderIcon={renderProviderIcon}
+                    entityId={entityId}
                 />
             )
 

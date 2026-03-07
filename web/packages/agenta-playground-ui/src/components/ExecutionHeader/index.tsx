@@ -3,6 +3,7 @@ import {memo, useMemo} from "react"
 import {executionController, executionItemController} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
+import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -104,6 +105,13 @@ const ExecutionHeader = ({
                             isCollapsed={isAllCollapsed}
                             onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                             iconSize={16}
+                            renderIcon={(collapsed, size) =>
+                                collapsed ? (
+                                    <ArrowsOutLineVertical size={size} />
+                                ) : (
+                                    <ArrowsInLineVertical size={size} />
+                                )
+                            }
                             className="text-[16px] leading-[18px] font-[600] text-nowrap items-center"
                         />
                     </div>

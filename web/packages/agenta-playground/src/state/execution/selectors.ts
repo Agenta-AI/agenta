@@ -46,16 +46,37 @@ import type {RunStatus} from "./types"
  * This allows execution to work without manually constructing loadableId.
  * Format: "testset:{entityType}:{entityId}"
  *
+ * The loadable ID is anchored to the first entity that was selected, and
+ * remains stable across column reordering in comparison mode. It only
+ * changes when the anchored entity is removed from the playground.
+ *
  * @returns Atom for the derived loadableId or empty string if no primary node
  *
  * @example
  * const loadableId = useAtomValue(derivedLoadableIdAtom)
  * // Returns "testset:appRevision:rev-123" if primary node is an app revision
  */
+let _loadableAnchorEntityId: string | null = null
 export const derivedLoadableIdAtom = atom((get) => {
-    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
-    if (!rootNode) return ""
-    return `testset:${rootNode.entityType}:${rootNode.entityId}`
+    const rootNodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
+    if (rootNodes.length === 0) {
+        _loadableAnchorEntityId = null
+        return ""
+    }
+
+    // If the anchor entity is still present, keep using it so that
+    // reordering columns in comparison mode doesn't orphan stored data.
+    if (_loadableAnchorEntityId) {
+        const anchorNode = rootNodes.find((n) => n.entityId === _loadableAnchorEntityId)
+        if (anchorNode) {
+            return `testset:${anchorNode.entityType}:${anchorNode.entityId}`
+        }
+    }
+
+    // No valid anchor — set to first available node
+    const first = rootNodes[0]
+    _loadableAnchorEntityId = first.entityId
+    return `testset:${first.entityType}:${first.entityId}`
 })
 
 /**

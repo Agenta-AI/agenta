@@ -40,6 +40,7 @@ interface MoleculeDrillInFieldItemProps {
 export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) {
     const {
         entity,
+        entityId,
         currentPath,
         navigateInto,
         updateValue,
@@ -206,6 +207,7 @@ export function MoleculeDrillInFieldItem({item}: MoleculeDrillInFieldItemProps) 
                 onDrillIn={handleDrillIn}
                 onChange={handleChange}
                 schema={schema}
+                entityId={entityId}
                 classNames={{
                     fieldContent: classNames.fieldContent,
                     valueRenderer: classNames.valueRenderer,

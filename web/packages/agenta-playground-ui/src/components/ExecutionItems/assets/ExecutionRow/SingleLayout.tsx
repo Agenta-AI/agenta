@@ -616,7 +616,13 @@ const SingleView = ({
                         deleteRow={deleteRow}
                         duplicateRow={duplicateRow}
                         openFocusDrawer={openFocusDrawer}
-                        tooltipTitle={isCollapsed ? "Expand results" : "View all repeats"}
+                        tooltipTitle={
+                            isCollapsed
+                                ? "Open details"
+                                : repetitionProps
+                                  ? "View all repeats"
+                                  : "Open details"
+                        }
                         className={clsx(
                             "flex items-center gap-1 opacity-0 transition-opacity",
                             isCollapsed

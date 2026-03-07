@@ -24,6 +24,7 @@ import {
 import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {projectIdAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
 import {
@@ -198,8 +199,8 @@ function buildGenericCommitContext(
     const currentVersion = version ?? 0
     const targetVersion = currentVersion + 1
 
-    const original = stableStringify({parameters: serverConfig ?? {}})
-    const modified = stableStringify({parameters: currentConfig ?? {}})
+    const original = stableStringify({parameters: stripAgentaMetadataDeep(serverConfig ?? {})})
+    const modified = stableStringify({parameters: stripAgentaMetadataDeep(currentConfig ?? {})})
     const hasDiff = original !== modified
 
     const descriptions: string[] = []

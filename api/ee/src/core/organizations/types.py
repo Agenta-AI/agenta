@@ -2,7 +2,52 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+
+# ============================================================================
+# ORGANIZATIONS
+# ============================================================================
+
+
+class Organization(BaseModel):
+    id: UUID
+    slug: Optional[str] = None
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+    flags: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
+
+    owner_id: UUID
+
+    members: list[str] = Field(default_factory=list)
+    invitations: list = Field(default_factory=list)
+    workspaces: list[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CreateOrganization(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+    is_demo: bool = False
+
+    owner_id: UUID
+
+
+class OrganizationUpdate(BaseModel):
+    slug: Optional[str] = None
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+    flags: Optional[Dict[str, Any]] = None
+
+    updated_at: Optional[str] = None
 
 
 # ============================================================================
@@ -90,6 +135,8 @@ class OrganizationProviderCreate(BaseModel):
 
 
 class OrganizationProviderUpdate(BaseModel):
+    slug: Optional[str] = None
+
     name: Optional[str] = None
     description: Optional[str] = None
 

@@ -218,6 +218,8 @@ export interface SessionExecutionOptions {
     rawBody?: Record<string, unknown>
     /** HTTP headers for the request (e.g., Authorization) */
     headers?: Record<string, string>
+    /** Project ID used to append `project_id` query param on invocation URLs */
+    projectId?: string
 }
 
 /**

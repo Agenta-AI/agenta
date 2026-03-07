@@ -1,4 +1,5 @@
 from typing import List
+from uuid import UUID
 
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
@@ -16,6 +17,11 @@ from ee.src.services.selectors import get_user_org_and_workspace_id
 from ee.src.services.organization_service import (
     OrganizationDomainsService,
     OrganizationProvidersService,
+)
+from ee.src.core.organizations.types import (
+    OrganizationDomainCreate as OrganizationDomainCreateDTO,
+    OrganizationProviderCreate as OrganizationProviderCreateDTO,
+    OrganizationProviderUpdate as OrganizationProviderUpdateDTO,
 )
 
 from ee.src.apis.fastapi.organizations.models import (
@@ -107,7 +113,16 @@ async def create_domain(
     if not check:
         return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
 
-    domain = await domain_service.create_domain(organization_id, payload, user_id)
+    domain = await domain_service.create_domain(
+        organization_id,
+        OrganizationDomainCreateDTO(
+            slug=payload.domain,
+            name=payload.name,
+            description=payload.description,
+            organization_id=UUID(organization_id),
+        ),
+        user_id,
+    )
 
     return JSONResponse(
         status_code=201,
@@ -298,7 +313,18 @@ async def create_provider(
 
     await require_email_or_social_or_root_enabled(organization_id)
 
-    return await provider_service.create_provider(organization_id, payload, user_id)
+    return await provider_service.create_provider(
+        organization_id,
+        OrganizationProviderCreateDTO(
+            slug=payload.slug,
+            name=payload.name,
+            description=payload.description,
+            flags=payload.flags,
+            settings=payload.settings,
+            organization_id=UUID(organization_id),
+        ),
+        user_id,
+    )
 
 
 @router.patch(
@@ -327,7 +353,16 @@ async def update_provider(
     await require_email_or_social_or_root_enabled(organization_id)
 
     return await provider_service.update_provider(
-        organization_id, provider_id, payload, user_id
+        organization_id,
+        provider_id,
+        OrganizationProviderUpdateDTO(
+            slug=payload.slug,
+            name=payload.name,
+            description=payload.description,
+            flags=payload.flags,
+            settings=payload.settings,
+        ),
+        user_id,
     )
 
 

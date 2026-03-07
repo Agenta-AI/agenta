@@ -50,4 +50,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     disableDebounce?: boolean
     /** Callback when a JSON property key is Cmd/Meta+clicked (for drill-in navigation) */
     onPropertyClick?: (path: string) => void
+    /** Callback when editor focus state changes */
+    onFocusChange?: (focused: boolean) => void
 }

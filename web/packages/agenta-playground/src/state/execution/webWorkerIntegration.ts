@@ -10,14 +10,17 @@
  */
 
 import {loadableController, type RunnableType} from "@agenta/entities/runnable"
+import {projectIdAtom} from "@agenta/shared/state"
 import {isPlainObject} from "@agenta/shared/utils"
 import {atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {outputConnectionsAtom} from "../atoms/connections"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {clearSessionResponsesAtom, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 
+import {executionConcurrencyAtom, repetitionCountAtom} from "./atoms"
 import {handleExecutionResultAtom} from "./executionItems"
 import {executeStepForSessionWithExecutionItems} from "./executionRunner"
 import {
@@ -29,6 +32,52 @@ import {
 } from "./reducer"
 import {derivedLoadableIdAtom, isChatModeAtom} from "./selectors"
 import {extractTraceIdFromPayload} from "./trace"
+
+// ============================================================================
+// SHARED CONCURRENCY LIMITER
+// ============================================================================
+
+/**
+ * Module-level concurrency limiter shared across ALL triggerExecutionAtom calls.
+ *
+ * Without this, "Run All" (50 testcases x 4 variants = 200 requests) fires
+ * every request simultaneously, causing LLM provider rate limits.
+ *
+ * The limiter caps the number of in-flight `executeStepForSessionWithExecutionItems`
+ * calls. Excess requests are queued and released as slots free up.
+ *
+ * The concurrency limit is read lazily from `executionConcurrencyAtom` (default 6)
+ * so it can be reconfigured at runtime.
+ */
+let _sharedLimiter: (<T>(fn: () => Promise<T>) => Promise<T>) | null = null
+let _sharedLimiterConcurrency = 0
+
+function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> {
+    const store = getDefaultStore()
+    const concurrency = store.get(executionConcurrencyAtom)
+
+    // Re-create if concurrency changed or first call
+    if (!_sharedLimiter || _sharedLimiterConcurrency !== concurrency) {
+        _sharedLimiterConcurrency = concurrency
+        let active = 0
+        const queue: (() => void)[] = []
+
+        _sharedLimiter = async <T>(fn: () => Promise<T>): Promise<T> => {
+            if (active >= concurrency) {
+                await new Promise<void>((resolve) => queue.push(resolve))
+            }
+            active++
+            try {
+                return await fn()
+            } finally {
+                active--
+                queue.shift()?.()
+            }
+        }
+    }
+
+    return _sharedLimiter
+}
 
 // ============================================================================
 // INJECTABLE AUTH HEADERS
@@ -176,12 +225,19 @@ export const triggerExecutionAtom = atom(
 
         const getHeaders = get(executionHeadersAtom)
         const headers: Record<string, string> = getHeaders ? await getHeaders() : {}
+        const projectId = get(projectIdAtom)
         const isChat = get(isChatModeAtom) === true
         const mode = isChat ? "chat" : "completion"
         const logicalRowId = extractLogicalRowId(rowId)
 
         const sessionId = `sess:${rootEntityId}`
         const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+        const rawRepetitionCount = get(repetitionCountAtom)
+        // Keep repeats disabled in comparison mode (multiple entities).
+        const repetitionCount =
+            Array.isArray(entityIds) && entityIds.length > 1
+                ? 1
+                : Math.max(1, Number(rawRepetitionCount) || 1)
 
         // Clear previous responses for re-runs, but preserve history for
         // tool continuations so the LLM can consume the tool result context.
@@ -275,204 +331,224 @@ export const triggerExecutionAtom = atom(
                   )
                 : connections
 
-        await executeStepForSessionWithExecutionItems({
-            get,
-            set,
-            loadableId,
-            stepId: rowId,
-            session: {
-                id: sessionId,
-                runnableId: rootEntityId,
-                runnableType: (effectiveRootNode.entityType || "legacyAppRevision") as RunnableType,
-                mode,
-            },
-            data: testcaseData,
-            nodes: executionNodes,
-            allConnections: executionConnections,
-            sessionOptions: {[sessionId]: {headers}},
-            targetNodeId: params.targetNodeId,
-            lifecycle: {
-                onStart: () => {},
-                onProgress: ({chainProgress, chainResults}) => {
-                    // Store chain progress on the root session so
-                    // chainExecutionStatusAtomFamily can read which node is active.
-                    set(updateChainProgressAtom, {
-                        loadableId,
-                        stepId: rowId,
-                        sessionId,
-                        chainProgress,
-                        chainResults,
-                    })
-
-                    // Publish completed stage outputs incrementally so already-finished
-                    // chain steps render while downstream steps are still running.
-                    // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
-                    // so comparison mode results don't overwrite each other.
-                    if (chainResults) {
-                        for (const [nodeId, stageResult] of Object.entries(chainResults)) {
-                            const node = nodeById.get(nodeId)
-                            if (!node) continue
-                            const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
-                            if (stageResult.status === "error") {
-                                set(failRunAtom, {
-                                    loadableId,
-                                    stepId: rowId,
-                                    sessionId: stageSessionId,
-                                    error: stageResult.error || {message: "Execution failed"},
-                                })
-                                continue
-                            }
-                            set(completeRunAtom, {
-                                loadableId,
-                                stepId: rowId,
-                                sessionId: stageSessionId,
-                                result: {
-                                    output: {response: stageResult.structuredOutput},
-                                    structuredOutput: stageResult.structuredOutput,
-                                    traceId: stageResult.traceId,
-                                    metrics: stageResult.metrics,
-                                },
-                            })
-                        }
-                    }
+        const limiter = getSharedConcurrencyLimiter()
+        await limiter(() =>
+            executeStepForSessionWithExecutionItems({
+                get,
+                set,
+                loadableId,
+                stepId: rowId,
+                session: {
+                    id: sessionId,
+                    runnableId: rootEntityId,
+                    runnableType: (effectiveRootNode.entityType ||
+                        "legacyAppRevision") as RunnableType,
+                    mode,
                 },
-                onComplete: ({result}) => {
-                    // Wrap output in {response: structuredOutput} to match the
-                    // result shape that deriveToolViewModelFromResult expects
-                    // (it reads result.response.data for display text).
-                    const wrappedOutput = {response: result.structuredOutput}
-
-                    // Chat mode: route through handleExecutionResultAtom to
-                    // write assistant/tool messages to the chat message store.
-                    // Without this, assistantForTurn returns null and chat
-                    // responses never render.
-                    if (isChat && !isTargetingDownstream) {
-                        set(handleExecutionResultAtom, {
-                            loadableId,
-                            sessionId,
-                            rowId,
-                            result: wrappedOutput,
-                        })
-                    }
-
-                    // For targeted downstream execution, don't overwrite the
-                    // root session's result — only update chainResults on it.
-                    if (isTargetingDownstream) {
-                        // Update root's chainResults without resetting its output
-                        set(completeRunAtom, {
+                data: testcaseData,
+                nodes: executionNodes,
+                allConnections: executionConnections,
+                sessionOptions: {
+                    [sessionId]: {
+                        headers,
+                        ...(projectId ? {projectId} : {}),
+                    },
+                },
+                repetitionCount,
+                targetNodeId: params.targetNodeId,
+                lifecycle: {
+                    onStart: () => {},
+                    onProgress: ({chainProgress, chainResults}) => {
+                        // Store chain progress on the root session so
+                        // chainExecutionStatusAtomFamily can read which node is active.
+                        set(updateChainProgressAtom, {
                             loadableId,
                             stepId: rowId,
                             sessionId,
-                            result: {
-                                // Preserve root's existing output by not setting
-                                // output/structuredOutput/traceId/metrics.
-                                // completeRunAtom merges with existing via spread.
-                                isChain: result.isChain,
-                                totalStages: result.totalStages,
-                                chainResults: result.chainResults,
-                            },
+                            chainProgress,
+                            chainResults,
                         })
-                    } else {
-                        // Full chain or targeted root: store primary node result
-                        set(completeRunAtom, {
-                            loadableId,
-                            stepId: rowId,
-                            sessionId,
-                            result: {
-                                output: wrappedOutput,
-                                structuredOutput: result.structuredOutput,
-                                traceId: result.traceId,
-                                metrics: result.metrics,
-                                isChain: result.isChain,
-                                totalStages: result.totalStages,
-                                chainResults: result.chainResults,
-                                ...(result.repetitions ? {repetitions: result.repetitions} : {}),
-                            },
-                        })
-                    }
 
-                    // Store separate result entries for each downstream node
-                    // so the UI can look them up by their own entityId.
-                    // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
-                    // so comparison mode results don't overwrite each other.
-                    if (result.chainResults) {
-                        for (const [nodeId, stageResult] of Object.entries(result.chainResults)) {
-                            const node = nodes.find((n) => n.id === nodeId)
-                            if (!node || node.depth === 0) continue
-                            const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
-                            if (stageResult.status === "error") {
-                                set(failRunAtom, {
+                        // Publish completed stage outputs incrementally so already-finished
+                        // chain steps render while downstream steps are still running.
+                        // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
+                        // so comparison mode results don't overwrite each other.
+                        if (chainResults) {
+                            for (const [nodeId, stageResult] of Object.entries(chainResults)) {
+                                const node = nodeById.get(nodeId)
+                                if (!node) continue
+                                const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
+                                if (stageResult.status === "error") {
+                                    set(failRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: stageSessionId,
+                                        error: stageResult.error || {message: "Execution failed"},
+                                    })
+                                    continue
+                                }
+                                set(completeRunAtom, {
                                     loadableId,
                                     stepId: rowId,
                                     sessionId: stageSessionId,
-                                    error: stageResult.error || {message: "Execution failed"},
+                                    result: {
+                                        output: {response: stageResult.structuredOutput},
+                                        structuredOutput: stageResult.structuredOutput,
+                                        traceId: stageResult.traceId,
+                                        metrics: stageResult.metrics,
+                                    },
                                 })
-                                continue
                             }
+                        }
+                    },
+                    onComplete: ({result}) => {
+                        // Wrap output in {response: structuredOutput} to match the
+                        // result shape that deriveToolViewModelFromResult expects
+                        // (it reads result.response.data for display text).
+                        const wrappedOutput = {response: result.structuredOutput}
+
+                        // Chat mode: route through handleExecutionResultAtom to
+                        // write assistant/tool messages to the chat message store.
+                        // Without this, assistantForTurn returns null and chat
+                        // responses never render.
+                        if (isChat && !isTargetingDownstream) {
+                            set(handleExecutionResultAtom, {
+                                loadableId,
+                                sessionId,
+                                rowId,
+                                result: wrappedOutput,
+                            })
+                        }
+
+                        // For targeted downstream execution, don't overwrite the
+                        // root session's result — only update chainResults on it.
+                        if (isTargetingDownstream) {
+                            // Update root's chainResults without resetting its output
                             set(completeRunAtom, {
                                 loadableId,
                                 stepId: rowId,
-                                sessionId: stageSessionId,
+                                sessionId,
                                 result: {
-                                    output: {response: stageResult.structuredOutput},
-                                    structuredOutput: stageResult.structuredOutput,
-                                    traceId: stageResult.traceId,
-                                    metrics: stageResult.metrics,
+                                    // Preserve root's existing output by not setting
+                                    // output/structuredOutput/traceId/metrics.
+                                    // completeRunAtom merges with existing via spread.
+                                    isChain: result.isChain,
+                                    totalStages: result.totalStages,
+                                    chainResults: result.chainResults,
+                                },
+                            })
+                        } else {
+                            // Full chain or targeted root: store primary node result
+                            set(completeRunAtom, {
+                                loadableId,
+                                stepId: rowId,
+                                sessionId,
+                                result: {
+                                    output: wrappedOutput,
+                                    structuredOutput: result.structuredOutput,
+                                    traceId: result.traceId,
+                                    metrics: result.metrics,
+                                    isChain: result.isChain,
+                                    totalStages: result.totalStages,
+                                    chainResults: result.chainResults,
+                                    ...(result.repetitions
+                                        ? {repetitions: result.repetitions}
+                                        : {}),
                                 },
                             })
                         }
-                    }
 
-                    const qc = get(queryClientAtom)
-                    qc.invalidateQueries({queryKey: ["tracing"]})
-                },
-                onFail: ({error: err, traceId: lifecycleTraceId}) => {
-                    // For targeted downstream runs, fail the target session, not root
-                    const failSessionId = isTargetingDownstream
-                        ? `sess:${rootEntityId}:${targetNode.entityId}`
-                        : sessionId
-                    const traceId = lifecycleTraceId ?? extractTraceIdFromPayload(err)
-                    console.error("[triggerExecution] onFail:", {
-                        error: err,
-                        traceId,
-                        isTargetingDownstream,
-                        failSessionId,
-                        targetNodeId: params.targetNodeId,
-                    })
+                        // Store separate result entries for each downstream node
+                        // so the UI can look them up by their own entityId.
+                        // Session ID is scoped per-variant (rootEntityId:nodeEntityId)
+                        // so comparison mode results don't overwrite each other.
+                        if (result.chainResults) {
+                            for (const [nodeId, stageResult] of Object.entries(
+                                result.chainResults,
+                            )) {
+                                const node = nodes.find((n) => n.id === nodeId)
+                                if (!node || node.depth === 0) continue
+                                const stageSessionId = `sess:${rootEntityId}:${node.entityId}`
+                                if (stageResult.status === "error") {
+                                    set(failRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: stageSessionId,
+                                        error: stageResult.error || {message: "Execution failed"},
+                                    })
+                                    continue
+                                }
+                                set(completeRunAtom, {
+                                    loadableId,
+                                    stepId: rowId,
+                                    sessionId: stageSessionId,
+                                    result: {
+                                        output: {response: stageResult.structuredOutput},
+                                        structuredOutput: stageResult.structuredOutput,
+                                        traceId: stageResult.traceId,
+                                        metrics: stageResult.metrics,
+                                    },
+                                })
+                            }
+                        }
 
-                    if (isChat && !isTargetingDownstream) {
-                        set(handleExecutionResultAtom, {
-                            loadableId,
-                            sessionId,
-                            rowId,
-                            result: {
-                                error: err.message,
-                                metadata: {
-                                    ...(traceId ? {traceId, trace_id: traceId} : {}),
-                                },
-                            },
+                        const qc = get(queryClientAtom)
+                        qc.invalidateQueries({queryKey: ["tracing"]})
+                    },
+                    onFail: ({error: err, traceId: lifecycleTraceId}) => {
+                        // For targeted downstream runs, fail the target session, not root
+                        const failSessionId = isTargetingDownstream
+                            ? `sess:${rootEntityId}:${targetNode.entityId}`
+                            : sessionId
+                        const traceId = lifecycleTraceId ?? extractTraceIdFromPayload(err)
+                        console.error("[triggerExecution] onFail:", {
+                            error: err,
+                            traceId,
+                            isTargetingDownstream,
+                            failSessionId,
+                            targetNodeId: params.targetNodeId,
                         })
-                        return
-                    }
 
-                    set(failRunAtom, {
-                        loadableId,
-                        stepId: rowId,
-                        sessionId: failSessionId,
-                        error: err,
-                        ...(traceId !== null ? {traceId} : {}),
-                    })
+                        if (isChat && !isTargetingDownstream) {
+                            set(handleExecutionResultAtom, {
+                                loadableId,
+                                sessionId,
+                                rowId,
+                                result: {
+                                    error: err.message,
+                                    metadata: {
+                                        ...(traceId ? {traceId, trace_id: traceId} : {}),
+                                    },
+                                },
+                            })
+                            return
+                        }
+
+                        set(failRunAtom, {
+                            loadableId,
+                            stepId: rowId,
+                            sessionId: failSessionId,
+                            error: err,
+                            ...(traceId !== null ? {traceId} : {}),
+                        })
+                    },
+                    onCancel: () => {
+                        const cancelSessionId = isTargetingDownstream
+                            ? `sess:${rootEntityId}:${targetNode.entityId}`
+                            : sessionId
+                        set(cancelRunAtom, {loadableId, stepId: rowId, sessionId: cancelSessionId})
+                    },
                 },
-                onCancel: () => {
-                    const cancelSessionId = isTargetingDownstream
-                        ? `sess:${rootEntityId}:${targetNode.entityId}`
-                        : sessionId
-                    set(cancelRunAtom, {loadableId, stepId: rowId, sessionId: cancelSessionId})
-                },
-            },
-        })
+            }),
+        )
     },
 )
+
+/** Reset the shared concurrency limiter (e.g. when concurrency setting changes) */
+export function resetSharedConcurrencyLimiter(): void {
+    _sharedLimiter = null
+    _sharedLimiterConcurrency = 0
+}
 
 // ============================================================================
 // RESULT HANDLER ATOM

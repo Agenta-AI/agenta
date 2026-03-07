@@ -65,6 +65,7 @@ const SharedEditor = ({
     disableDebounce = false,
     antdInputProps,
     onPropertyClick,
+    onFocusChange,
     ...props
 }: SharedEditorProps) => {
     const normalizedInitialValue = initialValue ?? ""
@@ -157,8 +158,14 @@ const SharedEditor = ({
                     transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
                 } as React.CSSProperties
             }
-            onFocus={() => setIsEditorFocused(true)}
-            onBlur={() => setIsEditorFocused(false)}
+            onFocus={() => {
+                setIsEditorFocused(true)
+                onFocusChange?.(true)
+            }}
+            onBlur={() => {
+                setIsEditorFocused(false)
+                onFocusChange?.(false)
+            }}
         >
             {header}
 

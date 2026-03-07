@@ -13,6 +13,7 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {produce} from "immer"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
@@ -1148,7 +1149,10 @@ export const legacyAppRevisionDraftParametersAtomFamily = atomFamily((revisionId
     atom<Record<string, unknown> | null>((get) => {
         const draft = get(legacyAppRevisionDraftAtomFamily(revisionId))
         if (!draft) return null
-        return draft.parameters ?? null
+        const params = draft.parameters ?? null
+        // Strip frontend-only metadata (e.g. agenta_metadata on tools) so all
+        // consumers (diff preview, commit, isDirty) see clean server-compatible data
+        return params ? stripAgentaMetadataDeep(params) : null
     }),
 )
 
