@@ -174,7 +174,6 @@ const TitleActions = memo(
                     type="default"
                     size="small"
                     disabled={!isDirty || isLoading}
-                    commitType={viewAs}
                     onSuccess={({revisionId}) => {
                         if (!revisionId) return
                         updateQuery({revisionId, drawerType: "variant"})
