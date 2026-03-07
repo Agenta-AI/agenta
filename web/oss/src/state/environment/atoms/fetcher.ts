@@ -36,15 +36,25 @@ function getEnvironmentReferenceForApp(
     return null
 }
 
+function stripAppPrefix(variantSlug: string | undefined | null, appSlug: string | undefined | null) {
+    if (!variantSlug) return variantSlug ?? null
+    if (appSlug && variantSlug.startsWith(`${appSlug}.`)) {
+        return variantSlug.slice(appSlug.length + 1)
+    }
+    return variantSlug
+}
+
 function toLegacyEnvironment(env: EntityEnvironment, appId: string): Environment {
     const reference = getEnvironmentReferenceForApp(env, appId)
+    const appSlug = reference?.application?.slug
     return {
         name: env.name ?? env.slug ?? "",
         app_id: appId,
         deployed_app_variant_id: reference?.application_variant?.id ?? null,
-        deployed_variant_name: reference?.application_variant?.slug ?? null,
+        deployed_variant_name: stripAppPrefix(reference?.application_variant?.slug, appSlug),
         deployed_app_variant_revision_id: reference?.application_revision?.id ?? null,
         revision: reference?.application_revision?.version ?? null,
+        updated_at: env.updated_at ?? env.created_at ?? null,
     }
 }
 

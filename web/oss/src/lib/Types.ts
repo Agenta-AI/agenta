@@ -389,6 +389,7 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
+    updated_at?: string | null
 }
 
 export type FilterValue =
