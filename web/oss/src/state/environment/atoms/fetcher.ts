@@ -84,9 +84,22 @@ devLog(environmentsQueryAtom as any, "environmentsQueryAtom", logEnv)
 
 const EmptyEnvs: Environment[] = []
 
+/** Canonical display order for environments */
+const ENV_ORDER: Record<string, number> = {
+    development: 0,
+    staging: 1,
+    production: 2,
+}
+
 export const environmentsAtom = selectAtom(
     unwrap(environmentsQueryAtom),
-    (res) => (res as any)?.data ?? EmptyEnvs,
+    (res) => {
+        const envs: Environment[] = (res as any)?.data ?? EmptyEnvs
+        if (envs.length <= 1) return envs
+        return [...envs].sort(
+            (a, b) => (ENV_ORDER[a.name.toLowerCase()] ?? 99) - (ENV_ORDER[b.name.toLowerCase()] ?? 99),
+        )
+    },
     deepEqual,
 )
 
