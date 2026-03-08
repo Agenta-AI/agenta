@@ -1,0 +1,56 @@
+## Policy wording recommendation
+
+Use a **small fixed vocabulary**.
+
+### Best convention
+
+- **MUST / MUST NOT** = hard rule
+- **SHOULD / SHOULD NOT** = strong default, exceptions allowed if justified
+- **MAY** = optional
+
+### Use this split
+
+- **Policy files** → use **MUST / MUST NOT / SHOULD / SHOULD NOT / MAY**
+- **Procedures / skills / prompts** → use direct commands like:
+  - `Run ...`
+  - `Check ...`
+  - `Do not ...`
+- **Explanations / rationale docs** → use normal prose
+
+### Avoid
+
+Avoid mixing many vague forms like:
+- always
+- never
+- avoid
+- preferably
+- try to
+- maybe
+
+unless you define them explicitly.
+
+### Why this is best
+
+- It gives each level of obligation a **clear, stable meaning**
+- It keeps **policy** separate from **procedure**
+- It makes rules easier to scan and enforce
+
+### Recommended legend
+
+```md
+## Requirement levels
+
+- MUST / MUST NOT: non-negotiable
+- SHOULD / SHOULD NOT: default unless justified otherwise
+- MAY: optional
+
+### Example
+
+- Agents MUST read `docs/reference/repo-map.md` before major structural changes.
+- Agents MUST NOT edit generated files.
+- Agents SHOULD reuse an existing skill before creating a new workflow.
+- Agents MAY create temporary scratch files during analysis.
+
+### Summary
+
+This recommendation is based on RFC 2119 and RFC 8174 for normative requirement language, Microsoft’s style guidance to use “should” only for recommended-but-optional actions and imperative mood in procedures, and plain-language guidance emphasizing clear, concise, audience-focused writing.
