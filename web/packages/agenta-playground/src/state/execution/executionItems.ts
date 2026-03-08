@@ -100,6 +100,8 @@ export interface ExecutionItemRunParams {
     repetitions?: number
     runId?: string
     inputValues?: Record<string, unknown>
+    references?: RequestPayloadData["references"]
+    links?: Record<string, {trace_id: string; span_id: string}>
     projectId?: string | null
     dispatchWorkerRun?: (payload: WorkerRunEntityRowPayload) => void
     /** Pre-built chat history. When provided, skips internal turn-based history building. */
@@ -171,6 +173,8 @@ interface BuildExecutionItemBaseParams {
     agConfigFallbacks?: AgConfigFallbackCandidate[]
     /** Runtime-resolved inputs (e.g. from chain upstream). Merged into rawBody.inputs when __rawBody is true. */
     inputValues?: Record<string, unknown>
+    references?: RequestPayloadData["references"]
+    links?: Record<string, {trace_id: string; span_id: string}>
 }
 
 export interface BuildCompletionExecutionItemParams extends BuildExecutionItemBaseParams {
@@ -486,8 +490,17 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         runParams: ExecutionItemRunParams,
         forceNewRunId: boolean,
     ): ExecutionItem | null => {
-        const {get, headers, repetitions, runId, inputValues, projectId, dispatchWorkerRun} =
-            runParams
+        const {
+            get,
+            headers,
+            repetitions,
+            runId,
+            inputValues,
+            references,
+            links,
+            projectId,
+            dispatchWorkerRun,
+        } = runParams
 
         // When entityType is provided, use type-scoped selectors to avoid
         // cross-contamination from the shared workflow_revisions DB table.
@@ -649,6 +662,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       chatHistory,
                       agConfigFallbacks,
                       inputValues,
+                      references,
+                      links,
                   })
                 : buildCompletionExecutionItem({
                       loadableId: params.loadableId,
@@ -667,6 +682,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       inputRow: completionInputRow,
                       agConfigFallbacks,
                       inputValues,
+                      references,
+                      links,
                   })
 
         lastRequestedRepetitions = executionItem.invocation.repetitions
@@ -1128,6 +1145,16 @@ function buildExecutionItem(
                       body.inputs = params.inputValues
                   }
               }
+              if (params.links && Object.keys(params.links).length > 0) {
+                  const existingLinks = asRecord(body.links)
+                  body.links = existingLinks ? {...existingLinks, ...params.links} : params.links
+              }
+              if (params.references && Object.keys(params.references).length > 0) {
+                  const existingReferences = asRecord(body.references)
+                  body.references = existingReferences
+                      ? {...existingReferences, ...params.references}
+                      : params.references
+              }
               return body
           })()
         : buildRequestBody(mode, {
@@ -1140,6 +1167,17 @@ function buildExecutionItem(
               entityId: params.entityId,
               agConfigFallbacks: params.agConfigFallbacks,
           })
+
+    if (params.links && Object.keys(params.links).length > 0) {
+        const existingLinks = asRecord(requestBody.links)
+        requestBody.links = existingLinks ? {...existingLinks, ...params.links} : params.links
+    }
+    if (params.references && Object.keys(params.references).length > 0) {
+        const existingReferences = asRecord(requestBody.references)
+        requestBody.references = existingReferences
+            ? {...existingReferences, ...params.references}
+            : params.references
+    }
 
     const references: ExecutionItemReference = {
         loadableId: params.loadableId,

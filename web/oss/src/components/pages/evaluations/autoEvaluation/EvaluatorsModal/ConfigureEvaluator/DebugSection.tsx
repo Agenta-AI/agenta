@@ -53,6 +53,7 @@ import {
     safeJson5Parse,
 } from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
+import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
@@ -67,6 +68,9 @@ import {
     invokeEvaluator,
     mapWorkflowResponseToOutputs,
     mapWorkflowResponseToEvaluatorOutput,
+    type WorkflowServiceBatchResponse,
+    type WorkflowServiceLink,
+    type WorkflowServiceReference,
 } from "@/oss/services/workflows/invoke"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
@@ -140,6 +144,116 @@ const LoadTestsetModal = dynamic(
     {ssr: false},
 )
 
+const normalizeTraceId = (value?: string | null) => {
+    if (!value) return undefined
+    if (!value.includes("-")) return value
+
+    try {
+        return uuidToTraceId(value)
+    } catch {
+        return undefined
+    }
+}
+
+const normalizeSpanId = (value?: string | null) => {
+    if (!value) return undefined
+    if (value.includes("-")) {
+        try {
+            return uuidToSpanId(value)
+        } catch {
+            return undefined
+        }
+    }
+    return value.length === 32 ? value.slice(-16) : value
+}
+
+const toWorkflowLink = ({
+    traceId,
+    spanId,
+}: {
+    traceId?: string | null
+    spanId?: string | null
+}): WorkflowServiceLink | undefined => {
+    const normalizedTraceId = normalizeTraceId(traceId)
+    const normalizedSpanId = normalizeSpanId(spanId)
+
+    if (!normalizedTraceId || !normalizedSpanId) return undefined
+
+    return {
+        trace_id: normalizedTraceId,
+        span_id: normalizedSpanId,
+    }
+}
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    return value as Record<string, unknown>
+}
+
+const readString = (value: unknown) => {
+    return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+const normalizeApplicationReferences = (
+    references: unknown,
+): Record<string, WorkflowServiceReference> | undefined => {
+    const refs = asRecord(references)
+    if (!refs) return undefined
+
+    const appRef = asRecord(refs.application)
+    const appVariantRef = asRecord(refs.application_variant)
+    const appRevisionRef = asRecord(refs.application_revision)
+    const normalized: Record<string, WorkflowServiceReference> = {}
+
+    const applicationId = readString(appRef?.id)
+    const applicationSlug = readString(appRef?.slug)
+    if (applicationId || applicationSlug) {
+        normalized.application = {
+            ...(applicationId ? {id: applicationId} : {}),
+            ...(applicationSlug ? {slug: applicationSlug} : {}),
+        }
+    }
+
+    const applicationVariantId = readString(appVariantRef?.id) || readString(appRef?.variant_id)
+    const applicationVariantSlug = readString(appVariantRef?.slug)
+    if (applicationVariantId || applicationVariantSlug) {
+        normalized.application_variant = {
+            ...(applicationVariantId ? {id: applicationVariantId} : {}),
+            ...(applicationVariantSlug ? {slug: applicationVariantSlug} : {}),
+        }
+    }
+
+    const applicationRevisionId = readString(appRevisionRef?.id) || readString(appRef?.revision_id)
+    const applicationRevisionSlug = readString(appRevisionRef?.slug)
+    const applicationRevisionVersion = readString(appRevisionRef?.version)
+    if (applicationRevisionId || applicationRevisionSlug || applicationRevisionVersion) {
+        normalized.application_revision = {
+            ...(applicationRevisionId ? {id: applicationRevisionId} : {}),
+            ...(applicationRevisionSlug ? {slug: applicationRevisionSlug} : {}),
+            ...(applicationRevisionVersion ? {version: applicationRevisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
+}
+
+const extractRootSpanId = (spans?: {id?: string; parent_span_id?: string | null}[]) => {
+    if (!Array.isArray(spans) || spans.length === 0) return undefined
+    return spans.find((span) => !span.parent_span_id)?.id || spans[0]?.id
+}
+
+const extractLinkFromWorkflowResponse = (response?: WorkflowServiceBatchResponse | null) =>
+    toWorkflowLink({
+        traceId: response?.trace_id,
+        spanId: response?.span_id,
+    })
+
+const extractLinkFromBaseResponse = (response?: BaseResponse | null) =>
+    toWorkflowLink({
+        traceId: response?.trace?.trace_id || response?.tree?.nodes?.[0]?.root?.id,
+        spanId: extractRootSpanId(response?.trace?.spans) || response?.tree?.nodes?.[0]?.node?.id,
+    })
+
 const DebugSection = () => {
     const appId = useAppId()
     const classes = useStyles()
@@ -163,6 +277,7 @@ const DebugSection = () => {
     const [lastVariantId, setLastVariantId] = useAtom(playgroundLastVariantIdAtom)
 
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
+    const [lastInvocationLink, setLastInvocationLink] = useState<WorkflowServiceLink | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
     const abortControllersRef = useRef<AbortController | null>(null)
@@ -381,6 +496,10 @@ const DebugSection = () => {
             [selectedVariant?.id],
         ),
     ) as any
+    const applicationReferences = useMemo(
+        () => normalizeApplicationReferences(revisionRequestPayload?.references),
+        [revisionRequestPayload?.references],
+    )
 
     const activeRevision = useAtomValue(
         useMemo(
@@ -549,6 +668,8 @@ const DebugSection = () => {
                 outputs: workflowOutputs,
                 trace: tracePayload,
                 parameters: evaluatorParameters,
+                references: applicationReferences,
+                links: lastInvocationLink ? {application: lastInvocationLink} : undefined,
                 options: {signal: controller.signal},
             })
             const runResponse = mapWorkflowResponseToEvaluatorOutput(workflowResponse)
@@ -610,6 +731,7 @@ const DebugSection = () => {
         try {
             setVariantStatus({success: false, error: false})
             setIsRunningVariant(true)
+            setLastInvocationLink(null)
 
             const params = {} as {
                 inputs: Parameter[]
@@ -901,11 +1023,13 @@ const DebugSection = () => {
                     uri: workflowUriCandidate,
                     inputs: workflowInputs,
                     parameters: workflowParameters,
+                    references: applicationReferences,
                     options: {signal: controller.signal},
                 })
 
                 const runResponse = mapWorkflowResponseToOutputs(workflowResponse)
                 const outputs = runResponse.outputs ?? {}
+                setLastInvocationLink(extractLinkFromWorkflowResponse(workflowResponse) ?? null)
                 setBaseResponseData({
                     version: workflowResponse.version,
                     data: outputs,
@@ -932,14 +1056,17 @@ const DebugSection = () => {
             )
 
             if (typeof result === "string") {
+                setLastInvocationLink(null)
                 setVariantResult(getStringOrJson(result))
                 setTraceTree({trace: result})
                 setVariantStatus({success: true, error: false})
             } else if (isFuncResponse(result)) {
+                setLastInvocationLink(null)
                 setVariantResult(getStringOrJson(result))
                 setTraceTree({trace: result})
                 setVariantStatus({success: true, error: false})
             } else if (isBaseResponse(result)) {
+                setLastInvocationLink(extractLinkFromBaseResponse(result) ?? null)
                 setBaseResponseData(result)
                 const {trace, tree, data} = result
                 setVariantResult(getStringOrJson(data))

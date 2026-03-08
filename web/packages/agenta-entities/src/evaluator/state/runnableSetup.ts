@@ -169,12 +169,20 @@ export const requestPayloadAtomFamily = atomFamily((evaluatorId: string) =>
         if (!uri && !url) return null
 
         const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
+        const references: Record<string, Record<string, string | undefined>> = {}
+        if (entity.id || entity.slug) {
+            references.evaluator = {
+                id: entity.id || undefined,
+                slug: entity.slug ?? undefined,
+            }
+        }
 
         return {
             __rawBody: true,
             interface: uri ? {uri} : {url},
             configuration:
                 parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            references: Object.keys(references).length > 0 ? references : undefined,
             data: {
                 inputs: {},
                 outputs: {},
