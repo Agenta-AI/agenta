@@ -1,7 +1,5 @@
 import {expect, Locator, Page} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
-import {dirname, resolve} from "path"
-import {fileURLToPath} from "url"
 
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
@@ -112,14 +110,8 @@ function getProjectScopedBasePath(page: Page): string | null {
     return null
 }
 
-function getTestProjectMetadataPath(): string {
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = dirname(__filename)
-    return resolve(__dirname, "../../../../test-project.json")
-}
-
 function readTestProjectMetadata(): TestProjectMetadata | null {
-    const metadataPath = getTestProjectMetadataPath()
+    const metadataPath = `${process.cwd()}/test-project.json`
 
     if (!existsSync(metadataPath)) {
         return null
