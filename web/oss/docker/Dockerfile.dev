@@ -63,5 +63,11 @@ COPY oss/next.config.ts ./oss/next.config.ts
 
 COPY oss/tailwind.config.ts ./oss/tailwind.config.ts
 
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
+
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 3000

@@ -21,9 +21,10 @@ supported_llm_models = {
         "anthropic/claude-3-haiku-20240307",
     ],
     "cohere": [
-        "cohere/command-light",
-        "cohere/command-r-plus",
-        "cohere/command-nightly",
+        "cohere/command-a-03-2025",
+        "cohere/command-r7b-12-2024",
+        "cohere/command-r-plus-08-2024",
+        "cohere/command-r-08-2024",
     ],
     "deepinfra": [
         "deepinfra/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",

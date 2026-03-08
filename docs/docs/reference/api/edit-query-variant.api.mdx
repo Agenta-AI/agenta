@@ -1,0 +1,71 @@
+---
+id: edit-query-variant
+title: "Edit Query Variant"
+description: "Edit Query Variant"
+sidebar_label: "Edit Query Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWFlz2zYQ/iuafUpmIMvxlZZPVWxn4qZpXB958Wg8KxKUkIJHcCRWOfzvnQVIUSRlxdbY06R+sQTshW8XH1ZbgMGZhuAG/rJcCa5hwiDLuUIjsvQsggB4JMztF8vV4vYrKoGpAQY5Kky44Yp0C0gx4RBAS+pWRMBApBBAjmYODBT/YoXiEQRGWc5Ah3OeIAQFmEVO+tookc6AQZypBA0EYK2zYoSRJEBBLgafvIPBWQRlOfF2uTZvsmhBxrpuwiw1PDW0hXkuRejONvqss5TWmihyRSc3hEJQtA/T346lA64ATBcfY4cCRpEg0yjPW6KNRHXOaZZJjimUrHt0WllvBkKhQitRvfgDp1z+rrN0eJbm1rwkfLyRbPqZhwYIkxqxjjCUPeEmhtRK2VJ+685IKv//s15VR024wS2PunKuakWkhs+4ajtOpu2VVYS+h8dbKzfDwQoQhicPU0KlcLG5Alqqj0P0AyFZsoocHoRXz8afpFsyiLgOlcgJmm1NnayYKBmIaJOhLgVtMuxoqAtMh7MqyjqNhFkr3HDWTYd4JvdbuvC8B2VJJhXXeZZqX5t7u7v0rwUbXNow5FrHVg4uKmHYmh7DzHqlTqk34R47CcpdjFYaCHZL1mfVJgPr6PfpsuSfDsoVA1RGxBiaJzQ/rkxWHn6E1+GjNY+gTC/9874Pz3/an+yFuBeQjU9ET+sRb8Q2oP7Yj0SoOBoe3aJ5IE9EaPjQCBfP/V6OvdnB2IFl8+g5nFx7s5WTiEv+DE5OvNnKSQ3X9CmJuwbrTc3eNV5P6qVGa+mlBuxJvdRwLb1oaWfb1uol6f5XncwaOw9VXfYevm852NvrtyqfUIrINSKDU6UytX2fEnGDQtKnivS6AjILW7uPIe1J2eHJlbcm8wG6F0PP1v3KbThQa5zxhjjvF3VgDK5olzLvmnISrxNYd+mhuVsx00vHMWF59/1WlLDx4VdyK8XSpMhn6H4oTnwKNtXHu6ur855BXx/twqC+d9AaA4B7kecZzSro9MyPGwIYffEjjVHVbepR0R1QlMBAc/W1nmNYJSGAuTG5DkajUGY22sEZTw3uoBhhLtx10Ty0SpiFUxmfn73ni3ccI64guJmsClxSTfoqa4stM4O5eM8Jq2qCMrZmninxjy+danwy91oEBlX7RTPuOL3DJJd87biibkGb9qzpXZYPblNhbZiXy0QusB/jL4fx0cHw8PWr18ODw6O94XQ/Dod74a9H+/HREcZ45MITaZyt1uPYYTcYn58BA0LZW9/debWz2/PZEqbbjqE7SA2N2wbWSdIyPcCAJ+6qg+GY/NZsUGR5pk2C6Yq9tZXUaSGqLNFdGeUShbvNzn9RVZn/uUZUwqCuM2AQ9EZhEwbzTBvSKIopan6tZFnSshOl0qksTAm6mwIioelzBEGMUvNecEtChBcX1Z19OWgat3bQdb2lCxeotPQNGPzNF+sGd47Z5nVRF5XYsfc4dPzTmOnRMVGl1xiHIc/NRtnJyv09v74CBtNqkJdkEako/Ea0hN98xJkDwF0qt1aAxHRmiUAD8Cbp71/M7yXj
+sidebar_class_name: "put api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Edit Query Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/queries/variants/{query_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Edit Query Variant
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"query_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Query Variant Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"required":true,"content":{"application/json":{"schema":{"properties":{"query_variant":{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Input)","type":"object"}],"title":"LabelJson-Input"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Input)","type":"object"}],"title":"LabelJson-Input"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Input)","type":"object"},{"items":"circular(FullJson-Input)","type":"array"},{"type":"null"}],"title":"FullJson-Input"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"QueryVariantEdit"}},"type":"object","required":["query_variant"],"title":"QueryVariantEditRequest"}}}}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"query_variant":{"anyOf":[{"properties":{"query_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Query Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Flags"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"},{"additionalProperties":"circular(LabelJson-Output)","type":"object"}],"title":"LabelJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"QueryVariant"},{"type":"null"}]}},"type":"object","title":"QueryVariantResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      
