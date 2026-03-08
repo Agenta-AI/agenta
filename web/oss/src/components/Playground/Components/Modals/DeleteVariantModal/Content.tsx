@@ -13,6 +13,7 @@ import {
     deleteVariantMutationAtom,
     invalidatePlaygroundQueriesAtom,
     moleculeBackedVariantAtomFamily,
+    totalServerRevisionsCountAtom,
 } from "@/oss/components/Playground/state/atoms"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
 import {deleteSingleVariant} from "@/oss/services/playground/api"
@@ -59,6 +60,7 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
     )
     const variantsQuery = useAtomValue(variantsListAtom)
     const variants = variantsQuery.data ?? []
+    const totalAppServerRevisions = useAtomValue(totalServerRevisionsCountAtom)
 
     const uniqueRevisionIds = useMemo(
         () => Array.from(new Set([revisionIds].flat().filter(Boolean))) as string[],
@@ -73,6 +75,14 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
                 .filter(Boolean) as any[],
         [store, uniqueRevisionIds],
     )
+
+    const selectedServerRevisionsCount = useMemo(
+        () => resolvedRevisions.filter(isVisibleServerRevision).length,
+        [resolvedRevisions],
+    )
+
+    const isDeletingLastRevision =
+        totalAppServerRevisions > 0 && totalAppServerRevisions === selectedServerRevisionsCount
 
     const variantNameMap = useMemo(() => {
         const map: Record<string, string> = {}
@@ -222,6 +232,19 @@ const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Prop
                 <Text>
                     One or more variants cannot be deleted because they are currently in use.
                 </Text>
+                <div className="flex items-center justify-end">
+                    <Button type="primary" onClick={onClose}>
+                        Close
+                    </Button>
+                </div>
+            </section>
+        )
+    }
+
+    if (isDeletingLastRevision) {
+        return (
+            <section className="flex flex-col gap-4">
+                <Text>Cannot delete the only revision. Delete the app instead.</Text>
                 <div className="flex items-center justify-end">
                     <Button type="primary" onClick={onClose}>
                         Close

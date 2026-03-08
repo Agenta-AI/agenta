@@ -17,6 +17,7 @@ export {
     playgroundRevisionListAtom,
     playgroundRevisionsReadyAtom,
     playgroundLatestRevisionIdAtom,
+    totalServerRevisionsCountAtom,
     revisionListAtom,
     isComparisonViewAtom,
     appsListAtom,

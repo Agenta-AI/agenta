@@ -171,6 +171,14 @@ export const playgroundLatestRevisionIdAtom = selectAtom(
     (a, b) => a === b,
 )
 
+/**
+ * Total count of server-side revisions (non-local drafts) for the current app.
+ */
+export const totalServerRevisionsCountAtom = atom((get) => {
+    const revisions = get(playgroundRevisionListAtom)
+    return revisions.filter((revision: any) => !revision?.isLocalDraft).length
+})
+
 // Re-export types for consumers
 export type {AppListItem, VariantListItem, RevisionListItem}
 
