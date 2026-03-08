@@ -1,4 +1,7 @@
 import {expect, Locator, Page} from "@playwright/test"
+import {existsSync, readFileSync} from "fs"
+import {dirname, resolve} from "path"
+import {fileURLToPath} from "url"
 
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
@@ -43,6 +46,11 @@ interface ProviderProfile {
     selectModel: (page: Page) => Promise<void>
 }
 
+interface TestProjectMetadata {
+    project_id?: string
+    workspace_id?: string
+}
+
 function getActiveProviderMode(): TestProviderMode {
     const mode = (process.env.AGENTA_TEST_PROVIDER || "mock").toLowerCase()
 
@@ -78,13 +86,50 @@ function getProjectId(page: Page): string | null {
 
 function getProjectScopedBasePath(page: Page): string | null {
     const currentUrl = page.url()
-    if (!currentUrl) {
+
+    if (currentUrl) {
+        const pathname = new URL(currentUrl).pathname
+        const match = pathname.match(/(\/w\/[^/]+\/p\/[^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    const configuredUrl = process.env.AGENTA_WEB_URL
+    if (configuredUrl) {
+        const pathname = new URL(configuredUrl).pathname
+        const match = pathname.match(/(\/w\/[^/]+\/p\/[^/]+)/)
+        if (match?.[1]) {
+            return match[1]
+        }
+    }
+
+    const testProject = readTestProjectMetadata()
+    if (testProject?.workspace_id && testProject?.project_id) {
+        return `/w/${testProject.workspace_id}/p/${testProject.project_id}`
+    }
+
+    return null
+}
+
+function getTestProjectMetadataPath(): string {
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = dirname(__filename)
+    return resolve(__dirname, "../../../../test-project.json")
+}
+
+function readTestProjectMetadata(): TestProjectMetadata | null {
+    const metadataPath = getTestProjectMetadataPath()
+
+    if (!existsSync(metadataPath)) {
         return null
     }
 
-    const pathname = new URL(currentUrl).pathname
-    const match = pathname.match(/(\/w\/[^/]+\/p\/[^/]+)/)
-    return match?.[1] ?? null
+    try {
+        return JSON.parse(readFileSync(metadataPath, "utf8")) as TestProjectMetadata
+    } catch {
+        return null
+    }
 }
 
 async function waitForModelsPageReady(page: Page): Promise<void> {
