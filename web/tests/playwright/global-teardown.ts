@@ -2,11 +2,34 @@
  * This script cleans up after Playwright tests.
  */
 
-import {StandardSecretDTO} from "../../oss/src/lib/Types"
-
 import {readFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
+
+import {StandardSecretDTO} from "../../oss/src/lib/Types"
+
+const LOCALHOST_OR_IPV4_REGEX =
+    /^(localhost|((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?))$/i
+
+const getSupertokensAccessCookieName = (...urls: string[]): string => {
+    for (const currentURL of urls) {
+        if (!currentURL) continue
+
+        try {
+            const parsed = new URL(currentURL)
+            if (
+                parsed.port &&
+                (LOCALHOST_OR_IPV4_REGEX.test(parsed.hostname) || parsed.hostname.includes(":"))
+            ) {
+                return `sAccessToken_${parsed.port}`
+            }
+        } catch {
+            // Try next candidate URL.
+        }
+    }
+
+    return "sAccessToken"
+}
 
 /**
  * Runs after tests complete.
@@ -53,7 +76,10 @@ async function globalTeardown() {
         const statePath = resolve(__dirname, "../state.json")
         const data = readFileSync(statePath, "utf8")
         const state = JSON.parse(data)
-        const sessionToken = state.cookies?.find((c: any) => c.name === "sAccessToken")?.value
+        const accessCookieName = getSupertokensAccessCookieName(apiURL, baseURL)
+        const sessionToken =
+            state.cookies?.find((c: any) => c.name === accessCookieName)?.value ??
+            state.cookies?.find((c: any) => c.name === "sAccessToken")?.value
         console.log(
             `[teardown] Extracted session token from state.json: ${sessionToken ? "present" : "absent"}`,
         )

@@ -50,6 +50,7 @@ After login, check session cookie contains identities:
 ```bash
 # Get session from browser dev tools
 # Cookie: sAccessToken=...
+# Localhost/IP with explicit WEB port: sAccessToken_<port>=...
 
 # Make authenticated request
 curl http://localhost:8000/api/me \

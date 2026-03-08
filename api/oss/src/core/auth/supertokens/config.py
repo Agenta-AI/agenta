@@ -45,6 +45,9 @@ from oss.src.core.auth.supertokens.overrides import (
     override_passwordless_apis,
     override_session_functions,
 )
+from oss.src.core.auth.supertokens.cookie_names import (
+    apply_supertokens_cookie_name_overrides,
+)
 
 log = get_module_logger(__name__)
 
@@ -275,6 +278,8 @@ def get_thirdparty_providers() -> List[ProviderInput]:
 
 def init_supertokens():
     """Initialize SuperTokens with only enabled recipes."""
+    apply_supertokens_cookie_name_overrides()
+
     # Validate auth configuration
     try:
         env.auth.validate_config()

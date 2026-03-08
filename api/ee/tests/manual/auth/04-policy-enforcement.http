@@ -19,6 +19,9 @@
 ###
 # Scenario 1: User with email:otp tries to access SSO-only organization
 ###
+# Local multi-env note:
+# - For localhost/IP with explicit WEB port, cookie names are suffixed by port
+#   (e.g. sAccessToken_8000 / sRefreshToken_8000).
 
 ### Step 1: Login with Email OTP
 # Complete OTP login flow first to get session with identities=["email:otp"]

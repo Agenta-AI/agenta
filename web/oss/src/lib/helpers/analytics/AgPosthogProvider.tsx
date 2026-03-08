@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {getLocalCookiePortSuffix} from "../cookies"
 import {getEnv} from "../dynamicEnv"
 import {generateOrRetrieveDistinctId, isDemo} from "../utils"
 
@@ -12,7 +13,7 @@ import {CustomPosthogProviderType} from "./types"
 
 const MAX_POSTHOG_INIT_ATTEMPTS = 3
 
-const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
+const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) => {
     const router = useRouter()
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
@@ -35,6 +36,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
 
             if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
 
+            const localCookiePortSuffix = getLocalCookiePortSuffix()
             posthog.init(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"), {
                 api_host: "https://alef.agenta.ai",
                 ui_host: "https://us.posthog.com",
@@ -53,7 +55,11 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     }
                 },
                 capture_pageview: false,
+                ...(localCookiePortSuffix
+                    ? {persistence_name: `agenta_local${localCookiePortSuffix}`}
+                    : {}),
                 ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
+                ...(config || {}),
             })
         } catch (error) {
             failedAttemptsRef.current += 1
@@ -63,7 +69,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
         } finally {
             setLoadingPosthog(false)
         }
-    }, [loadingPosthog, posthogClient, setPosthogClient])
+    }, [config, loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
         // Initialize PostHog everywhere except auth routes (but DO initialize on post-signup for survey)

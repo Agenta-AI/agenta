@@ -7,6 +7,9 @@ import posthog
 from fastapi import Request
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_oss
+from oss.src.core.auth.supertokens.cookie_names import (
+    get_supertokens_access_token_from_cookies,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -165,7 +168,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 auth_method = "ApiKey"
             elif auth_header.startswith(_SECRET_TOKEN_PREFIX):
                 auth_method = "Secret"
-            elif request.cookies.get("sAccessToken"):
+            elif get_supertokens_access_token_from_cookies(request.cookies):
                 auth_method = "Session"
             else:  # We use API key without any prefix too.
                 auth_method = "ApiKey"

@@ -5,6 +5,7 @@
  * so there is no env-var to configure. Each "cloud environment" pairs an EU
  * host with a US host (and an optional alias that auto-redirects).
  */
+import {getLocalCookiePortSuffix} from "./cookies"
 
 // ---------------------------------------------------------------------------
 // Region definitions
@@ -101,12 +102,15 @@ export const buildSwitchUrl = (target: RegionId): string | null => {
 
 const REGION_COOKIE_KEY = "agenta-cloud-region"
 
+const getRegionCookieKey = (): string => `${REGION_COOKIE_KEY}${getLocalCookiePortSuffix()}`
+
 export const getPreferredRegion = (): RegionId | null => {
     if (typeof document === "undefined") return null
+    const regionCookieKey = getRegionCookieKey()
     const match = document.cookie
         .split(";")
         .map((row) => row.trim())
-        .find((row) => row.startsWith(`${REGION_COOKIE_KEY}=`))
+        .find((row) => row.startsWith(`${regionCookieKey}=`))
     if (!match) return null
     const value = match.substring(match.indexOf("=") + 1)
     if (value === "eu" || value === "us") return value
@@ -118,5 +122,6 @@ export const setPreferredRegion = (region: RegionId): void => {
     const info = classifyHost(window.location.hostname)
     const domain = info ? ` Domain=${info.env.cookieDomain};` : ""
     const secure = window.location.protocol === "https:" ? " Secure;" : ""
-    document.cookie = `${REGION_COOKIE_KEY}=${region}; Max-Age=31536000; Path=/; SameSite=Lax;${domain}${secure}`
+    const regionCookieKey = getRegionCookieKey()
+    document.cookie = `${regionCookieKey}=${region}; Max-Age=31536000; Path=/; SameSite=Lax;${domain}${secure}`
 }

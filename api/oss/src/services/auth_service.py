@@ -20,6 +20,9 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.services import api_key_service
+from oss.src.core.auth.supertokens.cookie_names import (
+    get_supertokens_access_token_from_cookies,
+)
 from oss.src.services.exceptions import (
     UnauthorizedException,
     InternalServerErrorException,
@@ -183,7 +186,9 @@ async def _check_authentication_token(request: Request):
             or request.headers.get("authorization")
             or None
         )
-        supertokens_access_token = request.cookies.get("sAccessToken")
+        supertokens_access_token = get_supertokens_access_token_from_cookies(
+            request.cookies
+        )
 
         query_project_id = request.query_params.get("project_id")
         if query_project_id in [_ZERO_UUID, _NULL_UUID]:
