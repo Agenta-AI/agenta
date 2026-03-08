@@ -51,6 +51,7 @@ node_modules/.bin/playwright show-report
 - Auth is handled by `global-setup.ts` (saves `state.json`)
 - Test directory is determined by `AGENTA_LICENSE` env var (defaults to `oss`)
 - Screenshots on failure go to `web/tests/test-results/`
+- PR preview deployments can expire after about one day of inactivity. Before any manual rerun, confirm that the current PR still has a live deployment and use that URL instead of reusing an older Railway URL.
 
 ---
 
@@ -98,6 +99,7 @@ See `features/README.md` for the full mapping and caveats.
 4. **Custom provider runtime is still blocked.** The UI can create and select `mock/custom/gpt-6`, but the runtime still rejects it with `No API key found for model 'mock/custom/gpt-6'`.
 5. **Teardown auth warning can still appear.** `Failed to fetch secrets {"detail":"Unauthorized"}` on teardown is benign when the session cookie expires before teardown runs on shared deployments.
 6. **`testsset` folder typo remains.** The testset test folder is named `testsset`. Renaming still requires updating EE wrapper imports.
+7. **A dead preview can look like a routing bug.** When the PR deployment expires, the app can fall back to the generic `/apps` route or error pages. That can look like a scope or hydration failure, but the real fix is to push a new commit, wait for the PR preview to come back, and rerun against the fresh deployment URL.
 
 ## Key Patterns Discovered
 
