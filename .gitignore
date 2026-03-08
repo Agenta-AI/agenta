@@ -1,32 +1,52 @@
+# ------------------------------------------------------------------------------
+# Python
+# ------------------------------------------------------------------------------
 **/*.pyc
 **/*.pyc.*
+__pycache__/
+**/__pycache__/
+
+# ------------------------------------------------------------------------------
+# JavaScript / Node.js
+# ------------------------------------------------------------------------------
 **/*/node_modules
 **/*.next
 **/*.pnpm-store
+.nextjs_cache/
+
+# ------------------------------------------------------------------------------
+# Environment / local secrets
+# ------------------------------------------------------------------------------
 **/*.env*
 !**/*.env.example*
-!**/*env.example*
+
+# ------------------------------------------------------------------------------
+# OS / editor / local-only files
+# ------------------------------------------------------------------------------
 **/*.DS_Store
 **/*.vscode
 **/*.pem
 **/*dont_commit_me*
+pyrightconfig.json
 
-__pycache__/
-**/__pycache__/
-
+# ------------------------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------------------------
 **/error-*.log
 
+# ------------------------------------------------------------------------------
+# Local virtual environments / build outputs
+# ------------------------------------------------------------------------------
 /.nox/
 /docs/_build/
 env/
 myenv/
 
-**/error-*.log
-
-# examples/
+# ------------------------------------------------------------------------------
+# Examples
+# ------------------------------------------------------------------------------
 examples/**/config.toml
 examples/**/agenta.py
-examples/**/main.py
 examples/**/storage/
 examples/**/entrypoint.sh
 examples/**/agenta/
@@ -34,21 +54,26 @@ examples/**/old
 examples/**/docker.tar.gz
 examples/**/Dockerfile
 
-# web/
+# ------------------------------------------------------------------------------
+# Web
+# ------------------------------------------------------------------------------
 web/src/ee/**
 web/src/pages/apps/index.tsx
 web/src/pages/auth/[[...path]].tsx
-web/src/pages/auth/[[...path]].tsx
-.nextjs_cache/
+web/ee/public/__env.js
+web/oss/public/__env.js
 
-# sdk/
+# ------------------------------------------------------------------------------
+# SDK
+# ------------------------------------------------------------------------------
 sdk/tests/test_sdk_locally/config.toml
 sdk/agenta/client/fern
 sdk/agenta/templates/main.py
 sdk/agenta/templates/agenta.py
-web/ee/public/__env.js
-web/oss/public/__env.js
 
+# ------------------------------------------------------------------------------
+# Test outputs / generated results
+# ------------------------------------------------------------------------------
 web/tests/results
 web/oss/tests/results
 web/ee/tests/results
@@ -56,23 +81,24 @@ api/tests/results/
 api/oss/tests/results/
 api/ee/tests/results/
 sdk/tests/results/
-tests/results/
 sdk/oss/tests/results/
 sdk/ee/tests/results/
 services/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
-.*
+tests/results/
+
+# ------------------------------------------------------------------------------
+# Temporary local SDK links created by run.sh --local
+# ------------------------------------------------------------------------------
+api/sdk
+services/sdk
+
+# ------------------------------------------------------------------------------
+# Keep tracked placeholders / repo config
+# ------------------------------------------------------------------------------
 !**/.gitkeep
 !.github/
 !.github/**
 !api/.dockerignore
 !services/.dockerignore
-!.env.example
-
-# Temporary SDK symlinks created by run.sh --local
-api/sdk
-services/sdk
-
-# IDE/LSP config (local tooling)
-pyrightconfig.json
