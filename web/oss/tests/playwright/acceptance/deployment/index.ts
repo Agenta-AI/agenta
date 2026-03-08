@@ -27,17 +27,7 @@ const deploymentTests = () => {
             ],
         },
         async ({page, apiHelpers, uiHelpers}) => {
-            // Get app data via API interception
-            const appsResponsePromise = page.waitForResponse(
-                (response) =>
-                    response.url().includes("/api/apps") &&
-                    response.request().method() === "GET",
-            )
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
-            const appsResponse = await appsResponsePromise
-            const apps = await appsResponse.json()
-            const app = apps.find((a: any) => a.app_type === "completion")
-            if (!app) throw new Error("No completion app found")
+            const app = await apiHelpers.getApp("completion")
             const appId = app.app_id
 
             // Get variant name via direct API call
@@ -49,21 +39,10 @@ const deploymentTests = () => {
             const variant = variants[0]
             const variantName = variant.variant_name || variant.name
 
-            // 1. Navigate to app overview via Prompts sidebar
-            const promptsLink = page.locator('a:has-text("Prompts")').first()
-            await expect(promptsLink).toBeVisible({timeout: 10000})
-            await promptsLink.click()
-
-            // Search and click the app
-            const searchBox = page.getByRole("searchbox", {name: "Search"})
-            await expect(searchBox).toBeVisible({timeout: 15000})
-            await searchBox.click()
-            await searchBox.fill(app.app_name)
-            const appNameCell = page.getByText(app.app_name, {exact: true}).first()
-            await expect(appNameCell).toBeVisible({timeout: 10000})
-            await appNameCell.click()
-
-            // Wait for overview page to load
+            // 1. Navigate directly to the scoped app overview
+            await page.goto(`${apiHelpers.getProjectScopedBasePath()}/apps/${appId}/overview`, {
+                waitUntil: "domcontentloaded",
+            })
             await uiHelpers.expectPath(`/apps/${appId}/overview`)
             await page.waitForLoadState("networkidle")
 

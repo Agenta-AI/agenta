@@ -230,6 +230,16 @@ async function fetchMockProviderSecret(page: Page): Promise<VaultSecretRecord | 
     )
 }
 
+async function fetchMockProviderSecrets(page: Page): Promise<VaultSecretRecord[]> {
+    const secrets = await fetchVaultSecrets(page)
+
+    return secrets.filter(
+        (secret) =>
+            secret.kind === "custom_provider" &&
+            secret.header?.name === MOCK_PROVIDER_NAME,
+    )
+}
+
 function assertMockProviderSecret(secret: VaultSecretRecord): void {
     expect(secret.header?.name).toBe(MOCK_PROVIDER_NAME)
     expect(secret.data?.kind).toBe(MOCK_PROVIDER_KIND)
@@ -343,26 +353,46 @@ async function createMockProvider(page: Page, uiHelpers: UIHelpers): Promise<voi
     }
 }
 
-async function deleteMockProvider(page: Page): Promise<void> {
-    const providerRow = await getCustomProviderRow(page, MOCK_PROVIDER_NAME)
-    if (!providerRow) {
+async function deleteMockProviderRows(page: Page): Promise<void> {
+    const providerRows = getCustomProvidersSection(page)
+        .getByRole("table")
+        .first()
+        .getByRole("row")
+        .filter({has: page.getByRole("cell", {name: MOCK_PROVIDER_NAME, exact: true})})
+
+    let rowCount = await providerRows.count()
+    if (!rowCount) {
         return
     }
 
-    await providerRow.locator("button").first().click()
+    while (rowCount > 0) {
+        const providerRow = providerRows.first()
+        await providerRow.locator("button").first().click()
 
-    const deleteModal = page.locator(".ant-modal").last()
-    await expect(deleteModal).toBeVisible({timeout: 15000})
-    await deleteModal.getByRole("button", {name: "Delete"}).click()
-    await expect(deleteModal).not.toBeVisible({timeout: 30000})
+        const deleteModal = page.locator(".ant-modal").last()
+        await expect(deleteModal).toBeVisible({timeout: 15000})
+        await deleteModal.getByRole("button", {name: "Delete"}).click()
+        await expect(deleteModal).not.toBeVisible({timeout: 30000})
+        await page.waitForLoadState("networkidle", {timeout: 10000}).catch(() => {})
 
-    await expect(
-        getCustomProvidersSection(page)
-            .getByRole("table")
-            .first()
-            .getByRole("row")
-            .filter({has: page.getByRole("cell", {name: MOCK_PROVIDER_NAME, exact: true})}),
-    ).toHaveCount(0, {timeout: 30000})
+        rowCount = await providerRows.count()
+    }
+}
+
+async function waitForMockProviderSecretDeletion(page: Page): Promise<void> {
+    await expect
+        .poll(async () => {
+            return (await fetchMockProviderSecrets(page)).length
+        }, {timeout: 30000})
+        .toBe(0)
+}
+
+async function deleteMockProvider(page: Page, uiHelpers: UIHelpers): Promise<void> {
+    await navigateToModels(page, uiHelpers)
+    await deleteMockProviderRows(page)
+    await waitForMockProviderSecretDeletion(page)
+    await page.reload({waitUntil: "domcontentloaded"})
+    await waitForModelsPageReady(page)
 }
 
 async function ensureMockProvider(
@@ -372,8 +402,17 @@ async function ensureMockProvider(
 ): Promise<void> {
     await navigateToModels(page, uiHelpers)
 
-    const existingSecret = await fetchMockProviderSecret(page)
-    if (existingSecret && !options?.recreate) {
+    const existingSecrets = await fetchMockProviderSecrets(page)
+    const existingSecret = existingSecrets[0] ?? null
+    const hasDuplicateSecrets = existingSecrets.length > 1
+    const hasMatchingSecret =
+        !!existingSecret &&
+        existingSecret.data?.kind === MOCK_PROVIDER_KIND &&
+        existingSecret.data?.provider?.url === MOCK_API_BASE_URL &&
+        existingSecret.data?.provider?.extras?.api_key === MOCK_API_KEY &&
+        existingSecret.data?.models?.some((model) => model.slug === MOCK_MODEL_NAME)
+
+    if (!options?.recreate && hasMatchingSecret && !hasDuplicateSecrets) {
         assertMockProviderSecret(existingSecret)
 
         const providerRow = await getCustomProviderRow(page, MOCK_PROVIDER_NAME)
@@ -383,8 +422,8 @@ async function ensureMockProvider(
         }
     }
 
-    if (existingSecret || options?.recreate) {
-        await deleteMockProvider(page)
+    if (existingSecrets.length || options?.recreate) {
+        await deleteMockProvider(page, uiHelpers)
     }
 
     await createMockProvider(page, uiHelpers)

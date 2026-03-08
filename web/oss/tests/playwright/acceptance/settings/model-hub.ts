@@ -40,7 +40,7 @@ const modelHubTests = () => {
             ],
         },
         async ({page, testProviderHelpers}) => {
-            await testProviderHelpers.ensureTestProvider({recreate: true})
+            await testProviderHelpers.ensureTestProvider()
 
             const customProvidersSection = page
                 .getByText("Custom providers", {exact: true})

@@ -25,13 +25,11 @@ const observabilityTests = () => {
                 createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({page, uiHelpers}) => {
-            // 1. Navigate to observability page via sidebar
-            await page.goto("/apps", {waitUntil: "domcontentloaded"})
-
-            const observabilityLink = page.locator('a:has-text("Observability")').first()
-            await expect(observabilityLink).toBeVisible({timeout: 10000})
-            await observabilityLink.click()
+        async ({page, uiHelpers, apiHelpers}) => {
+            // 1. Navigate directly to the ephemeral project's observability page
+            await page.goto(`${apiHelpers.getProjectScopedBasePath()}/observability`, {
+                waitUntil: "domcontentloaded",
+            })
             await uiHelpers.expectPath(`/observability`)
 
             // 2. Wait for the Traces tab to be visible and selected
@@ -39,6 +37,13 @@ const observabilityTests = () => {
             await expect(tracesTab).toBeVisible({timeout: 15000})
 
             // 3. Wait for traces table to load with data
+            const emptyState = page.getByText("No traces found", {exact: true})
+            if (await emptyState.isVisible().catch(() => false)) {
+                throw new Error(
+                    "No traces found in the ephemeral project. Observability is downstream from Playground execution and currently has no fresh traces to display.",
+                )
+            }
+
             const tracesTable = page.getByRole("table").last()
             await expect(tracesTable).toBeVisible({timeout: 15000})
 

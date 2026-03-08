@@ -33,6 +33,7 @@ const playgroundTests = () => {
             runCompletionSingleViewVariant,
             testProviderHelpers,
         }) => {
+            basePlaygroundTest.setTimeout(120000)
             await testProviderHelpers.ensureTestProvider()
 
             const app = await apiHelpers.getApp("completion")
@@ -63,6 +64,7 @@ const playgroundTests = () => {
             runChatSingleViewVariant,
             testProviderHelpers,
         }) => {
+            basePlaygroundTest.setTimeout(120000)
             await testProviderHelpers.ensureTestProvider()
 
             const app = await apiHelpers.getApp("chat")

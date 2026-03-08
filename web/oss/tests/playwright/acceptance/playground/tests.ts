@@ -3,6 +3,46 @@ import {expect} from "@agenta/web-tests/utils"
 import {RoleType, VariantFixtures} from "./assets/types"
 import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 
+const SECRET_PROPAGATION_TIMEOUT_MS = 65_000
+const SECRET_PROPAGATION_POLL_MS = 5_000
+
+const isSecretPropagationFailure = (response: Record<string, any> | null): boolean => {
+    const raw = JSON.stringify(response ?? {}).toLowerCase()
+    return raw.includes("invalid-secrets") || raw.includes("no api key found for model")
+}
+
+const waitForSuccessfulRun = async (
+    triggerRun: () => Promise<void>,
+    waitForRunResponse: () => Promise<Record<string, any> | null>,
+) => {
+    const deadline = Date.now() + SECRET_PROPAGATION_TIMEOUT_MS
+    let attempt = 0
+    let lastResponse: Record<string, any> | null = null
+
+    while (Date.now() <= deadline) {
+        attempt += 1
+        await triggerRun()
+        lastResponse = await waitForRunResponse()
+
+        if (!lastResponse || !isSecretPropagationFailure(lastResponse)) {
+            return lastResponse
+        }
+
+        if (Date.now() + SECRET_PROPAGATION_POLL_MS > deadline) {
+            break
+        }
+
+        console.warn(
+            `[Playground E2E] Run attempt ${attempt} hit secret propagation delay. Retrying...`,
+        )
+        await new Promise((resolve) => setTimeout(resolve, SECRET_PROPAGATION_POLL_MS))
+    }
+
+    throw new Error(
+        `Run did not recover from secret propagation within ${SECRET_PROPAGATION_TIMEOUT_MS}ms. Last response: ${JSON.stringify(lastResponse)}`,
+    )
+}
+
 /**
  * Playground-specific test fixtures extending the base test fixture.
  * Provides high-level actions for playground tests.
@@ -17,6 +57,9 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             const overviewUrl = scopedPrefix
                 ? `${scopedPrefix}/apps/${appId}/overview`
                 : `/apps/${appId}/overview`
+            const playgroundUrl = scopedPrefix
+                ? `${scopedPrefix}/apps/${appId}/playground`
+                : `/apps/${appId}/playground`
 
             await page.goto(appsUrl, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath("/apps")
@@ -35,16 +78,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
             const latestRevisionId = getKnownLatestRevisionId(appId)
             if (latestRevisionId) {
-                await page.evaluate((revisionId: string) => {
-                    const url = new URL(window.location.href)
-                    url.searchParams.set("revisions", revisionId)
-                    window.history.replaceState(
-                        window.history.state,
-                        "",
-                        `${url.pathname}${url.search}${url.hash}`,
-                    )
-                    window.dispatchEvent(new PopStateEvent("popstate"))
-                }, latestRevisionId)
+                await page.goto(`${playgroundUrl}?revisions=${latestRevisionId}`, {
+                    waitUntil: "domcontentloaded",
+                })
+                await uiHelpers.expectPath(`/apps/${appId}/playground`)
             }
 
             await expect(
@@ -77,14 +114,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-                const runResponsePromise = apiHelpers.waitForApiResponse<Record<string, any>>({
-                    route: /\/test(\?|$)/,
-                    method: "POST",
-                })
-
-                await runButtons.nth(i).click()
-
-                await runResponsePromise
+                await waitForSuccessfulRun(
+                    async () => {
+                        await runButtons.nth(i).click()
+                    },
+                    async () => {
+                        return await apiHelpers.waitForApiResponse<Record<string, any>>({
+                            route: /\/test(\?|$)/,
+                            method: "POST",
+                            validateStatus: false,
+                        })
+                    },
+                )
 
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
@@ -122,14 +163,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-                const runResponsePromise = apiHelpers.waitForApiResponse<Record<string, any>>({
-                    route: /\/test(\?|$)/,
-                    method: "POST",
-                })
-
-                await runButtons.click()
-
-                await runResponsePromise
+                await waitForSuccessfulRun(
+                    async () => {
+                        await runButtons.click()
+                    },
+                    async () => {
+                        return await apiHelpers.waitForApiResponse<Record<string, any>>({
+                            route: /\/test(\?|$)/,
+                            method: "POST",
+                            validateStatus: false,
+                        })
+                    },
+                )
 
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 

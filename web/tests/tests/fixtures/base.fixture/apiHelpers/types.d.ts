@@ -14,4 +14,5 @@ export interface ApiHelpers {
     getTestsets: () => Promise<testset[]>
     getVariants: (appId: string) => Promise<(ApiVariant & {name: string})[]>
     getEvaluationRuns: () => Promise<any[]>
+    getProjectScopedBasePath: () => string
 }

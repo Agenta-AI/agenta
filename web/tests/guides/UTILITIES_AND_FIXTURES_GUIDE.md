@@ -200,6 +200,11 @@ test("example", async ({testProviderHelpers}) => {
 - The `mock` profile selects the `gpt-6` model in the Playground
 - Provider setup is lazy. Only tests that need model execution should call it
 
+### Stability notes
+- Tests that need a specific project should navigate with an explicit scoped path such as `/w/{workspace_id}/p/{project_id}/...`. Do not rely on `/apps` redirects to land in the correct project during cold preview runs.
+- The runtime vault middleware caches secrets by auth header for 60 seconds in `sdk/agenta/sdk/utils/cache.py`. After creating or updating a provider secret, Playground execution can continue to return `invalid-secrets` until that cache expires.
+- Treat secret propagation as a bounded retry case, not a generic retry for every non-OK run response. Match the known secret failure contract and fail with the final response body if recovery does not happen inside the retry window.
+
 ---
 
 ## Authentication Strategy
