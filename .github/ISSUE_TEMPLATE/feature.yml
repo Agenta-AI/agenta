@@ -4,6 +4,14 @@ description: Suggest an idea for this project
 title: "[Feature]: "
 labels: ["Feature Request"]
 body:
+  - type: input
+    id: target-topic
+    attributes:
+      label: Target topic
+      description: Name the path, feature area, or deployment topic affected.
+      placeholder: ex. hosting/railway/oss or local Docker Compose
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
@@ -32,15 +40,13 @@ body:
     id: additional-context
     attributes:
       label: Additional context
-      description: Add any other context or screenshots about the feature request here.
-      placeholder: Any additional information, screenshots, or examples
+      description: Add screenshots, path references, or other details that help scope the request.
+      placeholder: screenshots, path references, or examples
     validations:
       required: false
   - type: input
     id: contact
     attributes:
-      label: Twitter / LinkedIn details
-      description: We announce new features on Twitter + LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out!
-      placeholder: ex. @username / https://www.linkedin.com/in/username/
-    validations:
-      required: false
+      label: LinkedIn details
+      description: (optional) We announce new features on LinkedIn. When this is announced, and you'd like a mention, we'll gladly shout you out! 
+      placeholder: ex. https://www.linkedin.com/in/username/

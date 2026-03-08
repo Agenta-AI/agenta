@@ -233,7 +233,8 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
         # === EXECUTION ============================================ #
-        command: cron -f
+        init: true
+        command: supercronic /app/crontab
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -275,7 +276,7 @@ services:
         # === EXECUTION ============================================ #
         command: >
             newrelic-admin run-program gunicorn entrypoints.main:app
-            --bind 0.0.0.0:80
+            --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
             --max-requests 10000
@@ -302,7 +303,7 @@ services:
             - "traefik.http.middlewares.services-strip.stripprefix.prefixes=/services"
             - "traefik.http.middlewares.services-strip.stripprefix.forceslash=true"
             - "traefik.http.routers.services.middlewares=services-strip"
-            - "traefik.http.services.services.loadbalancer.server.port=80"
+            - "traefik.http.services.services.loadbalancer.server.port=8080"
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always

@@ -25,7 +25,7 @@ services:
       - "traefik.http.middlewares.services-strip.stripprefix.prefixes=/services"
       - "traefik.http.middlewares.services-strip.stripprefix.forceslash=true"
       - "traefik.http.routers.services.middlewares=services-strip"
-      - "traefik.http.services.services.loadbalancer.server.port=80"
+      - "traefik.http.services.services.loadbalancer.server.port=8080"
       - "traefik.http.routers.services.service=services"
 
   traefik:
