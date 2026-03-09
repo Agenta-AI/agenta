@@ -146,16 +146,16 @@ const ExecutionHeader = ({
                                 type="primary"
                                 onClick={() => runTests()}
                                 disabled={isRunning || !canRun}
-                                style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
+                                // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
                             />
                         </Tooltip>
-                        {showRunOptions && entityId && (
+                        {/* {showRunOptions && entityId && (
                             <RunOptionsPopover
                                 isRunning={isRunning}
                                 entityId={entityId}
                                 onRepeatCountChange={onRepeatCountChange}
                             />
-                        )}
+                        )} */}
                     </div>
                 ) : (
                     <RunButton isCancel onClick={() => cancelAll()} className="flex" />
