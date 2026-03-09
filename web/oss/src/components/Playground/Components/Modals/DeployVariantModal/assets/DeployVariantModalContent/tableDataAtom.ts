@@ -7,6 +7,7 @@ import {environmentsLoadableAtom} from "@/oss/state/environment/atoms/fetcher"
 export interface DeployModalEnvRow {
     name: string
     deployedAppVariantRevisionId?: string | null
+    deployedVariantName?: string | null
 }
 
 const PLACEHOLDER_ROWS: DeployModalEnvRow[] = [{name: "dev"}, {name: "stage"}, {name: "prod"}]
@@ -27,6 +28,7 @@ export const deployModalEnvironmentsTableAtom = selectAtom(
         return (envs as any[]).map((e) => ({
             name: e?.name,
             deployedAppVariantRevisionId: e?.deployed_app_variant_revision_id ?? null,
+            deployedVariantName: e?.deployed_variant_name ?? null,
         })) as DeployModalEnvRow[]
     },
     deepEqual,

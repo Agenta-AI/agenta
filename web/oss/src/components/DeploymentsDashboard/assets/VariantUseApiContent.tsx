@@ -213,6 +213,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                     selectedLang={selectedLang}
                     handleOpenSelectDeployVariantModal={() => {}}
                     invokeLlmUrl={invokeLlmUrl}
+                    showDeployOverlay={false}
                 />
             </Spin>
         )

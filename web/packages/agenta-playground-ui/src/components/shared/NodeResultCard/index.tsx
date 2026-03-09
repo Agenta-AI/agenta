@@ -20,13 +20,32 @@ export type NodeStatus =
 // NODE NAME TAG
 // ============================================================================
 
-export const NodeNameTag = ({name}: {name: string}) => (
-    <Tag
-        variant="filled"
-        className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
-    >
-        {name}
-    </Tag>
+export const NodeNameTag = ({
+    name,
+    version,
+    isDraft,
+}: {
+    name: string
+    version?: number | null
+    isDraft?: boolean
+}) => (
+    <div className="flex items-center gap-1">
+        <Tag
+            variant="filled"
+            className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[#0517290F] text-[#344054] border border-solid border-transparent"
+        >
+            {name}
+            {version != null && <span className="text-[#667085] ml-1">v{version}</span>}
+        </Tag>
+        {isDraft && (
+            <Tag
+                variant="filled"
+                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px] bg-[#FFF7E6] text-[#D4760A] border border-solid border-[#FFE4B5]"
+            >
+                draft
+            </Tag>
+        )}
+    </div>
 )
 
 // ============================================================================
@@ -48,12 +67,16 @@ const RUNNING_BORDER_EFFECT_ENABLED = false
  */
 export const NodeResultCard = ({
     name,
+    version,
+    isDraft,
     status = "idle",
     children,
     className,
     headerActions,
 }: {
     name: string
+    version?: number | null
+    isDraft?: boolean
     status?: NodeStatus
     children: React.ReactNode
     className?: string
@@ -80,7 +103,7 @@ export const NodeResultCard = ({
                     className="absolute bg-white px-1 z-[2] flex items-center gap-1"
                     style={{top: 0, left: 10}}
                 >
-                    <NodeNameTag name={name} />
+                    <NodeNameTag name={name} version={version} isDraft={isDraft} />
                     {headerActions ? (
                         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
                             {headerActions}
@@ -129,7 +152,7 @@ export const NodeResultCard = ({
                 className="absolute bg-white px-1 z-[1] flex items-center gap-1"
                 style={{top: 0, left: 10}}
             >
-                <NodeNameTag name={name} />
+                <NodeNameTag name={name} version={version} isDraft={isDraft} />
                 {headerActions ? (
                     <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/item:opacity-100 focus-within:opacity-100">
                         {headerActions}

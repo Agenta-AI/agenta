@@ -19,6 +19,8 @@ import {useEffect, useState} from "react"
 
 import {ImageBroken} from "@phosphor-icons/react"
 
+import {isSafeImageSrc} from "./utils"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -44,11 +46,13 @@ const ImageWithFallback = ({src, alt, fallback, ...props}: ImageWithFallbackProp
         setHasError(false)
     }, [src])
 
-    if (!src || hasError) {
+    const safeSrc = typeof src === "string" && isSafeImageSrc(src) ? src : undefined
+
+    if (!safeSrc || hasError) {
         return fallback ?? <ImageBroken size={48} className="text-[#D61010]" />
     }
 
-    return <img src={src} alt={alt} onError={() => setHasError(true)} {...props} />
+    return <img src={safeSrc} alt={alt} onError={() => setHasError(true)} {...props} />
 }
 
 export default ImageWithFallback

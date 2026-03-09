@@ -114,6 +114,10 @@ export {
     type AttachmentGridProps,
     type ImagePreviewProps,
     type ImageWithFallbackProps,
+    PromptImageUpload,
+    type PromptImageUploadProps,
+    PromptDocumentUpload,
+    type PromptDocumentUploadProps,
 } from "./attachments"
 
 // ============================================================================
