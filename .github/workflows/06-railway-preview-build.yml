@@ -149,26 +149,16 @@ jobs:
               ;;
           esac
 
-      - name: Verify images run as non-root
-        env:
-          TAG: ${{ steps.tag.outputs.image_tag }}
+      - name: Verify image runs as non-root
         run: |
-          FAILED=0
-          for IMAGE in agenta-api agenta-web agenta-services; do
-            FULL="ghcr.io/agenta-ai/${IMAGE}:${TAG}"
-            docker pull $FULL
-            USER=$(docker inspect --format='{{.Config.User}}' "$FULL")
-            if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
-              echo "FAIL: ${IMAGE} runs as root (User='${USER}')"
-              FAILED=1
-            else
-              echo "PASS: ${IMAGE} runs as User='${USER}'"
-            fi
-          done
-          if [ "$FAILED" -eq 1 ]; then
-            echo "::error::One or more images run as root."
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
             exit 1
           fi
+          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
 
       - name: Summary
         run: |
