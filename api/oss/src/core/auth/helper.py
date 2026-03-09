@@ -69,11 +69,11 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
 
     normalized_entries = _normalize_string_set(flag_entries)
 
-    log.debug(
-        "[AUTH] PostHog entries resolved",
-        feature_flag=feature_flag,
-        entries=sorted(normalized_entries),
-    )
+    # log.debug(
+    #     "[AUTH] PostHog entries resolved",
+    #     feature_flag=feature_flag,
+    #     entries=sorted(normalized_entries),
+    # )
 
     await set_cache(
         namespace="posthog:flags",
