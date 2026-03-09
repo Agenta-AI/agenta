@@ -490,7 +490,7 @@ export function extractTemplateVariables(
 
     // curly and jinja2 both use {{variableName}} for variable substitution
     // (jinja2 also has {% %} blocks and {# #} comments, but those are NOT variables)
-    const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
+    const variablePattern = /\{\{([^}]*)\}\}/g
 
     let match: RegExpExecArray | null
     while ((match = variablePattern.exec(input)) !== null) {
