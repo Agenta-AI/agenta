@@ -255,7 +255,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         (slotId: string, file: UploadFile | null) => {
             if (!file) return
             const imageUrl =
-                file.url || file.thumbUrl || (file as UploadFile & {base64?: string}).base64
+                (file as UploadFile & {base64?: string}).base64 || file.url || file.thumbUrl
             if (imageUrl) {
                 handleAddImage(imageUrl)
             }
