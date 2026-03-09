@@ -644,7 +644,8 @@ def override_thirdparty_apis(
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
-        # Call the original implementation if needed
+        await verify_turnstile_or_raise(request=api_options.request)
+
         response = await original_sign_in_up(
             provider,
             redirect_uri_info,

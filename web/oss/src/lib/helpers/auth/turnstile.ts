@@ -1,7 +1,7 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isEE} from "@/oss/lib/helpers/isEE"
 
-const TURNSTILE_AUTH_PATHS = new Set(["/api/auth/signin", "/api/auth/signup"])
+const TURNSTILE_AUTH_PATHS = new Set(["/api/auth/signin", "/api/auth/signup", "/api/auth/signinup"])
 
 export const TURNSTILE_HEADER = "x-turnstile-token"
 
