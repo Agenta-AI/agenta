@@ -74,6 +74,10 @@ const loadTurnstileScript = () => {
         script.onload = () => resolve()
         script.onerror = () => reject(new Error("load error"))
         document.head.appendChild(script)
+    }).catch((err) => {
+        turnstileScriptPromise = null
+        document.getElementById(TURNSTILE_SCRIPT_ID)?.remove()
+        throw err
     })
 
     return turnstileScriptPromise
