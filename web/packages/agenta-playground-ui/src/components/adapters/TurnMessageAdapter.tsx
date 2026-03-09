@@ -304,6 +304,17 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [messageTarget, patchMessage],
     )
 
+    // Check if this user turn has been executed (gates re-run enabled state).
+    // We check for ANY child message (assistant, error, tool) — not just assistants,
+    // because error responses have role "Error" and aren't in the assistant index.
+    const hasBeenRun = useMemo(() => {
+        for (const mid of messageIds) {
+            const m = messagesById[mid] as ChatMessage | undefined
+            if (m && m.parentId === rowId && m.sessionId === sessionId) return true
+        }
+        return false
+    }, [messagesById, messageIds, rowId, sessionId])
+
     const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
     const truncateChat = useSetAtom(executionItemController.actions.truncateChat)
     const clearSessionResponses = useSetAtom(executionItemController.actions.clearSessionResponses)
@@ -481,6 +492,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             {...messageOptionProps}
                             id={editorIdRef.current}
                             messageId={msg?.id}
+                            disabled={kind === "user" && !hasBeenRun}
                             resultHashes={propsResultHashes ?? resultHashes}
                             results={results}
                             text={p?.json ?? editorText}
@@ -551,6 +563,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         {...messageOptionProps}
                         id={editorIdRef.current}
                         messageId={msg?.id}
+                        disabled={kind === "user" && !hasBeenRun}
                         resultHashes={propsResultHashes ?? resultHashes}
                         results={results}
                         text={editorText}
