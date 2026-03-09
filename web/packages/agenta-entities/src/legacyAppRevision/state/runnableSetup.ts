@@ -62,7 +62,17 @@ export const invocationUrlAtomFamily = atomFamily((revisionId: string) =>
         const endpoint = get(endpointAtomFamily(revisionId))
 
         const runtimePrefix = schemaQuery.data?.runtimePrefix
-        if (!runtimePrefix) return null
+        if (!runtimePrefix) {
+            // Fallback: use serviceUrl from entity data when URI isn't a parseable URL
+            // (e.g. "agenta:builtin:completion:v0" — the backend provides the actual
+            // service URL in data.url which is stored as serviceUrl)
+            const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+            if (entity?.serviceUrl) {
+                const cleanEndpoint = endpoint.replace(/^\//, "")
+                return `${entity.serviceUrl.replace(/\/$/, "")}/${cleanEndpoint}`
+            }
+            return null
+        }
 
         const prefix = runtimePrefix.replace(/\/$/, "")
         const routePath = schemaQuery.data?.routePath || ""
