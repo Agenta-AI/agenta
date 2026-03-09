@@ -26,7 +26,7 @@ import {
 import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Popover, Space, Tooltip} from "antd"
+import {Button, Popover, Space} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
@@ -428,15 +428,14 @@ const SelectVariant = ({
                     destroyOnHidden
                     overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
-                    <Tooltip title={triggerLabel} mouseEnterDelay={0.5}>
-                        <Button
-                            size="small"
-                            className="w-full flex items-center justify-between text-left overflow-hidden"
-                        >
-                            <span className="truncate text-xs">{triggerLabel}</span>
-                            <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                        </Button>
-                    </Tooltip>
+                    <Button
+                        size="small"
+                        title={triggerLabel}
+                        className="w-full flex items-center justify-between text-left overflow-hidden"
+                    >
+                        <span className="truncate text-xs">{triggerLabel}</span>
+                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                    </Button>
                 </Popover>
             </div>
         )

@@ -534,6 +534,7 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: testcasesWithIds as Record<string, unknown>[],
+            skipBlankMessage: true,
         })
     }
 })
@@ -561,6 +562,7 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: testcases,
+            skipBlankMessage: true,
         })
     }
 })
@@ -1196,6 +1198,40 @@ const openFromTraceAtom = atom(
                 promptMessages as {role: string; content: unknown}[],
             )
 
+            // If the last user message in generationMessages has no response after it,
+            // append output completion messages. This handles spans where:
+            //   inputs.prompt = [user]
+            //   outputs.completion = [assistant+tool_calls, tool]
+            // Without this, the assistant response and tool messages are lost.
+            // Safe for the working case where prompt already contains the full
+            // conversation — there the last user will have responses after it.
+            if (isRecord(outputs)) {
+                let lastUserIdx = -1
+                for (let i = generationMessages.length - 1; i >= 0; i--) {
+                    if (generationMessages[i].role === "user") {
+                        lastUserIdx = i
+                        break
+                    }
+                }
+                const hasResponseToLastUser =
+                    lastUserIdx >= 0 &&
+                    generationMessages.slice(lastUserIdx + 1).some((m) => m.role !== "user")
+
+                if (lastUserIdx >= 0 && !hasResponseToLastUser) {
+                    const completion = (outputs as Record<string, unknown>).completion
+                    if (Array.isArray(completion)) {
+                        for (const msg of completion) {
+                            if (
+                                isRecord(msg) &&
+                                typeof (msg as Record<string, unknown>).role === "string"
+                            ) {
+                                generationMessages.push(msg as {role: string; content: unknown})
+                            }
+                        }
+                    }
+                }
+            }
+
             // Build model/llm config from span data
             const modelConfig = extractModelConfig(activeSpan)
             const llmConfig: Record<string, unknown> = {}
@@ -1207,12 +1243,38 @@ const openFromTraceAtom = atom(
                 }
             }
 
-            // Build parameters with config messages and model config
+            // Extract tools/functions from span inputs or parameters
+            const toolsOrFunctions =
+                rawInputs.tools ??
+                rawInputs.functions ??
+                (isRecord(agData?.parameters)
+                    ? ((agData.parameters as Record<string, unknown>).tools ??
+                      (agData.parameters as Record<string, unknown>).functions)
+                    : undefined)
+
+            // Build parameters with config messages, model config, and tools.
+            // Tools must live inside `prompt` for the config UI to render them.
+            // When llm_config is present, nest tools inside it; otherwise place
+            // them directly in prompt.
+            const hasLlmConfig = Object.keys(llmConfig).length > 0
+            const hasTools = Array.isArray(toolsOrFunctions) && toolsOrFunctions.length > 0
+
+            const promptValue: Record<string, unknown> = {
+                messages: configMessages,
+                ...(hasLlmConfig
+                    ? {
+                          llm_config: {
+                              ...llmConfig,
+                              ...(hasTools ? {tools: toolsOrFunctions} : {}),
+                          },
+                      }
+                    : hasTools
+                      ? {tools: toolsOrFunctions}
+                      : {}),
+            }
+
             const parameters: Record<string, unknown> = {
-                prompt: {
-                    messages: configMessages,
-                    ...(Object.keys(llmConfig).length > 0 ? {llm_config: llmConfig} : {}),
-                },
+                prompt: promptValue,
             }
 
             // Generation messages go into testcase as chat messages

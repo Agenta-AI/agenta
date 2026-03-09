@@ -209,7 +209,7 @@ const TurnMessageHeaderOptions = ({
                         icon={<ArrowClockwise size={14} />}
                         type="text"
                         onClick={onRerun}
-                        disabled={!resultHashes || resultHashes.length === 0}
+                        disabled={disabled}
                     />
                 </Tooltip>
             ) : null}

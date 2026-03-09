@@ -34,7 +34,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -110,6 +110,110 @@ const SYSTEM_FIELDS = new Set([
     "revision_id",
     "testcase_dedup_id",
 ])
+
+const LOCAL_TESTCASE_PREFIXES = ["new-", "local-"] as const
+const VERSION_SUFFIX_REGEX = /\s+v\d+\s*$/i
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+const isLocalTestcaseId = (id: string): boolean =>
+    LOCAL_TESTCASE_PREFIXES.some((prefix) => id.startsWith(prefix))
+
+const normalizeValueForSignature = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value.map(normalizeValueForSignature)
+    }
+
+    if (!isRecord(value)) {
+        return value
+    }
+
+    const normalized: Record<string, unknown> = {}
+    for (const key of Object.keys(value).sort()) {
+        normalized[key] = normalizeValueForSignature(value[key])
+    }
+    return normalized
+}
+
+const createRowDataSignature = (data: Record<string, unknown>): string =>
+    JSON.stringify(normalizeValueForSignature(data))
+
+const getCanonicalVisibleRows = (get: Getter, loadableId: string) => {
+    const visibleRowIds = get(displayRowIdsAtomFamily(loadableId))
+    const rows: TestsetRow[] = []
+
+    for (const rowId of visibleRowIds) {
+        const testcase = get(testcaseMolecule.data(rowId))
+        const testcaseData = testcase?.data
+        if (!isRecord(testcaseData)) {
+            rows.push({id: rowId, data: {}})
+            continue
+        }
+
+        rows.push({id: rowId, data: {...testcaseData}})
+    }
+
+    return rows
+}
+
+const buildReconnectRows = ({
+    previousRows,
+    committedRows,
+}: {
+    previousRows: TestsetRow[]
+    committedRows: {id: string; data: Record<string, unknown>}[]
+}): {id: string; [key: string]: unknown}[] => {
+    if (committedRows.length === 0) return []
+
+    const committedById = new Map(committedRows.map((row) => [row.id, row]))
+    const committedBySignature = new Map<string, {id: string; data: Record<string, unknown>}[]>()
+    for (const row of committedRows) {
+        const signature = createRowDataSignature(row.data)
+        const bucket = committedBySignature.get(signature) ?? []
+        bucket.push(row)
+        committedBySignature.set(signature, bucket)
+    }
+
+    const usedCommittedIds = new Set<string>()
+    const reconnectRows: {id: string; [key: string]: unknown}[] = []
+
+    for (const previousRow of previousRows) {
+        const matchingById = committedById.get(previousRow.id)
+        if (matchingById && !usedCommittedIds.has(matchingById.id)) {
+            usedCommittedIds.add(matchingById.id)
+            reconnectRows.push(matchingById)
+            continue
+        }
+
+        const signature = createRowDataSignature(previousRow.data)
+        const bucket = committedBySignature.get(signature)
+        if (!bucket || bucket.length === 0) continue
+
+        const matched = bucket.find((row) => !usedCommittedIds.has(row.id))
+        if (!matched) continue
+
+        usedCommittedIds.add(matched.id)
+        reconnectRows.push(matched)
+    }
+
+    if (reconnectRows.length < previousRows.length) {
+        return [...committedRows]
+    }
+
+    return reconnectRows.length > 0 ? reconnectRows : [...committedRows]
+}
+
+const buildVersionedSourceName = (
+    sourceName: string | null,
+    version?: number,
+): string | undefined => {
+    if (!sourceName) return undefined
+    if (typeof version !== "number" || !Number.isFinite(version)) return sourceName
+
+    const baseName = sourceName.replace(VERSION_SUFFIX_REGEX, "").trim()
+    return `${baseName} v${version}`
+}
 
 // ============================================================================
 // TESTCASE BRIDGE ATOMS
@@ -982,6 +1086,7 @@ const commitChangesAtom = atom(
         if (mappings.length > 0) {
             set(applyOutputMappingsToAllAtom, loadableId)
         }
+        const visibleRowsBeforeCommit = getCanonicalVisibleRows(get, loadableId)
 
         // Get testset ID from revision
         const revisionQuery = get(revisionMolecule.query(state.connectedSourceId))
@@ -1002,14 +1107,30 @@ const commitChangesAtom = atom(
             throw result.error ?? new Error("Commit failed")
         }
 
+        const committedRows = result.committedRows ?? []
+        const rowsToReconnect =
+            committedRows.length > 0
+                ? buildReconnectRows({
+                      previousRows: visibleRowsBeforeCommit,
+                      committedRows,
+                  })
+                : visibleRowsBeforeCommit
+                      .filter((row) => !isLocalTestcaseId(row.id))
+                      .map((row) => ({id: row.id, data: row.data}))
+
+        const nextSourceName = buildVersionedSourceName(
+            state.connectedSourceName,
+            result.newVersion,
+        )
+
         // Reconnect to the new revision so the UI stays in sync
         // with the newly created testcase and row IDs without a fetch loop
         await set(
             connectToSourceAtom,
             loadableId,
             result.newRevisionId!,
-            state.connectedSourceName ?? undefined,
-            undefined,
+            nextSourceName,
+            rowsToReconnect,
         )
 
         return {

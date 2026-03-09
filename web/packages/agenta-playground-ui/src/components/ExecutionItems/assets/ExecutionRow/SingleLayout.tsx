@@ -5,6 +5,7 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {HeightCollapse} from "@agenta/ui/components"
 import {CollapsibleGroupHeader, EnhancedButton} from "@agenta/ui/components/presentational"
@@ -242,10 +243,13 @@ const DownstreamNodeCard = ({
         return map
     }, [outputPorts, nodeData])
 
-    const status = (fullResult?.status ?? "idle") as NodeStatus
+    const rawStatus = (fullResult?.status ?? "idle") as NodeStatus
+    const evaluatorVerdict = getEvaluatorVerdictFromOutput(fullResult?.output)
+    const status: NodeStatus =
+        rawStatus === "success" && evaluatorVerdict === "fail" ? "error" : rawStatus
 
     // Idle / cancelled / no result — show expected fields with placeholder dashes
-    if (!fullResult || status === "idle" || status === "cancelled") {
+    if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
             <NodeResultCard name={nodeName} status={status}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
@@ -254,7 +258,7 @@ const DownstreamNodeCard = ({
     }
 
     // Running / pending -> loading skeleton
-    if (status === "running" || status === "pending") {
+    if (rawStatus === "running" || rawStatus === "pending") {
         return (
             <NodeResultCard name={nodeName} status={status}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
@@ -263,7 +267,7 @@ const DownstreamNodeCard = ({
     }
 
     // Error
-    if (status === "error") {
+    if (rawStatus === "error") {
         const errorMsg =
             typeof fullResult.error === "object" && fullResult.error?.message
                 ? fullResult.error.message
@@ -276,7 +280,7 @@ const DownstreamNodeCard = ({
     }
 
     // Skipped — show explanation message (e.g., missing required inputs)
-    if (status === "skipped") {
+    if (rawStatus === "skipped") {
         const skipMsg =
             typeof fullResult.error === "object" && fullResult.error?.message
                 ? fullResult.error.message
@@ -292,17 +296,18 @@ const DownstreamNodeCard = ({
 
     // Success -> extract and display value(s)
     const entries = extractDisplayEntries(fullResult.output)
+    const completedStatus: NodeStatus = evaluatorVerdict === "fail" ? "error" : "success"
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status="success">
+            <NodeResultCard name={nodeName} status={completedStatus}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status="success">
+        <NodeResultCard name={nodeName} status={completedStatus}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
@@ -616,7 +621,13 @@ const SingleView = ({
                         deleteRow={deleteRow}
                         duplicateRow={duplicateRow}
                         openFocusDrawer={openFocusDrawer}
-                        tooltipTitle={isCollapsed ? "Expand results" : "View all repeats"}
+                        tooltipTitle={
+                            isCollapsed
+                                ? "Open details"
+                                : repetitionProps
+                                  ? "View all repeats"
+                                  : "Open details"
+                        }
                         className={clsx(
                             "flex items-center gap-1 opacity-0 transition-opacity",
                             isCollapsed

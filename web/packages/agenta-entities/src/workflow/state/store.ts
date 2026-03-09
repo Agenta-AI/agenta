@@ -25,6 +25,7 @@ import {
 } from "../../legacyAppRevision/state/serviceSchemaAtoms"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
@@ -35,7 +36,6 @@ import {
     queryWorkflowRevisionsByWorkflow,
     queryWorkflowRevisions,
 } from "../api"
-import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import type {
     Workflow,
     WorkflowsResponse,
@@ -44,7 +44,11 @@ import type {
     WorkflowRevisionsResponse,
 } from "../core"
 
-import {resolveBuiltinAppServiceUrl, resolveServiceTypeFromUrl} from "./helpers"
+import {
+    resolveBuiltinAppServiceUrl,
+    resolveServiceTypeFromUri,
+    resolveServiceTypeFromUrl,
+} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -701,6 +705,93 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// SERVICE SCHEMA FOR BUILTIN APPS (reuses legacy prefetch)
+// ============================================================================
+
+/**
+ * Result of the service schema lookup for builtin app workflows.
+ * Includes `isServiceType` so consumers can distinguish between:
+ * - "this IS a service type but schema is still loading" (don't fall through)
+ * - "this is NOT a service type" (fall through to per-revision fetch)
+ */
+interface ServiceSchemaResult {
+    /** The resolved schemas, or null if not yet loaded */
+    schemas: AppOpenApiSchemas | null
+    /** Whether this revision IS a builtin service type (completion/chat) */
+    isServiceType: boolean
+}
+
+/**
+ * Service schema for builtin app workflows — reuses the legacy service schema
+ * atoms (`completionServiceSchemaAtom` / `chatServiceSchemaAtom`) that are
+ * already prefetched at app startup.
+ *
+ * Maps `RevisionSchemaState` → `AppOpenApiSchemas` so the workflow entity
+ * system can consume them in the same shape as the OpenAPI fallback.
+ *
+ * Returns `{ isServiceType: false }` for evaluators, custom apps, or when
+ * the service type cannot be determined from URI or URL.
+ *
+ * Returns `{ isServiceType: true, schemas: null }` when the service type
+ * IS known but the schema hasn't loaded yet — this prevents consumers from
+ * falling through to a per-revision OpenAPI fetch that would duplicate the
+ * already-in-flight service schema request.
+ */
+export const workflowServiceSchemaForRevisionAtomFamily = atomFamily((revisionId: string) =>
+    atom<ServiceSchemaResult>((get) => {
+        const NOT_SERVICE = {schemas: null, isServiceType: false} as const
+
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const serverData = revisionQuery.data ?? null
+        if (!serverData) {
+            return NOT_SERVICE
+        }
+
+        if (serverData.flags?.is_evaluator) {
+            return NOT_SERVICE
+        }
+        if (serverData.flags?.is_custom) {
+            return NOT_SERVICE
+        }
+
+        const uri = serverData.data?.uri
+        const url = serverData.data?.url
+
+        // Determine service type from URI (preferred) or URL (fallback for missing URI)
+        const serviceType = resolveServiceTypeFromUri(uri) ?? resolveServiceTypeFromUrl(url)
+        if (!serviceType) return NOT_SERVICE
+
+        // Read the prefetched service schema
+        const schemaQuery =
+            serviceType === "completion"
+                ? get(completionServiceSchemaAtom)
+                : serviceType === "chat"
+                  ? get(chatServiceSchemaAtom)
+                  : null
+
+        const schemaData = schemaQuery?.data ?? null
+        if (!schemaData) return {schemas: null, isServiceType: true}
+
+        return {
+            isServiceType: true,
+            schemas: {
+                inputs:
+                    (schemaData.primaryEndpoint?.inputsSchema as unknown as Record<
+                        string,
+                        unknown
+                    >) ?? null,
+                outputs: (schemaData.outputsSchema as unknown as Record<string, unknown>) ?? null,
+                parameters:
+                    (schemaData.agConfigSchema as unknown as Record<string, unknown>) ?? null,
+                routePath: schemaData.routePath ?? undefined,
+                runtimePrefix: schemaData.runtimePrefix,
+                openApiSchema: schemaData.openApiSchema,
+            },
+        }
+    }),
+)
+
+// ============================================================================
 // APP OPENAPI SCHEMA QUERY (non-evaluator workflow fallback)
 // ============================================================================
 
@@ -749,18 +840,6 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
 // ============================================================================
 // SERVICE SCHEMA REUSE (builtin apps)
 // ============================================================================
-
-/**
- * Resolve the service type for a builtin app workflow from its URI.
- * Returns "completion" | "chat" for builtin apps, null otherwise.
- */
-function resolveServiceTypeFromUri(uri: string | null | undefined): string | null {
-    if (!uri || !uri.startsWith("agenta:builtin:")) return null
-    const parts = uri.split(":")
-    const serviceType = parts[2]
-    if (!serviceType || !["completion", "chat"].includes(serviceType)) return null
-    return serviceType
-}
 
 /**
  * Per-revision service schema selector for builtin apps.

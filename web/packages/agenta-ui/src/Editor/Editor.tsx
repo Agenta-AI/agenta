@@ -56,7 +56,10 @@ import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
 import {$getLineCount} from "./plugins/code/utils/segmentUtils"
 import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
-import {TokenBehaviorExtension} from "./plugins/token/extensions/tokenBehavior"
+import {
+    TokenBehaviorExtension,
+    TokenBehaviorCoreExtension,
+} from "./plugins/token/extensions/tokenBehavior"
 import type {EditorProps} from "./types"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
@@ -837,12 +840,16 @@ export const EditorProvider = ({
         if (enableTokens) {
             const stableTokens = tokenDependencyKey ? tokenDependencyKey.split("\u0001") : []
             extensionDependencies.push(
-                configExtension(TokenBehaviorExtension, {
+                TokenBehaviorExtension,
+                configExtension(TokenBehaviorCoreExtension, {
                     templateFormat,
                     tokens: stableTokens,
                 }),
             )
-            extensionDependencyLabels.push("@agenta/editor/token/TokenBehavior")
+            extensionDependencyLabels.push(
+                "@agenta/editor/token/TokenBehavior",
+                "@agenta/editor/token/TokenBehaviorCore",
+            )
         }
 
         extensionFlowLog("build extension", {

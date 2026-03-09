@@ -98,6 +98,9 @@ export {
     // Archive / Unarchive
     archiveEvaluator,
     unarchiveEvaluator,
+    // Templates
+    fetchEvaluatorTemplates,
+    type EvaluatorTemplate,
     // Batch
     fetchEvaluatorsBatch,
 } from "./api"
@@ -124,6 +127,9 @@ export {
     // Cache invalidation
     invalidateEvaluatorsListCache,
     invalidateEvaluatorCache,
+    // Enrichment maps
+    evaluatorKeyMapAtom,
+    evaluatorTemplatesMapAtom,
 } from "./state"
 
 // ============================================================================

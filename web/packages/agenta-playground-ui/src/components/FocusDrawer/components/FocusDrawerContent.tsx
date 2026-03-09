@@ -5,11 +5,13 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {runnableBridge} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import {Collapse} from "antd"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
 
 import {usePlaygroundUIOptional} from "../../../context/PlaygroundUIContext"
+import {useRepetitionResult} from "../../../hooks/useRepetitionResult"
 import {playgroundFocusDrawerAtom} from "../../../state"
 import ExecutionResultView from "../../ExecutionResultView"
 import {EvaluatorFieldGrid} from "../../shared/EvaluatorFieldGrid"
@@ -34,13 +36,31 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
                 }),
             [rowId, entityId],
         ),
-    ) as {status?: string; output?: unknown; traceId?: string | null; error?: unknown} | null
+    ) as {
+        status?: string
+        output?: unknown
+        traceId?: string | null
+        error?: unknown
+        repetitions?: {output?: unknown}[]
+    } | null
 
     const status = fullResult?.status
     const isRunning = status === "running" || status === "pending"
     const traceId = (fullResult?.traceId as string | null) ?? null
-    const output = fullResult?.output ?? null
+    const repetitionOutputs =
+        Array.isArray(fullResult?.repetitions) && fullResult.repetitions.length > 1
+            ? fullResult.repetitions.map((rep, idx) => {
+                  if (rep?.output !== undefined) return rep.output
+                  return idx === 0 ? (fullResult?.output ?? null) : null
+              })
+            : null
+    const output = repetitionOutputs ?? fullResult?.output ?? null
     const error = fullResult?.error
+    const {currentResult: currentRepetitionResult, repetitionProps} = useRepetitionResult({
+        rowId,
+        entityId,
+        result: output,
+    })
 
     // Feedback config for schema-aware result rendering
     const primaryData = useAtomValue(useMemo(() => runnableBridge.data(entityId), [entityId]))
@@ -56,14 +76,15 @@ function PrimaryOutput({rowId, entityId}: {rowId: string; entityId: string}) {
                     : String(error)
             return {error: errorMsg}
         }
-        return output as {response?: unknown; error?: unknown} | null
-    }, [fullResult, status, error, output])
+        return currentRepetitionResult as {response?: unknown; error?: unknown} | null
+    }, [fullResult, status, error, currentRepetitionResult])
 
     return (
         <ExecutionResultView
             isRunning={isRunning}
             currentResult={currentResult}
             traceId={traceId}
+            repetitionProps={repetitionProps}
             showEmptyPlaceholder={false}
             feedbackConfig={feedbackConfig}
         />
@@ -130,9 +151,12 @@ function DownstreamNodeCard({
         return map
     }, [outputPorts, nodeData])
 
-    const status = (fullResult?.status ?? "idle") as NodeStatus
+    const rawStatus = (fullResult?.status ?? "idle") as NodeStatus
+    const evaluatorVerdict = getEvaluatorVerdictFromOutput(fullResult?.output)
+    const status: NodeStatus =
+        rawStatus === "success" && evaluatorVerdict === "fail" ? "error" : rawStatus
 
-    if (!fullResult || status === "idle" || status === "cancelled") {
+    if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
             <NodeResultCard name={nodeName} status={status}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
@@ -140,7 +164,7 @@ function DownstreamNodeCard({
         )
     }
 
-    if (status === "running" || status === "pending") {
+    if (rawStatus === "running" || rawStatus === "pending") {
         return (
             <NodeResultCard name={nodeName} status={status}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
@@ -148,7 +172,7 @@ function DownstreamNodeCard({
         )
     }
 
-    if (status === "error") {
+    if (rawStatus === "error") {
         const errorMsg =
             typeof fullResult.error === "object" &&
             (fullResult.error as {message?: string})?.message
@@ -162,7 +186,7 @@ function DownstreamNodeCard({
     }
 
     // Skipped — show explanation message (e.g., missing required inputs)
-    if (status === "skipped") {
+    if (rawStatus === "skipped") {
         const skipMsg =
             typeof fullResult.error === "object" &&
             (fullResult.error as {message?: string})?.message
@@ -178,17 +202,18 @@ function DownstreamNodeCard({
     }
 
     const entries = extractDisplayEntries(fullResult.output)
+    const completedStatus: NodeStatus = evaluatorVerdict === "fail" ? "error" : "success"
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status="success">
+            <NodeResultCard name={nodeName} status={completedStatus}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status="success">
+        <NodeResultCard name={nodeName} status={completedStatus}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}

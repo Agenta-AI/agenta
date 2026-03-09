@@ -219,5 +219,5 @@ Key fields: `data`, `metrics`, `meta`, `refs`, `type`, `flags`, `tags`, `session
 
 - **No unit tests exist** for any adapter's `process()` method
 - Deleted tests in git history had the right patterns (direct `CanonicalAttributes` + `SpanFeatures` construction)
-- E2E tests exist at `api/oss/tests/pytest/e2e/tracing/`
+- E2E tests exist at `api/oss/tests/pytest/acceptance/tracing/`
 - Manual integration scripts at `api/oss/tests/manual/tracing/ingestion/`

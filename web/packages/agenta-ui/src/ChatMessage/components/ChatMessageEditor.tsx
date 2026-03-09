@@ -54,6 +54,8 @@ export interface ChatMessageEditorProps {
     validationSchema?: Record<string, unknown>
     /** Suspense fallback mode for editor plugins */
     loadingFallback?: "skeleton" | "none" | "static"
+    /** Callback when editor focus state changes */
+    onFocusChange?: (focused: boolean) => void
 }
 
 /**
@@ -83,6 +85,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     editorType = "border",
     validationSchema,
     loadingFallback = "skeleton",
+    onFocusChange,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -139,6 +142,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             state={disabled ? "readOnly" : state}
             className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
             footer={footer}
+            onFocusChange={onFocusChange}
             {...props}
             editorProps={{
                 codeOnly: isJSON,

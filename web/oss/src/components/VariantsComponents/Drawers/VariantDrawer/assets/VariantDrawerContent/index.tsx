@@ -9,8 +9,9 @@ import {
 import {runnableBridge} from "@agenta/entities/runnable"
 import {registerRunnableTypeHint, UserAuthorLabel} from "@agenta/entities/shared"
 import {PlaygroundConfigSection} from "@agenta/entity-ui"
+import {FormattedDate} from "@agenta/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Space, Spin, Switch, Tabs, TabsProps, Tag, Tooltip, Typography} from "antd"
+import {Button, Space, Spin, Switch, Tabs, TabsProps, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -19,7 +20,6 @@ import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvi
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {NewVariantParametersView} from "../Parameters"
@@ -216,16 +216,14 @@ const VariantDrawerContent = ({
 
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Date modified</Text>
-                    <Tag bordered={false} className="bg-[#0517290F]">
-                        {(() => {
-                            const ts =
-                                (selectedVariant as any)?.updatedAtTimestamp ??
-                                (selectedVariant as any)?.createdAtTimestamp
-                            return ts
-                                ? formatDate24(ts)
-                                : ((selectedVariant as any)?.createdAt ?? "-")
-                        })()}
-                    </Tag>
+                    <FormattedDate
+                        date={
+                            (selectedVariant as any)?.updatedAtTimestamp ??
+                            (selectedVariant as any)?.createdAtTimestamp ??
+                            (selectedVariant as any)?.createdAt
+                        }
+                        asTag
+                    />
                 </div>
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>

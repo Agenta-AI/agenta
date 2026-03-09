@@ -77,6 +77,11 @@ export interface FieldItemContentProps {
     originalValue?: unknown
 
     /**
+     * Entity ID for scoping modal state per variant (e.g., response format modal)
+     */
+    entityId?: string
+
+    /**
      * CSS class names
      */
     classNames: {
@@ -107,6 +112,7 @@ export function FieldItemContent({
     onChange,
     schema,
     originalValue,
+    entityId,
     classNames,
     styles,
 }: FieldItemContentProps) {
@@ -164,6 +170,7 @@ export function FieldItemContent({
                     disabled={!isEditable}
                     path={path}
                     originalValue={originalValue}
+                    entityId={entityId}
                 />
             </div>
         </div>

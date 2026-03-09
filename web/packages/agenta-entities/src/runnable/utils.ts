@@ -446,22 +446,82 @@ export function autoMapInputs(
 // TEMPLATE VARIABLE EXTRACTION
 // ============================================================================
 
+type TemplateFormat = "curly" | "fstring" | "jinja2"
+
+/** Normalize a raw template_format string to a known TemplateFormat, or null if unrecognized. */
+function resolveTemplateFormat(raw: string | null | undefined): TemplateFormat | null {
+    if (raw === "fstring") return "fstring"
+    if (raw === "jinja2" || raw === "jinja") return "jinja2"
+    if (raw === "curly") return "curly"
+    return null
+}
+
 /**
- * Extract variables from a template string using double curly brace syntax {{variableName}}
+ * Extract variables from a template string.
+ *
+ * Supports multiple template formats:
+ * - "curly" (default): {{variableName}}
+ * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
+ * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
+ *
  * @param input - Template string to extract variables from
+ * @param templateFormat - Template format to use for extraction
  * @returns Array of unique variable names found in the string
  */
-export function extractTemplateVariables(input: string): string[] {
-    // Pattern handles escaped braces inside {{...}} (e.g., {{var\}name}})
-    const variablePattern = /\{\{((?:\\.|[^\}\\])*)\}\}/g
+export function extractTemplateVariables(
+    input: string,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     const variables: string[] = []
 
-    let match: RegExpExecArray | null
-    while ((match = variablePattern.exec(input)) !== null) {
-        // Unescape escaped characters (e.g., \} → })
-        const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
-        if (variable && !variables.includes(variable)) {
-            variables.push(variable)
+    if (templateFormat === "fstring") {
+        // fstring: {var} is a variable, {{ and }} are literal braces (not variables)
+        // Linear scan: find each '{', skip if doubled '{{', otherwise read until '}'
+        let i = 0
+        while (i < input.length) {
+            if (input[i] === "{") {
+                if (input[i + 1] === "{") {
+                    // Escaped literal '{{', skip both
+                    i += 2
+                    continue
+                }
+                // Single '{' — look for closing '}'
+                const end = input.indexOf("}", i + 1)
+                if (end !== -1 && (end + 1 >= input.length || input[end + 1] !== "}")) {
+                    const variable = input.slice(i + 1, end).trim()
+                    if (variable && !variables.includes(variable)) {
+                        variables.push(variable)
+                    }
+                    i = end + 1
+                } else {
+                    i++
+                }
+            } else {
+                i++
+            }
+        }
+        return variables
+    }
+
+    // curly and jinja2 both use {{variableName}} for variable substitution
+    // Linear scan: find '{{', then find '}}', extract the content between them
+    let i = 0
+    while (i < input.length - 1) {
+        if (input[i] === "{" && input[i + 1] === "{") {
+            const start = i + 2
+            const end = input.indexOf("}}", start)
+            if (end !== -1) {
+                const variable = input.slice(start, end).trim()
+                if (variable && !variables.includes(variable)) {
+                    variables.push(variable)
+                }
+                i = end + 2
+            } else {
+                // No closing '}}' found, no more variables possible
+                break
+            }
+        } else {
+            i++
         }
     }
 
@@ -473,16 +533,19 @@ export function extractTemplateVariables(input: string): string[] {
  * @param obj - Object to extract variables from
  * @returns Array of unique variable names
  */
-export function extractTemplateVariablesFromJson(obj: unknown): string[] {
+export function extractTemplateVariablesFromJson(
+    obj: unknown,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     const variables: string[] = []
 
     if (typeof obj === "string") {
-        return extractTemplateVariables(obj)
+        return extractTemplateVariables(obj, templateFormat)
     }
 
     if (Array.isArray(obj)) {
         for (const item of obj) {
-            const itemVars = extractTemplateVariablesFromJson(item)
+            const itemVars = extractTemplateVariablesFromJson(item, templateFormat)
             for (const v of itemVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
@@ -490,12 +553,13 @@ export function extractTemplateVariablesFromJson(obj: unknown): string[] {
     } else if (obj && typeof obj === "object") {
         for (const [key, value] of Object.entries(obj)) {
             // Extract from keys
-            const keyVars = typeof key === "string" ? extractTemplateVariables(key) : []
+            const keyVars =
+                typeof key === "string" ? extractTemplateVariables(key, templateFormat) : []
             for (const v of keyVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
             // Extract from values
-            const valueVars = extractTemplateVariablesFromJson(value)
+            const valueVars = extractTemplateVariablesFromJson(value, templateFormat)
             for (const v of valueVars) {
                 if (!variables.includes(v)) variables.push(v)
             }
@@ -512,7 +576,10 @@ export function extractTemplateVariablesFromJson(obj: unknown): string[] {
  * @param prompts - Array of prompt objects with messages
  * @returns Array of unique variable names found in all messages
  */
-export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | undefined): string[] {
+export function extractVariablesFromPrompts(
+    prompts: {messages?: unknown}[] | undefined,
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     if (!prompts || prompts.length === 0) return []
 
     const variables: string[] = []
@@ -529,7 +596,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
 
             // Handle string content
             if (typeof content === "string") {
-                const contentVars = extractTemplateVariables(content)
+                const contentVars = extractTemplateVariables(content, templateFormat)
                 for (const v of contentVars) {
                     if (!variables.includes(v)) variables.push(v)
                 }
@@ -538,7 +605,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
             else if (Array.isArray(content)) {
                 for (const part of content) {
                     if (typeof part === "string") {
-                        const partVars = extractTemplateVariables(part)
+                        const partVars = extractTemplateVariables(part, templateFormat)
                         for (const v of partVars) {
                             if (!variables.includes(v)) variables.push(v)
                         }
@@ -546,7 +613,7 @@ export function extractVariablesFromPrompts(prompts: {messages?: unknown}[] | un
                         const partObj = part as Record<string, unknown>
                         // Check text field in content parts
                         if (typeof partObj.text === "string") {
-                            const textVars = extractTemplateVariables(partObj.text)
+                            const textVars = extractTemplateVariables(partObj.text, templateFormat)
                             for (const v of textVars) {
                                 if (!variables.includes(v)) variables.push(v)
                             }
@@ -585,9 +652,13 @@ export function extractVariablesFromConfig(
         if (!value || typeof value !== "object" || Array.isArray(value)) continue
         const prompt = value as Record<string, unknown>
 
+        // Auto-detect template_format from the prompt object
+        const rawTf = (prompt.template_format ?? prompt.templateFormat) as string | undefined
+        const tf = resolveTemplateFormat(rawTf) ?? "curly"
+
         // 1. Extract from messages
         if (Array.isArray(prompt.messages)) {
-            extractVariablesFromPrompts([{messages: prompt.messages}]).forEach(addUnique)
+            extractVariablesFromPrompts([{messages: prompt.messages}], tf).forEach(addUnique)
         }
 
         // 2. Extract from llm_config: response_format and tools
@@ -598,7 +669,7 @@ export function extractVariablesFromConfig(
 
         const responseFormat = llmConfig.response_format ?? llmConfig.responseFormat
         if (responseFormat) {
-            extractTemplateVariablesFromJson(responseFormat).forEach(addUnique)
+            extractTemplateVariablesFromJson(responseFormat, tf).forEach(addUnique)
         }
 
         if (Array.isArray(llmConfig.tools)) {
@@ -610,22 +681,22 @@ export function extractVariablesFromConfig(
                 const fn = t.function as Record<string, unknown> | undefined
                 if (fn) {
                     if (typeof fn.name === "string") {
-                        extractTemplateVariables(fn.name).forEach(addUnique)
+                        extractTemplateVariables(fn.name, tf).forEach(addUnique)
                     }
                     if (typeof fn.description === "string") {
-                        extractTemplateVariables(fn.description).forEach(addUnique)
+                        extractTemplateVariables(fn.description, tf).forEach(addUnique)
                     }
                     if (fn.parameters) {
-                        extractTemplateVariablesFromJson(fn.parameters).forEach(addUnique)
+                        extractTemplateVariablesFromJson(fn.parameters, tf).forEach(addUnique)
                     }
                 }
 
                 // Generic tool: {description, parameters}
                 if (typeof t.description === "string") {
-                    extractTemplateVariables(t.description).forEach(addUnique)
+                    extractTemplateVariables(t.description, tf).forEach(addUnique)
                 }
                 if (t.parameters && !fn) {
-                    extractTemplateVariablesFromJson(t.parameters).forEach(addUnique)
+                    extractTemplateVariablesFromJson(t.parameters, tf).forEach(addUnique)
                 }
             }
         }
@@ -980,13 +1051,25 @@ function transformTraceKeysInSettings(settings: Record<string, unknown>): Record
  * @param enhancedPrompts - Array of enhanced prompt objects
  * @returns Array of unique variable names
  */
-export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]): string[] {
+export function extractVariablesFromEnhancedPrompts(
+    enhancedPrompts: unknown[],
+    templateFormat: TemplateFormat = "curly",
+): string[] {
     if (!enhancedPrompts || enhancedPrompts.length === 0) return []
 
     const variables: string[] = []
 
     for (const prompt of enhancedPrompts) {
         const promptObj = prompt as Record<string, unknown> | null | undefined
+
+        // Read template_format from the enhanced prompt if available
+        const tfWrapper = (promptObj?.template_format ?? promptObj?.templateFormat) as
+            | Record<string, unknown>
+            | string
+            | undefined
+        const rawTf = typeof tfWrapper === "object" ? (tfWrapper?.value as string) : tfWrapper
+        const effectiveFormat = resolveTemplateFormat(rawTf) ?? templateFormat
+
         const messagesWrapper = promptObj?.messages as Record<string, unknown> | undefined
         const messages = messagesWrapper?.value
         if (!Array.isArray(messages)) continue
@@ -996,7 +1079,7 @@ export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]):
             const contentWrapper = msgObj?.content as Record<string, unknown> | undefined
             const content = contentWrapper?.value
             if (typeof content === "string") {
-                for (const v of extractTemplateVariables(content)) {
+                for (const v of extractTemplateVariables(content, effectiveFormat)) {
                     if (!variables.includes(v)) variables.push(v)
                 }
             } else if (Array.isArray(content)) {
@@ -1008,7 +1091,7 @@ export function extractVariablesFromEnhancedPrompts(enhancedPrompts: unknown[]):
                             : ((partObj?.text as Record<string, unknown> | undefined)?.value ??
                               partObj?.text)
                     if (typeof text === "string") {
-                        for (const v of extractTemplateVariables(text)) {
+                        for (const v of extractTemplateVariables(text, effectiveFormat)) {
                             if (!variables.includes(v)) variables.push(v)
                         }
                     }
@@ -1139,8 +1222,9 @@ export async function executeRunnable(
         // API returns { version, data, content_type, tree, trace_id, span_id } - we want "data" as the output
         const output = responseData?.data !== undefined ? responseData.data : responseData
 
-        // Extract trace ID from response.trace_id (at root level, not inside tree)
+        // Extract trace metadata from the top-level workflow response.
         const traceId = responseData?.trace_id
+        const spanId = responseData?.span_id
 
         return {
             executionId,
@@ -1151,7 +1235,7 @@ export async function executeRunnable(
             // Store full response for detailed inspection
             structuredOutput: responseData,
             // Include trace info if available
-            trace: traceId ? {id: traceId} : undefined,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -1277,6 +1361,8 @@ async function executeEvaluator(
 
         // Evaluator run returns { outputs: {...} }
         const output = responseData?.outputs ?? responseData
+        const traceId = responseData?.trace_id
+        const spanId = responseData?.span_id
 
         return {
             executionId,
@@ -1285,6 +1371,7 @@ async function executeEvaluator(
             completedAt: new Date().toISOString(),
             output,
             structuredOutput: responseData,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {

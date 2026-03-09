@@ -185,11 +185,19 @@ export const requestPayloadAtomFamily = atomFamily((evaluatorId: string) =>
         }
 
         const parameters = entity.data.parameters ?? {}
+        const references: Record<string, Record<string, string | undefined>> = {}
+        if (entity.id || entity.slug) {
+            references.evaluator = {
+                id: entity.id || undefined,
+                slug: entity.slug ?? undefined,
+            }
+        }
 
         return {
             __rawBody: true,
             interface: interfaceField,
             configuration: Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            references: Object.keys(references).length > 0 ? references : undefined,
             data: {
                 inputs: {},
                 outputs: {},

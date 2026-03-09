@@ -389,7 +389,7 @@ export interface RunnableTypeConfig<T = unknown> {
      */
     normalizeResponse?: (responseData: unknown) => {
         output: unknown
-        trace?: {id: string} | undefined
+        trace?: {id: string; spanId?: string} | undefined
     }
     /**
      * Selector atom for the latest revision ID given a parent entity ID (e.g., workflow ID).

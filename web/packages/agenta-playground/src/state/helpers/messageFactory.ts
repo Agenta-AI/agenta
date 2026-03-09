@@ -38,15 +38,32 @@ const unwrapString = (value: unknown): string | undefined => {
     return undefined
 }
 
-const isToolCall = (value: unknown): value is ToolCall => {
+const isToolCallLike = (value: unknown): boolean => {
     const rec = asRecord(value)
     const fn = asRecord(rec?.function)
     return (
         typeof rec?.id === "string" &&
         rec.type === "function" &&
         typeof fn?.name === "string" &&
-        typeof fn?.arguments === "string"
+        (typeof fn?.arguments === "string" ||
+            (fn?.arguments != null && typeof fn.arguments === "object"))
     )
+}
+
+/** Normalize a raw tool-call-like object into a ToolCall with `arguments` as a string. */
+const normalizeToolCall = (value: unknown): ToolCall | null => {
+    if (!isToolCallLike(value)) return null
+    const rec = value as Record<string, unknown>
+    const fn = rec.function as Record<string, unknown>
+    return {
+        id: rec.id as string,
+        type: "function",
+        function: {
+            name: fn.name as string,
+            arguments:
+                typeof fn.arguments === "string" ? fn.arguments : JSON.stringify(fn.arguments),
+        },
+    }
 }
 
 export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
@@ -80,7 +97,9 @@ export function buildAssistantMessage(testResult: unknown): SimpleChatMessage {
     // Preserve tool_calls so subsequent tool messages have a valid predecessor
     const toolCalls = innerRec?.tool_calls ?? innerRec?.toolCalls
     const toolCallsArr = unwrapArray(toolCalls)
-    const normalizedToolCalls = toolCallsArr?.filter(isToolCall)
+    const normalizedToolCalls = toolCallsArr
+        ?.map(normalizeToolCall)
+        .filter((tc): tc is ToolCall => tc !== null)
 
     const toolCallId = unwrapString(innerRec?.tool_call_id ?? innerRec?.toolCallId)
     const name = unwrapString(innerRec?.name)

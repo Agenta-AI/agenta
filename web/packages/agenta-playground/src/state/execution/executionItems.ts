@@ -100,6 +100,8 @@ export interface ExecutionItemRunParams {
     repetitions?: number
     runId?: string
     inputValues?: Record<string, unknown>
+    references?: RequestPayloadData["references"]
+    links?: Record<string, {trace_id: string; span_id: string}>
     projectId?: string | null
     dispatchWorkerRun?: (payload: WorkerRunEntityRowPayload) => void
     /** Pre-built chat history. When provided, skips internal turn-based history building. */
@@ -171,6 +173,8 @@ interface BuildExecutionItemBaseParams {
     agConfigFallbacks?: AgConfigFallbackCandidate[]
     /** Runtime-resolved inputs (e.g. from chain upstream). Merged into rawBody.inputs when __rawBody is true. */
     inputValues?: Record<string, unknown>
+    references?: RequestPayloadData["references"]
+    links?: Record<string, {trace_id: string; span_id: string}>
 }
 
 export interface BuildCompletionExecutionItemParams extends BuildExecutionItemBaseParams {
@@ -486,8 +490,17 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         runParams: ExecutionItemRunParams,
         forceNewRunId: boolean,
     ): ExecutionItem | null => {
-        const {get, headers, repetitions, runId, inputValues, projectId, dispatchWorkerRun} =
-            runParams
+        const {
+            get,
+            headers,
+            repetitions,
+            runId,
+            inputValues,
+            references: requestReferences,
+            links,
+            projectId,
+            dispatchWorkerRun,
+        } = runParams
 
         // When entityType is provided, use type-scoped selectors to avoid
         // cross-contamination from the shared workflow_revisions DB table.
@@ -649,6 +662,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       chatHistory,
                       agConfigFallbacks,
                       inputValues,
+                      references: requestReferences,
+                      links,
                   })
                 : buildCompletionExecutionItem({
                       loadableId: params.loadableId,
@@ -667,6 +682,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       inputRow: completionInputRow,
                       agConfigFallbacks,
                       inputValues,
+                      references: requestReferences,
+                      links,
                   })
 
         lastRequestedRepetitions = executionItem.invocation.repetitions
@@ -1128,6 +1145,16 @@ function buildExecutionItem(
                       body.inputs = params.inputValues
                   }
               }
+              if (params.links && Object.keys(params.links).length > 0) {
+                  const existingLinks = asRecord(body.links)
+                  body.links = existingLinks ? {...existingLinks, ...params.links} : params.links
+              }
+              if (params.references && Object.keys(params.references).length > 0) {
+                  const existingReferences = asRecord(body.references)
+                  body.references = existingReferences
+                      ? {...existingReferences, ...params.references}
+                      : params.references
+              }
               return body
           })()
         : buildRequestBody(mode, {
@@ -1140,6 +1167,17 @@ function buildExecutionItem(
               entityId: params.entityId,
               agConfigFallbacks: params.agConfigFallbacks,
           })
+
+    if (params.links && Object.keys(params.links).length > 0) {
+        const existingLinks = asRecord(requestBody.links)
+        requestBody.links = existingLinks ? {...existingLinks, ...params.links} : params.links
+    }
+    if (params.references && Object.keys(params.references).length > 0) {
+        const existingReferences = asRecord(requestBody.references)
+        requestBody.references = existingReferences
+            ? {...existingReferences, ...params.references}
+            : params.references
+    }
 
     const references: ExecutionItemReference = {
         loadableId: params.loadableId,
@@ -1224,15 +1262,38 @@ export const handleExecutionResultAtom = atom(
         if (isChat) {
             const results = Array.isArray(testResult) ? testResult : [testResult]
 
-            // Find the parent user message this response belongs to
+            // Find the parent user message this response belongs to.
+            // Use the rowId (which encodes the triggering user message) to
+            // determine the correct parent — searching backward for "last
+            // shared user message" is racy in comparison mode because the
+            // first-to-finish variant auto-appends a blank user message
+            // before the second variant's result arrives.
+            // rowId format in comparison mode: "turn-<entityUUID>-lt-<msgId>"
+            const ltIndex = rowId.indexOf("-lt-")
+            const logicalRowId = ltIndex >= 0 ? rowId.slice(ltIndex + 1) : rowId
             const flatIds = get(messageIdsAtomFamily(loadableId))
             const flatById = get(messagesByIdAtomFamily(loadableId))
+
             let parentUserMsgId: string | undefined
-            for (let i = flatIds.length - 1; i >= 0; i--) {
-                const m = flatById[flatIds[i]]
-                if (m && m.sessionId === SHARED_SESSION_ID && m.role === "user") {
-                    parentUserMsgId = flatIds[i]
-                    break
+            // First: try to resolve from the rowId (deterministic, race-free)
+            if (logicalRowId) {
+                const candidate = flatById[logicalRowId]
+                if (
+                    candidate &&
+                    candidate.sessionId === SHARED_SESSION_ID &&
+                    candidate.role === "user"
+                ) {
+                    parentUserMsgId = logicalRowId
+                }
+            }
+            // Fallback: search backward (single-variant mode or unknown rowId format)
+            if (!parentUserMsgId) {
+                for (let i = flatIds.length - 1; i >= 0; i--) {
+                    const m = flatById[flatIds[i]]
+                    if (m && m.sessionId === SHARED_SESSION_ID && m.role === "user") {
+                        parentUserMsgId = flatIds[i]
+                        break
+                    }
                 }
             }
 
@@ -1300,20 +1361,70 @@ export const handleExecutionResultAtom = atom(
                 })
             }
 
-            // Auto-append blank user message if this was the last turn
-            const updatedFlatIds = get(messageIdsAtomFamily(loadableId))
-            const lastMsgId = updatedFlatIds[updatedFlatIds.length - 1]
-            const isLastResponse = lastMsgId === assistantMsgId
-            if (isLastResponse && !hasToolCalls) {
-                set(addMessageAtom, {
-                    loadableId,
-                    message: {
+            // When the assistant returns tool_calls, create blank tool response
+            // messages so the user (or gateway) can fill them in before continuing.
+            if (hasToolCalls && lastMessage.tool_calls) {
+                const existingToolMsgIds = get(messageIdsAtomFamily(loadableId))
+                const existingToolById = get(messagesByIdAtomFamily(loadableId))
+                const existingToolCount = existingToolMsgIds.filter((mid) => {
+                    const m = existingToolById[mid]
+                    return (
+                        m &&
+                        m.parentId === parentUserMsgId &&
+                        m.sessionId === sessionId &&
+                        m.role === "tool"
+                    )
+                }).length
+
+                if (existingToolCount === 0) {
+                    const toolMsgs: ChatMessage[] = lastMessage.tool_calls.map((tc, idx) => ({
                         id: generateMessageId(),
-                        role: "user",
+                        role: "tool",
+                        name: tc.function.name || `tool_${idx + 1}`,
+                        tool_call_id: tc.id,
                         content: "",
-                        sessionId: SHARED_SESSION_ID,
-                    },
-                })
+                        sessionId,
+                        ...(parentUserMsgId ? {parentId: parentUserMsgId} : {}),
+                    }))
+                    set(addMessagesAtom, {loadableId, messages: toolMsgs})
+                }
+            }
+
+            // Auto-append blank user message so the user can type the next turn.
+            // In comparison mode multiple variants complete independently and
+            // their assistant messages are appended in arrival order. A blank
+            // user message added by the first variant may no longer be at the
+            // tail when the second variant's assistant message lands after it.
+            // Scan forward from the parent turn to find whether a blank shared
+            // user message already exists anywhere after it.
+            if (!hasToolCalls) {
+                const updatedFlatIds = get(messageIdsAtomFamily(loadableId))
+                const updatedFlatById = get(messagesByIdAtomFamily(loadableId))
+
+                // Scan after the parent turn for an existing blank shared user message
+                const parentIdx = parentUserMsgId ? updatedFlatIds.indexOf(parentUserMsgId) : -1
+                const scanStart = parentIdx >= 0 ? parentIdx + 1 : 0
+
+                let alreadyHasBlank = false
+                for (let i = scanStart; i < updatedFlatIds.length; i++) {
+                    const m = updatedFlatById[updatedFlatIds[i]]
+                    if (m && m.sessionId === SHARED_SESSION_ID && m.role === "user" && !m.content) {
+                        alreadyHasBlank = true
+                        break
+                    }
+                }
+
+                if (!alreadyHasBlank) {
+                    set(addMessageAtom, {
+                        loadableId,
+                        message: {
+                            id: generateMessageId(),
+                            role: "user",
+                            content: "",
+                            sessionId: SHARED_SESSION_ID,
+                        },
+                    })
+                }
             }
 
             return

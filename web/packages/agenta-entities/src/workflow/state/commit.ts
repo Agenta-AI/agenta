@@ -24,6 +24,7 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
+import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
 import {
@@ -201,7 +202,7 @@ export const commitWorkflowRevisionAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: entity.data.parameters,
+                    parameters: stripAgentaMetadataDeep(entity.data.parameters),
                     schemas: entity.data.schemas,
                 },
             })
@@ -355,7 +356,7 @@ export const createWorkflowVariantAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: entity.data.parameters,
+                    parameters: stripAgentaMetadataDeep(entity.data.parameters),
                     schemas: entity.data.schemas,
                 },
             })

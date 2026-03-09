@@ -334,9 +334,19 @@ export function deriveToolViewModelFromResult(result: unknown): {
                 "")
               : ""
 
-    // Tool-call candidates
+    // Tool-call candidates — check explicit tool_calls field first, then fall
+    // back to parsing content/data arrays (legacy shapes).
     let arr: unknown[] | null = null
-    if (typeof contentCandidate === "string") arr = tryParseArrayFromString(contentCandidate)
+    const dataFieldRec =
+        dataField && typeof dataField === "object" && !Array.isArray(dataField)
+            ? (dataField as Record<string, unknown>)
+            : null
+    const toolCallsField = dataFieldRec?.tool_calls
+    if (Array.isArray(toolCallsField) && toolCallsField.length > 0) {
+        arr = toolCallsField
+    }
+    if (!arr && typeof contentCandidate === "string")
+        arr = tryParseArrayFromString(contentCandidate)
     if (!arr && Array.isArray(contentCandidate)) arr = contentCandidate
     if (!arr && typeof dataField === "string") arr = tryParseArrayFromString(dataField)
     if (!arr && Array.isArray(dataField)) arr = dataField

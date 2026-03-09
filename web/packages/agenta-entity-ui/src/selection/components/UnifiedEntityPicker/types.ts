@@ -15,7 +15,12 @@ import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
 /**
  * EntityPicker rendering variant
  */
-export type EntityPickerVariant = "cascading" | "breadcrumb" | "list-popover"
+export type EntityPickerVariant =
+    | "cascading"
+    | "breadcrumb"
+    | "list-popover"
+    | "cascader"
+    | "popover-cascader"
 
 // ============================================================================
 // BASE PROPS
@@ -476,6 +481,145 @@ export interface TreeSelectVariantProps<
 }
 
 // ============================================================================
+// CASCADER VARIANT PROPS
+// ============================================================================
+
+/**
+ * Props for cascader variant (single compact dropdown with cascading panels)
+ *
+ * Renders an Ant Design Cascader with lazy-loaded panels.
+ * All hierarchy levels are navigable within one dropdown.
+ * Pattern: Evaluator → Variant → Revision (all in one dropdown)
+ */
+export interface CascaderVariantProps<
+    TSelection = EntitySelectionResult,
+> extends EntityPickerBaseProps<TSelection> {
+    variant: "cascader"
+
+    /**
+     * Cascader component size
+     * @default "middle"
+     */
+    size?: "small" | "middle" | "large"
+
+    /**
+     * Placeholder text
+     * @default "Select..."
+     */
+    placeholder?: string
+
+    /**
+     * Whether popup width matches select width
+     * @default false
+     */
+    popupMatchSelectWidth?: boolean
+
+    /**
+     * Popup className
+     */
+    popupClassName?: string
+
+    /**
+     * Popup placement
+     */
+    placement?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight"
+
+    /**
+     * Custom dropdown render for adding extra content (e.g., footer actions)
+     */
+    dropdownRender?: (menu: ReactNode) => ReactNode
+
+    /**
+     * Custom display render for the selected value in the input
+     */
+    displayRender?: (labels: string[], selectedOptions?: unknown[]) => ReactNode
+}
+
+// ============================================================================
+// POPOVER-CASCADER VARIANT PROPS
+// ============================================================================
+
+/**
+ * Props for popover-cascader variant (button-triggered popover with cascading panels)
+ *
+ * Renders a trigger Button that opens an Ant Design Popover containing
+ * side-by-side cascading panels. The left panel shows root items with search,
+ * the right panel shows children when a root item is selected.
+ *
+ * Designed for use cases where a button trigger is preferred over a select input.
+ */
+export interface PopoverCascaderVariantProps<
+    TSelection = EntitySelectionResult,
+> extends EntityPickerBaseProps<TSelection> {
+    variant: "popover-cascader"
+
+    /**
+     * Trigger button size
+     * @default "small"
+     */
+    size?: "small" | "middle" | "large"
+
+    /**
+     * Button text
+     * @default "Select..."
+     */
+    placeholder?: string
+
+    /**
+     * Icon rendered inside the trigger button (before the text)
+     */
+    icon?: ReactNode
+
+    /**
+     * Popover placement
+     * @default "bottomLeft"
+     */
+    placement?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight"
+
+    /**
+     * Minimum width of each cascading panel (px)
+     * @default 220
+     */
+    panelMinWidth?: number
+
+    /**
+     * Maximum height of item lists (px)
+     * @default 340
+     */
+    maxHeight?: number
+
+    /**
+     * Footer content rendered at the bottom of the root panel.
+     * Typically used for "Disconnect all" buttons.
+     */
+    popupFooter?: ReactNode
+
+    /**
+     * Callback when the "+ New" button is clicked.
+     * When provided, a create button is rendered below the root list.
+     */
+    onCreateNew?: () => void
+
+    /**
+     * Custom label for the create button.
+     * Falls back to "+ New {rootLevelLabel}" if not provided.
+     */
+    createNewLabel?: string
+
+    /**
+     * Set of child-level entity IDs that should be disabled (already selected).
+     * These items appear grayed out with a tooltip in the child panel.
+     */
+    disabledChildIds?: Set<string>
+
+    /**
+     * Tooltip text shown on disabled child items.
+     * @default "Already connected"
+     */
+    disabledChildTooltip?: string
+}
+
+// ============================================================================
 // UNION TYPE
 // ============================================================================
 
@@ -487,3 +631,5 @@ export type EntityPickerProps<TSelection = EntitySelectionResult> =
     | BreadcrumbVariantProps<TSelection>
     | ListPopoverVariantProps<TSelection>
     | TreeSelectVariantProps<TSelection>
+    | CascaderVariantProps<TSelection>
+    | PopoverCascaderVariantProps<TSelection>

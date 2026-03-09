@@ -12,15 +12,25 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 import type {Workflow} from "../core"
 
 /**
- * Extract the builtin service type ("completion" | "chat") from a URL path.
+ * Extract service type from a URI like "agenta:builtin:completion:v0".
  *
- * Handles URLs like `http://host/services/completion` or
- * `http://host/services/chat`.
+ * @returns "completion" | "chat" | null
+ */
+export function resolveServiceTypeFromUri(uri: string | null | undefined): string | null {
+    if (!uri || !uri.startsWith("agenta:builtin:")) return null
+    const parts = uri.split(":")
+    const serviceType = parts[2]
+    if (!serviceType || !["completion", "chat"].includes(serviceType)) return null
+    return serviceType
+}
+
+/**
+ * Extract service type from a URL path like "http://host/services/completion".
  *
- * Used as a fallback when `data.uri` is missing (e.g. after backend
- * migration that didn't populate the URI field).
+ * Used as a fallback when `uri` is missing (post-migration data where
+ * `data.url` is correct but `data.uri` was not preserved).
  *
- * @returns The service type, or null if the URL doesn't match
+ * @returns "completion" | "chat" | null
  */
 export function resolveServiceTypeFromUrl(url: string | null | undefined): string | null {
     if (!url) return null
@@ -47,23 +57,22 @@ export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
     if (entity.flags?.is_custom) return null
 
     const uri = entity.data.uri
-    if (uri && uri.startsWith("agenta:builtin:")) {
-        // Case 1: URI exists — extract type and build canonical URL from host
-        const parts = uri.split(":")
-        const serviceType = parts[2]
-        if (!serviceType || !["completion", "chat"].includes(serviceType)) return null
+    const url = entity.data.url
 
+    // Case 1: URI exists — extract type from URI, build canonical URL
+    const serviceTypeFromUri = resolveServiceTypeFromUri(uri)
+    if (serviceTypeFromUri) {
         const apiUrl = getAgentaApiUrl()
         if (!apiUrl) return null
-
         const origin = apiUrl.replace(/\/api\/?$/, "")
-        return `${origin}/services/${serviceType}`
+        return `${origin}/services/${serviceTypeFromUri}`
     }
 
-    // Case 2: No URI — fall back to data.url if it's a builtin service URL
-    const urlServiceType = resolveServiceTypeFromUrl(entity.data.url)
-    if (urlServiceType) {
-        return entity.data.url!
+    // Case 2: URI missing but URL contains /services/{type} — use URL as-is
+    // (post-migration data where data.url is already correct)
+    const serviceTypeFromUrl = resolveServiceTypeFromUrl(url)
+    if (serviceTypeFromUrl) {
+        return url!
     }
 
     return null

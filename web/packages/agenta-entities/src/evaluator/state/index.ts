@@ -37,6 +37,9 @@ export {
     // Cache invalidation
     invalidateEvaluatorsListCache,
     invalidateEvaluatorCache,
+    // Enrichment maps
+    evaluatorKeyMapAtom,
+    evaluatorTemplatesMapAtom,
 } from "./store"
 
 // ============================================================================

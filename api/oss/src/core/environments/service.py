@@ -28,6 +28,13 @@ from oss.src.core.environments.dtos import (
     SimpleEnvironmentEdit,
     SimpleEnvironmentQuery,
 )
+
+# Resolution is now handled by EmbedsService
+from oss.src.core.embeds.dtos import (
+    ErrorPolicy,
+    ResolutionInfo,
+)
+
 from oss.src.core.events.dtos import Event
 from oss.src.core.events.streaming import publish_event
 from oss.src.core.events.types import EventType, RequestType
@@ -47,6 +54,7 @@ from oss.src.core.git.dtos import (
 )
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
+
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -58,6 +66,7 @@ class EnvironmentsService:
         *,
         environments_dao: GitDAOInterface,
     ):
+        self.embeds_service = None  # Will be set later
         self.environments_dao = environments_dao
 
     # environments ---------------------------------------------------------
@@ -881,6 +890,80 @@ class EnvironmentsService:
 
         return environment_revisions
 
+    async def resolve_environment_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        #
+        max_depth: int = 10,
+        max_embeds: int = 100,
+        error_policy: str = "exception",
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[tuple["EnvironmentRevision", "ResolutionInfo"]]:
+        """
+        Fetch and resolve an environment revision with embedded references.
+
+        Resolves embedded workflow and environment references within the
+        environment revision's configuration data.
+
+        Args:
+            project_id: Project scope
+            user_id: User performing resolution
+            environment_ref: Environment reference
+            environment_variant_ref: Variant reference
+            environment_revision_ref: Revision reference
+            max_depth: Maximum nesting depth for embeds
+            max_embeds: Maximum total embeds allowed
+            error_policy: How to handle errors (exception, placeholder, keep)
+            include_archived: Include archived entities
+
+        Returns:
+            Tuple of (EnvironmentRevision with resolved configuration, ResolutionInfo metadata)
+
+        Raises:
+            Various embed resolution errors based on error_policy
+        """
+        # Fetch the environment revision
+        revision = await self.fetch_environment_revision(
+            project_id=project_id,
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not revision or not revision.data:
+            return None
+
+        # Use embeds service for resolution
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        (
+            revision_data,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=revision.data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=ErrorPolicy(error_policy),
+            include_archived=include_archived,
+        )
+
+        # Update revision with resolved configuration
+        revision.data = EnvironmentRevisionData(**revision_data)
+
+        return (revision, resolution_info)
+
     # ----------------------------------------------------------------------
 
 
@@ -1405,5 +1488,3 @@ class SimpleEnvironmentsService:
             simple_environments.append(simple_environment)
 
         return simple_environments
-
-    # ----------------------------------------------------------------------

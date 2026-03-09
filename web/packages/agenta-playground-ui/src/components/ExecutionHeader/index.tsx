@@ -3,11 +3,12 @@ import {memo, useMemo} from "react"
 import {executionController, executionItemController} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
+import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
+// import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
 
 export interface ExecutionHeaderProps {
     /** Entity ID — when provided, scopes run/results to this single entity (single view).
@@ -39,7 +40,7 @@ const ExecutionHeader = ({
     entityId,
     className,
     renderTestsetActions,
-    onRepeatCountChange,
+    // onRepeatCountChange,
 }: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
@@ -76,7 +77,7 @@ const ExecutionHeader = ({
     useRunAllShortcut({isRunning, canRun, onRun: runTests})
 
     const showCollapseToggle = !isComparisonView
-    const showRunOptions = !isComparisonView && entityId
+    // const showRunOptions = !isComparisonView && entityId
 
     return (
         <div
@@ -104,6 +105,13 @@ const ExecutionHeader = ({
                             isCollapsed={isAllCollapsed}
                             onClick={() => setIsAllCollapsed(!isAllCollapsed)}
                             iconSize={16}
+                            renderIcon={(collapsed, size) =>
+                                collapsed ? (
+                                    <ArrowsOutLineVertical size={size} />
+                                ) : (
+                                    <ArrowsInLineVertical size={size} />
+                                )
+                            }
                             className="text-[16px] leading-[18px] font-[600] text-nowrap items-center"
                         />
                     </div>
@@ -138,16 +146,16 @@ const ExecutionHeader = ({
                                 type="primary"
                                 onClick={() => runTests()}
                                 disabled={isRunning || !canRun}
-                                style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
+                                // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
                             />
                         </Tooltip>
-                        {showRunOptions && entityId && (
+                        {/* {showRunOptions && entityId && (
                             <RunOptionsPopover
                                 isRunning={isRunning}
                                 entityId={entityId}
                                 onRepeatCountChange={onRepeatCountChange}
                             />
-                        )}
+                        )} */}
                     </div>
                 ) : (
                     <RunButton isCancel onClick={() => cancelAll()} className="flex" />

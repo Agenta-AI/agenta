@@ -22,7 +22,7 @@ import {
     clearDeletedIdsAtom,
 } from "../../testcase/state/store"
 // Schema utilities
-import {fetchRevision, fetchVariantDetail} from "../api/api"
+import {fetchRevision, fetchRevisionWithTestcases, fetchVariantDetail} from "../api/api"
 import {
     patchRevision,
     createTestset,
@@ -126,7 +126,59 @@ export interface SaveTestsetResult {
     success: boolean
     newRevisionId?: string
     newVersion?: number
+    committedRows?: {id: string; data: Record<string, unknown>}[]
     error?: Error
+}
+
+const TESTCASE_SYSTEM_FIELDS = new Set([
+    "id",
+    "flags",
+    "tags",
+    "meta",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "testcase_dedup_id",
+])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+const normalizeCommittedRows = (
+    testcases: unknown,
+): {id: string; data: Record<string, unknown>}[] => {
+    if (!Array.isArray(testcases)) return []
+
+    const rows: {id: string; data: Record<string, unknown>}[] = []
+
+    for (const testcase of testcases) {
+        if (!isRecord(testcase)) continue
+
+        const id = typeof testcase.id === "string" ? testcase.id : null
+        if (!id) continue
+
+        let data: Record<string, unknown> = {}
+        if (isRecord(testcase.data)) {
+            data = testcase.data
+        } else {
+            for (const [key, value] of Object.entries(testcase)) {
+                if (!TESTCASE_SYSTEM_FIELDS.has(key) && key !== "data") {
+                    data[key] = value
+                }
+            }
+        }
+
+        rows.push({id, data})
+    }
+
+    return rows
 }
 
 /**
@@ -323,6 +375,26 @@ export const saveTestsetAtom = atom(
                         : typeof response.testset_revision.version === "string"
                           ? parseInt(response.testset_revision.version, 10)
                           : undefined
+                let committedRows = normalizeCommittedRows(
+                    response.testset_revision.data?.testcases,
+                )
+
+                if (committedRows.length === 0) {
+                    try {
+                        const revisionWithTestcases = await fetchRevisionWithTestcases({
+                            id: newRevisionId,
+                            projectId,
+                        })
+                        committedRows = normalizeCommittedRows(
+                            revisionWithTestcases?.data?.testcases,
+                        )
+                    } catch (error) {
+                        console.error(
+                            "[saveTestsetAtom] Failed to fetch committed revision testcases:",
+                            error,
+                        )
+                    }
+                }
 
                 // Clear local edit state (drafts)
                 if (effectiveRevisionId) {
@@ -339,7 +411,7 @@ export const saveTestsetAtom = atom(
                 invalidateRevisionsListCache(testsetId)
                 invalidateTestsetsListCache()
 
-                return {success: true, newRevisionId, newVersion}
+                return {success: true, newRevisionId, newVersion, committedRows}
             }
 
             return {success: false, error: new Error("No revision returned from API")}

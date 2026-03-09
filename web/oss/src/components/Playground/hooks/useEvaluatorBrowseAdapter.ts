@@ -334,19 +334,10 @@ export function useEvaluatorEnrichedData() {
  */
 export function useEvaluatorBrowseAdapter() {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
-    const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
-    const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
-
-    evaluatorKeyMapRef.current = evaluatorKeyMap
-    evaluatorDefsByKeyRef.current = evaluatorDefsByKey
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
-            renderEvaluatorPickerLabelNode(
-                entity,
-                evaluatorKeyMapRef.current,
-                evaluatorDefsByKeyRef.current,
-            )
+            renderEvaluatorPickerLabelNode(entity, evaluatorKeyMap, evaluatorDefsByKey)
 
         return createWorkflowRevisionAdapter({
             excludeRevisionZero: true,
@@ -361,7 +352,7 @@ export function useEvaluatorBrowseAdapter() {
                 getLabelNode,
             },
         })
-    }, [])
+    }, [evaluatorKeyMap, evaluatorDefsByKey])
 }
 
 /**
@@ -372,27 +363,20 @@ export function useEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
 ) {
     const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
-    const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
-    const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
     const revisionLabelOverrideRef = useRef(revisionLabelOverride)
 
-    evaluatorKeyMapRef.current = evaluatorKeyMap
-    evaluatorDefsByKeyRef.current = evaluatorDefsByKey
     revisionLabelOverrideRef.current = revisionLabelOverride
 
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
 
     return useMemo(() => {
         const getLabelNode = (entity: unknown): React.ReactNode =>
-            renderEvaluatorPickerLabelNode(
-                entity,
-                evaluatorKeyMapRef.current,
-                evaluatorDefsByKeyRef.current,
-            )
+            renderEvaluatorPickerLabelNode(entity, evaluatorKeyMap, evaluatorDefsByKey)
 
         const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
             flags: {is_evaluator: true, is_human: false},
             excludeRevisionZero: true,
+            skipVariantLevel: true,
             grandparentOverrides: {
                 getLabelNode,
             },
@@ -408,5 +392,5 @@ export function useEvaluatorOnlyAdapter(
         }
 
         return createWorkflowRevisionAdapter(options)
-    }, [hasRevisionLabelOverride])
+    }, [hasRevisionLabelOverride, evaluatorKeyMap, evaluatorDefsByKey])
 }

@@ -16,21 +16,56 @@ git clone https://github.com/Agenta-AI/agenta.git
 cd agenta
 ```
 
-### 2. Launch the Agenta Server
+### 2. Configure the Environment
+
+Copy the example env file:
 
 ```bash
-./hosting/docker-compose/run.sh --license oss --dev
+cp hosting/docker-compose/oss/env.oss.dev.example hosting/docker-compose/oss/.env.oss.dev
 ```
 
-You can start the nextjs web app outside of the container by running
+If you're running on a remote server, open `.env.oss.dev` and set `AGENTA_WEB_URL` to your server's IP address (e.g. `http://192.168.1.100`). If you're running locally, the defaults are fine.
+
+### 3. Launch the Agenta Server
 
 ```bash
-./hosting/docker-compose/run.sh --license oss --dev --no-web
+bash ./hosting/docker-compose/run.sh --oss --dev --build
 ```
 
-### 3. Verify the Installation
+### 4. Verify the Installation
 
 Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, you're good to go.
+
+## Useful Flags
+
+| Flag | Description |
+|------|-------------|
+| `--no-cache` | Force a clean rebuild (use with `--build`) |
+| `--nuke` | Wipe the database and start fresh |
+| `--no-web` | Start backend services only (no web container) |
+| `--web-local` | Run the Next.js dev server on the host instead of in Docker |
+
+**Example — run only the backend (no web container):**
+
+```bash
+bash ./hosting/docker-compose/run.sh --oss --dev --build --no-web
+```
+
+**Example — run the Next.js dev server on your host machine:**
+
+```bash
+bash ./hosting/docker-compose/run.sh --oss --dev --build --web-local
+```
+
+## Checking Logs
+
+```bash
+# All services
+docker compose logs -f --tail=200
+
+# Specific service
+docker compose logs -f --tail=200 api
+```
 
 ## Debugging the Backend
 

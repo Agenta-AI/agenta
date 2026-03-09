@@ -12,3 +12,4 @@ export {
     resolveEffectiveRevisionId,
     type ToolCallView,
 } from "./assistantDisplay"
+export {getEvaluatorVerdictFromOutput, type EvaluatorVerdict} from "./evaluatorVerdict"

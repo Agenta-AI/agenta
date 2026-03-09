@@ -596,6 +596,43 @@ export async function unarchiveEvaluator(
 }
 
 // ============================================================================
+// TEMPLATES
+// ============================================================================
+
+/**
+ * Template entry from the evaluator templates endpoint.
+ */
+export interface EvaluatorTemplate {
+    key: string
+    name: string
+    [k: string]: unknown
+}
+
+interface EvaluatorTemplatesResponse {
+    count: number
+    templates: EvaluatorTemplate[]
+}
+
+/**
+ * Fetch evaluator template definitions.
+ *
+ * Endpoint: `GET /preview/simple/evaluators/templates`
+ *
+ * @param projectId - Project ID
+ * @returns Array of evaluator templates with key and name
+ */
+export async function fetchEvaluatorTemplates(projectId: string): Promise<EvaluatorTemplate[]> {
+    if (!projectId) return []
+
+    const response = await axios.get<EvaluatorTemplatesResponse>(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/templates`,
+        {params: {project_id: projectId}},
+    )
+
+    return response.data?.templates ?? []
+}
+
+// ============================================================================
 // BATCH FETCH
 // ============================================================================
 
