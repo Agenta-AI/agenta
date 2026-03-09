@@ -214,7 +214,8 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                     noProvider: true,
                 }}
                 editorType="borderless"
-                className="mt-2 min-h-[300px]"
+                className="mt-2 min-h-[300px] max-h-[50vh]"
+                style={{overflow: "auto"}}
                 state="filled"
                 handleChange={handleEditorChange}
             />
@@ -265,7 +266,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                         Define the JSON schema for the structured output. The model will return
                         responses that conform to this schema.
                     </Typography.Text>
-                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-hidden [&_.agenta-shared-editor]:box-border">
+                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-y-auto [&_.agenta-shared-editor]:box-border">
                         {editorContent}
                     </div>
                 </Modal>
