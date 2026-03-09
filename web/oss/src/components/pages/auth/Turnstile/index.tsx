@@ -3,23 +3,21 @@ import {forwardRef, useEffect, useImperativeHandle, useRef} from "react"
 import {getTurnstileSiteKey} from "@/oss/lib/helpers/auth/turnstile"
 
 const TURNSTILE_SCRIPT_ID = "agenta-turnstile-script"
-const TURNSTILE_SCRIPT_SRC =
-    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+const TURNSTILE_SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
 
 let turnstileScriptPromise: Promise<void> | null = null
 
-type TurnstileRenderOptions = {
+interface TurnstileRenderOptions {
     sitekey: string
     callback?: (token: string) => void
     theme?: "light" | "dark" | "auto"
-    size?: "normal" | "compact"
     appearance?: "always" | "execute" | "interaction-only"
     "error-callback"?: () => void
     "expired-callback"?: () => void
     "timeout-callback"?: () => void
 }
 
-type TurnstileApi = {
+interface TurnstileApi {
     render: (container: HTMLElement, options: TurnstileRenderOptions) => string
     remove: (widgetId: string) => void
     reset: (widgetId: string) => void
@@ -56,9 +54,9 @@ const loadTurnstileScript = () => {
     }
 
     turnstileScriptPromise = new Promise<void>((resolve, reject) => {
-        const existingScript = document.getElementById(TURNSTILE_SCRIPT_ID) as
-            | HTMLScriptElement
-            | null
+        const existingScript = document.getElementById(
+            TURNSTILE_SCRIPT_ID,
+        ) as HTMLScriptElement | null
 
         if (existingScript) {
             existingScript.addEventListener("load", () => resolve(), {once: true})
@@ -182,7 +180,6 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
                     widgetIdRef.current = window.turnstile.render(containerRef.current, {
                         sitekey: siteKey,
                         theme: "auto",
-                        size: "compact",
                         callback: (token) => emitToken(token),
                         "error-callback": () => emitError("Turnstile challenge failed."),
                         "expired-callback": () => emitError("Turnstile token expired."),
