@@ -149,6 +149,10 @@ interface EvaluatorEntity {
     id: string
     name?: string | null
     slug?: string | null
+    version?: number | null
+    workflow_id?: string | null
+    workflow_variant_id?: string | null
+    variant_id?: string | null
     data?: {
         uri?: string | null
         url?: string | null
