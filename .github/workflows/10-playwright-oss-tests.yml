@@ -28,13 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      AGENTA_WEB_URL: ${{ inputs.web_url }}
       AGENTA_LICENSE: oss
-      AGENTA_AUTH_MODE: password
-      AGENTA_OSS_OWNER_EMAIL: ${{ secrets.PLAYWRIGHT_OSS_OWNER_EMAIL }}
-      AGENTA_OSS_OWNER_PASSWORD: ${{ secrets.PLAYWRIGHT_OSS_OWNER_PASSWORD }}
-      AGENTA_TEST_PROVIDER: mock
-      AGENTA_EPHEMERAL_PROJECT: "true"
+      AGENTA_WEB_URL: ${{ inputs.web_url }}
+      AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+      AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+      AGENTA_TEST_LLM_PROVIDER: mock
+      AGENTA_TEST_AUTH_MODE: password
+      AGENTA_TEST_EPHEMERAL_PROJECT: "true"
     steps:
       - uses: actions/checkout@v4
 

@@ -194,7 +194,7 @@ test("example", async ({testProviderHelpers}) => {
 - `getActiveProfile()`
 
 ### Current behavior
-- The active provider mode comes from `AGENTA_TEST_PROVIDER`
+- The active provider mode comes from `AGENTA_TEST_LLM_PROVIDER`
 - The default mode is `mock`
 - The `mock` profile creates or reuses a custom provider named `mock`
 - The `mock` profile selects the `gpt-6` model in the Playground

@@ -50,14 +50,14 @@ interface TestProjectMetadata {
 }
 
 function getActiveProviderMode(): TestProviderMode {
-    const mode = (process.env.AGENTA_TEST_PROVIDER || "mock").toLowerCase()
+    const mode = (process.env.AGENTA_TEST_LLM_PROVIDER || "mock").toLowerCase()
 
     if (mode === "mock" || mode === "openai") {
         return mode
     }
 
     throw new Error(
-        `Unsupported AGENTA_TEST_PROVIDER='${mode}'. Supported values are 'mock' and 'openai'.`,
+        `Unsupported AGENTA_TEST_LLM_PROVIDER='${mode}'. Supported values are 'mock' and 'openai'.`,
     )
 }
 
@@ -138,9 +138,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .getByRole("heading", {name: "Models"})
                     .isVisible()
                     .catch(() => false)
-                const sectionVisible = await customProvidersSection
-                    .isVisible()
-                    .catch(() => false)
+                const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
                 const hasVisibleSpinner = await customProvidersSection
                     .locator(".ant-spin-spinning")
                     .isVisible()
@@ -224,8 +222,7 @@ async function fetchMockProviderSecret(page: Page): Promise<VaultSecretRecord | 
     return (
         secrets.find(
             (secret) =>
-                secret.kind === "custom_provider" &&
-                secret.header?.name === MOCK_PROVIDER_NAME,
+                secret.kind === "custom_provider" && secret.header?.name === MOCK_PROVIDER_NAME,
         ) || null
     )
 }
@@ -234,9 +231,7 @@ async function fetchMockProviderSecrets(page: Page): Promise<VaultSecretRecord[]
     const secrets = await fetchVaultSecrets(page)
 
     return secrets.filter(
-        (secret) =>
-            secret.kind === "custom_provider" &&
-            secret.header?.name === MOCK_PROVIDER_NAME,
+        (secret) => secret.kind === "custom_provider" && secret.header?.name === MOCK_PROVIDER_NAME,
     )
 }
 
@@ -381,9 +376,12 @@ async function deleteMockProviderRows(page: Page): Promise<void> {
 
 async function waitForMockProviderSecretDeletion(page: Page): Promise<void> {
     await expect
-        .poll(async () => {
-            return (await fetchMockProviderSecrets(page)).length
-        }, {timeout: 30000})
+        .poll(
+            async () => {
+                return (await fetchMockProviderSecrets(page)).length
+            },
+            {timeout: 30000},
+        )
         .toBe(0)
 }
 

@@ -14,8 +14,8 @@
    ```env
    AGENTA_WEB_URL=<your-deployment-url>
    AGENTA_LICENSE=oss
-   AGENTA_OSS_OWNER_EMAIL=<your-email>
-   AGENTA_OSS_OWNER_PASSWORD=<your-password>
+   AGENTA_TEST_OSS_OWNER_EMAIL=<your-email>
+   AGENTA_TEST_OSS_OWNER_PASSWORD=<your-password>
    ```
 
 ### Running Tests

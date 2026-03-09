@@ -68,7 +68,7 @@ The project-per-run design is correct, but the cached-auth fallback path must re
 
 Global setup (`global-setup.ts`) supports:
 - `auto` (default) - detects flow from UI
-- `password` - enforces password flow (requires `AGENTA_OSS_OWNER_EMAIL`/`PASSWORD`)
+- `password` - enforces password flow (requires `AGENTA_TEST_OSS_OWNER_EMAIL`/`PASSWORD`)
 - `otp` - enforces OTP flow (requires Testmail config)
 
 ### Teardown Safety

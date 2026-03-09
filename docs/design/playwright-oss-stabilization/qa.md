@@ -10,8 +10,8 @@ All tests run from `web/tests/` with `AGENTA_LICENSE=oss`.
 cd web/tests
 AGENTA_LICENSE=oss \
 AGENTA_WEB_URL="http://<deployment-url>" \
-AGENTA_OSS_OWNER_EMAIL="<email>" \
-AGENTA_OSS_OWNER_PASSWORD="<password>" \
+AGENTA_TEST_OSS_OWNER_EMAIL="<email>" \
+AGENTA_TEST_OSS_OWNER_PASSWORD="<password>" \
 node_modules/.bin/playwright test
 ```
 
@@ -44,14 +44,14 @@ node_modules/.bin/playwright test --grep "testset"
 Required env vars:
 - `AGENTA_LICENSE=oss`
 - `AGENTA_WEB_URL=<deployed-oss-url>`
-- `AGENTA_OSS_OWNER_EMAIL=<email>` (for password auth flow)
-- `AGENTA_OSS_OWNER_PASSWORD=<password>` (for password auth flow)
+- `AGENTA_TEST_OSS_OWNER_EMAIL=<email>` (for password auth flow)
+- `AGENTA_TEST_OSS_OWNER_PASSWORD=<password>` (for password auth flow)
 
 Operational rule:
 - Always use the current deployment URL from the active PR checks. Do not reuse an older preview URL. Preview deployments can expire after about one day of inactivity, and failures against an expired preview are not valid test results.
 
 Optional:
-- `AGENTA_AUTH_MODE=auto|password|otp` (default: `auto`)
+- `AGENTA_TEST_AUTH_MODE=auto|password|otp` (default: `auto`)
 - `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
 - `TESTMAIL_API_KEY` + `TESTMAIL_NAMESPACE` (required for OTP auth flow)
 
