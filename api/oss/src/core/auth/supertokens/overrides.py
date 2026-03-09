@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Union, Set
+from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse
 
 import posthog
@@ -16,6 +16,7 @@ from supertokens_python.recipe.thirdparty.interfaces import (
     RecipeInterface as ThirdPartyRecipeInterface,
     APIInterface as ThirdPartyAPIInterface,
     SignInUpOkResult,
+    SignInUpNotAllowed,
     APIOptions,
 )
 from supertokens_python.recipe.thirdparty.recipe_implementation import (
@@ -45,13 +46,17 @@ from supertokens_python.types import RecipeUserId, AccountInfo
 
 
 from oss.src.utils.common import is_ee
-from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.validators import is_input_email
+from oss.src.core.auth.helper import (
+    ensure_auth_info_not_blocked,
+    is_auth_info_blocked,
+    parse_auth_info,
+)
+from oss.src.core.auth.service import AuthService
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
 from oss.src.services import db_manager
-from oss.src.core.auth.service import AuthService
 
 from oss.src.services.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
@@ -129,143 +134,6 @@ def _merge_session_identities(
     return session_identities or ([method] if method else [])
 
 
-async def _get_blocked_domains() -> Set[str]:
-    # 1. If env var is defined and is not empty, always use it
-    if env.agenta.blocked_domains:
-        return env.agenta.blocked_domains
-
-    # 2. Else, try PostHog feature flags if enabled
-    if env.posthog.enabled:
-        feature_flag = "blocked-domains"
-        cache_key = {
-            "ff": feature_flag,
-        }
-
-        # Try cache first
-        flag_blocked_domains: Optional[Set[str]] = await get_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            retry=False,
-        )
-
-        if flag_blocked_domains is not None:
-            return set(flag_blocked_domains)
-
-        # Fetch from PostHog if not cached
-        flag_blocked_domains = posthog.get_feature_flag(
-            feature_flag,
-            "user distinct id",
-        )
-
-        # Normalize to set
-        blocked_set = list(
-            {e.strip().lower() for e in flag_blocked_domains}
-            if isinstance(flag_blocked_domains, (list, set, tuple))
-            else set()
-        )
-
-        # Cache the result
-        await set_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            value=blocked_set,
-        )
-
-        return set(blocked_set)
-
-    # 3. Else, return empty set
-    return set()
-
-
-async def _get_blocked_emails() -> Set[str]:
-    # 1. If env var is defined and is not empty, always use it
-    if env.agenta.blocked_emails:
-        return env.agenta.blocked_emails
-
-    # 2. Else, try PostHog feature flags if enabled
-    if env.posthog.enabled:
-        feature_flag = "blocked-emails"
-        cache_key = {
-            "ff": feature_flag,
-        }
-
-        # Try cache first
-        flag_blocked_emails: Optional[Set[str]] = await get_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            retry=False,
-        )
-
-        if flag_blocked_emails is not None:
-            return set(flag_blocked_emails)
-
-        # Fetch from PostHog if not cached
-        flag_blocked_emails = posthog.get_feature_flag(
-            feature_flag,
-            "user distinct id",
-        )
-
-        # Normalize to set
-        blocked_set = list(
-            {e.strip().lower() for e in flag_blocked_emails}
-            if isinstance(flag_blocked_emails, (list, set, tuple))
-            else set()
-        )
-
-        # Cache the result
-        await set_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            value=blocked_set,
-        )
-
-        return set(blocked_set)
-
-    # 3. Else, return empty set
-    return set()
-
-
-async def _get_allowed_domains() -> Set[str]:
-    return env.agenta.allowed_domains
-
-
-def _matches_exact_or_subdomain(
-    candidate_domain: str, configured_domains: Set[str]
-) -> bool:
-    return any(
-        candidate_domain == blocked_domain
-        or candidate_domain.endswith(f".{blocked_domain}")
-        for blocked_domain in configured_domains
-    )
-
-
-async def _is_blocked(email: str) -> bool:
-    email = email.lower()
-
-    if email in await _get_blocked_emails():
-        return True
-
-    domain = email.split("@")[-1] if "@" in email else ""
-
-    allowed_domains = await _get_allowed_domains()
-    is_domain_allowed = bool(
-        domain and allowed_domains
-    ) and _matches_exact_or_subdomain(domain, allowed_domains)
-
-    if allowed_domains:
-        return not is_domain_allowed
-
-    blocked_domains = await _get_blocked_domains()
-    is_domain_blocked = bool(
-        domain and blocked_domains
-    ) and _matches_exact_or_subdomain(domain, blocked_domains)
-
-    if blocked_domains:
-        return is_domain_blocked
-
-    return False
-
-
 async def _create_account(email: str, uid: str) -> bool:
     """
     Create the internal user and related entities if missing.
@@ -275,20 +143,23 @@ async def _create_account(email: str, uid: str) -> bool:
     Returns:
         True if a new user was created, False if user already existed.
     """
-    log.info("[AUTH] _create_account start", email=email, uid=uid)
-    # Check if user already exists (idempotent - skip if adding new auth method)
-    existing_user = await get_user_with_email(email=email)
-    if existing_user is not None:
-        log.info("[AUTH] _create_account skip existing user", email=email, uid=uid)
-        return False
+    auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
+    assert auth_info is not None
 
-    # Check email blocking (EE only)
-    if is_ee() and await _is_blocked(email):
-        raise UnauthorizedException(detail="This email is not allowed.")
+    log.info("[AUTH] _create_account start", email=auth_info.email, uid=uid)
+    # Check if user already exists (idempotent - skip if adding new auth method)
+    existing_user = await get_user_with_email(email=auth_info.email)
+    if existing_user is not None:
+        log.info(
+            "[AUTH] _create_account skip existing user",
+            email=auth_info.email,
+            uid=uid,
+        )
+        return False
 
     payload = {
         "uid": uid,
-        "email": email,
+        "email": auth_info.email,
     }
 
     # For EE: organization is created inside create_accounts
@@ -307,7 +178,7 @@ async def _create_account(email: str, uid: str) -> bool:
             # Now create organization with the real user ID
             organization_db = await setup_oss_organization_for_first_user(
                 user_id=user_db.id,
-                user_email=email,
+                user_email=auth_info.email,
             )
 
             # Assign user to organization
@@ -316,7 +187,7 @@ async def _create_account(email: str, uid: str) -> bool:
             await _assign_user_to_organization_oss(
                 user_db=user_db,
                 organization_id=str(organization_db.id),
-                email=email,
+                email=auth_info.email,
             )
         else:
             # Not first user: Get existing organization and check invitation
@@ -328,7 +199,7 @@ async def _create_account(email: str, uid: str) -> bool:
 
             # Verify user can join (invitation check)
             user_invitation_exists = await check_if_user_invitation_exists(
-                email=email,
+                email=auth_info.email,
                 organization_id=str(organization_db.id),
             )
             if not user_invitation_exists:
@@ -342,7 +213,7 @@ async def _create_account(email: str, uid: str) -> bool:
     if env.posthog.enabled and env.posthog.api_key:
         try:
             posthog.capture(
-                distinct_id=email,
+                distinct_id=auth_info.email,
                 event="user_signed_up_v1",
                 properties={
                     "source": "auth",
@@ -353,7 +224,7 @@ async def _create_account(email: str, uid: str) -> bool:
             )
         except Exception:
             log.error("[AUTH] Failed to capture PostHog signup event", exc_info=True)
-    log.info("[AUTH] _create_account done", email=email, uid=uid)
+    log.info("[AUTH] _create_account done", email=auth_info.email, uid=uid)
     return True
 
 
@@ -495,10 +366,11 @@ def override_emailpassword_apis(
         user_context: Dict[str, Any],
     ):
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
-            email = form_fields[0].value.lower()
-            if is_ee() and await _is_blocked(email):
-                raise UnauthorizedException(detail="This email is not allowed.")
-            user_id = await get_user_with_email(email)
+            auth_info = await ensure_auth_info_not_blocked(
+                parse_auth_info(form_fields[0].value)
+            )
+            assert auth_info is not None
+            user_id = await get_user_with_email(auth_info.email)
             if user_id is not None:
                 supertokens_user = await get_user_from_supertokens(user_id)
                 if supertokens_user is not None:
@@ -532,11 +404,12 @@ def override_emailpassword_apis(
         user_context: Dict[str, Any],
     ):
         # FLOW 1: Sign in (redirect existing users with emailpassword credential)
-        email = form_fields[0].value.lower()
-        if is_ee() and await _is_blocked(email):
-            raise UnauthorizedException(detail="This email is not allowed.")
+        auth_info = await ensure_auth_info_not_blocked(
+            parse_auth_info(form_fields[0].value)
+        )
+        assert auth_info is not None
         user_info_from_st = await list_users_by_account_info(
-            tenant_id="public", account_info=AccountInfo(email=email)
+            tenant_id="public", account_info=AccountInfo(email=auth_info.email)
         )
 
         # Check if user has an emailpassword login method
@@ -672,12 +545,18 @@ def override_thirdparty_functions(
         1. Create user_identity record after successful authentication
         2. Populate session with user_identities array
         """
+        auth_info = parse_auth_info(email)
+        assert auth_info is not None
+
+        if await is_auth_info_blocked(auth_info):
+            return SignInUpNotAllowed("Access Denied.")
+
         internal_user = None
         # Call original implementation
         result = await original_sign_in_up(
             third_party_id=third_party_id,
             third_party_user_id=third_party_user_id,
-            email=email,
+            email=auth_info.email,
             is_verified=is_verified,
             oauth_tokens=oauth_tokens,
             raw_user_info_from_provider=raw_user_info_from_provider,
@@ -699,20 +578,16 @@ def override_thirdparty_functions(
             method = f"social:{third_party_id}"
 
         # Create internal user account first (idempotent - skips if exists)
-        normalized_email = email.lower()
-        is_new_user = await _create_account(normalized_email, result.user.id)
+        is_new_user = await _create_account(auth_info.email, result.user.id)
         user_context["is_new_user"] = is_new_user
-
-        # Extract domain from email
-        domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
 
         # Create or update user_identity
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=normalized_email,
+                email=auth_info.email,
                 method=method,
                 subject=third_party_user_id,
-                domain=domain,
+                domain=auth_info.domain,
             )
         except Exception:
             # Log error but don't block authentication
@@ -735,7 +610,7 @@ def override_thirdparty_functions(
         if internal_user:
             try:
                 await auth_service.enforce_domain_policies(
-                    email=email,
+                    email=auth_info.email,
                     user_id=internal_user.id,
                 )
             except Exception:
@@ -794,12 +669,10 @@ def override_passwordless_functions(
         user_context: Dict[str, Any],
         **kwargs: Any,
     ):
-        normalized_email = email.lower() if email else None
-        if normalized_email and is_ee() and await _is_blocked(normalized_email):
-            raise UnauthorizedException(detail="This email is not allowed.")
+        auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
 
         return await original_create_code(
-            email=email,
+            email=auth_info.email if auth_info else email,
             phone_number=phone_number,
             user_input_code=user_input_code,
             tenant_id=tenant_id,
@@ -850,28 +723,21 @@ def override_passwordless_functions(
             user_context["session_identities"] = session_identities
             return result
 
-        normalized_email = email.lower()
-        if is_ee() and await _is_blocked(normalized_email):
-            raise UnauthorizedException(detail="This email is not allowed.")
+        auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
+        assert auth_info is not None
 
         # Create internal user account first (idempotent - skips if exists)
-        is_new_user = await _create_account(normalized_email, user_id_str)
+        is_new_user = await _create_account(auth_info.email, user_id_str)
         user_context["is_new_user"] = is_new_user
 
-        # Extract domain from email
-        domain = (
-            normalized_email.split("@")[1]
-            if "@" in normalized_email and normalized_email.count("@") == 1
-            else None
-        )
-
         # Create or update user_identity
+        internal_user = None
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=normalized_email,
+                email=auth_info.email,
                 method=method,
-                subject=normalized_email,
-                domain=domain,
+                subject=auth_info.email,
+                domain=auth_info.domain,
             )
         except Exception:
             # Log error but don't block authentication
@@ -894,7 +760,7 @@ def override_passwordless_functions(
         if internal_user:
             try:
                 await auth_service.enforce_domain_policies(
-                    email=normalized_email,
+                    email=auth_info.email,
                     user_id=internal_user.id,
                 )
             except Exception:
@@ -928,10 +794,12 @@ def override_emailpassword_functions(
         1. Create user_identity record for email:password after successful login
         2. Populate session with user_identities array
         """
+        auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
+        assert auth_info is not None
 
         # Call original implementation
         result = await original_sign_in(
-            email=email,
+            email=auth_info.email,
             password=password,
             tenant_id=tenant_id,
             session=session,
@@ -947,26 +815,23 @@ def override_emailpassword_functions(
         method = "email:password"
 
         # Check if internal user exists (sign_in can be called for new users too)
-        normalized_email = email.lower()
-        existing_user = await get_user_with_email(normalized_email)
+        existing_user = await get_user_with_email(auth_info.email)
 
         # If no internal user, create one (this can happen when ST user exists but internal doesn't)
         if not existing_user:
-            is_new_user = await _create_account(normalized_email, result.user.id)
+            is_new_user = await _create_account(auth_info.email, result.user.id)
             user_context["is_new_user"] = is_new_user
         else:
             user_context["is_new_user"] = False
 
-        # Extract domain from email
-        domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
-
         # Create or update user_identity
+        internal_user = None
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=normalized_email,
+                email=auth_info.email,
                 method=method,
-                subject=normalized_email,
-                domain=domain,
+                subject=auth_info.email,
+                domain=auth_info.domain,
             )
         except Exception:
             # Log error but don't block authentication
@@ -989,7 +854,7 @@ def override_emailpassword_functions(
         if internal_user:
             try:
                 await auth_service.enforce_domain_policies(
-                    email=email,
+                    email=auth_info.email,
                     user_id=internal_user.id,
                 )
             except Exception:
@@ -1010,10 +875,12 @@ def override_emailpassword_functions(
         1. Create user_identity record for email:password after successful signup
         2. Populate session with user_identities array
         """
+        auth_info = await ensure_auth_info_not_blocked(parse_auth_info(email))
+        assert auth_info is not None
 
         # Call original implementation
         result = await original_sign_up(
-            email=email,
+            email=auth_info.email,
             password=password,
             tenant_id=tenant_id,
             session=session,
@@ -1029,20 +896,17 @@ def override_emailpassword_functions(
         method = "email:password"
 
         # Create internal user account first (idempotent - skips if exists)
-        normalized_email = email.lower()
-        is_new_user = await _create_account(normalized_email, result.user.id)
+        is_new_user = await _create_account(auth_info.email, result.user.id)
         user_context["is_new_user"] = is_new_user
 
-        # Extract domain from email
-        domain = email.split("@")[1] if "@" in email and email.count("@") == 1 else None
-
         # Create or update user_identity
+        internal_user = None
         try:
             internal_user = await _create_identity_if_user_exists(
-                email=normalized_email,
+                email=auth_info.email,
                 method=method,
-                subject=normalized_email,
-                domain=domain,
+                subject=auth_info.email,
+                domain=auth_info.domain,
             )
         except Exception:
             # Log error but don't block authentication
@@ -1065,7 +929,7 @@ def override_emailpassword_functions(
         if internal_user:
             try:
                 await auth_service.enforce_domain_policies(
-                    email=email,
+                    email=auth_info.email,
                     user_id=internal_user.id,
                 )
             except Exception:
