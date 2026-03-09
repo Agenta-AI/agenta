@@ -1,10 +1,11 @@
 import {useState} from "react"
 
-import {Modal, message} from "antd"
+import {message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {deleteAutomationAtom} from "@/oss/state/automations/atoms"
 import {webhookToDeleteAtom} from "@/oss/state/automations/state"
+import {EnhancedModal} from "@agenta/ui"
 
 const DeleteAutomationModal = () => {
     const deleteWebhook = useSetAtom(deleteAutomationAtom)
@@ -26,7 +27,7 @@ const DeleteAutomationModal = () => {
     }
 
     return (
-        <Modal
+        <EnhancedModal
             title="Delete Automation"
             open={!!webhookToDelete}
             onOk={handleDeleteConfirm}
@@ -38,7 +39,7 @@ const DeleteAutomationModal = () => {
             okButtonProps={{danger: true}}
         >
             <p>Are you sure you want to delete this automation?</p>
-        </Modal>
+        </EnhancedModal>
     )
 }
 
