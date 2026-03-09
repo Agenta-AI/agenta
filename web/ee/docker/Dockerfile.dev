@@ -40,7 +40,7 @@ COPY ./entrypoint.sh /app/entrypoint.sh
 
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown agenta:agenta /app
+    chown -R agenta:agenta /app
 
 USER 10001
 
