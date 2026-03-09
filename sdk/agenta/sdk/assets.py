@@ -21,9 +21,10 @@ supported_llm_models = {
         "anthropic/claude-3-haiku-20240307",
     ],
     "cohere": [
-        "cohere/command-light",
-        "cohere/command-r-plus",
-        "cohere/command-nightly",
+        "cohere/command-a-03-2025",
+        "cohere/command-r7b-12-2024",
+        "cohere/command-r-plus-08-2024",
+        "cohere/command-r-08-2024",
     ],
     "deepinfra": [
         "deepinfra/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
@@ -43,6 +44,7 @@ supported_llm_models = {
     ],
     "gemini": [
         "gemini/gemini-3.1-pro-preview",
+        "gemini/gemini-3.1-flash-lite-preview",
         "gemini/gemini-3-pro-preview",
         "gemini/gemini-3-flash-preview",
         "gemini/gemini-2.5-pro",
@@ -66,6 +68,8 @@ supported_llm_models = {
         "groq/meta-llama/llama-4-scout-17b-16e-instruct",
         "groq/llama-3.3-70b-versatile",
         "groq/llama-3.1-8b-instant",
+        "groq/openai/gpt-oss-120b",
+        "groq/openai/gpt-oss-20b",
         "groq/qwen/qwen3-32b",
     ],
     "mistral": [
@@ -75,10 +79,10 @@ supported_llm_models = {
         "mistral/mistral-large-latest",
     ],
     "openai": [
+        "gpt-5.4",
         "gpt-5.2-pro",
         "gpt-5.2-chat-latest",
         "gpt-5.2",
-        "gpt-5.1-codex",
         "gpt-5.1-chat-latest",
         "gpt-5.1",
         "gpt-5-pro",
@@ -92,7 +96,9 @@ supported_llm_models = {
         "o3-mini",
         "o1-pro",
         "o1",
+        "o1-preview",
         "o1-mini",
+        "gpt-5.1-codex",
         "codex-mini-latest",
         "gpt-4.5-preview",
         "gpt-4.1-nano",

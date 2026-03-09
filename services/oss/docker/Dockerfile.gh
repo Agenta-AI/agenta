@@ -72,10 +72,16 @@ COPY --from=builder /app/oss /app/oss
 COPY --from=builder /app/entrypoints /app/entrypoints
 COPY --from=builder /app/sdk /app/sdk
 
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
+
 LABEL org.opencontainers.image.title="agenta-services" \
     org.opencontainers.image.description="Agenta Services GH runtime image" \
     org.opencontainers.image.version="${VERSION}" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}"
 
-EXPOSE 80
+EXPOSE 8080

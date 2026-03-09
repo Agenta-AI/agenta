@@ -170,3 +170,154 @@ class TestWebhooksSubscriptionsBasics:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 404
         # ----------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# TestWebhooksSubscriptionsAuthMode
+# ---------------------------------------------------------------------------
+
+
+class TestWebhooksSubscriptionsAuthMode:
+    def test_create_subscription_with_signature_mode(self, authed_api):
+        """Explicit signature mode works and auto-generates a secret."""
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/webhooks/",
+            json={
+                "subscription": {
+                    "name": f"sig-{uuid4().hex[:8]}",
+                    "data": {
+                        "url": "https://example.com/hook",
+                        "auth_mode": "signature",
+                    },
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        sub = response.json()["subscription"]
+        assert sub["secret"] is not None
+        assert sub["data"]["auth_mode"] == "signature"
+        # ----------------------------------------------------------------------
+
+    def test_create_subscription_with_authorization_mode_and_secret(self, authed_api):
+        """Authorization mode with a user-provided secret stores that secret."""
+        user_secret = "my-custom-bearer-token-xyz"
+
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/webhooks/",
+            json={
+                "subscription": {
+                    "name": f"auth-{uuid4().hex[:8]}",
+                    "data": {
+                        "url": "https://example.com/hook",
+                        "auth_mode": "authorization",
+                    },
+                    "secret": user_secret,
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        sub = response.json()["subscription"]
+        assert sub["secret"] == user_secret
+        assert sub["data"]["auth_mode"] == "authorization"
+        # ----------------------------------------------------------------------
+
+    def test_create_subscription_with_authorization_mode_without_secret_fails(
+        self, authed_api
+    ):
+        """Authorization mode without a secret must be rejected with 400."""
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/webhooks/",
+            json={
+                "subscription": {
+                    "name": f"auth-{uuid4().hex[:8]}",
+                    "data": {
+                        "url": "https://example.com/hook",
+                        "auth_mode": "authorization",
+                    },
+                    # no secret provided
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 400
+        # ----------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# TestWebhooksSubscriptionsPayloadFields
+# ---------------------------------------------------------------------------
+
+
+class TestWebhooksSubscriptionsPayloadFields:
+    def test_create_subscription_with_payload_fields(self, authed_api):
+        """payload_fields is persisted and returned on fetch."""
+        payload_fields = {
+            "event_type": "$.event.event_type",
+            "project": "$.scope.project_id",
+        }
+
+        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/webhooks/",
+            json={
+                "subscription": {
+                    "name": f"pf-{uuid4().hex[:8]}",
+                    "data": {
+                        "url": "https://example.com/hook",
+                        "payload_fields": payload_fields,
+                    },
+                }
+            },
+        )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        sub = response.json()["subscription"]
+        assert sub["data"]["payload_fields"] == payload_fields
+        # ----------------------------------------------------------------------
+
+    def test_fetch_subscription_preserves_payload_fields(self, authed_api):
+        """payload_fields is round-tripped through create → fetch."""
+        payload_fields = {"ref": "$.event.attributes.ref"}
+
+        create_resp = authed_api(
+            "POST",
+            "/webhooks/",
+            json={
+                "subscription": {
+                    "name": f"pf-{uuid4().hex[:8]}",
+                    "data": {
+                        "url": "https://example.com/hook",
+                        "payload_fields": payload_fields,
+                    },
+                }
+            },
+        )
+        assert create_resp.status_code == 200
+        subscription_id = create_resp.json()["subscription"]["id"]
+
+        # ACT ------------------------------------------------------------------
+        response = authed_api("GET", f"/webhooks/{subscription_id}")
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        sub = response.json()["subscription"]
+        assert sub["data"]["payload_fields"] == payload_fields
+        # ----------------------------------------------------------------------

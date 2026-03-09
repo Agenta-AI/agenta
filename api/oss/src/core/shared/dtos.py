@@ -25,14 +25,12 @@ from agenta.sdk.models.shared import (  # noqa: F401
     Lifecycle,
     Header,
     #
-    TraceID,
-    SpanID,
-    Link,
-    #
     Identifier,
     Slug,
     Version,
     Reference,
+    #
+    Selector,  # Base selector for data extraction
     #
     AliasConfig,
     sync_alias,
@@ -40,6 +38,16 @@ from agenta.sdk.models.shared import (  # noqa: F401
     Commit,
     #
     Windowing,
+)
+from agenta.sdk.models.tracing import (  # noqa: F401
+    TraceID,
+    SpanID,
+    Link,
+    Links,
+    Trace,
+    Traces,
+    Span,
+    Spans,
 )
 
 

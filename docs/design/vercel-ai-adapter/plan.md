@@ -152,7 +152,7 @@ Test categories:
 
 ### Phase 4: E2E Tests
 
-**File**: `api/oss/tests/pytest/e2e/tracing/test_vercelai_ingestion.py`
+**File**: `api/oss/tests/pytest/acceptance/tracing/test_vercelai_ingestion.py`
 
 Tests that exercise the full OTLP → adapter → storage → query pipeline:
 

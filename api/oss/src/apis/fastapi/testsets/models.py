@@ -130,7 +130,11 @@ class TestsetRevisionRetrieveRequest(BaseModel):
     testset_ref: Optional[Reference] = None
     testset_variant_ref: Optional[Reference] = None
     testset_revision_ref: Optional[Reference] = None
+    #
+    include_testcase_ids: Optional[bool] = None
     include_testcases: Optional[bool] = None
+    #
+    windowing: Optional[Windowing] = None
 
 
 class TestsetRevisionsLogRequest(BaseModel):

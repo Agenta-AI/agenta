@@ -277,6 +277,10 @@ class WebhooksDAO(WebhooksDAOInterface):
             values = {
                 c.name: getattr(delivery_dbe, c.name)
                 for c in WebhookDeliveryDBE.__table__.columns
+                if not (
+                    c.name in ("id", "created_at", "updated_at", "deleted_at")
+                    and getattr(delivery_dbe, c.name) is None
+                )
             }
 
             stmt = insert(WebhookDeliveryDBE).values(**values)

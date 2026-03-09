@@ -14,6 +14,8 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.workflows.service import (
     WorkflowsService,
 )
+from oss.src.core.workflows.dtos import WorkflowRevisionData
+from oss.src.core.embeds.dtos import ErrorPolicy
 
 from oss.src.apis.fastapi.workflows.models import (
     WorkflowCreateRequest,
@@ -37,6 +39,10 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionsLogRequest,
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
+    #
+    WorkflowRevisionResolveRequest,
+    WorkflowRevisionResolveResponse,
+    ResolutionInfo,
 )
 from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_query_request_from_params,
@@ -218,7 +224,7 @@ class WorkflowsRouter:
         self.router.add_api_route(
             "/revisions/retrieve",
             self.retrieve_workflow_revision,
-            methods=["GET"],
+            methods=["POST"],
             operation_id="retrieve_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
@@ -302,6 +308,16 @@ class WorkflowsRouter:
             operation_id="log_workflow_revisions",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/resolve",
+            self.resolve_workflow_revision_endpoint,
+            methods=["POST"],
+            operation_id="resolve_workflow_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowRevisionResolveResponse,
             response_model_exclude_none=True,
         )
 
@@ -1098,12 +1114,92 @@ class WorkflowsRouter:
                 value=workflow_revision,
             )
 
+        # Optionally resolve embeds if requested
+        resolution_info = None
+        if workflow_revision and workflow_revision_retrieve_request.resolve:
+            embeds_service = self.workflows_service.embeds_service
+            (
+                resolved_config,
+                resolution_info,
+            ) = await embeds_service.resolve_configuration(
+                project_id=UUID(request.state.project_id),
+                configuration=workflow_revision.data.model_dump()
+                if workflow_revision.data
+                else {},
+            )
+
+            if workflow_revision.data:
+                workflow_revision.data = WorkflowRevisionData(**resolved_config)
+
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
+            resolution_info=resolution_info,
         )
 
         return workflow_revision_response
+
+    @intercept_exceptions()
+    async def resolve_workflow_revision_endpoint(
+        self,
+        request: Request,
+        *,
+        workflow_revision_resolve_request: WorkflowRevisionResolveRequest,
+    ) -> WorkflowRevisionResolveResponse:
+        """
+        Resolve embedded references in a workflow revision configuration.
+
+        This endpoint:
+        1. Fetches the workflow revision
+        2. Resolves all @ag.references tokens in the configuration
+        3. Returns the revision with resolved configuration + metadata
+        """
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Resolve the workflow revision
+        result = await self.workflows_service.resolve_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            workflow_ref=workflow_revision_resolve_request.workflow_ref,
+            workflow_variant_ref=workflow_revision_resolve_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_resolve_request.workflow_revision_ref,
+            #
+            workflow_revision=workflow_revision_resolve_request.workflow_revision,
+            #
+            max_depth=workflow_revision_resolve_request.max_depth or 10,
+            max_embeds=workflow_revision_resolve_request.max_embeds or 100,
+            error_policy=workflow_revision_resolve_request.error_policy
+            or ErrorPolicy.EXCEPTION,
+        )
+
+        if not result:
+            return WorkflowRevisionResolveResponse()
+
+        # Unpack the result tuple
+        workflow_revision, resolution_info = result
+
+        # Build resolution metadata
+        resolution_info = ResolutionInfo(
+            references_used=resolution_info.references_used,
+            depth_reached=resolution_info.depth_reached,
+            embeds_resolved=resolution_info.embeds_resolved,
+            errors=resolution_info.errors,
+        )
+
+        workflow_revision_resolve_response = WorkflowRevisionResolveResponse(
+            count=1 if workflow_revision else 0,
+            workflow_revision=workflow_revision,
+            resolution_info=resolution_info,
+        )
+
+        return workflow_revision_resolve_response
 
     # WORKFLOW SERVICES --------------------------------------------------------
 
