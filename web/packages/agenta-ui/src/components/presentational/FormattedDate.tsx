@@ -54,7 +54,10 @@ export function FormattedDate({
     const icon = copied ? (
         <Check size={12} className="flex-shrink-0" />
     ) : (
-        <Copy size={12} className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity" />
+        <Copy
+            size={12}
+            className="flex-shrink-0 opacity-0 group-hover/date:opacity-100 transition-opacity"
+        />
     )
 
     const tooltipTitle = copied ? "Copied!" : `Click to copy: ${rawValue}`

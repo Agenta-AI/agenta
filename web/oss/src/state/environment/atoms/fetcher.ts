@@ -36,7 +36,10 @@ function getEnvironmentReferenceForApp(
     return null
 }
 
-function stripAppPrefix(variantSlug: string | undefined | null, appSlug: string | undefined | null) {
+function stripAppPrefix(
+    variantSlug: string | undefined | null,
+    appSlug: string | undefined | null,
+) {
     if (!variantSlug) return variantSlug ?? null
     if (appSlug && variantSlug.startsWith(`${appSlug}.`)) {
         return variantSlug.slice(appSlug.length + 1)
@@ -107,7 +110,8 @@ export const environmentsAtom = selectAtom(
         const envs: Environment[] = (res as any)?.data ?? EmptyEnvs
         if (envs.length <= 1) return envs
         return [...envs].sort(
-            (a, b) => (ENV_ORDER[a.name.toLowerCase()] ?? 99) - (ENV_ORDER[b.name.toLowerCase()] ?? 99),
+            (a, b) =>
+                (ENV_ORDER[a.name.toLowerCase()] ?? 99) - (ENV_ORDER[b.name.toLowerCase()] ?? 99),
         )
     },
     deepEqual,

@@ -21,59 +21,39 @@
  */
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import {Atom, atom} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
-import {baseRunnableMolecule} from "../baseRunnable"
 import type {BaseRunnableData} from "../baseRunnable"
+import {baseRunnableMolecule} from "../baseRunnable"
 import {evaluatorMolecule} from "../evaluator"
 import {
     invocationUrlAtomFamily as evaluatorInvocationUrlAtomFamily,
     requestPayloadAtomFamily as evaluatorRequestPayloadAtomFamily,
 } from "../evaluator/state/runnableSetup"
 import {evaluatorRevisionMolecule} from "../evaluatorRevision"
-import {legacyAppRevisionMolecule} from "../legacyAppRevision"
-import {createLocalDraftFromRevision} from "../legacyAppRevision/state/localDrafts"
-import {latestServerRevisionIdAtomFamily} from "../legacyAppRevision/state/store"
 import {legacyEvaluatorMolecule} from "../legacyEvaluator"
 import {
     invocationUrlAtomFamily as legacyEvaluatorInvocationUrlAtomFamily,
     requestPayloadAtomFamily as legacyEvaluatorRequestPayloadAtomFamily,
 } from "../legacyEvaluator/state/runnableSetup"
-import {loadableStateAtomFamily, loadableColumnsAtomFamily} from "../loadable/store"
+import {loadableColumnsAtomFamily, loadableStateAtomFamily} from "../loadable/store"
 import {createRunnableBridge, type RunnableData, type RunnablePort} from "../shared"
 import {workflowMolecule} from "../workflow"
-import {commitWorkflowRevisionAtom, archiveWorkflowRevisionAtom} from "../workflow/state/commit"
+import {archiveWorkflowRevisionAtom, commitWorkflowRevisionAtom} from "../workflow/state/commit"
 import {
+    executionModeAtomFamily as workflowExecutionModeAtomFamily,
     invocationUrlAtomFamily as workflowInvocationUrlAtomFamily,
     requestPayloadAtomFamily as workflowRequestPayloadAtomFamily,
-    executionModeAtomFamily as workflowExecutionModeAtomFamily,
 } from "../workflow/state/runnableSetup"
 import {
+    createLocalDraftFromWorkflowRevision,
     workflowLatestRevisionIdAtomFamily,
     workflowServerDataSelectorFamily,
-    createLocalDraftFromWorkflowRevision,
 } from "../workflow/state/store"
 
 import type {PathItem, RunnableType, TestsetColumn} from "./types"
 import {extractVariablesFromConfig} from "./utils"
-
-// ============================================================================
-// EXECUTION MODE HELPERS
-// ============================================================================
-
-/**
- * Create an execution mode selector from a boolean isChatVariant atom.
- * Maps `true` → "chat", `false` → "completion".
- */
-function createExecutionModeSelector(
-    isChatVariantSelector: (id: string) => Atom<boolean>,
-): (id: string) => Atom<"chat" | "completion"> {
-    return (id: string) =>
-        atom<"chat" | "completion">((get) =>
-            get(isChatVariantSelector(id)) ? "chat" : "completion",
-        )
-}
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -155,89 +135,6 @@ function extractOutputPortsFromSchema(schema: unknown): RunnablePort[] {
             schema: prop,
         }
     })
-}
-
-// ============================================================================
-// LEGACY APP REVISION CONFIGURATION
-// ============================================================================
-
-interface LegacyAppRevisionEntity {
-    id: string
-    variantName?: string
-    appName?: string
-    revision?: number
-    parameters?: Record<string, unknown>
-    uri?: string
-    variantId?: string
-    appId?: string
-}
-
-function legacyAppRevisionToRunnable(entity: unknown): RunnableData {
-    const e = entity as LegacyAppRevisionEntity
-    return {
-        id: e.id,
-        name: e.variantName,
-        version: e.revision,
-        slug: e.variantName,
-        configuration: e.parameters,
-        invocationUrl: e.uri,
-        // OSS model doesn't have structured schemas
-        schemas: undefined,
-    }
-}
-
-function getLegacyAppRevisionInputPorts(entity: unknown): RunnablePort[] {
-    // OSS model derives input ports from template variables in prompts
-    // This is handled by the molecule's inputPorts selector
-    // Return empty array as fallback - selector is preferred
-    return []
-}
-
-function getLegacyAppRevisionOutputPorts(_entity: unknown): RunnablePort[] {
-    // OSS model has a single string output
-    return [
-        {
-            key: "output",
-            name: "Output",
-            type: "string",
-        },
-    ]
-}
-
-function getSchemaFromRevisionState(schemaState: unknown): {
-    inputSchema?: unknown
-    outputSchema?: unknown
-} | null {
-    if (!schemaState || typeof schemaState !== "object") return null
-
-    const state = schemaState as {
-        agConfigSchema?: unknown
-        outputsSchema?: unknown
-        endpoints?: {
-            test?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
-            run?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
-            generate?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
-            generateDeployed?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
-            root?: {inputsSchema?: unknown; outputsSchema?: unknown} | null
-        }
-    }
-
-    const primaryEndpoint =
-        state.endpoints?.test ??
-        state.endpoints?.run ??
-        state.endpoints?.generate ??
-        state.endpoints?.generateDeployed ??
-        state.endpoints?.root ??
-        null
-
-    const inputSchema = primaryEndpoint?.inputsSchema ?? state.agConfigSchema
-    const outputSchema = state.outputsSchema ?? primaryEndpoint?.outputsSchema
-
-    if (!inputSchema && !outputSchema) return null
-    return {
-        inputSchema: inputSchema ?? undefined,
-        outputSchema: outputSchema ?? undefined,
-    }
 }
 
 // ============================================================================
