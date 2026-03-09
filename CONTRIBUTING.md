@@ -29,6 +29,31 @@ To maintain code quality, we adhere to the following formatting and linting rule
 
 3. **Contribute a Larger Feature:** If you're interested in developing a more extensive feature, let's discuss! Contact us directly on Slack or schedule a meeting through this [Calendly link](https://usemotion.com/meet/mahmoud-mabrouk-r0qp/collaborate?d=30).
 
+## Community Topics
+
+We track repository-level deployment and hosting surfaces through a small topic taxonomy. The current topic matrix lives in [docs/community-topics.md](docs/community-topics.md).
+
+Use these label families to scope issues and pull requests:
+
+- `provider/*`
+- `platform/*`
+- `runtime/*`
+- `olap/*`
+- `maintenance/*`
+- `support/*`
+
+`maintenance/*` answers who is expected to do the work.
+
+`support/*` answers what level of promise the repository makes to users.
+
+When you add or materially change a first-class setup, update all of the following in the same PR:
+
+- `docs/community-topics.md`
+- `CODEOWNERS`
+- any affected issue / PR metadata in `.github/`
+
+For legacy paths under `hosting/old/`, do not assume they are current first-class community topics. Align on scope before extending them.
+
 ## Contribution Rules
 
 We had many zombie issues and PRs (assigned but inactive) in the past. We want to avoid this in the future, so we've set up the following rules:

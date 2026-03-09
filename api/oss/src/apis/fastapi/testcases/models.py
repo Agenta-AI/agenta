@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from oss.src.core.shared.dtos import (
     Windowing,
+    Reference,
 )
 from oss.src.core.testcases.dtos import (
     Testcase,
@@ -18,7 +19,10 @@ class TestcasesQueryRequest(BaseModel):
     testcase_ids: Optional[List[UUID]] = None
     #
     testset_id: Optional[UUID] = None
-    testset_revision_id: Optional[UUID] = None
+    #
+    testset_ref: Optional[Reference] = None
+    testset_variant_ref: Optional[Reference] = None
+    testset_revision_ref: Optional[Reference] = None
     #
     windowing: Optional[Windowing] = None
 

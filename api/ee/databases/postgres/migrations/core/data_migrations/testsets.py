@@ -27,7 +27,11 @@ from oss.src.core.shared.dtos import Reference
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.models.deprecated_models import DeprecatedTestsetDB
-from oss.src.core.testsets.dtos import TestsetRevisionCommit, TestsetRevisionData
+from oss.src.core.testsets.dtos import (
+    TestsetRevisionCommit,
+    TestsetRevisionData,
+    SimpleTestsetCreate,
+)
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
 
 
@@ -197,6 +201,39 @@ def _jsonify_testcase_fields(testcases: Optional[List[Testcase]]) -> bool:
     return changed
 
 
+async def _transfer_deprecated_testset(
+    *,
+    deprecated_testset: DeprecatedTestsetDB,
+    user_id: UUID,
+) -> Optional[object]:
+    """
+    Migration-local replacement for the removed SimpleTestsetsService.transfer().
+    Creates a new-style simple testset from deprecated `testsets.csvdata`
+    while preserving the original testset id.
+    """
+    if deprecated_testset.project_id is None:
+        return None
+
+    csvdata = deprecated_testset.csvdata
+    rows = csvdata if isinstance(csvdata, list) else []
+    testcases = [Testcase(data=row) for row in rows if isinstance(row, dict)]
+
+    simple_testset_create = SimpleTestsetCreate(
+        slug=uuid4().hex[-12:],
+        name=deprecated_testset.name,
+        data=TestsetRevisionData(testcases=testcases),
+    )
+
+    return await simple_testsets_service.create(
+        project_id=deprecated_testset.project_id,
+        user_id=user_id,
+        #
+        simple_testset_create=simple_testset_create,
+        #
+        testset_id=deprecated_testset.id,
+    )
+
+
 async def _commit_jsonified_revision(
     *,
     project_id: UUID,
@@ -326,10 +363,9 @@ async def migration_old_testsets_to_new_testsets(
                         )
                         continue
 
-                    new_testset = await simple_testsets_service.transfer(
-                        project_id=testset.project_id,
+                    new_testset = await _transfer_deprecated_testset(
+                        deprecated_testset=testset,
                         user_id=owner,
-                        testset_id=testset.id,
                     )
                     if not new_testset:
                         skipped_records += 1

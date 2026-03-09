@@ -135,7 +135,7 @@ class TestOTLPBestEffortE2E:
         span = next(iter(tree["spans"].values()))
         ag_data = span["attributes"]["ag"]["data"]
 
-        assert isinstance(ag_data["inputs"], str)
+        assert isinstance(ag_data["inputs"], dict)
         assert isinstance(ag_data["parameters"], dict)
         assert isinstance(ag_data["internals"], dict)
         assert isinstance(ag_data["outputs"], str)

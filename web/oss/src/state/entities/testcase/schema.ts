@@ -101,7 +101,11 @@ export type UpdateTestcaseInput = z.infer<typeof updateTestcaseSchema>
 export const testcasesQueryRequestSchema = z.object({
     testcase_ids: z.array(z.string()).optional(),
     testset_id: z.string().optional(),
-    testset_revision_id: z.string().optional(),
+    testset_revision_ref: z
+        .object({
+            id: z.string().optional(),
+        })
+        .optional(),
     windowing: z
         .object({
             newest: z.string().optional(),

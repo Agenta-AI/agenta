@@ -23,6 +23,7 @@ import agenta as ag
 pytestmark = [pytest.mark.acceptance]
 
 
+@pytest.mark.acceptance
 def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
     # Provide client-side IDs, but treat server-returned IDs as canonical.
     # Some deployments may normalize or rewrite trace/span identifiers.

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.20
 FROM node:20.18.0-slim AS base
 
 WORKDIR /app
@@ -60,6 +61,12 @@ COPY --from=builder /app/ee/.next/static /app/ee/.next/static
 COPY --from=builder /app/ee/public /app/ee/public
 COPY --from=builder /app/oss/public /app/oss/public
 COPY ./entrypoint.sh /app/entrypoint.sh
+
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
 
 LABEL org.opencontainers.image.title="agenta-web-ee" \
     org.opencontainers.image.description="Agenta Web EE GH runtime image" \

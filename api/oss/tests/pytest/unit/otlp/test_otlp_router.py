@@ -36,10 +36,6 @@ async def test_otlp_ingest_continues_when_one_span_parse_fails(monkeypatch):
         "oss.src.apis.fastapi.otlp.router.parse_from_otel_span_dto",
         _parse_from_otel_span_dto,
     )
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.otlp.router.calculate_and_propagate_metrics",
-        lambda spans: spans,
-    )
 
     published_spans = []
 
