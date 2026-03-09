@@ -13,6 +13,7 @@ type TurnstileRenderOptions = {
     callback?: (token: string) => void
     theme?: "light" | "dark" | "auto"
     size?: "normal" | "compact"
+    appearance?: "always" | "execute" | "interaction-only"
     "error-callback"?: () => void
     "expired-callback"?: () => void
     "timeout-callback"?: () => void
@@ -211,7 +212,7 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
 
         return (
             <div className={className}>
-                <div className="rounded-lg overflow-hidden min-h-[65px] min-w-[130px]" ref={containerRef} />
+                <div ref={containerRef} />
             </div>
         )
     },

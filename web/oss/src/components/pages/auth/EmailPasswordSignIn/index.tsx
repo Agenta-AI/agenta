@@ -209,6 +209,18 @@ const EmailPasswordSignIn = ({
                     />
                 </Form.Item>
 
+                <Button
+                    size="large"
+                    type="primary"
+                    htmlType="submit"
+                    className="w-full"
+                    loading={isLoading}
+                >
+                    Continue with password
+                </Button>
+                {message.type == "error" && (
+                    <ShowErrorMessage info={message} className="text-start" />
+                )}
                 {turnstileEnabled && (
                     <TurnstileWidget
                         ref={turnstileRef}
@@ -221,19 +233,6 @@ const EmailPasswordSignIn = ({
                             })
                         }
                     />
-                )}
-
-                <Button
-                    size="large"
-                    type="primary"
-                    htmlType="submit"
-                    className="w-full"
-                    loading={isLoading}
-                >
-                    Continue with password
-                </Button>
-                {message.type == "error" && (
-                    <ShowErrorMessage info={message} className="text-start" />
                 )}
             </Form>
         </div>
