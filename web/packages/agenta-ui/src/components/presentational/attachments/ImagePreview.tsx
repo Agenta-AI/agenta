@@ -24,6 +24,7 @@ import {MagnifyingGlassPlus} from "@phosphor-icons/react"
 import {Modal} from "antd"
 
 import ImageWithFallback from "./ImageWithFallback"
+import {isSafeImageSrc} from "./utils"
 
 // ============================================================================
 // TYPES
@@ -40,29 +41,6 @@ export interface ImagePreviewProps {
     className?: string
     /** optional boolean to disable the preview */
     isValidPreview?: boolean
-}
-
-// ============================================================================
-// UTILITIES
-// ============================================================================
-
-const isSafeImageSrc = (url: string) => {
-    if (!url) return false
-    try {
-        const lower = url.toLowerCase().trim()
-        if (/^https?:\/\/[^ "]+$/i.test(lower)) {
-            const path = lower.split("?")[0]
-            if (/\.(png|jpe?g|gif|webp)$/i.test(path)) {
-                return true
-            }
-            return false
-        }
-        if (lower.startsWith("blob:")) return true
-        if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(lower)) return true
-        return false
-    } catch {
-        return false
-    }
 }
 
 // ============================================================================
