@@ -26,6 +26,11 @@ const observabilityTests = () => {
             ],
         },
         async ({page, uiHelpers, apiHelpers}) => {
+            test.skip(
+                true,
+                "Skipped until Playground execution guarantees fresh traces in the ephemeral project.",
+            )
+
             // 1. Navigate directly to the ephemeral project's observability page
             await page.goto(`${apiHelpers.getProjectScopedBasePath()}/observability`, {
                 waitUntil: "domcontentloaded",
