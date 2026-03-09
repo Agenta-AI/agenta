@@ -476,28 +476,52 @@ export function extractTemplateVariables(
 
     if (templateFormat === "fstring") {
         // fstring: {var} is a variable, {{ and }} are literal braces (not variables)
-        // Match single braces that aren't doubled
-        const fstringPattern = /(?<!\{)\{([^{}]+)\}(?!\})/g
-        let match: RegExpExecArray | null
-        while ((match = fstringPattern.exec(input)) !== null) {
-            const variable = match[1].trim()
-            if (variable && !variables.includes(variable)) {
-                variables.push(variable)
+        // Linear scan: find each '{', skip if doubled '{{', otherwise read until '}'
+        let i = 0
+        while (i < input.length) {
+            if (input[i] === "{") {
+                if (input[i + 1] === "{") {
+                    // Escaped literal '{{', skip both
+                    i += 2
+                    continue
+                }
+                // Single '{' — look for closing '}'
+                const end = input.indexOf("}", i + 1)
+                if (end !== -1 && (end + 1 >= input.length || input[end + 1] !== "}")) {
+                    const variable = input.slice(i + 1, end).trim()
+                    if (variable && !variables.includes(variable)) {
+                        variables.push(variable)
+                    }
+                    i = end + 1
+                } else {
+                    i++
+                }
+            } else {
+                i++
             }
         }
         return variables
     }
 
     // curly and jinja2 both use {{variableName}} for variable substitution
-    // (jinja2 also has {% %} blocks and {# #} comments, but those are NOT variables)
-    const variablePattern = /\{\{([^}]*)\}\}/g
-
-    let match: RegExpExecArray | null
-    while ((match = variablePattern.exec(input)) !== null) {
-        // Unescape escaped characters (e.g., \} → })
-        const variable = match[1].replaceAll(/\\(.)/g, "$1").trim()
-        if (variable && !variables.includes(variable)) {
-            variables.push(variable)
+    // Linear scan: find '{{', then find '}}', extract the content between them
+    let i = 0
+    while (i < input.length - 1) {
+        if (input[i] === "{" && input[i + 1] === "{") {
+            const start = i + 2
+            const end = input.indexOf("}}", start)
+            if (end !== -1) {
+                const variable = input.slice(start, end).trim()
+                if (variable && !variables.includes(variable)) {
+                    variables.push(variable)
+                }
+                i = end + 2
+            } else {
+                // No closing '}}' found, no more variables possible
+                break
+            }
+        } else {
+            i++
         }
     }
 
