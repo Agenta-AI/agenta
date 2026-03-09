@@ -53,14 +53,13 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_ENV=production
 
-COPY --from=builder /app/oss/.next/standalone /app
-COPY --from=builder /app/oss/.next/static /app/oss/.next/static
-COPY --from=builder /app/oss/public /app/oss/public
-COPY ./entrypoint.sh /app/entrypoint.sh
-
 RUN groupadd --gid 10001 agenta && \
-    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta --from=builder /app/oss/.next/standalone /app
+COPY --chown=agenta:agenta --from=builder /app/oss/.next/static /app/oss/.next/static
+COPY --chown=agenta:agenta --from=builder /app/oss/public /app/oss/public
+COPY --chown=agenta:agenta ./entrypoint.sh /app/entrypoint.sh
 
 USER 10001
 
