@@ -90,6 +90,7 @@ export const loadTestsetNormalizedMutationAtom = atom(
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: testsetData,
+            skipBlankMessage: true,
         })
     },
 )

@@ -534,6 +534,7 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: testcasesWithIds as Record<string, unknown>[],
+            skipBlankMessage: true,
         })
     }
 })
@@ -561,6 +562,7 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
             testcaseRows: testcases,
+            skipBlankMessage: true,
         })
     }
 })
