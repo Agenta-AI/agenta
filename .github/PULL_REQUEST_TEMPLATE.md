@@ -25,9 +25,9 @@
 - [ ] I have signed the CLA, or I will sign it when the bot prompts me
 
 ## Contributor Resources
-- [Contributing guide](https://agenta.ai/docs/misc/contributing/overview)
-- [Creating your first PR](https://agenta.ai/docs/misc/contributing/first-pr)
-- [Development mode](https://agenta.ai/docs/misc/contributing/guides/development-mode)
-- [Testing](https://agenta.ai/docs/misc/contributing/guides/testing)
-- [Formatting and linting](https://agenta.ai/docs/misc/contributing/guides/formatting-and-linting)
+- [Contributing guide](https://agenta.ai/docs/contributing/overview)
+- [Creating your first PR](https://agenta.ai/docs/contributing/first-pr)
+- [Development mode](https://agenta.ai/docs/contributing/guides/development-mode)
+- [Testing](https://agenta.ai/docs/contributing/guides/testing)
+- [Formatting and linting](https://agenta.ai/docs/contributing/guides/formatting-and-linting)
 - [Slack support](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)
