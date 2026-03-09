@@ -17,11 +17,12 @@ git clone https://github.com/Agenta-AI/agenta.git
 cd agenta
 ```
 
-### 2. Launch The Server
+### 2. Configure The Environment
+
+Copy the example env file:
 
 ```bash
-./hosting/docker-compose/run.sh --license oss --dev
-```
+cp hosting/docker-compose/oss/env.oss.dev.example hosting/docker-compose/oss/.env.oss.dev
 
 If you want to run the Next.js web app outside the container, use:
 
