@@ -9,7 +9,7 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# Shared fixture: two subscriptions (one archived)
+# Shared fixture: two subscriptions
 # ---------------------------------------------------------------------------
 
 
@@ -26,7 +26,6 @@ def mock_data(authed_api):
                 "url": "https://example.com/hook-a",
                 "event_types": ["environments.revisions.committed"],
             },
-            "flags": {"is_active": True},
             "tags": {"_marker": marker, "kind": "A"},
         }
     }
@@ -38,7 +37,6 @@ def mock_data(authed_api):
                 "url": "https://example.com/hook-b",
                 "event_types": ["webhooks.subscriptions.tested"],
             },
-            "flags": {"is_active": False},
             "tags": {"_marker": marker, "kind": "B"},
         }
     }
@@ -95,17 +93,17 @@ class TestWebhooksSubscriptionsQueries:
         assert mock_data["subscriptions"][1]["id"] in returned_ids
         # ----------------------------------------------------------------------
 
-    def test_query_subscriptions_by_flags(self, authed_api, mock_data):
+    def test_query_subscriptions_by_name(self, authed_api, mock_data):
         marker = mock_data["_marker"]
 
-        # ACT — filter for active subscriptions --------------------------------
+        # ACT — filter for the first subscription by partial name --------------
         response = authed_api(
             "POST",
             "/webhooks/query",
             json={
                 "subscription": {
                     "tags": {"_marker": marker},
-                    "flags": {"is_active": True},
+                    "name": "Webhook-A",
                 },
             },
         )
@@ -118,14 +116,14 @@ class TestWebhooksSubscriptionsQueries:
         assert body["subscriptions"][0]["id"] == mock_data["subscriptions"][0]["id"]
         # ----------------------------------------------------------------------
 
-        # ACT — filter for inactive subscriptions ------------------------------
+        # ACT — filter for the second subscription by partial name -------------
         response = authed_api(
             "POST",
             "/webhooks/query",
             json={
                 "subscription": {
                     "tags": {"_marker": marker},
-                    "flags": {"is_active": False},
+                    "name": "Webhook-B",
                 },
             },
         )

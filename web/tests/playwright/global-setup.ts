@@ -1,8 +1,10 @@
 /**
  * Automates Playwright authentication and storage setup.
+ * Optionally creates an ephemeral project for test isolation.
  */
 
 import {chromium} from "@playwright/test"
+import {existsSync, writeFileSync} from "fs"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
 import {
@@ -12,28 +14,57 @@ import {
     waitForPath,
 } from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
-import {createInitialUserState} from "../tests/fixtures/user.fixture/authHelpers/utilities"
 import {getTestmailClient} from "../utils/testmail"
 
 /**
  * Runs before Playwright tests to automate authentication.
  * Handles both login and signup flows.
  * Stores authenticated state in a file to be reused by tests.
+ * When AGENTA_TEST_EPHEMERAL_PROJECT is enabled (default), creates a fresh
+ * project scoped to this test run so data doesn't accumulate.
  */
+/**
+ * Derives the API base URL from AGENTA_WEB_URL.
+ * The web app may live at a subpath (e.g. /w) but the API is always at /api on the origin.
+ */
+function getApiURL(webURL: string): string {
+    if (process.env.AGENTA_API_URL) return process.env.AGENTA_API_URL
+    try {
+        const u = new URL(webURL)
+        return `${u.origin}/api`
+    } catch {
+        return `${webURL}/api`
+    }
+}
+
 async function globalSetup() {
     // Automate authentication before Playwright tests
     console.log("[global-setup] Starting global setup for authentication")
 
-    const baseURL = process.env.AGENTA_WEB_URL || "http://localhost"
+    const baseURL = process.env.AGENTA_WEB_URL || "http://localhost:3000"
     const license = process.env.AGENTA_LICENSE || "oss"
     const storageState = "state.json"
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
     const timeout = 60000
     const inputDelay = 100
-
-    const {email} = createInitialUserState({
-        name: license,
-    })
+    const authModeRaw = (process.env.AGENTA_TEST_AUTH_MODE || "auto").toLowerCase()
+    if (!["auto", "password", "otp"].includes(authModeRaw)) {
+        throw new Error(
+            `Invalid AGENTA_TEST_AUTH_MODE='${authModeRaw}'. Supported values: auto, password, otp`,
+        )
+    }
+    const authMode = authModeRaw as "auto" | "password" | "otp"
+    console.log(`[global-setup] Auth mode: ${authMode}`)
+    const hasTestmailConfig = Boolean(
+        process.env.TESTMAIL_API_KEY && process.env.TESTMAIL_NAMESPACE,
+    )
+    const testmail = hasTestmailConfig ? getTestmailClient() : null
+    const generatedEmail = testmail
+        ? testmail.generateTestEmail({
+              scope: license,
+              branch: process.env.BRANCH_NAME,
+          })
+        : `e2e.${license}.${Date.now()}@inbox.testmail.app`
 
     console.log("[global-setup] Launching browser")
     const browser = await chromium.launch()
@@ -47,7 +78,6 @@ async function globalSetup() {
     // @ts-ignore
     await page.evaluate(() => window.localStorage.clear())
 
-    const testmail = getTestmailClient()
     /**
      * Fills OTP input fields on the page one digit at a time.
      * @param otp - The one-time password string.
@@ -80,10 +110,9 @@ async function globalSetup() {
         // Race: the survey form loads ("Tell us about yourself") OR
         // the page redirects away (no PostHog API key → redirects to /get-started or /apps)
         const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
-        const redirected = page.waitForURL(
-            (url) => !url.pathname.endsWith("/post-signup"),
-            {timeout: 15000},
-        )
+        const redirected = page.waitForURL((url) => !url.pathname.endsWith("/post-signup"), {
+            timeout: 15000,
+        })
         const surveyLoaded = tellUsAboutYourselfLocator
             .waitFor({state: "visible", timeout: 15000})
             .then(() => "survey" as const)
@@ -122,10 +151,74 @@ async function globalSetup() {
 
     const timestamp = Date.now()
 
-    // For OSS, use admin credentials from env vars
-    const loginEmail =
-        license === "oss" ? process.env.AGENTA_ADMIN_EMAIL || email : email
-    const adminPassword = process.env.AGENTA_ADMIN_PASSWORD
+    // OSS owner credentials support both new and legacy env var names
+    const ossOwnerEmail = process.env.AGENTA_TEST_OSS_OWNER_EMAIL || process.env.AGENTA_ADMIN_EMAIL
+    const ossOwnerPassword =
+        process.env.AGENTA_TEST_OSS_OWNER_PASSWORD || process.env.AGENTA_ADMIN_PASSWORD
+    const loginEmail = license === "oss" ? ossOwnerEmail || generatedEmail : generatedEmail
+
+    const ensureAuthEntryPoint = async (): Promise<boolean> => {
+        const emailInput = page.locator('input[type="email"]').first()
+        const hasEmailInput = await emailInput
+            .waitFor({state: "visible", timeout: 10000})
+            .then(() => true)
+            .catch(() => false)
+
+        if (hasEmailInput) {
+            return true
+        }
+
+        const isAlreadyAuthenticated = !new URL(page.url()).pathname.includes("/auth")
+        if (isAlreadyAuthenticated) {
+            console.log("[global-setup] Already authenticated, skipping auth form flow")
+            return true
+        }
+
+        // Fallback: auth page may transiently render without inputs; force a reload once.
+        await page.goto(`${baseURL}/auth`, {timeout, waitUntil: "domcontentloaded"})
+        const hasEmailInputAfterReload = await emailInput
+            .waitFor({state: "visible", timeout})
+            .then(() => true)
+            .catch(() => false)
+
+        if (hasEmailInputAfterReload) {
+            return true
+        }
+
+        if (existsSync(storageState)) {
+            console.warn(
+                "[global-setup] Auth UI unavailable; reusing existing state.json from previous run",
+            )
+            return false
+        }
+
+        throw new Error("Auth UI unavailable: email input not visible on /auth")
+    }
+
+    const canRunAuthFlow = await ensureAuthEntryPoint()
+
+    if (!canRunAuthFlow) {
+        console.log(
+            "[global-setup] Reusing cached state.json and creating ephemeral project with stored auth",
+        )
+        const cachedContext = await browser.newContext({storageState})
+        const cachedPage = await cachedContext.newPage()
+
+        await cachedPage.goto(`${baseURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
+        await maybeCreateEphemeralProject(cachedPage, baseURL)
+
+        await cachedContext.close()
+        await browser.close()
+        return
+    }
+
+    if (!new URL(page.url()).pathname.includes("/auth")) {
+        await page.context().storageState({path: storageState as string})
+        // Create ephemeral project even when already authenticated
+        await maybeCreateEphemeralProject(page, baseURL)
+        await browser.close()
+        return
+    }
 
     console.log(`[global-setup] Typing email: ${loginEmail}`)
     await typeWithDelay(page, 'input[type="email"]', loginEmail)
@@ -136,11 +229,21 @@ async function globalSetup() {
 
     try {
         if (hasSigninButton) {
+            if (authMode === "otp") {
+                throw new Error(
+                    "AGENTA_TEST_AUTH_MODE=otp is incompatible with Sign in password flow",
+                )
+            }
             // Password sign-in flow (OSS with pre-created admin account)
-            const password = adminPassword
+            if (!ossOwnerEmail) {
+                throw new Error(
+                    "AGENTA_TEST_OSS_OWNER_EMAIL (or AGENTA_ADMIN_EMAIL) is required for OSS password sign-in flow",
+                )
+            }
+            const password = ossOwnerPassword
             if (!password) {
                 throw new Error(
-                    "AGENTA_ADMIN_PASSWORD is required for the password sign-in flow",
+                    "AGENTA_TEST_OSS_OWNER_PASSWORD (or AGENTA_ADMIN_PASSWORD) is required for the password sign-in flow",
                 )
             }
 
@@ -163,33 +266,57 @@ async function globalSetup() {
             const verifyEmailLocator = page.getByText("Verify your email")
             const passwordInput = page.locator("input[type='password']")
 
-            // Race: whichever appears first determines the flow
-            await Promise.race([
-                verifyEmailLocator.waitFor({state: "visible", timeout}),
-                passwordInput.waitFor({state: "visible", timeout}),
-            ])
+            if (authMode === "password") {
+                await passwordInput.waitFor({state: "visible", timeout})
+            } else if (authMode === "otp") {
+                await verifyEmailLocator.waitFor({state: "visible", timeout})
+            } else {
+                // Auto-detect: whichever appears first determines the flow
+                await Promise.race([
+                    verifyEmailLocator.waitFor({state: "visible", timeout}),
+                    passwordInput.waitFor({state: "visible", timeout}),
+                ])
+            }
 
-            if (await passwordInput.isVisible()) {
+            const isPasswordFlow = await passwordInput.isVisible()
+            if (isPasswordFlow) {
                 // Email + password signup/signin flow (local EE with SuperTokens)
                 console.log("[global-setup] Email + password flow detected")
-                const testPassword = "TestPass123!"
+                const testPassword = ossOwnerPassword || "TestPass123!"
                 await typeWithDelay(page, "input[type='password']", testPassword)
-                await clickButton(page, "Continue with password")
+                try {
+                    await clickButton(page, "Continue with password")
+                } catch {
+                    // Occasionally a transient Next.js portal overlays the button.
+                    // Submit the form via Enter as a robust fallback.
+                    await page.keyboard.press("Enter")
+                }
 
                 await handlePostSignup()
 
                 // Wait for the page to settle on an authenticated URL
                 console.log("[global-setup] Waiting for authenticated page")
                 await page.waitForURL(
-                    (url) => !url.pathname.includes("/auth") && !url.pathname.endsWith("/post-signup"),
-                    {timeout},
+                    (url) =>
+                        !url.pathname.includes("/auth") && !url.pathname.endsWith("/post-signup"),
+                    {timeout, waitUntil: "domcontentloaded"},
                 )
                 console.log(`[global-setup] Settled on: ${page.url()}`)
             } else {
+                if (authMode === "password") {
+                    throw new Error(
+                        "AGENTA_TEST_AUTH_MODE=password requested but OTP flow was rendered",
+                    )
+                }
                 // OTP flow (cloud EE with SuperTokens passwordless)
+                if (!testmail) {
+                    throw new Error(
+                        "TESTMAIL_API_KEY and TESTMAIL_NAMESPACE are required for OTP auth flow",
+                    )
+                }
                 console.log("[global-setup] OTP flow detected")
                 console.log("[global-setup] Waiting for OTP email")
-                const otp = await testmail.waitForOTP(email, {
+                const otp = await testmail.waitForOTP(loginEmail, {
                     timeout,
                     timestamp_from: timestamp,
                 })
@@ -215,7 +342,84 @@ async function globalSetup() {
     } finally {
         console.log("[global-setup] Saving storage state and closing browser")
         await page.context().storageState({path: storageState as string})
+        await maybeCreateEphemeralProject(page, baseURL)
         await browser.close()
+    }
+}
+
+/**
+ * Creates an ephemeral project for the test run when AGENTA_TEST_EPHEMERAL_PROJECT is enabled.
+ * Uses the already-authenticated page context (cookies) to call the projects API.
+ * Sets make_default=true so all test navigation to /apps auto-redirects to this project.
+ * Saves project metadata to test-project.json for teardown to clean up.
+ */
+async function maybeCreateEphemeralProject(page: any, baseURL: string): Promise<void> {
+    const ephemeralEnabled =
+        String(process.env.AGENTA_TEST_EPHEMERAL_PROJECT ?? "true").toLowerCase() !== "false"
+
+    if (!ephemeralEnabled) {
+        console.log(
+            "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
+        )
+        return
+    }
+
+    console.log("[global-setup] Creating ephemeral project for test isolation...")
+
+    try {
+        const apiURL = getApiURL(baseURL)
+
+        // Find the current default project so we can restore it during teardown
+        const projectsResponse = await page.request.get(`${apiURL}/projects/`)
+        let originalDefaultProjectId: string | null = null
+
+        if (projectsResponse.ok()) {
+            const projects = await projectsResponse.json()
+            const defaultProject = projects.find((p: any) => p.is_default_project)
+            if (defaultProject) {
+                originalDefaultProjectId = defaultProject.project_id
+                console.log(
+                    `[global-setup] Original default project: ${defaultProject.project_name} (${originalDefaultProjectId})`,
+                )
+            }
+        }
+
+        // Create the ephemeral project
+        const projectName = `e2e-${Date.now()}`
+        const response = await page.request.post(`${apiURL}/projects/`, {
+            data: {name: projectName, make_default: true},
+        })
+
+        if (!response.ok()) {
+            const text = await response.text()
+            console.warn(
+                `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
+            )
+            return
+        }
+
+        const project = await response.json()
+        console.log(
+            `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
+        )
+
+        // Save project metadata for teardown (including original default for restore)
+        writeFileSync(
+            "test-project.json",
+            JSON.stringify(
+                {
+                    project_id: project.project_id,
+                    project_name: project.project_name,
+                    workspace_id: project.workspace_id,
+                    original_default_project_id: originalDefaultProjectId,
+                    created_at: new Date().toISOString(),
+                },
+                null,
+                2,
+            ),
+        )
+    } catch (error) {
+        console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
     }
 }
 

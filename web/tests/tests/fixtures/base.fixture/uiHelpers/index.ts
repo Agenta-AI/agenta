@@ -69,7 +69,7 @@ export const uiHelpers = () => {
             },
 
             expectPath: async (path) => {
-                await expect(page).toHaveURL(new RegExp(path))
+                await waitForPath(page, path)
             },
 
             waitForPath: async (path: string) => {

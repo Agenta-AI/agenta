@@ -6,6 +6,9 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
 const playgroundTests = () => {
@@ -19,9 +22,20 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Free),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({apiHelpers, navigateToPlayground, runCompletionSingleViewVariant}) => {
+        async ({
+            apiHelpers,
+            navigateToPlayground,
+            runCompletionSingleViewVariant,
+            testProviderHelpers,
+        }) => {
+            basePlaygroundTest.setTimeout(120000)
+            await testProviderHelpers.ensureTestProvider()
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.app_id
 
@@ -39,9 +53,20 @@ const playgroundTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Free),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({apiHelpers, navigateToPlayground, runChatSingleViewVariant}) => {
+        async ({
+            apiHelpers,
+            navigateToPlayground,
+            runChatSingleViewVariant,
+            testProviderHelpers,
+        }) => {
+            basePlaygroundTest.setTimeout(120000)
+            await testProviderHelpers.ensureTestProvider()
+
             const app = await apiHelpers.getApp("chat")
             const appId = app.app_id
 
@@ -59,6 +84,9 @@ const playgroundTests = () => {
                     createTagString("coverage", TestCoverage.LIGHT),
                     createTagString("coverage", TestCoverage.FULL),
                     createTagString("path", TestPath.HAPPY),
+                    createTagString("lens", TestLensType.FUNCTIONAL),
+                    createTagString("cost", TestCostType.Free),
+                    createTagString("license", TestLicenseType.OSS),
                 ],
             },
             async ({
