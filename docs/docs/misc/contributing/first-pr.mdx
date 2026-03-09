@@ -1,0 +1,68 @@
+---
+title: "Creating Your First PR"
+description: "How to pick an issue, work on it well, and open a pull request that is easy to review"
+sidebar_position: 2
+---
+
+This guide explains how to prepare and open a good first pull request for Agenta.
+
+## 1. Try The Product First
+
+Before you change the code, use Agenta first. Create a cloud account and try the product. That gives you the product context you need to make better choices.
+
+## 2. Pick A Good Issue
+
+Start with an issue that matches your skills. If you are not sure where to begin, join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) and ask. We can help you find work that fits your experience.
+
+If you want to propose new work, file an issue first unless the change is very small and obvious.
+
+## 3. Set Up Agenta Locally
+
+Set up Agenta on your machine before you start coding. Follow the [local installation guide](/self-host/quick-start), then use the [development mode guide](/misc/contributing/guides/development-mode) to run the project for local work.
+
+## 4. Understand The Change Before You Make It
+
+It is fine to use AI tools to help with the work. You still need to understand the code, the plan, and the edge cases. A pull request is easier to review when the author can explain what changed, why it changed, and how it was tested.
+
+Do not treat the repository like a black box. Read the related code, inspect the existing patterns, and make sure the change fits the project. A pull request that only asks an agent to fix something, without clear understanding from the author, is not a good contribution.
+
+## 5. Build The Fix Or Feature
+
+Keep the change focused. Use the existing code style and architecture. If the issue is a bug, explain the root cause and fix that cause instead of only patching the symptom.
+
+## 6. Test Your Work
+
+Run the relevant checks for the area you changed. Write down what you tested locally and what still needs QA. If the change needs tests, add or update them.
+
+Read these guides before you open the PR:
+
+- [Testing](/misc/contributing/guides/testing)
+- [Formatting and Linting](/misc/contributing/guides/formatting-and-linting)
+
+## 7. Record A Demo For UI Changes
+
+If your pull request changes the UI or UX, include a short video, GIF, or screen recording. Reviewers should be able to see the behavior without reproducing it from scratch.
+
+If the change is not visual, mark the demo section as not applicable.
+
+## 8. Open The Pull Request
+
+Use the pull request template. Fill in the summary, testing details, QA follow-up, and demo section. Be specific. Reviewers should be able to understand the change quickly.
+
+Before you request review, make sure:
+
+- the summary explains what changed and why
+- the relevant tests pass locally
+- the relevant formatting and linting checks pass locally
+- the PR includes a demo for UI changes
+- the PR notes what still needs QA
+
+## 9. Sign The CLA
+
+After you open a pull request, a bot will ask you to sign the Contributor License Agreement. Follow that prompt so we can review and accept the contribution.
+
+## 10. Stay Responsive
+
+If a pull request stays inactive for more than a week, we may close it. You can reopen it later if you want to continue.
+
+If you get feedback, respond with focused updates and keep the conversation moving.

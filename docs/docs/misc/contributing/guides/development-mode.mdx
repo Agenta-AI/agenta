@@ -1,0 +1,44 @@
+---
+title: "Development Mode in Agenta"
+description: "How to run Agenta locally in development mode"
+sidebar_position: 1
+---
+
+This guide explains how to run Agenta locally in development mode while you work on the codebase.
+
+## Start Agenta In Development Mode
+
+Development mode gives you hot reload, which makes local development much faster.
+
+### 1. Clone The Repository
+
+```bash
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta
+```
+
+### 2. Launch The Server
+
+```bash
+./hosting/docker-compose/run.sh --license oss --dev
+```
+
+If you want to run the Next.js web app outside the container, use:
+
+```bash
+./hosting/docker-compose/run.sh --license oss --dev --no-web
+```
+
+### 3. Verify The Installation
+
+Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, the setup is working.
+
+## Debugging The Backend
+
+The easiest way to debug the backend is to inspect the Docker logs.
+
+1. Open Docker Desktop.
+2. Select the backend container.
+3. Click on the Logs button.
+
+If you use Visual Studio Code, you can also open the Docker tab, select the backend container, and view its logs there.

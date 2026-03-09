@@ -369,6 +369,23 @@ const config: Config = {
             from: "/self-host/applying-schema-migration",
             to: "/self-host/upgrading",
           },
+          // Contributing restructure redirects
+          {
+            from: "/misc/contributing/getting-started",
+            to: "/misc/contributing/overview",
+          },
+          {
+            from: "/misc/contributing/development-mode",
+            to: "/misc/contributing/guides/development-mode",
+          },
+          {
+            from: "/misc/contributing/file-issue",
+            to: "/misc/contributing/guides/file-issue",
+          },
+          {
+            from: "/misc/contributing/community-projects",
+            to: "/misc/contributing/guides/community-projects",
+          },
           // Prompt Engineering restructure redirects
           {
             from: "/prompt-engineering/overview",
