@@ -111,7 +111,7 @@ class AuthConfig(BaseModel):
     # turnstile_site_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SITE_KEY")
     # turnstile_secret_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SECRET_KEY")
 
-    turnstile_site_key: str | None = "1x00000000000000000000AA"
+    turnstile_site_key: str | None = "3x00000000000000000000FF"
     turnstile_secret_key: str | None = "1x0000000000000000000000000000000AA"
 
     model_config = ConfigDict(extra="ignore")
