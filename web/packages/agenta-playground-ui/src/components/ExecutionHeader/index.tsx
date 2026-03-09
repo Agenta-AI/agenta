@@ -8,7 +8,7 @@ import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
+// import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
 
 export interface ExecutionHeaderProps {
     /** Entity ID — when provided, scopes run/results to this single entity (single view).
@@ -40,7 +40,7 @@ const ExecutionHeader = ({
     entityId,
     className,
     renderTestsetActions,
-    onRepeatCountChange,
+    // onRepeatCountChange,
 }: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
@@ -77,7 +77,7 @@ const ExecutionHeader = ({
     useRunAllShortcut({isRunning, canRun, onRun: runTests})
 
     const showCollapseToggle = !isComparisonView
-    const showRunOptions = !isComparisonView && entityId
+    // const showRunOptions = !isComparisonView && entityId
 
     return (
         <div
