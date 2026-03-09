@@ -485,6 +485,12 @@ const SingleView = ({
     const feedbackConfig =
         (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
 
+    // Version and draft state for the primary node label
+    const primaryVersion = (primaryData as Record<string, unknown> | null)?.version as
+        | number
+        | undefined
+    const primaryIsDirty = useAtomValue(useMemo(() => runnableBridge.isDirty(entityId), [entityId]))
+
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -734,7 +740,12 @@ const SingleView = ({
                         ])}
                     >
                         {/* Primary node */}
-                        <NodeResultCard name={primaryNodeLabel} status={primaryNodeStatus}>
+                        <NodeResultCard
+                            name={primaryNodeLabel}
+                            version={primaryVersion}
+                            isDraft={primaryIsDirty}
+                            status={primaryNodeStatus}
+                        >
                             <div
                                 className={clsx(
                                     "min-w-0",

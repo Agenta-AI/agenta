@@ -260,6 +260,12 @@ const GenerationComparisonCompletionOutput = ({
     const feedbackConfig =
         (primaryData?.configuration?.feedback_config as Record<string, unknown>) ?? null
 
+    // Version and draft state for the primary node label
+    const primaryVersion = (primaryData as Record<string, unknown> | null)?.version as
+        | number
+        | undefined
+    const primaryIsDirty = useAtomValue(useMemo(() => runnableBridge.isDirty(entityId), [entityId]))
+
     if (isLoading) {
         return (
             <>
@@ -314,7 +320,12 @@ const GenerationComparisonCompletionOutput = ({
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[1] flex flex-col gap-3 px-3 py-2">
                     {/* Primary node */}
-                    <NodeResultCard name={primaryNodeLabel} status={primaryNodeStatus}>
+                    <NodeResultCard
+                        name={primaryNodeLabel}
+                        version={primaryVersion}
+                        isDraft={primaryIsDirty}
+                        status={primaryNodeStatus}
+                    >
                         <div className="min-w-0">
                             <ExecutionResultView
                                 isRunning={isRunning}
