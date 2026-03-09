@@ -19,6 +19,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
     // Always call the hook to satisfy React rules
     const watchField = field.visibleWhen?.field || "dummy_field_not_used"
     const dependsOnValue = Form.useWatch(watchField, form)
+    const isChangingSecret = Form.useWatch(`_changing_${field.key}`, form)
 
     if (field.visibleWhen && dependsOnValue !== field.visibleWhen.value) {
         return null
@@ -51,8 +52,6 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
         InputComponent = <Input placeholder={field.placeholder} disabled={isDisabled} />
     } else if (field.component === "input.password") {
         // Specific complex logic for password/secret fields
-        const isChangingSecret = form.getFieldValue(`_changing_${field.key}`)
-
         InputComponent = (
             <Form.Item
                 name={field.key}

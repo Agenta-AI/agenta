@@ -21,8 +21,8 @@ import {
     selectedProviderAtom,
 } from "@/oss/state/automations/state"
 
-import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
+import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
 import {handleTestResult} from "./utils/handleTestResult"
@@ -120,7 +120,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 github_sub_type: "repository_dispatch",
             })
         }
-    }, [open, initialValues, form, setSelectedProvider])
+    }, [open, initialValues, form])
 
     const handleTestConnection = useCallback(async () => {
         if (!initialValues?.id) return

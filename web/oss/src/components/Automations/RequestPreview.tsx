@@ -2,8 +2,11 @@ import React, {useMemo, useState} from "react"
 
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, Form, FormInstance, Tooltip} from "antd"
+import {useAtomValue} from "jotai"
 
 import {AutomationFormValues} from "@/oss/services/automations/types"
+import {editingAutomationAtom} from "@/oss/state/automations/state"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {buildPreviewRequest} from "./utils/buildPreviewRequest"
 
@@ -68,6 +71,8 @@ const HighlightedJson: React.FC<{data: Record<string, unknown>}> = ({data}) => {
 
 export const RequestPreview: React.FC<Props> = ({form}) => {
     const [copied, setCopied] = useState(false)
+    const projectId = useAtomValue(projectIdAtom)
+    const editingAutomation = useAtomValue(editingAutomationAtom)
 
     const formValues: AutomationFormValues = Form.useWatch((values) => values, form) || {
         provider: "webhook",
@@ -75,11 +80,14 @@ export const RequestPreview: React.FC<Props> = ({form}) => {
 
     const preview = useMemo(() => {
         try {
-            return buildPreviewRequest(formValues)
+            return buildPreviewRequest(formValues, {
+                projectId: projectId || undefined,
+                subscriptionId: editingAutomation?.id,
+            })
         } catch {
             return null
         }
-    }, [formValues])
+    }, [formValues, projectId, editingAutomation?.id])
 
     if (!preview || !preview.url) {
         return null

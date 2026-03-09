@@ -9,8 +9,15 @@ export interface PreviewRequest {
     body: Record<string, unknown>
 }
 
-// Dummy UUIDs/timestamps for the preview body
-const DUMMY_EVENT_CONTEXT = {
+export interface PreviewContext {
+    projectId?: string
+    subscriptionId?: string
+}
+
+/**
+ * Builds a dummy event context for the preview, using real IDs when available.
+ */
+const buildEventContext = (ctx?: PreviewContext) => ({
     event_id: "e44d82b4-...",
     event_type: "environments.revisions.committed",
     timestamp: new Date().toISOString(),
@@ -20,13 +27,56 @@ const DUMMY_EVENT_CONTEXT = {
         revision_id: "rev-456",
         version: "1.0",
     },
+    subscription: {
+        id: ctx?.subscriptionId || "<subscription_id>",
+    },
+    scope: {
+        project_id: ctx?.projectId || "<project_id>",
+    },
+})
+
+/**
+ * Recursively resolves template strings in a payload object.
+ */
+const resolvePayloadMocks = (payload: any, eventContext: Record<string, any>): any => {
+    if (typeof payload === "string") {
+        if (payload === "$") return eventContext
+        if (payload === "$.event") return eventContext
+        if (payload.startsWith("$.")) {
+            const path = payload.replace("$.event.", "").replace("$.", "")
+            const parts = path.split(".")
+            let current: any = eventContext
+            for (const part of parts) {
+                if (current && typeof current === "object" && part in current) {
+                    current = current[part]
+                } else {
+                    return payload
+                }
+            }
+            return current
+        }
+        return payload
+    }
+
+    if (typeof payload === "object" && payload !== null) {
+        const resolved: any = Array.isArray(payload) ? [] : {}
+        for (const [key, value] of Object.entries(payload)) {
+            resolved[key] = resolvePayloadMocks(value, eventContext)
+        }
+        return resolved
+    }
+
+    return payload
 }
 
 /**
  * Creates a read-only HTTP request preview for the UI.
  * Masks tokens and resolves basic payload templates so the user sees approximately what will be sent.
  */
-export const buildPreviewRequest = (formValues: AutomationFormValues): PreviewRequest => {
+export const buildPreviewRequest = (
+    formValues: AutomationFormValues,
+    ctx?: PreviewContext,
+): PreviewRequest => {
     const {
         provider,
         url,
@@ -39,6 +89,8 @@ export const buildPreviewRequest = (formValues: AutomationFormValues): PreviewRe
         github_workflow,
         github_branch,
     } = formValues
+
+    const eventContext = buildEventContext(ctx)
 
     if (provider === "webhook") {
         const finalHeaders = {...(headers || {})}
@@ -53,30 +105,20 @@ export const buildPreviewRequest = (formValues: AutomationFormValues): PreviewRe
             method: "POST",
             url: url || "https://...",
             headers: finalHeaders,
-            body: DUMMY_EVENT_CONTEXT,
+            body: eventContext,
         }
     } else if (provider === "github") {
         const subType = github_sub_type || "repository_dispatch"
         const repo = github_repo || "<owner>/<repo>"
         let finalUrl = GITHUB_URL_TEMPLATES[subType].replace("{repo}", repo)
-        const payload_fields: Record<string, string> = {...GITHUB_PAYLOAD_TEMPLATES[subType]}
+        const payload_fields = {...GITHUB_PAYLOAD_TEMPLATES[subType]}
 
         if (subType === "workflow_dispatch") {
             const workflow = github_workflow || "<workflow.yml>"
             const branch = github_branch || "main"
             finalUrl = finalUrl.replace("{workflow}", workflow)
-            payload_fields.ref = payload_fields.ref.replace("{branch}", branch)
-        }
-
-        // Mock the resolved payload_fields (this logic is typically backend-side)
-        const mockResolvedPayload: Record<string, unknown> = {}
-        for (const [key, value] of Object.entries(payload_fields)) {
-            if (value === "$") {
-                mockResolvedPayload[key] = DUMMY_EVENT_CONTEXT
-            } else if (value === "$.event.event_type" || value === "$.event_type") {
-                mockResolvedPayload[key] = DUMMY_EVENT_CONTEXT.event_type
-            } else {
-                mockResolvedPayload[key] = value
+            if (typeof payload_fields.ref === "string") {
+                payload_fields.ref = payload_fields.ref.replace("{branch}", branch)
             }
         }
 
@@ -87,7 +129,7 @@ export const buildPreviewRequest = (formValues: AutomationFormValues): PreviewRe
                 ...GITHUB_HEADERS,
                 Authorization: github_pat ? `Bearer ghp_••••••••••••` : "Bearer <token>",
             },
-            body: mockResolvedPayload,
+            body: resolvePayloadMocks(payload_fields, eventContext),
         }
     }
 

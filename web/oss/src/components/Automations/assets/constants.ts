@@ -134,7 +134,6 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 visibleWhen: {field: "github_sub_type", value: "workflow_dispatch"},
             },
             {
-            {
                 key: "github_pat",
                 label: "Personal Access Token",
                 component: "input.password",

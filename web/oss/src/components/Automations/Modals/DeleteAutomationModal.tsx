@@ -1,11 +1,11 @@
 import {useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui"
 import {message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import {deleteAutomationAtom} from "@/oss/state/automations/atoms"
 import {webhookToDeleteAtom} from "@/oss/state/automations/state"
-import {EnhancedModal} from "@agenta/ui"
 
 const DeleteAutomationModal = () => {
     const deleteWebhook = useSetAtom(deleteAutomationAtom)
