@@ -621,9 +621,7 @@ interface EvaluatorTemplatesResponse {
  * @param projectId - Project ID
  * @returns Array of evaluator templates with key and name
  */
-export async function fetchEvaluatorTemplates(
-    projectId: string,
-): Promise<EvaluatorTemplate[]> {
+export async function fetchEvaluatorTemplates(projectId: string): Promise<EvaluatorTemplate[]> {
     if (!projectId) return []
 
     const response = await axios.get<EvaluatorTemplatesResponse>(
