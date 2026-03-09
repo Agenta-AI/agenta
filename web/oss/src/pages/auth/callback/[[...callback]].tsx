@@ -17,10 +17,7 @@ import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
-const TurnstileWidget = dynamic(
-    () => import("@/oss/components/pages/auth/Turnstile"),
-    {ssr: false},
-)
+const TurnstileWidget = dynamic(() => import("@/oss/components/pages/auth/Turnstile"), {ssr: false})
 
 const Callback = () => {
     const router = useRouter()

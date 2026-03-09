@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict, Union
+from typing import Optional, List, Tuple
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Depends, status, HTTPException, Body
@@ -49,7 +49,6 @@ if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
 
 from oss.src.core.tracing.dtos import (
-    OTelLink,
     OTelLinks,
     OTelFlatSpans,
     Span,
@@ -65,7 +64,6 @@ from oss.src.core.shared.dtos import Link
 log = get_module_logger(__name__)
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter  # type: ignore
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
 

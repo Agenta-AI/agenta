@@ -35,11 +35,7 @@ def parse_auth_info(email: Optional[str]) -> Optional[AuthInfo]:
 
 def _normalize_string_set(values: Any) -> Set[str]:
     if isinstance(values, str):
-        return {
-            value.strip().lower()
-            for value in values.split(",")
-            if value.strip()
-        }
+        return {value.strip().lower() for value in values.split(",") if value.strip()}
 
     if not isinstance(values, (list, set, tuple)):
         return set()
