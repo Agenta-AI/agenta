@@ -12,6 +12,7 @@ type TurnstileRenderOptions = {
     sitekey: string
     callback?: (token: string) => void
     theme?: "light" | "dark" | "auto"
+    size?: "normal" | "compact"
     "error-callback"?: () => void
     "expired-callback"?: () => void
     "timeout-callback"?: () => void
@@ -180,6 +181,7 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
                     widgetIdRef.current = window.turnstile.render(containerRef.current, {
                         sitekey: siteKey,
                         theme: "auto",
+                        size: "compact",
                         callback: (token) => emitToken(token),
                         "error-callback": () => emitError("Turnstile challenge failed."),
                         "expired-callback": () => emitError("Turnstile token expired."),
@@ -209,7 +211,7 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
 
         return (
             <div className={className}>
-                <div ref={containerRef} />
+                <div className="rounded-lg overflow-hidden min-h-[65px] min-w-[130px]" ref={containerRef} />
             </div>
         )
     },
