@@ -23,6 +23,15 @@ Copy the example env file:
 
 ```bash
 cp hosting/docker-compose/oss/env.oss.dev.example hosting/docker-compose/oss/.env.oss.dev
+```
+
+If you are running on a remote server, open `.env.oss.dev` and set `AGENTA_WEB_URL` to your server's IP address (for example `http://192.168.1.100`). If you are running locally, the defaults are fine.
+
+### 3. Launch The Server
+
+```bash
+./hosting/docker-compose/run.sh --license oss --dev
+```
 
 If you want to run the Next.js web app outside the container, use:
 
@@ -30,7 +39,7 @@ If you want to run the Next.js web app outside the container, use:
 ./hosting/docker-compose/run.sh --license oss --dev --no-web
 ```
 
-### 3. Verify The Installation
+### 4. Verify The Installation
 
 Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, the setup is working.
 
