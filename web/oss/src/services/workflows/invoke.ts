@@ -21,6 +21,17 @@ export interface WorkflowServiceBatchResponse {
     }
 }
 
+export interface WorkflowServiceReference {
+    id?: string
+    slug?: string
+    version?: string
+}
+
+export interface WorkflowServiceLink {
+    trace_id: string
+    span_id: string
+}
+
 export interface InvokeEvaluatorOptions {
     signal?: AbortSignal
     timeout?: number
@@ -34,6 +45,8 @@ export interface InvokeEvaluatorParams {
     outputs?: any
     trace?: any
     parameters?: Record<string, any>
+    references?: Record<string, WorkflowServiceReference>
+    links?: Record<string, WorkflowServiceLink>
     options?: InvokeEvaluatorOptions
 }
 
@@ -42,6 +55,8 @@ export interface InvokeApplicationParams {
     url?: string
     inputs?: Record<string, any>
     parameters?: Record<string, any>
+    references?: Record<string, WorkflowServiceReference>
+    links?: Record<string, WorkflowServiceLink>
     options?: InvokeEvaluatorOptions
 }
 
@@ -55,6 +70,8 @@ export const invokeEvaluator = async ({
     outputs,
     trace,
     parameters,
+    references,
+    links,
     options,
 }: InvokeEvaluatorParams): Promise<WorkflowServiceBatchResponse> => {
     const {projectId} = getProjectValues()
@@ -74,6 +91,8 @@ export const invokeEvaluator = async ({
     const request: Record<string, any> = {
         interface: evaluatorUri ? {uri: evaluatorUri} : {url: evaluatorUrl},
         configuration: parameters ? {parameters} : undefined,
+        references,
+        links,
         data: {
             inputs,
             outputs,
@@ -101,6 +120,8 @@ export const invokeApplication = async ({
     url,
     inputs,
     parameters,
+    references,
+    links,
     options,
 }: InvokeApplicationParams): Promise<WorkflowServiceBatchResponse> => {
     const {projectId} = getProjectValues()
@@ -114,6 +135,8 @@ export const invokeApplication = async ({
     const request: Record<string, any> = {
         interface: explicitUri ? {uri: explicitUri} : {url: explicitUrl},
         configuration: parameters ? {parameters} : undefined,
+        references,
+        links,
         data: {
             inputs,
             parameters,

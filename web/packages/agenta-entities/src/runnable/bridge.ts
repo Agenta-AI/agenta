@@ -599,12 +599,30 @@ function evaluatorRevisionRequestPayloadSelector(revisionId: string) {
         if (!uri && !url) return null
 
         const parameters = entity.data.parameters ?? {}
+        const evaluatorId = entity.workflow_id ?? undefined
+        const evaluatorVariantId = entity.workflow_variant_id ?? entity.variant_id ?? undefined
+        const references: Record<string, Record<string, string | undefined>> = {}
+
+        if (evaluatorId) {
+            references.evaluator = {id: evaluatorId}
+        }
+        if (evaluatorVariantId) {
+            references.evaluator_variant = {id: evaluatorVariantId}
+        }
+        if (entity.id || entity.slug || entity.version != null) {
+            references.evaluator_revision = {
+                id: entity.id || undefined,
+                slug: entity.slug ?? undefined,
+                version: entity.version != null ? String(entity.version) : undefined,
+            }
+        }
 
         return {
             __rawBody: true,
             interface: uri ? {uri} : {url},
             configuration:
                 parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+            references: Object.keys(references).length > 0 ? references : undefined,
             data: {
                 inputs: {},
                 outputs: {},
@@ -955,7 +973,15 @@ export const runnableBridge = createRunnableBridge({
                 const data = responseData as Record<string, unknown> | null | undefined
                 const nestedData = data?.data as Record<string, unknown> | undefined
                 const output = nestedData?.outputs ?? data?.outputs ?? data
-                return {output}
+                return {
+                    output,
+                    trace: data?.trace_id
+                        ? {
+                              id: data.trace_id as string,
+                              ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                          }
+                        : undefined,
+                }
             },
         },
         evaluatorRevision: {
@@ -979,11 +1005,19 @@ export const runnableBridge = createRunnableBridge({
                 return flattenEvaluatorConfiguration(params, originalFlat)
             },
             normalizeResponse: (responseData: unknown) => {
-                // Evaluator endpoint returns {outputs: {score, reasoning, ...}}
-                // No trace_id is returned.
+                // Evaluator endpoint returns {outputs: {score, reasoning, ...}}.
+                // Preserve trace metadata when the backend provides it.
                 const data = responseData as Record<string, unknown> | null | undefined
                 const output = data?.outputs ?? data
-                return {output}
+                return {
+                    output,
+                    trace: data?.trace_id
+                        ? {
+                              id: data.trace_id as string,
+                              ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                          }
+                        : undefined,
+                }
             },
             extraSelectors: {
                 presets: (id: string) => evaluatorRevisionMolecule.selectors.presets(id),
@@ -1034,13 +1068,27 @@ export const runnableBridge = createRunnableBridge({
                 if (typeof nestedData === "string") {
                     return {
                         output: nestedData,
-                        trace: data?.tree_id ? {id: data.tree_id as string} : undefined,
+                        trace:
+                            data?.trace_id || data?.tree_id
+                                ? {
+                                      id: (data?.trace_id || data?.tree_id) as string,
+                                      ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                                  }
+                                : undefined,
                     }
                 }
                 // Legacy: data.data is an object with .outputs
                 const nestedObj = nestedData as Record<string, unknown> | undefined
                 const output = nestedObj?.outputs ?? data?.outputs ?? data
-                return {output}
+                return {
+                    output,
+                    trace: data?.trace_id
+                        ? {
+                              id: data.trace_id as string,
+                              ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                          }
+                        : undefined,
+                }
             },
             latestRevisionIdSelector: (parentId: string) =>
                 workflowLatestRevisionIdAtomFamily(parentId),

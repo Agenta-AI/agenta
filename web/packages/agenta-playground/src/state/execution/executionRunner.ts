@@ -4,6 +4,7 @@ import {
     buildEvaluatorExecutionInputs,
     validateEvaluatorInputs,
     runnableBridge,
+    type RequestPayloadData,
     type RunnableData,
     type ExecutionResult,
     type StageExecutionResult,
@@ -21,13 +22,66 @@ import {
     resultsByKeyAtomFamily,
 } from "./atoms"
 import {createExecutionItemHandle} from "./executionItems"
-import {extractTraceIdFromPayload} from "./trace"
+import {extractSpanIdFromPayload, extractTraceIdFromPayload} from "./trace"
 import type {ExecutionSession, RunResult, SessionExecutionOptions} from "./types"
 
 interface RunnableNode {
     id: string
     entity: EntitySelection
     depth: number
+}
+
+type TraceReferenceMap = NonNullable<RequestPayloadData["references"]>
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    return value as Record<string, unknown>
+}
+
+function readString(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0 ? value : undefined
+}
+
+function normalizeApplicationReferences(
+    references: RequestPayloadData["references"],
+): TraceReferenceMap | undefined {
+    if (!references) return undefined
+
+    const appRef = asRecord(references.application)
+    const appVariantRef = asRecord(references.application_variant)
+    const appRevisionRef = asRecord(references.application_revision)
+    const normalized: TraceReferenceMap = {}
+
+    const applicationId = readString(appRef?.id)
+    const applicationSlug = readString(appRef?.slug)
+    if (applicationId || applicationSlug) {
+        normalized.application = {
+            ...(applicationId ? {id: applicationId} : {}),
+            ...(applicationSlug ? {slug: applicationSlug} : {}),
+        }
+    }
+
+    const applicationVariantId = readString(appVariantRef?.id) || readString(appRef?.variant_id)
+    const applicationVariantSlug = readString(appVariantRef?.slug)
+    if (applicationVariantId || applicationVariantSlug) {
+        normalized.application_variant = {
+            ...(applicationVariantId ? {id: applicationVariantId} : {}),
+            ...(applicationVariantSlug ? {slug: applicationVariantSlug} : {}),
+        }
+    }
+
+    const applicationRevisionId = readString(appRevisionRef?.id) || readString(appRef?.revision_id)
+    const applicationRevisionSlug = readString(appRevisionRef?.slug)
+    const applicationRevisionVersion = readString(appRevisionRef?.version)
+    if (applicationRevisionId || applicationRevisionSlug || applicationRevisionVersion) {
+        normalized.application_revision = {
+            ...(applicationRevisionId ? {id: applicationRevisionId} : {}),
+            ...(applicationRevisionSlug ? {slug: applicationRevisionSlug} : {}),
+            ...(applicationRevisionVersion ? {version: applicationRevisionVersion} : {}),
+        }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : undefined
 }
 
 function toRunnableNode(node: PlaygroundNode): RunnableNode {
@@ -40,6 +94,52 @@ function toRunnableNode(node: PlaygroundNode): RunnableNode {
         },
         depth: "depth" in node && typeof node.depth === "number" ? node.depth : 0,
     }
+}
+
+function buildUpstreamLinks(params: {
+    incomingConnection?: OutputConnection
+    runnableNodes: RunnableNode[]
+    nodeResults: Record<string, ExecutionResult>
+}): Record<string, {trace_id: string; span_id: string}> | undefined {
+    const sourceNodeId = params.incomingConnection?.sourceNodeId
+    if (!sourceNodeId) return undefined
+
+    const sourceResult = params.nodeResults[sourceNodeId]
+    const traceId =
+        sourceResult?.trace?.id || extractTraceIdFromPayload(sourceResult?.structuredOutput)
+    const spanId =
+        sourceResult?.trace?.spanId || extractSpanIdFromPayload(sourceResult?.structuredOutput)
+
+    if (!traceId || !spanId) return undefined
+
+    const sourceNode = params.runnableNodes.find((node) => node.id === sourceNodeId)
+    const linkKey = sourceNode?.depth === 0 ? "application" : sourceNodeId
+
+    return {
+        [linkKey]: {
+            trace_id: traceId,
+            span_id: spanId,
+        },
+    }
+}
+
+function buildUpstreamReferences(params: {
+    get: Getter
+    incomingConnection?: OutputConnection
+    runnableNodes: RunnableNode[]
+}): TraceReferenceMap | undefined {
+    const sourceNodeId = params.incomingConnection?.sourceNodeId
+    if (!sourceNodeId) return undefined
+
+    const sourceNode = params.runnableNodes.find((node) => node.id === sourceNodeId)
+    if (!sourceNode) return undefined
+
+    const sourceBridge = runnableBridge.forType(sourceNode.entity.type)
+    const sourcePayload = params.get(
+        sourceBridge.requestPayload(sourceNode.entity.id),
+    ) as RequestPayloadData | null
+
+    return normalizeApplicationReferences(sourcePayload?.references)
 }
 
 function createConcurrencyLimiter(concurrency: number) {
@@ -367,12 +467,35 @@ export async function executeStepForSessionWithExecutionItems(
                                   entityType: node.entity.type,
                               })
 
+                    const stageLinks =
+                        node.depth > 0
+                            ? buildUpstreamLinks({
+                                  incomingConnection: allConnections.find(
+                                      (connection) => connection.targetNodeId === nodeId,
+                                  ),
+                                  runnableNodes,
+                                  nodeResults,
+                              })
+                            : undefined
+                    const stageReferences =
+                        node.depth > 0
+                            ? buildUpstreamReferences({
+                                  get,
+                                  incomingConnection: allConnections.find(
+                                      (connection) => connection.targetNodeId === nodeId,
+                                  ),
+                                  runnableNodes,
+                              })
+                            : undefined
+
                     const stageExecutionItem = stageHandle.run({
                         get,
                         headers: perSession?.headers ?? {},
                         repetitions: 1,
                         runId,
                         inputValues: nodeInputs,
+                        references: stageReferences,
+                        links: stageLinks,
                         projectId,
                     })
                     if (!stageExecutionItem) {
@@ -540,7 +663,10 @@ async function executeViaFetch(params: {
     requestBody: Record<string, unknown>
     headers: Record<string, string>
     abortSignal?: AbortSignal
-    normalizeResponse?: (responseData: unknown) => {output: unknown; trace?: {id: string}}
+    normalizeResponse?: (responseData: unknown) => {
+        output: unknown
+        trace?: {id: string; spanId?: string}
+    }
 }): Promise<ExecutionResult> {
     const {invocationUrl, requestBody, headers, abortSignal, normalizeResponse} = params
     const executionId = crypto.randomUUID()
@@ -594,8 +720,27 @@ async function executeViaFetch(params: {
             ? normalizeResponse(responseData)
             : {
                   output: responseData?.data !== undefined ? responseData.data : responseData,
-                  trace: responseData?.trace_id ? {id: responseData.trace_id as string} : undefined,
+                  trace: responseData?.trace_id
+                      ? {
+                            id: responseData.trace_id as string,
+                            ...(responseData?.span_id
+                                ? {spanId: responseData.span_id as string}
+                                : {}),
+                        }
+                      : undefined,
               }
+
+        const fallbackTraceId = extractTraceIdFromPayload(responseData)
+        const fallbackSpanId = extractSpanIdFromPayload(responseData)
+        const trace =
+            normalized.trace?.id || fallbackTraceId
+                ? {
+                      id: normalized.trace?.id || fallbackTraceId || "",
+                      ...(normalized.trace?.spanId || fallbackSpanId
+                          ? {spanId: normalized.trace?.spanId || fallbackSpanId || undefined}
+                          : {}),
+                  }
+                : undefined
 
         return {
             executionId,
@@ -604,7 +749,7 @@ async function executeViaFetch(params: {
             completedAt: new Date().toISOString(),
             output: normalized.output,
             structuredOutput: responseData,
-            trace: normalized.trace,
+            trace,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {

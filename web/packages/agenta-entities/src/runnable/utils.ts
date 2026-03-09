@@ -1198,8 +1198,9 @@ export async function executeRunnable(
         // API returns { version, data, content_type, tree, trace_id, span_id } - we want "data" as the output
         const output = responseData?.data !== undefined ? responseData.data : responseData
 
-        // Extract trace ID from response.trace_id (at root level, not inside tree)
+        // Extract trace metadata from the top-level workflow response.
         const traceId = responseData?.trace_id
+        const spanId = responseData?.span_id
 
         return {
             executionId,
@@ -1210,7 +1211,7 @@ export async function executeRunnable(
             // Store full response for detailed inspection
             structuredOutput: responseData,
             // Include trace info if available
-            trace: traceId ? {id: traceId} : undefined,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
@@ -1336,6 +1337,8 @@ async function executeEvaluator(
 
         // Evaluator run returns { outputs: {...} }
         const output = responseData?.outputs ?? responseData
+        const traceId = responseData?.trace_id
+        const spanId = responseData?.span_id
 
         return {
             executionId,
@@ -1344,6 +1347,7 @@ async function executeEvaluator(
             completedAt: new Date().toISOString(),
             output,
             structuredOutput: responseData,
+            trace: traceId ? {id: traceId, ...(spanId ? {spanId} : {})} : undefined,
         }
     } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
