@@ -309,7 +309,9 @@ export function CascaderVariant<TSelection = EntitySelectionResult>({
             popupMatchSelectWidth={popupMatchSelectWidth}
             popupClassName={popupClassName}
             placement={placement}
-            dropdownRender={dropdownRender as ((menu: React.ReactElement) => React.ReactElement) | undefined}
+            dropdownRender={
+                dropdownRender as ((menu: React.ReactElement) => React.ReactElement) | undefined
+            }
             showSearch={{
                 filter: (inputValue, path) =>
                     path.some((option) => {
