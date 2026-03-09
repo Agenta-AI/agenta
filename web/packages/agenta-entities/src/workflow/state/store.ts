@@ -812,8 +812,6 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
         const isEvaluator = serverData?.flags?.is_evaluator ?? false
-        const isCustom = serverData?.flags?.is_custom ?? false
-
         // --- Builtin app URL resolution (migration fix) ---
         // Use corrected URL for builtin apps with stale data.url.
         // TODO: Remove resolveBuiltinAppServiceUrl once backend migration patches
@@ -821,68 +819,16 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const resolvedUrl = serverData ? resolveBuiltinAppServiceUrl(serverData) : null
         const url = resolvedUrl ?? serverData?.data?.url ?? null
 
+        const enabled = get(sessionAtom) && !!projectId && !!url && !isEvaluator
+
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],
             queryFn: async (): Promise<AppOpenApiSchemas | null> => {
                 if (!projectId || !url) return null
                 return fetchWorkflowAppOpenApiSchema(url, projectId)
             },
-            // Only fetch for custom app workflows. Builtin apps (completion/chat)
-            // already have schemas from the server (data.schemas) and the same
-            // endpoint is prefetched by serviceSchemaQueryAtomFamily, making this
-            // fetch redundant.
-            enabled: get(sessionAtom) && !!projectId && !!url && !isEvaluator && isCustom,
+            enabled,
             staleTime: 60_000,
-        }
-    }),
-)
-
-// ============================================================================
-// SERVICE SCHEMA REUSE (builtin apps)
-// ============================================================================
-
-/**
- * Per-revision service schema selector for builtin apps.
- *
- * Reuses the already-prefetched service schemas from the legacy
- * `serviceSchemaQueryAtomFamily` (completionServiceSchemaAtom / chatServiceSchemaAtom)
- * and maps the result to `AppOpenApiSchemas`. This avoids a duplicate
- * OpenAPI fetch — the legacy system already caches the same schema.
- */
-const workflowServiceSchemaForRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<AppOpenApiSchemas | null>((get) => {
-        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
-        const serverData = revisionQuery.data ?? null
-        if (!serverData) return null
-        if (serverData.flags?.is_evaluator) return null
-        if (serverData.flags?.is_custom) return null
-
-        // Try URI first (canonical), fall back to extracting type from URL
-        const serviceType =
-            resolveServiceTypeFromUri(serverData.data?.uri) ??
-            resolveServiceTypeFromUrl(serverData.data?.url)
-        if (!serviceType) return null
-
-        // Read from the already-prefetched legacy service schema atoms
-        const schemaQuery =
-            serviceType === "completion"
-                ? get(completionServiceSchemaAtom)
-                : serviceType === "chat"
-                  ? get(chatServiceSchemaAtom)
-                  : null
-        const schemaData = schemaQuery?.data ?? null
-        if (!schemaData) return null
-
-        // Map RevisionSchemaState → AppOpenApiSchemas
-        return {
-            inputs:
-                (schemaData.primaryEndpoint?.inputsSchema as unknown as Record<string, unknown>) ??
-                null,
-            outputs: (schemaData.outputsSchema as unknown as Record<string, unknown>) ?? null,
-            parameters: (schemaData.agConfigSchema as unknown as Record<string, unknown>) ?? null,
-            routePath: schemaData.routePath ?? undefined,
-            runtimePrefix: schemaData.runtimePrefix,
-            openApiSchema: schemaData.openApiSchema,
         }
     }),
 )
@@ -1014,11 +960,17 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                 } as Workflow
             }
         } else {
-            // App workflows: merge OpenAPI-derived schemas.
-            // Custom apps fetch per-revision; builtin apps use shared service schema.
-            const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
-            const serviceSchema = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-            const appSchemas = appSchemaQuery.data ?? serviceSchema
+            // App workflows: prefer prefetched service schema for builtin apps,
+            // fall back to per-revision OpenAPI fetch for custom apps.
+            // IMPORTANT: only subscribe to workflowAppSchemaAtomFamily when we
+            // know this is NOT a builtin service type — subscribing to an
+            // atomWithQuery triggers its fetch, so we gate behind isServiceType
+            // to avoid duplicate fetches for builtin apps (even while the
+            // service schema is still loading).
+            const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
+            const appSchemas = serviceResult.isServiceType
+                ? serviceResult.schemas
+                : (get(workflowAppSchemaAtomFamily(workflowId)).data ?? null)
 
             if (appSchemas) {
                 merged = {
