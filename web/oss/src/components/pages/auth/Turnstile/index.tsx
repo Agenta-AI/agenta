@@ -30,6 +30,7 @@ declare global {
 }
 
 export interface TurnstileWidgetHandle {
+    refreshToken: () => Promise<string | null>
     reset: () => void
 }
 
@@ -85,6 +86,8 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
         const widgetIdRef = useRef<string | null>(null)
         const onErrorRef = useRef(onError)
         const onTokenChangeRef = useRef(onTokenChange)
+        const pendingTokenResolverRef = useRef<((token: string | null) => void) | null>(null)
+        const pendingTokenRejecterRef = useRef<((error: Error) => void) | null>(null)
 
         useEffect(() => {
             onErrorRef.current = onError
@@ -94,11 +97,56 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
             onTokenChangeRef.current = onTokenChange
         }, [onTokenChange])
 
+        const clearPendingTokenRequest = () => {
+            pendingTokenResolverRef.current = null
+            pendingTokenRejecterRef.current = null
+        }
+
+        const rejectPendingTokenRequest = (message: string) => {
+            if (pendingTokenRejecterRef.current) {
+                pendingTokenRejecterRef.current(new Error(message))
+            }
+
+            clearPendingTokenRequest()
+        }
+
+        const emitToken = (token: string | null) => {
+            onTokenChangeRef.current(token)
+
+            if (token && pendingTokenResolverRef.current) {
+                pendingTokenResolverRef.current(token)
+                clearPendingTokenRequest()
+            }
+        }
+
+        const emitError = (message: string) => {
+            onTokenChangeRef.current(null)
+
+            rejectPendingTokenRequest(message)
+
+            onErrorRef.current?.()
+        }
+
         useImperativeHandle(
             ref,
             () => ({
+                refreshToken: () => {
+                    if (!widgetIdRef.current || !window.turnstile) {
+                        return Promise.resolve(null)
+                    }
+
+                    clearPendingTokenRequest()
+
+                    return new Promise<string | null>((resolve, reject) => {
+                        pendingTokenResolverRef.current = resolve
+                        pendingTokenRejecterRef.current = reject
+                        onTokenChangeRef.current(null)
+                        window.turnstile?.reset(widgetIdRef.current!)
+                    })
+                },
                 reset: () => {
                     if (widgetIdRef.current && window.turnstile) {
+                        rejectPendingTokenRequest("Turnstile token refresh was cancelled.")
                         onTokenChangeRef.current(null)
                         window.turnstile.reset(widgetIdRef.current)
                     }
@@ -128,27 +176,21 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
                     widgetIdRef.current = window.turnstile.render(containerRef.current, {
                         sitekey: siteKey,
                         theme: "light",
-                        callback: (token) => onTokenChangeRef.current(token),
-                        "error-callback": () => {
-                            onTokenChangeRef.current(null)
-                            onErrorRef.current?.()
-                        },
-                        "expired-callback": () => onTokenChangeRef.current(null),
-                        "timeout-callback": () => {
-                            onTokenChangeRef.current(null)
-                            onErrorRef.current?.()
-                        },
+                        callback: (token) => emitToken(token),
+                        "error-callback": () => emitError("Turnstile challenge failed."),
+                        "expired-callback": () => emitError("Turnstile token expired."),
+                        "timeout-callback": () => emitError("Turnstile challenge timed out."),
                     })
                 })
                 .catch(() => {
                     if (!cancelled) {
-                        onTokenChangeRef.current(null)
-                        onErrorRef.current?.()
+                        emitError("Turnstile failed to load.")
                     }
                 })
 
             return () => {
                 cancelled = true
+                rejectPendingTokenRequest("Turnstile token refresh was cancelled.")
 
                 if (widgetIdRef.current && window.turnstile) {
                     window.turnstile.remove(widgetIdRef.current)

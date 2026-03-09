@@ -1,7 +1,7 @@
 import {useRef, useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
-import {signUp} from "supertokens-auth-react/recipe/emailpassword"
+import {signIn, signUp} from "supertokens-auth-react/recipe/emailpassword"
 
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {
@@ -47,6 +47,19 @@ const EmailPasswordSignIn = ({
         return false
     }
 
+    const signUpWithPassword = async (email: string, password: string, token: string | null) => {
+        if (turnstileEnabled) {
+            setPendingTurnstileToken(token)
+        }
+
+        return signUp({
+            formFields: [
+                {id: "email", value: email},
+                {id: "password", value: password},
+            ],
+        })
+    }
+
     const signInClicked: FormProps<{email: string; password: string}>["onFinish"] = async (
         values,
     ) => {
@@ -62,7 +75,7 @@ const EmailPasswordSignIn = ({
             console.log("[emailpassword-signin] submit", {
                 email: values.email,
             })
-            const response = await signUp({
+            const response = await signIn({
                 formFields: [
                     {id: "email", value: values.email},
                     {id: "password", value: values.password},
@@ -74,10 +87,65 @@ const EmailPasswordSignIn = ({
                     setMessage({message: res.error, type: "error"})
                 })
             } else if (response.status === "WRONG_CREDENTIALS_ERROR") {
-                setMessage({
-                    message: "Invalid email or password",
-                    type: "error",
-                })
+                clearPendingTurnstileToken()
+
+                let retryToken = turnstileToken
+                if (turnstileEnabled) {
+                    setMessage({
+                        message: "Please complete the security check again to continue.",
+                        type: "error",
+                    })
+                    retryToken = turnstileRef.current
+                        ? await turnstileRef.current.refreshToken()
+                        : null
+                    setTurnstileToken(retryToken)
+
+                    if (!retryToken) {
+                        return
+                    }
+                }
+
+                try {
+                    const signUpResponse = await signUpWithPassword(
+                        values.email,
+                        values.password,
+                        retryToken,
+                    )
+
+                    if (signUpResponse.status === "FIELD_ERROR") {
+                        const emailExists = signUpResponse.formFields.some((res) =>
+                            res.error.toLowerCase().includes("already exists"),
+                        )
+                        setMessage({
+                            message: emailExists
+                                ? "Invalid email or password"
+                                : signUpResponse.formFields[0]?.error || "Unable to sign up",
+                            type: "error",
+                        })
+                        return
+                    }
+
+                    if (signUpResponse.status === "SIGN_UP_NOT_ALLOWED") {
+                        setMessage({
+                            message:
+                                "You need to be invited by the organization owner to gain access.",
+                            type: "error",
+                        })
+                        return
+                    }
+
+                    setMessage({message: "Verification successful", type: "success"})
+                    const {user} = signUpResponse as {
+                        user?: {loginMethods?: unknown[]}
+                    }
+                    console.log("[emailpassword-signin] signup fallback ok", {
+                        hasUser: Boolean(user),
+                        loginMethods: user?.loginMethods,
+                    })
+                    await handleAuthSuccess({user})
+                } catch (signUpError) {
+                    authErrorMsg(signUpError)
+                }
             } else if (response.status === "SIGN_UP_NOT_ALLOWED") {
                 setMessage({
                     message: "You need to be invited by the organization owner to gain access.",
@@ -148,7 +216,7 @@ const EmailPasswordSignIn = ({
                         onTokenChange={setTurnstileToken}
                         onError={() =>
                             setMessage({
-                                message: "Unable to load the security check. Please refresh and try again.",
+                                message: "Security check failed. Please try again.",
                                 type: "error",
                             })
                         }

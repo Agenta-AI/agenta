@@ -151,7 +151,7 @@ const EmailPasswordAuth = ({
                         onTokenChange={setTurnstileToken}
                         onError={() =>
                             setMessage({
-                                message: "Unable to load the security check. Please refresh and try again.",
+                                message: "Security check failed. Please try again.",
                                 type: "error",
                             })
                         }

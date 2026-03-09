@@ -49,8 +49,8 @@ async def verify_turnstile_or_raise(*, request: BaseRequest) -> None:
             response = await client.post(TURNSTILE_VERIFY_URL, data=payload)
             response.raise_for_status()
         verification_result = response.json()
-    except httpx.HTTPError:
-        log.error("[AUTH] Turnstile verification request failed", exc_info=True)
+    except (httpx.HTTPError, ValueError):
+        log.error("[AUTH] Turnstile verification failed", exc_info=True)
         raise UnauthorizedException(detail=TURNSTILE_FAILURE_MESSAGE) from None
 
     if verification_result.get("success") is True:
