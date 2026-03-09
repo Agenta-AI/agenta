@@ -73,6 +73,7 @@ const PromptImageUpload = ({
     imageFile,
 }: PromptImageUploadProps) => {
     const uploadRef = useRef<HTMLInputElement>(null)
+    const fileUploadRef = useRef(false)
 
     const [draftValue, setDraftValue] = useState<string | null>(null)
     const [error, setError] = useState("")
@@ -136,6 +137,11 @@ const PromptImageUpload = ({
 
     useEffect(() => {
         if (draftValue !== null) {
+            if (fileUploadRef.current) {
+                fileUploadRef.current = false
+                setIsValidPreview(true)
+                return
+            }
             validateUrlInput(draftValue)
         }
     }, [draftValue])
@@ -173,6 +179,9 @@ const PromptImageUpload = ({
                 size: file.size,
             } as UploadFile & {base64: string | ArrayBuffer | null})
 
+            // Set draftValue for preview display but skip the useEffect
+            // validation path — handleUploadFileChange was already called above.
+            fileUploadRef.current = true
             setDraftValue(reader.result as string)
             setError("")
         }
