@@ -109,6 +109,9 @@ export const legacyAppRevisionDataSchema = z.object({
     /** Base URI for the service endpoint */
     uri: z.string().optional(),
 
+    /** Direct service URL from revision data (fallback when URI is not a parseable URL) */
+    serviceUrl: z.string().optional(),
+
     /** Extracted runtime prefix from URI */
     runtimePrefix: z.string().optional(),
 

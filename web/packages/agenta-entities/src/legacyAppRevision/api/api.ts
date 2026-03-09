@@ -221,6 +221,9 @@ export async function fetchOssRevisionById(
             const revisionParameters = extractRevisionParameters(parameters)
             const uri = rev.data?.uri ?? rev.data?.url
             const uriInfo = parseRevisionUri(uri)
+            // Store data.url separately as serviceUrl for when URI is not a parseable URL
+            // (e.g. "agenta:builtin:completion:v0" — the URL field has the actual service endpoint)
+            const serviceUrl = rev.data?.url && rev.data?.url !== uri ? rev.data.url : undefined
 
             return {
                 id: rev.id,
@@ -234,6 +237,7 @@ export async function fetchOssRevisionById(
                 commitMessage: rev.message,
                 createdAt: rev.created_at,
                 uri,
+                serviceUrl,
                 runtimePrefix: uriInfo?.runtimePrefix,
                 routePath: uriInfo?.routePath,
             }
@@ -293,7 +297,8 @@ export async function fetchOssRevisionById(
 /**
  * Batch fetch multiple revisions by their IDs
  *
- * Uses: POST /variants/revisions/query
+ * Uses: POST /preview/applications/revisions/query (preferred, returns uri + url)
+ * Falls back to: POST /variants/revisions/query/ (legacy)
  *
  * @param revisionIds - Array of revision IDs (UUIDs)
  * @param projectId - The project ID
@@ -305,6 +310,58 @@ export async function fetchOssRevisionsBatch(
 ): Promise<LegacyAppRevisionData[]> {
     if (!revisionIds.length || !projectId) return []
 
+    // Try preview endpoint first — returns data.uri + data.url
+    try {
+        const previewResponse = await axios.post(
+            `${getAgentaApiUrl()}/preview/applications/revisions/query`,
+            {
+                application_revision_refs: revisionIds.map((id) => ({id})),
+            },
+            {params: {project_id: projectId}},
+        )
+
+        const previewRevisions = previewResponse.data?.application_revisions
+        if (Array.isArray(previewRevisions) && previewRevisions.length > 0) {
+            return previewRevisions.map((rev: Record<string, unknown>) => {
+                const parameters =
+                    (rev.data as Record<string, unknown>)?.parameters ??
+                    (rev.config as Record<string, unknown>)?.parameters ??
+                    {}
+                const revisionParameters = extractRevisionParameters(
+                    parameters as Record<string, unknown>,
+                )
+                const data = rev.data as Record<string, unknown> | undefined
+                const uri = (data?.uri as string) ?? (data?.url as string)
+                const uriInfo = parseRevisionUri(uri)
+                const serviceUrl = data?.url && data.url !== uri ? (data.url as string) : undefined
+
+                return {
+                    id: rev.id as string,
+                    variantId:
+                        (rev.variant_id as string) ??
+                        (rev.application_variant_id as string) ??
+                        undefined,
+                    appId:
+                        (rev.application_id as string) ?? (rev.artifact_id as string) ?? undefined,
+                    revision: Number(rev.version) || 1,
+                    variantName: rev.name as string | undefined,
+                    configName: rev.name as string | undefined,
+                    parameters: revisionParameters,
+                    modifiedBy: rev.author as string | undefined,
+                    commitMessage: rev.message as string | undefined,
+                    createdAt: rev.created_at as string | undefined,
+                    uri,
+                    serviceUrl,
+                    runtimePrefix: uriInfo?.runtimePrefix,
+                    routePath: uriInfo?.routePath,
+                } satisfies LegacyAppRevisionData
+            })
+        }
+    } catch {
+        // Preview endpoint not available — fall back to legacy
+    }
+
+    // Fallback: legacy endpoint
     try {
         const response = await axios.post<RevisionsQueryResponse>(
             `${getAgentaApiUrl()}/variants/revisions/query`,
