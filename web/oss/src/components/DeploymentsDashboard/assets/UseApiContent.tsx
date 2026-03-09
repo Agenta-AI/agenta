@@ -2,8 +2,8 @@ import {useCallback, useMemo, useState} from "react"
 
 import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {PythonOutlined} from "@ant-design/icons"
-import {CloudArrowUp, FileCode, FileTs} from "@phosphor-icons/react"
-import {Button, Spin, Tabs, Typography} from "antd"
+import {FileCode, FileTs} from "@phosphor-icons/react"
+import {Spin, Tabs} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -25,6 +25,8 @@ const ApiKeyInput = dynamic(
     {ssr: false},
 )
 
+const INVOKE_LLM_URL_PLACEHOLDER = "https://your-app-runtime-url/run"
+
 interface UseApiContentProps {
     variants: EnhancedVariant[]
     selectedEnvironment: DeploymentRevisions
@@ -33,6 +35,7 @@ interface UseApiContentProps {
 }
 
 const UseApiContent = ({
+    variants,
     selectedEnvironment,
     revisionId,
     handleOpenSelectDeployVariantModal,
@@ -42,13 +45,44 @@ const UseApiContent = ({
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    const hasDeployment = Boolean(selectedEnvironment?.deployed_app_variant_id)
-    const variantId = hasDeployment ? selectedEnvironment.deployed_app_variant_id : undefined
-    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, variantId)
-    const isLoading = Boolean(variantId) && isUriQueryLoading
+    const latestRevisionId = useMemo(() => {
+        if (!Array.isArray(variants) || variants.length === 0) return ""
+
+        const sorted = [...variants].sort((a, b) => {
+            const aTs = Number(
+                (a as any)?.updatedAtTimestamp ?? (a as any)?.createdAtTimestamp ?? 0,
+            )
+            const bTs = Number(
+                (b as any)?.updatedAtTimestamp ?? (b as any)?.createdAtTimestamp ?? 0,
+            )
+            return bTs - aTs
+        })
+
+        return (sorted[0] as any)?.id ?? ""
+    }, [variants])
 
     const effectiveRevisionId =
-        revisionId || selectedEnvironment?.deployed_app_variant_revision_id || ""
+        revisionId ||
+        selectedEnvironment?.deployed_app_variant_revision_id ||
+        latestRevisionId ||
+        ""
+    const effectiveRevisionData = useAtomValue(
+        legacyAppRevisionMolecule.atoms.data(effectiveRevisionId || ""),
+    ) as {variantId?: string} | null
+    const revisionVariantIdFromList = useMemo(() => {
+        const found = (variants || []).find(
+            (variant) => (variant as any)?.id === effectiveRevisionId,
+        )
+        return (found as any)?.variantId ?? null
+    }, [effectiveRevisionId, variants])
+    const effectiveVariantId =
+        effectiveRevisionData?.variantId ||
+        revisionVariantIdFromList ||
+        selectedEnvironment?.deployed_app_variant_id ||
+        undefined
+    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, effectiveVariantId)
+    const isLoading = Boolean(effectiveVariantId) && isUriQueryLoading
+
     const inputPorts = useAtomValue(
         legacyAppRevisionMolecule.atoms.inputPorts(effectiveRevisionId),
     ) as any[]
@@ -68,7 +102,7 @@ const UseApiContent = ({
         )
     }, [variableNames, selectedEnvironment?.name, currentApp])
 
-    const invokeLlmUrl = uri ?? ""
+    const invokeLlmUrl = (uri && uri.trim()) || INVOKE_LLM_URL_PLACEHOLDER
 
     const invokeLlmAppCodeSnippet = useMemo(
         () => ({
@@ -101,32 +135,6 @@ const UseApiContent = ({
     )
 
     const renderTabChildren = useCallback(() => {
-        if (!hasDeployment) {
-            return (
-                <div className="flex flex-col items-center gap-4 py-16 text-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50">
-                        <CloudArrowUp size={24} className="text-primary-500" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <Typography.Text className="text-base font-medium">
-                            No deployment yet
-                        </Typography.Text>
-                        <Typography.Text type="secondary">
-                            Deploy a variant to generate API credentials and client snippets for
-                            this environment.
-                        </Typography.Text>
-                    </div>
-                    <Button
-                        type="primary"
-                        icon={<CloudArrowUp size={16} />}
-                        onClick={handleOpenSelectDeployVariantModal}
-                    >
-                        Deploy variant
-                    </Button>
-                </div>
-            )
-        }
-
         return (
             <Spin spinning={isLoading}>
                 <LanguageCodeBlock
@@ -135,14 +143,13 @@ const UseApiContent = ({
                     selectedLang={selectedLang}
                     handleOpenSelectDeployVariantModal={handleOpenSelectDeployVariantModal}
                     invokeLlmUrl={invokeLlmUrl}
+                    showDeployOverlay={false}
                 />
             </Spin>
         )
     }, [
-        apiKeyValue,
         fetchConfigCodeSnippet,
         handleOpenSelectDeployVariantModal,
-        hasDeployment,
         invokeLlmAppCodeSnippet,
         invokeLlmUrl,
         isLoading,
