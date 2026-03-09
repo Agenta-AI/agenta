@@ -50,6 +50,7 @@ from oss.src.utils.env import env
 from oss.src.utils.validators import is_input_email
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
+from oss.src.core.auth.turnstile import verify_turnstile_or_raise
 from oss.src.services import db_manager
 from oss.src.core.auth.service import AuthService
 
@@ -486,6 +487,17 @@ def override_emailpassword_apis(
     og_sign_up_post = original.sign_up_post
     og_sign_in_post = original.sign_in_post
 
+    async def verify_turnstile(
+        *,
+        api_options: EmailPasswordAPIOptions,
+        user_context: Dict[str, Any],
+    ) -> None:
+        if user_context.get("turnstile_verified"):
+            return
+
+        await verify_turnstile_or_raise(request=api_options.request)
+        user_context["turnstile_verified"] = True
+
     async def sign_in_post(
         form_fields: List[FormField],
         tenant_id: str,
@@ -494,6 +506,8 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
+        await verify_turnstile(api_options=api_options, user_context=user_context)
+
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
             email = form_fields[0].value.lower()
             if is_ee() and await _is_blocked(email):
@@ -531,6 +545,8 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
+        await verify_turnstile(api_options=api_options, user_context=user_context)
+
         # FLOW 1: Sign in (redirect existing users with emailpassword credential)
         email = form_fields[0].value.lower()
         if is_ee() and await _is_blocked(email):

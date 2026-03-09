@@ -1,12 +1,18 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
 
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {
+    clearPendingTurnstileToken,
+    isTurnstileEnabled,
+    setPendingTurnstileToken,
+} from "@/oss/lib/helpers/auth/turnstile"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
+import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
 
 const EmailPasswordAuth = ({
     message,
@@ -18,12 +24,41 @@ const EmailPasswordAuth = ({
     const {handleAuthSuccess} = usePostAuthRedirect()
     const [form, setForm] = useState({email: initialEmail || "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    const turnstileEnabled = isTurnstileEnabled()
+    const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+    const resetTurnstile = () => {
+        clearPendingTurnstileToken()
+        setTurnstileToken(null)
+        turnstileRef.current?.reset()
+    }
+
+    const ensureTurnstileToken = () => {
+        if (!turnstileEnabled || turnstileToken) {
+            return true
+        }
+
+        setMessage({
+            message: "Please complete the security check.",
+            type: "error",
+        })
+
+        return false
+    }
 
     const signUpClicked: FormProps<{email: string; password: string}>["onFinish"] = async (
         values,
     ) => {
+        if (!ensureTurnstileToken()) {
+            return
+        }
+
         try {
             setIsLoading(true)
+            if (turnstileEnabled) {
+                setPendingTurnstileToken(turnstileToken)
+            }
             console.log("[emailpassword-auth] signup submit", {
                 email: values.email,
             })
@@ -58,13 +93,12 @@ const EmailPasswordAuth = ({
                     hasUser: Boolean(user),
                     loginMethods: user?.loginMethods,
                 })
-                // signUp() doesn't return createdNewRecipeUser (only signInUp does).
-                // Since signUp always creates a new user, we explicitly set it to true.
-                await handleAuthSuccess({createdNewRecipeUser: true, user})
+                await handleAuthSuccess({user})
             }
         } catch (error) {
             authErrorMsg(error)
         } finally {
+            resetTurnstile()
             setIsLoading(false)
         }
     }
@@ -109,6 +143,20 @@ const EmailPasswordAuth = ({
                         onChange={(e) => setForm({...form, password: e.target.value})}
                     />
                 </Form.Item>
+
+                {turnstileEnabled && (
+                    <TurnstileWidget
+                        ref={turnstileRef}
+                        className="flex justify-center"
+                        onTokenChange={setTurnstileToken}
+                        onError={() =>
+                            setMessage({
+                                message: "Unable to load the security check. Please refresh and try again.",
+                                type: "error",
+                            })
+                        }
+                    />
+                )}
 
                 <Button
                     size="large"
