@@ -146,7 +146,7 @@ const EmailPasswordSignIn = ({
                 } catch (signUpError) {
                     authErrorMsg(signUpError)
                 }
-            } else if (response.status === "SIGN_UP_NOT_ALLOWED") {
+            } else if (response.status === "SIGN_IN_NOT_ALLOWED") {
                 setMessage({
                     message: "You need to be invited by the organization owner to gain access.",
                     type: "error",
