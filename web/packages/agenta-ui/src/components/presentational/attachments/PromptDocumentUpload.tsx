@@ -174,7 +174,7 @@ const PromptDocumentUpload = ({disabled, onFileChange, onRemove}: PromptDocument
                                     const val = e.target.value.trim()
                                     setRawValue(val)
                                     setError("")
-                                    if (val) {
+                                    if (val && isUrl(val)) {
                                         onFileChange(val, "document", "application/pdf")
                                     }
                                 }}

@@ -320,13 +320,17 @@ const hasValidUser = (val: unknown): boolean => {
                     if (url) return true
                 }
                 if (type === "file" || p?.file) {
-                    const fileId =
+                    const fileRef =
                         p?.file?.file_id?.value ??
                         p?.file?.file_id ??
+                        p?.file?.file_data?.value ??
+                        p?.file?.file_data ??
                         p?.file_id?.value ??
                         p?.file_id ??
+                        p?.file_data?.value ??
+                        p?.file_data ??
                         ""
-                    if (fileId) return true
+                    if (fileRef) return true
                 }
             }
         } catch {}

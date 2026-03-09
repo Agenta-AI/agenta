@@ -141,9 +141,11 @@ export function addFileToContent(
     filename: string,
     format: string,
 ): MessageContent {
+    // URLs are passed as file_id (remote reference), base64 data URIs as file_data (inline content)
+    const isRemoteUrl = /^https?:\/\//i.test(fileData)
     const newPart: FileContentPart = {
         type: "file",
-        file: {file_data: fileData, filename, format},
+        file: isRemoteUrl ? {file_id: fileData} : {file_data: fileData, filename, format},
     }
     if (typeof content === "string") {
         return [{type: "text", text: content}, newPart]
