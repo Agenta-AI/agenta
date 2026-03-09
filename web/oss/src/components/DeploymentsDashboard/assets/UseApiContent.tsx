@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs} from "antd"
@@ -14,11 +14,10 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
-import {currentAppAtom, useURI} from "@/oss/state/app"
+import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -40,7 +39,6 @@ const UseApiContent = ({
     revisionId,
     handleOpenSelectDeployVariantModal,
 }: UseApiContentProps) => {
-    const appId = useAppId()
     const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
@@ -66,25 +64,16 @@ const UseApiContent = ({
         selectedEnvironment?.deployed_app_variant_revision_id ||
         latestRevisionId ||
         ""
-    const effectiveRevisionData = useAtomValue(
-        legacyAppRevisionMolecule.atoms.data(effectiveRevisionId || ""),
-    ) as {variantId?: string} | null
-    const revisionVariantIdFromList = useMemo(() => {
-        const found = (variants || []).find(
-            (variant) => (variant as any)?.id === effectiveRevisionId,
-        )
-        return (found as any)?.variantId ?? null
-    }, [effectiveRevisionId, variants])
-    const effectiveVariantId =
-        effectiveRevisionData?.variantId ||
-        revisionVariantIdFromList ||
-        selectedEnvironment?.deployed_app_variant_id ||
-        undefined
-    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, effectiveVariantId)
-    const isLoading = Boolean(effectiveVariantId) && isUriQueryLoading
+    const uri = useAtomValue(
+        useMemo(
+            () => runnableBridge.invocationUrl(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
+    )
+    const isLoading = false
 
     const inputPorts = useAtomValue(
-        legacyAppRevisionMolecule.atoms.inputPorts(effectiveRevisionId),
+        useMemo(() => runnableBridge.inputPorts(effectiveRevisionId || ""), [effectiveRevisionId]),
     ) as any[]
     const variableNames = useMemo(
         () => (inputPorts || []).map((p: any) => p.key) as string[],

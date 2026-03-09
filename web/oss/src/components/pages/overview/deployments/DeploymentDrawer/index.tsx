@@ -1,7 +1,7 @@
 // @ts-nocheck
 import {useMemo, useState} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -14,9 +14,8 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -28,7 +27,7 @@ import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopo
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
-import {currentAppAtom, useURI} from "@/oss/state/app"
+import {currentAppAtom} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
 import {useStyles} from "./assets/styles"
@@ -49,12 +48,9 @@ const DeploymentDrawer = ({
     ...props
 }: DeploymentDrawerProps & DrawerProps) => {
     const classes = useStyles()
-    const router = useRouter()
-    const appId = router.query.app_id as string
     const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const {goToPlayground} = usePlaygroundNavigation()
-    const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const variant = useMemo(() => {
         return (
             (variants || []).find(
@@ -65,14 +61,11 @@ const DeploymentDrawer = ({
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
     const deployedRevisionId = selectedEnvironment?.deployed_app_variant_revision_id || ""
+    const uri = useAtomValue(
+        useMemo(() => runnableBridge.invocationUrl(deployedRevisionId), [deployedRevisionId]),
+    )
     const inputPorts = useAtomValue(
-        useMemo(
-            () =>
-                deployedRevisionId
-                    ? legacyAppRevisionMolecule.atoms.inputPorts(deployedRevisionId)
-                    : atom([]),
-            [deployedRevisionId],
-        ),
+        useMemo(() => runnableBridge.inputPorts(deployedRevisionId), [deployedRevisionId]),
     )
 
     const params = useMemo(() => {

@@ -2,10 +2,10 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     appRevisionsWithDraftsAtomFamily,
-    legacyAppRevisionMolecule,
     revisionsListAtomFamily,
     variantsListAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs, Typography} from "antd"
@@ -22,7 +22,7 @@ import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/Deplo
 import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {currentAppAtom, useURI} from "@/oss/state/app"
+import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -44,13 +44,14 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    // Get URI for the selected variant
-    const {data: uri, isLoading: isUriQueryLoading} = useURI(appId, selectedVariantId)
-    const isLoading = Boolean(selectedVariantId) && isUriQueryLoading
+    // Get invocation URL and input ports from runnable bridge (supports workflow + legacy entities)
+    const uri = useAtomValue(
+        useMemo(() => runnableBridge.invocationUrl(selectedRevisionId || ""), [selectedRevisionId]),
+    )
+    const isLoading = false
 
-    // Get variable names for the selected revision
     const inputPorts = useAtomValue(
-        legacyAppRevisionMolecule.atoms.inputPorts(selectedRevisionId || ""),
+        useMemo(() => runnableBridge.inputPorts(selectedRevisionId || ""), [selectedRevisionId]),
     ) as any[]
     const variableNames = useMemo(
         () => (inputPorts || []).map((p: any) => p.key) as string[],
