@@ -220,8 +220,7 @@ const VariantDrawerContent = ({
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>
                     <UserAuthorLabel
-                        userId={(selectedVariant as any)?.modifiedById}
-                        fallback={(selectedVariant as any)?.modifiedBy ?? "-"}
+                        userId={(selectedVariant as any)?.modifiedBy}
                         showPrefix={false}
                     />
                 </div>
