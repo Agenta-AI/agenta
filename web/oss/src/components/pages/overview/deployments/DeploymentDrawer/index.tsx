@@ -28,11 +28,10 @@ import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopo
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
-import {currentAppAtom} from "@/oss/state/app"
+import {currentAppAtom, useURI} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
 import {useStyles} from "./assets/styles"
-import useURI from "./hooks/useURI"
 import type {DeploymentDrawerProps} from "./types"
 
 const DeploymentHistoryModal = dynamic(
@@ -89,10 +88,12 @@ const DeploymentDrawer = ({
         return built
     }, [inputPorts, currentApp, selectedEnvironment?.name])
 
+    const invokeLlmUrl = (uri && uri.trim()) || ""
+
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        python: invokeLlmApppythonCode(uri!, params),
-        bash: invokeLlmAppcURLCode(uri!, params),
-        typescript: invokeLlmApptsCode(uri!, params),
+        python: invokeLlmApppythonCode(invokeLlmUrl, params),
+        bash: invokeLlmAppcURLCode(invokeLlmUrl, params),
+        typescript: invokeLlmApptsCode(invokeLlmUrl, params),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {

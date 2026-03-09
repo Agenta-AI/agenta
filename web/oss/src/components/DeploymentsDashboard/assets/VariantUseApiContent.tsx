@@ -147,7 +147,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const appSlug = (currentApp as any)?.app_slug || currentApp?.app_name || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
 
-    const invokeLlmUrl = uri ?? ""
+    const invokeLlmUrl = (uri && uri.trim()) || ""
 
     // Build params for invoke LLM (with variant refs instead of environment)
     const params = useMemo(() => {

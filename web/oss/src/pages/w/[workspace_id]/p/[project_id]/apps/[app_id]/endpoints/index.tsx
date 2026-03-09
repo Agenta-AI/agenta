@@ -167,10 +167,11 @@ export default function VariantEndpoint() {
     }
 
     const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
+    const invokeLlmUrl = (uri && uri.trim()) || ""
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        Python: invokeLlmApppythonCode(uri!, params),
-        cURL: invokeLlmAppcURLCode(uri!, params),
-        TypeScript: invokeLlmApptsCode(uri!, params),
+        Python: invokeLlmApppythonCode(invokeLlmUrl, params),
+        cURL: invokeLlmAppcURLCode(invokeLlmUrl, params),
+        TypeScript: invokeLlmApptsCode(invokeLlmUrl, params),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {

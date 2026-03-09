@@ -25,7 +25,7 @@ const ApiKeyInput = dynamic(
     {ssr: false},
 )
 
-const INVOKE_LLM_URL_PLACEHOLDER = "https://your-app-runtime-url/run"
+const INVOKE_LLM_URL_PLACEHOLDER = ""
 
 interface UseApiContentProps {
     variants: EnhancedVariant[]
