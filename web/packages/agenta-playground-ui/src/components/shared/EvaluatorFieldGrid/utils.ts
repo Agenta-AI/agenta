@@ -14,6 +14,41 @@ export function formatFieldLabel(key: string): string {
 }
 
 /**
+ * Whether a field key represents evaluator pass/fail verdict semantics.
+ */
+export function isVerdictFieldKey(key: string): boolean {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "")
+    return (
+        normalized === "success" ||
+        normalized === "passed" ||
+        normalized === "ispass" ||
+        normalized === "ispassed"
+    )
+}
+
+/**
+ * Parse boolean-like evaluator values.
+ * Supports booleans, 0/1 numbers, "true"/"false" strings, and `{value: ...}` wrappers.
+ */
+export function parseBooleanLikeValue(value: unknown): boolean | null {
+    if (typeof value === "boolean") return value
+    if (typeof value === "number" && (value === 0 || value === 1)) return value === 1
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase()
+        if (normalized === "true") return true
+        if (normalized === "false") return false
+        return null
+    }
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    const rec = value as Record<string, unknown>
+    if ("value" in rec) return parseBooleanLikeValue(rec.value)
+    if ("success" in rec) return parseBooleanLikeValue(rec.success)
+    if ("passed" in rec) return parseBooleanLikeValue(rec.passed)
+    return null
+}
+
+/**
  * Build a schema map from output ports.
  * Returns { fieldKey → SchemaProperty | undefined }
  */
