@@ -149,9 +149,16 @@ jobs:
               ;;
           esac
 
-      - name: Skip non-root image verification
+      - name: Verify image runs as non-root
         run: |
-          echo "Non-root image verification is temporarily disabled for preview builds."
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
+            exit 1
+          fi
+          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
 
       - name: Summary
         run: |
