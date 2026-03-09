@@ -9,6 +9,7 @@ import {
     FileArchive,
     Image as PhImage,
     MinusCircle,
+    Paperclip,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
 import {Button, Dropdown, Tooltip} from "antd"
@@ -125,20 +126,19 @@ const TurnMessageHeaderOptions = ({
     const maxImageReached = uploadCount !== undefined && uploadCount >= 5
     const maxDocumentReached = documentCount !== undefined && documentCount >= 5
 
-    const canAddImageUpload = Boolean(onAddUploadSlot) && allowFileUpload && !maxImageReached
-    const canAddDocumentUpload =
-        Boolean(onAddDocumentSlot) && allowFileUpload && !maxDocumentReached
-    const attachmentButtonDisabled = !canAddImageUpload && !canAddDocumentUpload
+    const canAddImage = Boolean(onAddUploadSlot) && allowFileUpload && !maxImageReached
+    const canAddDocument = Boolean(onAddDocumentSlot) && allowFileUpload && !maxDocumentReached
+    const attachmentButtonDisabled = !canAddImage && !canAddDocument
 
     const attachmentMenuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
         const items: NonNullable<MenuProps["items"]> = []
         if (onAddUploadSlot) {
             items.push({
                 key: "image",
-                disabled: !canAddImageUpload,
+                disabled: !canAddImage,
                 label: (
                     <span className="flex items-center gap-1">
-                        <PhImage size={12} />
+                        <PhImage size={14} />
                         <span>Upload image</span>
                     </span>
                 ),
@@ -147,27 +147,27 @@ const TurnMessageHeaderOptions = ({
         if (onAddDocumentSlot) {
             items.push({
                 key: "document",
-                disabled: !canAddDocumentUpload,
+                disabled: !canAddDocument,
                 label: (
                     <span className="flex items-center gap-1">
-                        <FileArchive size={12} />
+                        <FileArchive size={14} />
                         <span>Attach document</span>
                     </span>
                 ),
             })
         }
         return items
-    }, [onAddUploadSlot, onAddDocumentSlot, canAddImageUpload, canAddDocumentUpload])
+    }, [onAddUploadSlot, onAddDocumentSlot, canAddImage, canAddDocument])
 
     const handleAttachmentMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
         ({key}) => {
-            if (key === "image" && canAddImageUpload) {
+            if (key === "image" && canAddImage) {
                 onAddUploadSlot?.()
-            } else if (key === "document" && canAddDocumentUpload) {
+            } else if (key === "document" && canAddDocument) {
                 onAddDocumentSlot?.()
             }
         },
-        [onAddDocumentSlot, onAddUploadSlot, canAddDocumentUpload, canAddImageUpload],
+        [onAddUploadSlot, onAddDocumentSlot, canAddImage, canAddDocument],
     )
 
     const onCopyText = useCallback(() => {
@@ -237,7 +237,7 @@ const TurnMessageHeaderOptions = ({
                     <span className="inline-flex">
                         <Tooltip title="Add attachment">
                             <Button
-                                icon={<FileArchive size={14} />}
+                                icon={<Paperclip size={14} />}
                                 type="text"
                                 disabled={attachmentButtonDisabled}
                             />

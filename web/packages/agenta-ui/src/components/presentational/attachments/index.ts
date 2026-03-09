@@ -21,3 +21,8 @@ export {
 } from "./AttachmentGrid"
 export {default as ImagePreview, type ImagePreviewProps} from "./ImagePreview"
 export {default as ImageWithFallback, type ImageWithFallbackProps} from "./ImageWithFallback"
+export {default as PromptImageUpload, type PromptImageUploadProps} from "./PromptImageUpload"
+export {
+    default as PromptDocumentUpload,
+    type PromptDocumentUploadProps,
+} from "./PromptDocumentUpload"

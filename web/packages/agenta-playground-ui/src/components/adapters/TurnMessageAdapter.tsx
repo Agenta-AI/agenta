@@ -10,12 +10,13 @@ import {
     getAttachments,
     updateTextInContent,
 } from "@agenta/shared/utils"
+import {ChatMessageEditor as MessageEditor, MessageAttachments} from "@agenta/ui/chat-message"
 import {
-    ChatMessageEditor as MessageEditor,
-    AttachmentButton,
-    MessageAttachments,
-} from "@agenta/ui/chat-message"
-import {getCollapseStyle} from "@agenta/ui/components/presentational"
+    getCollapseStyle,
+    PromptImageUpload,
+    PromptDocumentUpload,
+} from "@agenta/ui/components/presentational"
+import type {UploadFile} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
@@ -112,6 +113,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
     const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
+    const [uploadSlots, setUploadSlots] = useState<
+        {id: string; type: "image" | "document"; file?: UploadFile; filled?: boolean}[]
+    >([])
     const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
     const sessionId = `sess:${entityId}`
@@ -218,22 +222,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [messageTarget, patchMessage],
     )
 
-    const handleAddFile = useCallback(
-        (fileData: string, filename: string, format: string) => {
-            patchMessage({
-                target: messageTarget,
-                updater: (m) => {
-                    if (!m) return m
-                    return {
-                        ...m,
-                        content: addFileToContent(m.content ?? "", fileData, filename, format),
-                    }
-                },
-            })
-        },
-        [messageTarget, patchMessage],
-    )
-
     const handleRemoveAttachment = useCallback(
         (attachmentIndex: number) => {
             patchMessage({
@@ -248,6 +236,80 @@ const TurnMessageAdapter: React.FC<Props> = ({
             })
         },
         [messageTarget, patchMessage],
+    )
+
+    const imageSlotCount = uploadSlots.filter((s) => s.type === "image").length
+    const documentSlotCount = uploadSlots.filter((s) => s.type === "document").length
+
+    const handleAddUploadSlot = useCallback(() => {
+        if (imageSlotCount >= 5) return
+        setUploadSlots((prev) => [...prev, {id: uuidv4(), type: "image"}])
+    }, [imageSlotCount])
+
+    const handleAddDocumentSlot = useCallback(() => {
+        if (documentSlotCount >= 5) return
+        setUploadSlots((prev) => [...prev, {id: uuidv4(), type: "document"}])
+    }, [documentSlotCount])
+
+    const handleUploadFileChange = useCallback(
+        (slotId: string, file: UploadFile | null) => {
+            if (!file) return
+            const imageUrl =
+                file.url || file.thumbUrl || (file as UploadFile & {base64?: string}).base64
+            if (imageUrl) {
+                handleAddImage(imageUrl)
+            }
+            // Update the slot with the file data (keep it visible for preview)
+            setUploadSlots((prev) => prev.map((s) => (s.id === slotId ? {...s, file} : s)))
+        },
+        [handleAddImage],
+    )
+
+    const handleDocumentFileChange = useCallback(
+        (slotId: string, fileData: string, filename: string, format: string) => {
+            patchMessage({
+                target: messageTarget,
+                updater: (m) => {
+                    if (!m) return m
+                    return {
+                        ...m,
+                        content: addFileToContent(m.content ?? "", fileData, filename, format),
+                    }
+                },
+            })
+            // Mark slot as filled (keep it visible)
+            setUploadSlots((prev) => prev.map((s) => (s.id === slotId ? {...s, filled: true} : s)))
+        },
+        [messageTarget, patchMessage],
+    )
+
+    const handleRemoveUploadSlot = useCallback(
+        (slotId: string) => {
+            const slot = uploadSlots.find((s) => s.id === slotId)
+            setUploadSlots((prev) => prev.filter((s) => s.id !== slotId))
+
+            // If the slot had data added to content, remove the last matching attachment
+            if (slot?.file || slot?.filled) {
+                // Find and remove the attachment that corresponds to this slot.
+                // Attachments are appended in order, so we find the index of this slot
+                // among filled slots to determine which attachment index to remove.
+                const filledSlots = uploadSlots.filter((s) => s.file || s.filled)
+                const slotIndex = filledSlots.findIndex((s) => s.id === slotId)
+                if (slotIndex !== -1) {
+                    patchMessage({
+                        target: messageTarget,
+                        updater: (m) => {
+                            if (!m) return m
+                            return {
+                                ...m,
+                                content: removeAttachmentFromContent(m.content ?? "", slotIndex),
+                            }
+                        },
+                    })
+                }
+            }
+        },
+        [uploadSlots, messageTarget, patchMessage],
     )
 
     const deleteMessage = useCallback(() => {
@@ -394,13 +456,36 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const footerContent = useMemo(
         () => (
             <>
-                {hasAttachments && isUserRole && (
+                {hasAttachments && isUserRole && uploadSlots.length === 0 && (
                     <MessageAttachments
                         content={msg!.content!}
                         onRemove={handleRemoveAttachment}
                         disabled={effectiveDisabled}
                     />
                 )}
+                {isUserRole &&
+                    uploadSlots.map((slot) =>
+                        slot.type === "image" ? (
+                            <PromptImageUpload
+                                key={slot.id}
+                                disabled={effectiveDisabled}
+                                imageFile={slot.file}
+                                handleUploadFileChange={(file) =>
+                                    handleUploadFileChange(slot.id, file)
+                                }
+                                handleRemoveUploadFile={() => handleRemoveUploadSlot(slot.id)}
+                            />
+                        ) : (
+                            <PromptDocumentUpload
+                                key={slot.id}
+                                disabled={effectiveDisabled}
+                                onFileChange={(fileData, filename, format) =>
+                                    handleDocumentFileChange(slot.id, fileData, filename, format)
+                                }
+                                onRemove={() => handleRemoveUploadSlot(slot.id)}
+                            />
+                        ),
+                    )}
                 {footer ? (
                     <div className={clsx(["flex flex-col mt-2 w-full", footerClassName])}>
                         {footer}
@@ -416,6 +501,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
             msg,
             handleRemoveAttachment,
             effectiveDisabled,
+            uploadSlots,
+            handleUploadFileChange,
+            handleDocumentFileChange,
+            handleRemoveUploadSlot,
         ],
     )
 
@@ -453,160 +542,166 @@ const TurnMessageAdapter: React.FC<Props> = ({
         autoMinimizedRef.current = true
     }, [msgId]) // intentionally only msgId — avoid re-running as user types
 
-    return toolPayloads?.length ? (
-        toolPayloads.map((p) => (
-            <div
-                key={p.callId}
-                style={editorCollapseStyle}
-                className={clsx(
-                    "w-full",
-                    {
-                        " [&_.message-user-select]:text-[red]": isError,
-                    },
-                    messageProps?.className,
-                )}
-            >
-                <MessageEditor
-                    id={editorIdRef.current}
-                    role={editorRole}
-                    isJSON={true}
-                    isTool
-                    onFocusChange={handleEditorFocusChange}
-                    text={p?.json}
-                    enableTokens={false}
-                    disabled={effectiveDisabled}
-                    className={clsx([className])}
-                    editorClassName={editorClassName}
-                    headerClassName={clsx(headerClassName, "pt-1")}
-                    placeholder={effectivePlaceholder}
-                    onChangeRole={onChangeRole}
-                    onChangeText={onChangeText}
-                    state={"readOnly"}
-                    headerBottom={
-                        p.name || p.callId ? (
-                            <ToolCallViewHeader className="mt-2" name={p.name} callId={p.callId} />
-                        ) : null
-                    }
-                    headerRight={
-                        <TurnMessageHeaderOptions
-                            {...messageOptionProps}
-                            id={editorIdRef.current}
-                            messageId={msg?.id}
-                            disabled={kind === "user" && !hasBeenRun}
-                            resultHashes={propsResultHashes ?? resultHashes}
-                            results={results}
-                            text={p?.json ?? editorText}
-                            collapsed={isMessageCollapsed}
-                            allowFileUpload={false}
-                            repetitionProps={!isComparisonView ? repetitionProps : undefined}
-                            onViewAllRepeats={() => openFocusDrawer({rowId: rowId, entityId})}
-                            renderTestsetButton={renderTestsetButton}
-                            renderRepetitionNav={renderRepetitionNav}
-                            uploadCount={0}
-                            documentCount={0}
-                            actions={{
-                                onRerun: isToolKind
-                                    ? undefined
-                                    : () =>
-                                          propsHandleRerun
-                                              ? propsHandleRerun({rowId, entityId})
-                                              : handleRerun(),
-                                onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
-                                onDelete: deleteMessage,
-                            }}
-                        >
-                            {isUserRole && !effectiveDisabled && (
-                                <AttachmentButton
-                                    onAddImage={handleAddImage}
-                                    onAddFile={handleAddFile}
-                                    disabled={effectiveDisabled}
-                                />
-                            )}
-                            {headerRight}
-                        </TurnMessageHeaderOptions>
-                    }
-                    footer={footerContent}
-                    editorType={editorType}
-                    {...messageProps}
-                />
-            </div>
-        ))
-    ) : msg ? (
-        <div
-            style={editorCollapseStyle}
-            className={clsx(
-                "w-full",
-                {
-                    " [&_.message-user-select]:text-[red]": isError,
-                },
-                messageProps?.className,
-            )}
-        >
-            <MessageEditor
-                id={editorIdRef.current}
-                key={`${editorIdRef.current}-${isJsonContent}`}
-                role={editorRole}
-                text={editorText}
-                disabled={effectiveDisabled}
-                onFocusChange={handleEditorFocusChange}
-                className={clsx([className])}
-                editorClassName={editorClassName}
-                headerClassName={headerClassName}
-                placeholder={effectivePlaceholder}
-                onChangeRole={onChangeRole}
-                onChangeText={onChangeText}
-                state={editorState}
-                isJSON={isJsonContent}
-                enableTokens={messageProps?.enableTokens ?? !isJsonContent}
-                headerRight={
-                    <TurnMessageHeaderOptions
-                        {...messageOptionProps}
-                        id={editorIdRef.current}
-                        messageId={msg?.id}
-                        disabled={kind === "user" && !hasBeenRun}
-                        resultHashes={propsResultHashes ?? resultHashes}
-                        results={results}
-                        text={editorText}
-                        collapsed={isMessageCollapsed}
-                        allowFileUpload={false}
-                        repetitionProps={!isComparisonView ? repetitionProps : undefined}
-                        onViewAllRepeats={() => openFocusDrawer({rowId: rowId, entityId})}
-                        renderTestsetButton={renderTestsetButton}
-                        renderRepetitionNav={renderRepetitionNav}
-                        uploadCount={0}
-                        documentCount={0}
-                        actions={{
-                            onRerun: isToolKind
-                                ? undefined
-                                : () =>
-                                      propsHandleRerun
-                                          ? propsHandleRerun({rowId, entityId})
-                                          : handleRerun(),
-                            onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
-                            onDelete: deleteMessage,
-                        }}
-                    >
-                        {isUserRole && !effectiveDisabled && (
-                            <AttachmentButton
-                                onAddImage={handleAddImage}
-                                onAddFile={handleAddFile}
-                                disabled={effectiveDisabled}
-                            />
+    return (
+        <>
+            {toolPayloads?.length ? (
+                toolPayloads.map((p) => (
+                    <div
+                        key={p.callId}
+                        style={editorCollapseStyle}
+                        className={clsx(
+                            "w-full",
+                            {
+                                " [&_.message-user-select]:text-[red]": isError,
+                            },
+                            messageProps?.className,
                         )}
-                        {headerRight}
-                    </TurnMessageHeaderOptions>
-                }
-                headerBottom={
-                    editorRole === "tool" && toolCallId ? (
-                        <ToolCallViewHeader className="mt-1" callId={toolCallId} name={toolName} />
-                    ) : null
-                }
-                footer={footerContent}
-                editorType={editorType}
-                {...messageProps}
-            />
-        </div>
-    ) : null
+                    >
+                        <MessageEditor
+                            id={editorIdRef.current}
+                            role={editorRole}
+                            isJSON={true}
+                            isTool
+                            onFocusChange={handleEditorFocusChange}
+                            text={p?.json}
+                            enableTokens={false}
+                            disabled={effectiveDisabled}
+                            className={clsx([className])}
+                            editorClassName={editorClassName}
+                            headerClassName={clsx(headerClassName, "pt-1")}
+                            placeholder={effectivePlaceholder}
+                            onChangeRole={onChangeRole}
+                            onChangeText={onChangeText}
+                            state={"readOnly"}
+                            headerBottom={
+                                p.name || p.callId ? (
+                                    <ToolCallViewHeader
+                                        className="mt-2"
+                                        name={p.name}
+                                        callId={p.callId}
+                                    />
+                                ) : null
+                            }
+                            headerRight={
+                                <TurnMessageHeaderOptions
+                                    {...messageOptionProps}
+                                    id={editorIdRef.current}
+                                    messageId={msg?.id}
+                                    disabled={kind === "user" && !hasBeenRun}
+                                    resultHashes={propsResultHashes ?? resultHashes}
+                                    results={results}
+                                    text={p?.json ?? editorText}
+                                    collapsed={isMessageCollapsed}
+                                    allowFileUpload={isUserRole && !effectiveDisabled}
+                                    repetitionProps={
+                                        !isComparisonView ? repetitionProps : undefined
+                                    }
+                                    onViewAllRepeats={() =>
+                                        openFocusDrawer({rowId: rowId, entityId})
+                                    }
+                                    renderTestsetButton={renderTestsetButton}
+                                    renderRepetitionNav={renderRepetitionNav}
+                                    uploadCount={imageSlotCount}
+                                    documentCount={documentSlotCount}
+                                    actions={{
+                                        onRerun: isToolKind
+                                            ? undefined
+                                            : () =>
+                                                  propsHandleRerun
+                                                      ? propsHandleRerun({rowId, entityId})
+                                                      : handleRerun(),
+                                        onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
+                                        onDelete: deleteMessage,
+                                        onAddUploadSlot: handleAddUploadSlot,
+                                        onAddDocumentSlot: handleAddDocumentSlot,
+                                    }}
+                                >
+                                    {headerRight}
+                                </TurnMessageHeaderOptions>
+                            }
+                            footer={footerContent}
+                            editorType={editorType}
+                            {...messageProps}
+                        />
+                    </div>
+                ))
+            ) : msg ? (
+                <div
+                    style={editorCollapseStyle}
+                    className={clsx(
+                        "w-full",
+                        {
+                            " [&_.message-user-select]:text-[red]": isError,
+                        },
+                        messageProps?.className,
+                    )}
+                >
+                    <MessageEditor
+                        id={editorIdRef.current}
+                        key={`${editorIdRef.current}-${isJsonContent}`}
+                        role={editorRole}
+                        text={editorText}
+                        disabled={effectiveDisabled}
+                        onFocusChange={handleEditorFocusChange}
+                        className={clsx([className])}
+                        editorClassName={editorClassName}
+                        headerClassName={headerClassName}
+                        placeholder={effectivePlaceholder}
+                        onChangeRole={onChangeRole}
+                        onChangeText={onChangeText}
+                        state={editorState}
+                        isJSON={isJsonContent}
+                        enableTokens={messageProps?.enableTokens ?? !isJsonContent}
+                        headerRight={
+                            <TurnMessageHeaderOptions
+                                {...messageOptionProps}
+                                id={editorIdRef.current}
+                                messageId={msg?.id}
+                                disabled={kind === "user" && !hasBeenRun}
+                                resultHashes={propsResultHashes ?? resultHashes}
+                                results={results}
+                                text={editorText}
+                                collapsed={isMessageCollapsed}
+                                allowFileUpload={isUserRole && !effectiveDisabled}
+                                repetitionProps={!isComparisonView ? repetitionProps : undefined}
+                                onViewAllRepeats={() => openFocusDrawer({rowId: rowId, entityId})}
+                                renderTestsetButton={renderTestsetButton}
+                                renderRepetitionNav={renderRepetitionNav}
+                                uploadCount={imageSlotCount}
+                                documentCount={documentSlotCount}
+                                actions={{
+                                    onRerun: isToolKind
+                                        ? undefined
+                                        : () =>
+                                              propsHandleRerun
+                                                  ? propsHandleRerun({rowId, entityId})
+                                                  : handleRerun(),
+                                    onToggleCollapse: () => setIsMessageCollapsed((c) => !c),
+                                    onDelete: deleteMessage,
+                                    onAddUploadSlot: handleAddUploadSlot,
+                                    onAddDocumentSlot: handleAddDocumentSlot,
+                                }}
+                            >
+                                {headerRight}
+                            </TurnMessageHeaderOptions>
+                        }
+                        headerBottom={
+                            editorRole === "tool" && toolCallId ? (
+                                <ToolCallViewHeader
+                                    className="mt-1"
+                                    callId={toolCallId}
+                                    name={toolName}
+                                />
+                            ) : null
+                        }
+                        footer={footerContent}
+                        editorType={editorType}
+                        {...messageProps}
+                    />
+                </div>
+            ) : null}
+        </>
+    )
 }
 
 export default TurnMessageAdapter
