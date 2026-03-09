@@ -90,11 +90,15 @@ export const RequestPreview: FC<Props> = ({form}) => {
         return null
     }
 
-    const handleCopy = () => {
+    const handleCopy = async () => {
         const textToCopy = `POST ${preview.url}\n\nHeaders:\n${JSON.stringify(preview.headers, null, 2)}\n\nBody:\n${JSON.stringify(preview.body, null, 2)}`
-        navigator.clipboard.writeText(textToCopy)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        try {
+            await navigator.clipboard.writeText(textToCopy)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+        } catch {
+            // Clipboard write failed silently
+        }
     }
 
     return (
