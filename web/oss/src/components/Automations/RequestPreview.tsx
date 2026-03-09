@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react"
+import {type FC, ReactNode, useMemo, useState} from "react"
 
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, Form, FormInstance, Tooltip} from "antd"
@@ -14,14 +14,11 @@ interface Props {
     form: FormInstance
 }
 
-const escapeHtml = (str: string): string =>
-    str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-
-const HighlightedJson: React.FC<{data: Record<string, unknown>}> = ({data}) => {
+const HighlightedJson: FC<{data: Record<string, unknown>}> = ({data}) => {
     const jsonStr = JSON.stringify(data, null, 2)
 
     const lines = jsonStr.split("\n").map((line, i) => {
-        const parts: React.ReactNode[] = []
+        const parts: ReactNode[] = []
         let keyIdx = 0
 
         const tokenRegex =
@@ -69,7 +66,7 @@ const HighlightedJson: React.FC<{data: Record<string, unknown>}> = ({data}) => {
     return <>{lines}</>
 }
 
-export const RequestPreview: React.FC<Props> = ({form}) => {
+export const RequestPreview: FC<Props> = ({form}) => {
     const [copied, setCopied] = useState(false)
     const projectId = useAtomValue(projectIdAtom)
     const editingAutomation = useAtomValue(editingAutomationAtom)
