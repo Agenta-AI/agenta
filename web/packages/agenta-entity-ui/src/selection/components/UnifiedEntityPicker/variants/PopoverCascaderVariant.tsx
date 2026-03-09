@@ -307,7 +307,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             styles={{container: {padding: 0}}}
             arrow={false}
             destroyOnHidden
-            autoAdjustOverflow={false}
+            autoAdjustOverflow
         >
             <Button
                 size={size}
