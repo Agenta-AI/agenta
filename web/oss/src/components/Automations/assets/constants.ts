@@ -134,13 +134,14 @@ export const AUTOMATION_SCHEMA: AutomationSchemaEntry[] = [
                 visibleWhen: {field: "github_sub_type", value: "workflow_dispatch"},
             },
             {
+            {
                 key: "github_pat",
                 label: "Personal Access Token",
                 component: "input.password",
                 secret: true,
+                required: true,
                 placeholder: "ghp_...",
-                extra: "A GitHub PAT with repo scope.",
-                rules: [{required: true, message: "PAT is required"}],
+                extra: "Used to authenticate with the GitHub API",
             },
         ],
     },
