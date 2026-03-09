@@ -957,31 +957,48 @@ playgroundSyncAtom.onMount = (set) => {
             appState.pathname?.includes("/playground") &&
             !appState.pathname?.includes("/playground-test")
 
+        // Detect app changes during in-page navigation. Declared before the
+        // if/else so it's accessible in the post-block early-return check.
+        const appChanged =
+            isPlaygroundRoute &&
+            playgroundSyncMountedOnce &&
+            currentAppId &&
+            currentSelected.length > 0 &&
+            lastPlaygroundAppId !== currentAppId
+
         if (isPlaygroundRoute) {
-            // Clear stale selection when the app changes during in-page navigation.
-            // On fresh page load (playgroundSyncMountedOnce === false), the URL sync
-            // in syncPlaygroundStateFromUrl has already restored the correct selection
-            // before this mount handler runs — clearing here would discard it.
-            // We only clear when the atom has been mounted before (navigation within
-            // the same page session) and the app ID actually changed.
-            const appChanged =
-                playgroundSyncMountedOnce &&
-                currentAppId &&
-                currentSelected.length > 0 &&
-                lastPlaygroundAppId !== currentAppId
             if (appChanged) {
                 store.set(playgroundController.actions.setEntityIds, [])
                 currentSelected = []
             }
             lastPlaygroundAppId = currentAppId
         } else {
-            lastPlaygroundAppId = null
+            // Keep lastPlaygroundAppId so that returning to the same app's
+            // playground does not mistakenly clear the selection.
+            // It was previously nullified here, causing the "appChanged" check
+            // on re-entry to clear the valid selection.
+
+            // Clean up existing subscriptions and skip re-binding since
+            // we're not on a playground route.
+            currentRevReadyUnsub?.()
+            currentLatestRevUnsub?.()
+            return
+        }
+
+        currentRevReadyUnsub?.()
+        currentLatestRevUnsub?.()
+
+        // When returning to the same app with a valid selection that's already
+        // initialized, skip resetting playgroundInitializedAtom to avoid a
+        // false→true transition that causes unnecessary re-renders (which can
+        // trigger editor re-hydration and cursor jumps).
+        if (!appChanged && currentSelected.length > 0 && store.get(playgroundInitializedAtom)) {
+            hasAppliedDefaults = true
+            return
         }
 
         hasAppliedDefaults = false
         store.set(playgroundInitializedAtom, false)
-        currentRevReadyUnsub?.()
-        currentLatestRevUnsub?.()
 
         // Check if URL already provided a selection
         const existingSelection = currentSelected
