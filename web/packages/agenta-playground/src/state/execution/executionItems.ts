@@ -496,7 +496,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             repetitions,
             runId,
             inputValues,
-            references,
+            references: requestReferences,
             links,
             projectId,
             dispatchWorkerRun,
@@ -662,7 +662,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       chatHistory,
                       agConfigFallbacks,
                       inputValues,
-                      references,
+                      references: requestReferences,
                       links,
                   })
                 : buildCompletionExecutionItem({
@@ -682,7 +682,7 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                       inputRow: completionInputRow,
                       agConfigFallbacks,
                       inputValues,
-                      references,
+                      references: requestReferences,
                       links,
                   })
 

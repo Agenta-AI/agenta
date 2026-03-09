@@ -6,6 +6,7 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import type {ChatMessage, SimpleChatMessage} from "@agenta/playground"
 import {
     extractAssistantDisplayValue,
+    getEvaluatorVerdictFromOutput,
     hasAssistantContent as checkHasAssistantContent,
 } from "@agenta/playground/utils"
 import {LoadingOutlined} from "@ant-design/icons"
@@ -79,9 +80,20 @@ const EvaluatorResultPopover = ({
 
         // Success — try to extract a single summary value for the tag
         const entries = extractDisplayEntries(fullResult.output)
+        const verdict = getEvaluatorVerdictFromOutput(fullResult.output)
+        const verdictColor =
+            verdict === "fail"
+                ? ("error" as const)
+                : verdict === "pass"
+                  ? ("success" as const)
+                  : ("success" as const)
+        const doneLabel = verdict === "fail" ? "Fail" : verdict === "pass" ? "Pass" : "Done"
 
         if (!entries) {
-            return {tagLabel: "Done", tagColor: "success" as const}
+            return {
+                tagLabel: doneLabel,
+                tagColor: verdictColor,
+            }
         }
 
         if (entries.length === 1) {
@@ -89,11 +101,14 @@ const EvaluatorResultPopover = ({
             const label = typeof value === "boolean" ? (value ? "Pass" : "Fail") : String(value)
             return {
                 tagLabel: label.length > 20 ? label.slice(0, 17) + "..." : label,
-                tagColor: "success" as const,
+                tagColor: verdictColor,
             }
         }
 
-        return {tagLabel: "Done", tagColor: "success" as const}
+        return {
+            tagLabel: doneLabel,
+            tagColor: verdictColor,
+        }
     }, [fullResult, status])
 
     // Build popover content

@@ -2,6 +2,7 @@ import React, {useCallback, useMemo} from "react"
 
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {CopySimpleIcon, MinusCircleIcon, PlayIcon} from "@phosphor-icons/react"
@@ -91,17 +92,34 @@ const ComparisonLayout = ({
     const {getNodeLabel} = usePlaygroundNodeLabels(nodes)
 
     const mapStatuses = useCallback(
-        (statuses: (string | undefined)[]): DropdownButtonOptionStatus => {
-            const relevant = statuses.filter((status): status is string => Boolean(status))
+        (results: ({status?: string; output?: unknown} | null)[]): DropdownButtonOptionStatus => {
+            const relevant = results.filter(
+                (result): result is {status?: string; output?: unknown} => Boolean(result),
+            )
             if (relevant.length === 0) return "idle"
-            if (relevant.some((status) => status === "running" || status === "pending")) {
+            if (
+                relevant.some(
+                    (result) => result.status === "running" || result.status === "pending",
+                )
+            ) {
                 return "running"
             }
-            if (relevant.every((status) => status === "success")) {
-                return "success"
-            }
-            if (relevant.some((status) => status === "error" || status === "failed")) {
+            if (
+                relevant.some((result) => result.status === "error" || result.status === "failed")
+            ) {
                 return "error"
+            }
+            if (
+                relevant.some(
+                    (result) =>
+                        result.status === "success" &&
+                        getEvaluatorVerdictFromOutput(result.output) === "fail",
+                )
+            ) {
+                return "error"
+            }
+            if (relevant.every((result) => result.status === "success")) {
+                return "success"
             }
             return "idle"
         },
@@ -122,8 +140,8 @@ const ComparisonLayout = ({
                                 rowId,
                                 entityId: node.entityId,
                             }),
-                        ) as {status?: string} | null
-                        return result?.status
+                        ) as {status?: string; output?: unknown} | null
+                        return result
                     }),
                 )
 
@@ -135,8 +153,8 @@ const ComparisonLayout = ({
                                     rowId,
                                     entityId: `${rootNode.entityId}:${node.entityId}`,
                                 }),
-                            ) as {status?: string} | null
-                            return result?.status
+                            ) as {status?: string; output?: unknown} | null
+                            return result
                         }),
                     )
                 }

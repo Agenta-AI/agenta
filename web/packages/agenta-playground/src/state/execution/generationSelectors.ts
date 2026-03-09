@@ -15,6 +15,7 @@ import {loadableController} from "@agenta/entities/runnable"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {getEvaluatorVerdictFromOutput} from "../../utils"
 import {entityIdsAtom, playgroundNodesAtom} from "../atoms/playground"
 import {
     sharedMessageIdsWithContextAtom,
@@ -424,6 +425,7 @@ export const chainExecutionStatusAtomFamily = atomFamily(
                     fullResultByRowEntityAtomFamily({rowId, entityId: lookupId}),
                 ) as {
                     status?: string
+                    output?: unknown
                 } | null
                 const rawStatus = result?.status
                 let mapped: "idle" | "running" | "success" | "error"
@@ -434,7 +436,10 @@ export const chainExecutionStatusAtomFamily = atomFamily(
                     mapped = "running"
                     isBusy = true
                 } else if (rawStatus === "success") {
-                    mapped = "success"
+                    mapped =
+                        getEvaluatorVerdictFromOutput(result?.output) === "fail"
+                            ? "error"
+                            : "success"
                 } else {
                     mapped = "error"
                 }
