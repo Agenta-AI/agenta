@@ -171,7 +171,7 @@ const PromptImageUpload = ({
                 thumbUrl: previewUrl,
                 type: file.type,
                 size: file.size,
-            })
+            } as UploadFile & {base64: string | ArrayBuffer | null})
 
             setDraftValue(reader.result as string)
             setError("")
