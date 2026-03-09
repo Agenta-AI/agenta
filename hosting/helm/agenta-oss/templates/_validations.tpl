@@ -3,16 +3,15 @@
    When a user provides secrets.existingSecret AND the bundled
    PostgreSQL is enabled, Bitnami must be pointed at the user's
    secret (since the chart-managed pgauth secret is not created).
-   Bitnami reads global.postgresql.auth.existingSecret as a plain
-   string — it cannot evaluate Helm template expressions — so the
-   user must explicitly override it.
+   We detect the chart default by checking whether the value still
+   contains ".Release.Name" (the tpl expression from values.yaml).
    ================================================================ */}}
 {{- define "agenta.validatePgauthSecret" -}}
-{{- if and .Values.postgresql.enabled .Values.secrets.existingSecret (eq .Values.global.postgresql.auth.existingSecret "agenta-pgauth") }}
+{{- if and .Values.postgresql.enabled .Values.secrets.existingSecret (contains ".Release.Name" .Values.global.postgresql.auth.existingSecret) }}
 {{- fail `
 
 CONFIGURATION ERROR: secrets.existingSecret is set but global.postgresql.auth.existingSecret
-still has its default value ("agenta-pgauth").
+still has its default value.
 
 When using a pre-created Secret with the bundled PostgreSQL, you must also tell the Bitnami
 PostgreSQL subchart which Secret to read the password from. Set:

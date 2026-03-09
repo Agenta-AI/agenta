@@ -59,17 +59,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{/* ================================================================
    PostgreSQL auth secret name.
-   The Bitnami subchart reads global.postgresql.auth.existingSecret
-   at evaluation time and cannot process Helm template expressions,
-   so values.yaml must carry a static default.  This helper lets
-   our own templates derive the name dynamically when possible.
+   The default in values.yaml is a Go template expression
+   (e.g. '{{ printf "%s-pgauth" .Release.Name }}') which the
+   Bitnami subchart evaluates via tpl().  We use tpl() here too
+   so both sides always resolve to the same name.  Plain strings
+   (e.g. "my-secret") pass through tpl() unchanged.
    ================================================================ */}}
 {{- define "agenta.pgauthSecretName" -}}
-{{- if .Values.global.postgresql.auth.existingSecret }}
-{{- .Values.global.postgresql.auth.existingSecret }}
-{{- else }}
-{{- printf "%s-pgauth" (include "agenta.fullname" .) }}
-{{- end }}
+{{- tpl .Values.global.postgresql.auth.existingSecret . }}
 {{- end }}
 
 {{/* ================================================================

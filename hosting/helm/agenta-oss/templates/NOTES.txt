@@ -39,15 +39,6 @@ Database migrations run as a post-install/post-upgrade hook. Check the migration
   kubectl logs job/{{ include "agenta.fullname" . }}-alembic -n {{ .Release.Namespace }}
 {{- end }}
 
-{{- if eq .Release.Name "agenta" | not }}
-NOTE: Your release is named "{{ .Release.Name }}", not "agenta".
-The default global.postgresql.auth.existingSecret is "agenta-pgauth",
-which assumes a release named "agenta". You should set it to match your
-release name so the Bitnami PostgreSQL subchart finds the correct secret:
-
-  --set global.postgresql.auth.existingSecret={{ printf "%s-pgauth" (include "agenta.fullname" .) }}
-{{- end }}
-
 {{- if .Values.secrets.existingSecret }}
 
 You are using a pre-created Secret: {{ .Values.secrets.existingSecret }}
@@ -59,11 +50,11 @@ Ensure it contains the following keys:
 {{- if .Values.postgresql.enabled }}
 
 Bundled PostgreSQL is enabled. Bitnami is configured to read the password from:
-  global.postgresql.auth.existingSecret: {{ .Values.global.postgresql.auth.existingSecret }}
-{{- if ne .Values.global.postgresql.auth.existingSecret .Values.secrets.existingSecret }}
+  global.postgresql.auth.existingSecret: {{ include "agenta.pgauthSecretName" . }}
+{{- if ne (include "agenta.pgauthSecretName" .) .Values.secrets.existingSecret }}
 
-WARNING: global.postgresql.auth.existingSecret ({{ .Values.global.postgresql.auth.existingSecret }})
-does not match secrets.existingSecret ({{ .Values.secrets.existingSecret }}).
+WARNING: global.postgresql.auth.existingSecret resolves to "{{ include "agenta.pgauthSecretName" . }}"
+but secrets.existingSecret is "{{ .Values.secrets.existingSecret }}".
 The Bitnami PostgreSQL subchart may fail to find the password.
 Set: --set global.postgresql.auth.existingSecret={{ .Values.secrets.existingSecret }}
 {{- end }}

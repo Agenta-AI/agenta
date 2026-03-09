@@ -10,20 +10,15 @@ global:
   # Wire the Bitnami subchart to read the PostgreSQL password from the
   # chart-managed secret so users only need to set secrets.postgresPassword.
   #
-  # IMPORTANT: The Bitnami PostgreSQL subchart evaluates
-  # global.postgresql.auth.existingSecret as a plain string at chart-render
-  # time — it cannot process Helm template expressions.  The default value
-  # below ("agenta-pgauth") matches a release named "agenta".  If you install
-  # with a different release name or run multiple instances in the same
-  # namespace, override this value to match your release, e.g.:
-  #   global.postgresql.auth.existingSecret: "<release>-agenta-oss-pgauth"
+  # The default is a Go template expression evaluated by Bitnami's tpl()
+  # function at render time, so it automatically adapts to any release name.
   #
   # If you use secrets.existingSecret (a pre-created K8s Secret), set this to
   # the SAME secret name so Bitnami reads POSTGRES_PASSWORD from it:
   #   global.postgresql.auth.existingSecret: "my-secret"
   postgresql:
     auth:
-      existingSecret: "agenta-pgauth"
+      existingSecret: '{{ printf "%s-pgauth" .Release.Name }}'
       secretKeys:
         userPasswordKey: "POSTGRES_PASSWORD"
         adminPasswordKey: "POSTGRES_PASSWORD"
