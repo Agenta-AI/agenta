@@ -70,7 +70,8 @@ Optional:
 
 ## Acceptance Criteria
 
-1. Full suite passes consistently (10 pass, 2 skip) on deployed OSS.
+1. Full suite reporting must match reality. Do not describe the branch as "10 pass, 2 skip" while deployment, observability, and API key coverage are hard-skipped.
+   - Latest observed CI run on this branch: `5 passed`, `4 skipped`, `1 failed`, `2 flaky`.
 2. Failures are actionable (clear error source, not flaky).
 3. Full suite runs in under 5 minutes.
 4. No test depends on data from a previous test run (except observability, which needs prior playground traces).

@@ -21,8 +21,9 @@ const waitForSuccessfulRun = async (
 
     while (Date.now() <= deadline) {
         attempt += 1
+        const runResponsePromise = waitForRunResponse()
         await triggerRun()
-        lastResponse = await waitForRunResponse()
+        lastResponse = await runResponsePromise
 
         if (!lastResponse || !isSecretPropagationFailure(lastResponse)) {
             return lastResponse

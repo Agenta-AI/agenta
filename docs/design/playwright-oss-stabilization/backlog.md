@@ -19,6 +19,10 @@
 
 ## P1 (Structural cleanup — Phase 1)
 
+0. Fix the active harness regressions on this branch:
+   - Playground run listener order.
+   - Cached-auth fallback skipping ephemeral-project creation.
+   - Doc claims that no longer match the real pass/skip state.
 1. Rename `testsset` folder to `testset` (requires updating EE wrapper imports).
 2. Unskip or clearly document API keys test with rationale for what setup it needs.
 3. Fix playground direct URL blank content (frontend bug, not test issue).

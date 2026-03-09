@@ -55,11 +55,18 @@ node_modules/.bin/playwright show-report
 
 ---
 
-## Current State (as of 2026-03-06)
+## Current State (as of 2026-03-09)
 
 The suite is not fully stabilized today.
 
-The new project-scoped mock provider fixture is implemented. The Settings flow works locally against the preview deployment. The Playground runtime path now reaches real execution with the selected mock model. The remaining blocker is a runtime credential resolution failure for the custom provider model `mock/custom/gpt-6`.
+The branch has the right overall structure: project-scoped navigation is improved, the mock-provider fixture exists, ephemeral projects are wired into setup/teardown, and the PR workflow runs Playwright after preview deploy. The two reviewed harness bugs were fixed on this branch, but the suite still has active coverage and runtime gaps and should not be described as "10 pass, 2 skip".
+
+Latest observed CI result on this branch: `5 passed`, `4 skipped`, `1 failed`, `2 flaky`.
+
+What changed in this patch:
+
+1. `waitForSuccessfulRun()` in Playground now starts the `/test` response listener before clicking Run.
+2. The cached `state.json` fallback path now recreates an authenticated context and still creates the ephemeral project.
 
 ### Verified today
 
@@ -70,12 +77,15 @@ The new project-scoped mock provider fixture is implemented. The Settings flow w
 | Playground app navigation | Improved | The test no longer depends on the Prompts table. It enters the app through Overview, then moves to Playground from the app sidebar. |
 | Playground model selection | Improved | The helper now selects `mock/custom/gpt-6` through the grouped model picker. |
 | Playground completion run | Blocked | The run reaches `/test`, but runtime returns `400 invalid-secrets` with `No API key found for model 'mock/custom/gpt-6'`. |
-| Playground chat run | Not revalidated after the latest fixes | Expected to be blocked by the same runtime issue. |
-| Observability | Blocked behind Playground execution | No fresh traces are produced until the runtime issue is fixed. |
+| Playground chat run | Flaky | Recent CI retries failed earlier in provider setup/model selection before reaching the runtime assertion. |
+| Observability | Hard skipped | Test is currently disabled until Playground reliably produces traces in the ephemeral project. |
+| Mock provider setup | Flaky in CI | Recent failures show `Custom provider drawer did not open after clicking Create` in the Settings Models flow. |
+| Mock model selection | Flaky in CI | Recent failures show the grouped model picker sometimes does not expose the `Mock` group when the Playground page loads. |
 | Prompt registry | Failing in CI | The page route loads, but the expected heading assertion does not match the rendered content. |
 | Testsets | Failing in CI | The test still waits for a request contract that does not always fire on the current page path. |
-| Deployment | Failing in CI | The current deployment test still assumes at least one variant exists. |
-| API keys | Skip | Still skipped. |
+| App creation | Flaky in CI | Recent run hit a timeout and then `Target page, context or browser has been closed` during the Create New Prompt flow. |
+| Deployment | Hard skipped | Test is currently disabled until the ephemeral project has deterministic deployable data. |
+| API keys | Hard skipped | Still skipped. |
 
 ## BDD Feature Specs
 
@@ -98,8 +108,10 @@ See `features/README.md` for the full mapping and caveats.
 3. **Playground direct URL still renders blank.** Direct navigation to `/apps/{id}/playground` is still unreliable. Tests navigate through Overview, then click Playground in the app sidebar.
 4. **Custom provider runtime is still blocked.** The UI can create and select `mock/custom/gpt-6`, but the runtime still rejects it with `No API key found for model 'mock/custom/gpt-6'`.
 5. **Teardown auth warning can still appear.** `Failed to fetch secrets {"detail":"Unauthorized"}` on teardown is benign when the session cookie expires before teardown runs on shared deployments.
-6. **`testsset` folder typo remains.** The testset test folder is named `testsset`. Renaming still requires updating EE wrapper imports.
-7. **A dead preview can look like a routing bug.** When the PR deployment expires, the app can fall back to the generic `/apps` route or error pages. That can look like a scope or hydration failure, but the real fix is to push a new commit, wait for the PR preview to come back, and rerun against the fresh deployment URL.
+6. **Cached auth reuse needed a dedicated fix.** When the auth UI is unavailable and setup reuses `state.json`, it must recreate an authenticated context before creating the ephemeral project. This branch now does that explicitly.
+7. **Mock provider setup is still flaky.** The Models page sometimes fails to open the custom-provider drawer or expose the `Mock` group reliably in CI.
+8. **`testsset` folder typo remains.** The testset test folder is named `testsset`. Renaming still requires updating EE wrapper imports.
+9. **A dead preview can look like a routing bug.** When the PR deployment expires, the app can fall back to the generic `/apps` route or error pages. That can look like a scope or hydration failure, but the real fix is to push a new commit, wait for the PR preview to come back, and rerun against the fresh deployment URL.
 
 ## Key Patterns Discovered
 

@@ -1,8 +1,29 @@
 # Plan
 
+## Immediate Remediation Plan
+
+This is the active plan for the current PR branch review.
+
+### Goal
+
+Fix the two real harness bugs called out in review, then bring the docs back in sync with the code that actually ships on this branch.
+
+### Work items
+
+1. Fix the Playground run helper so it always starts the API listener before clicking Run.
+2. Fix global setup so the cached `state.json` fallback still creates the ephemeral project when that mode is enabled.
+3. Update the design docs to stop claiming full stabilization while deployment, observability, and API key coverage are still skipped.
+4. Leave broader test independence work as follow-up, not part of this patch.
+
+### Exit criteria for this patch
+
+- `waitForSuccessfulRun()` no longer attaches listeners after the trigger.
+- Cached-auth fallback preserves ephemeral-project isolation.
+- `README.md`, `plan.md`, `status.md`, `research.md`, and `qa.md` all describe the same current suite state.
+
 ## Phase 0 - Stabilize OSS Deployment Smoke
 
-Phase 0 is no longer complete.
+Phase 0 remains incomplete.
 
 The suite moved forward in one important way. Runtime tests now have a project-scoped mock provider fixture, and the Playground flow reaches the real execution request with `mock/custom/gpt-6`. At the same time, the latest verification against preview exposed that the runtime still rejects the custom provider model as missing credentials. That keeps the Playground and Observability domains blocked.
 

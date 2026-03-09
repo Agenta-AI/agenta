@@ -23,12 +23,12 @@
 |---|---|---|---|
 | smoke | `smoke.spec.ts` | (inline) | Pass |
 | app | `app/create.spec.ts` | `app/index.ts`, `app/test.ts` | Pass |
-| playground | `playground/run-variant.spec.ts` | `playground/index.ts`, `playground/tests.ts` | Pass |
-| deployment | `deployment/deploy-variant.spec.ts` | `deployment/index.ts` | Pass |
-| observability | `observability/observability.spec.ts` | `observability/index.ts` | Pass |
-| prompt-registry | `prompt-registry/prompt-registry-flow.spec.ts` | `prompt-registry/index.ts` | Pass |
+| playground | `playground/run-variant.spec.ts` | `playground/index.ts`, `playground/tests.ts` | Harness fix landed; runtime still blocked |
+| deployment | `deployment/deploy-variant.spec.ts` | `deployment/index.ts` | Hard skipped |
+| observability | `observability/observability.spec.ts` | `observability/index.ts` | Hard skipped |
+| prompt-registry | `prompt-registry/prompt-registry-flow.spec.ts` | `prompt-registry/index.ts` | Fragile |
 | settings | `settings/model-hub.spec.ts` | `settings/model-hub.ts` | Pass |
-| settings | `settings/api-keys-management.spec.ts` | `settings/api-keys.ts` | Skip |
+| settings | `settings/api-keys-management.spec.ts` | `settings/api-keys.ts` | Hard skipped |
 | testset | `testsset/testset.spec.ts` | `testsset/index.ts` | Skip (conditional) |
 
 EE acceptance domains:
@@ -57,6 +57,12 @@ The prompts table uses div-based rows (not `<tr>`). Use:
 ### API Interception Timing
 
 `page.waitForResponse()` must be set up BEFORE the navigation/click that triggers the API call. Setting it up after causes race conditions.
+
+This was one of the active issues on the branch review. The current patch fixes the Playground helper to attach the listener before clicking Run.
+
+### Ephemeral Project Isolation
+
+The project-per-run design is correct, but the cached-auth fallback path must recreate an authenticated browser context from `state.json` before creating the ephemeral project. Otherwise reruns can silently reuse the previous default project. The current patch fixes that setup path.
 
 ### Auth Modes
 

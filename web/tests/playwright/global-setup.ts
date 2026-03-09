@@ -197,6 +197,16 @@ async function globalSetup() {
     const canRunAuthFlow = await ensureAuthEntryPoint()
 
     if (!canRunAuthFlow) {
+        console.log(
+            "[global-setup] Reusing cached state.json and creating ephemeral project with stored auth",
+        )
+        const cachedContext = await browser.newContext({storageState})
+        const cachedPage = await cachedContext.newPage()
+
+        await cachedPage.goto(`${baseURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
+        await maybeCreateEphemeralProject(cachedPage, baseURL)
+
+        await cachedContext.close()
         await browser.close()
         return
     }
