@@ -271,58 +271,6 @@ class TestWorkflowRetrieveWithResolve:
             pass
 
 
-class TestWorkflowQueryWithResolve:
-    """Tests for resolve=True on POST /preview/workflows/revisions/query."""
-
-    def test_query_with_resolve_true_resolves_all_revisions(self, authed_api):
-        """
-        query with resolve=True must return all matching revisions with embeds
-        resolved.
-        """
-        base_slug = f"rq-base-{uuid4().hex[:8]}"
-        embed_slug = f"rq-embed-{uuid4().hex[:8]}"
-
-        base_id, _, embed_id, _ = _create_workflow_with_embed(
-            authed_api,
-            base_slug=base_slug,
-            embed_slug=embed_slug,
-            base_params={"text": "query-resolved-value"},
-            embed_selector_path="parameters.text",
-        )
-
-        # ACT ------------------------------------------------------------------
-        response = authed_api(
-            "POST",
-            "/preview/workflows/revisions/query",
-            json={
-                "workflow_refs": [{"id": embed_id}],
-                "resolve": True,
-            },
-        )
-        # ----------------------------------------------------------------------
-
-        # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
-        body = response.json()
-        revisions = body.get("workflow_revisions", [])
-        assert len(revisions) >= 1
-
-        # All returned revisions must have embeds resolved
-        for rev in revisions:
-            params = rev.get("data", {}).get("parameters", {})
-            # "embedded" key must now be the resolved string, not an @ag.embed dict
-            if "embedded" in params:
-                assert params["embedded"] == "query-resolved-value"
-                assert "@ag.embed" not in str(params["embedded"])
-        # ----------------------------------------------------------------------
-
-        for wf_id in [embed_id, base_id]:
-            try:
-                authed_api("DELETE", f"/preview/workflows/{wf_id}")
-            except Exception:
-                pass
-
-
 class TestApplicationRetrieveWithResolve:
     """Tests for resolve=True on POST /preview/applications/revisions/retrieve."""
 

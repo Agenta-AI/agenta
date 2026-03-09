@@ -39,14 +39,8 @@ from oss.src.apis.fastapi.tracing.models import (
     UserIdsResponse,
 )
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.utils.parsing import (
-    parse_trace_id_to_uuid,
-    parse_spans_from_request,
-)
-from oss.src.core.tracing.utils.trees import (
-    traces_to_trace_map,
-    calculate_and_propagate_metrics,
-)
+from oss.src.core.tracing.utils.parsing import parse_trace_id_to_uuid
+from oss.src.core.tracing.utils.trees import traces_to_trace_map
 
 # TYPE_CHECKING to avoid circular import at runtime
 from typing import TYPE_CHECKING
@@ -54,12 +48,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
 
-from oss.src.core.tracing.streaming import publish_spans
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelLinks,
-    OTelSpan,
-    OTelFlatSpan,
     OTelFlatSpans,
     Span,
     OTelTraceTree,
@@ -392,96 +383,6 @@ class TracingRouter:
             count=len(buckets),
             buckets=buckets,
         )
-
-    async def _upsert(
-        self,
-        project_id: UUID,
-        user_id: UUID,
-        organization_id: UUID,
-        #
-        spans: Optional[OTelFlatSpans] = None,
-        traces: Optional[OTelTraceTree] = None,
-        sync: bool = False,
-    ) -> OTelLinks:
-        _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
-
-        if spans:
-            _spans = {
-                "spans": [
-                    OTelFlatSpan(
-                        **span.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                            exclude_unset=True,
-                        )
-                    )
-                    for span in spans
-                ]
-            }
-        elif traces:
-            for spans_tree in traces.values():
-                if spans_tree.spans:
-                    for span in spans_tree.spans.values():
-                        if not isinstance(span, list):
-                            _spans[span.span_id] = OTelSpan(
-                                **span.model_dump(
-                                    mode="json",
-                                    exclude_none=True,
-                                    exclude_unset=True,
-                                )
-                            )
-
-        span_dtos = parse_spans_from_request(_spans) or []
-
-        # Calculate and propagate costs/tokens BEFORE batching
-        # This ensures complete trace trees for proper metric propagation
-        span_dtos = calculate_and_propagate_metrics(span_dtos)
-
-        if sync:
-            # Synchronous path for low-volume, user-facing operations
-            # (annotations, invocations) - check entitlements inline and write directly
-            if is_ee():
-                # Count root spans (traces) for entitlements check
-                delta = sum(1 for span_dto in span_dtos if span_dto.parent_id is None)
-                if delta > 0:
-                    allowed, _, _ = await check_entitlements(  # type: ignore
-                        organization_id=organization_id,
-                        key=Counter.TRACES,  # type: ignore
-                        delta=delta,
-                        use_cache=False,  # Authoritative DB check
-                    )
-                    if not allowed:
-                        raise HTTPException(
-                            status_code=429,
-                            detail="Trace quota exceeded for organization",
-                        )
-
-            # Write directly to database (synchronous)
-            await self.service.ingest(
-                project_id=project_id,
-                user_id=user_id,
-                span_dtos=span_dtos,
-            )
-        else:
-            # Async path for high-volume operations (observability, evaluations)
-            # Publish to Redis Streams for async processing with entitlements check
-            await publish_spans(
-                organization_id=organization_id,
-                project_id=project_id,
-                user_id=user_id,
-                span_dtos=span_dtos,
-            )
-
-        # Generate links from span_dtos to return to client
-        links = [
-            OTelLink(
-                trace_id=str(span_dto.trace_id),
-                span_id=str(span_dto.span_id),
-            )
-            for span_dto in span_dtos
-        ]
-
-        return links
 
     ## TRACES
 
