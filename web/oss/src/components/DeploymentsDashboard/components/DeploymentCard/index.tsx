@@ -21,10 +21,10 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
     const hasDeployment = !!env.deployed_app_variant_revision_id
 
     const lastModifiedText = useMemo(() => {
-        if (!env.updated_at) return "-"
+        if (!hasDeployment || !env.updated_at) return "-"
         const d = dayjs.utc(env.updated_at)
         return d.isValid() ? d.local().format("MMM D, YYYY h:mm A") : "-"
-    }, [env.updated_at])
+    }, [hasDeployment, env.updated_at])
 
     return (
         <Card
