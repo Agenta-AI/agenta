@@ -3,9 +3,10 @@ import React, {memo, useMemo} from "react"
 import type {SchemaProperty} from "@agenta/entities"
 import type {RunnablePort} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
+import {Tag} from "antd"
 import clsx from "clsx"
 
-import {buildSchemaMap, formatFieldLabel} from "./utils"
+import {buildSchemaMap, formatFieldLabel, isVerdictFieldKey, parseBooleanLikeValue} from "./utils"
 
 // ============================================================================
 // SKELETON HELPERS
@@ -161,7 +162,22 @@ const EvaluatorFieldGrid = memo(function EvaluatorFieldGrid({
                         {formatFieldLabel(key)}:
                     </span>
                     <span className="break-words min-w-0 leading-5">
-                        <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                        {(() => {
+                            const verdictBoolean = isVerdictFieldKey(key)
+                                ? parseBooleanLikeValue(value)
+                                : null
+                            if (verdictBoolean === null) {
+                                return <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                            }
+                            return (
+                                <Tag
+                                    color={verdictBoolean ? "success" : "error"}
+                                    className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                >
+                                    {verdictBoolean ? "true" : "false"}
+                                </Tag>
+                            )
+                        })()}
                     </span>
                 </React.Fragment>
             ))}

@@ -5,7 +5,7 @@ import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
+import {Tag} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
@@ -19,6 +19,8 @@ import {
     extractDisplayEntries,
     buildSchemaMap,
     formatFieldLabel,
+    isVerdictFieldKey,
+    parseBooleanLikeValue,
 } from "../../shared/EvaluatorFieldGrid/utils"
 import {NodeResultCard, ensureNodeCardKeyframes, type NodeStatus} from "../../shared/NodeResultCard"
 
@@ -84,13 +86,10 @@ const DownstreamNodeCard = ({
     }, [outputPorts, nodeData])
 
     const rawStatus = (fullResult?.status ?? "idle") as NodeStatus
-    const evaluatorVerdict = getEvaluatorVerdictFromOutput(fullResult?.output)
-    const status: NodeStatus =
-        rawStatus === "success" && evaluatorVerdict === "fail" ? "error" : rawStatus
 
     if (!fullResult || rawStatus === "idle" || rawStatus === "cancelled") {
         return (
-            <NodeResultCard name={nodeName} status={status}>
+            <NodeResultCard name={nodeName} status={rawStatus}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} idle />
             </NodeResultCard>
         )
@@ -98,7 +97,7 @@ const DownstreamNodeCard = ({
 
     if (rawStatus === "running" || rawStatus === "pending") {
         return (
-            <NodeResultCard name={nodeName} status={status}>
+            <NodeResultCard name={nodeName} status={rawStatus}>
                 <EvaluatorFieldGrid entries={null} outputPorts={outputPorts} loading />
             </NodeResultCard>
         )
@@ -110,7 +109,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Error"
         return (
-            <NodeResultCard name={nodeName} status={status}>
+            <NodeResultCard name={nodeName} status={rawStatus}>
                 <span className="text-[var(--ant-color-error)] text-xs leading-5">{errorMsg}</span>
             </NodeResultCard>
         )
@@ -123,7 +122,7 @@ const DownstreamNodeCard = ({
                 ? fullResult.error.message
                 : "Skipped"
         return (
-            <NodeResultCard name={nodeName} status={status}>
+            <NodeResultCard name={nodeName} status={rawStatus}>
                 <span className="text-[var(--ant-color-text-tertiary)] text-xs leading-5 italic">
                     {skipMsg}
                 </span>
@@ -132,18 +131,17 @@ const DownstreamNodeCard = ({
     }
 
     const entries = extractDisplayEntries(fullResult.output)
-    const completedStatus: NodeStatus = evaluatorVerdict === "fail" ? "error" : "success"
 
     if (!entries || entries.length === 0) {
         return (
-            <NodeResultCard name={nodeName} status={completedStatus}>
+            <NodeResultCard name={nodeName} status={rawStatus}>
                 <span className="text-xs leading-5">—</span>
             </NodeResultCard>
         )
     }
 
     return (
-        <NodeResultCard name={nodeName} status={completedStatus}>
+        <NodeResultCard name={nodeName} status={rawStatus}>
             <div
                 className="grid items-baseline text-xs leading-5"
                 style={{gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 6}}
@@ -154,7 +152,27 @@ const DownstreamNodeCard = ({
                             {formatFieldLabel(key)}:
                         </span>
                         <span className="break-words min-w-0 leading-5">
-                            <RunnableOutputValue value={value} schema={schemaMap[key]} />
+                            {(() => {
+                                const verdictBoolean = isVerdictFieldKey(key)
+                                    ? parseBooleanLikeValue(value)
+                                    : null
+                                if (verdictBoolean === null) {
+                                    return (
+                                        <RunnableOutputValue
+                                            value={value}
+                                            schema={schemaMap[key]}
+                                        />
+                                    )
+                                }
+                                return (
+                                    <Tag
+                                        color={verdictBoolean ? "success" : "error"}
+                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                    >
+                                        {verdictBoolean ? "true" : "false"}
+                                    </Tag>
+                                )
+                            })()}
                         </span>
                     </React.Fragment>
                 ))}
