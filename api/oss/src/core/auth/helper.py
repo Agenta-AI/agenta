@@ -58,7 +58,6 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
         key=cache_key,
         retry=False,
     )
-    cached_entries = None
 
     if cached_entries is not None:
         return _normalize_string_set(cached_entries)
