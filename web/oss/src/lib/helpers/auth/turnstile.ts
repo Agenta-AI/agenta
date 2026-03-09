@@ -9,7 +9,8 @@ let pendingTurnstileToken: string | null = null
 let fetchPatched = false
 
 export const getTurnstileSiteKey = () => {
-    const siteKey = getEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
+    // const siteKey = getEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
+    const siteKey = "1x00000000000000000000AA"
 
     return isEE() ? siteKey : ""
 }
