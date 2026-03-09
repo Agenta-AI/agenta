@@ -607,6 +607,8 @@ const applyPlaygroundSelection = (
 }
 
 let lastPlaygroundAppId: string | null = null
+/** Whether playgroundSyncAtom has been mounted at least once in this page session. */
+let playgroundSyncMountedOnce = false
 
 export const ensurePlaygroundDefaults = (store: Store): boolean => {
     if (!isBrowser) return false
@@ -956,16 +958,17 @@ playgroundSyncAtom.onMount = (set) => {
             !appState.pathname?.includes("/playground-test")
 
         if (isPlaygroundRoute) {
-            // Clear stale selection when the app changes.
-            // This covers both direct app→app navigation (lastPlaygroundAppId !== currentAppId)
-            // and app→home→app navigation (lastPlaygroundAppId is null because non-playground
-            // routes reset it). In the latter case, any existing selection from the previous
-            // app would remain and cause ensurePlaygroundDefaults to skip, so we must also
-            // clear when re-entering a playground route from a non-playground route.
+            // Clear stale selection when the app changes during in-page navigation.
+            // On fresh page load (playgroundSyncMountedOnce === false), the URL sync
+            // in syncPlaygroundStateFromUrl has already restored the correct selection
+            // before this mount handler runs — clearing here would discard it.
+            // We only clear when the atom has been mounted before (navigation within
+            // the same page session) and the app ID actually changed.
             const appChanged =
+                playgroundSyncMountedOnce &&
                 currentAppId &&
                 currentSelected.length > 0 &&
-                (lastPlaygroundAppId !== currentAppId || lastPlaygroundAppId === null)
+                lastPlaygroundAppId !== currentAppId
             if (appChanged) {
                 store.set(playgroundController.actions.setEntityIds, [])
                 currentSelected = []
@@ -1298,6 +1301,8 @@ playgroundSyncAtom.onMount = (set) => {
             writeUrlNow(initialSelection)
         }
     }
+
+    playgroundSyncMountedOnce = true
 
     // -----------------------------------------------------------------------
     // CLEANUP
