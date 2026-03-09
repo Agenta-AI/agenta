@@ -439,7 +439,7 @@ class TestLoadableStrategies:
         ids_param = ",".join(str(i) for i in mock_data["testcase_ids"])
         response = authed_api(
             "GET",
-            f"/preview/testcases?testcase_ids={ids_param}",
+            f"/preview/testcases/?testcase_ids={ids_param}",
         )
         # ---------------------------------------------------------------------
 
@@ -464,7 +464,7 @@ class TestLoadableStrategies:
         ids_param = ",".join(mock_data["trace_ids"])
         response = authed_api(
             "GET",
-            f"/preview/traces?trace_ids={ids_param}",
+            f"/preview/traces/?trace_ids={ids_param}",
         )
         # ---------------------------------------------------------------------
 
