@@ -97,6 +97,41 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkeypatch):
+    monkeypatch.setattr(
+        auth_helper,
+        "env",
+        SimpleNamespace(
+            agenta=SimpleNamespace(
+                blocked_domains=set(),
+                blocked_emails=set(),
+                allowed_domains=set(),
+            ),
+            posthog=SimpleNamespace(enabled=True),
+        ),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_cache",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "set_cache",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        auth_helper.posthog,
+        "get_feature_flag_payload",
+        lambda feature_flag, distinct_id: "spica.asia, agenta.ai , yopmail.com",
+    )
+
+    blocked_domains = await auth_helper.get_blocked_domains()
+
+    assert blocked_domains == {"spica.asia", "agenta.ai", "yopmail.com"}
+
+
+@pytest.mark.asyncio
 async def test_thirdparty_sign_in_up_checks_blocking_before_auth(monkeypatch):
     called = False
 
