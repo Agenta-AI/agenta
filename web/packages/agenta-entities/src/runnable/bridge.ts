@@ -849,9 +849,90 @@ function getBaseRunnableOutputPorts(entity: unknown): RunnablePort[] {
  * - **legacyEvaluator**: Legacy evaluator via legacyEvaluatorMolecule
  * - **evaluatorRevision**: Evaluator revision via evaluatorRevisionMolecule (stub in OSS)
  * - **baseRunnable**: Local-only runnable from span/trace data via baseRunnableMolecule
+ *
+ * NOTE: Order matters — when no type hint is registered, the bridge probes types
+ * in insertion order. `workflow` is first because app-type workflows are the most
+ * common entity and should be resolved before evaluator types to avoid spurious
+ * evaluator API calls (e.g. GET /preview/simple/evaluators/{id}).
  */
 export const runnableBridge = createRunnableBridge({
     runnables: {
+        // workflow MUST be first — most common entity type for unhinted probing.
+        // When no type hint is registered, the bridge probes types in insertion order.
+        // Placing workflow first avoids spurious evaluator API calls
+        // (e.g. GET /preview/simple/evaluators/{id}) for app revision IDs.
+        workflow: {
+            molecule: workflowMolecule,
+            toRunnable: workflowToRunnable,
+            getInputPorts: getWorkflowInputPorts,
+            getOutputPorts: getWorkflowOutputPorts,
+            schemasSelector: workflowSchemasSelector,
+            parametersSchemaSelector: workflowParametersSchemaSelector,
+            draftSelector: (id: string) => workflowMolecule.atoms.draft(id),
+            invalidateCache: () => workflowMolecule.cache.invalidateList(),
+            serverDataSelector: workflowServerDataSelector,
+            inputPortsSelector: workflowInputPortsSelector,
+            outputPortsSelector: workflowOutputPortsSelector,
+            executionModeSelector: (id: string) => workflowExecutionModeAtomFamily(id),
+            invocationUrlSelector: (id: string) => workflowInvocationUrlAtomFamily(id),
+            requestPayloadSelector: (id: string) => workflowRequestPayloadAtomFamily(id),
+            updateTransform: (entityId, params, get) => {
+                // For evaluator workflows, flatten nested config back to flat format
+                // IMPORTANT: Use pure server data, NOT merged entity data
+                // Using merged data causes flaky isDirty because originalFlat would include draft changes
+                // workflowServerDataSelectorFamily redirects local drafts to source's server data.
+                const serverData = get(
+                    workflowServerDataSelectorFamily(entityId),
+                ) as WorkflowEntity | null
+                const isEvaluator = serverData?.flags?.is_evaluator ?? false
+                if (isEvaluator) {
+                    // Use PURE server params, not merged entity params
+                    const originalFlat =
+                        (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+                    return flattenEvaluatorConfiguration(params, originalFlat)
+                }
+                return params
+            },
+            normalizeResponse: (responseData: unknown) => {
+                // Workflow invoke returns either:
+                // - v3 format: { version: "3.0", data: "plain text", tree: {...} }
+                // - legacy: { data: { outputs: {...} }, status: {...} }
+                const data = responseData as Record<string, unknown> | null | undefined
+                const nestedData = data?.data
+                // v3: data.data is a string (the plain output text)
+                if (typeof nestedData === "string") {
+                    return {
+                        output: nestedData,
+                        trace:
+                            data?.trace_id || data?.tree_id
+                                ? {
+                                      id: (data?.trace_id || data?.tree_id) as string,
+                                      ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                                  }
+                                : undefined,
+                    }
+                }
+                // Legacy: data.data is an object with .outputs
+                const nestedObj = nestedData as Record<string, unknown> | undefined
+                const output = nestedObj?.outputs ?? data?.outputs ?? data
+                return {
+                    output,
+                    trace: data?.trace_id
+                        ? {
+                              id: data.trace_id as string,
+                              ...(data?.span_id ? {spanId: data.span_id as string} : {}),
+                          }
+                        : undefined,
+                }
+            },
+            latestRevisionIdSelector: (parentId: string) =>
+                workflowLatestRevisionIdAtomFamily(parentId),
+            parentIdExtractor: (entity: unknown) => {
+                const e = entity as {workflow_id?: string | null}
+                return e.workflow_id ?? null
+            },
+            createLocalDraft: createLocalDraftFromWorkflowRevision,
+        },
         evaluator: {
             molecule: evaluatorMolecule,
             toRunnable: evaluatorToRunnable,
@@ -926,78 +1007,6 @@ export const runnableBridge = createRunnableBridge({
             extraActions: {
                 applyPreset: evaluatorRevisionMolecule.actions.applyPreset,
             },
-        },
-        workflow: {
-            molecule: workflowMolecule,
-            toRunnable: workflowToRunnable,
-            getInputPorts: getWorkflowInputPorts,
-            getOutputPorts: getWorkflowOutputPorts,
-            schemasSelector: workflowSchemasSelector,
-            parametersSchemaSelector: workflowParametersSchemaSelector,
-            draftSelector: (id: string) => workflowMolecule.atoms.draft(id),
-            invalidateCache: () => workflowMolecule.cache.invalidateList(),
-            serverDataSelector: workflowServerDataSelector,
-            inputPortsSelector: workflowInputPortsSelector,
-            outputPortsSelector: workflowOutputPortsSelector,
-            executionModeSelector: (id: string) => workflowExecutionModeAtomFamily(id),
-            invocationUrlSelector: (id: string) => workflowInvocationUrlAtomFamily(id),
-            requestPayloadSelector: (id: string) => workflowRequestPayloadAtomFamily(id),
-            updateTransform: (entityId, params, get) => {
-                // For evaluator workflows, flatten nested config back to flat format
-                // IMPORTANT: Use pure server data, NOT merged entity data
-                // Using merged data causes flaky isDirty because originalFlat would include draft changes
-                // workflowServerDataSelectorFamily redirects local drafts to source's server data.
-                const serverData = get(
-                    workflowServerDataSelectorFamily(entityId),
-                ) as WorkflowEntity | null
-                const isEvaluator = serverData?.flags?.is_evaluator ?? false
-                if (isEvaluator) {
-                    // Use PURE server params, not merged entity params
-                    const originalFlat =
-                        (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
-                    return flattenEvaluatorConfiguration(params, originalFlat)
-                }
-                return params
-            },
-            normalizeResponse: (responseData: unknown) => {
-                // Workflow invoke returns either:
-                // - v3 format: { version: "3.0", data: "plain text", tree: {...} }
-                // - legacy: { data: { outputs: {...} }, status: {...} }
-                const data = responseData as Record<string, unknown> | null | undefined
-                const nestedData = data?.data
-                // v3: data.data is a string (the plain output text)
-                if (typeof nestedData === "string") {
-                    return {
-                        output: nestedData,
-                        trace:
-                            data?.trace_id || data?.tree_id
-                                ? {
-                                      id: (data?.trace_id || data?.tree_id) as string,
-                                      ...(data?.span_id ? {spanId: data.span_id as string} : {}),
-                                  }
-                                : undefined,
-                    }
-                }
-                // Legacy: data.data is an object with .outputs
-                const nestedObj = nestedData as Record<string, unknown> | undefined
-                const output = nestedObj?.outputs ?? data?.outputs ?? data
-                return {
-                    output,
-                    trace: data?.trace_id
-                        ? {
-                              id: data.trace_id as string,
-                              ...(data?.span_id ? {spanId: data.span_id as string} : {}),
-                          }
-                        : undefined,
-                }
-            },
-            latestRevisionIdSelector: (parentId: string) =>
-                workflowLatestRevisionIdAtomFamily(parentId),
-            parentIdExtractor: (entity: unknown) => {
-                const e = entity as {workflow_id?: string | null}
-                return e.workflow_id ?? null
-            },
-            createLocalDraft: createLocalDraftFromWorkflowRevision,
         },
         baseRunnable: {
             molecule: baseRunnableMolecule,
