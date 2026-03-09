@@ -11,6 +11,10 @@ on:
         description: "PR number"
         required: true
         type: string
+    outputs:
+      preview_url:
+        description: "The URL of the deployed preview environment"
+        value: ${{ jobs.deploy.outputs.preview_url }}
   workflow_dispatch:
     inputs:
       image_tag:
@@ -36,6 +40,8 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    outputs:
+      preview_url: ${{ steps.deploy.outputs.preview_url }}
     steps:
       - uses: actions/checkout@v4
 

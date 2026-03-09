@@ -3,6 +3,9 @@ import {
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {AppType} from "./assets/types"
 import {test as baseTest} from "./test"
@@ -16,6 +19,9 @@ const tag = [
     createTagString("coverage", TestCoverage.SMOKE),
     createTagString("coverage", TestCoverage.LIGHT),
     createTagString("path", TestPath.HAPPY),
+    createTagString("lens", TestLensType.FUNCTIONAL),
+    createTagString("cost", TestCostType.Free),
+    createTagString("license", TestLicenseType.OSS),
 ]
 
 const tests = () => {
