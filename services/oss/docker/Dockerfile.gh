@@ -67,14 +67,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app:/app/sdk \
     PATH="/opt/venv/bin:${PATH}"
 
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /app/oss /app/oss
-COPY --from=builder /app/entrypoints /app/entrypoints
-COPY --from=builder /app/sdk /app/sdk
-
 RUN groupadd --gid 10001 agenta && \
-    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
+COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
+COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
 
 USER 10001
 

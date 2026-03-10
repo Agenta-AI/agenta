@@ -6,7 +6,7 @@
  * Example: --coverage smoke --path happy -> --grep "@coverage:smoke.*@path:happy"
  */
 
-import {execSync} from "child_process"
+import {spawnSync} from "child_process"
 import {config as loadDotenv} from "dotenv"
 
 // Test dimension types and their tag prefixes
@@ -37,6 +37,12 @@ function parseArgs(args: string[]): ParsedArgs {
     let i = 0
     while (i < args.length) {
         const arg = args[i]
+
+        // CLI separator from package managers (pnpm test -- --flag)
+        if (arg === "--") {
+            i++
+            continue
+        }
 
         if (arg === "--env-file") {
             if (i + 1 >= args.length) {
@@ -72,20 +78,20 @@ function parseArgs(args: string[]): ParsedArgs {
     return {envFile, grepPatterns, playwrightArgs}
 }
 
-function buildCommand(grepPatterns: string[], playwrightArgs: string[]): string {
-    const parts = ["playwright", "test"]
+function buildPlaywrightArgs(grepPatterns: string[], playwrightArgs: string[]): string[] {
+    const args = ["test"]
 
     // Add grep pattern if we have dimension filters
     if (grepPatterns.length > 0) {
         // Combine patterns with .* to match all dimensions
         const grepExpression = grepPatterns.join(".*")
-        parts.push("--grep", `"${grepExpression}"`)
+        args.push("--grep", grepExpression)
     }
 
     // Add remaining playwright arguments
-    parts.push(...playwrightArgs)
+    args.push(...playwrightArgs)
 
-    return parts.join(" ")
+    return args
 }
 
 // Parse command line arguments (skip node and script paths)
@@ -110,11 +116,17 @@ if (envFile) {
 }
 
 // Build and execute the command
-const command = buildCommand(grepPatterns, playwrightArgs)
-console.log(`Executing: ${command}`)
+const playwrightCliArgs = buildPlaywrightArgs(grepPatterns, playwrightArgs)
+console.log(`Executing: playwright ${playwrightCliArgs.join(" ")}`)
 
 try {
-    execSync(command, {stdio: "inherit"})
-} catch (error) {
+    const result = spawnSync("playwright", playwrightCliArgs, {
+        stdio: "inherit",
+        shell: false,
+    })
+    if (result.status !== 0) {
+        process.exit(result.status || 1)
+    }
+} catch {
     process.exit(1)
 }

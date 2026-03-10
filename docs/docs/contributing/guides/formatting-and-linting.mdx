@@ -1,0 +1,32 @@
+---
+title: "Formatting and Linting"
+description: "What formatting and linting commands to run before you open a pull request"
+sidebar_position: 3
+---
+
+Run the checks that match the code you changed.
+
+## API And SDK
+
+When you change code in `api/` or `sdk/`, run:
+
+```bash
+ruff format
+ruff check --fix
+```
+
+Run those commands from the relevant folder.
+
+## Frontend
+
+When you change code in `web/`, run:
+
+```bash
+pnpm lint-fix
+```
+
+Run this from the `web/` directory. If you need dependencies first, run `pnpm install`.
+
+## Before You Open The PR
+
+Do not claim that linting or formatting passed unless you ran the relevant checks locally. If a command does not apply to your change, say that clearly in the pull request.

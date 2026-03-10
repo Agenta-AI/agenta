@@ -10,7 +10,9 @@ export interface ApiHandlerOptions<T> {
 export interface ApiHelpers {
     waitForApiResponse: <T>(options: ApiHandlerOptions<T>) => Promise<T>
     getApp: (type?: APP_TYPE) => Promise<ListAppsItem>
+    getAppById: (appId: string) => Promise<ListAppsItem>
     getTestsets: () => Promise<testset[]>
     getVariants: (appId: string) => Promise<(ApiVariant & {name: string})[]>
     getEvaluationRuns: () => Promise<any[]>
+    getProjectScopedBasePath: () => string
 }

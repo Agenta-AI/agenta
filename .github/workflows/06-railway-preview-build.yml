@@ -172,3 +172,11 @@ jobs:
       image_tag: ${{ needs.prepare.outputs.image_tag }}
       pr_number: ${{ needs.prepare.outputs.pr_number }}
     secrets: inherit
+
+  playwright:
+    needs: [deploy]
+    if: needs.deploy.outputs.preview_url != ''
+    uses: ./.github/workflows/10-playwright-oss-tests.yml
+    with:
+      web_url: ${{ needs.deploy.outputs.preview_url }}
+    secrets: inherit

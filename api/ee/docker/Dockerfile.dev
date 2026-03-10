@@ -33,9 +33,12 @@ COPY ./pyproject.toml /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
-COPY ./ee /app/ee/
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta ./ee /app/ee/
+COPY --chown=agenta:agenta ./oss /app/oss/
+COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdk:$PYTHONPATH
 
@@ -51,11 +54,8 @@ RUN chmod +x /queries.sh /meters.sh /spans.sh \
     && for f in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do sed -i -e '$a\' "$f"; done \
     && cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
         | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
-        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab
-
-RUN groupadd --gid 10001 agenta && \
-    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    chown -R agenta:agenta /app
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
+    && chown agenta:agenta /app/crontab
 
 USER 10001
 

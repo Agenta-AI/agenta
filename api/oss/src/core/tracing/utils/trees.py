@@ -59,6 +59,32 @@ def calculate_and_propagate_metrics(
     return list(span_idx.values())
 
 
+def calculate_and_propagate_metrics_by_trace(
+    span_dtos: List[OTelFlatSpan],
+) -> List[OTelFlatSpan]:
+    """
+    Calculate metrics for each trace independently within a mixed batch.
+
+    Some ingestion requests can carry spans from multiple traces. Metric
+    propagation must remain trace-local, so we group by trace_id first and
+    process each trace tree separately before flattening back to one list.
+    """
+    if not span_dtos:
+        return span_dtos
+
+    spans_by_trace: Dict[str, List[OTelFlatSpan]] = {}
+
+    for span_dto in span_dtos:
+        trace_key = str(span_dto.trace_id)
+        spans_by_trace.setdefault(trace_key, []).append(span_dto)
+
+    processed: List[OTelFlatSpan] = []
+    for trace_spans in spans_by_trace.values():
+        processed.extend(calculate_and_propagate_metrics(trace_spans))
+
+    return processed
+
+
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
