@@ -58,7 +58,7 @@ Safety behavior in teardown:
 - `TESTMAIL_API_KEY` – Required only for OTP auth mode
 - `TESTMAIL_NAMESPACE` – Required only for OTP auth mode
 - `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
-- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and local part must start with `TESTMAIL_NAMESPACE`. If not provided, a valid testmail address will be auto-generated.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and the local part must start with `TESTMAIL_NAMESPACE.`. If not provided, a valid testmail address will be auto-generated.
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
 All required secrets are injected automatically in CI via the reusable workflow.
@@ -289,7 +289,7 @@ The framework handles authentication automatically with several improvements:
 
 1. Email Generation
    - One email per worker process
-   - Format: `namespace.tag@inbox.testmail.app`
+   - Format: `namespace.identifier.test.agenta@inbox.testmail.app`
    - Tag includes environment, worker ID, and timestamp
 
 2. Login Process

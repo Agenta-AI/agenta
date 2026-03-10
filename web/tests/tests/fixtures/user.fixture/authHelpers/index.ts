@@ -71,16 +71,15 @@ export const authHelpers = () => {
             ) => {
                 const {timeout, inputDelay = 100} = options
                 const testmail = getTestmailClient()
+                let otpRequestedAt = Date.now()
 
                 async function fillOTPDigits(otp: string, delay: number): Promise<void> {
-                    const digits = otp.split("")
-                    for (let i = 0; i < digits.length; i++) {
-                        await uiHelpers.typeWithDelay(
-                            `[aria-label='OTP Input ${i + 1}']`,
-                            digits[i],
-                            delay,
-                        )
-                    }
+                    // Ant Design 5.x Input.OTP: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
+                    // Click the first cell to ensure focus, then type sequentially.
+                    const firstInput = page.locator(".ant-otp input").first()
+                    await firstInput.waitFor({state: "visible", timeout: 10000})
+                    await firstInput.click()
+                    await page.keyboard.type(otp, {delay})
                 }
 
                 await page.goto("/auth")
@@ -91,6 +90,16 @@ export const authHelpers = () => {
                 await uiHelpers.typeWithDelay('input[type="email"]', email)
 
                 const signinButton = await page.getByRole("button", {name: "Sign in"})
+                const continueWithEmailButton = page.getByRole("button", {
+                    name: "Continue with email",
+                })
+                const continueWithOtpButton = page.getByRole("button", {
+                    name: "Continue with OTP",
+                })
+                const continueButton = page.getByRole("button", {
+                    name: "Continue",
+                    exact: true,
+                })
 
                 const hasSigninButton = await signinButton.isVisible()
                 if (hasSigninButton) {
@@ -98,12 +107,54 @@ export const authHelpers = () => {
                     await signinButton.click()
                     await uiHelpers.waitForPath("/apps")
                 } else {
-                    await uiHelpers.clickButton("Continue with email")
-                    await uiHelpers.expectText("Verify your email")
+                    if (await continueWithEmailButton.isVisible().catch(() => false)) {
+                        await continueWithEmailButton.click()
+                    } else if (await continueWithOtpButton.isVisible().catch(() => false)) {
+                        await continueWithOtpButton.click()
+                    } else if (await continueButton.isVisible().catch(() => false)) {
+                        await continueButton.click()
+                    }
+
+                    const verifyEmailText = page.getByText("Verify your email")
+                    const continueWithOtpButton = page.getByRole("button", {
+                        name: "Continue with OTP",
+                    })
+                    const resendOtpLink = page.getByText("Resend one-time password")
+                    await Promise.race([
+                        verifyEmailText.waitFor({state: "visible", timeout}),
+                        continueWithOtpButton.waitFor({state: "visible", timeout}),
+                        resendOtpLink.waitFor({state: "visible", timeout}),
+                    ])
+
+                    const otpAlreadyRequested = await resendOtpLink.isVisible().catch(() => false)
+
+                    if (
+                        !otpAlreadyRequested &&
+                        (await continueWithOtpButton.isVisible().catch(() => false))
+                    ) {
+                        otpRequestedAt = Date.now()
+                        const createCodeResponsePromise = apiHelpers.waitForApiResponse({
+                            route: /\/api\/auth\/signinup\/code(?:\?|$)/,
+                            validateStatus: true,
+                        })
+                        await continueWithOtpButton.click()
+                        await createCodeResponsePromise
+                        await resendOtpLink.waitFor({state: "visible", timeout})
+                    }
+
+                    if (await resendOtpLink.isVisible().catch(() => false)) {
+                        otpRequestedAt = Date.now()
+                        const resendCodeResponsePromise = apiHelpers.waitForApiResponse({
+                            route: /\/api\/auth\/signinup\/code\/resend(?:\?|$)/,
+                            validateStatus: true,
+                        })
+                        await resendOtpLink.click()
+                        await resendCodeResponsePromise
+                    }
                     try {
                         const otp = await testmail.waitForOTP(email, {
                             timeout,
-                            timestamp_from: timestamp,
+                            timestamp_from: otpRequestedAt,
                         })
                         const responsePromise = apiHelpers.waitForApiResponse<AuthResponse>({
                             route: "/api/auth/signinup/code/consume",
@@ -111,7 +162,7 @@ export const authHelpers = () => {
                         })
 
                         await fillOTPDigits(otp, inputDelay)
-                        await uiHelpers.clickButton("Next")
+                        await uiHelpers.clickButton("Continue with OTP")
                         const responseData = await responsePromise
 
                         if (responseData.createdNewRecipeUser) {

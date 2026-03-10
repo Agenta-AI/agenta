@@ -9,7 +9,7 @@ import {
     typeWithDelay,
 } from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
-import {getTestmailClient} from "../utils/testmail"
+import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from "../utils/testmail"
 import {
     getChromiumLaunchOptions,
     getProjectMetadataPath,
@@ -37,32 +37,11 @@ function getOptionalTestmailClient(): TestmailClient | null {
     }
 }
 
-function createFallbackEmail(scope: string): string {
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    return `${scope}-${suffix}@test.agenta.ai`
-}
-
-function createTestEmail(scope: string, testmail: TestmailClient | null): string {
-    if (!testmail) {
-        return createFallbackEmail(scope)
-    }
-
-    return testmail.generateTestEmail({
+function createTestEmail(scope: string): string {
+    return generateRuntimeTestEmail({
         scope,
         branch: process.env.BRANCH_NAME,
     })
-}
-
-function isTestmailInboxEmail(email: string, namespace?: string): boolean {
-    if (!email.endsWith("@inbox.testmail.app")) {
-        return false
-    }
-
-    if (!namespace) {
-        return true
-    }
-
-    return email.startsWith(`${namespace}.`)
 }
 
 function getOssOwnerEmail({
@@ -85,14 +64,16 @@ function getOssOwnerEmail({
         )
     }
 
-    return createTestEmail("oss-owner", testmail)
+    return createTestEmail("oss-owner")
 }
 
 async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<void> {
-    const digits = otp.split("")
-    for (let i = 0; i < digits.length; i += 1) {
-        await typeWithDelay(page, `[aria-label='OTP Input ${i + 1}']`, digits[i], delay)
-    }
+    // Ant Design 5.x Input.OTP renders: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
+    // Click the first cell to ensure focus (autoFocus may have been lost), then type sequentially.
+    const firstInput = page.locator(".ant-otp input").first()
+    await firstInput.waitFor({state: "visible", timeout: 10000})
+    await firstInput.click()
+    await page.keyboard.type(otp, {delay})
 }
 
 async function handlePostSignup(page: Page): Promise<void> {
@@ -179,11 +160,17 @@ async function authenticateUser({
     inputDelay: number
     testmail: TestmailClient | null
 }): Promise<void> {
-    const timestamp = Date.now()
+    let otpRequestedAt = Date.now()
     const namespace = process.env.TESTMAIL_NAMESPACE
 
     console.log(`[global-setup] Navigating to auth entry: ${entryUrl}`)
     await page.goto(entryUrl, {timeout, waitUntil: "domcontentloaded"})
+
+    console.log("[global-setup] Clearing browser auth state")
+    await page.evaluate(() => {
+        window.localStorage.clear()
+        window.sessionStorage.clear()
+    })
 
     const emailInput = page.locator('input[type="email"]').first()
     await emailInput.waitFor({state: "visible", timeout})
@@ -193,25 +180,53 @@ async function authenticateUser({
         await typeWithDelay(page, 'input[type="email"]', email)
 
         const continueWithEmail = page.getByRole("button", {name: "Continue with email"})
+        const continueWithOtp = page.getByRole("button", {name: "Continue with OTP"})
         const continueButton = page.getByRole("button", {name: "Continue", exact: true})
+
+        // Wait for and intercept the discovery API call when clicking Continue
+        const discoveryTimeout = new Promise((resolve) => setTimeout(resolve, 15000))
+        const discoveryPromise = Promise.race([
+            waitForApiResponse(page, {
+                route: /\/api\/auth\/discover(?:\?|$)/,
+                validateStatus: false,
+            }).catch(() => null),
+            discoveryTimeout,
+        ])
 
         if (await continueWithEmail.isVisible().catch(() => false)) {
             await continueWithEmail.click()
+        } else if (await continueWithOtp.isVisible().catch(() => false)) {
+            await continueWithOtp.click()
         } else if (await continueButton.isVisible().catch(() => false)) {
             await continueButton.click()
         }
+
+        // Wait for discovery to complete so the auth method UI is fully rendered
+        console.log("[global-setup] Waiting for auth discovery to complete")
+        await discoveryPromise
+        console.log("[global-setup] Auth discovery completed")
     }
 
     const verifyEmailLocator = page.getByText("Verify your email")
+    const continueWithOtpButton = page.getByRole("button", {name: "Continue with OTP"})
+    const resendOtpLink = page.getByText("Resend one-time password")
     const passwordInput = page.locator("input[type='password']").first()
 
     if (authMode === "password") {
         await passwordInput.waitFor({state: "visible", timeout})
     } else if (authMode === "otp") {
-        await verifyEmailLocator.waitFor({state: "visible", timeout})
-    } else {
+        console.log("[global-setup] Waiting for OTP flow controls")
         await Promise.race([
             verifyEmailLocator.waitFor({state: "visible", timeout}),
+            continueWithOtpButton.waitFor({state: "visible", timeout}),
+            resendOtpLink.waitFor({state: "visible", timeout}),
+        ])
+    } else {
+        console.log("[global-setup] Auto-detecting password vs OTP flow")
+        await Promise.race([
+            verifyEmailLocator.waitFor({state: "visible", timeout}),
+            continueWithOtpButton.waitFor({state: "visible", timeout}),
+            resendOtpLink.waitFor({state: "visible", timeout}),
             passwordInput.waitFor({state: "visible", timeout}),
         ])
     }
@@ -230,6 +245,144 @@ async function authenticateUser({
         return
     }
 
+    const otpAlreadyRequested = await resendOtpLink.isVisible().catch(() => false)
+    const canSendOtp =
+        (await continueWithOtpButton.isVisible().catch(() => false)) ||
+        (await continueWithOtpButton.waitFor({state: "visible", timeout: 5000})
+            .then(() => true)
+            .catch(() => false))
+
+    if (!otpAlreadyRequested && canSendOtp) {
+        console.log("[global-setup] Sending OTP email")
+
+        // Turnstile may block the form submission until its token arrives.
+        // Depending on the site key, Turnstile can be:
+        //   - invisible/auto: solves automatically, just needs time to load
+        //   - managed/visible: shows a checkbox the user must click
+        //   - interactive: shows a full challenge
+        // We handle all modes by:
+        //   1. Trying to click the Turnstile iframe checkbox (for visible challenges)
+        //   2. Retrying "Continue with OTP" until the createCode API fires
+        const MAX_OTP_SEND_ATTEMPTS = 15
+        const OTP_SEND_RETRY_DELAY = 3000
+        let otpSent = false
+        let turnstileSolved = false
+
+        for (let attempt = 1; attempt <= MAX_OTP_SEND_ATTEMPTS; attempt++) {
+            otpRequestedAt = Date.now()
+
+            // Try to solve Turnstile challenge if a visible widget is present.
+            // The Turnstile iframe src follows the pattern:
+            //   https://challenges.cloudflare.com/cdn-cgi/challenge-platform/.../turnstile/...
+            // We try a direct CSS selector first, then fall back to page.frames().
+            if (!turnstileSolved) {
+                try {
+                    // Approach 1: Direct CSS selector for the Turnstile iframe
+                    const turnstileIframe = page
+                        .locator('iframe[src*="challenges.cloudflare.com/cdn-cgi/challenge-platform"]')
+                        .first()
+                    if (await turnstileIframe.isVisible().catch(() => false)) {
+                        console.log(
+                            `[global-setup] Turnstile iframe found via CSS selector (attempt ${attempt})`,
+                        )
+                        await turnstileIframe.click()
+                        await page.waitForTimeout(2000)
+                        turnstileSolved = true
+                    } else {
+                        // Approach 2: Enumerate page.frames() for Cloudflare URLs
+                        const frames = page.frames()
+                        const turnstileFrame = frames.find(
+                            (f) =>
+                                f !== page.mainFrame() &&
+                                /cloudflare|turnstile|challenges/i.test(f.url()),
+                        )
+                        if (turnstileFrame) {
+                            console.log(
+                                `[global-setup] Found Turnstile frame via page.frames(): ${turnstileFrame.url()} (attempt ${attempt})`,
+                            )
+                            const body = turnstileFrame.locator("body")
+                            await body.click({timeout: 3000})
+                            await page.waitForTimeout(2000)
+                            turnstileSolved = true
+                        } else if (attempt <= 3) {
+                            // Approach 3: Click any visible iframe (auth page only has Turnstile)
+                            const iframes = page.locator("iframe")
+                            const iframeCount = await iframes.count()
+                            if (iframeCount > 0) {
+                                for (let i = 0; i < iframeCount; i++) {
+                                    const iframe = iframes.nth(i)
+                                    if (await iframe.isVisible().catch(() => false)) {
+                                        const src = await iframe
+                                            .getAttribute("src")
+                                            .catch(() => "unknown")
+                                        console.log(
+                                            `[global-setup] Clicking iframe[${i}] src=${src} (attempt ${attempt})`,
+                                        )
+                                        await iframe.click().catch(() => {})
+                                        await page.waitForTimeout(2000)
+                                        turnstileSolved = true
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log(`[global-setup] Turnstile interaction failed: ${e}`)
+                }
+            }
+
+            // Set up a short-lived listener for the createCode response
+            const createCodeRace = Promise.race([
+                page.waitForResponse((response) => {
+                    const url = response.url()
+                    return (
+                        /\/api\/auth\/signinup\/code(?:\?|$)/.test(url) &&
+                        response.request().method() === "POST"
+                    )
+                }).then((r) => ({fired: true as const, response: r})),
+                new Promise<{fired: false}>((resolve) =>
+                    setTimeout(() => resolve({fired: false}), OTP_SEND_RETRY_DELAY),
+                ),
+            ])
+
+            await continueWithOtpButton.click()
+            const result = await createCodeRace
+
+            if (result.fired) {
+                console.log(
+                    `[global-setup] createCode API responded on attempt ${attempt}`,
+                )
+                otpSent = true
+                break
+            }
+
+            // Check if a "security check" error appeared (Turnstile not ready yet)
+            const securityCheckError = page.getByText("Please complete the security check")
+            if (await securityCheckError.isVisible().catch(() => false)) {
+                console.log(
+                    `[global-setup] Turnstile not ready yet (attempt ${attempt}/${MAX_OTP_SEND_ATTEMPTS}), retrying...`,
+                )
+                // Reset solved flag — maybe the click didn't actually produce a token
+                turnstileSolved = false
+            } else {
+                console.log(
+                    `[global-setup] createCode did not fire on attempt ${attempt}, retrying...`,
+                )
+            }
+        }
+
+        if (!otpSent) {
+            throw new Error(
+                "Failed to send OTP: createCode API never fired after " +
+                    MAX_OTP_SEND_ATTEMPTS +
+                    " attempts. Turnstile may not have solved.",
+            )
+        }
+
+        await resendOtpLink.waitFor({state: "visible", timeout})
+    }
+
     if (authMode === "password") {
         throw new Error("AGENTA_TEST_AUTH_MODE=password requested but OTP flow was rendered")
     }
@@ -244,19 +397,35 @@ async function authenticateUser({
         throw new Error(`OTP auth requires a Testmail inbox email, got '${email}'`)
     }
 
+    if (await resendOtpLink.isVisible().catch(() => false)) {
+        console.log("[global-setup] OTP entry screen already active, requesting a fresh OTP email")
+        otpRequestedAt = Date.now()
+        const resendCodeResponsePromise = waitForApiResponse(page, {
+            route: /\/api\/auth\/signinup\/code\/resend(?:\?|$)/,
+            validateStatus: true,
+        })
+        await resendOtpLink.click()
+        await resendCodeResponsePromise
+    }
+
     console.log("[global-setup] OTP flow detected")
+    console.log(`[global-setup] Waiting for OTP email for ${email}`)
     const otp = await testmail.waitForOTP(email, {
         timeout,
-        timestamp_from: timestamp,
+        timestamp_from: otpRequestedAt,
     })
+    console.log("[global-setup] OTP email received")
     const responsePromise = waitForApiResponse<AuthResponse>(page, {
         route: "/api/auth/signinup/code/consume",
         validateStatus: true,
     })
 
+    console.log("[global-setup] Filling OTP input")
     await fillOTPDigits(page, otp, inputDelay)
-    await clickButton(page, "Next")
+    console.log("[global-setup] Submitting OTP")
+    await clickButton(page, "Continue with OTP")
     const responseData = await responsePromise
+    console.log("[global-setup] OTP submit response received")
 
     if (responseData.createdNewRecipeUser) {
         await handlePostSignup(page)
@@ -344,7 +513,7 @@ async function globalSetup() {
     }
 
     const ownerEmail = getOssOwnerEmail({authMode, testmail})
-    const userEmail = createTestEmail(`${license}-user`, testmail)
+    const userEmail = createTestEmail(`${license}-user`)
     const ownerPassword =
         process.env.AGENTA_TEST_OSS_OWNER_PASSWORD ||
         process.env.AGENTA_ADMIN_PASSWORD ||
