@@ -75,7 +75,6 @@ export interface WebhookSubscriptionCreateRequest {
  *  subscription.id MUST match the path param.
  */
 export interface WebhookSubscriptionEditRequest {
-export interface WebhookSubscriptionEditRequest {
     subscription: {
         id: string
         name?: string
