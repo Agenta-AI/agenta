@@ -1,3 +1,5 @@
+import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
+
 /**
  * Validates that a URL is a safe image source (http/https image URLs,
  * blob: URLs, or data:image base64 URIs). Rejects anything else to
@@ -19,5 +21,23 @@ export const isSafeImageSrc = (url: string) => {
         return false
     } catch {
         return false
+    }
+}
+
+/**
+ * Converts image data URIs to object URLs for preview while rejecting
+ * non-image data URIs entirely.
+ */
+export const resolveSafeImagePreviewSrc = (src: string) => {
+    if (!src) return undefined
+
+    try {
+        if (isBase64(src)) {
+            return isSafeImageSrc(src) ? dataUriToObjectUrl(src) : undefined
+        }
+
+        return isSafeImageSrc(src) ? src : undefined
+    } catch {
+        return undefined
     }
 }

@@ -19,12 +19,11 @@
 
 import {useMemo, useState} from "react"
 
-import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {MagnifyingGlassPlus} from "@phosphor-icons/react"
 import {Modal} from "antd"
 
 import ImageWithFallback from "./ImageWithFallback"
-import {isSafeImageSrc} from "./utils"
+import {resolveSafeImagePreviewSrc} from "./utils"
 
 // ============================================================================
 // TYPES
@@ -60,15 +59,7 @@ const ImagePreview = ({
     const [open, setOpen] = useState(false)
 
     const imageURL = useMemo(() => {
-        try {
-            if (isBase64(src)) {
-                return dataUriToObjectUrl(src)
-            }
-
-            return isSafeImageSrc(src) ? src : undefined
-        } catch {
-            return undefined
-        }
+        return resolveSafeImagePreviewSrc(src)
     }, [src])
 
     return (
