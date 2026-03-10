@@ -1,9 +1,9 @@
 import {PropsWithChildren} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Skeleton, Typography} from "antd"
 import clsx from "clsx"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 
 const {Text} = Typography

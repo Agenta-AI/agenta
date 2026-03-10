@@ -35,7 +35,7 @@ export interface MessagesSchemaControlProps {
     className?: string
     /** Whether to show add/remove controls (default: true) */
     showControls?: boolean
-    /** Whether to allow file uploads (default: true) */
+    /** Whether to allow file uploads (default: false for config messages) */
     allowFileUpload?: boolean
 }
 
@@ -134,7 +134,7 @@ function denormalizeMessages(messages: SimpleChatMessage[]): Record<string, unkn
  * - Role dropdown (user/assistant/system/tool)
  * - Rich text editor for content
  * - Add/remove message controls
- * - File/image attachment support
+ * - File/image attachment support (disabled by default for config messages)
  *
  * @example
  * ```tsx
@@ -155,7 +155,7 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
     disabled = false,
     className,
     showControls = true,
-    allowFileUpload = true,
+    allowFileUpload = false,
 }: MessagesSchemaControlProps) {
     // Normalize messages to SimpleChatMessage format
     const normalizedMessages = useMemo(() => normalizeMessages(value), [value])
@@ -199,6 +199,8 @@ export const MessagesSchemaControl = memo(function MessagesSchemaControl({
                 placeholder="Enter message..."
                 enableTokens={true}
                 templateFormat="curly"
+                defaultMinimized={disabled}
+                loadingFallback="none"
             />
         </div>
     )

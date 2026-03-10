@@ -1,6 +1,6 @@
 import {Tabs} from "antd"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevisionConfig} from "@/oss/lib/Types"
 
 import HistoryConfig from "../../pages/overview/deployments/HistoryConfig"

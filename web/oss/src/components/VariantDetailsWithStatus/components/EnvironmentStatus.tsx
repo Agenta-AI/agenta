@@ -1,10 +1,9 @@
 import {type FC} from "react"
 
+import {environmentMolecule} from "@agenta/entities/environment"
 import {Badge, Space, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
-
-import {playgroundRevisionDeploymentAtomFamily} from "@/oss/components/Playground/state/atoms/playgroundAppAtoms"
 
 import type {VariantStatusInfo} from "../types"
 
@@ -18,10 +17,10 @@ const EnvironmentStatus: FC<{
     variant: Pick<VariantStatusInfo, "deployedIn" | "id">
     className?: string
 }> = ({variant, className}) => {
-    // Fallback to deployment atom if deployedIn is not embedded on the variant
+    // Fallback to environment entity if deployedIn is not embedded on the variant
     const fallbackDeployedIn = useAtomValue(
-        playgroundRevisionDeploymentAtomFamily(variant?.id || ""),
-    ) as any[]
+        environmentMolecule.atoms.revisionDeployment(variant?.id || ""),
+    )
 
     const deployedIn =
         (Array.isArray(variant.deployedIn) && variant.deployedIn.length > 0

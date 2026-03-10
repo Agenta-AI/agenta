@@ -2,6 +2,7 @@
 
 import {useEffect} from "react"
 
+import {setSessionAtom} from "@agenta/shared/state"
 import {useSetAtom, useAtomValue} from "jotai"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
@@ -12,9 +13,11 @@ export const useSessionExists = () => useAtomValue(sessionExistsAtom)
 const SessionListener = () => {
     const {doesSessionExist} = useSessionContext() as any
     const setExists = useSetAtom(sessionExistsAtom)
+    const setSharedSession = useSetAtom(setSessionAtom)
     useEffect(() => {
         setExists(doesSessionExist)
-    }, [doesSessionExist, setExists])
+        setSharedSession(doesSessionExist)
+    }, [doesSessionExist, setExists, setSharedSession])
     return null
 }
 

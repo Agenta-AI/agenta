@@ -1,5 +1,6 @@
 import {
     memo,
+    type Ref,
     useCallback,
     useEffect,
     useId,
@@ -10,7 +11,7 @@ import {
 } from "react"
 
 import {Table} from "antd"
-import type {TableProps} from "antd/es/table"
+import type {TableProps, TableRef} from "antd/es/table"
 import {useSetAtom} from "jotai"
 
 import {cn} from "../../utils/styles"
@@ -82,8 +83,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     >(new Map())
     const containerSize = useContainerResize(containerRef)
     const [tableHeaderHeight, setTableHeaderHeight] = useState<number | null>(null)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const lastScrollConfigRef = useRef<Record<string, any> | null>(null)
+    const lastScrollConfigRef = useRef<Exclude<TableProps<RecordType>["scroll"], undefined> | null>(
+        null,
+    )
     const visibilityStorageKey = columnVisibility?.storageKey
     const visibilityDefaultHiddenKeys = columnVisibility?.defaultHiddenKeys
     const normalizedDefaultHiddenKeys = useMemo(
@@ -419,12 +421,9 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
             resolvedY = 360
         }
 
-        const {
-            x: _ignoredX,
-            y: _ignoredY,
-            ...restScroll
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } = (resolvedScroll ?? {}) as Record<string, any>
+        const resolvedScrollObject =
+            typeof resolvedScroll === "object" && resolvedScroll !== null ? resolvedScroll : {}
+        const {x: _ignoredX, y: _ignoredY, ...restScroll} = resolvedScrollObject
         const nextConfig = {
             ...restScroll,
             x: resolvedX,
@@ -450,8 +449,11 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     // Without memoization, a new object is created every render, causing infinite loops during scroll
     const scrollContainerDeps = useMemo(
         () => ({
-            scrollX: scrollConfig.x,
-            scrollY: scrollConfig.y,
+            scrollX:
+                typeof scrollConfig.x === "string" || typeof scrollConfig.x === "number"
+                    ? scrollConfig.x
+                    : undefined,
+            scrollY: typeof scrollConfig.y === "number" ? scrollConfig.y : undefined,
             className: resolvedTableProps.className,
         }),
         [scrollConfig.x, scrollConfig.y, resolvedTableProps.className],
@@ -549,6 +551,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
     }, [expandable, expandableConfig])
 
     const columnVisibilityVersion = version
+    const tableComponentRef = tableRef as unknown as Ref<TableRef>
 
     useEffect(() => {
         const key = resolvedScopeId
@@ -584,8 +587,7 @@ const InfiniteVirtualTableInnerBase = <RecordType extends object>({
                     {beforeTable}
                     <div ref={containerRef} className={cn(containerClassName)}>
                         <Table<RecordType>
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            ref={tableRef as React.Ref<any>}
+                            ref={tableComponentRef}
                             className={tableClassName}
                             columns={finalColumns}
                             dataSource={dataSource}

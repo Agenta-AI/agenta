@@ -1,3 +1,5 @@
+import {fetchRevisionSchema} from "@agenta/entities/legacyAppRevision"
+import {extractVariablesFromConfig} from "@agenta/entities/runnable"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -47,21 +49,26 @@ export enum ServiceType {
 export const createApp = async ({
     templateKey,
     appName,
+    folderId,
 }: {
     appName: string
     templateKey: ServiceType
+    folderId?: string | null
 }) => {
     const {selectedOrg} = getOrgValues()
     const {projectId} = getProjectValues()
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
+    const payload: Record<string, unknown> = {
+        app_name: appName,
+        template_key: templateKey,
+        organization_id: selectedOrg?.id,
+        workspace_id: selectedOrg?.default_workspace.id,
+    }
+    if (folderId !== undefined) payload.folder_id = folderId
+
     const response = await fetchJson(url, {
         method: "POST",
-        body: JSON.stringify({
-            app_name: appName,
-            template_key: templateKey,
-            organization_id: selectedOrg?.id,
-            workspace_id: selectedOrg?.default_workspace.id,
-        }),
+        body: JSON.stringify(payload),
     })
     return response
 }
@@ -180,9 +187,135 @@ export const updateAppFolder = async (
     return response.data
 }
 
+/**
+ * Extract default parameters from a dereferenced OpenAPI spec's ag_config schema.
+ * Tries endpoints in priority order and returns the first set of defaults found.
+ */
+function extractDefaultParameters(
+    spec: Record<string, unknown>,
+    routePath?: string,
+): Record<string, unknown> {
+    const paths = spec?.paths as Record<string, unknown> | undefined
+    if (!paths) return {}
+
+    const endpointNames = ["/test", "/run", "/generate", "/generate_deployed", "/"]
+
+    for (const endpoint of endpointNames) {
+        const endpointName = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint
+        const withRoute = routePath ? `/${routePath.replace(/^\/|\/$/g, "")}/${endpointName}` : null
+        const withoutRoute = `/${endpointName}`
+
+        // Try with routePath first, then without (spec may omit the prefix)
+        const fullPath =
+            (withRoute && paths[withRoute] ? withRoute : null) ||
+            (paths[withoutRoute] ? withoutRoute : null)
+
+        if (!fullPath) continue
+
+        const pathObj = paths[fullPath] as Record<string, unknown>
+        const postOp = pathObj?.post as Record<string, unknown> | undefined
+        const requestBody = postOp?.requestBody as Record<string, unknown> | undefined
+        const content = requestBody?.content as Record<string, unknown> | undefined
+        const jsonContent = content?.["application/json"] as Record<string, unknown> | undefined
+        const schema = jsonContent?.schema as Record<string, unknown> | undefined
+        const properties = schema?.properties as Record<string, unknown> | undefined
+        const agConfig = properties?.ag_config as Record<string, unknown> | undefined
+
+        if (!agConfig) continue
+
+        // Prefer top-level default (Pydantic BaseModel emits this)
+        if (agConfig.default && typeof agConfig.default === "object") {
+            return agConfig.default as Record<string, unknown>
+        }
+
+        // Fallback: collect individual property defaults
+        const agProps = agConfig.properties as Record<string, Record<string, unknown>> | undefined
+        if (!agProps) {
+            // Check for allOf wrapping (Pydantic v2 pattern)
+            const allOf = agConfig.allOf as Record<string, unknown>[] | undefined
+            if (allOf) {
+                for (const branch of allOf) {
+                    const branchProps = branch?.properties as
+                        | Record<string, Record<string, unknown>>
+                        | undefined
+                    if (branchProps) {
+                        const defaults: Record<string, unknown> = {}
+                        for (const [key, prop] of Object.entries(branchProps)) {
+                            if (prop?.default !== undefined) {
+                                defaults[key] = prop.default
+                            }
+                        }
+                        if (Object.keys(defaults).length > 0) return defaults
+                    }
+                }
+            }
+            continue
+        }
+
+        const defaults: Record<string, unknown> = {}
+        for (const [key, prop] of Object.entries(agProps)) {
+            if (prop?.default !== undefined) {
+                defaults[key] = prop.default
+            }
+        }
+        if (Object.keys(defaults).length > 0) return defaults
+    }
+
+    return {}
+}
+
+/**
+ * Clean up raw Pydantic defaults extracted from the OpenAPI schema.
+ *
+ * The `PromptTemplate` Pydantic model includes legacy fields (`system_prompt`,
+ * `user_prompt`) and optional fields (`tools`) that may be absent from the
+ * serialized default but are expected in the commit payload.
+ *
+ * This function:
+ *  1. Removes `system_prompt` and `user_prompt` from each prompt config
+ *  2. Ensures `llm_config.tools` is `[]` when absent/null
+ *  3. Extracts `input_keys` from message templates and adds them
+ */
+function cleanupDefaultParameters(params: Record<string, unknown>): Record<string, unknown> {
+    const cleaned = {...params}
+
+    for (const [key, value] of Object.entries(cleaned)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const config = value as Record<string, unknown>
+
+        // Check if this looks like a prompt config (has messages or llm_config)
+        const hasMessages = Array.isArray(config.messages)
+        const hasLlmConfig = config.llm_config && typeof config.llm_config === "object"
+
+        if (!hasMessages && !hasLlmConfig) continue
+
+        // 1. Remove legacy fields
+        delete config.system_prompt
+        delete config.user_prompt
+
+        // 2. Ensure llm_config.tools is an empty array when absent/null
+        if (hasLlmConfig) {
+            const llmConfig = config.llm_config as Record<string, unknown>
+            if (!Array.isArray(llmConfig.tools)) {
+                llmConfig.tools = []
+            }
+        }
+
+        // 3. Extract input_keys from message templates
+        if (hasMessages && !config.input_keys) {
+            const variables = extractVariablesFromConfig({[key]: config})
+            if (variables.length > 0) {
+                config.input_keys = variables
+            }
+        }
+    }
+
+    return cleaned
+}
+
 export const createAndStartTemplate = async ({
     appName,
-    providerKey,
+    providerKey: _providerKey,
     templateKey,
     serviceUrl,
     folderId,
@@ -201,47 +334,95 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
-    // Import the atom-based app creation system
-    const {getDefaultStore} = await import("jotai")
-    const {createAppMutationAtom} = await import("@/oss/components/Playground/state/atoms")
-    const store = getDefaultStore()
-
     try {
-        // Use the atom-based app creation system
-        const result = await store.set(createAppMutationAtom, {
+        onStatusChange?.("creating_app")
+
+        const app = await createApp({
             appName,
             templateKey,
-            serviceUrl,
-            providerKey,
             folderId,
-            isCustomWorkflow,
-            onStatusChange,
         })
 
-        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
-        if (!result.success) {
-            // If the atom-based creation failed, propagate the error
-            onStatusChange?.("error", new Error(result.error || "App creation failed"))
-        } else if (result.appId && result.revisionId) {
-            await Router.push({
-                pathname: `${baseAppURL}/${result.appId}/playground`,
-                query: {
-                    revisions: buildRevisionsQueryParam([result.revisionId]),
-                },
+        onStatusChange?.("starting_app")
+
+        const variant = await (async () => {
+            if (templateKey === ServiceType.Custom && serviceUrl) {
+                return createVariant({
+                    appId: app.app_id,
+                    serviceUrl,
+                    isCustomWorkflow,
+                })
+            }
+            return createVariant({
+                appId: app.app_id,
+                templateKey,
             })
-        } else if (result.appId) {
-            // Navigate to the newly created app's playground using Next.js router
-            if (typeof window !== "undefined") {
-                try {
-                    await Router.push(`${baseAppURL}/${result.appId}/playground`)
-                } catch (navigationError) {
-                    console.error("❌ [createAndStartTemplate] Navigation failed:", navigationError)
-                    // Don't fail the entire operation if navigation fails
-                }
+        })()
+
+        // Auto-commit v1 with schema-derived default parameters
+        const {projectId} = getProjectValues()
+        let revisionId: string | undefined
+
+        const uri = variant?.uri as string | undefined
+        const variantId = variant?.variant_id as string | undefined
+
+        if (uri && variantId && projectId) {
+            try {
+                const schemaResult = await fetchRevisionSchema(uri, projectId)
+
+                const rawParams = schemaResult?.schema
+                    ? extractDefaultParameters(
+                          schemaResult.schema as Record<string, unknown>,
+                          schemaResult.routePath,
+                      )
+                    : {}
+
+                const defaultParams = cleanupDefaultParameters(rawParams)
+
+                const commitResponse = await axios.put(
+                    `${getAgentaApiUrl()}/variants/${variantId}/parameters`,
+                    {
+                        parameters: defaultParams,
+                        commit_message: "Initial commit with default parameters",
+                    },
+                    {params: {project_id: projectId}},
+                )
+
+                revisionId = commitResponse.data?.id
+            } catch (schemaError) {
+                console.warn("[createAndStartTemplate] Failed to auto-commit v1:", schemaError)
             }
         }
-    } catch (error) {
-        // Fallback to original implementation if atom system fails
-        console.warn("Atom-based app creation failed, falling back to direct API:", error)
+
+        onStatusChange?.("success", undefined, app.app_id)
+
+        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
+
+        if (app?.app_id) {
+            const query: Record<string, string> = {}
+            if (revisionId) {
+                const revisionsParam = buildRevisionsQueryParam([revisionId])
+                if (revisionsParam) query.revisions = revisionsParam
+            }
+
+            await Router.push({
+                pathname: `${baseAppURL}/${app.app_id}/playground`,
+                query,
+            })
+        }
+    } catch (error: any) {
+        if (error?.status === 400 || error?.response?.status === 400) {
+            onStatusChange?.("bad_request", error)
+            return
+        }
+        if (error?.status === 403 || error?.response?.status === 403) {
+            onStatusChange?.("error", error)
+            return
+        }
+        if (error?.code === "ECONNABORTED" || /timeout/i.test(error?.message || "")) {
+            onStatusChange?.("timeout", error)
+            return
+        }
+        onStatusChange?.("error", error)
     }
 }

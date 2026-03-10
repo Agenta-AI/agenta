@@ -22,15 +22,19 @@ export type {
     EntityPickerProps,
     EntityPickerBaseProps,
     CascadingVariantProps,
+    CascaderVariantProps,
     BreadcrumbVariantProps,
     ListPopoverVariantProps,
+    PopoverCascaderVariantProps,
 } from "./types"
 
 // Variants (for advanced usage/customization)
 export {
     CascadingVariant,
+    CascaderVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
+    PopoverCascaderVariant,
     TreeSelectPopupContent,
     type TreeSelectPopupContentProps,
 } from "./variants"

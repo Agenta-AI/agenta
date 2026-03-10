@@ -109,18 +109,29 @@ export const legacyAppRevisionDataSchema = z.object({
     /** Base URI for the service endpoint */
     uri: z.string().optional(),
 
+    /** Direct service URL from revision data (fallback when URI is not a parseable URL) */
+    serviceUrl: z.string().optional(),
+
     /** Extracted runtime prefix from URI */
     runtimePrefix: z.string().optional(),
 
     /** Extracted route path from URI */
     routePath: z.string().optional(),
 
-    // Enhanced data for playground (schema-enriched)
-    /** Enhanced prompts derived from parameters + schema */
+    /** Enhanced prompt templates (Jotai-managed) */
     enhancedPrompts: z.array(z.unknown()).optional(),
 
-    /** Enhanced custom properties derived from parameters + schema */
-    enhancedCustomProperties: z.record(z.string(), z.unknown()).optional(),
+    /** Enhanced custom properties (Jotai-managed) */
+    enhancedCustomProperties: z.array(z.unknown()).optional(),
+
+    /** Source revision ID for local drafts */
+    _sourceRevisionId: z.string().optional(),
+
+    /** Source variant ID for local drafts */
+    _sourceVariantId: z.string().optional(),
+
+    /** Base ID for local drafts */
+    _baseId: z.string().optional(),
 })
 export type LegacyAppRevisionData = z.infer<typeof legacyAppRevisionDataSchema>
 

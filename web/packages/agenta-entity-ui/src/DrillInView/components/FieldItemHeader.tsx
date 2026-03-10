@@ -120,7 +120,7 @@ export function FieldItemHeader({
                 <button
                     type="button"
                     onClick={onToggleCollapse}
-                    className="mr-1 p-0.5 hover:bg-gray-100 rounded"
+                    className="mr-1 p-0.5 hover:bg-gray-100 rounded border-0 bg-transparent cursor-pointer"
                     aria-label={isCollapsed ? "Expand" : "Collapse"}
                 >
                     {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}

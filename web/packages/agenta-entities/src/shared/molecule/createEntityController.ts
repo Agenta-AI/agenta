@@ -132,7 +132,7 @@ export interface QueryState<T = unknown> {
 /**
  * Configuration for creating an entity controller
  */
-export interface EntityControllerConfig<T, TDraft = Partial<T>> {
+export interface EntityControllerConfig<T, TDraft = Partial<T>, TRootData = T> {
     /** Name of the entity (for debugging) */
     name: string
 
@@ -183,8 +183,7 @@ export interface EntityControllerConfig<T, TDraft = Partial<T>> {
      * Optional: Drill-in configuration for path-based navigation and editing
      * If provided, enables drillIn capability on the returned API
      */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- DrillIn root data type varies by entity
-    drillIn?: DrillInConfig<T, any>
+    drillIn?: DrillInConfig<T, TRootData>
 }
 
 /**
@@ -634,8 +633,8 @@ function createEntityDrillIn<T, TRootData>(
  * })
  * ```
  */
-export function createEntityController<T, TDraft = Partial<T>>(
-    config: EntityControllerConfig<T, TDraft>,
+export function createEntityController<T, TDraft = Partial<T>, TRootData = T>(
+    config: EntityControllerConfig<T, TDraft, TRootData>,
 ): EntityAPI<T, TDraft> {
     const {
         dataAtomFamily,
@@ -730,11 +729,10 @@ export function createEntityController<T, TDraft = Partial<T>>(
                             if (!entity) break
 
                             const rootData = drillInConfig.getRootData(entity)
-                            const updatedRootData = deleteAtPath(rootData, action.path)
+                            const updatedRootData = deleteAtPath(rootData, action.path) as TRootData
                             const updates = drillInConfig.setRootData(
                                 entity,
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deleteAtPath returns unknown, setRootData expects specific type
-                                updatedRootData as any,
+                                updatedRootData,
                                 action.path,
                             )
                             set(updateAtom, id, updates as TDraft)

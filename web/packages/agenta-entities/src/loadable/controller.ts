@@ -34,12 +34,11 @@
  */
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {appRevisionMolecule} from "../appRevision"
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
 import type {Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
@@ -48,7 +47,11 @@ import {
     resetTestcaseIdsAtom,
     clearNewEntityIdsAtom,
     currentRevisionIdAtom,
+    deletedEntityIdsAtom,
+    markDeletedAtom,
+    newEntityIdsAtom,
     setCurrentRevisionIdAtom,
+    clearDeletedIdsAtom,
 } from "../testcase/state/store"
 import {pendingColumnOpsAtomFamily} from "../testset/state"
 import {saveNewTestsetAtom, saveTestsetAtom} from "../testset/state/mutations"
@@ -80,7 +83,7 @@ import type {
     RowExecutionResult,
     OutputMapping,
 } from "./types"
-import {extractPaths, createOutputMappingId} from "./utils"
+import {createOutputMappingId, extractPaths} from "./utils"
 
 // ============================================================================
 // CONSTANTS
@@ -107,6 +110,110 @@ const SYSTEM_FIELDS = new Set([
     "revision_id",
     "testcase_dedup_id",
 ])
+
+const LOCAL_TESTCASE_PREFIXES = ["new-", "local-"] as const
+const VERSION_SUFFIX_REGEX = /\s+v\d+\s*$/i
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+const isLocalTestcaseId = (id: string): boolean =>
+    LOCAL_TESTCASE_PREFIXES.some((prefix) => id.startsWith(prefix))
+
+const normalizeValueForSignature = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value.map(normalizeValueForSignature)
+    }
+
+    if (!isRecord(value)) {
+        return value
+    }
+
+    const normalized: Record<string, unknown> = {}
+    for (const key of Object.keys(value).sort()) {
+        normalized[key] = normalizeValueForSignature(value[key])
+    }
+    return normalized
+}
+
+const createRowDataSignature = (data: Record<string, unknown>): string =>
+    JSON.stringify(normalizeValueForSignature(data))
+
+const getCanonicalVisibleRows = (get: Getter, loadableId: string) => {
+    const visibleRowIds = get(displayRowIdsAtomFamily(loadableId))
+    const rows: TestsetRow[] = []
+
+    for (const rowId of visibleRowIds) {
+        const testcase = get(testcaseMolecule.data(rowId))
+        const testcaseData = testcase?.data
+        if (!isRecord(testcaseData)) {
+            rows.push({id: rowId, data: {}})
+            continue
+        }
+
+        rows.push({id: rowId, data: {...testcaseData}})
+    }
+
+    return rows
+}
+
+const buildReconnectRows = ({
+    previousRows,
+    committedRows,
+}: {
+    previousRows: TestsetRow[]
+    committedRows: {id: string; data: Record<string, unknown>}[]
+}): {id: string; [key: string]: unknown}[] => {
+    if (committedRows.length === 0) return []
+
+    const committedById = new Map(committedRows.map((row) => [row.id, row]))
+    const committedBySignature = new Map<string, {id: string; data: Record<string, unknown>}[]>()
+    for (const row of committedRows) {
+        const signature = createRowDataSignature(row.data)
+        const bucket = committedBySignature.get(signature) ?? []
+        bucket.push(row)
+        committedBySignature.set(signature, bucket)
+    }
+
+    const usedCommittedIds = new Set<string>()
+    const reconnectRows: {id: string; [key: string]: unknown}[] = []
+
+    for (const previousRow of previousRows) {
+        const matchingById = committedById.get(previousRow.id)
+        if (matchingById && !usedCommittedIds.has(matchingById.id)) {
+            usedCommittedIds.add(matchingById.id)
+            reconnectRows.push(matchingById)
+            continue
+        }
+
+        const signature = createRowDataSignature(previousRow.data)
+        const bucket = committedBySignature.get(signature)
+        if (!bucket || bucket.length === 0) continue
+
+        const matched = bucket.find((row) => !usedCommittedIds.has(row.id))
+        if (!matched) continue
+
+        usedCommittedIds.add(matched.id)
+        reconnectRows.push(matched)
+    }
+
+    if (reconnectRows.length < previousRows.length) {
+        return [...committedRows]
+    }
+
+    return reconnectRows.length > 0 ? reconnectRows : [...committedRows]
+}
+
+const buildVersionedSourceName = (
+    sourceName: string | null,
+    version?: number,
+): string | undefined => {
+    if (!sourceName) return undefined
+    if (typeof version !== "number" || !Number.isFinite(version)) return sourceName
+
+    const baseName = sourceName.replace(VERSION_SUFFIX_REGEX, "").trim()
+    return `${baseName} v${version}`
+}
 
 // ============================================================================
 // TESTCASE BRIDGE ATOMS
@@ -342,12 +449,15 @@ const allRowsIncludingHiddenAtomFamily = atomFamily((loadableId: string) =>
  * Dirty detection that uses testcaseMolecule when connected.
  *
  * Returns true if:
- * - There are changes to RELEVANT columns (expected by runnable OR in server data)
- * - OR expected columns from runnable don't exist in original row data (new variables added)
- * - OR there are applied output mapping values that differ from server data
+ * - There are new entities (testcases added)
+ * - There are deleted entities (testcases removed)
+ * - There are hidden testcases (server-side testcases that have been removed from view)
+ * - Any testcase has been edited (uses testcaseMolecule.isDirty)
  *
- * This is reactive - when a variable is added then removed, changes to that column
- * no longer count as "local changes" since the column is no longer relevant.
+ * This approach uses the entity-level isDirty state to track actual user edits,
+ * rather than structural differences between app schema and testset schema.
+ * This means connecting to a testset with different columns won't trigger
+ * hasLocalChanges until the user actually edits something.
  */
 const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
     atom((get) => {
@@ -358,80 +468,27 @@ const connectedHasLocalChangesAtomFamily = atomFamily((loadableId: string) =>
             return false
         }
 
-        // Check if there are any new column keys (new variables added)
-        const newKeys = get(newColumnKeysAtomFamily(loadableId))
-        if (newKeys.length > 0) {
+        // Check if there are any new or deleted entities
+        const newEntityIds = get(newEntityIdsAtom)
+        const deletedEntityIds = get(deletedEntityIdsAtom)
+        if (newEntityIds.length > 0 || deletedEntityIds.size > 0) {
             return true
         }
 
-        // Get expected columns from runnable
-        const expectedColumns = get(loadableColumnsFromRunnableAtomFamily(loadableId))
-        const expectedKeys = new Set(expectedColumns.map((c) => c.key))
-
-        // Get server keys from first row
-        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
-        if (displayRowIds.length === 0) return false
-
-        const firstRowServerData = get(testcaseMolecule.selectors.serverData(displayRowIds[0]))
-        const serverKeys = firstRowServerData
-            ? new Set(
-                  Object.keys(firstRowServerData).filter(
-                      (key) => key !== "id" && key !== "flags" && key !== "tags" && key !== "meta",
-                  ),
-              )
-            : new Set<string>()
-
-        // Relevant keys = expected by runnable OR in server data
-        const relevantKeys = new Set([...expectedKeys, ...serverKeys])
-
-        // Check if any row has changes to RELEVANT columns only
-        for (const id of displayRowIds) {
-            const serverData = get(testcaseMolecule.selectors.serverData(id))
-            const mergedData = get(testcaseMolecule.data(id))
-
-            if (!serverData || !mergedData) continue
-
-            // Compare only relevant columns
-            for (const key of relevantKeys) {
-                const serverValue = serverData[key as keyof typeof serverData]
-                const mergedValue = mergedData[key as keyof typeof mergedData]
-
-                // If values differ, there are local changes
-                if (serverValue !== mergedValue) {
-                    return true
-                }
+        // Check hidden testcases (which are effectively "removed" from the testset)
+        const hiddenIds = state.hiddenTestcaseIds
+        for (const id of hiddenIds) {
+            if (!id.startsWith("new-") && !id.startsWith("local-")) {
+                return true
             }
         }
 
-        // Also check for applied output mapping values that differ from server data.
-        // This handles the case where output mappings have been applied (via the Apply button)
-        // but the draft comparison above didn't catch the change (e.g., due to trace data
-        // timing or value normalization issues).
-        const mappings = state.outputMappings ?? []
-        if (mappings.length > 0) {
-            for (const id of displayRowIds) {
-                // Skip if output mapping is disabled for this row
-                if (state.disabledOutputMappingRowIds.has(id)) continue
-
-                const serverData = get(testcaseMolecule.selectors.serverData(id))
-                if (!serverData) continue
-
-                // Get derived output values for this row
-                const derivedValues = get(derivedOutputValuesAtomFamily({loadableId, rowId: id}))
-                if (!derivedValues) continue
-
-                // Check if any derived output value differs from server data
-                for (const [key, derivedValue] of Object.entries(derivedValues)) {
-                    // Only check relevant columns (expected by runnable OR in server data)
-                    if (!relevantKeys.has(key)) continue
-
-                    const serverValue = serverData[key as keyof typeof serverData]
-
-                    // Compare values - if they differ, there are local changes to commit
-                    if (serverValue !== derivedValue) {
-                        return true
-                    }
-                }
+        // Check if any testcase has been edited using entity-level isDirty
+        const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
+        for (const id of displayRowIds) {
+            const isDirty = get(testcaseMolecule.isDirty(id))
+            if (isDirty) {
+                return true
             }
         }
 
@@ -493,7 +550,7 @@ const newColumnKeysAtomFamily = atomFamily((loadableId: string) =>
 
 /**
  * Reactively derives column changes by comparing:
- * - Expected columns from runnable (via appRevisionMolecule.inputPorts)
+ * - Expected columns from runnable (via loadableColumnsFromRunnableAtomFamily)
  * - Server columns from testcase data
  *
  * This is used by the adapter layer to combine with core testset changesSummary.
@@ -512,7 +569,7 @@ const newColumnKeysAtomFamily = atomFamily((loadableId: string) =>
 export const derivedColumnChangesAtomFamily = atomFamily((loadableId: string) =>
     atom<{added: string[]; removed: string[]}>((get) => {
         const state = get(loadableStateAtomFamily(loadableId))
-        const {linkedRunnableType, linkedRunnableId, connectedSourceId} = state
+        const {connectedSourceId} = state
 
         // Not connected - no changes to report
         if (!connectedSourceId) {
@@ -521,12 +578,7 @@ export const derivedColumnChangesAtomFamily = atomFamily((loadableId: string) =>
 
         // Get expected columns from runnable (if linked)
         let expectedKeys = new Set<string>()
-        if (linkedRunnableType === "appRevision" && linkedRunnableId) {
-            // Use the inputPorts from appRevisionMolecule - single source of truth
-            const inputPorts = get(appRevisionMolecule.selectors.inputPorts(linkedRunnableId))
-            expectedKeys = new Set(inputPorts.map((p) => p.key))
-        } else {
-            // Fallback to loadableColumnsFromRunnableAtomFamily for other runnable types
+        {
             const expectedColumns = get(loadableColumnsFromRunnableAtomFamily(loadableId))
             expectedKeys = new Set(expectedColumns.map((c) => c.key))
         }
@@ -865,6 +917,8 @@ const connectToSourceAtom = atom(
         // Clear local entities before connecting to a new source
         // This ensures Replace mode fully replaces existing data
         set(clearNewEntityIdsAtom)
+        set(clearDeletedIdsAtom)
+        set(resetTestcaseIdsAtom)
 
         // If testcases provided, populate query cache and set IDs
         // Note: Testcases are stored in nested Testcase format
@@ -875,7 +929,6 @@ const connectToSourceAtom = atom(
                 ids.push(tc.id)
             }
             // Reset and set testcase IDs so displayRowIds picks them up
-            set(resetTestcaseIdsAtom)
             set(setTestcaseIdsAtom, ids)
         }
 
@@ -1014,6 +1067,16 @@ const commitChangesAtom = atom(
             throw new Error("No project ID available")
         }
 
+        // Soft-delete hidden testcase IDs so they appear in TestsetRevisionDelta.deleted.
+        // hiddenTestcaseIds is a UI-only filter — we must convert to proper soft-deletes
+        // before calling saveTestsetAtom, which reads deletedEntityIdsAtom.
+        // Only server entities need to be deleted (local "new-"/"local-" IDs are not on server).
+        for (const id of state.hiddenTestcaseIds) {
+            if (!id.startsWith("new-") && !id.startsWith("local-")) {
+                set(markDeletedAtom, id)
+            }
+        }
+
         // Apply any pending output mappings before committing.
         // This ensures derived output values (from execution results) are included
         // in the testcase drafts and will be saved. This handles the case where
@@ -1023,6 +1086,7 @@ const commitChangesAtom = atom(
         if (mappings.length > 0) {
             set(applyOutputMappingsToAllAtom, loadableId)
         }
+        const visibleRowsBeforeCommit = getCanonicalVisibleRows(get, loadableId)
 
         // Get testset ID from revision
         const revisionQuery = get(revisionMolecule.query(state.connectedSourceId))
@@ -1042,6 +1106,32 @@ const commitChangesAtom = atom(
         if (!result.success) {
             throw result.error ?? new Error("Commit failed")
         }
+
+        const committedRows = result.committedRows ?? []
+        const rowsToReconnect =
+            committedRows.length > 0
+                ? buildReconnectRows({
+                      previousRows: visibleRowsBeforeCommit,
+                      committedRows,
+                  })
+                : visibleRowsBeforeCommit
+                      .filter((row) => !isLocalTestcaseId(row.id))
+                      .map((row) => ({id: row.id, data: row.data}))
+
+        const nextSourceName = buildVersionedSourceName(
+            state.connectedSourceName,
+            result.newVersion,
+        )
+
+        // Reconnect to the new revision so the UI stays in sync
+        // with the newly created testcase and row IDs without a fetch loop
+        await set(
+            connectToSourceAtom,
+            loadableId,
+            result.newRevisionId!,
+            nextSourceName,
+            rowsToReconnect,
+        )
 
         return {
             revisionId: result.newRevisionId!,
@@ -1114,17 +1204,28 @@ const saveAsNewTestsetAtom = atom(
             return {success: false, error: new Error("Testset name is required")}
         }
 
-        // Check if there are testcase entities to save
-        const newIds = get(testcaseMolecule.atoms.newIds)
-        if (newIds.length === 0) {
+        // Apply any pending output mappings before saving so derived values are included.
+        const mappings = state.outputMappings ?? []
+        if (mappings.length > 0) {
+            set(applyOutputMappingsToAllAtom, loadableId)
+        }
+
+        // Collect ALL visible testcase data (server + local, excluding hidden rows).
+        // connectedRowsAtomFamily already filters out hiddenTestcaseIds and merges drafts.
+        const visibleRows = get(connectedRowsAtomFamily(loadableId))
+        if (visibleRows.length === 0) {
             return {success: false, error: new Error("No testcases to save")}
         }
 
+        // Extract plain data objects from each row (strip the `id` field)
+        const allTestcaseData = visibleRows.map((row) => row.data)
+
         try {
-            // Use the testset entity save mutation - reads from testcaseMolecule
+            // Use the testset entity save mutation with explicit data so all rows are included.
             const result = await set(saveNewTestsetAtom, {
                 projectId,
                 testsetName: name.trim(),
+                explicitTestcaseData: allTestcaseData,
             })
 
             if (!result.success) {
@@ -1152,52 +1253,12 @@ const saveAsNewTestsetAtom = atom(
 /**
  * Selector: determines if output mappings should be auto-initialized.
  *
- * Returns true when:
- * - Loadable is linked to an appRevision runnable
- * - No output mappings exist yet
- * - Schema has loaded with real output ports (not just default "output" fallback)
- *
- * This is a pure derived selector - no side effects.
+ * Currently always returns false — the appRevision entity type that
+ * powered this feature has been removed. Kept as a stub so downstream
+ * consumers (autoInitOutputMappingsEffectAtomFamily) continue to compile.
  */
-const shouldAutoInitOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
-    atom((get) => {
-        const state = get(loadableStateAtomFamily(loadableId))
-
-        // Must be linked to a runnable
-        if (!state.linkedRunnableId || !state.linkedRunnableType) {
-            return false
-        }
-
-        // Must not already have mappings
-        if (state.outputMappings.length > 0) {
-            return false
-        }
-
-        // Only auto-init for appRevision type
-        if (state.linkedRunnableType !== "appRevision") {
-            return false
-        }
-
-        // Check if schema has loaded with real output ports
-        const schemaQuery = get(appRevisionMolecule.selectors.schemaQuery(state.linkedRunnableId))
-
-        // Still loading - not ready yet
-        if (schemaQuery.isPending) {
-            return false
-        }
-
-        // Error loading schema - don't auto-init
-        if (schemaQuery.isError) {
-            return false
-        }
-
-        // Schema loaded - check for real output ports
-        const outputPorts = get(appRevisionMolecule.selectors.outputPorts(state.linkedRunnableId))
-        const hasRealOutputPorts =
-            outputPorts.length > 1 || (outputPorts.length === 1 && outputPorts[0].key !== "output")
-
-        return hasRealOutputPorts
-    }),
+const shouldAutoInitOutputMappingsAtomFamily = atomFamily((_loadableId: string) =>
+    atom(() => false),
 )
 
 /**
@@ -1240,12 +1301,20 @@ const autoInitOutputMappingsEffectAtomFamily = atomFamily((loadableId: string) =
  */
 const linkToRunnableAtom = atom(
     null,
-    (get, set, loadableId: string, runnableType: RunnableType, runnableId: string) => {
+    (
+        get,
+        set,
+        loadableId: string,
+        runnableType: RunnableType,
+        runnableId: string,
+        options?: {skipInitialRow?: boolean},
+    ) => {
         const state = get(loadableStateAtomFamily(loadableId))
 
         // Check if we need to create an initial row
         const displayRowIds = get(testcaseMolecule.atoms.displayRowIds)
-        const shouldAddRow = displayRowIds.length === 0 && !state.connectedSourceId
+        const shouldAddRow =
+            displayRowIds.length === 0 && !state.connectedSourceId && !options?.skipInitialRow
 
         // Update linked runnable immediately
         set(loadableStateAtomFamily(loadableId), {
@@ -1254,6 +1323,7 @@ const linkToRunnableAtom = atom(
             linkedRunnableId: runnableId,
         })
 
+        // Check columns after linking
         // Add initial empty row if needed (via testcaseMolecule)
         if (shouldAddRow) {
             set(addRowAtom, loadableId, {})
@@ -1462,6 +1532,21 @@ const extractMetricValue = (
 }
 
 /**
+ * Compute duration in milliseconds from span timestamps when explicit metrics are absent.
+ */
+const deriveDurationFromSpanTimes = (rootSpan: TraceSpan | null): number | undefined => {
+    if (!rootSpan?.start_time || !rootSpan?.end_time) return undefined
+
+    const start = new Date(rootSpan.start_time).getTime()
+    const end = new Date(rootSpan.end_time).getTime()
+
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return undefined
+    if (end < start) return undefined
+
+    return end - start
+}
+
+/**
  * Single source of truth for trace-derived data.
  * Provides both paths (for output mapping) and metrics (for result utils display).
  *
@@ -1508,15 +1593,17 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
         }
 
         // Extract metrics
+        const durationFromMetrics = extractMetricValue(
+            agData,
+            rootSpan,
+            "metrics.duration.cumulative.total",
+            "metrics.acc.duration.total",
+            "metrics.unit.duration.total",
+            "ag.metrics.duration.cumulative.total",
+        )
+
         const metrics: TraceMetrics = {
-            durationMs: extractMetricValue(
-                agData,
-                rootSpan,
-                "metrics.duration.cumulative.total",
-                "metrics.acc.duration.total",
-                "metrics.unit.duration.total",
-                "ag.metrics.duration.cumulative.total",
-            ),
+            durationMs: durationFromMetrics ?? deriveDurationFromSpanTimes(rootSpan),
             totalTokens: extractMetricValue(
                 agData,
                 rootSpan,
@@ -1919,11 +2006,7 @@ const defaultOutputMappingsAtomFamily = atomFamily((loadableId: string) =>
         }
 
         // Get output ports from the linked runnable via the molecule abstraction
-        let outputPorts: {key: string; name?: string; type?: string}[] = []
-        if (linkedRunnableType === "appRevision") {
-            // Use the molecule's outputPorts selector (derives from schema query)
-            outputPorts = get(appRevisionMolecule.selectors.outputPorts(linkedRunnableId))
-        }
+        const outputPorts: {key: string; name?: string; type?: string}[] = []
 
         // For simple outputs, use data.outputs directly
         // The trace data typically stores the output at data.outputs (not data.outputs.{key})
@@ -2208,6 +2291,13 @@ export const testsetLoadable = {
                 return get(connectedRowsAtomFamily(loadableId))
             }),
 
+        /** Single row for a loadable by row ID */
+        row: (loadableId: string, rowId: string) =>
+            atom((get) => {
+                const rows = get(connectedRowsAtomFamily(loadableId))
+                return rows.find((row) => row.id === rowId) ?? null
+            }),
+
         /** Columns for a loadable - derives from linked runnable when linked */
         columns: (loadableId: string) => loadableColumnsFromRunnableAtomFamily(loadableId),
 
@@ -2444,6 +2534,9 @@ export const testsetLoadable = {
 const unifiedSelectors = {
     /** Rows for a loadable - dispatches to appropriate entity */
     rows: (loadableId: string) => testsetLoadable.selectors.rows(loadableId),
+
+    /** Single row for a loadable by row ID */
+    row: (loadableId: string, rowId: string) => testsetLoadable.selectors.row(loadableId, rowId),
 
     /** Columns for a loadable - derives from linked runnable */
     columns: (loadableId: string) => testsetLoadable.selectors.columns(loadableId),
