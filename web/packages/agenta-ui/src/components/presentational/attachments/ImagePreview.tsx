@@ -78,7 +78,7 @@ const ImagePreview = ({
                 }}
             >
                 <ImageWithFallback
-                    src={src}
+                    src={imageURL}
                     alt={alt}
                     className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
                 />
