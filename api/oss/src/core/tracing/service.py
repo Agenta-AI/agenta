@@ -15,7 +15,7 @@ from oss.src.core.tracing.utils.parsing import (
     parse_trace_id_to_uuid,
 )
 from oss.src.core.tracing.utils.trees import (
-    calculate_and_propagate_metrics,
+    calculate_and_propagate_metrics_by_trace,
     trace_map_to_traces,
 )
 from oss.src.core.tracing.streaming import publish_spans
@@ -112,7 +112,7 @@ class TracingService:
     ) -> OTelLinks:
         if propagate_metrics:
             try:
-                span_dtos = calculate_and_propagate_metrics(span_dtos)
+                span_dtos = calculate_and_propagate_metrics_by_trace(span_dtos)
             except Exception:  # pylint: disable=broad-exception-caught
                 log.error(
                     "Failed to calculate metrics; continuing without metrics",

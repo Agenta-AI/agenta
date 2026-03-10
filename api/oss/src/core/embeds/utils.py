@@ -1006,6 +1006,7 @@ def find_object_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[ObjectEmbed]:
     """
     Recursively traverse config to find object embeds.
@@ -1033,6 +1034,14 @@ def find_object_embeds(
         List of found object embeds
     """
     embeds: List[ObjectEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         if AG_EMBED_KEY in config:
@@ -1086,12 +1095,12 @@ def find_object_embeds(
             # Recurse into children
             for key, value in config.items():
                 child_path = f"{parent_path}.{key}" if parent_path else key
-                embeds.extend(find_object_embeds(value, child_path, key))
+                embeds.extend(find_object_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
             child_path = f"{parent_path}.{idx}"
-            embeds.extend(find_object_embeds(item, child_path, str(idx)))
+            embeds.extend(find_object_embeds(item, child_path, str(idx), visited))
 
     return embeds
 
@@ -1100,6 +1109,7 @@ def find_string_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[StringEmbed]:
     """
     Recursively traverse config to find string embeds with inline tokens.
@@ -1120,6 +1130,14 @@ def find_string_embeds(
         List of found string embeds
     """
     embeds: List[StringEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         # Recurse into children
@@ -1149,7 +1167,7 @@ def find_string_embeds(
                             f"Invalid embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_string_embeds(value, child_path, key))
+                embeds.extend(find_string_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
@@ -1177,7 +1195,7 @@ def find_string_embeds(
                             f"Invalid embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_string_embeds(item, child_path, str(idx)))
+                embeds.extend(find_string_embeds(item, child_path, str(idx), visited))
 
     return embeds
 
@@ -1558,6 +1576,7 @@ def find_snippet_embeds(
     config: Dict[str, Any],
     parent_path: str = "",
     parent_key: str = "",
+    visited: Optional[Set[int]] = None,
 ) -> List[SnippetEmbed]:
     """
     Recursively traverse config to find @{{...}} snippet embeds.
@@ -1576,6 +1595,14 @@ def find_snippet_embeds(
         List of found snippet embeds
     """
     embeds: List[SnippetEmbed] = []
+    if visited is None:
+        visited = set()
+
+    if isinstance(config, (dict, list)):
+        config_id = id(config)
+        if config_id in visited:
+            return embeds
+        visited.add(config_id)
 
     if isinstance(config, dict):
         for key, value in config.items():
@@ -1602,7 +1629,7 @@ def find_snippet_embeds(
                             f"Invalid snippet embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_snippet_embeds(value, child_path, key))
+                embeds.extend(find_snippet_embeds(value, child_path, key, visited))
 
     elif isinstance(config, list):
         for idx, item in enumerate(config):
@@ -1629,7 +1656,7 @@ def find_snippet_embeds(
                             f"Invalid snippet embed token at {child_path}: {token} - {e}",
                         )
             else:
-                embeds.extend(find_snippet_embeds(item, child_path, str(idx)))
+                embeds.extend(find_snippet_embeds(item, child_path, str(idx), visited))
 
     return embeds
 
