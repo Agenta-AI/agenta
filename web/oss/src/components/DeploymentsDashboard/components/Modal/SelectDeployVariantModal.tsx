@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
 

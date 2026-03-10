@@ -83,6 +83,20 @@ export const getAllVariantParameters = async (
         }
 
         inputs = updateInputParams(parameters, inputParams)
+        const reservedInputKeys = new Set([
+            "ag_config",
+            "inputs",
+            "environment",
+            "revision_id",
+            "variant_id",
+            "app_id",
+        ])
+        inputs = (inputs || []).filter(
+            (param) =>
+                typeof param?.name === "string" &&
+                param.name.length > 0 &&
+                !reservedInputKeys.has(param.name),
+        )
 
         const URIPath = `${appId}/${variant.baseId}`
         return {parameters, inputs, URIPath, isChatVariant}

@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {TestResult} from "@/oss/components/Playground/assets/utilities/transformer/types/testRun"
+import {TestResult} from "@/oss/lib/shared/variant/types/testRun"
 
 import {EnhancedButtonProps} from "../../../../EnhancedUIs/Button/types"
 

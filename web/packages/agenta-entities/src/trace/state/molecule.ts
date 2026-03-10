@@ -414,13 +414,13 @@ export const traceSpanMolecule = {
          */
         getChangesFromRoot: (
             span: TraceSpan | null,
-            _rootData: unknown,
+            rootData: unknown,
             path: DataPath,
-            value: unknown,
         ): TraceSpanAttributes | null => {
             // For getRootData returning attributes, path is relative to attributes
             // But getChangesFromPath expects full path starting with "attributes"
             const fullPath: DataPath = ["attributes", ...path]
+            const value = getValueAtPathUtil(rootData, path)
             return getChangesFromPath(span, fullPath, value)
         },
     },

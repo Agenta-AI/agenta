@@ -9,16 +9,12 @@
  * - Right: "Refine prompt" header with diff toggle + close + content + footer
  */
 
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {getMetadataLazy, type ArrayMetadata} from "@agenta/entities/legacyAppRevision"
-import {generateId} from "@agenta/shared/utils"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Switch, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
-
-import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {
     refineDiffViewAtomFamily,
@@ -31,21 +27,23 @@ import InstructionsPanel from "./InstructionsPanel"
 import PreviewPanel from "./PreviewPanel"
 
 interface RefinePromptModalContentProps {
-    variantId: string
-    promptId: string
+    revisionId: string
+    promptKey: string
     onClose: () => void
 }
 
 const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
-    variantId,
-    promptId,
+    revisionId,
+    promptKey,
     onClose,
 }) => {
-    const iterations = useAtomValue(refineIterationsAtomFamily(promptId))
-    const workingPrompt = useAtomValue(workingPromptAtomFamily(promptId))
-    const promptVersion = useAtomValue(workingPromptVersionAtomFamily(promptId))
-    const [showDiff, setShowDiff] = useAtom(refineDiffViewAtomFamily(promptId))
-    const setPrompts = useSetAtom(moleculeBackedPromptsAtomFamily(variantId))
+    const iterations = useAtomValue(refineIterationsAtomFamily(promptKey))
+    const workingPrompt = useAtomValue(workingPromptAtomFamily(promptKey))
+    const promptVersion = useAtomValue(workingPromptVersionAtomFamily(promptKey))
+    const [showDiff, setShowDiff] = useAtom(refineDiffViewAtomFamily(promptKey))
+
+    const dataAtom = useMemo(() => runnableBridge.data(revisionId), [revisionId])
+    const runnableData = useAtomValue(dataAtom)
 
     const hasRefinedPrompt = workingPrompt !== null && iterations.length > 0
 
@@ -65,63 +63,24 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         return () => document.removeEventListener("keydown", handler, {capture: true})
     }, [])
 
+    const setUpdate = useSetAtom(runnableBridge.update)
+
     const handleUseRefinedPrompt = useCallback(() => {
-        if (!workingPrompt) return
+        if (!workingPrompt || !runnableData) return
 
-        setPrompts((draft: any[]) => {
-            for (const prompt of draft) {
-                if (prompt?.__id !== promptId && prompt?.__name !== promptId) continue
+        const configuration = (runnableData.configuration ?? {}) as Record<string, unknown>
+        const currentPrompt = (configuration[promptKey] ?? {}) as Record<string, unknown>
 
-                const existingMessages = Array.isArray(prompt?.messages?.value)
-                    ? prompt.messages.value
-                    : []
-                const messagesMetadataId = prompt?.messages?.__metadata as string | undefined
-                const parentMetadata = messagesMetadataId
-                    ? getMetadataLazy<ArrayMetadata>(messagesMetadataId)
-                    : undefined
-                const itemMetadata = parentMetadata?.itemMetadata
-
-                prompt.messages.value = workingPrompt.messages.map((msg, index) => {
-                    if (itemMetadata) {
-                        const created = createMessageFromSchema(itemMetadata as any, {
-                            role: msg.role,
-                            content: msg.content,
-                        })
-                        if (created) return created
-                    }
-
-                    const existing = existingMessages[index]
-
-                    return {
-                        ...(existing && typeof existing === "object" ? existing : {}),
-                        __id: existing?.__id || generateId(),
-                        role:
-                            existing?.role && typeof existing.role === "object"
-                                ? {
-                                      ...existing.role,
-                                      value: msg.role,
-                                  }
-                                : {
-                                      __id: generateId(),
-                                      value: msg.role,
-                                  },
-                        content:
-                            existing?.content && typeof existing.content === "object"
-                                ? {
-                                      ...existing.content,
-                                      value: msg.content,
-                                  }
-                                : {
-                                      __id: generateId(),
-                                      value: msg.content,
-                                  },
-                    }
-                })
-            }
+        setUpdate(revisionId, {
+            ...configuration,
+            [promptKey]: {
+                ...currentPrompt,
+                messages: workingPrompt.messages,
+            },
         })
 
         onClose()
-    }, [workingPrompt, promptId, setPrompts, onClose])
+    }, [workingPrompt, runnableData, promptKey, revisionId, onClose, setUpdate])
 
     return (
         <div className="flex h-full min-h-0 flex-1">
@@ -140,8 +99,8 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                 {/* Left Content + Input */}
                 <div className="flex min-h-0 flex-1 flex-col">
                     <InstructionsPanel
-                        variantId={variantId}
-                        promptId={promptId}
+                        revisionId={revisionId}
+                        promptKey={promptKey}
                         submitRef={submitRef}
                     />
                 </div>
@@ -181,11 +140,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
                 {/* Right Content */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {hasRefinedPrompt ? (
-                        <PreviewPanel
-                            variantId={variantId}
-                            promptId={promptId}
-                            promptVersion={promptVersion}
-                        />
+                        <PreviewPanel promptKey={promptKey} promptVersion={promptVersion} />
                     ) : (
                         <div className="flex h-full items-center justify-center px-4">
                             <Typography.Text type="secondary" className="text-center text-[11px]">

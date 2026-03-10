@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {useMemo, useState} from "react"
 
+import {runnableBridge} from "@agenta/entities/runnable"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -15,7 +16,6 @@ import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography}
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -26,14 +26,11 @@ import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typ
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVarziants"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
 import {useStyles} from "./assets/styles"
-import useURI from "./hooks/useURI"
 import type {DeploymentDrawerProps} from "./types"
 
 const DeploymentHistoryModal = dynamic(
@@ -51,12 +48,9 @@ const DeploymentDrawer = ({
     ...props
 }: DeploymentDrawerProps & DrawerProps) => {
     const classes = useStyles()
-    const router = useRouter()
-    const appId = router.query.app_id as string
     const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const {goToPlayground} = usePlaygroundNavigation()
-    const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const variant = useMemo(() => {
         return (
             (variants || []).find(
@@ -66,16 +60,16 @@ const DeploymentDrawer = ({
     }, [variants, selectedEnvironment.deployed_app_variant_id])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    // We no longer need variant.inputParams from useVariants; keep commented for reference
-    // const {data} = useVariants(currentApp, [variant!].filter(Boolean))
-    const {specMap, uriMap} = useStatelessVariants()
+    const deployedRevisionId = selectedEnvironment?.deployed_app_variant_revision_id || ""
+    const uri = useAtomValue(
+        useMemo(() => runnableBridge.invocationUrl(deployedRevisionId), [deployedRevisionId]),
+    )
+    const inputPorts = useAtomValue(
+        useMemo(() => runnableBridge.inputPorts(deployedRevisionId), [deployedRevisionId]),
+    )
 
     const params = useMemo(() => {
-        // Derive inputs from app-level OpenAPI schema
-        const vId = variant?.variantId
-        const spec = (vId && (specMap?.[vId] as any)) || undefined
-        const routePath = (vId && uriMap?.[vId]?.routePath) || ""
-        const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
+        const inputKeys = (inputPorts || []).map((p: any) => p.key as string)
         const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
 
         const built = createParams(
@@ -85,12 +79,14 @@ const DeploymentDrawer = ({
             currentApp,
         )
         return built
-    }, [variant?.variantId, specMap, uriMap, currentApp, selectedEnvironment?.name])
+    }, [inputPorts, currentApp, selectedEnvironment?.name])
+
+    const invokeLlmUrl = (uri && uri.trim()) || ""
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        python: invokeLlmApppythonCode(uri!, params),
-        bash: invokeLlmAppcURLCode(uri!, params),
-        typescript: invokeLlmApptsCode(uri!, params),
+        python: invokeLlmApppythonCode(invokeLlmUrl, params),
+        bash: invokeLlmAppcURLCode(invokeLlmUrl, params),
+        typescript: invokeLlmApptsCode(invokeLlmUrl, params),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {

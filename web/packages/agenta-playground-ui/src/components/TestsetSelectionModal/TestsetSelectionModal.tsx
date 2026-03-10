@@ -1,11 +1,12 @@
 /**
  * TestsetSelectionModal Component
  *
- * Modal for selecting testcases from a testset revision or saving local data.
+ * Modal for selecting testcases from a testset revision.
  * Uses entity-layer atoms for selection state, supporting:
  * - "load" mode: Initial connection to a testset
  * - "edit" mode: Modify selection of an already-connected testset
- * - "save" mode: Save local loadable data as a new testset
+ *
+ * For saving local data as a new testset, use SaveTestsetModal instead.
  *
  * Architecture:
  * - This component is a thin wrapper that handles modal chrome (title, size, open state)
@@ -16,7 +17,6 @@
  * - Selection state lives in entity layer (testcaseMolecule.atoms.selectionDraft)
  * - Selection persists and can be edited after connection
  * - No modal-local atoms that get lost on close
- * - Save mode reads directly from loadable entity - no data copying
  */
 
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -31,8 +31,7 @@ import type {TestsetSelectionModalProps} from "./types"
 // ============================================================================
 
 const MODAL_SIZES = {
-    save: {width: 900, height: modalSizes.medium.height},
-    edit: {width: modalSizes.medium.width, height: modalSizes.large.height},
+    edit: {width: modalSizes.large.width, height: modalSizes.large.height},
     load: {width: modalSizes.large.width, height: "70dvh"},
 } as const
 
@@ -45,20 +44,18 @@ export function TestsetSelectionModal({
     connectedRevisionId,
     mode,
     onConfirm,
-    onSave,
     onCancel,
     open,
-    defaultTestsetName,
+    selectionMode,
+    renderCreateCard,
+    renderPreviewPanel,
+    warningMessage,
+    hasWarning,
+    onCreateAndLoad,
     ...modalProps
 }: TestsetSelectionModalProps) {
-    const modalTitle =
-        mode === "save"
-            ? "Create Testset"
-            : mode === "load"
-              ? "Load Testset"
-              : "Edit Testcase Selection"
-
-    const {width, height} = MODAL_SIZES[mode]
+    const modalTitle = mode === "load" ? "Load Testset" : "Edit Testcase Selection"
+    const {width} = MODAL_SIZES[mode]
 
     return (
         <EnhancedModal
@@ -68,13 +65,13 @@ export function TestsetSelectionModal({
             width={width}
             onCancel={onCancel}
             footer={null}
+            classNames={{body: "!p-0"}}
             styles={{
                 body: {
-                    height,
-                    maxHeight: height,
+                    flex: "1 1 auto",
+                    height: 620,
                     padding: 0,
                     overflow: "hidden",
-                    flex: "none",
                 },
             }}
         >
@@ -83,9 +80,13 @@ export function TestsetSelectionModal({
                 connectedRevisionId={connectedRevisionId}
                 mode={mode}
                 onConfirm={onConfirm}
-                onSave={onSave}
                 onCancel={onCancel}
-                defaultTestsetName={defaultTestsetName}
+                selectionMode={selectionMode}
+                renderCreateCard={renderCreateCard}
+                renderPreviewPanel={renderPreviewPanel}
+                warningMessage={warningMessage}
+                hasWarning={hasWarning}
+                onCreateAndLoad={onCreateAndLoad}
             />
         </EnhancedModal>
     )

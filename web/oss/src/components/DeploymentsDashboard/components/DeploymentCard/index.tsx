@@ -1,13 +1,12 @@
 import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
+import {dayjs} from "@agenta/shared/utils"
+import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
 import {Card, Space, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
 
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 import {Environment} from "@/oss/lib/Types"
-import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import {useDeploymentCardStyles} from "./styles"
 
@@ -19,25 +18,13 @@ type DeploymentCardProps = {
 const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
     const classes = useDeploymentCardStyles()
 
-    const envName = env?.name ?? ""
-    const revisionAtom = useMemo(() => deployedRevisionByEnvironmentAtomFamily(envName), [envName])
-    const revision = useAtomValue(revisionAtom)
+    const hasDeployment = !!env.deployed_app_variant_revision_id
 
-    const revisionId = revision?.id
-
-    let lastModifiedText = "-"
-    if (revision) {
-        const ts = (revision as any)?.updatedAtTimestamp ?? (revision as any)?.createdAtTimestamp
-        if (typeof ts === "number") {
-            try {
-                lastModifiedText = new Date(ts).toLocaleString()
-            } catch {
-                lastModifiedText = String(ts)
-            }
-        } else {
-            lastModifiedText = (revision as any)?.updatedAt ?? (revision as any)?.createdAt ?? "-"
-        }
-    }
+    const lastModifiedText = useMemo(() => {
+        if (!hasDeployment || !env.updated_at) return "-"
+        const d = dayjs.utc(env.updated_at)
+        return d.isValid() ? d.local().format("MMM D, YYYY h:mm A") : "-"
+    }, [hasDeployment, env.updated_at])
 
     return (
         <Card
@@ -51,8 +38,19 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
 
             <Space className="justify-between">
                 <Typography.Text>Variant</Typography.Text>
-                {revisionId ? (
-                    <VariantNameCell revisionId={revisionId} showBadges={false} showStable />
+                {hasDeployment ? (
+                    <EntityListItemLabel
+                        label={env.deployed_variant_name || "-"}
+                        trailing={
+                            env.revision != null ? (
+                                <VersionBadge
+                                    version={Number(env.revision)}
+                                    variant="chip"
+                                    size="small"
+                                />
+                            ) : undefined
+                        }
+                    />
                 ) : (
                     <Tag onClick={(e) => e.stopPropagation()}>No deployment</Tag>
                 )}

@@ -1,6 +1,5 @@
+import {SharedEditorProps} from "@agenta/ui/shared-editor"
 import {DropdownProps} from "antd"
-
-import {SharedEditorProps} from "@/oss/components/Playground/Components/SharedEditor/types"
 
 import {TooltipButtonProps} from "../../EnhancedUIs/Button"
 

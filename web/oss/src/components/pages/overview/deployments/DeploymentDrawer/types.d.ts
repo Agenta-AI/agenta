@@ -16,4 +16,5 @@ export interface LanguageCodeBlockProps {
     invokeLlmAppCodeSnippet: Record<string, string>
     handleOpenSelectDeployVariantModal: () => void
     invokeLlmUrl: string | undefined
+    showDeployOverlay?: boolean
 }

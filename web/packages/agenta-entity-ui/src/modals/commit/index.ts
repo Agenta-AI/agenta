@@ -11,7 +11,13 @@ export {
     EntityCommitContent,
     EntityCommitFooter,
 } from "./components"
-export type {EntityCommitModalProps} from "./components"
+export type {
+    EntityCommitModalProps,
+    CommitSubmitParams,
+    CommitSubmitResult,
+    CommitModeOption,
+    EntityCommitContentProps,
+} from "./components"
 
 // Hooks
 export {useEntityCommit, useRevisionCommit, useVariantCommit, useBoundCommit} from "./hooks"
@@ -36,5 +42,7 @@ export {
     openCommitModalAtom,
     closeCommitModalAtom,
     setCommitMessageAtom,
+    setCommitLoadingAtom,
+    setCommitErrorAtom,
     executeCommitAtom,
 } from "./state"

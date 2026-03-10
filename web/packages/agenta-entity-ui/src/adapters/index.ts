@@ -7,4 +7,4 @@
  */
 
 export {testsetModalAdapter, revisionModalAdapter} from "./testsetAdapters"
-export {variantModalAdapter} from "./legacyAppRevisionAdapters"
+export {variantModalAdapter} from "./variantAdapters"

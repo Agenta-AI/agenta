@@ -1,12 +1,12 @@
 import {useCallback} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
 import {FormInstance, Rule} from "antd/es/form"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
@@ -216,7 +216,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         <JSONSchemaEditor
                             form={form!}
                             name={name}
-                            defaultValue={
+                            fallbackValue={
                                 typeof savedValue === "string"
                                     ? savedValue
                                     : JSON.stringify(savedValue ?? {}, null, 2)

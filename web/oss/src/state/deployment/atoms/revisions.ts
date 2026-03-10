@@ -31,7 +31,6 @@ export const deploymentRevisionsWithAppIdQueryAtomFamily = atomFamily(
 
                     try {
                         const data = await fetchAllDeploymentRevisions(appId, envName)
-                        console.log("deploymentRevisionsWithAppIdQueryAtomFamily 3", data)
                         return data
                     } catch (error) {
                         console.warn(`Error fetching deployment revisions for ${envName}:`, {
