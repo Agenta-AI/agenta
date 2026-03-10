@@ -2,17 +2,17 @@
 
 For Codex, the native repo entrypoint is:
 
-- `application/AGENTS.md`
+- `AGENTS.md`
 
 That file should remain a thin bootstrap wrapper.
 
 The shared source lives in:
 
-- `application/.agents/README.md`
-- `application/.agents/policies/global.md`
-- `application/.agents/registry/knowledge.md`
-- `application/.agents/registry/skills.md`
-- `application/.agents/registry/agents.md`
+- `.agents/README.md`
+- `.agents/policies/global.md`
+- `.agents/registry/knowledge.md`
+- `.agents/registry/skills.md`
+- `.agents/registry/agents.md`
 
 ## Current shape
 

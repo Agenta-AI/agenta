@@ -4,27 +4,27 @@
 
 The following sources currently contain information that should be reorganized into the agreed documentation classes:
 
-- `application/docs/packs`
-- `application/.agents/docs`
-- `application/AGENTS.md`
+- `docs/packs`
+- `.agents/docs`
+- `AGENTS.md`
 
 The former contents of:
 
-- `application/docs/design`
-- `application/docs/designs`
+- `docs/design`
+- `docs/designs`
 
 have now been merged into:
 
-- `application/docs/sdlc/projects/`
+- `docs/sdlc/projects/`
 
 ## Current target scaffold
 
-The new scaffold created under `application/docs` is:
+The new scaffold created under `docs` is:
 
-- `application/docs/sdlc/projects/`
-- `application/docs/sdlc/process/`
-- `application/docs/sdlc/system/`
-- `application/docs/sdlc/product/`
+- `docs/sdlc/projects/`
+- `docs/sdlc/process/`
+- `docs/sdlc/system/`
+- `docs/sdlc/product/`
 
 ## Intent
 

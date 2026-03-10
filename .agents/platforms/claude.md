@@ -1,6 +1,6 @@
 # Claude Platform Projection
 
-`application/.claude/` is the Claude-native projection layer.
+`.claude/` is the Claude-native projection layer.
 
 It should contain only what Claude tooling still expects natively:
 
@@ -13,20 +13,20 @@ It should contain only what Claude tooling still expects natively:
 
 ### Root wrappers
 
-- `application/CLAUDE.md` -> bootstrap wrapper into `.agents/`
-- `application/.claude/README.md` -> Claude projection overview
+- `CLAUDE.md` -> bootstrap wrapper into `.agents/`
+- `.claude/README.md` -> Claude projection overview
 
 ### Agent wrappers
 
-- `application/.claude/agents/changelog-editor.md` -> `application/.agents/agents/changelog-editor.md`
+- `.claude/agents/changelog-editor.md` -> `.agents/agents/changelog-editor.md`
 
 ### Skill wrappers
 
-- `application/.claude/skills/add-announcement/SKILL.md` -> `application/.agents/skills/add-announcement.md`
-- `application/.claude/skills/create-changelog-announcement/SKILL.md` -> `application/.agents/skills/create-changelog-announcement.md`
-- `application/.claude/skills/update-api-docs/SKILL.md` -> `application/.agents/skills/update-api-docs.md`
-- `application/.claude/skills/update-llm-model-list/SKILL.md` -> `application/.agents/skills/update-llm-model-list.md`
-- `application/.claude/skills/write-social-announcement/SKILL.md` -> `application/.agents/skills/write-social-announcement.md`
+- `.claude/skills/add-announcement/SKILL.md` -> `.agents/skills/add-announcement.md`
+- `.claude/skills/create-changelog-announcement/SKILL.md` -> `.agents/skills/create-changelog-announcement.md`
+- `.claude/skills/update-api-docs/SKILL.md` -> `.agents/skills/update-api-docs.md`
+- `.claude/skills/update-llm-model-list/SKILL.md` -> `.agents/skills/update-llm-model-list.md`
+- `.claude/skills/write-social-announcement/SKILL.md` -> `.agents/skills/write-social-announcement.md`
 
 The shared source should evolve in `.agents/`.
 

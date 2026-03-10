@@ -4,10 +4,10 @@
 
 The repo currently has multiple agent-facing surfaces:
 
-- `application/AGENTS.md`
-- `application/CLAUDE.md`
-- `application/.claude/`
-- `application/.agents/`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `.claude/`
+- `.agents/`
 
 At the moment:
 
@@ -20,13 +20,13 @@ This note proposes using `.agents/` as the main internal-agent surface.
 
 ## Recommendation
 
-Use `application/.agents/` as the **primary shared internal-agent surface** for shared agent-facing material.
+Use `.agents/` as the **primary shared internal-agent surface** for shared agent-facing material.
 
 Then narrow the other surfaces:
 
-- `application/AGENTS.md` -> thin bootstrap / compatibility wrapper
-- `application/CLAUDE.md` -> thin Claude bootstrap / pointer
-- `application/.claude/` -> Claude-specific projections, adapters, and native assets only
+- `AGENTS.md` -> thin bootstrap / compatibility wrapper
+- `CLAUDE.md` -> thin Claude bootstrap / pointer
+- `.claude/` -> Claude-specific projections, adapters, and native assets only
 
 In other words:
 

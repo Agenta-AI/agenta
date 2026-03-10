@@ -1,10 +1,10 @@
-# Future Extractable Truth Matrix for `application/docs/sdlc/projects`
+# Future Extractable Truth Matrix for `docs/sdlc/projects`
 
 ## Why this exists
 
 This is **not** a move plan.
 
-For now, the contents of `application/docs/sdlc/projects/*` should remain in `projects`.
+For now, the contents of `docs/sdlc/projects/*` should remain in `projects`.
 
 This document answers a narrower question:
 

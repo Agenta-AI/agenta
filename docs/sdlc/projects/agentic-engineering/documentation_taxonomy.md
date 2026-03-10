@@ -416,12 +416,12 @@ At the end of each increment, ask:
 
 The current repo appears to have the beginnings of all six classes, but several are mixed:
 
-- `application/.claude/*` and parts of `application/.agents/*` look like internal agent docs
-- `application/docs/design/*` looks like internal project docs
-- `application/AGENTS.md`, parts of `application/.agents/docs/*`, and `application/docs/packs/*` look like internal process docs
-- parts of `application/docs/designs/*` look like internal system docs
-- parts of `application/docs/designs/*` may also look like internal product docs
-- `application/docs/docs/*` plus product-facing documentation surfaces look like external product docs
+- `.claude/*` and parts of `.agents/*` look like internal agent docs
+- `docs/design/*` looks like internal project docs
+- `AGENTS.md`, parts of `.agents/docs/*`, and `docs/packs/*` look like internal process docs
+- parts of `docs/designs/*` look like internal system docs
+- parts of `docs/designs/*` may also look like internal product docs
+- `docs/docs/*` plus product-facing documentation surfaces look like external product docs
 
 ## Next step
 

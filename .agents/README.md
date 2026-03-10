@@ -1,6 +1,6 @@
 # Internal Agent Surface
 
-`application/.agents/` is the primary shared internal-agent surface for this repo.
+`.agents/` is the primary shared internal-agent surface for this repo.
 
 Use it for shared agent-facing material such as:
 
@@ -25,6 +25,6 @@ Read in this order:
 
 `.agents/` is not the canonical home for process, system, or product truth.
 
-Those remain in `application/docs/`.
+Those remain in `docs/`.
 
 `.agents/` should prefer pointers and projections over duplicating canonical docs.

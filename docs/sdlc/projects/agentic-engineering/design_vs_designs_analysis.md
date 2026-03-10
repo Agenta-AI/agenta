@@ -2,11 +2,11 @@
 
 Note:
 
-This analysis describes the state before those two trees were merged into `application/docs/sdlc/projects/`.
+This analysis describes the state before those two trees were merged into `docs/sdlc/projects/`.
 
 ## Question
 
-Do `application/docs/design` and `application/docs/designs` currently behave like project content?
+Do `docs/design` and `docs/designs` currently behave like project content?
 
 Short answer:
 
@@ -37,7 +37,7 @@ These are clearly initiative-scoped working-memory folders.
 
 ### Conclusion for `docs/design`
 
-Treat `application/docs/design/*` as internal project docs.
+Treat `docs/design/*` as internal project docs.
 
 This is the cleanest current reading.
 

@@ -30,29 +30,29 @@ Another important correction:
 
 The former contents of:
 
-- `application/docs/design/*`
-- `application/docs/designs/*`
+- `docs/design/*`
+- `docs/designs/*`
 
 have been merged into:
 
-- `application/docs/sdlc/projects/*`
+- `docs/sdlc/projects/*`
 
 ### 2. External product docs already exist
 
 Product-facing documentation already has a clear home in:
 
-- `application/docs/docs/*`
-- `application/docs/blog/*`
-- `application/docs/src/*`
-- `application/docs/static/*`
+- `docs/docs/*`
+- `docs/blog/*`
+- `docs/src/*`
+- `docs/static/*`
 
 ### 3. Internal agent docs already exist
 
 Current likely internal-agent surfaces:
 
-- `application/CLAUDE.md`
-- `application/.claude/*`
-- parts of `application/.agents/*`
+- `CLAUDE.md`
+- `.claude/*`
+- parts of `.agents/*`
 
 These should remain thin wrappers over canonical internal docs.
 
@@ -60,15 +60,15 @@ These should remain thin wrappers over canonical internal docs.
 
 Current likely process surfaces:
 
-- `application/AGENTS.md`
-- parts of `application/.agents/docs/*`
-- `application/docs/packs/*`
+- `AGENTS.md`
+- parts of `.agents/docs/*`
+- `docs/packs/*`
 
 These contain rules, guidance, and runbooks that humans and agents should both follow.
 
 ### 5. Internal system docs and internal product docs are still blurred together inside projects
 
-The merged `application/docs/sdlc/projects/*` content still contains material that may later yield at least two durable classes:
+The merged `docs/sdlc/projects/*` content still contains material that may later yield at least two durable classes:
 
 - internal system docs
 - internal product docs
@@ -97,10 +97,10 @@ That ambiguity will grow as work moves beyond initial sessions.
 Recommended target shape:
 
 ```text
-application/.agents/
-application/.claude/
-application/AGENTS.md
-application/CLAUDE.md
+.agents/
+.claude/
+AGENTS.md
+CLAUDE.md
 ```
 
 Rules:
@@ -115,7 +115,7 @@ Rules:
 Recommended target shape:
 
 ```text
-application/docs/sdlc/projects/
+docs/sdlc/projects/
   <initiative>/
     README.md
     intent.md
@@ -140,7 +140,7 @@ Important rule:
 Recommended target shape:
 
 ```text
-application/docs/sdlc/process/
+docs/sdlc/process/
   README.md
   lifecycle.md
   review.md
@@ -165,7 +165,7 @@ Only material that has become validated, reusable, and invariant across efforts 
 Recommended target shape:
 
 ```text
-application/docs/sdlc/system/
+docs/sdlc/system/
   README.md
   architecture/
   adrs/
@@ -190,7 +190,7 @@ Only material that has become validated, verified, and invariant at the system l
 Recommended target shape:
 
 ```text
-application/docs/sdlc/product/
+docs/sdlc/product/
   README.md
   requirements/
   use-cases/
@@ -216,7 +216,7 @@ Only material that has become validated, verified, and invariant at the product-
 Recommended target shape:
 
 ```text
-application/docs/
+docs/
   docs/
   blog/
   src/
