@@ -87,7 +87,7 @@ export const usePlaygroundNavigation = () => {
             }
             const querySuffix =
                 selectedKeys.length > 0
-                    ? `?playgroundRevisions=${encodeURIComponent(JSON.stringify(selectedKeys))}`
+                    ? `?revisions=${selectedKeys.join(",")}`
                     : ""
 
             push(`${baseAppURL}/${resolvedAppId}/playground${querySuffix}`)
