@@ -12,16 +12,32 @@
  * Types of entities that can be added to the playground
  */
 export type EntityType =
-    | "appRevision"
-    | "legacyAppRevision"
+    | "evaluator"
+    | "legacyEvaluator"
     | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "baseRunnable"
+    | "workflow"
     | "testcase"
     | "span"
 
 /**
  * Types of runnables (entities that can be executed)
  */
-export type RunnableType = "appRevision" | "legacyAppRevision" | "evaluatorRevision"
+export type RunnableType =
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "baseRunnable"
+    | "workflow"
+
+/**
+ * Execution mode for a runnable.
+ * - "chat": Interactive conversation with message history
+ * - "completion": Single input → output execution
+ */
+export type RunnableExecutionMode = "chat" | "completion"
 
 /**
  * Entity selection result from the entity selector modal
@@ -118,6 +134,9 @@ export interface OutputConnection {
     targetNodeId: string
     sourceOutputKey: string
     inputMappings: InputMapping[]
+    /** When true, the target node can execute concurrently with other
+     *  parallel siblings from the same source. Defaults to false (sequential). */
+    parallel?: boolean
 }
 
 // ============================================================================
@@ -155,7 +174,14 @@ export interface TestsetColumn {
 /**
  * Execution status
  */
-export type ExecutionStatus = "idle" | "pending" | "running" | "success" | "error" | "cancelled"
+export type ExecutionStatus =
+    | "idle"
+    | "pending"
+    | "running"
+    | "success"
+    | "error"
+    | "cancelled"
+    | "skipped"
 
 /**
  * Trace info from execution
@@ -310,19 +336,8 @@ export interface RunnableData {
     outputPorts: RunnableOutputPort[]
     configuration?: Record<string, unknown>
     invocationUrl?: string
-}
-
-/**
- * App revision specific data
- */
-export interface AppRevisionData extends RunnableData {
-    type: "appRevision"
-    appId?: string
-    variantId?: string
-    variantSlug?: string
-    version?: number
-    /** Alias for version - used by Version component */
-    revision?: number
+    /** Entity URI (e.g., "agenta:builtin:auto_exact_match:v0" for evaluators) */
+    uri?: string
 }
 
 /**
@@ -376,6 +391,49 @@ export interface PathItem {
     key: string
     name: string
     value: unknown
+}
+
+// ============================================================================
+// REQUEST PAYLOAD
+// ============================================================================
+
+/**
+ * Pre-built request payload from a runnable.
+ *
+ * Contains the config portion of the API request body (ag_config) plus
+ * metadata needed by the playground to merge in inputs and chat history.
+ *
+ * Each entity type implements its own `requestPayloadSelector` that builds
+ * this from its molecule data (enhanced prompts, custom properties, metadata, etc.).
+ *
+ * The playground package then merges:
+ * - `ag_config` from here
+ * - Row data (from loadable) as `inputs`
+ * - Chat history (from chat state) as `messages`
+ */
+export interface RequestPayloadData {
+    /** The ag_config portion of the request body */
+    ag_config: Record<string, unknown>
+    /** Whether this is a chat-mode runnable */
+    isChat: boolean
+    /** Application type (e.g., "custom", "chat", "completion") */
+    appType: string | null
+    /** Full invocation URL for execution */
+    invocationUrl: string | null
+    /** Runtime prefix (base URL without route path or endpoint) */
+    runtimePrefix: string | null
+    /** Allowed input variable keys (derived from prompt templates or schema) */
+    variables: string[]
+    /** OpenAPI spec (needed for custom workflow input mapping) */
+    spec?: unknown
+    /** Route path (needed for custom workflow endpoint resolution) */
+    routePath?: string
+    /** Whether this is a custom workflow */
+    isCustom?: boolean
+    /** Application ID (needed for worker execution payload) */
+    appId?: string | null
+    /** Optional trace references propagated with run payload */
+    references?: Record<string, Record<string, string | undefined>>
 }
 
 // ============================================================================

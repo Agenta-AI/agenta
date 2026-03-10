@@ -1,5 +1,6 @@
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
+
+import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 type VariantDropdownHandler<T> = ((record: T) => void) | undefined
 export interface VariantDropdownProps<

@@ -11,6 +11,7 @@
  *
  * ## State Atoms
  * - `projectIdAtom` - Current project ID (populated by app)
+ * - Jotai recipes: `atomWithDebounce`, `atomWithCompare`, `atomWithToggle`, etc.
  *
  * ## Chat Message Utilities
  * - Types: `SimpleChatMessage`, `MessageContent`, `ToolCall`, etc.
@@ -19,6 +20,7 @@
  *
  * ## Hooks
  * - `useDebounceInput` - Debounced input handling with synchronized state
+ * - `useReducerAtom` - Reducer ergonomics for primitive atoms
  *
  * @example
  * ```typescript
@@ -45,11 +47,24 @@ export {
     createAxiosInstance,
     configureAxios,
     resetAxiosConfig,
+    queryClient,
 } from "./api"
 export type {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosInterceptorConfig} from "./api"
 
 // State atoms
-export {projectIdAtom, setProjectIdAtom} from "./state"
+export {
+    projectIdAtom,
+    setProjectIdAtom,
+    atomWithRefresh,
+    atomWithCompare,
+    atomWithToggle,
+    atomWithToggleAndStorage,
+    atomWithListeners,
+    atomWithBroadcast,
+    atomWithDebounce,
+    atomWithRefreshAndDefault,
+} from "./state"
+export type {DebouncedAtomBundle} from "./state"
 
 // Utilities
 export {
@@ -103,6 +118,9 @@ export type {
     ExtractTypedPathsOptions,
 } from "./utils"
 
+// Type narrowing utilities
+export {asRecord, safeStringify} from "./utils"
+
 // Chat message utilities
 export {
     extractTextFromContent,
@@ -114,6 +132,13 @@ export {
     addFileToContent,
     removeAttachmentFromContent,
     getAttachments,
+    messageHasContent,
+    messageHasToolCalls,
+    tryParseArrayFromString,
+    normalizeMessagesFromField,
+    deriveToolViewModelFromResult,
+    normalizeEnhancedMessages,
+    extractPromptTemplateContext,
 } from "./utils"
 
 // Logger utilities
@@ -161,7 +186,10 @@ export type {
 export {MESSAGE_CONTENT_SCHEMA, CHAT_MESSAGE_SCHEMA, CHAT_MESSAGES_ARRAY_SCHEMA} from "./schemas"
 
 // Hooks
-export {useDebounceInput} from "./hooks"
+export {useDebounceInput, useLazyEffect, useSelectionState, useRunAllShortcut} from "./hooks"
+export type {UseSelectionStateResult} from "./hooks"
+export type {UseRunAllShortcutParams} from "./hooks"
+export {useReducerAtom} from "./hooks"
 
 // Formatting utilities
 export {
@@ -181,6 +209,25 @@ export type {FormatterOptions, Formatter} from "./utils"
 
 // Pluralization utilities
 export {pluralize, formatCount} from "./utils"
+
+// ID generation utilities
+export {generateId} from "./utils"
+
+// Data URI / Base64 / URL detection utilities
+export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
+
+// Value extraction utilities (strip enhanced wrappers / metadata)
+export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./utils"
+
+// Status inference utilities
+export {
+    toFiniteNumber,
+    getStatusLabel,
+    getStatusColor,
+    getStatusSeverity,
+    inferStatusFromSummary,
+} from "./utils"
+export type {ExecutionStatus, ExecutionSummary, StatusSeverity} from "./utils"
 
 // Mapping utilities for input/output mappings
 export {

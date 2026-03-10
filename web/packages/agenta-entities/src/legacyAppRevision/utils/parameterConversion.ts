@@ -64,6 +64,56 @@ function toSnakeCaseDeep(value: unknown): unknown {
 }
 
 // ============================================================================
+// KEY ORDER PRESERVATION
+// ============================================================================
+
+/**
+ * Reorder keys in `extracted` to match the key ordering from `reference`.
+ *
+ * - Keys present in `reference` are emitted first, in reference order.
+ * - Keys only in `extracted` (new fields) are appended at the end.
+ * - Recursively applies to nested objects and arrays (by index).
+ *
+ * This prevents false diff positives when `extractRawValue` produces objects
+ * whose key ordering differs from the server's original data.
+ */
+function preserveKeyOrder(extracted: unknown, reference: unknown): unknown {
+    if (extracted === null || extracted === undefined) return extracted
+    if (typeof extracted !== "object") return extracted
+
+    if (Array.isArray(extracted)) {
+        if (!Array.isArray(reference)) return extracted
+        return extracted.map((item, i) =>
+            i < reference.length ? preserveKeyOrder(item, reference[i]) : item,
+        )
+    }
+
+    if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+        return extracted
+    }
+
+    const refObj = reference as Record<string, unknown>
+    const extObj = extracted as Record<string, unknown>
+    const result: Record<string, unknown> = {}
+
+    // First: keys from reference in reference order
+    for (const key of Object.keys(refObj)) {
+        if (key in extObj) {
+            result[key] = preserveKeyOrder(extObj[key], refObj[key])
+        }
+    }
+
+    // Second: new keys from extracted that reference didn't have
+    for (const key of Object.keys(extObj)) {
+        if (!(key in result)) {
+            result[key] = extObj[key]
+        }
+    }
+
+    return result
+}
+
+// ============================================================================
 // COMPARISON HELPERS
 // ============================================================================
 
@@ -135,9 +185,14 @@ export function enhancedPromptsToParameters(
         if (messages) {
             const rawMessages = extractRawValue(messages)
             const existingPrompt = (result[name] as Record<string, unknown>) || {}
+            // Preserve key ordering from base params to avoid false diff positives
+            const orderedMessages = existingPrompt.messages
+                ? preserveKeyOrder(rawMessages, existingPrompt.messages)
+                : rawMessages
+
             result[name] = {
                 ...existingPrompt,
-                messages: rawMessages,
+                messages: orderedMessages,
             }
         }
 
@@ -155,10 +210,16 @@ export function enhancedPromptsToParameters(
             const rawConfig = extractRawValue(llmConfig)
             const normalizedConfig =
                 llmConfigKey === "llm_config" ? toSnakeCaseDeep(rawConfig) : rawConfig
+            // Preserve key ordering from base params to avoid false diff positives
+            const existingConfig = existingPrompt[llmConfigKey]
+            const orderedConfig =
+                existingConfig && typeof existingConfig === "object"
+                    ? preserveKeyOrder(normalizedConfig, existingConfig)
+                    : normalizedConfig
 
             result[name] = {
                 ...existingPrompt,
-                [llmConfigKey]: normalizedConfig,
+                [llmConfigKey]: orderedConfig,
             }
         }
 
@@ -211,11 +272,18 @@ export function enhancedCustomPropertiesToParameters(
 
         const prop = val as Record<string, unknown>
         // Extract the raw value from the enhanced property
+        let rawValue: unknown
         if ("value" in prop && ("__id" in prop || "__metadata" in prop)) {
-            result[key] = extractRawValue(prop.value)
+            rawValue = extractRawValue(prop.value)
         } else {
-            result[key] = extractRawValue(val)
+            rawValue = extractRawValue(val)
         }
+        // Preserve key ordering from base params when the existing value is an object
+        const existing = baseParams[key]
+        result[key] =
+            existing && typeof existing === "object" && rawValue && typeof rawValue === "object"
+                ? preserveKeyOrder(rawValue, existing)
+                : rawValue
     }
 
     return result

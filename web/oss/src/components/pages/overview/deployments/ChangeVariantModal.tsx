@@ -7,7 +7,7 @@ import {createUseStyles} from "react-jss"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
 
 import DeploymentModal from "./DeploymentModal"

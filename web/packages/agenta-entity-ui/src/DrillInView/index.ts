@@ -45,8 +45,14 @@ export {
     MoleculeDrillInFieldItem,
     useDrillIn,
     MoleculeDrillInProvider,
+    PlaygroundConfigSection,
 } from "./components"
-export type {MoleculeDrillInProviderProps} from "./components"
+export type {
+    MoleculeDrillInProviderProps,
+    PlaygroundConfigSectionProps,
+    ConfigSectionMoleculeAdapter,
+    EvaluatorPresetConfig,
+} from "./components"
 
 // ============================================================================
 // TYPES
@@ -106,7 +112,7 @@ export {defaultFieldBehaviors} from "./context"
 
 // UI Injection Context (for OSS component injection)
 export {DrillInUIProvider, useDrillInUI, defaultShowMessage} from "./context"
-export type {DrillInUIComponents, DrillInUIProviderProps} from "./context"
+export type {DrillInUIComponents, DrillInUIProviderProps, GatewayToolsBridge} from "./context"
 
 // ============================================================================
 // CORE TYPES (for DrillInContent-based implementations)
@@ -228,9 +234,15 @@ export {
     isMessagesSchema,
     ResponseFormatControl,
     responseFormatModalOpenAtom,
+    FeedbackConfigurationControl,
     PromptSchemaControl,
     isPromptSchema,
     isPromptValue,
+    // Tool controls
+    ToolItemControl,
+    ToolSelectorPopover,
+    TOOL_PROVIDERS_META,
+    TOOL_SPECS,
     // Composite controls
     ObjectSchemaControl,
     CollapsibleObjectControl,
@@ -260,7 +272,15 @@ export type {
     MessagesSchemaControlProps,
     ResponseFormatValue,
     ResponseFormatControlProps,
+    FeedbackConfigurationControlProps,
+    FeedbackConfig,
+    ResponseFormatType,
+    CategoricalOption,
     PromptSchemaControlProps,
+    ToolItemControlProps,
+    ToolSelectorPopoverProps,
+    ToolObj,
+    ToolFunction,
     ObjectSchemaControlProps,
     SchemaPropertyRendererProps,
 } from "./SchemaControls"

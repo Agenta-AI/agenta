@@ -76,6 +76,9 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
     if (!adapter?.canCommit) return true // Default to true if no canCommit defined
 
     const entityData = get(adapter.dataAtom(entity.id))
+    // Default to true while adapter data is still loading — the actual
+    // submit guard (canProceed) prevents premature commits.
+    if (entityData === null || entityData === undefined) return true
     return adapter.canCommit(entityData)
 })
 
@@ -84,11 +87,10 @@ export const commitModalCanCommitAtom = atom((get): boolean => {
  */
 export const commitModalCanProceedAtom = atom((get): boolean => {
     const entity = get(commitModalEntityAtom)
-    const message = get(commitModalMessageAtom)
     const canCommit = get(commitModalCanCommitAtom)
     const isLoading = get(commitModalLoadingAtom)
 
-    return entity !== null && message.trim().length > 0 && canCommit && !isLoading
+    return entity !== null && canCommit && !isLoading
 })
 
 /**
@@ -155,6 +157,20 @@ export const closeCommitModalAtom = atom(null, (_get, set) => {
  */
 export const setCommitMessageAtom = atom(null, (_get, set, message: string) => {
     set(commitModalMessageAtom, message)
+})
+
+/**
+ * Set loading state explicitly (for custom submit flows).
+ */
+export const setCommitLoadingAtom = atom(null, (_get, set, isLoading: boolean) => {
+    set(commitModalLoadingAtom, isLoading)
+})
+
+/**
+ * Set error state explicitly (for custom submit flows).
+ */
+export const setCommitErrorAtom = atom(null, (_get, set, error: Error | null) => {
+    set(commitModalErrorAtom, error)
 })
 
 /**
