@@ -1,4 +1,4 @@
-import {AutomationFormValues} from "@/oss/services/automations/types"
+import {AutomationFormValues, WebhookEventType} from "@/oss/services/automations/types"
 
 import {GITHUB_HEADERS, GITHUB_PAYLOAD_TEMPLATES, GITHUB_URL_TEMPLATES} from "../assets/constants"
 
@@ -12,32 +12,26 @@ export interface PreviewRequest {
 export interface PreviewContext {
     projectId?: string
     subscriptionId?: string
+    userId?: string
 }
 
 /**
- * Builds a dummy event context for the preview, using real IDs when available.
- * Matches the actual payload structure sent by the backend webhook worker.
+ * Builds a dummy event context for the preview.
+ * The full context is used for GitHub template resolution ($.event.*, $.subscription.*, $.scope.*).
+ * For webhooks, only the event portion is shown in the preview body.
  */
-const buildEventContext = (ctx?: PreviewContext) => ({
+const buildEventContext = (eventType: string, ctx?: PreviewContext) => ({
     event: {
-        event_id: "e44d82b4-...",
-        event_type: "environments.revisions.committed",
+        event_id: "01961234-5678-7abc-...",
+        event_type: eventType,
         timestamp: new Date().toISOString(),
-        created_at: new Date().toISOString(),
         attributes: {
-            environment_id: "env-123",
-            revision_id: "rev-456",
-            version: "1.0",
+            user_id: ctx?.userId || "<user_id>",
+            references: {},
         },
     },
     subscription: {
         id: ctx?.subscriptionId || "<subscription_id>",
-        name: "<subscription_name>",
-        flags: {is_valid: true},
-        tags: [],
-        meta: {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
     },
     scope: {
         project_id: ctx?.projectId || "<project_id>",
@@ -91,6 +85,7 @@ export const buildPreviewRequest = (
         headers,
         auth_mode,
         auth_value,
+        event_types,
         github_sub_type,
         github_repo,
         github_pat,
@@ -98,32 +93,32 @@ export const buildPreviewRequest = (
         github_branch,
     } = formValues
 
-    const eventContext = buildEventContext(ctx)
+    const selectedEvent: WebhookEventType = event_types?.[0] || "environments.revisions.committed"
+    const eventContext = buildEventContext(selectedEvent, ctx)
 
     if (provider === "webhook") {
-        const systemHeaders: Record<string, string> = {
+        const previewHeaders: Record<string, string> = {
             "Content-Type": "application/json",
-            "User-Agent": "Agenta-Webhook/1.0",
-            "X-Agenta-Event-Type": "environments.revisions.committed",
-            "X-Agenta-Delivery-Id": "<delivery_id>",
-            "X-Agenta-Event-Id": "<event_id>",
-            "Idempotency-Key": "<delivery_id>",
         }
 
         if (auth_mode === "authorization") {
-            systemHeaders["Authorization"] = auth_value ? "Bearer ••••••••••" : "Bearer <token>"
+            previewHeaders["Authorization"] = auth_value ? "Bearer ••••••••••" : "Bearer <token>"
         } else {
-            systemHeaders["X-Agenta-Signature"] = "t=<timestamp>,v1=<signature>"
+            previewHeaders["X-Agenta-Signature"] = "t=...,v1=..."
         }
 
-        // User headers merged after system headers (system headers cannot be overridden)
-        const finalHeaders = {...systemHeaders, ...(headers || {})}
+        previewHeaders["X-Agenta-Event-Type"] = selectedEvent
+        previewHeaders["X-Agenta-Event-Id"] = "01961234-..."
+        previewHeaders["Idempotency-Key"] = "01961234-..."
+
+        // User custom headers appended after system headers
+        const finalHeaders = {...previewHeaders, ...(headers || {})}
 
         return {
             method: "POST",
             url: url || "https://...",
             headers: finalHeaders,
-            body: eventContext,
+            body: {event: eventContext.event},
         }
     } else if (provider === "github") {
         const subType = github_sub_type || "repository_dispatch"
@@ -144,8 +139,9 @@ export const buildPreviewRequest = (
             method: "POST",
             url: finalUrl,
             headers: {
+                Authorization: github_pat ? "Bearer ghp_••••••••" : "Bearer <token>",
                 ...GITHUB_HEADERS,
-                Authorization: github_pat ? `Bearer ghp_••••••••••••` : "Bearer <token>",
+                "Content-Type": "application/json",
             },
             body: resolvePayloadMocks(payload_fields, eventContext),
         }
