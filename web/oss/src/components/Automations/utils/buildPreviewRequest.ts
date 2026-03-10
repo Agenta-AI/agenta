@@ -16,19 +16,28 @@ export interface PreviewContext {
 
 /**
  * Builds a dummy event context for the preview, using real IDs when available.
+ * Matches the actual payload structure sent by the backend webhook worker.
  */
 const buildEventContext = (ctx?: PreviewContext) => ({
-    event_id: "e44d82b4-...",
-    event_type: "environments.revisions.committed",
-    timestamp: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    attributes: {
-        environment_id: "env-123",
-        revision_id: "rev-456",
-        version: "1.0",
+    event: {
+        event_id: "e44d82b4-...",
+        event_type: "environments.revisions.committed",
+        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        attributes: {
+            environment_id: "env-123",
+            revision_id: "rev-456",
+            version: "1.0",
+        },
     },
     subscription: {
         id: ctx?.subscriptionId || "<subscription_id>",
+        name: "<subscription_name>",
+        flags: {is_valid: true},
+        tags: [],
+        meta: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
     },
     scope: {
         project_id: ctx?.projectId || "<project_id>",
@@ -41,9 +50,8 @@ const buildEventContext = (ctx?: PreviewContext) => ({
 const resolvePayloadMocks = (payload: any, eventContext: Record<string, any>): any => {
     if (typeof payload === "string") {
         if (payload === "$") return eventContext
-        if (payload === "$.event") return eventContext
         if (payload.startsWith("$.")) {
-            const path = payload.replace("$.event.", "").replace("$.", "")
+            const path = payload.slice(2) // strip "$."
             const parts = path.split(".")
             let current: any = eventContext
             for (const part of parts) {
@@ -93,13 +101,23 @@ export const buildPreviewRequest = (
     const eventContext = buildEventContext(ctx)
 
     if (provider === "webhook") {
-        const finalHeaders = {...(headers || {})}
+        const systemHeaders: Record<string, string> = {
+            "Content-Type": "application/json",
+            "User-Agent": "Agenta-Webhook/1.0",
+            "X-Agenta-Event-Type": "environments.revisions.committed",
+            "X-Agenta-Delivery-Id": "<delivery_id>",
+            "X-Agenta-Event-Id": "<event_id>",
+            "Idempotency-Key": "<delivery_id>",
+        }
 
         if (auth_mode === "authorization") {
-            finalHeaders["Authorization"] = auth_value ? `Bearer ••••••••••` : "Bearer <token>"
+            systemHeaders["Authorization"] = auth_value ? "Bearer ••••••••••" : "Bearer <token>"
         } else {
-            finalHeaders["x-agenta-signature"] = "••••••••••"
+            systemHeaders["X-Agenta-Signature"] = "t=<timestamp>,v1=<signature>"
         }
+
+        // User headers merged after system headers (system headers cannot be overridden)
+        const finalHeaders = {...systemHeaders, ...(headers || {})}
 
         return {
             method: "POST",
