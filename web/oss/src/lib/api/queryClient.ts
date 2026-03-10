@@ -1,13 +1,5 @@
-import {QueryClient} from "@tanstack/react-query"
+// DEPRECATED: Import queryClient directly from "@agenta/shared/api" instead.
+// This file is kept for backward compatibility during migration.
+import {queryClient} from "@agenta/shared/api"
 
-// Shared singleton QueryClient so non-React utilities (e.g., API helpers) can
-// invalidate / refetch queries after server-side mutations.
-// _app.tsx and any hook/component should import this instance.
-
-export const queryClient = new QueryClient()
-
-queryClient.setDefaultOptions({
-    queries: {
-        experimental_prefetchInRender: true,
-    },
-})
+export {queryClient}

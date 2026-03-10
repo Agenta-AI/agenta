@@ -8,16 +8,18 @@
  * ## Usage
  *
  * ```typescript
- * import { playgroundController, outputConnectionController } from '@agenta/playground'
+ * import { executionItemController, playgroundController } from '@agenta/playground'
  * import { useAtomValue, useSetAtom } from 'jotai'
  *
- * // Read state via controller selectors
- * const nodes = useAtomValue(playgroundController.selectors.nodes())
- * const selectedNode = useAtomValue(playgroundController.selectors.selectedNode())
+ * // Read execution item state
+ * const rows = useAtomValue(executionItemController.selectors.executionRowIds)
+ * const result = useAtomValue(executionItemController.selectors.resolvedResult({ rowId, entityId }))
  *
- * // Write state via controller actions
- * const dispatch = useSetAtom(playgroundController.dispatch)
- * dispatch({ type: 'ADD_NODE', payload: { ... } })
+ * // Trigger execution
+ * const triggerTest = useSetAtom(executionItemController.actions.triggerTest)
+ *
+ * // Chat messages (chat mode)
+ * const addMessage = useSetAtom(executionItemController.actions.addUserMessage)
  * ```
  *
  * ## Architecture
@@ -37,150 +39,45 @@ export {
     outputConnectionController,
     entitySelectorController,
     executionController,
-    playgroundSnapshotController,
-    applyPendingHydration,
+    executionItemController,
+} from "./state"
+
+// ============================================================================
+// OSS INTEGRATION (Hydration, URL sync, bridge setup)
+// ============================================================================
+
+export {
     applyPendingHydrationsForRevision,
-    clearPendingHydrations,
     pendingHydrations,
     pendingHydrationsAtom,
+    hasPendingHydrationAtomFamily,
     setSelectionUpdateCallback,
+    setOnSelectionChangeCallback,
     isPlaceholderId,
     urlSnapshotController,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
-    resetRunnableTypeResolver,
+    setRunnableBridge,
 } from "./state"
 
-// Re-export parseSnapshot for debugging
-export {parseSnapshot} from "./snapshot"
+// Displayed entities & initialization (consumed by OSS layout/URL sync)
+export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
 
-export type {
-    CreateSnapshotResult,
-    HydrateSnapshotResult,
-    SnapshotSelectionInput,
-    RunnableTypeResolver,
-    BuildEncodedSnapshotResult,
-    UrlComponents,
-    HydrateFromUrlResult,
-} from "./state"
-
-export type {
-    ConnectToTestsetPayload,
-    ImportTestcasesPayload,
-    AddRowWithInitPayload,
-    ExtraColumnPayload,
-} from "./state/controllers/playgroundController"
-
-// Execution types
-export type {
-    ExecutionMode,
-    ExecutionSession,
-    ExecutionInput,
-    ChatExecutionInput,
-    CompletionExecutionInput,
-    ExecutionStep,
-    RunStatus,
-    RunResult,
-    InitSessionsPayload,
-    RunStepPayload,
-    AddStepPayload,
-    CancelStepPayload,
-    ExecutionState,
-    RunStepWithContextPayload,
-} from "./state"
+// Testset import mutation (consumed by OSS testset integration)
+export {loadTestsetNormalizedMutationAtom} from "./state"
 
 // ============================================================================
 // ENTITY CONTEXT (Dependency Injection)
 // ============================================================================
 
-export {
-    PlaygroundEntityProvider,
-    usePlaygroundEntities,
-    usePlaygroundEntitiesOptional,
-} from "./state"
+export {PlaygroundEntityProvider} from "./state"
 
-export type {
-    PlaygroundEntityProviders,
-    EntityRevisionSelectors,
-    EvaluatorRevisionSelectors,
-    EvaluatorRevisionActions,
-    EntityQueryState,
-    AppRevisionRawData,
-    EvaluatorRevisionRawData,
-} from "./state"
+export type {PlaygroundEntityProviders} from "./state"
 
 // ============================================================================
-// REACT HOOKS
+// TYPES (Only types actually consumed externally)
 // ============================================================================
 
-export {
-    useChainExecution,
-    type UseChainExecutionReturn,
-    usePlaygroundState,
-    useDerivedState,
-    type DerivedStateParams,
-} from "./react"
-
-// ============================================================================
-// TYPES (Public Types Only)
-// ============================================================================
-
-export type {
-    // Entity types
-    RunnableType,
-    EntitySelection,
-    EntitySelectorConfig,
-    EntityType,
-    // Node types
-    PlaygroundNode,
-    ExtraColumn,
-    ConnectedTestset,
-    // Connection types
-    InputMappingStatus,
-    InputMapping,
-    OutputConnection,
-    // Testset types
-    TestsetRow,
-    TestsetColumn,
-    // Execution types
-    ExecutionStatus,
-    TraceInfo,
-    ExecutionMetrics,
-    ExecutionResult,
-    StageExecutionResult,
-    ChainProgress,
-    ChainExecutionProgress,
-    RowExecutionResult,
-    // Runnable types
-    RunnableInputPort,
-    RunnableOutputPort,
-    RunnableData,
-    AppRevisionData,
-    EvaluatorRevisionData,
-    // Path types
-    PathInfo,
-    ExtendedPathInfo,
-    PathItem,
-    // State types
-    PlaygroundState,
-    PlaygroundAction,
-    // View model types (playground-specific)
-    ChainExecutionResult,
-    ChainNodeInfo,
-    RunnableNode,
-    OutputReceiverInfo,
-    EntityInfo,
-} from "./state"
-
-// ============================================================================
-// NOTE: Internal atoms are NOT exported
-// ============================================================================
-//
-// DO NOT import internal atoms directly.
-// Use controllers instead:
-//
-//   playgroundController.selectors.nodes()      (not playgroundNodesAtom)
-//   playgroundController.selectors.primaryNode() (not primaryNodeAtom)
-//   outputConnectionController.selectors.allConnections() (not outputConnectionsAtom)
-//
-// This keeps the public API stable while allowing internal refactoring.
+export type {PlaygroundTestResult, PlaygroundNode} from "./state"
+export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
+export type {ChainExecutionResult, ChainNodeInfo} from "./state"

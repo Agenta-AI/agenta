@@ -1,37 +1,39 @@
 /**
  * SelectVariant Component
  *
- * WP-7.1: Migrated to use EntityPicker pattern with playgroundSelectionAdapter.
- * WP-7.2: Updated to use playgroundVariantMetaMapAtom for metadata (replaces optionsSelectors).
- * Uses createPlaygroundSelectionAdapter(appId) for entity-level single source of truth.
+ * Uses createWorkflowRevisionAdapter for workflow-based variant/revision selection.
+ * Lists variants and revisions via the workflow API (/preview/workflows/*).
+ *
+ * Supports two modes:
+ * - "scoped" (default): 2-level (Variant → Revision), scoped to the current app
+ * - "browse": 3-level (Workflow → Variant → Revision), shows all workflows (apps + evaluators)
  */
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
-import {EntityPicker, TreeSelectPopupContent} from "@agenta/entity-ui/selection"
-import {DraftTag} from "@agenta/ui/components"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    workflowMolecule,
+    workflowsListQueryStateAtom,
+    workflowLatestRevisionIdAtomFamily,
+} from "@agenta/entities/workflow"
+import {
+    CascadingVariant,
+    createWorkflowRevisionAdapter,
+    TreeSelectPopupContent,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
+import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
-import {CopySimple, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Popover, Space, Tooltip, Typography} from "antd"
-import {getDefaultStore} from "jotai"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {Plus} from "@phosphor-icons/react"
+import {Button, Popover, Space} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {currentAppAtom} from "@/oss/state/app"
-import {
-    cloneAsLocalDraft,
-    discardRevisionDraftAtom,
-    playgroundVariantMetaMapAtom,
-} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
-import {selectedVariantsAtom, parametersOverrideAtomFamily} from "../../../state/atoms"
-import {playgroundLatestAppRevisionIdAtom} from "../../../state/atoms/playgroundAppAtoms"
-import {
-    createPlaygroundSelectionAdapter,
-    type PlaygroundRevisionSelectionResult,
-} from "../../../state/atoms/playgroundSelectionAdapter"
-
+import RevisionChildTitle from "./components/RevisionChildTitle"
+import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
 
 const SelectVariant = ({
@@ -39,19 +41,133 @@ const SelectVariant = ({
     showAsCompare = false,
     showCreateNew = true,
     showLatestTag = true,
+    mode = "scoped",
+    customBrowseAdapter,
     style,
     ...props
 }: SelectVariantProps) => {
-    const [selectedVariants, setSelectedVariants] = useAtom(selectedVariantsAtom)
-    const currentApp = useAtomValue(currentAppAtom)
-    const appId = currentApp && !(currentApp instanceof Promise) ? currentApp.app_id : ""
+    const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
+    const setSelectedVariants = useSetAtom(playgroundController.actions.setEntityIds)
+    const selectedAppId = useAtomValue(selectedAppIdAtom)
+    const appId = selectedAppId ?? ""
+    const singleSelectedValue = useMemo(
+        () =>
+            typeof value === "string"
+                ? value
+                : Array.isArray(value) && typeof value[0] === "string"
+                  ? value[0]
+                  : null,
+        [value],
+    )
+    const selectedRevisionData = useAtomValue(runnableBridge.data(singleSelectedValue || ""))
+    const selectedRevisionQuery = useAtomValue(runnableBridge.query(singleSelectedValue || ""))
+    const hasSelectedDisplayName = useMemo(() => {
+        if (!singleSelectedValue) return false
+        if (isLocalDraftId(singleSelectedValue)) return true
+        const name = selectedRevisionData?.name
+        return typeof name === "string" && name.trim().length > 0
+    }, [singleSelectedValue, selectedRevisionData])
+    // Check if the selected revision exists by verifying its individual query
+    // resolved with data — avoids reading the full app revision list on mount.
+    const selectedExistsInAppList = useMemo(() => {
+        if (showAsCompare) return true
+        if (!singleSelectedValue) return false
+        if (isLocalDraftId(singleSelectedValue)) return true
+        return !selectedRevisionQuery.isError && !!selectedRevisionData
+    }, [showAsCompare, singleSelectedValue, selectedRevisionQuery.isError, selectedRevisionData])
 
-    // Get metadata map for custom rendering (replaces variantOptionsAtomFamily)
-    const metaMap = useAtomValue(playgroundVariantMetaMapAtom)
-    const latestAppRevisionId = useAtomValue(playgroundLatestAppRevisionIdAtom)
+    const selectedValueForControl = useMemo(() => {
+        if (showAsCompare) {
+            return Array.isArray(value) ? value[0] : value
+        }
 
-    // Create adapter scoped to current app (memoized)
-    const adapter = useMemo(() => createPlaygroundSelectionAdapter(appId), [appId])
+        if (!singleSelectedValue) return undefined
+
+        // Prevent raw UUID from showing only during pending resolution.
+        if (
+            selectedRevisionQuery.isPending &&
+            !isLocalDraftId(singleSelectedValue) &&
+            !hasSelectedDisplayName
+        ) {
+            return undefined
+        }
+        if (!selectedExistsInAppList) {
+            return undefined
+        }
+
+        return singleSelectedValue
+    }, [
+        showAsCompare,
+        value,
+        singleSelectedValue,
+        selectedRevisionQuery.isPending,
+        hasSelectedDisplayName,
+        selectedExistsInAppList,
+    ])
+
+    const selectPlaceholder =
+        !showAsCompare &&
+        !!singleSelectedValue &&
+        selectedRevisionQuery.isPending &&
+        !hasSelectedDisplayName
+            ? "Loading variant..."
+            : "Select variant"
+
+    // Scoped adapter: 2-level (Variant → Revision), scoped to the current app
+    const scopedAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                workflowIdAtom: selectedAppIdAtom,
+                workflowId: appId,
+                excludeRevisionZero: true,
+                variantOverrides: {
+                    getLabel: (v: unknown) => {
+                        const variant = v as {name?: string; id?: string}
+                        return variant.name ?? variant.id ?? "Unnamed"
+                    },
+                },
+                revisionOverrides: {
+                    getLabel: (r: unknown) => {
+                        const rev = r as {version?: number}
+                        return `v${rev.version ?? 0}`
+                    },
+                },
+                toSelection: (path, leafEntity) => {
+                    const revision = leafEntity as {
+                        id: string
+                        version?: number
+                    }
+                    const variant = path[0]
+
+                    return {
+                        type: "workflowRevision",
+                        id: revision.id,
+                        label: `${variant?.label ?? "Variant"} v${revision.version ?? 0}`,
+                        path,
+                        metadata: {
+                            workflowId: appId,
+                            workflowName: "",
+                            variantId: variant?.id ?? "",
+                            variantName: variant?.label ?? "",
+                            revision: revision.version ?? 0,
+                        },
+                    }
+                },
+                emptyMessage: "No variants found",
+                loadingMessage: "Loading variants...",
+            }),
+        [appId],
+    )
+
+    // Browse adapter: 3-level (Workflow → Variant → Revision), all workflows
+    const defaultBrowseAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                excludeRevisionZero: true,
+            }),
+        [],
+    )
+    const browseAdapter = customBrowseAdapter ?? defaultBrowseAdapter
 
     // Memoize the disabled IDs set to avoid recreation on each render
     const disabledIds = useMemo(() => new Set(selectedVariants), [selectedVariants])
@@ -61,7 +177,7 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            const localDraftId = cloneAsLocalDraft(revisionId)
+            const localDraftId = runnableBridge.createLocalDraft(revisionId)
             if (localDraftId) {
                 setSelectedVariants((prev) =>
                     prev.includes(localDraftId) ? prev : [...prev, localDraftId],
@@ -71,22 +187,9 @@ const SelectVariant = ({
         [setSelectedVariants],
     )
 
-    const discardDraft = useSetAtom(discardRevisionDraftAtom)
-
-    const handleDiscardLocalDraft = useCallback(
-        (localDraftId: string, e: React.MouseEvent) => {
-            e.stopPropagation()
-            e.preventDefault()
-            setSelectedVariants((prev) => prev.filter((id) => id !== localDraftId))
-            discardDraft(localDraftId)
-            getDefaultStore().set(parametersOverrideAtomFamily(localDraftId), null)
-        },
-        [setSelectedVariants, discardDraft],
-    )
-
     // Handle selection from EntityPicker
     const handleSelect = useCallback(
-        (selection: PlaygroundRevisionSelectionResult) => {
+        (selection: WorkflowRevisionSelectionResult) => {
             if (showAsCompare) {
                 // Compare mode: ADD the selected revision to the displayed list
                 // Don't add if already in the list (disabledIds check should prevent this, but be safe)
@@ -105,145 +208,60 @@ const SelectVariant = ({
     )
 
     // Custom parent title renderer (variant groups)
-    const renderParentTitle = useCallback(
-        (parent: unknown, defaultNode: React.ReactNode) => {
-            const p = parent as {
-                id?: string
-                variantId?: string
-                isLocalDraftGroup?: boolean
-                variantName?: string
-                name?: string
-            }
-            const parentId = p.variantId ?? p.id ?? ""
-            const variantMeta = metaMap.variants.get(parentId)
+    const renderParentTitle = useCallback((parent: unknown, defaultNode: React.ReactNode) => {
+        const p = parent as {
+            id?: string
+            variantId?: string
+            isLocalDraftGroup?: boolean
+            variantName?: string
+            name?: string
+        }
+        return <VariantGroupTitle parent={p} defaultNode={defaultNode} />
+    }, [])
 
-            if (p.isLocalDraftGroup) {
-                return (
-                    <div className="flex items-center justify-between pr-0 grow">
-                        <div className="flex items-center gap-1.5">
-                            <PencilSimpleLine size={14} className="text-[#9254de]" />
-                            <Typography.Text className="font-medium text-[#9254de]">
-                                {defaultNode ?? p.variantName ?? p.name ?? "Local Drafts"}
-                            </Typography.Text>
-                        </div>
-                    </div>
-                )
-            }
-
-            return (
-                <div className="flex items-center justify-between pr-0 grow">
-                    <Typography.Text ellipsis={{tooltip: p.variantName ?? p.name}}>
-                        {defaultNode ?? p.variantName ?? p.name}
-                    </Typography.Text>
-                    <EnvironmentStatus
-                        className="mr-2"
-                        variant={{
-                            deployedIn: (variantMeta?.deployedIn ?? []) as any,
-                        }}
-                    />
-                </div>
-            )
-        },
-        [metaMap],
-    )
+    // Read the latest revision ID for the current workflow (app) — used to tag
+    // the most recent revision in the scoped select list. One query per workflow,
+    // not one per list item.
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId))
 
     // Custom child title renderer (revisions)
     const renderChildTitle = useCallback(
-        (child: unknown, parent: unknown, defaultNode: React.ReactNode, ...rest) => {
+        (child: unknown, _parent: unknown, _defaultNode: React.ReactNode) => {
             const c = child as {
                 id: string
-                isLocalDraft?: boolean
-                isDirty?: boolean
+                version?: number
+                name?: string
                 variantName?: string
-                revision?: number
-            }
-            const revisionMeta = metaMap.revisions.get(c.id)
-            const isDisabled = disabledIds.has(c.id)
-
-            if (c.isLocalDraft || revisionMeta?.isLocalDraft) {
-                return (
-                    <div
-                        className={`flex items-center justify-between h-[32px] pl-1.5 pr-0 group/draft ${isDisabled ? "opacity-50" : ""}`}
-                    >
-                        <div className="flex items-center gap-2">
-                            <Typography.Text>
-                                v{c.revision ?? revisionMeta?.revision}
-                            </Typography.Text>
-                            <DraftTag />
-                            {(c.isDirty || revisionMeta?.isDirty) && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                            )}
-                        </div>
-                        <Tooltip title="Discard draft">
-                            <Button
-                                type="text"
-                                size="small"
-                                danger
-                                icon={<Trash size={14} />}
-                                className="opacity-0 group-hover/draft:opacity-100 transition-opacity"
-                                onClick={(e) => handleDiscardLocalDraft(c.id, e)}
-                            />
-                        </Tooltip>
-                    </div>
-                )
             }
 
             return (
-                <div
-                    className={`flex items-center justify-between h-[32px] pl-1.5 pr-0 group/revision ${isDisabled ? "opacity-50" : ""}`}
-                >
-                    <VariantDetailsWithStatus
-                        className="w-full [&_.environment-badges]:mr-2"
-                        variantName={c.variantName ?? revisionMeta?.variantName ?? ""}
-                        revision={c.revision ?? revisionMeta?.revision ?? 0}
-                        variant={revisionMeta?.variant as any}
-                        hideName
-                        showBadges
-                        showLatestTag={showLatestTag}
-                        isLatest={c.id === latestAppRevisionId}
-                    />
-                    {showAsCompare && (
-                        <Tooltip title="Create local copy for comparison">
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<CopySimple size={14} />}
-                                className="opacity-0 group-hover/revision:opacity-100 transition-opacity mr-1"
-                                onClick={(e) => handleCreateLocalCopy(c.id, e)}
-                                data-tour="compare-toggle"
-                            />
-                        </Tooltip>
-                    )}
-                </div>
+                <RevisionChildTitle
+                    revisionId={c.id}
+                    variantName={c.variantName ?? c.name ?? ""}
+                    version={c.version ?? 0}
+                    variant={c}
+                    isDisabled={disabledIds.has(c.id)}
+                    showLatestTag={showLatestTag}
+                    showAsCompare={showAsCompare}
+                    onCreateLocalCopy={handleCreateLocalCopy}
+                    latestRevisionId={latestRevisionId}
+                />
             )
         },
-        [
-            metaMap,
-            showLatestTag,
-            showAsCompare,
-            handleCreateLocalCopy,
-            handleDiscardLocalDraft,
-            disabledIds,
-            latestAppRevisionId,
-        ],
+        [showLatestTag, showAsCompare, handleCreateLocalCopy, disabledIds, latestRevisionId],
     )
 
     const renderSelectedLabel = useCallback(
         (child: unknown, parent: unknown, _defaultNode: React.ReactNode) => {
-            const c = child as {
-                id: string
-                variantName?: string
-            }
+            const c = child as {id: string; variantName?: string}
             const p = parent as {variantName?: string; name?: string}
-            const revisionMeta = metaMap.revisions.get(c.id)
-            const variantName =
-                c.variantName ?? revisionMeta?.variantName ?? p?.variantName ?? p?.name ?? ""
+            const variantName = c.variantName ?? p?.variantName ?? p?.name ?? ""
 
             // Only show variant name inside the selector
             // Revision number and draft/dirty indicators are rendered outside by PlaygroundVariantConfigHeader
             return variantName
         },
-        [metaMap],
+        [],
     )
 
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
@@ -254,7 +272,7 @@ const SelectVariant = ({
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
 
         if (lastRevisionId) {
-            const localDraftId = cloneAsLocalDraft(lastRevisionId)
+            const localDraftId = runnableBridge.createLocalDraft(lastRevisionId)
 
             if (localDraftId) {
                 setSelectedVariants((prev) =>
@@ -266,6 +284,83 @@ const SelectVariant = ({
     }, [value, setSelectedVariants, recordWidgetEvent])
 
     // Compare mode: Split button with tree popup content in popover
+    const [comparePopoverOpen, setComparePopoverOpen] = useState(false)
+
+    // Single-select mode state — must be declared before the early return
+    // so hooks are always called in the same order.
+    const [singlePopoverOpen, setSinglePopoverOpen] = useState(false)
+
+    const handleSingleSelect = useCallback(
+        (result: WorkflowRevisionSelectionResult) => {
+            handleSelect(result)
+            setSinglePopoverOpen(false)
+        },
+        [handleSelect],
+    )
+
+    // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
+    // runnableBridge.data() normalizes away hierarchy IDs, so we read the molecule directly
+    // Must be called before any early returns to keep hook order stable.
+    const rawWorkflowEntity = useAtomValue(
+        workflowMolecule.selectors.data(singleSelectedValue || ""),
+    )
+
+    // Look up the parent workflow name for browse mode trigger label
+    const workflowsList = useAtomValue(workflowsListQueryStateAtom)
+    const workflowName = useMemo(() => {
+        if (mode !== "browse") return null
+        const workflowId = (rawWorkflowEntity as {workflow_id?: string | null} | null)?.workflow_id
+        if (!workflowId) return null
+        const wf = workflowsList.data.find((w) => w.id === workflowId)
+        return wf?.name ?? null
+    }, [mode, rawWorkflowEntity, workflowsList.data])
+
+    // Build display label from already-fetched individual revision data.
+    // Uses singleSelectedValue directly (not selectedValueForControl which
+    // may be undefined while the existence check resolves).
+    const triggerLabel = useMemo(() => {
+        if (!singleSelectedValue) return selectPlaceholder
+        if (isLocalDraftId(singleSelectedValue)) {
+            return selectedRevisionData?.name ?? "Draft"
+        }
+        if (selectedRevisionQuery.isPending) return "Loading..."
+        const variantName = selectedRevisionData?.name ?? selectPlaceholder
+        // In browse mode, prefix with the workflow (app/evaluator) name
+        if (mode === "browse" && workflowName) {
+            return `${workflowName} / ${variantName}`
+        }
+        return variantName
+    }, [
+        singleSelectedValue,
+        selectedRevisionData,
+        selectedRevisionQuery.isPending,
+        selectPlaceholder,
+        mode,
+        workflowName,
+    ])
+
+    // Build initial selections for browse mode from currently selected revision data
+    const browseInitialSelections = useMemo(() => {
+        if (!rawWorkflowEntity) return undefined
+        const rev = rawWorkflowEntity as {
+            workflow_id?: string | null
+            workflow_variant_id?: string | null
+        }
+        const workflowId = rev.workflow_id
+        const variantId = rev.workflow_variant_id
+        if (!workflowId) return undefined
+        return [workflowId, variantId ?? null, singleSelectedValue]
+    }, [rawWorkflowEntity, singleSelectedValue])
+
+    // Handle browse mode selection — wraps handleSelect to also close the popover
+    const handleBrowseSelect = useCallback(
+        (selection: WorkflowRevisionSelectionResult) => {
+            handleSelect(selection)
+            setSinglePopoverOpen(false)
+        },
+        [handleSelect],
+    )
+
     if (showAsCompare) {
         return (
             <Space.Compact size="small">
@@ -279,10 +374,10 @@ const SelectVariant = ({
                 </Button>
                 <Popover
                     content={
-                        <TreeSelectPopupContent<PlaygroundRevisionSelectionResult>
-                            adapter={adapter}
+                        <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
+                            adapter={scopedAdapter}
                             onSelect={handleSelect}
-                            selectedValue={Array.isArray(value) ? value[0] : value}
+                            selectedValue={selectedValueForControl}
                             disabledChildIds={disabledIds}
                             renderParentTitle={renderParentTitle}
                             renderChildTitle={renderChildTitle}
@@ -291,10 +386,13 @@ const SelectVariant = ({
                             width={280}
                         />
                     }
+                    open={comparePopoverOpen}
+                    onOpenChange={setComparePopoverOpen}
                     trigger="click"
                     placement="bottomRight"
                     arrow={false}
-                    styles={{body: {padding: 0}}}
+                    destroyOnHidden
+                    overlayClassName="[&_.ant-popover-container]:!p-0"
                 >
                     <Button icon={<DownOutlined style={{fontSize: 10}} />} />
                 </Popover>
@@ -302,24 +400,85 @@ const SelectVariant = ({
         )
     }
 
-    // Normal mode: standard picker
+    // Browse mode: cascading dropdowns (Workflow → Variant → Revision) inside a Popover
+    if (mode === "browse") {
+        return (
+            <div style={style ?? {width: 200}}>
+                <Popover
+                    content={
+                        <div className="p-3 w-[320px]">
+                            {singlePopoverOpen && (
+                                <CascadingVariant<WorkflowRevisionSelectionResult>
+                                    adapter={browseAdapter}
+                                    onSelect={handleBrowseSelect}
+                                    initialSelections={browseInitialSelections}
+                                    showLabels
+                                    layout="vertical"
+                                    size="small"
+                                    gap={2}
+                                />
+                            )}
+                        </div>
+                    }
+                    open={singlePopoverOpen}
+                    onOpenChange={setSinglePopoverOpen}
+                    trigger="click"
+                    placement="bottomLeft"
+                    arrow={false}
+                    destroyOnHidden
+                    overlayClassName="[&_.ant-popover-container]:!p-0"
+                >
+                    <Button
+                        size="small"
+                        title={triggerLabel}
+                        className="w-full flex items-center justify-between text-left overflow-hidden"
+                    >
+                        <span className="truncate text-xs">{triggerLabel}</span>
+                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                    </Button>
+                </Popover>
+            </div>
+        )
+    }
+
+    // Scoped mode (default): Popover + trigger so TreeSelectPopupContent only mounts
+    // when the user clicks — prevents fetching all variants on mount.
     return (
-        <div style={style ?? {width: 200}}>
-            <EntityPicker<PlaygroundRevisionSelectionResult>
-                variant="tree-select"
-                adapter={adapter}
-                onSelect={handleSelect}
-                selectedValue={Array.isArray(value) ? value[0] : value}
-                disabledChildIds={disabledIds}
-                renderParentTitle={renderParentTitle}
-                renderChildTitle={renderChildTitle}
-                renderSelectedLabel={renderSelectedLabel}
-                popupHeaderAction={null}
-                size="small"
-                placeholder="Select variant"
-                popupMinWidth={280}
-                maxHeight={400}
-            />
+        <div style={style ?? {width: 120}}>
+            <Popover
+                content={
+                    <div>
+                        {singlePopoverOpen && (
+                            <TreeSelectPopupContent<WorkflowRevisionSelectionResult>
+                                adapter={scopedAdapter}
+                                onSelect={handleSingleSelect}
+                                selectedValue={selectedValueForControl}
+                                disabledChildIds={disabledIds}
+                                renderParentTitle={renderParentTitle}
+                                renderChildTitle={renderChildTitle}
+                                renderSelectedLabel={renderSelectedLabel}
+                                popupMinWidth={280}
+                                maxHeight={400}
+                            />
+                        )}
+                    </div>
+                }
+                open={singlePopoverOpen}
+                onOpenChange={setSinglePopoverOpen}
+                trigger="click"
+                placement="bottomLeft"
+                arrow={false}
+                destroyOnHidden
+                overlayClassName="[&_.ant-popover-container]:!p-0"
+            >
+                <Button
+                    size="small"
+                    className="w-full flex items-center justify-between text-left overflow-hidden"
+                >
+                    <span className="truncate text-xs">{triggerLabel}</span>
+                    <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                </Button>
+            </Popover>
         </div>
     )
 }

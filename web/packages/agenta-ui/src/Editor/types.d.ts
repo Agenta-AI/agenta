@@ -39,6 +39,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     codeOnly?: boolean
     language?: "json" | "yaml" | "code" | "python" | "javascript" | "typescript"
     showToolbar?: boolean
+    /** Render inline markdown preview toggle control inside the editor container */
+    showMarkdownToggleButton?: boolean
     enableTokens?: boolean
     tokens?: string[]
     /** Template format for prompt variable/tag highlighting */
@@ -79,6 +81,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
 export interface EditorPluginsProps {
     id: string
     showToolbar: boolean
+    showMarkdownToggleButton?: boolean
     singleLine: boolean
     codeOnly: boolean
     autoFocus?: boolean

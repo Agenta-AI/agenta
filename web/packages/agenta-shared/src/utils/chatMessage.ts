@@ -5,6 +5,8 @@
  * text extraction, content updates, and attachment management.
  */
 
+import JSON5 from "json5"
+
 import type {
     MessageContent,
     TextContentPart,
@@ -12,6 +14,8 @@ import type {
     FileContentPart,
     SimpleChatMessage,
 } from "../types/chatMessage"
+
+import {unwrapValue, resolveField, coerceString} from "./_internal/unwrap"
 
 /**
  * Extract text content from a message content value.
@@ -137,9 +141,11 @@ export function addFileToContent(
     filename: string,
     format: string,
 ): MessageContent {
+    // URLs are passed as file_id (remote reference), base64 data URIs as file_data (inline content)
+    const isRemoteUrl = /^https?:\/\//i.test(fileData)
     const newPart: FileContentPart = {
         type: "file",
-        file: {file_data: fileData, filename, format},
+        file: isRemoteUrl ? {file_id: fileData} : {file_data: fileData, filename, format},
     }
     if (typeof content === "string") {
         return [{type: "text", text: content}, newPart]
@@ -181,4 +187,184 @@ export function getAttachments(content: MessageContent): (ImageContentPart | Fil
         (part): part is ImageContentPart | FileContentPart =>
             part.type === "image_url" || part.type === "file",
     )
+}
+
+// ============================================================================
+// Message inspection utilities
+// ============================================================================
+
+/**
+ * Check whether a message has meaningful content.
+ * Handles string content, array content with text/image/file parts.
+ */
+export function messageHasContent(msg: SimpleChatMessage | null | undefined): boolean {
+    if (!msg) return false
+    const content = msg.content
+
+    if (typeof content === "string") {
+        return content.trim().length > 0
+    }
+
+    if (Array.isArray(content)) {
+        return content.some((part) => {
+            if (part.type === "text") return part.text.trim().length > 0
+            if (part.type === "image_url") return Boolean(part.image_url?.url)
+            if (part.type === "file") return Boolean(part.file?.file_id || part.file?.file_data)
+            return false
+        })
+    }
+
+    return false
+}
+
+/**
+ * Check whether a message contains tool calls.
+ */
+export function messageHasToolCalls(msg: SimpleChatMessage | null | undefined): boolean {
+    if (!msg) return false
+    if (Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) return true
+    if (msg.function_call && typeof msg.function_call === "object") return true
+    return false
+}
+
+// ============================================================================
+// Chat parsing / normalization utilities
+// ============================================================================
+
+/**
+ * Try to parse a JSON5 string into an array. Returns null if not parseable as an array.
+ */
+export function tryParseArrayFromString(s: string): unknown[] | null {
+    try {
+        const t = s.trim()
+        if (!t.startsWith("[") && !t.startsWith("{")) return null
+        const parsed = JSON5.parse(s)
+        return Array.isArray(parsed) ? parsed : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Normalize a single row's messages field (array or JSON string) into a
+ * typed `SimpleChatMessage[]`.
+ *
+ * Handles both the standard OpenAI/Anthropic shape **and** the internal
+ * property-object shape used by the playground (where values are wrapped in
+ * `{ value: … }` objects).
+ */
+export function normalizeMessagesFromField(raw: unknown): SimpleChatMessage[] {
+    const out: SimpleChatMessage[] = []
+    if (!raw) return out
+
+    const pushFrom = (m: Record<string, unknown>) => {
+        const role = String(unwrapValue<string>(m.role) || "user").toLowerCase()
+
+        const rc = m.content
+        const content: MessageContent = Array.isArray(rc)
+            ? rc
+            : (unwrapValue<MessageContent>(rc) ?? (typeof rc === "string" ? rc : null))
+
+        const toolCalls = resolveField<SimpleChatMessage["tool_calls"]>(
+            m,
+            "tool_calls",
+            "toolCalls",
+        )
+        const functionCall = resolveField<SimpleChatMessage["function_call"]>(
+            m,
+            "function_call",
+            "functionCall",
+        )
+        const toolCallId = coerceString(resolveField(m, "tool_call_id", "toolCallId"))
+        const name = coerceString(resolveField(m, "name", "tool_name"))
+
+        const payload: SimpleChatMessage = {role, content}
+        if (toolCalls !== undefined) payload.tool_calls = toolCalls
+        if (functionCall !== undefined) payload.function_call = functionCall
+        if (toolCallId !== undefined) payload.tool_call_id = toolCallId
+        if (name !== undefined) payload.name = name
+
+        out.push(payload)
+    }
+
+    if (Array.isArray(raw)) {
+        for (const m of raw) {
+            if (m && typeof m === "object" && !Array.isArray(m)) {
+                pushFrom(m as Record<string, unknown>)
+            }
+        }
+        return out
+    }
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON5.parse(raw)
+            if (Array.isArray(parsed)) {
+                for (const m of parsed) {
+                    if (m && typeof m === "object" && !Array.isArray(m)) {
+                        pushFrom(m as Record<string, unknown>)
+                    }
+                }
+            }
+        } catch {
+            // not parseable — return empty
+        }
+    }
+    return out
+}
+
+/**
+ * Derive a unified view model for rendering generation responses.
+ *
+ * Returns a potential `toolData` array (for ToolCallView), a `displayValue`
+ * string for the editor, and an `isJSON` flag for syntax highlighting.
+ */
+export function deriveToolViewModelFromResult(result: unknown): {
+    toolData: unknown[] | null
+    isJSON: boolean
+    displayValue: string
+} {
+    const rawData = (result as Record<string, unknown>)?.response as
+        | Record<string, unknown>
+        | undefined
+    const dataField = rawData?.data
+    const contentCandidate =
+        typeof dataField === "string"
+            ? dataField
+            : dataField && typeof dataField === "object"
+              ? ((dataField as Record<string, unknown>).content ??
+                (dataField as Record<string, unknown>).data ??
+                "")
+              : ""
+
+    // Tool-call candidates — check explicit tool_calls field first, then fall
+    // back to parsing content/data arrays (legacy shapes).
+    let arr: unknown[] | null = null
+    const dataFieldRec =
+        dataField && typeof dataField === "object" && !Array.isArray(dataField)
+            ? (dataField as Record<string, unknown>)
+            : null
+    const toolCallsField = dataFieldRec?.tool_calls
+    if (Array.isArray(toolCallsField) && toolCallsField.length > 0) {
+        arr = toolCallsField
+    }
+    if (!arr && typeof contentCandidate === "string")
+        arr = tryParseArrayFromString(contentCandidate)
+    if (!arr && Array.isArray(contentCandidate)) arr = contentCandidate
+    if (!arr && typeof dataField === "string") arr = tryParseArrayFromString(dataField)
+    if (!arr && Array.isArray(dataField)) arr = dataField
+
+    // Fallback editor content
+    let isJSON = false
+    let displayValue =
+        typeof contentCandidate === "string" ? contentCandidate : String(contentCandidate ?? "")
+    if (typeof contentCandidate === "string") {
+        try {
+            const parsed = JSON5.parse(contentCandidate)
+            isJSON = true
+            displayValue = JSON.stringify(parsed, null, 2)
+        } catch {
+            isJSON = false
+        }
+    }
+    return {toolData: arr, isJSON, displayValue}
 }

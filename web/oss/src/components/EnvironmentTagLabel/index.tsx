@@ -17,7 +17,22 @@ const EnvironmentTagLabel: FC<{environment: string}> = ({environment}) => {
     const known = deploymentStatusColors[environment]
     const label = known?.label ?? (environment || "Unknown")
 
-    return <Tag className="w-fit">{label}</Tag>
+    return (
+        <Tag
+            className="w-fit"
+            style={
+                known
+                    ? {
+                          backgroundColor: known.bgColor,
+                          color: known.textColor,
+                          borderColor: known.bgColor,
+                      }
+                    : undefined
+            }
+        >
+            {label}
+        </Tag>
+    )
 }
 
 export default EnvironmentTagLabel

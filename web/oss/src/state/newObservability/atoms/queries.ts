@@ -453,7 +453,6 @@ export const sessionsSpansAtom = selectAtom(
                 const key = trace.span_id || trace.key
                 if (!key || seen.has(key)) return
                 seen.add(key)
-                console.log("trace", trace)
                 const sessionId = (trace.attributes as any)?.ag?.session?.id as string
 
                 if (sessionId) {
@@ -565,7 +564,6 @@ export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
         const sorted = get(sessionSortedTracesAtomFamily(sessionId))
         if (!sorted.length) return undefined
         const firstTrace = sorted[0]
-        console.log("firstTrace", firstTrace)
         return (firstTrace.attributes as any)?.ag?.data?.inputs
     }),
 )

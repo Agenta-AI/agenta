@@ -191,6 +191,7 @@ export {
     Editor,
     EditorProvider,
     DiffView,
+    preloadEditorPlugins,
     // Re-exports from Lexical
     useLexicalComposerContext,
     ON_HYDRATE_FROM_REMOTE_CONTENT,
@@ -245,33 +246,14 @@ export {
 } from "./SharedEditor"
 
 // ============================================================================
-// CHAT MESSAGE - Chat message editing components and utilities
+// CHAT MESSAGE - Chat message editing components
 // ============================================================================
+// NOTE: Chat message types, schemas, and utilities are canonical in @agenta/shared.
+// Import types/utils from @agenta/shared or @agenta/shared/types.
+// Import components from @agenta/ui/chat-message subpath.
 
 export {
-    // Types
-    type TextContentPart,
-    type ImageContentPart,
-    type FileContentPart,
-    type MessageContentPart,
-    type MessageContent,
-    type ToolCall,
-    type SimpleChatMessage,
-    // Schemas
-    MESSAGE_CONTENT_SCHEMA,
-    CHAT_MESSAGE_SCHEMA,
-    CHAT_MESSAGES_ARRAY_SCHEMA,
-    // Utilities
-    extractTextFromContent,
-    extractDisplayTextFromMessage,
-    hasAttachments,
-    getAttachmentInfo,
-    updateTextInContent,
-    addImageToContent,
-    addFileToContent,
-    removeAttachmentFromContent,
-    getAttachments,
-    // Components
+    // Components only — types/schemas/utils available from @agenta/shared
     ChatMessageEditor,
     ChatMessageList,
     MarkdownToggleButton,
@@ -288,6 +270,12 @@ export {
 // ============================================================================
 
 export {useSelectionState, type UseSelectionStateResult} from "./hooks"
+
+// ============================================================================
+// COPY TOOLTIP - Tooltip with click-to-copy functionality
+// ============================================================================
+
+export {CopyTooltip, type CopyTooltipProps} from "./CopyTooltip"
 
 // ============================================================================
 // CELL RENDERERS - Smart cell content rendering for tables

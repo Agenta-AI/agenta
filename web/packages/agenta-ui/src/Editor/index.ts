@@ -35,6 +35,7 @@
 // Main Editor component
 export {default as Editor, EditorProvider} from "./Editor"
 export {ON_HYDRATE_FROM_REMOTE_CONTENT, useLexicalComposerContext} from "./Editor"
+export {preloadEditorPlugins} from "./plugins"
 
 // DiffView component
 export {default as DiffView} from "./DiffView"

@@ -1,15 +1,15 @@
-import {useCallback, useEffect} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {runnableBridge} from "@agenta/entities/runnable"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import router from "next/router"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {
     deploySelectedEnvAtom,
@@ -41,7 +41,11 @@ const DeployVariantModal = ({
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const {isPending: isLoading} = useAtomValue(publishMutationAtom)
 
-    const appId = router.query.app_id as string
+    // Derive appId from the revision's entity data (for analytics only)
+    const revisionData = useAtomValue(
+        useMemo(() => runnableBridge.data(revisionId ?? ""), [revisionId]),
+    ) as {appId?: string; workflow_id?: string} | null
+    const appId = revisionData?.appId ?? revisionData?.workflow_id ?? null
 
     // Ensure Jotai store has the necessary identifiers when this modal is used directly
     useEffect(() => {
@@ -58,7 +62,7 @@ const DeployVariantModal = ({
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
         resetDeploy()
-    }, [resetDeploy, props])
+    }, [resetDeploy, props.onCancel])
 
     const deployVariants = useCallback(async () => {
         // Ensure latest props are in the store before submitting

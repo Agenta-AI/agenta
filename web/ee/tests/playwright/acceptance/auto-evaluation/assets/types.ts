@@ -1,6 +1,6 @@
 import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
-import {ConfigMetadata, OpenAPISpec} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {ConfigMetadata, OpenAPISpec} from "@agenta/entities/legacyAppRevision"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {BaseFixture} from "@agenta/web-tests/tests/fixtures/base.fixture/types"
 
 export type InvokedVariant = {

@@ -15,13 +15,17 @@ const LanguageCodeBlock = ({
     invokeLlmAppCodeSnippet,
     handleOpenSelectDeployVariantModal,
     invokeLlmUrl,
+    showDeployOverlay = true,
 }: LanguageCodeBlockProps) => {
+    const shouldShowDeployOverlay = showDeployOverlay && !invokeLlmUrl
+    const canCopySnippet = !showDeployOverlay || !!invokeLlmUrl
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                     <Text className="font-[500]">Fetch Prompt/Config</Text>
-                    {invokeLlmUrl && (
+                    {canCopySnippet && (
                         <CopyButton
                             buttonText={null}
                             text={fetchConfigCodeSnippet[selectedLang]}
@@ -37,7 +41,7 @@ const LanguageCodeBlock = ({
                         value={fetchConfigCodeSnippet[selectedLang]}
                     />
 
-                    {!invokeLlmUrl && (
+                    {shouldShowDeployOverlay && (
                         <div
                             className={clsx(
                                 "absolute top-0 left-0 right-0 bottom-0",
@@ -60,7 +64,7 @@ const LanguageCodeBlock = ({
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                     <Text className="font-[500]">Invoke LLM</Text>
-                    {invokeLlmUrl && (
+                    {canCopySnippet && (
                         <CopyButton
                             buttonText={null}
                             text={invokeLlmAppCodeSnippet[selectedLang]}
@@ -76,7 +80,7 @@ const LanguageCodeBlock = ({
                         value={invokeLlmAppCodeSnippet[selectedLang]}
                     />
 
-                    {!invokeLlmUrl && (
+                    {shouldShowDeployOverlay && (
                         <div
                             className={clsx(
                                 "absolute top-0 left-0 right-0 bottom-0",

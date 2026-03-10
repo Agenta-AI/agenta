@@ -81,6 +81,13 @@ export {
     normalizeTimestampsBasic,
 } from "./transforms"
 
+// Date formatting utilities
+export {
+    type EntityDateInput,
+    type EntityDateTimeFormatOptions,
+    formatEntityDateTime,
+} from "./dateTime"
+
 // Helper utilities
 export {
     // ID utilities
@@ -166,11 +173,9 @@ export {
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig aliases
     extractAgConfig,
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
@@ -184,7 +189,4 @@ export {
     transformAppToListItem,
     transformVariantToListItem,
     transformRevisionToListItem,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
 } from "./revisionUtils"

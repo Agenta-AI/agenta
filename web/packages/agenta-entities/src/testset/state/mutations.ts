@@ -22,7 +22,7 @@ import {
     clearDeletedIdsAtom,
 } from "../../testcase/state/store"
 // Schema utilities
-import {fetchRevision, fetchVariantDetail} from "../api/api"
+import {fetchRevision, fetchRevisionWithTestcases, fetchVariantDetail} from "../api/api"
 import {
     patchRevision,
     createTestset,
@@ -37,7 +37,12 @@ import {
     pendingRowOpsAtomFamily,
     clearPendingOpsReducer,
 } from "./revisionTableState"
-import {revisionDraftAtomFamily} from "./store"
+import {
+    revisionDraftAtomFamily,
+    invalidateRevisionsListCache,
+    invalidateTestsetCache,
+    invalidateTestsetsListCache,
+} from "./store"
 
 // ============================================================================
 // INTERNAL HELPERS
@@ -121,7 +126,59 @@ export interface SaveTestsetResult {
     success: boolean
     newRevisionId?: string
     newVersion?: number
+    committedRows?: {id: string; data: Record<string, unknown>}[]
     error?: Error
+}
+
+const TESTCASE_SYSTEM_FIELDS = new Set([
+    "id",
+    "flags",
+    "tags",
+    "meta",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "created_by_id",
+    "updated_by_id",
+    "deleted_by_id",
+    "testset_id",
+    "set_id",
+    "testset_variant_id",
+    "revision_id",
+    "testcase_dedup_id",
+])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+const normalizeCommittedRows = (
+    testcases: unknown,
+): {id: string; data: Record<string, unknown>}[] => {
+    if (!Array.isArray(testcases)) return []
+
+    const rows: {id: string; data: Record<string, unknown>}[] = []
+
+    for (const testcase of testcases) {
+        if (!isRecord(testcase)) continue
+
+        const id = typeof testcase.id === "string" ? testcase.id : null
+        if (!id) continue
+
+        let data: Record<string, unknown> = {}
+        if (isRecord(testcase.data)) {
+            data = testcase.data
+        } else {
+            for (const [key, value] of Object.entries(testcase)) {
+                if (!TESTCASE_SYSTEM_FIELDS.has(key) && key !== "data") {
+                    data[key] = value
+                }
+            }
+        }
+
+        rows.push({id, data})
+    }
+
+    return rows
 }
 
 /**
@@ -318,6 +375,26 @@ export const saveTestsetAtom = atom(
                         : typeof response.testset_revision.version === "string"
                           ? parseInt(response.testset_revision.version, 10)
                           : undefined
+                let committedRows = normalizeCommittedRows(
+                    response.testset_revision.data?.testcases,
+                )
+
+                if (committedRows.length === 0) {
+                    try {
+                        const revisionWithTestcases = await fetchRevisionWithTestcases({
+                            id: newRevisionId,
+                            projectId,
+                        })
+                        committedRows = normalizeCommittedRows(
+                            revisionWithTestcases?.data?.testcases,
+                        )
+                    } catch (error) {
+                        console.error(
+                            "[saveTestsetAtom] Failed to fetch committed revision testcases:",
+                            error,
+                        )
+                    }
+                }
 
                 // Clear local edit state (drafts)
                 if (effectiveRevisionId) {
@@ -329,7 +406,12 @@ export const saveTestsetAtom = atom(
                 set(clearNewEntityIdsAtom)
                 set(clearDeletedIdsAtom)
 
-                return {success: true, newRevisionId, newVersion}
+                // Refresh testset selection and revision lists used by playground/testset pickers.
+                invalidateTestsetCache(testsetId)
+                invalidateRevisionsListCache(testsetId)
+                invalidateTestsetsListCache()
+
+                return {success: true, newRevisionId, newVersion, committedRows}
             }
 
             return {success: false, error: new Error("No revision returned from API")}
@@ -350,6 +432,12 @@ export const saveTestsetAtom = atom(
 export interface SaveNewTestsetParams {
     projectId: string
     testsetName: string
+    /**
+     * Optional explicit testcase data. When provided, this data is used directly
+     * instead of reading from newEntityIdsAtom. Used by the loadable controller
+     * when "Save as New" should include all visible testcases (server + local).
+     */
+    explicitTestcaseData?: Record<string, unknown>[]
 }
 
 /**
@@ -370,34 +458,41 @@ export interface SaveNewTestsetResult {
 export const saveNewTestsetAtom = atom(
     null,
     async (get, set, params: SaveNewTestsetParams): Promise<SaveNewTestsetResult> => {
-        const {projectId, testsetName} = params
+        const {projectId, testsetName, explicitTestcaseData} = params
 
         if (!projectId || !testsetName.trim()) {
             return {success: false, error: new Error("Missing projectId or testsetName")}
         }
 
         try {
-            // Get local testcase data
-            const columns = get(currentColumnsAtom)
-            const newIds = get(newEntityIdsAtom)
-            const currentColumnKeys = new Set(columns.map((c) => c.key))
+            let testcaseData: Record<string, unknown>[]
 
-            // Collect testcase data from new entities
-            // Note: Testcase uses nested format - data fields are in draft.data
-            const testcaseData = newIds
-                .map((id) => {
-                    const draft = get(testcaseDraftAtomFamily(id))
-                    if (!draft?.data) return null
-                    // Filter to only include current columns
-                    const filteredData: Record<string, unknown> = {}
-                    for (const key of Object.keys(draft.data)) {
-                        if (currentColumnKeys.has(key)) {
-                            filteredData[key] = draft.data[key]
+            if (explicitTestcaseData) {
+                // Use provided data directly (e.g. from loadable controller "Save as New" flow)
+                testcaseData = explicitTestcaseData
+            } else {
+                // Default: collect from local new entities only
+                const columns = get(currentColumnsAtom)
+                const newIds = get(newEntityIdsAtom)
+                const currentColumnKeys = new Set(columns.map((c) => c.key))
+
+                // Collect testcase data from new entities
+                // Note: Testcase uses nested format - data fields are in draft.data
+                testcaseData = newIds
+                    .map((id) => {
+                        const draft = get(testcaseDraftAtomFamily(id))
+                        if (!draft?.data) return null
+                        // Filter to only include current columns
+                        const filteredData: Record<string, unknown> = {}
+                        for (const key of Object.keys(draft.data)) {
+                            if (currentColumnKeys.has(key)) {
+                                filteredData[key] = draft.data[key]
+                            }
                         }
-                    }
-                    return filteredData
-                })
-                .filter(Boolean) as Record<string, unknown>[]
+                        return filteredData
+                    })
+                    .filter(Boolean) as Record<string, unknown>[]
+            }
 
             // Create new testset via API
             const response = await createTestset({
@@ -415,6 +510,12 @@ export const saveNewTestsetAtom = atom(
                 set(discardAllDraftsAtom)
                 set(clearNewEntityIdsAtom)
                 set(clearDeletedIdsAtom)
+
+                // Ensure newly-created testsets appear immediately in selection UIs.
+                invalidateTestsetsListCache()
+                if (response.testset?.id) {
+                    invalidateTestsetCache(response.testset.id)
+                }
 
                 return {
                     success: true,

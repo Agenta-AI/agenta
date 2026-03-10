@@ -36,7 +36,7 @@ interface TestcaseEditDrawerProps {
     testcaseNumber?: number
     /** Callback to open the commit modal (for "Apply and Commit Changes") */
     onOpenCommitModal?: () => void
-    /** Direct save callback (for contexts without commit modal, e.g., LoadTestsetModal) */
+    /** Direct save callback (for contexts without commit modal, e.g., TestsetSelectionModal) */
     onSaveTestset?: (params?: {
         testsetName?: string
         commitMessage?: string
