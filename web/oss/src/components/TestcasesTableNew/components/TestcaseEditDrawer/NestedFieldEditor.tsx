@@ -1,13 +1,13 @@
 import {memo, useCallback, useState} from "react"
 
+import {SimpleChatMessage} from "@agenta/playground"
+import {ChatMessageList} from "@agenta/ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, Check, Copy, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Popover, Tooltip, Typography} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
-
-import {ChatMessageList, SimpleChatMessage} from "@/oss/components/ChatMessageEditor"
 
 import TestcaseFieldHeader from "../TestcaseFieldHeader"
 

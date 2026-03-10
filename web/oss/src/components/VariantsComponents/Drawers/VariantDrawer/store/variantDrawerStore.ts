@@ -1,11 +1,11 @@
-import {atom} from "jotai"
-import {Atom} from "jotai"
+import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
+import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {atom, Atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {AgentaConfigPrompt} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import {AgentaConfigPrompt} from "@/oss/lib/shared/variant/types"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 type DrawerVariant = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
 type DrawerType = "variant" | "deployment"
@@ -85,10 +85,16 @@ export const setVariantDrawerSelectedIdAtom = atom(null, (_get, set, newId: stri
 // Computed atom to get the variants list (either from custom atom or default)
 export const variantDrawerVariantsAtom = atom((get) => {
     const drawerState = get(variantDrawerAtom)
+    // Don't fetch revision data when the drawer is closed — the fallback
+    // reads appRevisionsWithDraftsAtomFamily which triggers fetching ALL
+    // variants and ALL their revisions for the app.
+    if (!drawerState.open) return []
     if (drawerState.variantsAtom) {
         return get(drawerState.variantsAtom)
     }
-    return get(revisionListAtom)
+    const rawAppId = get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
+    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
 })
 
 // Id of the revision to display in the drawer (single-source for Drawer selection)

@@ -34,6 +34,7 @@
 import type {Atom} from "jotai"
 import {atom, getDefaultStore} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {isLocalDraftId, extractSourceIdFromDraft} from "../../shared/utils/revisionLabel"
 import type {LegacyAppRevisionData} from "../core"
@@ -41,10 +42,20 @@ import {cloneAsLocalDraft as cloneAsLocalDraftFactory} from "../core/factory"
 import {resolveRootSourceId} from "../utils/sourceResolution"
 
 import {
+    persistLocalDraftData,
+    clearPersistedLocalDraftData,
+    restoreAllLocalDraftData,
+} from "./draftPersistence"
+import {
     legacyAppRevisionServerDataAtomFamily,
     legacyAppRevisionEntityWithBridgeAtomFamily,
     legacyAppRevisionIsDirtyWithBridgeAtomFamily,
+    localDraftSourceRefsByIdAtom,
+    discardLegacyAppRevisionDraftAtom,
+    variantsListWithDraftsAtomFamily,
+    revisionsListWithDraftsAtomFamily,
     setLocalDraftsAtoms,
+    getRegisteredAppId,
 } from "./store"
 
 // ============================================================================
@@ -64,40 +75,33 @@ const localDraftIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
     {},
 )
 
-/**
- * Current app ID atom - set by OSS code via setCurrentAppIdAtom
- * Used to scope local drafts to the current app.
- */
-let _currentAppIdAtom: ReturnType<typeof atom<string | null>> | null = null
+// ============================================================================
+// APP-PARAMETERIZED ATOM FAMILIES (Primary API)
+// ============================================================================
 
 /**
- * Set the current app ID atom (called from OSS code to avoid circular deps)
+ * Atom family tracking local draft IDs for a specific app.
+ *
+ * This is the preferred read interface when appId is available.
+ * Consumers in atoms/hooks that already have appId should use this
+ * instead of the global `localDraftIdsAtom`.
  */
-export function setCurrentAppIdAtom(appIdAtom: ReturnType<typeof atom<string | null>>): void {
-    _currentAppIdAtom = appIdAtom
-}
-
-/**
- * Get current app ID from the registered atom, fallback to "__global__"
- */
-function getCurrentAppId(get: <T>(atom: Atom<T>) => T): string {
-    if (_currentAppIdAtom) {
-        const appId = get(_currentAppIdAtom)
-        if (appId && typeof appId === "string") return appId
-    }
-    return "__global__"
-}
+export const localDraftIdsAtomFamily = atomFamily((appId: string) =>
+    atom<string[]>((get) => {
+        const allDrafts = get(localDraftIdsByAppAtom)
+        return allDrafts[appId] || []
+    }),
+)
 
 /**
  * Atom tracking local draft IDs for the CURRENT app.
  *
- * This is the primary read interface for local draft IDs.
- * It automatically filters to only show drafts for the current app.
+ * @deprecated Prefer `localDraftIdsAtomFamily(appId)` when appId is available.
+ * This global atom uses the registered app ID atom as fallback.
  */
 export const localDraftIdsAtom = atom<string[]>((get) => {
-    const appId = getCurrentAppId(get)
-    const allDrafts = get(localDraftIdsByAppAtom)
-    return allDrafts[appId] || []
+    const appId = getRegisteredAppId(get)
+    return get(localDraftIdsAtomFamily(appId))
 })
 
 // ============================================================================
@@ -119,14 +123,9 @@ export interface LocalDraftEntry {
 }
 
 /**
- * Derived atom that returns all local drafts with their full data.
- *
- * Useful for displaying in selection dropdowns or draft management UI.
- * Filters out IDs that no longer have valid data (stale entries).
+ * Helper to map local draft IDs to full entries.
  */
-export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
-    const localIds = get(localDraftIdsAtom)
-
+const mapDraftIdsToEntries = (localIds: string[], get: <T>(a: Atom<T>) => T): LocalDraftEntry[] => {
     return localIds
         .map((id) => {
             const data = get(legacyAppRevisionEntityWithBridgeAtomFamily(id))
@@ -135,20 +134,47 @@ export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
             return {
                 id,
                 data,
-                sourceRevisionId: extractSourceIdFromDraft(id),
+                sourceRevisionId:
+                    (data as LegacyAppRevisionData & {_sourceRevisionId?: string})
+                        ._sourceRevisionId ?? extractSourceIdFromDraft(id),
                 isDirty: get(legacyAppRevisionIsDirtyWithBridgeAtomFamily(id)),
             }
         })
         .filter((entry): entry is LocalDraftEntry => entry !== null)
+}
+
+/**
+ * Atom family returning all local drafts with full data for a specific app.
+ *
+ * This is the preferred read interface when appId is available.
+ */
+export const localDraftsListAtomFamily = atomFamily((appId: string) =>
+    atom<LocalDraftEntry[]>((get) => {
+        const localIds = get(localDraftIdsAtomFamily(appId))
+        return mapDraftIdsToEntries(localIds, get)
+    }),
+)
+
+/**
+ * Derived atom that returns all local drafts with their full data.
+ *
+ * @deprecated Prefer `localDraftsListAtomFamily(appId)` when appId is available.
+ */
+export const localDraftsListAtom = atom<LocalDraftEntry[]>((get) => {
+    const localIds = get(localDraftIdsAtom)
+    return mapDraftIdsToEntries(localIds, get)
 })
 
 /**
  * Clean up stale local draft IDs from localStorage.
  * Call this on app initialization to remove IDs that no longer have valid data.
+ *
+ * @param appId - The app ID to clean up drafts for. Falls back to registered app ID.
  */
-export function cleanupStaleLocalDrafts(): number {
+export function cleanupStaleLocalDrafts(appId?: string): number {
     const store = getDefaultStore()
-    const localIds = store.get(localDraftIdsAtom)
+    const resolvedAppId = appId || getRegisteredAppId(store.get)
+    const localIds = store.get(localDraftIdsAtomFamily(resolvedAppId))
 
     const validIds = localIds.filter((id) => {
         const data = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(id))
@@ -157,16 +183,38 @@ export function cleanupStaleLocalDrafts(): number {
 
     const removedCount = localIds.length - validIds.length
     if (removedCount > 0) {
-        // Write to the underlying per-app storage atom (localDraftIdsAtom is read-only derived)
-        const appId = _currentAppIdAtom
-            ? store.get(_currentAppIdAtom) || "__global__"
-            : "__global__"
         const allDrafts = {...store.get(localDraftIdsByAppAtom)}
-        allDrafts[appId] = validIds
+        allDrafts[resolvedAppId] = validIds
         store.set(localDraftIdsByAppAtom, allDrafts)
+
+        const validSet = new Set(validIds)
+        store.set(localDraftSourceRefsByIdAtom, (prev) => {
+            const next = {...prev}
+            for (const id of localIds) {
+                if (!validSet.has(id)) delete next[id]
+            }
+            return next
+        })
     }
 
     return removedCount
+}
+
+/**
+ * Initialize local drafts from persisted storage.
+ *
+ * Call this on app initialization, BEFORE cleanupStaleLocalDrafts runs.
+ * Restores local draft data from localStorage so that IDs tracked
+ * in `localDraftIdsByAppAtom` have their corresponding data available.
+ *
+ * @returns Number of local drafts restored from localStorage
+ */
+export function initializeLocalDrafts(): number {
+    // Restore local draft data from localStorage first
+    const restored = restoreAllLocalDraftData()
+    // Then clean up IDs that still have no data (truly stale)
+    cleanupStaleLocalDrafts()
+    return restored
 }
 
 /**
@@ -200,27 +248,119 @@ export const hasUnsavedLocalDraftsAtom = atom<boolean>((get) => {
  * 4. Tracks the draft ID in localDraftIdsAtom
  *
  * @param sourceRevisionId - The ID of the committed revision to clone
+ * @param appId - Optional app ID for scoping. Falls back to source data's appId, then registered app ID.
  * @returns The new local draft ID, or null if source data is not available
  *
  * @example
  * ```typescript
- * const localId = createLocalDraftFromRevision(revisionId)
+ * const localId = createLocalDraftFromRevision(revisionId, appId)
  * // localId = "local-1706300000000-abc123" or null if source not ready
  * ```
  */
-export function createLocalDraftFromRevision(sourceRevisionId: string): string | null {
+export function createLocalDraftFromRevision(
+    sourceRevisionId: string,
+    appId?: string,
+): string | null {
     const store = getDefaultStore()
 
-    // Get source data from molecule
-    const sourceData = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId))
+    // Type for accessing internal metadata fields on source data
+    type DataWithExtras = LegacyAppRevisionData & {
+        _sourceRevisionId?: string
+        _sourceVariantId?: string
+        _baseId?: string
+        baseId?: string
+        isLatestRevision?: boolean
+    }
+
+    // Get source data from entity atom
+    let sourceData: LegacyAppRevisionData | null = store.get(
+        legacyAppRevisionEntityWithBridgeAtomFamily(sourceRevisionId),
+    )
+
+    // ── Enrichment: fill missing variantId / baseId from variants list ──
+    // This can happen when:
+    // - Data comes from a direct query which doesn't include variantId
+    // - Cloning from a local draft
+    // - Entity atom hasn't been populated yet for this revision
+
+    // If source is a local draft, resolve original source ID for lookups
+    let variantIdSource = sourceRevisionId
+    if (isLocalDraftId(sourceRevisionId) && sourceData) {
+        const originalSourceId = (sourceData as DataWithExtras)._sourceRevisionId
+        if (originalSourceId) {
+            variantIdSource = originalSourceId
+        }
+    }
+
+    if (!sourceData || !sourceData.variantId || !(sourceData as DataWithExtras).baseId) {
+        // Shallow-clone so we can safely add/modify properties (atom data may be frozen)
+        if (sourceData) {
+            sourceData = {...sourceData}
+        }
+
+        const enrichAppId = appId || getRegisteredAppId(store.get)
+        if (enrichAppId !== "__global__") {
+            const variantsList =
+                store.get(variantsListWithDraftsAtomFamily(enrichAppId))?.data ?? []
+
+            // If sourceData is entirely missing, try to build it from the revision list
+            if (!sourceData) {
+                for (const variant of variantsList) {
+                    if (!variant?.id) continue
+                    const revQuery = store.get(revisionsListWithDraftsAtomFamily(variant.id))
+                    const revisions = revQuery?.data ?? []
+                    const match = revisions.find((r) => r.id === variantIdSource)
+                    if (match) {
+                        sourceData = {
+                            id: sourceRevisionId,
+                            variantId: variant.id,
+                            appId: enrichAppId,
+                            revision: match.revision,
+                            variantName: variant.name || variant.baseName || "",
+                            parameters: match.parameters ?? {},
+                            uri: match.uri,
+                        } as LegacyAppRevisionData
+                        break
+                    }
+                }
+            }
+
+            // If variantId is missing, find it by looking up which variant owns this revision
+            if (sourceData && !sourceData.variantId) {
+                for (const variant of variantsList) {
+                    if (!variant?.id) continue
+                    const revQuery = store.get(revisionsListWithDraftsAtomFamily(variant.id))
+                    const revisions = revQuery?.data ?? []
+                    const found = revisions.find((r) => r.id === variantIdSource)
+                    if (found) {
+                        sourceData = {...sourceData, variantId: variant.id}
+                        break
+                    }
+                }
+            }
+
+            // Ensure baseId is available from the variants list
+            if (sourceData?.variantId && !(sourceData as DataWithExtras).baseId) {
+                const parentVariant = variantsList.find((v) => v.id === sourceData?.variantId)
+                if (parentVariant?.baseId) {
+                    ;(sourceData as DataWithExtras).baseId = parentVariant.baseId
+                }
+            }
+
+            // Persist enriched data so subsequent reads have it
+            if (sourceData?.variantId) {
+                store.set(legacyAppRevisionServerDataAtomFamily(sourceRevisionId), sourceData)
+            }
+        }
+    }
+
+    // ── End enrichment ──
 
     if (!sourceData) {
         console.warn("[createLocalDraftFromRevision] no sourceData for:", sourceRevisionId)
         return null
     }
 
-    // Check if variantId is available - it's required for cloning
-    // variantId is typically set by useSetRevisionVariantContext after revision data loads
     if (!sourceData.variantId) {
         console.warn("[createLocalDraftFromRevision] no variantId for:", sourceRevisionId)
         return null
@@ -245,14 +385,7 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     // This ensures we always trace back to the root server revision
     const isSourceALocalDraft = isLocalDraftId(sourceRevisionId)
 
-    // Type for accessing internal metadata fields on source data
-    type SourceDataWithMetadata = LegacyAppRevisionData & {
-        _sourceRevisionId?: string
-        _sourceVariantId?: string
-        _baseId?: string
-        baseId?: string
-    }
-    const sourceWithMeta = sourceData as SourceDataWithMetadata
+    const sourceWithMeta = sourceData as DataWithExtras
 
     // Get the original source revision ID (always points to a server revision)
     // Use rootSourceRevisionId when available as it's the ultimate server revision
@@ -283,23 +416,54 @@ export function createLocalDraftFromRevision(sourceRevisionId: string): string |
     // Initialize in molecule's serverData (this makes it available via entityAtom)
     store.set(legacyAppRevisionServerDataAtomFamily(localId), dataWithSource)
 
+    // Persist local draft data to localStorage for page-reload survival
+    persistLocalDraftData(localId)
+
     // Track in local drafts list, scoped by app ID
-    // Use the registered current app ID atom as fallback when dataWithSource.appId is missing.
-    // This happens when cloning from a local draft whose source data doesn't have appId set.
-    // The read side (localDraftIdsAtom) uses getCurrentAppId which reads from _currentAppIdAtom,
-    // so the write side must match to avoid storing under "__global__" while reading under the real app ID.
-    let appId = dataWithSource.appId
-    if (!appId) {
-        appId = _currentAppIdAtom ? (store.get(_currentAppIdAtom) ?? "__global__") : "__global__"
-    }
+    // Priority: explicit appId param > source data's appId > registered app ID atom
+    const resolvedAppId = appId || dataWithSource.appId || getRegisteredAppId(store.get)
 
     store.set(localDraftIdsByAppAtom, (prev) => {
-        const appDrafts = prev[appId] || []
+        const appDrafts = prev[resolvedAppId] || []
         if (appDrafts.includes(localId)) return prev
-        return {...prev, [appId]: [...appDrafts, localId]}
+        return {...prev, [resolvedAppId]: [...appDrafts, localId]}
     })
 
+    // Persist source/base references so local draft can be rehydrated after reload.
+    store.set(localDraftSourceRefsByIdAtom, (prev) => ({
+        ...prev,
+        [localId]: {
+            sourceRevisionId: originalSourceRevisionId ?? null,
+            sourceVariantId: originalSourceVariantId ?? null,
+            baseId: originalBaseId ?? null,
+            appId: resolvedAppId || null,
+            createdAt: Date.now(),
+        },
+    }))
+
     return localId
+}
+
+/**
+ * Extract the source revision ID from a local draft.
+ * Reads from entity data where the _sourceRevisionId field is stored.
+ * Returns null if the ID is not a local draft or source data is unavailable.
+ *
+ * @param localDraftId - The local draft ID to inspect
+ * @returns The source revision ID, or null
+ *
+ * @example
+ * ```typescript
+ * const sourceId = getSourceRevisionId("local-abc-123")
+ * // sourceId = "revision-uuid" or null
+ * ```
+ */
+export function getSourceRevisionId(localDraftId: string): string | null {
+    if (!isLocalDraftId(localDraftId)) return null
+
+    const store = getDefaultStore()
+    const data = store.get(legacyAppRevisionEntityWithBridgeAtomFamily(localDraftId))
+    return (data as LegacyAppRevisionData & {_sourceRevisionId?: string})?._sourceRevisionId ?? null
 }
 
 /**
@@ -336,8 +500,14 @@ export function discardLocalDraft(localDraftId: string): boolean {
         return {...prev, [appId]: filtered}
     })
 
-    // Clear molecule data
+    // Clear molecule data and persisted storage
     store.set(legacyAppRevisionServerDataAtomFamily(localDraftId), null)
+    clearPersistedLocalDraftData(localDraftId)
+    store.set(localDraftSourceRefsByIdAtom, (prev) => {
+        const next = {...prev}
+        delete next[localDraftId]
+        return next
+    })
 
     return true
 }
@@ -354,61 +524,47 @@ export function discardAllLocalDrafts(): number {
     // Collect all draft IDs
     const allIds = Object.values(allDraftsByApp).flat()
 
-    // Clear each draft's data
+    // Clear each draft's data and persisted storage
     allIds.forEach((id) => {
         store.set(legacyAppRevisionServerDataAtomFamily(id), null)
+        clearPersistedLocalDraftData(id)
     })
 
     // Clear the tracking storage
     store.set(localDraftIdsByAppAtom, {})
+    store.set(localDraftSourceRefsByIdAtom, {})
 
     return allIds.length
 }
 
 // ============================================================================
-// WRITE ATOMS (for use with useSetAtom)
+// UNIFIED DISCARD DRAFT ATOM
+// Clears molecule draft + local draft tracking in one step
 // ============================================================================
 
 /**
- * Write atom for creating a local draft from a revision.
+ * Unified atom for discarding all draft changes for a revision.
  *
- * @example
+ * Clears:
+ * 1. Molecule draft state (enhanced prompts & custom properties)
+ * 2. For local drafts: also removes from localDraftIdsAtom tracking and clears serverData
+ *
+ * Usage:
  * ```typescript
- * const createDraft = useSetAtom(createLocalDraftAtom)
- * const draftId = createDraft(sourceRevisionId) // may be null if source not ready
+ * const discardDraft = useSetAtom(discardRevisionDraftAtom)
+ * discardDraft(revisionId)
  * ```
  */
-export const createLocalDraftAtom = atom(
-    null,
-    (_get, _set, sourceRevisionId: string): string | null => {
-        return createLocalDraftFromRevision(sourceRevisionId)
-    },
-)
+export const discardRevisionDraftAtom = atom(null, (_get, set, revisionId: string) => {
+    if (!revisionId) return
 
-/**
- * Write atom for discarding a local draft.
- *
- * @example
- * ```typescript
- * const discard = useSetAtom(discardLocalDraftAtom)
- * discard(localDraftId)
- * ```
- */
-export const discardLocalDraftAtom = atom(null, (_get, _set, localDraftId: string): boolean => {
-    return discardLocalDraft(localDraftId)
-})
+    // 1. Use molecule's discard to clear enhanced prompts and custom properties drafts
+    set(discardLegacyAppRevisionDraftAtom, revisionId)
 
-/**
- * Write atom for discarding all local drafts.
- *
- * @example
- * ```typescript
- * const discardAll = useSetAtom(discardAllLocalDraftsAtom)
- * const count = discardAll()
- * ```
- */
-export const discardAllLocalDraftsAtom = atom(null, (_get, _set): number => {
-    return discardAllLocalDrafts()
+    // 2. For local drafts, also remove from tracking and clear serverData
+    if (isLocalDraftId(revisionId)) {
+        discardLocalDraft(revisionId)
+    }
 })
 
 // ============================================================================
@@ -421,6 +577,6 @@ export {isLocalDraftId, extractSourceIdFromDraft}
 // REGISTRATION - Wire up atoms to store for list composition
 // ============================================================================
 
-// Register local draft atoms with store to enable list composition
+// Register local draft atom families with store to enable list composition
 // This avoids circular dependencies by using a setter function
-setLocalDraftsAtoms(localDraftIdsAtom, localDraftsListAtom as ReturnType<typeof atom<unknown[]>>)
+setLocalDraftsAtoms(localDraftIdsAtomFamily, localDraftsListAtomFamily)

@@ -62,17 +62,54 @@ export type {
     RunStepPayload,
     AddStepPayload,
     CancelStepPayload,
+    // Per-session execution options
+    SessionExecutionOptions,
     // State shape
     ExecutionState,
+    // Adapter
+    ExecutionAdapter,
+    // Legacy compat
+    PlaygroundTestResult,
+    // Cancel params
+    CancelTestsParams,
 } from "./types"
 
 export {createInitialExecutionState} from "./types"
+
+export type {
+    ExecutionItem,
+    ExecutionItemHandle,
+    CreateExecutionItemParams,
+    ExecutionItemRunParams,
+    ExecutionItemCancelParams,
+    ExecutionItemLifecyclePhase,
+    ExecutionItemLifecycleSnapshot,
+    ExecutionItemLifecycleApi,
+    ExecutionItemReference,
+    ExecutionItemInvocation,
+    WorkerRunEntityRowPayload,
+    AgConfigFallbackCandidate,
+    BuildCompletionExecutionItemParams,
+    BuildChatExecutionItemParams,
+} from "./executionItems"
+
+export {
+    createExecutionItemHandle,
+    resolveAgConfigCandidate,
+    buildCompletionExecutionItem,
+    buildChatExecutionItem,
+    handleExecutionResultAtom,
+} from "./executionItems"
+
+export type {HandleExecutionResultPayload} from "./executionItems"
 
 // ============================================================================
 // ATOMS (for advanced usage)
 // ============================================================================
 
 export {
+    // Execution adapter
+    executionAdapterAtom,
     // State atom family
     executionStateAtomFamily,
     // Mode
@@ -96,6 +133,15 @@ export {
     isAnyExecutingAtomFamily,
     // Utilities
     buildResultKey,
+    // Abort/cancellation
+    abortRun,
+    // Concurrency
+    executionConcurrencyAtom,
+    // Repetition
+    repetitionCountAtom,
+    repetitionIndexAtomFamily,
+    // UI state
+    allRowsCollapsedAtom,
 } from "./atoms"
 
 // ============================================================================
@@ -127,8 +173,39 @@ export {
     initSessionsWithContextAtom,
     cancelStepWithContextAtom,
     resetExecutionWithContextAtom,
-    type RunStepWithContextPayload,
+    setRepetitionCountAtom,
+    setRepetitionIndexAtom,
+    clearResponseByRowEntityWithContextAtom,
+    addRowWithContextAtom,
+    deleteRowWithContextAtom,
+    duplicateRowWithContextAtom,
+    setRowValueWithContextAtom,
+    // Direct testcase entity write
+    setTestcaseCellValueAtom,
 } from "./reducer"
+export type {RunStepWithContextPayload} from "./reducer"
+
+// ============================================================================
+// SELECTORS
+// ============================================================================
+
+// ============================================================================
+// WEB WORKER INTEGRATION
+// ============================================================================
+
+export {
+    // Injectable auth headers
+    executionHeadersAtom,
+    // Injectable worker bridge
+    executionWorkerBridgeAtom,
+    // Pending requests tracking
+    pendingWebWorkerRequestsAtom,
+    ignoredWebWorkerRunIdsAtom,
+    // Trigger and result handler
+    triggerExecutionAtom,
+    handleExecutionResultFromWorkerAtom,
+} from "./webWorkerIntegration"
+export type {ExecutionItemStepPayload, TriggerExecutionItemPayload} from "./webWorkerIntegration"
 
 // ============================================================================
 // SELECTORS
@@ -137,6 +214,9 @@ export {
 export {
     // Context selectors (derived from primary node)
     derivedLoadableIdAtom,
+    rowDataWithContextAtomFamily,
+    rowVariableValueAtomFamily,
+    rowVariableKeysWithContextAtom,
     activeSessionsWithContextAtom,
     isCompareModeWithContextAtom,
     isAnyExecutingWithContextAtom,
@@ -155,6 +235,95 @@ export {
     allResultsAtomFamily,
     completedResultsCountAtomFamily,
     executionProgressAtomFamily,
-    // Combined selectors
-    executionStateSummaryAtomFamily,
+    // Row-entity convenience selectors
+    responseByRowEntityAtomFamily,
+    fullResultByRowEntityAtomFamily,
+    // Run status map
+    runStatusByRowEntityAtom,
+    // Unified row IDs
+    generationRowIdsAtom,
+    executionRowIdsAtom,
+    // Render model (single source of truth for UI iteration)
+    renderableExecutionItemsAtom,
+    renderableExecutionRowsAtom,
+    renderableExecutionItemsByRowAtomFamily,
+    renderableExecutionItemsByExecutionIdAtomFamily,
+    executionRowIdsForEntityAtomFamily,
+    // Variable names (from entity input ports)
+    inputVariableNamesAtom,
+    // Variable schema map (type + schema per key)
+    inputPortSchemaMapAtom,
+    // App-level mode selectors
+    isChatModeAtom,
+    appTypeAtom,
+    type AppType,
+    // Row run status
+    isAnyRunningForRowAtomFamily,
+    // Direct testcase entity selectors
+    testcaseCellValueAtomFamily,
+    testcaseDataAtomFamily,
 } from "./selectors"
+export type {RenderableExecutionItem, RenderableExecutionRow} from "./selectors"
+
+// ============================================================================
+// GENERATION SELECTORS (higher-level UI selectors)
+// ============================================================================
+
+export {
+    // Generation result selectors
+    resolvedGenerationResultAtomFamily,
+    generationHeaderDataAtomFamily,
+    // Variable-input row IDs (shared variable row in chat)
+    generationVariableRowIdsAtom,
+    // Multi-run trigger orchestration
+    triggerExecutionsAtom,
+    // Mutations
+    cancelTestsMutationAtom,
+    clearAllRunsMutationAtom,
+    // Chat comparison
+    canRunAllChatComparisonAtom,
+    // Row-level busy state
+    isBusyForRowAtomFamily,
+    // Chain execution status (composite per-row chain state)
+    chainExecutionStatusAtomFamily,
+    // Aggregated header data
+    aggregatedHeaderDataAtom,
+    // Turn-level message selectors
+    assistantForTurnAtomFamily,
+    toolsForTurnAtomFamily,
+    assistantsForTurnAtomFamily,
+    // Rerun from turn
+    rerunFromTurnAtom,
+    // Run all orchestration
+    runAllWithContextAtom,
+    // Row-level run/cancel
+    runRowAtom,
+    runRowStepAtom,
+    cancelRowAtom,
+    // Cancel all
+    cancelAllWithContextAtom,
+} from "./generationSelectors"
+export type {TriggerExecutionItemsPayload, ChainExecutionStatus} from "./generationSelectors"
+
+// ============================================================================
+// DISPLAYED ENTITIES (validated entity IDs, layout, readiness)
+// ============================================================================
+
+export {
+    // Readiness signal
+    playgroundRevisionsReadyAtom,
+    // Lifecycle status
+    playgroundStatusAtom,
+    playgroundInitializedAtom,
+    type PlaygroundStatus,
+    // Validated entity IDs (filtered against revisions)
+    displayedEntityIdsAtom,
+    // Strict resolved entity IDs (excludes pending)
+    resolvedEntityIdsAtom,
+    // Comparison state (validated)
+    isComparisonViewAtom,
+    // Layout composite
+    playgroundLayoutAtom,
+    // Schema input keys
+    schemaInputKeysAtom,
+} from "./displayedEntities"

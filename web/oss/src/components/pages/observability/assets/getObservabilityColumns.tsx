@@ -1,8 +1,8 @@
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {

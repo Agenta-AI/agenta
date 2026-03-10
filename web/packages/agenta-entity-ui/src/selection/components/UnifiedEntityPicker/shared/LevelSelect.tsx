@@ -98,6 +98,14 @@ export function LevelSelect({
                 : undefined,
         [config],
     )
+    const getGroupKey = useMemo(
+        () => (config.getGroupKey ? (item: unknown) => config.getGroupKey!(item) : undefined),
+        [config],
+    )
+    const getGroupLabel = useMemo(
+        () => (config.getGroupLabel ? (key: string) => config.getGroupLabel!(key) : undefined),
+        [config],
+    )
 
     // Handle selection change
     const handleSelect = useCallback(
@@ -124,6 +132,8 @@ export function LevelSelect({
             getItemLabel={getItemLabel}
             getItemLabelNode={getItemLabelNode}
             getPlaceholderNode={getPlaceholderNode}
+            getGroupKey={getGroupKey}
+            getGroupLabel={getGroupLabel}
             label={label}
             showLabel={showLabel}
             placeholder={placeholder}

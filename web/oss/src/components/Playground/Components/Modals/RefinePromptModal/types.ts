@@ -45,8 +45,8 @@ export interface PromptTemplate {
 export interface RefinePromptModalProps {
     open: boolean
     onClose: () => void
-    variantId: string
-    promptId: string
+    revisionId: string
+    promptKey: string
 }
 
 /**
@@ -76,7 +76,7 @@ export interface PreviewPanelProps {
  * Props for the modal content (two-column layout)
  */
 export interface RefinePromptModalContentProps {
-    variantId: string
-    promptId: string
+    revisionId: string
+    promptKey: string
     onClose: () => void
 }

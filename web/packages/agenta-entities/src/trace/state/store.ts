@@ -18,7 +18,7 @@
  * ```
  */
 
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -403,20 +403,11 @@ export const spanQueryAtomFamily = atomFamily((spanId: string) =>
         // Try to find in any cached trace data
         const cachedData = spanId ? findSpanInCache(queryClient, spanId) : undefined
 
-        console.log("[spanQueryAtomFamily] Query config:", {
-            spanId,
-            projectId,
-            hasCachedData: !!cachedData,
-            enabled: Boolean(projectId && spanId),
-        })
-
         return {
             queryKey: ["span", projectId, spanId],
             queryFn: async (): Promise<TraceSpan | null> => {
-                console.log("[spanQueryAtomFamily] Fetching span:", {spanId, projectId})
                 if (!projectId || !spanId) return null
                 const result = await spanBatchFetcher({projectId, spanId})
-                console.log("[spanQueryAtomFamily] Fetch result:", {spanId, hasResult: !!result})
                 // Throw if not found - triggers retry (span may not be ingested yet)
                 if (!result) {
                     throw new SpanNotFoundError(spanId)
@@ -426,7 +417,7 @@ export const spanQueryAtomFamily = atomFamily((spanId: string) =>
             // Use cached data as initial data - prevents fetch if already in cache
             initialData: cachedData ?? undefined,
             // Always fetch if we have projectId and spanId (cache redirect handles deduplication)
-            enabled: Boolean(projectId && spanId),
+            enabled: Boolean(get(sessionAtom) && projectId && spanId),
             staleTime: 60_000, // 1 minute
             gcTime: 5 * 60_000, // 5 minutes
             // Retry configuration for spans not yet ingested
@@ -580,7 +571,7 @@ export const traceEntityAtomFamily = atomFamily((traceId: string | null) =>
 
         return {
             queryKey: ["trace-entity", projectId, traceId ?? "none"],
-            enabled: Boolean(traceId && projectId),
+            enabled: Boolean(get(sessionAtom) && traceId && projectId),
             staleTime: 60_000,
             gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,

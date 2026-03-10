@@ -11,6 +11,7 @@
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React from "react"
 
 import {atom, useAtomValue} from "jotai"
 
@@ -22,11 +23,11 @@ import type {
     SelectionPathItem,
 } from "../../types"
 import {
-    useEntitySelectionCore,
     getLevelLabel,
+    useEntitySelectionCore,
     type EntitySelectionCoreOptions,
 } from "../useEntitySelectionCore"
-import {useLevelData, buildPathItem, type LevelQueryState} from "../utilities"
+import {buildPathItem, useLevelData, type LevelQueryState} from "../utilities"
 
 // ============================================================================
 // TYPES
@@ -134,6 +135,13 @@ export interface UseTreeSelectModeOptions<TSelection = EntitySelectionResult> ex
         parent: unknown,
         defaultNode: React.ReactNode,
     ) => React.ReactNode
+
+    /**
+     * Whether to show dates/subtitles in labels.
+     * Propagated to RevisionLabel (showDateInline) and EntityListItemLabel (showSubtitle).
+     * @default true
+     */
+    showDate?: boolean
 
     /**
      * Whether to expand all nodes by default
@@ -364,6 +372,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         defaultExpandAll = true,
         parentFilter,
         childFilter,
+        showDate = true,
     } = options
 
     // Get core utilities
@@ -447,6 +456,32 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
     // BUILD TREE DATA
     // ========================================================================
 
+    const enrichLabelNode = useCallback(
+        (node: React.ReactNode): React.ReactNode => {
+            if (!React.isValidElement(node)) return node
+
+            // We specifically look for RevisionLabel and EntityListItemLabel
+            // But since they might be wrapped or come from other packages,
+            // we try to inject the props if they seem compatible.
+            const propsToInject: {
+                showDateInline: boolean
+                showSubtitle: boolean
+            } = {
+                showDateInline: showDate,
+                showSubtitle: showDate,
+            }
+
+            return React.cloneElement(
+                node as React.ReactElement<{
+                    showDateInline?: boolean
+                    showSubtitle?: boolean
+                }>,
+                propsToInject,
+            )
+        },
+        [showDate],
+    )
+
     const {treeData, flatNodes} = useMemo(() => {
         const flat: TreeSelectNode[] = []
         const tree: TreeSelectNode[] = []
@@ -467,7 +502,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
         filteredParentItems.forEach((parent) => {
             const parentId = parentLevelConfig.getId(parent)
             const parentLabelStr = parentLevelConfig.getLabel(parent)
-            const parentLabelNode = parentLevelConfig.getLabelNode?.(parent)
+            const parentLabelNode = enrichLabelNode(parentLevelConfig.getLabelNode?.(parent))
             const isParentDisabled = disabledParentIds?.has(parentId) ?? false
 
             // Get children for this parent
@@ -506,7 +541,7 @@ export function useTreeSelectMode<TSelection = EntitySelectionResult>(
             const childNodes: TreeSelectNode[] = childItems.map((child: unknown) => {
                 const childId = childLevelConfig.getId(child)
                 const childLabelStr = childLevelConfig.getLabel(child)
-                const childLabelNode = childLevelConfig.getLabelNode?.(child)
+                const childLabelNode = enrichLabelNode(childLevelConfig.getLabelNode?.(child))
                 const isChildDisabled = disabledChildIds?.has(childId) ?? false
 
                 // Build default title node

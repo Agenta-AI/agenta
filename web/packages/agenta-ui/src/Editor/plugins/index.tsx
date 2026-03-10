@@ -65,10 +65,14 @@ const DebugPlugin = lazy(importDebugPlugin)
 const SingleLinePlugin = lazy(importSingleLinePlugin)
 const CodeEditorPlugin = lazy(importCodeEditorPlugin)
 const NativeCodeOnlyPlugin = lazy(importNativeCodeOnlyPlugin)
+// const TokenPlugin = lazy(importTokenPlugin)
+// const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
+// const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
     showToolbar,
+    showMarkdownToggleButton,
     singleLine,
     codeOnly,
     debug,
@@ -90,11 +94,25 @@ const EditorPlugins = ({
     return (
         <Suspense
             fallback={
-                <Skeleton
-                    className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
-                    title={false}
-                    paragraph={{rows: 4, width: "100%"}}
-                />
+                loadingFallback === "none" ? null : loadingFallback === "static" ? (
+                    <div
+                        className={clsx(
+                            "editor-input relative outline-none min-h-[inherit] whitespace-pre-wrap break-words",
+                            {
+                                "single-line whitespace-nowrap overflow-x-auto": singleLine,
+                                "code-only": codeOnly,
+                            },
+                        )}
+                    >
+                        {value !== undefined ? value : initialValue}
+                    </div>
+                ) : (
+                    <Skeleton
+                        className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
+                        title={false}
+                        paragraph={{rows: 4, width: "100%"}}
+                    />
+                )
             }
         >
             <RichTextPlugin

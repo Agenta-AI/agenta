@@ -111,34 +111,36 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
  * Atom family for fetching app container URIs
  * Creates focused atoms for specific app+variant combinations
  */
-export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?: string}) =>
-    atomWithQuery<string>((get) => {
-        const {appId, variantId} = params
-        const projectId = get(projectIdAtom)
+export const uriQueryAtomFamily = atomFamily(
+    (params: {appId: string; variantId?: string}) =>
+        atomWithQuery<string>((get) => {
+            const {appId, variantId} = params
+            const projectId = get(projectIdAtom)
 
-        return {
-            queryKey: ["uri", appId, variantId],
-            queryFn: async () => {
-                const url = await fetchAppContainerURL(appId, variantId)
-                return `${url}/run`
-            },
-            staleTime: 1000 * 60 * 5, // 5 minutes - URIs don't change often
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            refetchOnMount: false,
-            enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
-            retry: (failureCount, error) => {
-                // Don't retry if it's a 404 or similar client error
-                if (
-                    (error as any)?.response?.status >= 400 &&
-                    (error as any)?.response?.status < 500
-                ) {
-                    return false
-                }
-                return failureCount < 3
-            },
-        }
-    }),
+            return {
+                queryKey: ["uri", appId, variantId],
+                queryFn: async () => {
+                    const url = await fetchAppContainerURL(appId, variantId)
+                    return `${url}/run`
+                },
+                staleTime: 1000 * 60 * 5, // 5 minutes - URIs don't change often
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                refetchOnMount: false,
+                enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
+                retry: (failureCount, error) => {
+                    // Don't retry if it's a 404 or similar client error
+                    if (
+                        (error as any)?.response?.status >= 400 &&
+                        (error as any)?.response?.status < 500
+                    ) {
+                        return false
+                    }
+                    return failureCount < 3
+                },
+            }
+        }),
+    (a, b) => a.appId === b.appId && a.variantId === b.variantId,
 )
 
 export const appDetailQueryAtomFamily = atomFamily((appId: string | null) =>
