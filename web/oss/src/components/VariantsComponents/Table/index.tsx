@@ -6,6 +6,8 @@ import {atom, useAtom} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {shouldIgnoreRowClick} from "@/oss/lib/tableRowClick"
+import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"
 
 import ResizableTitle from "../../ResizableTitle"
 import {variantTableSelectionAtomFamily} from "../store/selectionAtoms"
@@ -143,11 +145,15 @@ const VariantsTable = ({
                 onRow={(record: any, index) => ({
                     className: "variant-table-row",
                     style: {cursor: "pointer"},
-                    "data-tour": index === 0 ? "version-row" : undefined,
-                    onClick: () => {
-                        onRowClick(record)
-                    },
-                })}
+onRow={(record: any, index) => ({
+    className: "variant-table-row",
+    style: {cursor: "pointer"},
+    "data-tour": index === 0 ? "version-row" : undefined,
+    onClick: (event) => {
+        if (shouldIgnoreRowClick(event)) return
+        onRowClick(record)
+    },
+})}
                 {...props}
             />
         </Spin>

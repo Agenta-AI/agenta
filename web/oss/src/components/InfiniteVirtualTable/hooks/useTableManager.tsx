@@ -5,11 +5,15 @@ import {Grid} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 
+import {shouldIgnoreRowClick} from "@/oss/lib/tableRowClick"
+
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {
-    TableScopeConfig,
-    TableFeaturePagination,
     InfiniteVirtualTableFeatureProps,
+import type {
+    InfiniteVirtualTableFeatureProps,
+    TableFeaturePagination,
+    TableScopeConfig,
     TableDeleteConfig,
     TableExportConfig,
 } from "../features/InfiniteVirtualTableFeatureShell"
@@ -20,29 +24,6 @@ import type {
 } from "../types"
 
 import useTableExport from "./useTableExport"
-
-/**
- * Helper to detect if a click event should be ignored for row navigation
- * Returns true if the click was on an interactive element (button, link, dropdown, etc.)
- */
-export const shouldIgnoreRowClick = (event: MouseEvent<HTMLElement>): boolean => {
-    const target = event.target as HTMLElement
-
-    // Check if clicking on interactive elements
-    if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest(".ant-dropdown-trigger") ||
-        target.closest(".ant-checkbox-wrapper") ||
-        target.closest(".ant-select") ||
-        target.closest("input") ||
-        target.closest("textarea")
-    ) {
-        return true
-    }
-
-    return false
-}
 
 export interface UseTableManagerConfig<T extends InfiniteTableRowBase> {
     /** The dataset store for this table */

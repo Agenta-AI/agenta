@@ -9,6 +9,7 @@ import {useRouter} from "next/router"
 import NoResultsFound from "@/oss/components/Placeholders/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {shouldIgnoreRowClick} from "@/oss/lib/tableRowClick"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 import {getAppTypeIcon} from "../../prompts/assets/iconHelpers"
@@ -135,7 +136,10 @@ const AppTable = ({
                 bordered
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    onClick: () => router.push(`${baseAppURL}/${record.app_id}/overview`),
+                    onClick: (event) => {
+                        if (shouldIgnoreRowClick(event)) return
+                        router.push(`${baseAppURL}/${record.app_id}/overview`)
+                    },
                 })}
                 locale={{emptyText: <NoResultsFound />}}
             />
