@@ -16,18 +16,34 @@ export interface PreviewContext {
 }
 
 /**
- * Builds a dummy event context for the preview.
- * The full context is used for GitHub template resolution ($.event.*, $.subscription.*, $.scope.*).
- * For webhooks, only the event portion is shown in the preview body.
+ * Builds a dummy event context that mirrors the real server payload shape.
+ *
+ * The server builds a context with three top-level keys: event, subscription, scope.
+ * When no custom payload_fields are set, the entire context is sent as the HTTP body.
+ * GitHub templates use JSONPath selectors ($.event.*, $.subscription.*, $.scope.*)
+ * to extract specific fields from this context.
  */
 const buildEventContext = (eventType: string, ctx?: PreviewContext) => ({
     event: {
         event_id: "01961234-5678-7abc-...",
         event_type: eventType,
         timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         attributes: {
             user_id: ctx?.userId || "<user_id>",
-            references: {},
+            references: {
+                environment: {
+                    id: "<environment_id>",
+                },
+                environment_variant: {
+                    id: "<environment_variant_id>",
+                },
+                environment_revision: {
+                    id: "<environment_revision_id>",
+                    slug: "<slug>",
+                    version: "<version>",
+                },
+            },
         },
     },
     subscription: {
@@ -106,28 +122,22 @@ export const buildPreviewRequest = (
     const eventContext = buildEventContext(selectedEvent, ctx)
 
     if (provider === "webhook") {
-        const previewHeaders: Record<string, string> = {
-            "Content-Type": "application/json",
-        }
+        const previewHeaders: Record<string, string> = {}
 
         if (auth_mode === "authorization") {
             previewHeaders["Authorization"] = auth_value ? "Bearer ••••••••••" : "Bearer <token>"
         } else {
-            previewHeaders["X-Agenta-Signature"] = "t=...,v1=..."
+            previewHeaders["x-agenta-signature"] = "••••••••••"
         }
 
-        previewHeaders["X-Agenta-Event-Type"] = selectedEvent
-        previewHeaders["X-Agenta-Event-Id"] = "01961234-..."
-        previewHeaders["Idempotency-Key"] = "01961234-..."
-
-        // User custom headers appended after system headers
-        const finalHeaders = {...previewHeaders, ...customHeaders}
+        // User custom headers
+        Object.assign(previewHeaders, customHeaders)
 
         return {
             method: "POST",
             url: url || "https://...",
-            headers: finalHeaders,
-            body: {event: eventContext.event},
+            headers: previewHeaders,
+            body: eventContext,
         }
     } else if (provider === "github") {
         const subType = github_sub_type || "repository_dispatch"
