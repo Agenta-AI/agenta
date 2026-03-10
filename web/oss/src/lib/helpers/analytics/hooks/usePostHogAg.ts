@@ -40,8 +40,11 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
 
         return props
     }, [user?.email, user?.username])
-    const baseCapture = posthog?.capture?.bind(posthog)
-    const baseIdentify = posthog?.identify?.bind(posthog)
+    const identifiedPersonPropsKey = useMemo(() => {
+        return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
+    }, [analyticsId, personProps])
+    const baseCapture = useMemo(() => posthog?.capture?.bind(posthog), [posthog])
+    const baseIdentify = useMemo(() => posthog?.identify?.bind(posthog), [posthog])
     const capture: PostHog["capture"] = useCallback(
         (...args) => {
             if (trackingEnabled) {
@@ -69,16 +72,15 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     }, [posthog, trackingEnabled])
 
     useIsomorphicLayoutEffect(() => {
-        if (!posthog) return
-        if (!analyticsId) return
         if (!user?.email) {
             personPropsIdentifiedRef.current = null
             aliasedRef.current = false
         }
+    }, [user?.email])
 
-        const identifiedPersonPropsKey = personProps
-            ? `${analyticsId}:${JSON.stringify(personProps)}`
-            : null
+    useIsomorphicLayoutEffect(() => {
+        if (!posthog) return
+        if (!analyticsId) return
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
             (identifiedPersonPropsKey !== null &&
