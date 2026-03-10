@@ -416,7 +416,11 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        email = form_fields[0].value if form_fields and form_fields[0].id == "email" else None
+        email = (
+            form_fields[0].value
+            if form_fields and form_fields[0].id == "email"
+            else None
+        )
         _log_auth_attempt(
             auth_method="emailpassword",
             api_name="sign_in_post",
@@ -468,7 +472,11 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        email = form_fields[0].value if form_fields and form_fields[0].id == "email" else None
+        email = (
+            form_fields[0].value
+            if form_fields and form_fields[0].id == "email"
+            else None
+        )
         _log_auth_attempt(
             auth_method="emailpassword",
             api_name="sign_up_post",
