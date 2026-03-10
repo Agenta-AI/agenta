@@ -22,17 +22,14 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
     const identifiedRef = useRef<string | null>(null)
+    const emailIdentifiedRef = useRef<string | null>(null)
     const aliasedRef = useRef(false)
 
     const personProps = useMemo(() => {
-        if (!user?.email) return null
+        if (!user?.email) return undefined
 
-        const props: Record<string, unknown> = {email: user.email}
-        if (user.username) {
-            props.username = user.username
-        }
-        return props
-    }, [user?.email, user?.username])
+        return {email: user.email}
+    }, [user?.email])
     const baseCapture = posthog?.capture?.bind(posthog)
     const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
@@ -64,21 +61,28 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
         if (!analyticsId) return
-        if (posthog.get_distinct_id?.() === analyticsId) {
-            identifiedRef.current = analyticsId
-            return
+        if (!user?.email) {
+            emailIdentifiedRef.current = null
+            aliasedRef.current = false
         }
-        if (identifiedRef.current === analyticsId) return
+
+        const identifiedEmailKey = user?.email ? `${analyticsId}:${user.email}` : null
+        const shouldIdentify =
+            identifiedRef.current !== analyticsId ||
+            (identifiedEmailKey !== null && emailIdentifiedRef.current !== identifiedEmailKey)
+
+        if (!shouldIdentify) return
+
         if (isDemo() && user?.email && baseDistinctId !== analyticsId && !aliasedRef.current) {
             posthog.alias?.(analyticsId, baseDistinctId)
             aliasedRef.current = true
         }
+
         identifiedRef.current = analyticsId
-        if (personProps) {
-            identify(analyticsId, personProps)
-        } else {
-            identify(analyticsId)
+        if (identifiedEmailKey) {
+            emailIdentifiedRef.current = identifiedEmailKey
         }
+        identify(analyticsId, personProps)
     }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
 
     if (!posthog) return null
