@@ -14,7 +14,7 @@ StandardProviderKind = typing.Union[
         "mistralai",
         "anthropic",
         "perplexityai",
-        "together_ai",
+        "togetherai",
         "openrouter",
         "gemini",
     ],

@@ -19,7 +19,7 @@ class StandardProviderKind(str, Enum):
     MISTRALAI = "mistralai"
     ANTHROPIC = "anthropic"
     PERPLEXITYAI = "perplexityai"
-    TOGETHERAI = "together_ai"
+    TOGETHERAI = "togetherai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
 
@@ -40,6 +40,6 @@ class CustomProviderKind(str, Enum):
     MISTRALAI = "mistralai"
     ANTHROPIC = "anthropic"
     PERPLEXITYAI = "perplexityai"
-    TOGETHERAI = "together_ai"
+    TOGETHERAI = "togetherai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"

@@ -153,7 +153,7 @@ supported_llm_models = {
         "perplexity/sonar-reasoning",
         "perplexity/sonar-reasoning-pro",
     ],
-    "together_ai": [
+    "togetherai": [
         "together_ai/deepseek-ai/DeepSeek-R1",
         "together_ai/deepseek-ai/DeepSeek-V3",
         "together_ai/meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",

@@ -160,7 +160,7 @@ if (Icon) return <Icon className="w-4 h-4" />
 Get the display name for a provider key.
 
 ```typescript
-getProviderDisplayName('together_ai') // "Together AI"
+getProviderDisplayName('togetherai') // "Together AI"
 ```
 
 #### `PROVIDER_ICON_MAP`
