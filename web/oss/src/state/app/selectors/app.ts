@@ -24,10 +24,6 @@ export const currentAppAtom = eagerAtom<ListAppsItem | null>((get) => {
 // Convenience re-exports for consumers needing raw ID atoms
 export {routerAppIdAtom, recentAppIdAtom}
 
-// Note: shouldRenderPlaygroundAtom has been moved to the Playground module
-// to break the transitive dependency on legacy variant atoms.
-// Import from: @/oss/components/Playground/state/atoms/playgroundAppAtoms
-
 /**
  * Current app context - provides full context for current app
  * Used by: Components that need current app info

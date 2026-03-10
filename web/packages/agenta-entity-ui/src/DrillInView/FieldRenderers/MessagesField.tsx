@@ -23,6 +23,7 @@ export function MessagesField({item, stringValue, fullPath, setValue, valueMode}
             messages={parseMessages(stringValue)}
             onChange={handleChange}
             showControls={isMessagesArray(stringValue)}
+            allowFileUpload={false}
             enableTokens={true}
             templateFormat="curly"
         />

@@ -6,7 +6,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { testcase, appRevision, runnable, loadable } from '@agenta/entities'
+ * import { testcase, legacyAppRevision, runnable, loadable } from '@agenta/entities'
  *
  * // === BASE API (same for all entities) ===
  *
@@ -22,9 +22,9 @@
  *
  * // === CAPABILITY APIs ===
  *
- * // Runnable API (appRevision, evaluator)
- * appRevision.runnable.inputPorts(id)
- * appRevision.runnable.config(id)
+ * // Runnable API (legacyAppRevision, evaluator)
+ * legacyAppRevision.runnable.inputPorts(id)
+ * legacyAppRevision.runnable.config(id)
  *
  * // Loadable API (testcase)
  * testcase.loadable.rows(revisionId)
@@ -124,17 +124,6 @@ export {revisionMolecule as revision} from "./testset"
 export {testsetMolecule as testset} from "./testset"
 
 /**
- * App revision entity controller.
- * Implements RunnableCapability for input/output ports.
- *
- * @example
- * ```typescript
- * const ports = useAtomValue(appRevision.runnable.inputPorts(id))
- * ```
- */
-export {appRevisionMolecule as appRevision} from "./appRevision"
-
-/**
  * OSS app revision entity controller.
  * Uses the legacy backend API (AppVariantRevision model).
  * Implements RunnableCapability for input/output ports.
@@ -153,10 +142,59 @@ export {appRevisionMolecule as appRevision} from "./appRevision"
 export {legacyAppRevisionMolecule as legacyAppRevision} from "./legacyAppRevision"
 
 /**
+ * Evaluator entity controller.
+ * Manages evaluator entities via the Workflows API (`/preview/workflows/`).
+ * Uses the granular Artifact → Variant → Revision hierarchy.
+ * Implements RunnableCapability for playground integration.
+ *
+ * Backend endpoints: `/preview/workflows/`
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(evaluator.selectors.data(evaluatorId))
+ * const uri = useAtomValue(evaluator.selectors.uri(evaluatorId))
+ * const params = useAtomValue(evaluator.selectors.parameters(evaluatorId))
+ * ```
+ */
+export {evaluatorMolecule as evaluator} from "./evaluator"
+
+/**
+ * LegacyEvaluator entity controller.
+ * Manages evaluator entities via the SimpleEvaluator facade API
+ * (`/preview/simple/evaluators/`). Flattens the Artifact → Variant → Revision
+ * hierarchy into a single entity.
+ * Implements RunnableCapability for playground integration.
+ *
+ * Backend endpoints: `/preview/simple/evaluators/`
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(legacyEvaluator.selectors.data(evaluatorId))
+ * const uri = useAtomValue(legacyEvaluator.selectors.uri(evaluatorId))
+ * const params = useAtomValue(legacyEvaluator.selectors.parameters(evaluatorId))
+ * ```
+ */
+export {legacyEvaluatorMolecule as legacyEvaluator} from "./legacyEvaluator"
+
+/**
  * Trace span entity controller.
  * Manages trace span state with attribute editing.
  */
 export {traceSpanMolecule as traceSpan} from "./trace"
+
+/**
+ * Environment entity controller.
+ * Manages environment state with deployment and guard operations.
+ *
+ * Uses the new git-based SimpleEnvironment API (PR #3627).
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(environment.data(envId))
+ * const envBySlug = environment.get.bySlug('production')
+ * ```
+ */
+export {environmentMolecule as environment} from "./environment"
 
 // ============================================================================
 // BRIDGES (Unified Cross-Entity Access)
@@ -178,7 +216,7 @@ export {loadableBridge as loadable} from "./loadable"
 
 /**
  * Runnable bridge - unified access to executables.
- * Works with any runnable entity (appRevision, evaluator, etc.)
+ * Works with any runnable entity (legacyAppRevision, evaluator, etc.)
  *
  * @example
  * ```typescript
@@ -195,9 +233,13 @@ export {runnableBridge as runnable} from "./runnable"
 // Entity data types
 export type {Testcase} from "./testcase"
 export type {Revision, Testset} from "./testset"
-export type {AppRevisionData} from "./appRevision"
+export type {Evaluator, EvaluatorData, EvaluatorFlags} from "./evaluator"
+export type {LegacyEvaluator, LegacyEvaluatorData, LegacyEvaluatorFlags} from "./legacyEvaluator"
 export type {LegacyAppRevisionData} from "./legacyAppRevision"
+// Alias for backward compatibility - AppRevisionData was removed with appRevision entity
+export type {LegacyAppRevisionData as AppRevisionData} from "./legacyAppRevision"
 export type {TraceSpan} from "./trace"
+export type {Environment, EnvironmentRevision, EnvironmentRevisionData} from "./environment"
 
 // Public API interfaces
 export type {
@@ -218,11 +260,15 @@ export type {
 // Use these with initializeSelectionSystem() from @agenta/entity-ui.
 
 export {testsetSelectionConfig, type TestsetSelectionConfig} from "./testset"
-export {appRevisionSelectionConfig, type AppRevisionSelectionConfig} from "./appRevision"
 export {
     legacyAppRevisionSelectionConfig,
     type LegacyAppRevisionSelectionConfig,
 } from "./legacyAppRevision"
+export {evaluatorSelectionConfig, type EvaluatorSelectionConfig} from "./evaluator"
+export {
+    legacyEvaluatorSelectionConfig,
+    type LegacyEvaluatorSelectionConfig,
+} from "./legacyEvaluator"
 
 // ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)

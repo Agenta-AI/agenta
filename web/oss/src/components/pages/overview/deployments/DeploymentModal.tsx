@@ -1,14 +1,14 @@
 import {useCallback} from "react"
 
+import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
 import {message} from "@agenta/ui/app-message"
 import {Rocket} from "@phosphor-icons/react"
 import {Modal, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
-import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 type DeploymentModalProps = {
     selectedEnvironment: Environment

@@ -23,12 +23,18 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
                 return buildTree(span)
             }
 
-            const node: TraceSpanNode = {
-                ...span,
+            if (!span || typeof span !== "object") {
+                return []
             }
 
-            if (span?.spans && Object.keys(span.spans).length > 0) {
-                node.children = buildTree(span.spans)
+            const {spans: nestedSpans, ...spanWithoutNestedSpans} = span
+
+            const node: TraceSpanNode = {
+                ...spanWithoutNestedSpans,
+            }
+
+            if (nestedSpans && Object.keys(nestedSpans).length > 0) {
+                node.children = buildTree(nestedSpans)
             }
 
             return node
@@ -42,15 +48,21 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
 }
 
 export const transformTracingResponse = (data: TraceSpanNode[]): TraceSpanNode[] => {
-    const enhance = (span: TraceSpanNode): TraceSpanNode => ({
-        ...span,
-        key: span.span_id,
-        invocationIds: {
-            trace_id: span.trace_id,
-            span_id: span.span_id,
-        },
-        children: span.children?.map(enhance),
-    })
+    const enhance = (span: TraceSpanNode): TraceSpanNode => {
+        const {spans: _nestedSpans, ...spanWithoutNestedSpans} = span as TraceSpanNode & {
+            spans?: unknown
+        }
+
+        return {
+            ...spanWithoutNestedSpans,
+            key: span.span_id,
+            invocationIds: {
+                trace_id: span.trace_id,
+                span_id: span.span_id,
+            },
+            children: span.children?.map(enhance),
+        }
+    }
 
     return data.map(enhance)
 }

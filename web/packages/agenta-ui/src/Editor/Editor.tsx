@@ -56,7 +56,10 @@ import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
 import {$getLineCount} from "./plugins/code/utils/segmentUtils"
 import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
-import {TokenBehaviorExtension} from "./plugins/token/extensions/tokenBehavior"
+import {
+    TokenBehaviorExtension,
+    TokenBehaviorCoreExtension,
+} from "./plugins/token/extensions/tokenBehavior"
 import type {EditorProps} from "./types"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
@@ -126,6 +129,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             templateFormat,
             customRender,
             showToolbar = true,
+            showMarkdownToggleButton = false,
             enableTokens = false,
             debug = false,
             autoFocus = false,
@@ -649,6 +653,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             id={id}
                             autoFocus={autoFocus}
                             showToolbar={showToolbar}
+                            showMarkdownToggleButton={showMarkdownToggleButton}
                             singleLine={singleLine}
                             codeOnly={codeOnly}
                             debug={debug}
@@ -699,6 +704,7 @@ export const EditorProvider = ({
     codeOnly = false,
     language,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     tokens = EMPTY_TOKENS,
     templateFormat = "curly",
@@ -741,6 +747,10 @@ export const EditorProvider = ({
         disabled,
         useNativeCodeNodes,
     })
+    const tokenDependencyKey = useMemo(
+        () => (Array.isArray(tokens) ? tokens : EMPTY_TOKENS).join("\u0001"),
+        [tokens],
+    )
 
     const extension = useMemo(() => {
         if (!config) {
@@ -828,13 +838,18 @@ export const EditorProvider = ({
         }
 
         if (enableTokens) {
+            const stableTokens = tokenDependencyKey ? tokenDependencyKey.split("\u0001") : []
             extensionDependencies.push(
-                configExtension(TokenBehaviorExtension, {
+                TokenBehaviorExtension,
+                configExtension(TokenBehaviorCoreExtension, {
                     templateFormat,
-                    tokens: tokens || [],
+                    tokens: stableTokens,
                 }),
             )
-            extensionDependencyLabels.push("@agenta/editor/token/TokenBehavior")
+            extensionDependencyLabels.push(
+                "@agenta/editor/token/TokenBehavior",
+                "@agenta/editor/token/TokenBehaviorCore",
+            )
         }
 
         extensionFlowLog("build extension", {
@@ -875,7 +890,7 @@ export const EditorProvider = ({
         language,
         onPropertyClick,
         templateFormat,
-        tokens,
+        tokenDependencyKey,
         useNativeCodeNodes,
         validationSchema,
     ])
@@ -941,6 +956,7 @@ const Editor = ({
     templateFormat,
     customRender,
     showToolbar = true,
+    showMarkdownToggleButton = false,
     enableTokens = false,
     autoFocus = false,
     debug = false,
@@ -990,6 +1006,7 @@ const Editor = ({
                     language={language}
                     templateFormat={templateFormat}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     debug={debug}
                     autoFocus={autoFocus}
@@ -1026,6 +1043,7 @@ const Editor = ({
                     codeOnly={codeOnly}
                     language={language}
                     showToolbar={showToolbar}
+                    showMarkdownToggleButton={showMarkdownToggleButton}
                     enableTokens={enableTokens}
                     tokens={tokens}
                     templateFormat={templateFormat}
@@ -1064,6 +1082,7 @@ const Editor = ({
                         language={language}
                         templateFormat={templateFormat}
                         showToolbar={showToolbar}
+                        showMarkdownToggleButton={showMarkdownToggleButton}
                         enableTokens={enableTokens}
                         debug={debug}
                         autoFocus={autoFocus}

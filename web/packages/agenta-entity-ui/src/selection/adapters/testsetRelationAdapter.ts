@@ -29,7 +29,11 @@ import React from "react"
 
 // Import the registered relation and testset list atom from entities package
 import type {EntityRelation} from "@agenta/entities/shared"
-import {testsetToRevisionRelation, testsetsListAtom} from "@agenta/entities/testset"
+import {
+    testsetToRevisionRelation,
+    testsetsListAtom,
+    testsetSelectionConfig,
+} from "@agenta/entities/testset"
 import {RevisionLabel} from "@agenta/ui/components/presentational"
 import type {Atom} from "jotai"
 
@@ -84,6 +88,9 @@ export const testsetAdapter = createTwoLevelAdapter<TestsetSelectionResult>({
     childRelation: testsetToRevisionRelation as EntityRelation<unknown, unknown>,
     childOverrides: {
         autoSelectSingle: true,
+        onBeforeLoad: (testsetId: string) => {
+            testsetSelectionConfig.enableRevisionsQuery(testsetId)
+        },
         getLabelNode: (entity: unknown) => {
             const r = entity as {
                 version?: number

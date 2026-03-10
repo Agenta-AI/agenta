@@ -258,6 +258,9 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
     const dispatchReset = useSetAtom(resetAtom)
     const dispatchSetPath = useSetAtom(setPathAtom)
 
+    // Track if we just navigated up to prevent immediate auto-selection back down
+    const isNavigatingUpRef = useRef(false)
+
     // Initialize with initial path
     useEffect(() => {
         if (initialPath && initialPath.length > 0 && state.currentPath.length === 0) {
@@ -526,17 +529,20 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
     )
 
     const navigateUp = useCallback(() => {
+        isNavigatingUpRef.current = true
         dispatchNavigateUp()
     }, [dispatchNavigateUp])
 
     const navigateToLevel = useCallback(
         (level: number) => {
+            isNavigatingUpRef.current = true
             dispatchNavigateToLevel(level)
         },
         [dispatchNavigateToLevel],
     )
 
     const reset = useCallback(() => {
+        isNavigatingUpRef.current = false
         dispatchReset()
         setPaginationState(initialPaginationState)
         setAllItems([])
@@ -576,7 +582,17 @@ export function useBreadcrumbMode<TSelection = EntitySelectionResult>(
     const shouldAutoSelect = autoSelectSingle || shouldAutoSelectAtLevel(state.currentLevel)
 
     useEffect(() => {
-        if (!shouldAutoSelect || isLoading || items.length !== 1) return
+        // Skip auto-selection if we're loading or have more than one item
+        if (!shouldAutoSelect || isLoading || items.length !== 1) {
+            return
+        }
+
+        // IMPORTANT: If we just navigated up, skip auto-selection once to prevent
+        // being immediately pushed back down.
+        if (isNavigatingUpRef.current) {
+            isNavigatingUpRef.current = false
+            return
+        }
 
         const singleItem = items[0]
         const canAutoSelect = canSelect(singleItem) && !isDisabledFn(singleItem)

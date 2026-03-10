@@ -46,7 +46,7 @@ export interface ResponseFormatControlProps {
     /** Additional CSS classes */
     className?: string
     /** Size variant */
-    size?: "small" | "middle"
+    size?: "small" | "middle" | undefined
 }
 
 // ============================================================================
@@ -68,9 +68,9 @@ export const responseFormatModalOpenAtom: PrimitiveAtom<string | null> = atomWit
 // ============================================================================
 
 const RESPONSE_FORMAT_OPTIONS = [
-    {label: "Default (text)", value: "text"},
-    {label: "JSON mode", value: "json_object"},
-    {label: "JSON schema", value: "json_schema"},
+    {label: "Output type: Text", value: "text"},
+    {label: "Output type: JSON", value: "json_object"},
+    {label: "Output type: JSON Schema", value: "json_schema"},
 ]
 
 const DEFAULT_JSON_SCHEMA = {
@@ -110,7 +110,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
     onChange,
     disabled = false,
     className,
-    size = "small",
+    size,
 }: ResponseFormatControlProps) {
     // Modal state from atom - use separate read/write hooks for better type inference
     const openModalId = useAtomValue(responseFormatModalOpenAtom)
@@ -125,7 +125,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
         return JSON.stringify(DEFAULT_JSON_SCHEMA, null, 2)
     })
 
-    // Current format type
+    // Current format type - derived from prop value
     const formatType = value?.type || "text"
 
     // Parsed schema for button label
@@ -214,7 +214,7 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                     noProvider: true,
                 }}
                 editorType="borderless"
-                className="mt-2 min-h-[300px]"
+                className="max-h-[50vh] !p-0"
                 state="filled"
                 handleChange={handleEditorChange}
             />
@@ -232,15 +232,17 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                 className="min-w-[130px]"
                 popupMatchSelectWidth={false}
                 disabled={disabled}
+                style={{height: 24}}
             />
 
             {/* Schema name button (only shown for json_schema) */}
             {formatType === "json_schema" && (
                 <Button
+                    variant="outlined"
+                    color="default"
                     size={size}
                     onClick={handleOpenModal}
                     disabled={disabled}
-                    className="text-xs"
                 >
                     {((parsedSchema as Record<string, unknown> | null)?.name as string) ||
                         "Edit Schema"}
@@ -257,12 +259,13 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
                     okText="Save"
                     cancelText="Cancel"
                     width={600}
+                    centered
                 >
                     <Typography.Text className="mb-2 block">
                         Define the JSON schema for the structured output. The model will return
                         responses that conform to this schema.
                     </Typography.Text>
-                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-y-auto [&_.agenta-shared-editor]:box-border">
+                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-y-auto [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
                         {editorContent}
                     </div>
                 </Modal>

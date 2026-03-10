@@ -1,5 +1,10 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
+import {
+    appRevisionsWithDraftsAtomFamily,
+    variantsListWithDraftsAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
+import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -10,7 +15,6 @@ import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
 import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
@@ -200,9 +204,12 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
-        selectedAppId || null,
+    const appVariantRevisions = useAtomValue(
+        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
     )
+    const variantsLoading = useAtomValue(
+        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    ).isPending
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
         return appVariantRevisions || []
@@ -329,6 +336,25 @@ const NewEvaluationModalInner = ({
             message.error("Please select app variant")
             return false
         }
+
+        const selectedRevisions = filteredVariants.filter((revision) =>
+            selectedVariantRevisionIds.includes(revision.id),
+        )
+        const hasUnresolvableLocalDraft = selectedRevisions.some((revision) => {
+            if (!isLocalDraftId(revision.id)) return false
+            const sourceRevisionId =
+                (revision as {sourceRevisionId?: string | null}).sourceRevisionId ??
+                extractSourceIdFromDraft(revision.id)
+            return !(sourceRevisionId && isValidUUID(sourceRevisionId))
+        })
+
+        if (hasUnresolvableLocalDraft) {
+            message.error(
+                "Please commit selected local draft variants before starting an evaluation.",
+            )
+            return false
+        }
+
         if (selectedEvalConfigs.length === 0) {
             message.error("Please select evaluator configuration")
             return false
@@ -353,6 +379,7 @@ const NewEvaluationModalInner = ({
         selectedTestsetId,
         selectedTestsetRevisionId,
         selectedVariantRevisionIds,
+        filteredVariants,
         selectedEvalConfigs,
         evaluatorConfigs,
         preview,
@@ -379,6 +406,27 @@ const NewEvaluationModalInner = ({
 
             if (preview) {
                 const evalDataSource: any[] = (evaluators as any[]) || []
+                const selectedRevisions = revisions
+                    ?.filter((rev) => selectedVariantRevisionIds.includes(rev.id))
+                    .filter(Boolean)
+                    .map((revision) => {
+                        if (isValidUUID(revision.id)) return revision
+
+                        const sourceRevisionId =
+                            (revision as {sourceRevisionId?: string | null}).sourceRevisionId ??
+                            (isLocalDraftId(revision.id)
+                                ? extractSourceIdFromDraft(revision.id)
+                                : null)
+
+                        if (sourceRevisionId && isValidUUID(sourceRevisionId)) {
+                            return {
+                                ...revision,
+                                id: sourceRevisionId,
+                            }
+                        }
+
+                        return revision
+                    })
 
                 const selectionTestset = selectedTestsetId
                     ? ({
@@ -389,9 +437,7 @@ const NewEvaluationModalInner = ({
 
                 const selectionData = {
                     name: evaluationName,
-                    revisions: revisions
-                        ?.filter((rev) => selectedVariantRevisionIds.includes(rev.id))
-                        .filter(Boolean),
+                    revisions: selectedRevisions,
                     testset: selectionTestset,
                     evaluators: selectedEvalConfigs
                         .map((id) => evalDataSource.find((config) => (config as any).id === id))

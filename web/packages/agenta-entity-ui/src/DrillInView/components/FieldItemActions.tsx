@@ -105,7 +105,7 @@ export function FieldItemActions({
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700"
+                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-gray-700 border-0 bg-transparent cursor-pointer"
                     aria-label="Copy value"
                 >
                     <Copy size={14} />
@@ -117,7 +117,7 @@ export function FieldItemActions({
                 <button
                     type="button"
                     onClick={onDelete}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600"
+                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600 border-0 bg-transparent cursor-pointer"
                     aria-label="Delete field"
                 >
                     <Trash2 size={14} />
@@ -129,7 +129,7 @@ export function FieldItemActions({
                 <button
                     type="button"
                     onClick={onAdd}
-                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600"
+                    className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600 border-0 bg-transparent cursor-pointer"
                     aria-label="Add item"
                 >
                     <Plus size={14} />

@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
 import clsx from "clsx"
@@ -13,7 +14,6 @@ import {useAppState} from "@/oss/state/appState"
 
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../EnhancedUIs/Button"
-import TooltipWithCopyAction from "../../EnhancedUIs/Tooltip"
 
 import {useStyles, type StyleProps} from "./styles"
 

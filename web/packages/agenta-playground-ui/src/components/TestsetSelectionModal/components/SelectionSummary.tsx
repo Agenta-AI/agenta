@@ -3,12 +3,13 @@
  *
  * Footer component for TestsetSelectionModal showing selection count,
  * import mode selector (when applicable), and action buttons.
+ * Supports both normal load mode and create mode (Build in UI).
  */
 
-import {bgColors, borderColors, cn, statusColors, textSizes} from "@agenta/ui/styles"
-import {Button, Radio, Space, Typography} from "antd"
+import {borderColors, statusColors} from "@agenta/ui/styles"
+import {Button, Space, Typography} from "antd"
 
-import type {SelectionSummaryProps, TestsetImportMode} from "../types"
+import type {SelectionSummaryProps} from "../types"
 
 const {Text} = Typography
 
@@ -18,12 +19,14 @@ export function SelectionSummary({
     onConfirm,
     onCancel,
     confirmDisabled = false,
-    confirmText = "Load Selected",
-    importMode = "replace",
-    onImportModeChange,
-    showImportModeSelector = false,
+    confirmText = "Confirm Selection",
     disabled = false,
-    disabledMessage = "This revision is already connected. Select a different revision to load.",
+    disabledMessage = "Cannot select items from this testset",
+    warningMessage,
+    hasWarning = false,
+    isCreateMode = false,
+    createDisabled = false,
+    createLoading = false,
 }: SelectionSummaryProps) {
     // When disabled, show a message instead of the normal UI
     if (disabled) {
@@ -44,41 +47,35 @@ export function SelectionSummary({
         )
     }
 
+    // Create mode: show "Create & Load" button, no selection count
+    if (isCreateMode) {
+        return (
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-end">
+                    <Space>
+                        <Button onClick={onCancel}>Cancel</Button>
+                        <Button
+                            type="primary"
+                            onClick={onConfirm}
+                            disabled={createDisabled}
+                            loading={createLoading}
+                        >
+                            Create &amp; Load
+                        </Button>
+                    </Space>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-3">
-            {/* Import Mode Selector - only shown when there's existing data */}
-            {showImportModeSelector && onImportModeChange && (
+            {/* Compatibility warning */}
+            {hasWarning && warningMessage && (
                 <div
-                    className={`border ${borderColors.secondary} rounded-md p-3 ${bgColors.subtle}`}
+                    className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
                 >
-                    <Text
-                        type="secondary"
-                        className={cn(textSizes.xs, "uppercase tracking-wide block mb-2")}
-                    >
-                        What would you like to do?
-                    </Text>
-                    <Radio.Group
-                        value={importMode}
-                        onChange={(e) => onImportModeChange(e.target.value as TestsetImportMode)}
-                        className="flex flex-col gap-2"
-                    >
-                        <Radio value="replace">
-                            <div>
-                                <Text strong>Replace and connect</Text>
-                                <Text type="secondary" className={cn("block", textSizes.xs)}>
-                                    Discard current data, sync with selected testcases
-                                </Text>
-                            </div>
-                        </Radio>
-                        <Radio value="import">
-                            <div>
-                                <Text strong>Import as new rows</Text>
-                                <Text type="secondary" className={cn("block", textSizes.xs)}>
-                                    Keep current data, add selected as new local rows
-                                </Text>
-                            </div>
-                        </Radio>
-                    </Radio.Group>
+                    <Text type="warning">{warningMessage}</Text>
                 </div>
             )}
 
@@ -95,7 +92,12 @@ export function SelectionSummary({
                 {/* Action Buttons */}
                 <Space>
                     <Button onClick={onCancel}>Cancel</Button>
-                    <Button type="primary" onClick={onConfirm} disabled={confirmDisabled}>
+                    <Button
+                        type="primary"
+                        danger={hasWarning}
+                        onClick={onConfirm}
+                        disabled={confirmDisabled}
+                    >
                         {confirmText}
                     </Button>
                 </Space>

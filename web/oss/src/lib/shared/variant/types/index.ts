@@ -2,6 +2,14 @@ import {CamelCaseEnvironment} from "@/oss/lib/Types"
 
 export type {OpenAPISpec} from "./openapi"
 
+// Re-exports from former transformer/types (now colocated here)
+export * from "./variantConfig"
+export * from "./enhancedVariant"
+export * from "./input"
+export * from "./message"
+export * from "./playground"
+export * from "./testRun"
+
 export interface Variant {
     id: string
     uri: string

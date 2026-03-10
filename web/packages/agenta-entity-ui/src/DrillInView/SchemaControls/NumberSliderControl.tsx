@@ -3,12 +3,18 @@
  *
  * Schema-driven numeric input with slider for range selection.
  * Used for temperature, max tokens, top P, penalties, etc.
+ *
+ * Layout: label + InputNumber on one row (justify-between),
+ * Slider below spanning full width.
  */
 
-import {memo} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {LabeledField, SliderInput} from "@agenta/ui/components/presentational"
+import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
+import {InputNumber, Slider, Tooltip, Typography} from "antd"
+
+const {Text} = Typography
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */
@@ -27,8 +33,6 @@ export interface NumberSliderControlProps {
     disabled?: boolean
     /** Placeholder text */
     placeholder?: string
-    /** Allow clearing the value */
-    allowClear?: boolean
     /** Additional CSS classes */
     className?: string
     /** Override minimum value */
@@ -81,7 +85,6 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     withTooltip = true,
     disabled = false,
     placeholder,
-    allowClear = true,
     className,
     min: overrideMin,
     max: overrideMax,
@@ -96,24 +99,56 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     // Get description from schema or prop
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
-    return (
-        <LabeledField
-            label={label}
-            description={tooltipText}
-            withTooltip={withTooltip}
-            direction="horizontal"
-            className={className}
-        >
-            <SliderInput
-                value={value}
-                onChange={onChange}
+    // Local state for immediate UI feedback
+    const [localValue, setLocalValue] = useState<number | null>(value ?? null)
+
+    useEffect(() => {
+        setLocalValue(value ?? null)
+    }, [value])
+
+    const handleValueChange = useCallback(
+        (newValue: number | null | undefined) => {
+            const processed = newValue === undefined ? null : newValue
+            setLocalValue(processed)
+            onChange(processed)
+        },
+        [onChange],
+    )
+
+    const content = (
+        <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
+            <div className={cn(flexLayouts.rowCenter, "justify-between")}>
+                <Text className={cn("font-medium", textColors.primary)}>{label}</Text>
+                <InputNumber
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={localValue}
+                    onChange={handleValueChange}
+                    disabled={disabled}
+                    style={{width: 70}}
+                    placeholder={placeholder}
+                />
+            </div>
+            <Slider
                 min={min}
                 max={max}
                 step={step}
+                value={localValue ?? min}
+                onChange={handleValueChange}
                 disabled={disabled}
-                allowClear={allowClear}
-                placeholder={placeholder}
+                className="!my-0"
             />
-        </LabeledField>
+        </div>
     )
+
+    if (withTooltip && tooltipText && label) {
+        return (
+            <Tooltip title={tooltipText} placement="right">
+                {content}
+            </Tooltip>
+        )
+    }
+
+    return content
 })

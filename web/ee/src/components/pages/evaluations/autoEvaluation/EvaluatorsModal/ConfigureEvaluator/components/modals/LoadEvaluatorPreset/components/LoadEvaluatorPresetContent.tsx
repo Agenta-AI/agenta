@@ -1,9 +1,9 @@
 import React, {useState} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {Menu, Divider, Typography, Input, Radio} from "antd"
 import yaml from "js-yaml"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {SettingsPreset} from "@/oss/lib/Types"
 
 import {LoadEvaluatorPresetContentProps} from "../assets/types"

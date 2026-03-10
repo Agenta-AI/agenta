@@ -170,14 +170,6 @@ body {
     }
 }
 
-.agenta-editor-wrapper {
-    interpolate-size: allow-keywords;
-    transition: height 0.3s ease-in-out;
-    &:focus-within {
-        height: fit-content !important;
-    }
-}
-
 .editor-inner:not(.code-editor) {
     .editor-code {
         background-color: rgb(240, 242, 245);

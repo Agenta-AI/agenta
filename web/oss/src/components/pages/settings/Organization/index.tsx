@@ -1,5 +1,6 @@
 import {type FC, useState, useCallback, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {
     PlusOutlined,
     CheckCircleOutlined,
@@ -29,7 +30,6 @@ import {
     Tooltip,
 } from "antd"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {

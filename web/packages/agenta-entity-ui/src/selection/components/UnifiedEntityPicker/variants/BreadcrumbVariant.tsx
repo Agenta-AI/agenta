@@ -53,6 +53,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     showBreadcrumb = true,
     showBackButton = true,
     rootLabel,
+    breadcrumbActions,
     emptyMessage,
     loadingMessage,
     maxHeight = 400,
@@ -179,12 +180,15 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
         return (
             <div className={cn("flex flex-col", className)}>
                 {showBreadcrumb && (
-                    <div className="mb-2">
-                        <EntityBreadcrumb
-                            path={breadcrumbPath}
-                            onNavigate={handleBreadcrumbNavigate}
-                            rootLabel={rootLabel ?? "All"}
-                        />
+                    <div className="mb-2 flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                            <EntityBreadcrumb
+                                path={breadcrumbPath}
+                                onNavigate={handleBreadcrumbNavigate}
+                                rootLabel={rootLabel ?? "All"}
+                            />
+                        </div>
+                        {breadcrumbActions && <div className="shrink-0">{breadcrumbActions}</div>}
                     </div>
                 )}
                 <div className="flex items-center justify-center py-8">
@@ -211,20 +215,25 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
             {/* Breadcrumb navigation */}
             {showBreadcrumb && (
                 <div className="mb-2 flex items-center gap-2">
-                    {showBackButton && !isAtRoot && (
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<ArrowLeft size={16} />}
-                            onClick={navigateUp}
-                            disabled={disabled}
-                        />
-                    )}
-                    <EntityBreadcrumb
-                        path={breadcrumbPath}
-                        onNavigate={handleBreadcrumbNavigate}
-                        rootLabel={rootLabel ?? "All"}
-                    />
+                    <div className="min-w-0 flex-1 flex items-center gap-2">
+                        {showBackButton && !isAtRoot && (
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<ArrowLeft size={16} />}
+                                onClick={navigateUp}
+                                disabled={disabled}
+                            />
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <EntityBreadcrumb
+                                path={breadcrumbPath}
+                                onNavigate={handleBreadcrumbNavigate}
+                                rootLabel={rootLabel ?? "All"}
+                            />
+                        </div>
+                    </div>
+                    {breadcrumbActions && <div className="shrink-0">{breadcrumbActions}</div>}
                 </div>
             )}
 

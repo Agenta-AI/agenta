@@ -1,13 +1,16 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {
+    variantsListAtomFamily,
+    variantsListQueryStateAtomFamily,
+} from "@agenta/entities/legacyAppRevision"
 import {Input} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {currentAppAtom} from "@/oss/state/app"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import type {SelectVariantSectionProps} from "../types"
 
@@ -29,12 +32,18 @@ const SelectVariantSection = ({
     evaluationType,
     variants: propsVariants,
     isVariantLoading: propsVariantLoading,
-    ...props
 }: SelectVariantSectionProps) => {
-    const currentApp = useAtomValue(currentAppAtom)
-
-    const {data, isLoading: fallbackLoading} = useVariants(currentApp)
-    const variants = useMemo(() => propsVariants || data, [propsVariants, data])
+    const appId = useAtomValue(selectedAppIdAtom) || ""
+    const fallbackVariants = useAtomValue(
+        useMemo(() => variantsListAtomFamily(appId), [appId]),
+    ) as unknown as EnhancedVariant[]
+    const fallbackLoading = useAtomValue(
+        useMemo(() => variantsListQueryStateAtomFamily(appId), [appId]),
+    ).isPending
+    const variants = useMemo(
+        () => propsVariants || fallbackVariants,
+        [propsVariants, fallbackVariants],
+    )
     const isVariantLoading = propsVariantLoading ?? fallbackLoading
 
     const [searchTerm, setSearchTerm] = useState("")
@@ -88,7 +97,7 @@ const SelectVariantSection = ({
     const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
 
     return (
-        <div className={clsx(className)} {...props}>
+        <div className={clsx(className)}>
             <div className="flex items-start justify-between mb-2 gap-4">
                 <Input.Search
                     placeholder="Search"
