@@ -22,14 +22,24 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
     const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
     const identifiedRef = useRef<string | null>(null)
-    const emailIdentifiedRef = useRef<string | null>(null)
+    const personPropsIdentifiedRef = useRef<string | null>(null)
     const aliasedRef = useRef(false)
 
     const personProps = useMemo(() => {
-        if (!user?.email) return undefined
+        if (!user?.email && !user?.username) return undefined
 
-        return {email: user.email}
-    }, [user?.email])
+        const props: Record<string, unknown> = {}
+
+        if (user.email) {
+            props.email = user.email
+        }
+
+        if (user.username) {
+            props.username = user.username
+        }
+
+        return props
+    }, [user?.email, user?.username])
     const baseCapture = posthog?.capture?.bind(posthog)
     const baseIdentify = posthog?.identify?.bind(posthog)
     const capture: PostHog["capture"] = useCallback(
@@ -62,14 +72,17 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (!posthog) return
         if (!analyticsId) return
         if (!user?.email) {
-            emailIdentifiedRef.current = null
+            personPropsIdentifiedRef.current = null
             aliasedRef.current = false
         }
 
-        const identifiedEmailKey = user?.email ? `${analyticsId}:${user.email}` : null
+        const identifiedPersonPropsKey = personProps
+            ? `${analyticsId}:${JSON.stringify(personProps)}`
+            : null
         const shouldIdentify =
             identifiedRef.current !== analyticsId ||
-            (identifiedEmailKey !== null && emailIdentifiedRef.current !== identifiedEmailKey)
+            (identifiedPersonPropsKey !== null &&
+                personPropsIdentifiedRef.current !== identifiedPersonPropsKey)
 
         if (!shouldIdentify) return
 
@@ -79,8 +92,8 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         }
 
         identifiedRef.current = analyticsId
-        if (identifiedEmailKey) {
-            emailIdentifiedRef.current = identifiedEmailKey
+        if (identifiedPersonPropsKey) {
+            personPropsIdentifiedRef.current = identifiedPersonPropsKey
         }
         identify(analyticsId, personProps)
     }, [analyticsId, baseDistinctId, identify, personProps, posthog, user?.email])
