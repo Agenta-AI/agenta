@@ -13,10 +13,16 @@ import {
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {
+    clearPendingTurnstileToken,
+    isTurnstileEnabled,
+    setPendingTurnstileToken,
+} from "@/oss/lib/helpers/auth/turnstile"
 import {authFlowAtom} from "@/oss/state/session"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
+import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
 
 const {Text} = Typography
 
@@ -33,8 +39,30 @@ const SendOTP = ({
     const classes = useStyles()
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    const turnstileEnabled = isTurnstileEnabled()
 
     const inputRef = useRef<OTPRef>(null)
+    const turnstileRef = useRef<TurnstileWidgetHandle>(null)
+
+    const resetTurnstile = () => {
+        clearPendingTurnstileToken()
+        setTurnstileToken(null)
+        turnstileRef.current?.reset()
+    }
+
+    const ensureTurnstileToken = () => {
+        if (!turnstileEnabled || turnstileToken) {
+            return true
+        }
+
+        setMessage({
+            message: "Please complete the security check.",
+            type: "error",
+        })
+
+        return false
+    }
 
     // Listens for the window gaining focus (e.g., user returns to tab) and focuses the OTP input
     useLazyEffect(() => {
@@ -49,7 +77,14 @@ const SendOTP = ({
     }, [])
 
     const resendOTP = async () => {
+        if (!ensureTurnstileToken()) {
+            return
+        }
+
         try {
+            if (turnstileEnabled) {
+                setPendingTurnstileToken(turnstileToken)
+            }
             const response = await resendCode()
 
             if (response.status === "RESTART_FLOW_ERROR") {
@@ -72,13 +107,22 @@ const SendOTP = ({
             }
         } catch (err) {
             authErrorMsg(err)
+        } finally {
+            resetTurnstile()
         }
     }
 
     const submitOTP: FormProps<{otp: string}>["onFinish"] = async (values) => {
+        if (!ensureTurnstileToken()) {
+            return
+        }
+
         try {
             setIsLoading(true)
             setAuthFlow("authing")
+            if (turnstileEnabled) {
+                setPendingTurnstileToken(turnstileToken)
+            }
             const response = await consumeCode({userInputCode: values.otp})
 
             if (response.status === "OK") {
@@ -114,12 +158,14 @@ const SendOTP = ({
             authErrorMsg(err)
             setAuthFlow("unauthed")
         } finally {
+            resetTurnstile()
             setIsLoading(false)
         }
     }
 
     const backToLogin = async () => {
         await clearLoginAttemptInfo()
+        resetTurnstile()
         setIsLoginCodeVisible(false)
     }
 
@@ -163,6 +209,20 @@ const SendOTP = ({
                         ref={inputRef}
                     />
                 </Form.Item>
+
+                {turnstileEnabled && (
+                    <TurnstileWidget
+                        ref={turnstileRef}
+                        className="flex justify-center"
+                        onTokenChange={setTurnstileToken}
+                        onError={() =>
+                            setMessage({
+                                message: "Security check failed. Please try again.",
+                                type: "error",
+                            })
+                        }
+                    />
+                )}
 
                 <Button
                     size="large"

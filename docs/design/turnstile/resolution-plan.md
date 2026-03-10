@@ -7,6 +7,7 @@ Source: [turnstile-investigation-report.md](./turnstile-investigation-report.md)
 ## Task 1: Backend — Add Turnstile to passwordless `create_code_post`
 
 **Priority**: P0 — This is the primary abuse vector.
+**Status**: Completed.
 
 ### What
 
@@ -50,6 +51,7 @@ Override `create_code_post` inside `override_passwordless_apis()` in `api/oss/sr
 ## Task 2: Backend — Add Turnstile to passwordless `consume_code_post`
 
 **Priority**: P0 — Defense-in-depth on the code consumption step.
+**Status**: Completed.
 
 ### What
 
@@ -83,6 +85,7 @@ Add `verify_turnstile_or_raise(request=api_options.request)` to the existing `co
 ## Task 3: Backend — Add Turnstile to passwordless `resend_code_post`
 
 **Priority**: P1 — Secondary abuse vector.
+**Status**: Completed.
 
 ### What
 
@@ -117,6 +120,7 @@ Override `resend_code_post` inside `override_passwordless_apis()` and call `veri
 ## Task 4: Frontend — Add Turnstile widget to `PasswordlessAuth` component
 
 **Priority**: P0 — Without this, the frontend never generates or sends a token for OTP flow.
+**Status**: Completed.
 
 ### What
 
@@ -166,6 +170,7 @@ Follow the pattern from `web/oss/src/components/pages/auth/EmailPasswordAuth/ind
 ## Task 5: Frontend — Add OTP paths to `TURNSTILE_AUTH_PATHS`
 
 **Priority**: P0 — Without this, the fetch patch won't attach the token to OTP requests even if the widget generates one.
+**Status**: Completed.
 
 ### What
 
@@ -214,6 +219,7 @@ const TURNSTILE_AUTH_PATHS = new Set([
 ## Task 6: Frontend — Add Turnstile widget to `SendOTP` component
 
 **Priority**: P1 — Defense-in-depth for the code consumption step.
+**Status**: Completed.
 
 ### What
 
@@ -251,6 +257,7 @@ Add Turnstile token management to the `SendOTP` component so that `consumeCode()
 ## Task 7: Backend — Validate hostname in Siteverify response
 
 **Priority**: P2 — Hardening for all protected flows.
+**Status**: Completed.
 
 ### What
 
@@ -291,6 +298,7 @@ After Siteverify returns `success: true`, also validate that the `hostname` fiel
 ## Task 8: Backend — Add structured logging for all signup attempts
 
 **Priority**: P2 — Observability for ongoing monitoring.
+**Status**: Completed.
 
 ### What
 
@@ -336,6 +344,7 @@ At `verify_turnstile_or_raise` entry when disabled:
 ## Task 9: Backend — Add rate limiting on `create_code_post` per IP
 
 **Priority**: P2 — Defense-in-depth independent of Turnstile.
+**Status**: For later.
 
 ### What
 
@@ -378,6 +387,7 @@ Add application-level rate limiting on the OTP creation endpoint to prevent emai
 ## Task 10: Validation — Post-deployment Turnstile analytics check
 
 **Priority**: P1 — Confirms fixes are working.
+**Status**: Pending post-deploy validation.
 
 ### What
 
@@ -404,6 +414,7 @@ After deploying Tasks 1-6, monitor Cloudflare Turnstile analytics to verify Site
 ## Task 11: Audit — Review remaining SuperTokens API surface
 
 **Priority**: P2 — Proactive hardening.
+**Status**: Pending.
 
 ### What
 
