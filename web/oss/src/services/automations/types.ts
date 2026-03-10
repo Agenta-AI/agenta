@@ -75,11 +75,13 @@ export interface WebhookSubscriptionCreateRequest {
  *  subscription.id MUST match the path param.
  */
 export interface WebhookSubscriptionEditRequest {
+export interface WebhookSubscriptionEditRequest {
     subscription: {
         id: string
         name?: string
         description?: string
         flags?: Pick<WebhookSubscriptionFlags, "is_valid">
+        secret?: string
         data: {
             url: string
             event_types?: WebhookEventType[]
