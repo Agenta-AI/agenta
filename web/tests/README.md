@@ -36,7 +36,7 @@ Auth behavior in global setup:
 Safety behavior in teardown:
 
 - Destructive cleanup is disabled by default.
-- Enable only when needed with `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
+- Enable only when needed with `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
 
 ---
 

@@ -52,7 +52,7 @@ Operational rule:
 
 Optional:
 - `AGENTA_TEST_AUTH_MODE=auto|password|otp` (default: `auto`)
-- `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
+- `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
 - `TESTMAIL_API_KEY` + `TESTMAIL_NAMESPACE` (required for OTP auth flow)
 
 ## Test Coverage Map

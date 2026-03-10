@@ -1,6 +1,7 @@
 import {expect, Locator, Page} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
+import {getProjectMetadataPath} from "../../../../playwright/config/runtime"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 import type {UIHelpers} from "../uiHelpers/types"
@@ -111,7 +112,7 @@ function getProjectScopedBasePath(page: Page): string | null {
 }
 
 function readTestProjectMetadata(): TestProjectMetadata | null {
-    const metadataPath = `${process.cwd()}/test-project.json`
+    const metadataPath = getProjectMetadataPath()
 
     if (!existsSync(metadataPath)) {
         return null
