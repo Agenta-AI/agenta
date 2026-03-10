@@ -61,9 +61,13 @@ const ImagePreview = ({
 
     const imageURL = useMemo(() => {
         try {
-            return isBase64(src) ? dataUriToObjectUrl(src) : src
+            if (isBase64(src)) {
+                return dataUriToObjectUrl(src)
+            }
+
+            return isSafeImageSrc(src) ? src : undefined
         } catch {
-            return src
+            return undefined
         }
     }, [src])
 
@@ -95,7 +99,7 @@ const ImagePreview = ({
                 width={800}
                 height={600}
             >
-                {isValidPreview && isSafeImageSrc(imageURL) && (
+                {isValidPreview && imageURL && (
                     <img
                         src={imageURL}
                         alt={alt}
