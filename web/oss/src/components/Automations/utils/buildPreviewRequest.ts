@@ -82,7 +82,6 @@ export const buildPreviewRequest = (
     const {
         provider,
         url,
-        headers,
         auth_mode,
         auth_value,
         event_types,
@@ -92,6 +91,15 @@ export const buildPreviewRequest = (
         github_workflow,
         github_branch,
     } = formValues
+
+    // Form stores headers as header_list (array of {key, value}), convert to Record
+    const headerList = (formValues as any).header_list as {key: string; value: string}[] | undefined
+    const customHeaders: Record<string, string> = {}
+    if (headerList) {
+        for (const h of headerList) {
+            if (h.key && h.value) customHeaders[h.key] = h.value
+        }
+    }
 
     const selectedEvent: WebhookEventType = event_types?.[0] || "environments.revisions.committed"
     const eventContext = buildEventContext(selectedEvent, ctx)
@@ -112,7 +120,7 @@ export const buildPreviewRequest = (
         previewHeaders["Idempotency-Key"] = "01961234-..."
 
         // User custom headers appended after system headers
-        const finalHeaders = {...previewHeaders, ...(headers || {})}
+        const finalHeaders = {...previewHeaders, ...customHeaders}
 
         return {
             method: "POST",
