@@ -84,7 +84,6 @@ export const buildPreviewRequest = (
         url,
         auth_mode,
         auth_value,
-        event_types,
         github_sub_type,
         github_repo,
         github_pat,
@@ -101,7 +100,9 @@ export const buildPreviewRequest = (
         }
     }
 
-    const selectedEvent: WebhookEventType = event_types?.[0] || "environments.revisions.committed"
+    // Form uses field name "events", not "event_types"
+    const events = (formValues as any).events as WebhookEventType[] | undefined
+    const selectedEvent: WebhookEventType = events?.[0] || "environments.revisions.committed"
     const eventContext = buildEventContext(selectedEvent, ctx)
 
     if (provider === "webhook") {
