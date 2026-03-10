@@ -6,8 +6,6 @@ const TURNSTILE_AUTH_PATHS = new Set([
     "/api/auth/signup",
     "/api/auth/signinup",
     "/api/auth/signinup/code",
-    "/api/auth/signinup/code/consume",
-    "/api/auth/signinup/code/resend",
 ])
 
 export const TURNSTILE_HEADER = "x-turnstile-token"
@@ -17,6 +15,7 @@ let fetchPatched = false
 
 export const getTurnstileSiteKey = () => {
     const siteKey = getEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
+    // const siteKey = "3x00000000000000000000FF"
 
     return isEE() ? siteKey : ""
 }

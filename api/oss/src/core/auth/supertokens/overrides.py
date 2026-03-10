@@ -607,11 +607,11 @@ def override_passwordless_apis(
             api_options=api_options,
             tenant_id=tenant_id,
         )
-        await verify_turnstile(
-            api_options=api_options,
-            user_context=user_context,
-            auth_flow="passwordless_resend_code",
-        )
+        # await verify_turnstile(
+        #     api_options=api_options,
+        #     user_context=user_context,
+        #     auth_flow="passwordless_resend_code",
+        # )
 
         return await original_resend_code_post(
             device_id,
@@ -640,11 +640,11 @@ def override_passwordless_apis(
             api_options=api_options,
             tenant_id=tenant_id,
         )
-        await verify_turnstile(
-            api_options=api_options,
-            user_context=user_context,
-            auth_flow="passwordless_consume_code",
-        )
+        # await verify_turnstile(
+        #     api_options=api_options,
+        #     user_context=user_context,
+        #     auth_flow="passwordless_consume_code",
+        # )
 
         response = await original_consume_code_post(
             pre_auth_session_id,
