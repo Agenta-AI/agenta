@@ -16,12 +16,11 @@ export interface PreviewContext {
 }
 
 /**
- * Builds a dummy event context that mirrors the real server payload shape.
+ * Builds a dummy event context that mirrors the resolver input on the backend.
  *
- * The server builds a context with three top-level keys: event, subscription, scope.
- * When no custom payload_fields are set, the entire context is sent as the HTTP body.
- * GitHub templates use JSONPath selectors ($.event.*, $.subscription.*, $.scope.*)
- * to extract specific fields from this context.
+ * GitHub payload templates resolve against this full context ($.event.*,
+ * $.subscription.*, $.scope.*). The plain webhook provider currently sends
+ * event.attributes as the body.
  */
 const buildEventContext = (eventType: string, ctx?: PreviewContext) => ({
     event: {
@@ -120,24 +119,40 @@ export const buildPreviewRequest = (
     const events = (formValues as any).events as WebhookEventType[] | undefined
     const selectedEvent: WebhookEventType = events?.[0] || "environments.revisions.committed"
     const eventContext = buildEventContext(selectedEvent, ctx)
+    const previewEventId = eventContext.event.event_id
+    const previewDeliveryId = "01961234-delivery-7abc-..."
+
+    const buildSystemHeaders = (authHeader: Record<string, string>) => ({
+        "Content-Type": "application/json",
+        "User-Agent": "Agenta-Webhook/1.0",
+        "X-Agenta-Event-Type": selectedEvent,
+        "X-Agenta-Delivery-Id": previewDeliveryId,
+        "X-Agenta-Event-Id": previewEventId,
+        "Idempotency-Key": previewDeliveryId,
+        ...authHeader,
+    })
 
     if (provider === "webhook") {
-        const previewHeaders: Record<string, string> = {}
+        const previewHeaders: Record<string, string> = buildSystemHeaders(
+            auth_mode === "authorization"
+                ? {
+                      Authorization: auth_value ? "Bearer ••••••••••" : "Bearer <token>",
+                  }
+                : {
+                      "X-Agenta-Signature": "t=<unix_ts>,v1=<hex_hmac>",
+                  },
+        )
 
-        if (auth_mode === "authorization") {
-            previewHeaders["Authorization"] = auth_value ? "Bearer ••••••••••" : "Bearer <token>"
-        } else {
-            previewHeaders["x-agenta-signature"] = "••••••••••"
+        const finalHeaders = {
+            ...customHeaders,
+            ...previewHeaders,
         }
-
-        // User custom headers
-        Object.assign(previewHeaders, customHeaders)
 
         return {
             method: "POST",
             url: url || "https://...",
-            headers: previewHeaders,
-            body: eventContext,
+            headers: finalHeaders,
+            body: eventContext.event.attributes,
         }
     } else if (provider === "github") {
         const subType = github_sub_type || "repository_dispatch"
@@ -158,9 +173,10 @@ export const buildPreviewRequest = (
             method: "POST",
             url: finalUrl,
             headers: {
-                Authorization: github_pat ? "Bearer ghp_••••••••" : "Bearer <token>",
                 ...GITHUB_HEADERS,
-                "Content-Type": "application/json",
+                ...buildSystemHeaders({
+                    Authorization: github_pat ? "Bearer ghp_••••••••" : "Bearer <token>",
+                }),
             },
             body: resolvePayloadMocks(payload_fields, eventContext),
         }
