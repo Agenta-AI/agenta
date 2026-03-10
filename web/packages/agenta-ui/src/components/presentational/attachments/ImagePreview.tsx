@@ -19,12 +19,11 @@
 
 import {useMemo, useState} from "react"
 
-import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {MagnifyingGlassPlus} from "@phosphor-icons/react"
 import {Modal} from "antd"
 
 import ImageWithFallback from "./ImageWithFallback"
-import {isSafeImageSrc} from "./utils"
+import {resolveSafeImagePreviewSrc} from "./utils"
 
 // ============================================================================
 // TYPES
@@ -60,11 +59,7 @@ const ImagePreview = ({
     const [open, setOpen] = useState(false)
 
     const imageURL = useMemo(() => {
-        try {
-            return isBase64(src) ? dataUriToObjectUrl(src) : src
-        } catch {
-            return src
-        }
+        return resolveSafeImagePreviewSrc(src)
     }, [src])
 
     return (
@@ -78,7 +73,7 @@ const ImagePreview = ({
                 }}
             >
                 <ImageWithFallback
-                    src={src}
+                    src={imageURL}
                     alt={alt}
                     className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
                 />
@@ -95,7 +90,7 @@ const ImagePreview = ({
                 width={800}
                 height={600}
             >
-                {isValidPreview && isSafeImageSrc(imageURL) && (
+                {isValidPreview && imageURL && (
                     <img
                         src={imageURL}
                         alt={alt}
