@@ -9,6 +9,19 @@ on:
       - 'services/**'
       - '.github/workflows/12-check-unit-tests.yml'
   workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - web-only
+          - sdk-only
+          - api-only
+          - services-only
+          - none
 
 permissions:
   contents: read
