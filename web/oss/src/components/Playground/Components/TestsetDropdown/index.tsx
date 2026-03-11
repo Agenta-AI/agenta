@@ -3,19 +3,6 @@
  *
  * Renders a dropdown button in the execution header for testset management.
  * Adapts based on whether the playground is connected to a local or API-backed testset.
- *
- * State 1 — Local testset (default):
- *   Button: "Testset ▼"
- *   Menu:   • Connect testset → opens TestsetSelectionModal (load mode)
- *           • Add to testset  → opens AddToTestsetDrawer with current run results
- *
- * State 2 — Connected to API-backed testset:
- *   Button: "<testset_name> ▼"
- *   Menu:   • Sync changes (disabled when no changes)
- *           • Manage testcases → opens TestsetSelectionModal (edit mode)
- *           • Change testset  → opens TestsetSelectionModal (load mode)
- *           • Add to testset  → opens AddToTestsetDrawer with current run results
- *           • Disconnect (danger)
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -59,8 +46,11 @@ import {
 import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
+import TestsetDisconnectConfirmModal from "../Modals/TestsetDisconnectConfirmModal"
+
 import {CreateTestsetCardWrapper} from "./CreateTestsetCardWrapper"
 import {TestsetPreviewPanelWrapper} from "./TestsetPreviewPanelWrapper"
+import {testsetDisconnectConfirmModalAtom} from "../Modals/TestsetDisconnectConfirmModal/store/state"
 
 // ── Lazy-loaded AddToTestset drawer ────────────────────────────────────────
 const TestsetDrawer = dynamic(
@@ -161,6 +151,7 @@ export function TestsetDropdown() {
     const setLoadableName = useSetAtom(loadableController.actions.setName)
     const initSelectionDraft = useSetAtom(testcaseMolecule.actions.initSelectionDraft)
     const saveNewTestset = useSetAtom(saveNewTestsetAtom)
+    const setDisconnectConfirmModalState = useSetAtom(testsetDisconnectConfirmModalAtom)
     const store = useStore()
 
     // ── Derived state ──────────────────────────────────────────────────────
@@ -381,8 +372,18 @@ export function TestsetDropdown() {
     // ── Disconnect ─────────────────────────────────────────────────────────
     const handleDisconnect = useCallback(() => {
         if (!loadableId) return
+
+        if (hasLocalChanges) {
+            setDisconnectConfirmModalState({
+                open: true,
+                loadableId,
+                isSaving: false,
+            })
+            return
+        }
+
         disconnectAndReset(loadableId)
-    }, [loadableId, disconnectAndReset])
+    }, [loadableId, hasLocalChanges, setDisconnectConfirmModalState, disconnectAndReset])
 
     // ── Sync changes (EntityCommitModal) ───────────────────────────────────
     const [syncOpen, setSyncOpen] = useState(false)
@@ -585,6 +586,9 @@ export function TestsetDropdown() {
                 submitLabel={syncSubmitLabel}
                 successMessage="Testset updated successfully"
             />
+
+            {/* Disconnect with unsaved changes modal */}
+            <TestsetDisconnectConfirmModal />
 
             {/* Add to testset drawer — mounted only when open to avoid isDrawerOpenAtom conflicts */}
             {addToTestsetOpen && (
