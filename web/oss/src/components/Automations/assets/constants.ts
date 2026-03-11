@@ -4,7 +4,7 @@ import {AutomationSchemaEntry} from "../assets/types"
 
 export const EVENT_OPTIONS = [
     {
-        label: "Config Deployed",
+        label: "Configuration Deployed",
         value: "environments.revisions.committed" as const,
     },
 ]

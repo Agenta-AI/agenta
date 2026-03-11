@@ -32,6 +32,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [open, setOpen] = useAtom(isAutomationDrawerOpenAtom)
     const [initialValues, setEditingWebhook] = useAtom(editingAutomationAtom)
     const [isTesting, setIsTesting] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
     const setCreatedWebhookSecret = useSetAtom(createdWebhookSecretAtom)
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
@@ -140,6 +141,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const handleOk = useCallback(async () => {
         try {
             const rawValues = await form.validateFields()
+            setIsSubmitting(true)
 
             // Map the Form.List array back to Record<string, string>
             let headersRecord: Record<string, string> | undefined = undefined
@@ -186,6 +188,8 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             if ((error as {errorFields?: unknown}).errorFields) return
             console.error(error)
             message.error(isEdit ? "Failed to update automation" : "Failed to create automation")
+        } finally {
+            setIsSubmitting(false)
         }
     }, [
         form,
@@ -245,7 +249,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                     Test Connection
                                 </Button>
                             </Tooltip>
-                            <Button type="primary" onClick={handleOk}>
+                            <Button type="primary" onClick={handleOk} loading={isSubmitting}>
                                 {isEdit ? "Update Automation" : "Create Automation"}
                             </Button>
                         </div>

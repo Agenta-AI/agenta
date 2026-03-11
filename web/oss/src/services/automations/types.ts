@@ -19,20 +19,28 @@ export type AutomationProvider = "webhook" | "github"
 
 export type GitHubDispatchType = "repository_dispatch" | "workflow_dispatch"
 
-export interface AutomationFormValues {
-    provider: AutomationProvider
+interface AutomationFormValuesBase<P extends AutomationProvider = AutomationProvider> {
+    provider: P
     name?: string
     event_types?: WebhookEventType[]
+}
+
+export interface WebhookFormValues extends AutomationFormValuesBase<"webhook"> {
     url?: string
     headers?: Record<string, string>
     auth_mode?: "signature" | "authorization"
     auth_value?: string
+}
+
+export interface GitHubFormValues extends AutomationFormValuesBase<"github"> {
     github_sub_type?: GitHubDispatchType
     github_repo?: string
     github_pat?: string
     github_workflow?: string
     github_branch?: string
 }
+
+export type AutomationFormValues = WebhookFormValues | GitHubFormValues
 
 export interface WebhookSubscriptionFlags {
     is_valid?: boolean

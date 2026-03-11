@@ -27,7 +27,6 @@ export const automationsAtom = atomWithQuery((get) => {
         staleTime: 60_000,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        refetchOnMount: false,
         enabled: !!projectId,
     }
 })
