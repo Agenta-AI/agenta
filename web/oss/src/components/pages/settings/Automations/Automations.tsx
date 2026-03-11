@@ -205,7 +205,7 @@ const Automations: React.FC = () => {
                     Automations
                 </Title>
                 <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreate}>
-                    Create Automation
+                    New Automation
                 </Button>
             </div>
 
