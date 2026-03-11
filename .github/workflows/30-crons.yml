@@ -3,6 +3,8 @@ name: 30 ---------- Crons
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   crons:
     name: Crons

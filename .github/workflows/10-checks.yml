@@ -3,6 +3,8 @@ name: 10 ---------- Checks
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   check:
     name: Checks

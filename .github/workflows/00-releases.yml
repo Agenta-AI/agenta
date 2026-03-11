@@ -3,6 +3,8 @@ name: 00 ---------- Releases
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   release:
     name: Releases

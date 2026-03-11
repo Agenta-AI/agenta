@@ -3,6 +3,8 @@ name: 40 ---------- Railway
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   railway:
     name: Railway
