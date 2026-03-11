@@ -134,8 +134,10 @@ Fix: added Railway-specific Redis and SuperTokens env vars to the wrapper. See `
   - `bootstrap.sh` + `deploy-from-images.sh` with `SMOKE_AUTO_REPAIR=false`.
   - All 11 services healthy (alembic STOPPED as expected for one-shot job).
   - Smoke checks passed on first attempt: `/w` 200, `/api/health` 200, `/services/health` 200.
-- Created 3 GitHub Actions workflows for Phase 2 CI integration:
-  - `.github/workflows/06-railway-preview-build.yml`: builds and pushes PR-tagged images to GHCR on PR open/sync. Uses Docker Buildx with GHA cache. Chains to deploy workflow.
-  - `.github/workflows/07-railway-preview-deploy.yml`: reusable workflow that installs Railway CLI, runs `preview-create-or-update.sh`, posts preview URL as PR comment (creates or updates). Shows failure status with link to logs on error.
-  - `.github/workflows/08-railway-preview-cleanup.yml`: destroys preview on PR close (updates PR comment to "Destroyed"), runs daily stale cleanup cron at 06:00 UTC, supports manual dispatch with dry-run mode.
+- Created 5 GitHub Actions workflows for Phase 2 CI integration:
+  - `.github/workflows/14-check-pr-preview.yml`: thin PR automation workflow for preview environments. Chains to Railway build, setup, deploy, and tests.
+  - `.github/workflows/41-railway-setup.yml`: reusable workflow that installs Railway CLI and bootstraps the preview project, environment, domain, and services.
+  - `.github/workflows/42-railway-build.yml`: reusable workflow that builds and pushes preview images.
+  - `.github/workflows/43-railway-deploy.yml`: reusable workflow that deploys explicit image tags, derives the preview URL, and posts PR status comments.
+  - `.github/workflows/45-railway-cleanup.yml`: destroys preview on PR close (updates PR comment to "Destroyed"), runs daily stale cleanup cron at 06:00 UTC, supports manual dispatch with dry-run mode.
 - Added stale cleanup to Phase 2 scope (previously planned for Phase 3) since `preview-cleanup-stale.sh` already exists.

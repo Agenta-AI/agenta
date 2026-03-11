@@ -8,6 +8,10 @@ import type {AuthHelpers, AuthResponse} from "./types"
 
 export const authHelpers = () => {
     return async ({page, uiHelpers, apiHelpers}: BaseFixture, use: UseFn<AuthHelpers>) => {
+        const logAuthEmail = (event: string, email: string) => {
+            console.log(`[authHelpers] ${event}: ${email}`)
+        }
+
         const helpers: AuthHelpers = {
             completeLLMKeysCheck: async () => {
                 await page.goto("/settings")
@@ -73,6 +77,8 @@ export const authHelpers = () => {
                 const testmail = getTestmailClient()
                 let otpRequestedAt = Date.now()
 
+                logAuthEmail("Login flow start", email)
+
                 async function fillOTPDigits(otp: string, delay: number): Promise<void> {
                     // Ant Design 5.x Input.OTP: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
                     // Click the first cell to ensure focus, then type sequentially.
@@ -103,6 +109,7 @@ export const authHelpers = () => {
 
                 const hasSigninButton = await signinButton.isVisible()
                 if (hasSigninButton) {
+                    logAuthEmail("Password sign-in attempt", email)
                     await uiHelpers.typeWithDelay("input[type='password']", password as string)
                     await signinButton.click()
                     await uiHelpers.waitForPath("/apps")
@@ -132,6 +139,7 @@ export const authHelpers = () => {
                         !otpAlreadyRequested &&
                         (await continueWithOtpButton.isVisible().catch(() => false))
                     ) {
+                        logAuthEmail("OTP request attempt", email)
                         otpRequestedAt = Date.now()
                         const createCodeResponsePromise = apiHelpers.waitForApiResponse({
                             route: /\/api\/auth\/signinup\/code(?:\?|$)/,
@@ -143,6 +151,7 @@ export const authHelpers = () => {
                     }
 
                     if (await resendOtpLink.isVisible().catch(() => false)) {
+                        logAuthEmail("OTP resend attempt", email)
                         otpRequestedAt = Date.now()
                         const resendCodeResponsePromise = apiHelpers.waitForApiResponse({
                             route: /\/api\/auth\/signinup\/code\/resend(?:\?|$)/,
@@ -152,6 +161,7 @@ export const authHelpers = () => {
                         await resendCodeResponsePromise
                     }
                     try {
+                        logAuthEmail("Waiting for OTP email", email)
                         const otp = await testmail.waitForOTP(email, {
                             timeout,
                             timestamp_from: otpRequestedAt,
@@ -162,6 +172,7 @@ export const authHelpers = () => {
                         })
 
                         await fillOTPDigits(otp, inputDelay)
+                        logAuthEmail("OTP submit attempt", email)
                         await uiHelpers.clickButton("Continue with OTP")
                         const responseData = await responsePromise
 

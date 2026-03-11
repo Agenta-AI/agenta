@@ -31,14 +31,6 @@ function getApiURL(webURL: string): string {
     }
 }
 
-function getOptionalTestmailClient(): TestmailClient | null {
-    try {
-        return getTestmailClient()
-    } catch {
-        return null
-    }
-}
-
 function createTestEmail(scope: string): string {
     return generateRuntimeTestEmail({
         scope,
@@ -46,23 +38,21 @@ function createTestEmail(scope: string): string {
     })
 }
 
-function getOssOwnerEmail({
-    authMode,
-    testmail,
-}: {
-    authMode: AuthMode
-    testmail: TestmailClient | null
-}): string {
+function logAuthEmail(event: string, email: string): void {
+    console.log(`[global-setup] ${event}: ${email}`)
+}
+
+function getOssOwnerEmail({testmail}: {testmail: TestmailClient | null}): string {
     const configuredEmail = process.env.AGENTA_TEST_OSS_OWNER_EMAIL?.trim().toLowerCase()
     const namespace = process.env.TESTMAIL_NAMESPACE
 
     if (configuredEmail) {
-        if (authMode !== "otp" || isTestmailInboxEmail(configuredEmail, namespace)) {
+        if (!testmail || isTestmailInboxEmail(configuredEmail, namespace)) {
             return configuredEmail
         }
 
         console.warn(
-            "[global-setup] AGENTA_TEST_OSS_OWNER_EMAIL is not a Testmail inbox; generating an OTP-capable OSS owner email instead",
+            "[global-setup] AGENTA_TEST_OSS_OWNER_EMAIL is not a Testmail inbox; falling back to a generated inbox address",
         )
     }
 
@@ -229,6 +219,55 @@ async function waitForSettledAuthenticatedPage(page: Page, timeout: number): Pro
     )
 }
 
+async function logAuthApiResponse(
+    response: Awaited<ReturnType<Page["waitForResponse"]>> | null,
+    label: string,
+): Promise<unknown> {
+    if (!response) {
+        console.log(`[global-setup] ${label}: no response captured`)
+        return null
+    }
+
+    const text = await response.text().catch(() => "")
+    let body: unknown = text
+
+    try {
+        body = text ? JSON.parse(text) : null
+    } catch {
+        // Keep raw text when the response is not JSON.
+    }
+
+    console.log(
+        `[global-setup] ${label}: ${response.request().method()} ${response.url()} -> ${response.status()} ${JSON.stringify(body)}`,
+    )
+
+    return body
+}
+
+async function getVisibleAuthFeedback(page: Page): Promise<string | null> {
+    const candidateTexts = [
+        "Invalid email or password",
+        "You need to be invited by the organization owner to gain access.",
+        "Please complete the security check.",
+        "Please complete the security check again to continue.",
+        "Unable to connect to the authentication service",
+        "Oops, something went wrong. Please try again",
+        "Verification successful",
+    ]
+
+    for (const candidate of candidateTexts) {
+        const locator = page.getByText(candidate, {exact: false}).first()
+        if (await locator.isVisible().catch(() => false)) {
+            const text = (await locator.textContent().catch(() => candidate))?.trim()
+            if (text) {
+                return text
+            }
+        }
+    }
+
+    return null
+}
+
 async function authenticateUser({
     page,
     entryUrl,
@@ -321,15 +360,66 @@ async function authenticateUser({
 
     if (await passwordInput.isVisible().catch(() => false)) {
         console.log("[global-setup] Email + password flow detected")
+        logAuthEmail("Password sign-in attempt", email)
         await typeWithDelay(page, "input[type='password']", password)
+
+        const signInResponsePromise = Promise.race([
+            page
+                .waitForResponse(
+                    (response) =>
+                        /\/api\/auth\/signin(?:\?|$)/.test(response.url()) &&
+                        response.request().method() === "POST",
+                    {timeout: 15000},
+                )
+                .catch(() => null),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000)),
+        ])
+
         try {
             await clickButton(page, "Continue with password")
         } catch {
             await page.keyboard.press("Enter")
         }
 
+        const signInResponse = await signInResponsePromise
+        const signInPayload = await logAuthApiResponse(signInResponse, "password sign-in response")
+
+        if (
+            signInResponse &&
+            signInResponse.url().includes("/api/auth/signin") &&
+            signInResponse.ok() &&
+            signInPayload &&
+            typeof signInPayload === "object" &&
+            "status" in signInPayload &&
+            signInPayload.status === "WRONG_CREDENTIALS_ERROR"
+        ) {
+            logAuthEmail("Password signup fallback attempt", email)
+            const signUpFallbackResponse = await Promise.race([
+                page
+                    .waitForResponse(
+                        (response) =>
+                            /\/api\/auth\/signup(?:\?|$)/.test(response.url()) &&
+                            response.request().method() === "POST",
+                        {timeout: 10000},
+                    )
+                    .catch(() => null),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
+            ])
+
+            await logAuthApiResponse(signUpFallbackResponse, "password signup fallback response")
+        }
+
         await handlePostSignup(page)
-        await waitForSettledAuthenticatedPage(page, timeout)
+        try {
+            await waitForSettledAuthenticatedPage(page, timeout)
+        } catch (error) {
+            const authFeedback = await getVisibleAuthFeedback(page)
+            console.error("[global-setup] Password auth did not settle", {
+                currentUrl: page.url(),
+                authFeedback,
+            })
+            throw error
+        }
         return
     }
 
@@ -343,6 +433,7 @@ async function authenticateUser({
 
     if (!otpAlreadyRequested && canSendOtp) {
         console.log("[global-setup] Sending OTP email")
+        logAuthEmail("OTP request attempt", email)
 
         // Turnstile may block the form submission until its token arrives.
         // Depending on the site key, Turnstile can be:
@@ -475,7 +566,7 @@ async function authenticateUser({
     }
 
     if (authMode === "password") {
-        throw new Error("AGENTA_TEST_AUTH_MODE=password requested but OTP flow was rendered")
+        throw new Error("Password auth was forced but OTP flow was rendered")
     }
 
     if (!testmail) {
@@ -500,7 +591,7 @@ async function authenticateUser({
     }
 
     console.log("[global-setup] OTP flow detected")
-    console.log(`[global-setup] Waiting for OTP email for ${email}`)
+    logAuthEmail("Waiting for OTP email", email)
     const otp = await testmail.waitForOTP(email, {
         timeout,
         timestamp_from: otpRequestedAt,
@@ -513,7 +604,7 @@ async function authenticateUser({
 
     console.log("[global-setup] Filling OTP input")
     await fillOTPDigits(page, otp, inputDelay)
-    console.log("[global-setup] Submitting OTP")
+    logAuthEmail("OTP submit attempt", email)
     await clickButton(page, "Continue with OTP")
     const responseData = await responsePromise
     console.log("[global-setup] OTP submit response received")
@@ -587,23 +678,12 @@ async function globalSetup() {
 
     const timeout = 60000
     const inputDelay = 100
-    const authModeRaw = (process.env.AGENTA_TEST_AUTH_MODE || "auto").toLowerCase()
-    if (!["auto", "password", "otp"].includes(authModeRaw)) {
-        throw new Error(
-            `Invalid AGENTA_TEST_AUTH_MODE='${authModeRaw}'. Supported values: auto, password, otp`,
-        )
-    }
-    const authMode = authModeRaw as AuthMode
-    console.log(`[global-setup] Auth mode: ${authMode}`)
-
-    const testmail = getOptionalTestmailClient()
-    if (authMode === "otp" && !testmail) {
-        throw new Error(
-            "AGENTA_TEST_AUTH_MODE=otp requires TESTMAIL_API_KEY and TESTMAIL_NAMESPACE",
-        )
-    }
-
-    const ownerEmail = getOssOwnerEmail({authMode, testmail})
+    const authMode: AuthMode = "auto"
+    const hasTestmailConfig = Boolean(
+        process.env.TESTMAIL_API_KEY && process.env.TESTMAIL_NAMESPACE,
+    )
+    const testmail = hasTestmailConfig ? getTestmailClient() : null
+    const ownerEmail = getOssOwnerEmail({testmail})
     const userEmail = createTestEmail(`${license}-user`)
     const ownerPassword =
         process.env.AGENTA_TEST_OSS_OWNER_PASSWORD ||

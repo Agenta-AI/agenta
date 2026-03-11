@@ -1,0 +1,96 @@
+name: 11 - check code styling
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'sdk/**'
+      - 'web/**'
+      - '.github/workflows/11-check-code-styling.yml'
+  workflow_dispatch:
+
+jobs:
+  ruff-format:
+    name: Python format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ruff
+        run: pip install ruff==0.14.0
+
+      - name: Run Ruff formatting check
+        run: ruff format --check
+
+  ruff-lint:
+    name: Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ruff
+        run: pip install ruff==0.14.0
+
+      - name: Run Ruff linting check
+        run: ruff check
+
+  prettier-format:
+    name: TypeScript format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd web && pnpm install --frozen-lockfile
+
+      - name: Run Prettier formatting fix
+        run: cd web && pnpm run format-fix
+
+  eslint:
+    name: TypeScript lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd web && pnpm install --frozen-lockfile
+
+      - name: Run ESLint fix
+        run: cd web && pnpm run lint-fix

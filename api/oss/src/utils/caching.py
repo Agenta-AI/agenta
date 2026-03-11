@@ -13,9 +13,9 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_LOCK_TTL = 15  # 5 seconds
-AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
-AGENTA_CACHE_LOCAL_TTL = 60  # 60 seconds for local in-memory cache (Layer 1)
+AGENTA_LOCK_TTL = 15  # 15 seconds
+AGENTA_CACHE_TTL = 5 * 60  # 5 minutes (Layer 2) [L2]
+AGENTA_CACHE_LOCAL_TTL = 15  # 15 seconds for local in-memory cache (Layer 1) [L1]
 
 AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
 AGENTA_CACHE_ATTEMPTS_MAX = 4  # Maximum number of attempts to retry cache retrieval
@@ -30,8 +30,8 @@ AGENTA_LOCK_SOCKET_TIMEOUT = 2.0  # Locks should be more reliable than cache loo
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-# Two-tier caching: Local TTLCache (60s) + Redis (5min)
-# Layer 1: Local in-memory cache with 60s TTL (4096 entries max)
+# Two-tier caching: Local TTLCache (15s) + Redis (5min)
+# Layer 1: Local in-memory cache with 15s TTL (4096 entries max)
 local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 
 # Use volatile Redis instance for caching (prefix-based separation)
