@@ -1,7 +1,7 @@
 import {expect, Locator, Page} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
-import {getProjectMetadataPath} from "../../../../playwright/config/runtime"
+import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 import type {UIHelpers} from "../uiHelpers/types"

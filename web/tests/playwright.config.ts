@@ -10,8 +10,7 @@ import {
     getOutputDir,
     getReportDir,
     getStorageStatePath,
-} from "./playwright/config/runtime"
-
+} from "./playwright/config/runtime.ts"
 
 // Get current directory in ESM
 const __filename = fileURLToPath(import.meta.url)

@@ -1,6 +1,6 @@
 import {chromium, type BrowserContext, TestType} from "@playwright/test"
 
-import {getChromiumLaunchOptions} from "../../../playwright/config/runtime"
+import {getChromiumLaunchOptions} from "../../../playwright/config/runtime.ts"
 import {test as baseTest} from "../base.fixture"
 
 import type {SessionState, SessionFixtures, SessionWorkerFixtures} from "./types"
