@@ -26,9 +26,13 @@ export {
     // Archive / Unarchive
     archiveEvaluator,
     unarchiveEvaluator,
-    // Templates
-    fetchEvaluatorTemplates,
-    type EvaluatorTemplate,
     // Batch
     fetchEvaluatorsBatch,
 } from "./api"
+
+// Templates
+export {
+    fetchEvaluatorTemplates,
+    type EvaluatorTemplate,
+    type EvaluatorTemplatesResponse,
+} from "./templates"

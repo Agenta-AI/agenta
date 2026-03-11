@@ -271,6 +271,81 @@ export {
 } from "./legacyEvaluator"
 
 // ============================================================================
+// QUEUE ENTITIES & CONTROLLER
+// ============================================================================
+
+/**
+ * SimpleQueue entity controller.
+ * Manages simple annotation queues (traces/testcases) via `/preview/simple/queues/`.
+ */
+export {simpleQueueMolecule as simpleQueue} from "./simpleQueue"
+
+/**
+ * EvaluationQueue entity controller.
+ * Manages evaluation run queues via `/evaluations/queues/`.
+ */
+export {evaluationQueueMolecule as evaluationQueue} from "./evaluationQueue"
+
+/**
+ * Queue controller — unified API that bridges SimpleQueue and EvaluationQueue.
+ * Uses probing + type hints (same pattern as runnableBridge).
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(queue.selectors.data(queueId))
+ * const status = useAtomValue(queue.selectors.status(queueId))
+ * queue.registerTypeHint(queueId, "simple")
+ * ```
+ */
+export {queueController as queue} from "./queue"
+
+// Queue types
+export type {SimpleQueue} from "./simpleQueue"
+export type {EvaluationQueue} from "./evaluationQueue"
+export type {QueueType, QueueData, QueueQueryState} from "./queue"
+
+// ============================================================================
+// EVALUATION RUN ENTITY
+// ============================================================================
+
+/**
+ * EvaluationRun entity controller.
+ * Read-only access to evaluation run data with automatic batch fetching.
+ * Queues reference runs via `run_id` — use this entity to access evaluator configuration.
+ *
+ * @example
+ * ```typescript
+ * const data = useAtomValue(evaluationRun.selectors.data(runId))
+ * const evaluatorIds = useAtomValue(evaluationRun.selectors.evaluatorIds(runId))
+ * ```
+ */
+export {evaluationRunMolecule as evaluationRun} from "./evaluationRun"
+
+// EvaluationRun types
+export type {EvaluationRun, EvaluationRunDataStep} from "./evaluationRun"
+
+// ============================================================================
+// ANNOTATION ENTITY
+// ============================================================================
+
+/**
+ * Annotation entity controller.
+ * Manages annotation entities keyed by composite `traceId:spanId`.
+ * Returns `Annotation[]` per key (multiple annotations per trace/span pair).
+ *
+ * @example
+ * ```typescript
+ * const compositeId = encodeAnnotationId(traceId, spanId)
+ * const annotations = useAtomValue(annotation.selectors.data(compositeId))
+ * annotation.cache.invalidateByLink(traceId, spanId)
+ * ```
+ */
+export {annotationMolecule as annotation} from "./annotation"
+
+// Annotation types
+export type {Annotation, AnnotationDraft} from "./annotation"
+
+// ============================================================================
 // SUBPATH IMPORTS (Advanced Usage)
 // ============================================================================
 // For specialized utilities not available through the main export,
@@ -279,3 +354,8 @@ export {
 //   import { testcasePaginatedStore } from '@agenta/entities/testcase'
 //   import { extractTemplateVariables } from '@agenta/entities/runnable'
 //   import { traceSpanMolecule } from '@agenta/entities/trace'
+//   import { queueController } from '@agenta/entities/queue'
+//   import { simpleQueueMolecule } from '@agenta/entities/simpleQueue'
+//   import { evaluationQueueMolecule } from '@agenta/entities/evaluationQueue'
+//   import { annotationMolecule, encodeAnnotationId } from '@agenta/entities/annotation'
+//   import { evaluationRunMolecule } from '@agenta/entities/evaluationRun'

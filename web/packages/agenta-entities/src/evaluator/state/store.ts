@@ -18,6 +18,7 @@ import type {StoreOptions} from "../../shared"
 import {
     fetchEvaluatorsBatch,
     fetchEvaluatorTemplates,
+    fetchEvaluatorRevisionById,
     queryEvaluators,
     queryEvaluatorVariants,
     queryEvaluatorRevisionsByWorkflow,
@@ -365,30 +366,73 @@ export const evaluatorRevisionsListDataAtomFamily = atomFamily((variantId: strin
 )
 
 // ============================================================================
+// SINGLE REVISION QUERY
+// ============================================================================
+
+/**
+ * Query atom family for fetching a single evaluator revision by revision ID.
+ * Used when consumers already store revision IDs and only need revision-level
+ * metadata such as the display name.
+ */
+export const evaluatorRevisionQueryAtomFamily = atomFamily((revisionId: string) =>
+    atomWithQuery((get) => {
+        const projectId = get(evaluatorProjectIdAtom)
+        const queryClient = get(queryClientAtom)
+        const detailCached = projectId
+            ? queryClient.getQueryData<Evaluator>(["evaluatorRevision", revisionId, projectId])
+            : undefined
+
+        return {
+            queryKey: ["evaluatorRevision", revisionId, projectId],
+            queryFn: async (): Promise<Evaluator | null> => {
+                if (!projectId || !revisionId) return null
+                if (detailCached) return detailCached
+
+                const revision = await fetchEvaluatorRevisionById(revisionId, projectId)
+                primeEvaluatorRevisionDetailCache(queryClient, projectId, revision)
+                return revision
+            },
+            initialData: detailCached ?? undefined,
+            enabled: get(sessionAtom) && !!projectId && !!revisionId && !detailCached,
+            staleTime: 30_000,
+        }
+    }),
+)
+
+// ============================================================================
 // SINGLE ENTITY QUERY
 // ============================================================================
 
 /**
  * Query atom family for fetching a single evaluator's latest revision by workflow ID.
  * Returns the WorkflowRevision which contains `data` (uri, schemas, parameters).
+ *
+ * IMPORTANT: `atomWithQuery` in jotai-tanstack-query v0.11.0 does NOT
+ * re-evaluate its getter when Jotai atom dependencies change after the
+ * initial subscription. So we read `projectIdAtom` imperatively in `queryFn`
+ * and throw when it's not available so TanStack Query retries.
  */
 export const evaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =>
     atomWithQuery((get) => {
-        const projectId = get(evaluatorProjectIdAtom)
         const queryClient = get(queryClientAtom)
-        const detailCached = projectId
-            ? queryClient.getQueryData<Evaluator>([
-                  "evaluators",
-                  "revision",
-                  evaluatorId,
-                  projectId,
-              ])
-            : undefined
 
         return {
-            queryKey: ["evaluators", "revision", evaluatorId, projectId],
+            queryKey: ["evaluators", "revision", evaluatorId],
             queryFn: async (): Promise<Evaluator | null> => {
-                if (!projectId || !evaluatorId) return null
+                const projectId = getStore().get(evaluatorProjectIdAtom)
+                if (!evaluatorId) return null
+                if (!projectId) {
+                    throw new Error("projectId not yet available")
+                }
+
+                const detailCached = queryClient.getQueryData<Evaluator>([
+                    "evaluators",
+                    "revision",
+                    evaluatorId,
+                    projectId,
+                ])
+                if (detailCached) return detailCached
+
                 const cached = findLatestEvaluatorRevisionInCache(
                     queryClient,
                     projectId,
@@ -402,8 +446,14 @@ export const evaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =>
                     queryClient,
                 })
             },
-            initialData: detailCached ?? undefined,
-            enabled: get(sessionAtom) && !!projectId && !!evaluatorId && !detailCached,
+            enabled: !!evaluatorId,
+            retry: (failureCount: number, error: Error) => {
+                if (error?.message === "projectId not yet available" && failureCount < 5) {
+                    return true
+                }
+                return false
+            },
+            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
             staleTime: 30_000,
         }
     }),

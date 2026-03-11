@@ -9,13 +9,58 @@
  * import {UserAuthorLabel} from '@agenta/entities/shared'
  *
  * <UserAuthorLabel userId={authorId} />
- * <UserAuthorLabel userId={authorId} showYouLabel />
+ * <UserAuthorLabel userId={authorId} showYouLabel showAvatar />
  * ```
  */
 
-import React from "react"
+import React, {useMemo} from "react"
+
+import {Avatar} from "antd"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
+
+// ============================================================================
+// AVATAR HELPERS (self-contained, no @/oss dependency)
+// ============================================================================
+
+const COLOR_PAIRS = [
+    {bg: "#BAE0FF", fg: "#1677FF"},
+    {bg: "#D9F7BE", fg: "#389E0D"},
+    {bg: "#efdbff", fg: "#722ED1"},
+    {bg: "#fff1b8", fg: "#AD6800"},
+    {bg: "#D1F5F1", fg: "#13C2C2"},
+    {bg: "#ffd6e7", fg: "#EB2F96"},
+    {bg: "#f7cfcf", fg: "#D61010"},
+    {bg: "#eaeff5", fg: "#758391"},
+    {bg: "#D1E4E8", fg: "#5E7579"},
+    {bg: "#F5E6D3", fg: "#825E31"},
+    {bg: "#F9F6C1", fg: "#84803A"},
+    {bg: "#F4E6E4", fg: "#9C706A"},
+]
+
+function hashString(text: string): number {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+        hash += text.charCodeAt(i)
+    }
+    return hash
+}
+
+function getColorPair(name: string) {
+    const idx = ((hashString(name) % COLOR_PAIRS.length) + COLOR_PAIRS.length) % COLOR_PAIRS.length
+    return COLOR_PAIRS[idx]
+}
+
+function getInitials(name: string, limit = 2): string {
+    try {
+        return name
+            .split(" ")
+            .slice(0, limit)
+            .reduce((acc, w) => acc + (w[0] || "").toUpperCase(), "")
+    } catch {
+        return "?"
+    }
+}
 
 // ============================================================================
 // TYPES
@@ -46,6 +91,12 @@ export interface UserAuthorLabelProps {
     showYouLabel?: boolean
 
     /**
+     * Show a colored initials avatar badge before the name
+     * @default false
+     */
+    showAvatar?: boolean
+
+    /**
      * Fallback text when user not found
      * @default null (renders nothing)
      */
@@ -69,11 +120,18 @@ export function UserAuthorLabel({
     prefix = "by",
     showPrefix = true,
     showYouLabel = true,
+    showAvatar = false,
     fallback = null,
     className,
 }: UserAuthorLabelProps) {
     const displayName = useUserDisplayName(userId)
     const isCurrentUser = useIsCurrentUser(userId)
+
+    const avatarStyle = useMemo(() => {
+        if (!showAvatar || !displayName) return undefined
+        const pair = getColorPair(displayName)
+        return {backgroundColor: pair.bg, color: pair.fg}
+    }, [showAvatar, displayName])
 
     // No user ID or user not found
     if (!userId || !displayName) {
@@ -86,7 +144,16 @@ export function UserAuthorLabel({
     const label = showYouLabel && isCurrentUser ? `${displayName} (you)` : displayName
 
     return (
-        <span className={className}>
+        <span className={className} style={{display: "inline-flex", alignItems: "center", gap: 6}}>
+            {showAvatar && (
+                <Avatar
+                    shape="square"
+                    size={16}
+                    style={{...avatarStyle, fontSize: 9, lineHeight: "16px"}}
+                >
+                    {getInitials(displayName)}
+                </Avatar>
+            )}
             {showPrefix && prefix && `${prefix} `}
             {label}
         </span>

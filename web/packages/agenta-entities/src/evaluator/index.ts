@@ -116,6 +116,7 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
+    evaluatorRevisionQueryAtomFamily,
     // Single entity
     evaluatorQueryAtomFamily,
     evaluatorDraftAtomFamily,
@@ -127,9 +128,6 @@ export {
     // Cache invalidation
     invalidateEvaluatorsListCache,
     invalidateEvaluatorCache,
-    // Enrichment maps
-    evaluatorKeyMapAtom,
-    evaluatorTemplatesMapAtom,
 } from "./state"
 
 // ============================================================================
@@ -152,6 +150,23 @@ export {
     evaluatorsListAtom,
     registerEvaluatorRelations,
 } from "./relations"
+
+// ============================================================================
+// TEMPLATES & KEY MAP
+// ============================================================================
+
+export {
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    evaluatorKeyMapAtom,
+} from "./state"
+
+// ============================================================================
+// API (Templates)
+// ============================================================================
+
+export {type EvaluatorTemplatesResponse} from "./api"
 
 // ============================================================================
 // RUNNABLE EXTENSION
