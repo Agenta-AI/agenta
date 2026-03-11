@@ -521,22 +521,62 @@ export const triggerExecutionAtom = atom(
                                     },
                                 },
                             })
-                            return
                         }
 
-                        set(failRunAtom, {
-                            loadableId,
-                            stepId: rowId,
-                            sessionId: failSessionId,
-                            error: err,
-                            ...(traceId !== null ? {traceId} : {}),
-                        })
+                        if (!isTargetingDownstream) {
+                            set(failRunAtom, {
+                                loadableId,
+                                stepId: rowId,
+                                sessionId: failSessionId,
+                                error: err,
+                                ...(traceId !== null ? {traceId} : {}),
+                            })
+
+                            // When root execution fails, also fail all downstream
+                            // evaluator sessions that were marked as running.
+                            // Without this, evaluators stay in "running" state forever.
+                            for (const n of nodes) {
+                                if (n.depth === 0) continue
+                                if (connections.some((c) => c.targetNodeId === n.id)) {
+                                    set(failRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: `sess:${rootEntityId}:${n.entityId}`,
+                                        error: {
+                                            message: "Generation failed",
+                                        },
+                                    })
+                                }
+                            }
+                        } else {
+                            set(failRunAtom, {
+                                loadableId,
+                                stepId: rowId,
+                                sessionId: failSessionId,
+                                error: err,
+                                ...(traceId !== null ? {traceId} : {}),
+                            })
+                        }
                     },
                     onCancel: () => {
                         const cancelSessionId = isTargetingDownstream
                             ? `sess:${rootEntityId}:${targetNode.entityId}`
                             : sessionId
                         set(cancelRunAtom, {loadableId, stepId: rowId, sessionId: cancelSessionId})
+
+                        // Also cancel downstream evaluator sessions
+                        if (!isTargetingDownstream) {
+                            for (const n of nodes) {
+                                if (n.depth === 0) continue
+                                if (connections.some((c) => c.targetNodeId === n.id)) {
+                                    set(cancelRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: `sess:${rootEntityId}:${n.entityId}`,
+                                    })
+                                }
+                            }
+                        }
                     },
                 },
             }),
