@@ -1,10 +1,14 @@
 ---
 title: Configuration of Environment Variables
 sidebar_label: Configuring Environment
-description: Learn how to configure the environment variables to self-host Agenta through Docker Compose
+description: Learn how to configure the environment variables to self-host Agenta through Docker Compose or Helm
 ---
 
 This guide lists the env vars in the same order as the `.example` files in `hosting/docker-compose`. These variables control various aspects of the platform, from core functionality to third-party integrations.
+
+:::tip Kubernetes / Helm
+If you deployed Agenta using the Helm chart, configuration is done through `values.yaml` rather than environment variables. See the [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes#configuration-reference) guide for the full Helm values reference. The environment variables listed below still apply — the Helm chart maps its values to the same variables internally.
+:::
 
 ## Configuration file location
 

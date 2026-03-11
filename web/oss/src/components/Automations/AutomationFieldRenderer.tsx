@@ -17,7 +17,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
 
     // Determine visibility using useWatch safely inside this separate component
     // Always call the hook to satisfy React rules
-    const watchField = field.visibleWhen?.field || "dummy_field_not_used"
+    const watchField = field.visibleWhen?.field || ""
     const dependsOnValue = Form.useWatch(watchField, form)
     const isChangingSecret = Form.useWatch(`_changing_${field.key}`, form)
 
