@@ -142,7 +142,8 @@ jobs:
           # Redirect stderr and take only the last stdout line so that
           # third-party import noise (e.g. litellm >=1.82 prints a
           # "Provider List" banner) doesn't pollute the captured path.
-          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)" 2>/tmp/sdk_stderr | tail -1)" || { cat /tmp/sdk_stderr >&2; exit 1; }
+          docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)" >/tmp/sdk_stdout 2>/tmp/sdk_stderr || { cat /tmp/sdk_stderr >&2; exit 1; }
+          sdk_path="$(tail -1 /tmp/sdk_stdout)"
           echo "Resolved SDK path: $sdk_path"
           case "$sdk_path" in
             /app/sdk/*) ;;
