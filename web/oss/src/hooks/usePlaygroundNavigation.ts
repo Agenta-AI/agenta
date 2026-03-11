@@ -86,9 +86,7 @@ export const usePlaygroundNavigation = () => {
                 setRecentAppId(resolvedAppId)
             }
             const querySuffix =
-                selectedKeys.length > 0
-                    ? `?revisions=${selectedKeys.join(",")}`
-                    : ""
+                selectedKeys.length > 0 ? `?revisions=${selectedKeys.join(",")}` : ""
 
             push(`${baseAppURL}/${resolvedAppId}/playground${querySuffix}`)
         },

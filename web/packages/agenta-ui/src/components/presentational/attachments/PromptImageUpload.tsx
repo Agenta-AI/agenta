@@ -19,7 +19,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {generateId} from "@agenta/shared/utils"
-import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
 import {Image as ImageIcon} from "@phosphor-icons/react"
 import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
@@ -27,6 +26,7 @@ import type {UploadFile} from "antd"
 import clsx from "clsx"
 
 import ImagePreview from "./ImagePreview"
+import {resolveSafeImagePreviewSrc} from "./utils"
 
 // ============================================================================
 // TYPES
@@ -90,7 +90,7 @@ const PromptImageUpload = ({
 
     const displayValue = useMemo(() => {
         if (!resolvedRawValue) return ""
-        return isBase64(resolvedRawValue) ? dataUriToObjectUrl(resolvedRawValue) : resolvedRawValue
+        return resolveSafeImagePreviewSrc(resolvedRawValue) ?? resolvedRawValue
     }, [resolvedRawValue])
 
     const triggerUpload = (e: React.MouseEvent) => {
