@@ -1,3 +1,4 @@
+{{- if or .Values.api.enabled .Values.web.enabled .Values.supertokens.enabled }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -39,3 +40,4 @@ spec:
           wget -q --spider http://{{ include "agenta.fullname" . }}-supertokens:{{ .Values.supertokens.port }}/hello
           echo "SuperTokens is healthy."
     {{- end }}
+{{- end }}
