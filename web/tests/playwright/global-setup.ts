@@ -14,7 +14,7 @@ import {
     getChromiumLaunchOptions,
     getProjectMetadataPath,
     getStorageStatePath,
-} from "./config/runtime"
+} from "./config/runtime.ts"
 
 type AuthMode = "auto" | "password" | "otp"
 type TestmailClient = ReturnType<typeof getTestmailClient>

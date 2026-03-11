@@ -8,7 +8,7 @@ import {StandardSecretDTO} from "../../oss/src/lib/Types"
 
 import {existsSync, readFileSync, unlinkSync} from "fs"
 
-import {getProjectMetadataPath, getStorageStatePath} from "./config/runtime"
+import {getProjectMetadataPath, getStorageStatePath} from "./config/runtime.ts"
 
 /**
  * Extracts the session token from the storage state for authenticated API calls.
