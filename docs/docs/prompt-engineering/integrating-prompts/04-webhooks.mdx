@@ -27,14 +27,12 @@ If you want your application to fetch the latest prompt on demand, use [Fetch Pr
 
 ## Set up a webhook in the UI
 
-Add screenshots in this section:
-
-- placeholder: project settings and automations entry point
-- placeholder: create automation dialog for the webhook form
-
 1. Open your project in Agenta.
 2. Go to `Settings`.
 3. Open the `Automations` section.
+
+![Project settings and automations entry point](/images/prompt_management/webhooks/automation-1.png)
+
 4. Click `Create automation`.
 5. Choose `Webhook`.
 6. Enter your HTTPS endpoint.
@@ -44,6 +42,8 @@ Add screenshots in this section:
 8. Select the events you want to subscribe to.
 9. Save the automation.
 10. Copy the secret when Agenta shows it. You will need it to verify future deliveries.
+
+![Create automation dialog for the webhook form](/images/prompt_management/webhooks/automation-2.png)
 
 After you create the automation, Agenta sends an HTTP `POST` to your endpoint every time the selected event happens. For example, if you subscribe to deployment events, Agenta sends a delivery each time you deploy a new prompt revision.
 
@@ -212,13 +212,7 @@ export default async function handler(req: Request): Promise<Response> {
   </TabItem>
 </Tabs>
 
-Here is a working example hosted on Val Town:
-
-<iframe
-  src="https://www.val.town/x/mmabrouk/webhook-env-agenta"
-  title="Val Town webhook example"
-  style={{width: "100%", height: "640px", border: "1px solid #e5e7eb", borderRadius: "12px"}}
-/>
+Here is a [working example hosted on Val Town](https://www.val.town/x/mmabrouk/webhook-env-agenta).
 
 ### Authorization header mode
 
