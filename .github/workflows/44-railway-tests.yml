@@ -75,6 +75,14 @@ on:
     secrets:
       AGENTA_TEST_OSS_AUTH_KEY:
         required: true
+      AGENTA_TEST_OSS_OWNER_EMAIL:
+        required: false
+      AGENTA_TEST_OSS_OWNER_PASSWORD:
+        required: false
+      TESTMAIL_API_KEY:
+        required: false
+      TESTMAIL_NAMESPACE:
+        required: false
   workflow_dispatch:
     inputs:
       agenta_web_url:
