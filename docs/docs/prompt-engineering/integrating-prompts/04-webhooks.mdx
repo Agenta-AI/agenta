@@ -1,0 +1,250 @@
+---
+title: "Webhooks"
+description: "Use Agenta webhooks to react to prompt and deployment changes outside your app."
+sidebar_position: 5
+sidebar_label: "Webhooks"
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+Webhooks let Agenta notify another system when something changes. You can use them to update internal tools, sync deployed prompts into another service, or trigger downstream automation after a deployment.
+
+## When to use webhooks
+
+Use a webhook when you want Agenta to push an event to your system.
+
+Common use cases:
+
+- update a service after a prompt deploy
+- trigger a CI/CD job
+- notify an internal platform tool
+- sync prompt metadata into another store
+
+:::info
+If you want your application to fetch the latest prompt on demand, use [Fetch Prompts via SDK/API](/prompt-engineering/integrating-prompts/fetch-prompt-programatically).
+:::
+
+## Set up a webhook in the UI
+
+Add screenshots in this section:
+
+- placeholder: project settings and automations entry point
+- placeholder: create automation dialog for the webhook form
+
+1. Open your project in Agenta.
+2. Go to `Settings`.
+3. Open the `Automations` section.
+4. Click `Create automation`.
+5. Choose `Webhook`.
+6. Enter your HTTPS endpoint.
+7. Choose an authentication mode:
+   - `Signature` if your receiver should verify an HMAC signature
+   - `Authorization header` if you want Agenta to send a bearer token
+8. Select the events you want to subscribe to.
+9. Save the automation.
+10. Copy the secret when Agenta shows it. You will need it to verify future deliveries.
+
+After you create the automation, Agenta sends an HTTP `POST` to your endpoint every time the selected event happens. For example, if you subscribe to deployment events, Agenta sends a delivery each time you deploy a new prompt revision.
+
+## What Agenta sends
+
+For `environments.revisions.committed`, the current webhook body is the event attributes object.
+
+```json
+{
+  "references": {
+    "environment": {
+      "id": "019c2b74-d84f-7cf2-aff0-e45e116e26cb"
+    },
+    "environment_revision": {
+      "id": "019cd9b8-e21c-7c73-82a2-099cb1352f19",
+      "slug": "5baf5e00de25",
+      "version": "13"
+    },
+    "environment_variant": {
+      "id": "019c2b74-d85c-7803-8a55-f12f2fc8f461"
+    }
+  },
+  "user_id": "019315dc-a332-7ba5-a426-d079c43ab776"
+}
+```
+
+Agenta also sends system headers like these:
+
+```http
+Content-Type: application/json
+User-Agent: Agenta-Webhook/1.0
+X-Agenta-Event-Type: environments.revisions.committed
+X-Agenta-Delivery-Id: <delivery_id>
+X-Agenta-Event-Id: <event_id>
+Idempotency-Key: <delivery_id>
+```
+
+## Authentication modes
+
+### Using signature mode
+
+Use signature mode when the receiver should verify that the request really came from Agenta and that the payload was not changed in transit.
+
+Agenta signs each delivery and sends:
+
+```http
+X-Agenta-Signature: t=<unix_ts>,v1=<hex_hmac>
+```
+
+Agenta computes the signature as:
+
+```text
+HMAC_SHA256(secret, "{timestamp}.{raw_body}")
+```
+
+The important detail is `raw_body`. Agenta signs the exact JSON string it sends over HTTP.
+
+To verify the signature:
+
+1. Read the raw request body before modifying it.
+2. Parse `t=` and `v1=` from `X-Agenta-Signature`.
+3. Compute `HMAC_SHA256(secret, "{timestamp}.{raw_body}")`.
+4. Compare your result with `v1=` using constant time comparison.
+5. Reject old timestamps to reduce replay risk.
+
+<Tabs>
+  <TabItem value="python" label="Python">
+
+```python
+import hashlib
+import hmac
+import os
+
+from fastapi import FastAPI, HTTPException, Request
+
+app = FastAPI()
+WEBHOOK_SECRET = os.environ["AGENTA_WEBHOOK_SECRET"]
+
+
+@app.post("/webhook")
+async def webhook(request: Request):
+    signature_header = request.headers.get("x-agenta-signature")
+    if not signature_header:
+        raise HTTPException(status_code=401, detail="Missing signature")
+
+    parts = dict(piece.split("=", 1) for piece in signature_header.split(","))
+    timestamp = parts.get("t")
+    received = parts.get("v1")
+    if not timestamp or not received:
+        raise HTTPException(status_code=401, detail="Malformed signature")
+
+    raw_body = (await request.body()).decode("utf-8")
+    expected = hmac.new(
+        WEBHOOK_SECRET.encode("utf-8"),
+        f"{timestamp}.{raw_body}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(received, expected):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    payload = await request.json()
+    return {"received": True, "payload": payload}
+```
+
+  </TabItem>
+  <TabItem value="typescript" label="TypeScript">
+
+```ts
+export default async function handler(req: Request): Promise<Response> {
+  const signatureHeader = req.headers.get("x-agenta-signature")
+  if (!signatureHeader) {
+    return new Response("Missing signature", {status: 401})
+  }
+
+  const parts = Object.fromEntries(
+    signatureHeader.split(",").map((piece) => {
+      const [key, ...rest] = piece.split("=")
+      return [key, rest.join("=")]
+    }),
+  )
+
+  const timestamp = parts.t
+  const received = parts.v1
+  if (!timestamp || !received) {
+    return new Response("Malformed signature", {status: 401})
+  }
+
+  const rawBody = await req.text()
+  const secret = process.env.AGENTA_WEBHOOK_SECRET
+  if (!secret) {
+    return new Response("Server misconfigured", {status: 500})
+  }
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    {name: "HMAC", hash: "SHA-256"},
+    false,
+    ["sign"],
+  )
+
+  const signatureBytes = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(`${timestamp}.${rawBody}`),
+    ),
+  )
+
+  const expected = Array.from(signatureBytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+
+  if (expected !== received) {
+    return new Response("Invalid signature", {status: 401})
+  }
+
+  return new Response(JSON.stringify({received: true}), {
+    status: 200,
+    headers: {"Content-Type": "application/json"},
+  })
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Here is a working example hosted on Val Town:
+
+<iframe
+  src="https://www.val.town/x/mmabrouk/webhook-env-agenta"
+  title="Val Town webhook example"
+  style={{width: "100%", height: "640px", border: "1px solid #e5e7eb", borderRadius: "12px"}}
+/>
+
+### Authorization header mode
+
+In authorization mode, Agenta sends your stored secret as the `Authorization` header.
+
+```http
+Authorization: Bearer <token>
+```
+
+Use this mode when your target system already expects a bearer token and does not need HMAC verification.
+
+## Troubleshooting
+
+### Signature mismatch
+
+Check these first:
+
+- use the exact secret shown when you created the automation
+- verify the exact raw body, not a re-serialized JSON object
+- make sure you parse the signature header as `t=...,v1=...`
+- confirm you use HMAC-SHA256
+
+### HTTPS is required
+
+Agenta expects webhook URLs to use HTTPS. If you test locally, use a tunnel such as Cloudflare Tunnel or ngrok.
+
+### Retries
+
+If your endpoint returns a non `2xx` response or times out, Agenta retries the delivery.

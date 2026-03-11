@@ -10,6 +10,18 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### [Webhooks and GitHub Automations for Prompt Deployments](/changelog/deployment-webhooks-and-github-automations)
+
+_11 March 2026_
+
+**v0.94.0**
+
+You can now trigger automations when a prompt deployment happens in Agenta. Send the event to any HTTPS endpoint, or call GitHub directly with `repository_dispatch` or `workflow_dispatch`.
+
+This makes it easier to connect prompt deployments to CI, repository sync jobs, and pull request workflows. If your GitHub workflow needs the latest prompt content, fetch it from Agenta during the run and commit the result back to your repo.
+
+---
+
 ### [Tool Integrations in the Playground](/changelog/tool-integrations)
 
 _27 February 2026_
