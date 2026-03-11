@@ -1,3 +1,4 @@
+import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {z} from "zod"
 
 /**
@@ -68,6 +69,21 @@ export type Testcase = z.infer<typeof testcaseSchema>
 export const flattenedTestcaseSchema = testcaseSchema.omit({data: true}).passthrough() // Allow additional properties from data field
 
 export type FlattenedTestcase = z.infer<typeof flattenedTestcaseSchema> & Record<string, any>
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value)
+
+const hasWrappedDataShape = (row: Record<string, unknown>): boolean => {
+    if (!isRecord(row.data)) return false
+
+    const keys = Object.keys(row)
+    if (keys.length === 1 && keys[0] === "data") return true
+
+    const nonWrapperKeys = keys.filter((key) => key !== "data" && !SYSTEM_FIELDS.has(key))
+    if (nonWrapperKeys.length === 0) return true
+
+    return false
+}
 
 /**
  * Schema for testcase creation
@@ -154,6 +170,51 @@ export function flattenTestcase(testcase: Testcase): FlattenedTestcase {
         // Then spread rest to preserve system fields (id, testset_id, etc.)
         ...rest,
     }
+}
+
+/**
+ * Normalize unknown testcase-like input to flattened testcase shape.
+ *
+ * Handles mixed shapes that appear in UI state/cache:
+ * - Flat row: `{id, input, expected}`
+ * - Wrapped row: `{id, data: {input, expected}}`
+ * - Wrapped in testcase key: `{testcase: {...}}`
+ */
+export function normalizeToFlattenedTestcase(input: unknown): FlattenedTestcase | null {
+    if (!isRecord(input)) return null
+
+    const base = isRecord(input.testcase) ? input.testcase : input
+    if (!isRecord(base)) return null
+
+    if (hasWrappedDataShape(base)) {
+        const data = isRecord(base.data) ? base.data : {}
+        const {data: _data, ...rest} = base
+
+        return {
+            ...data,
+            ...rest,
+        } as FlattenedTestcase
+    }
+
+    return base as FlattenedTestcase
+}
+
+/**
+ * Extract user-editable testcase fields from mixed testcase row shapes.
+ * Removes all system/internal fields from the normalized row.
+ */
+export function extractTestcaseUserData(input: unknown): Record<string, unknown> | null {
+    const normalized = normalizeToFlattenedTestcase(input)
+    if (!normalized) return null
+
+    const data: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(normalized)) {
+        if (!SYSTEM_FIELDS.has(key) && key !== "data") {
+            data[key] = value
+        }
+    }
+
+    return data
 }
 
 /**
