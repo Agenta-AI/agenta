@@ -48,14 +48,39 @@ _CACHE_ENABLED = (
 
 _cache = TTLLRUCache()
 
+_INVALID_SECRETS_STATUS_TYPE = "#v0:schemas:invalid-secrets"
 
-def invalidate_secrets_cache(credentials: Optional[str]) -> None:
-    if not _CACHE_ENABLED:
-        return
 
+def _secrets_cache_key(credentials: Optional[str]) -> str:
     headers = {"Authorization": credentials} if credentials else None
-    _hash = dumps({"headers": headers}, sort_keys=True)
-    _cache.delete(_hash)
+    return dumps({"headers": headers}, sort_keys=True)
+
+
+def get_secrets_cache(credentials: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not _CACHE_ENABLED:
+        return None
+
+    return _cache.get(_secrets_cache_key(credentials))
+
+
+def set_secrets_cache(
+    credentials: Optional[str],
+    secrets: list,
+    vault_secrets: list,
+    local_secrets: list,
+) -> None:
+    _cache.put(
+        _secrets_cache_key(credentials),
+        {
+            "secrets": secrets,
+            "vault_secrets": vault_secrets,
+            "local_secrets": local_secrets,
+        },
+    )
+
+
+def invalidate_secrets_cache(credentials: Optional[str]) -> Optional[Dict[str, Any]]:
+    return _cache.pop(_secrets_cache_key(credentials))
 
 
 class DenyException(Exception):
@@ -239,25 +264,17 @@ async def get_secrets(
     if credentials:
         headers = {"Authorization": credentials}
 
-    _hash = dumps(
-        {
-            "headers": headers,
-        },
-        sort_keys=True,
-    )
+    secrets_cache = get_secrets_cache(credentials)
 
-    if _CACHE_ENABLED:
-        secrets_cache = _cache.get(_hash)
+    if secrets_cache:
+        secrets = secrets_cache.get("secrets")
+        vault_secrets = secrets_cache.get("vault_secrets")
+        local_secrets = secrets_cache.get("local_secrets")
 
-        if secrets_cache:
-            secrets = secrets_cache.get("secrets")
-            vault_secrets = secrets_cache.get("vault_secrets")
-            local_secrets = secrets_cache.get("local_secrets")
+        if vault_secrets is None or local_secrets is None:
+            return secrets, [], []
 
-            if vault_secrets is None or local_secrets is None:
-                return secrets, [], []
-
-            return secrets, vault_secrets, local_secrets
+        return secrets, vault_secrets, local_secrets
 
     local_secrets: List[Dict[str, Any]] = []
 
@@ -338,16 +355,31 @@ async def get_secrets(
     combined_vault = list(vault_standard.values()) + vault_custom
     secrets = list(combined_standard.values()) + vault_custom
 
-    _cache.put(
-        _hash,
-        {
-            "secrets": secrets,
-            "vault_secrets": combined_vault,
-            "local_secrets": local_secrets,
-        },
+    set_secrets_cache(
+        credentials,
+        secrets=secrets,
+        vault_secrets=combined_vault,
+        local_secrets=local_secrets,
     )
 
     return secrets, combined_vault, local_secrets
+
+
+def _has_invalid_secrets_error(response: Any) -> bool:
+    status = getattr(response, "status", None)
+    status_type = getattr(status, "type", None)
+
+    if isinstance(status_type, str) and _INVALID_SECRETS_STATUS_TYPE in status_type:
+        return True
+
+    status_message = getattr(status, "message", None)
+    if (
+        isinstance(status_message, str)
+        and "No API key found for model" in status_message
+    ):
+        return True
+
+    return False
 
 
 class VaultMiddleware:
@@ -360,6 +392,8 @@ class VaultMiddleware:
         host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
         scope_type = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_type
         scope_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_id
+
+        credentials = None
 
         with suppress():
             ctx = RunningContext.get()
@@ -379,13 +413,8 @@ class VaultMiddleware:
 
         response = await call_next(request)
 
-        status = getattr(response, "status", None)
-        status_type = getattr(status, "type", None)
-
-        if isinstance(status_type, str) and status_type.endswith(
-            "#v0:schemas:invalid-secrets"
-        ):
-            invalidate_secrets_cache(RunningContext.get().credentials)
+        if credentials and _has_invalid_secrets_error(response):
+            invalidate_secrets_cache(credentials)
 
         return response
 

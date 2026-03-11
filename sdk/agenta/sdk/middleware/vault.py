@@ -36,6 +36,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         call_next: Callable,
     ):
         request.state.vault = {}
+        credentials = None
 
         try:
             credentials = request.state.auth.get("credentials")
@@ -69,21 +70,16 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
 
-        detail = None
-        if hasattr(response, "body") and response.body:
-            try:
-                import json
+        try:
+            detail = None
+            if response.status_code == 400:
+                detail = getattr(response, "body", b"")
+                if detail:
+                    detail = detail.decode("utf-8", errors="ignore")
 
-                payload = json.loads(response.body)
-                detail = payload.get("detail")
-            except Exception:  # pylint: disable=bare-except
-                detail = None
-
-        if (
-            getattr(response, "status_code", None) == 400
-            and isinstance(detail, str)
-            and "No API key found for model" in detail
-        ):
-            invalidate_secrets_cache(request.state.auth.get("credentials"))
+            if detail and "No API key found for model" in detail:
+                invalidate_secrets_cache(credentials)
+        except Exception:  # pylint: disable=bare-except
+            display_exception("Vault: Cache Invalidation Exception")
 
         return response
