@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://schema.buildwithfern.dev/generators-yml.json
 api:
   specs:
-    - openapi: >-
-        ../../../../../../private/var/folders/mk/l4mjxnns1p32bh09hm8swt4m0000gn/T/tmp-92726-7x19ErM1JchD/openapi.json
+    - openapi: openapi/openapi.json
+      origin: https://cloud.agenta.ai/api/openapi.json
 default-group: all
 groups:
   ts-sdk:

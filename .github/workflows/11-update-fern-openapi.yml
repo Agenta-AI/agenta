@@ -1,0 +1,53 @@
+name: 11 - update fern openapi
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  update-fern-openapi:
+    name: Update Fern OpenAPI spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Fern CLI
+        run: npm install -g fern-api
+
+      - name: Refresh Fern OpenAPI spec
+        run: |
+          mkdir -p fern/openapi
+          fern api update
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore(fern): update fern openapi spec"
+          author: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          branch: automated/update-fern-openapi
+          delete-branch: true
+          title: "[fern] Update OpenAPI spec"
+          body: |
+            Automated update of the Fern OpenAPI source file from the configured
+            origin in `fern/generators.yml`.
+
+            **Changes include:**
+            - `fern/openapi/openapi.json` — updated Fern source OpenAPI spec
+
+            > If this PR is empty (no file changes), it will not be created.
+          labels: |
+            documentation
+            automated
