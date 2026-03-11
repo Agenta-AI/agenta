@@ -225,11 +225,10 @@ jobs:
     if: needs.prepare.outputs.needs_deployment == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for deployed services
+      - name: Wait for deployed web and API
         env:
+          AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
           API_HEALTH_URL: ${{ needs.prepare.outputs.agenta_api_url }}/health
-          SERVICES_CHAT_HEALTH_URL: ${{ needs.prepare.outputs.agenta_services_url }}/chat/health
-          SERVICES_COMPLETION_HEALTH_URL: ${{ needs.prepare.outputs.agenta_services_url }}/completion/health
         run: |
           wait_for() {
             local label="$1"
@@ -237,7 +236,7 @@ jobs:
 
             echo "Waiting for ${label}: ${url}"
             for attempt in $(seq 1 30); do
-              if curl -sf -o /dev/null "$url" 2>/dev/null; then
+              if curl -sfL -o /dev/null "$url" 2>/dev/null; then
                 echo "${label} is ready."
                 return 0
               fi
@@ -250,10 +249,10 @@ jobs:
           }
 
           wait_for "API" "$API_HEALTH_URL"
-          wait_for "Services chat" "$SERVICES_CHAT_HEALTH_URL"
-          wait_for "Services completion" "$SERVICES_COMPLETION_HEALTH_URL"
+          wait_for "Web" "$AGENTA_WEB_URL"
 
   run-api-tests:
+    name: run-api-tests (${{ matrix.layer }})
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
@@ -351,6 +350,7 @@ jobs:
           retention-days: 14
 
   run-sdk-tests:
+    name: run-sdk-tests (${{ matrix.layer }})
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
@@ -444,6 +444,7 @@ jobs:
           retention-days: 14
 
   run-services-tests:
+    name: run-services-tests (${{ matrix.layer }})
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
@@ -514,6 +515,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   run-web-tests:
+    name: run-web-tests (${{ matrix.layer }})
     needs: [prepare, wait-for-readiness]
     if: >-
       ${{
