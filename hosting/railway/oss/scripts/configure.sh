@@ -15,6 +15,20 @@ AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 
+resolve_postgres_password() {
+    if [ -n "$POSTGRES_PASSWORD" ]; then
+        return 0
+    fi
+
+    local existing_password
+    existing_password="$(railway_call variable list -k --service "$POSTGRES_REF_NS" --environment "$ENV_NAME" | grep '^POSTGRES_PASSWORD=' | cut -d= -f2- || true)"
+    if [ -n "$existing_password" ]; then
+        POSTGRES_PASSWORD="$existing_password"
+    else
+        POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+    fi
+}
+
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
         printf "Missing required command: %s\n" "$1" >&2
@@ -226,6 +240,8 @@ main() {
             RAILWAY_RUN_UID=0 \
             RAILWAY_RUN_GID=0
     fi
+
+    resolve_postgres_password
 
     set_vars "$POSTGRES_REF_NS" \
         PGDATA=/var/lib/postgresql/data/pgdata \

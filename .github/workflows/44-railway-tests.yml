@@ -160,14 +160,11 @@ jobs:
       agenta_web_url: ${{ steps.urls.outputs.agenta_web_url }}
       agenta_api_url: ${{ steps.urls.outputs.agenta_api_url }}
       agenta_services_url: ${{ steps.urls.outputs.agenta_services_url }}
-      auth_key: ${{ steps.urls.outputs.auth_key }}
       layers_json: ${{ steps.layers.outputs.layers_json }}
       needs_deployment: ${{ steps.layers.outputs.needs_deployment }}
     steps:
       - name: Derive deployment URLs
         id: urls
-        env:
-          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
         run: |
           AGENTA_WEB_URL_INPUT="${{ inputs.agenta_web_url }}"
           AGENTA_API_URL_INPUT="${{ inputs.agenta_api_url }}"
@@ -180,13 +177,11 @@ jobs:
 
           AGENTA_API_URL="${AGENTA_API_URL_INPUT:-${BASE_URL}/api}"
           AGENTA_SERVICES_URL="${AGENTA_SERVICES_URL_INPUT:-${BASE_URL}/services}"
-          AUTH_KEY="${AGENTA_AUTH_KEY}"
 
           echo "agenta_web_url=${AGENTA_WEB_URL_INPUT}" >> "$GITHUB_OUTPUT"
           echo "base_url=${BASE_URL}" >> "$GITHUB_OUTPUT"
           echo "agenta_api_url=${AGENTA_API_URL}" >> "$GITHUB_OUTPUT"
           echo "agenta_services_url=${AGENTA_SERVICES_URL}" >> "$GITHUB_OUTPUT"
-          echo "auth_key=${AUTH_KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve test layers
         id: layers
@@ -277,7 +272,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
-      AGENTA_AUTH_KEY: ${{ needs.prepare.outputs.auth_key }}
+      AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -349,7 +344,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: railway-api-test-results
+          name: railway-api-test-results-${{ matrix.layer }}
           path: |
             api/tests/results/
             api/pytest*.log
@@ -374,7 +369,7 @@ jobs:
     env:
       AGENTA_LICENSE: oss
       AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
-      AGENTA_AUTH_KEY: ${{ needs.prepare.outputs.auth_key }}
+      AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -442,7 +437,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: railway-sdk-test-results
+          name: railway-sdk-test-results-${{ matrix.layer }}
           path: |
             sdk/oss/tests/results/
             sdk/pytest*.log

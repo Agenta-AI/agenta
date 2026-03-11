@@ -24,6 +24,7 @@ on:
         type: string
 
 permissions:
+  checks: write
   contents: read
   packages: write
   pull-requests: write
