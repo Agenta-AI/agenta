@@ -42,10 +42,6 @@ export interface CreateLocalLegacyAppRevisionParams {
     sourceRevision?: number | null
     /** Parameters/configuration for the revision */
     parameters?: Record<string, unknown>
-    /** Enhanced prompts data */
-    enhancedPrompts?: unknown[]
-    /** Enhanced custom properties */
-    enhancedCustomProperties?: Record<string, unknown>
     /** URI for fetching schema (important for custom apps) */
     uri?: string
 }
@@ -87,7 +83,6 @@ export interface LocalLegacyAppRevision {
  *   variantName: `${existingData.variantName} (Copy)`,
  *   sourceRevision: existingData.revision,
  *   parameters: existingData.parameters,
- *   enhancedPrompts: existingData.enhancedPrompts,
  * })
  *
  * // Create empty new variant
@@ -106,8 +101,6 @@ export function createLocalLegacyAppRevision(
         variantName = "New Variant",
         sourceRevision = null,
         parameters = {},
-        enhancedPrompts = [],
-        enhancedCustomProperties = {},
         uri,
     } = params
 
@@ -127,10 +120,6 @@ export function createLocalLegacyAppRevision(
 
         // Configuration
         parameters,
-
-        // Enhanced data for UI
-        enhancedPrompts,
-        enhancedCustomProperties,
 
         // URI for schema fetching (important for custom apps)
         uri,
@@ -172,9 +161,6 @@ export function cloneAsLocalDraft(
         variantName: overrides?.variantName ?? `${source.variantName ?? "Variant"} (Copy)`,
         sourceRevision: source.revision,
         parameters: overrides?.parameters ?? source.parameters,
-        enhancedPrompts: overrides?.enhancedPrompts ?? source.enhancedPrompts,
-        enhancedCustomProperties:
-            overrides?.enhancedCustomProperties ?? source.enhancedCustomProperties,
         // Copy URI for schema fetching (critical for custom apps)
         uri: overrides?.uri ?? source.uri,
     })

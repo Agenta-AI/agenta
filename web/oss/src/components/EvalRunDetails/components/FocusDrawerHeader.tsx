@@ -1,10 +1,10 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDownIcon, CaretUpIcon} from "@phosphor-icons/react"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"

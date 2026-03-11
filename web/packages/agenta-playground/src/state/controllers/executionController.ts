@@ -87,7 +87,28 @@ import {
     isAnyExecutingAtomFamily,
     isCompareModeAtomFamily,
     executionProgressAtomFamily,
-    executionStateSummaryAtomFamily,
+    resolvedGenerationResultAtomFamily,
+    generationHeaderDataAtomFamily,
+    generationVariableRowIdsAtom,
+    generationRowIdsAtom,
+    executionRowIdsAtom,
+    renderableExecutionItemsAtom,
+    renderableExecutionRowsAtom,
+    renderableExecutionItemsByRowAtomFamily,
+    renderableExecutionItemsByExecutionIdAtomFamily,
+    fullResultByRowEntityAtomFamily,
+    runStatusByRowEntityAtom,
+    isChatModeAtom,
+    appTypeAtom,
+    canRunAllChatComparisonAtom,
+    repetitionCountAtom,
+    repetitionIndexAtomFamily,
+    schemaInputKeysAtom,
+    rowDataWithContextAtomFamily,
+    rowVariableValueAtomFamily,
+    rowVariableKeysWithContextAtom,
+    executionRowIdsForEntityAtomFamily,
+    allRowsCollapsedAtom,
     // Context selectors (derived from primary node)
     derivedLoadableIdAtom,
     activeSessionsWithContextAtom,
@@ -110,6 +131,13 @@ import {
     initSessionsWithContextAtom,
     cancelStepWithContextAtom,
     resetExecutionWithContextAtom,
+    triggerExecutionAtom,
+    triggerExecutionsAtom,
+    cancelTestsMutationAtom,
+    clearAllRunsMutationAtom,
+    setRepetitionCountAtom,
+    setRepetitionIndexAtom,
+    clearResponseByRowEntityWithContextAtom,
 } from "../execution"
 
 // ============================================================================
@@ -172,6 +200,79 @@ export const executionController = {
          * @returns Atom for progress info (derived from primary node)
          */
         progressWithContext: executionProgressWithContextAtom,
+
+        /** Whether app is chat mode (from primary entity) */
+        isChatMode: isChatModeAtom,
+
+        /** App type ("chat" | "completion" | undefined while loading) */
+        appType: appTypeAtom,
+
+        /** Unified generation row IDs (turns in chat, rows in completion) */
+        generationRowIds: generationRowIdsAtom,
+
+        /** Unified execution row IDs (turns in chat, rows in completion) */
+        executionRowIds: executionRowIdsAtom,
+
+        /** Flattened renderable execution items (rowId x executionId) */
+        renderableExecutionItems: renderableExecutionItemsAtom,
+
+        /** Renderable execution items grouped by row */
+        renderableExecutionRows: renderableExecutionRowsAtom,
+
+        /** Renderable execution items for a row */
+        renderableExecutionItemsByRow: (rowId: string) =>
+            renderableExecutionItemsByRowAtomFamily(rowId),
+
+        /** Renderable execution items for an execution ID */
+        renderableExecutionItemsByExecutionId: (executionId: string) =>
+            renderableExecutionItemsByExecutionIdAtomFamily(executionId),
+
+        /** Deduplicated row IDs for a specific entity — single-step alternative to filtering renderableItems */
+        executionRowIdsForEntity: (entityId: string) =>
+            executionRowIdsForEntityAtomFamily(entityId),
+
+        /** Variable-input row IDs (shared variable row in chat, all rows in completion) */
+        generationVariableRowIds: generationVariableRowIdsAtom,
+
+        /** Run status map keyed by rowId:entityId */
+        runStatusByRowEntity: runStatusByRowEntityAtom,
+
+        /** Chat comparison gating: whether run-all is available */
+        canRunAllChatComparison: canRunAllChatComparisonAtom,
+
+        /** Schema-derived input keys for custom app variable gating */
+        schemaInputKeys: schemaInputKeysAtom,
+
+        /** Global repetition count */
+        repetitionCount: repetitionCountAtom,
+
+        /** Repetition index for a row+entity pair */
+        repetitionIndex: (params: {rowId: string; entityId: string}) =>
+            repetitionIndexAtomFamily(`${params.rowId}:${params.entityId}`),
+
+        /** Current row data by rowId */
+        rowData: (rowId: string) => rowDataWithContextAtomFamily(rowId),
+
+        /** Single variable value for a row+variable — avoids full rowData subscription */
+        rowVariableValue: (params: {rowId: string; variableId: string}) =>
+            rowVariableValueAtomFamily(params),
+
+        /** Variable keys derived from the linked runnable columns */
+        rowVariableKeys: rowVariableKeysWithContextAtom,
+
+        /** Whether all execution rows are collapsed (collapse-all / expand-all) */
+        allRowsCollapsed: allRowsCollapsedAtom,
+
+        /** Resolved generation result (result, hash, trace, running) by row+entity */
+        resolvedGenerationResult: (params: {entityId: string; rowId: string}) =>
+            resolvedGenerationResultAtomFamily(params),
+
+        /** Header aggregate data for an entity */
+        generationHeaderData: (entityId: string) => generationHeaderDataAtomFamily(entityId),
+
+        /** Full result (output/error/trace) by row+entity */
+        fullResultByRowEntity: (params: {rowId: string; entityId: string}) =>
+            fullResultByRowEntityAtomFamily(params),
 
         // ----------------------------------------------------------------
         // Parameterized selectors (require explicit loadableId)
@@ -253,13 +354,6 @@ export const executionController = {
          * @returns Atom for progress info
          */
         progress: (loadableId: string) => executionProgressAtomFamily(loadableId),
-
-        /**
-         * Get complete execution state summary
-         * @param loadableId - The loadable instance ID
-         * @returns Atom for full state summary
-         */
-        stateSummary: (loadableId: string) => executionStateSummaryAtomFamily(loadableId),
     },
 
     /**
@@ -304,6 +398,30 @@ export const executionController = {
          * Reset execution with automatic loadableId derivation
          */
         resetWithContext: resetExecutionWithContextAtom,
+
+        /** Trigger execution for an execution item (`executionId` + `step`) */
+        triggerTest: triggerExecutionAtom,
+
+        /** Trigger execution for an execution step across multiple execution IDs */
+        triggerTests: triggerExecutionsAtom,
+
+        /** Cancel running tests (supports row/entity filters) */
+        cancelTests: cancelTestsMutationAtom,
+
+        /** Clear all run results */
+        clearAllRuns: clearAllRunsMutationAtom,
+
+        /** Set repetition count (clamped in reducer) */
+        setRepetitionCount: setRepetitionCountAtom,
+
+        /** Set repetition index for row+entity */
+        setRepetitionIndex: setRepetitionIndexAtom,
+
+        /** Clear cached response for row+entity */
+        clearResponseByRowEntity: clearResponseByRowEntityWithContextAtom,
+
+        /** Toggle collapse-all / expand-all for execution rows */
+        setAllRowsCollapsed: allRowsCollapsedAtom,
 
         // ----------------------------------------------------------------
         // Parameterized actions (require explicit loadableId)

@@ -72,7 +72,7 @@ class TracingDAO(TracingDAOInterface):
 
     ### SPANS
 
-    @suppress_exceptions(default=[])
+    # @suppress_exceptions(default=[])
     async def ingest(
         self,
         *,

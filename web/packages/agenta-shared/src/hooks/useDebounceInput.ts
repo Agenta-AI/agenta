@@ -1,32 +1,8 @@
-import {useState, useEffect, useRef, useCallback} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
-/**
- * Local implementation of debounce value hook to avoid dependency issues.
- */
-function useDebounceValue<T>(value: T, delay: number): [T, (value: T) => void] {
-    const [debouncedValue, setDebouncedValue] = useState(value)
+import {createStore, useAtomValue, useSetAtom} from "jotai"
 
-    useEffect(() => {
-        if (delay <= 0) {
-            setDebouncedValue(value)
-            return
-        }
-
-        const timer = setTimeout(() => {
-            setDebouncedValue(value)
-        }, delay)
-
-        return () => {
-            clearTimeout(timer)
-        }
-    }, [value, delay])
-
-    const setValue = useCallback((newValue: T) => {
-        setDebouncedValue(newValue)
-    }, [])
-
-    return [debouncedValue, setValue]
-}
+import {atomWithDebounce} from "../state/recipes"
 
 /**
  * A custom hook that provides debounced input handling with synchronized local and parent state.
@@ -68,8 +44,28 @@ export function useDebounceInput<T>(
     defaultValue: T,
 ) {
     const initialValue = value ?? defaultValue
-    const [localValue, setLocalValue] = useState<T>(initialValue)
-    const [debouncedValue, setDebouncedValue] = useDebounceValue(localValue, delay)
+    const store = useMemo(() => createStore(), [])
+    const atomsRef = useRef<{
+        delay: number
+        atoms: ReturnType<typeof atomWithDebounce<T>>
+    } | null>(null)
+
+    if (!atomsRef.current || atomsRef.current.delay !== delay) {
+        const nextInitialValue = atomsRef.current
+            ? store.get(atomsRef.current.atoms.currentValueAtom)
+            : initialValue
+
+        atomsRef.current = {
+            delay,
+            atoms: atomWithDebounce<T>(nextInitialValue, delay, true),
+        }
+    }
+
+    const debouncedAtoms = atomsRef.current!.atoms
+    const localValue = useAtomValue(debouncedAtoms.currentValueAtom, {store})
+    const setLocalValue = useSetAtom(debouncedAtoms.currentValueAtom, {store})
+    const debouncedValue = useAtomValue(debouncedAtoms.debouncedValueAtom, {store})
+    const clearDebounceTimeout = useSetAtom(debouncedAtoms.clearTimeoutAtom, {store})
     // Initialize lastEmittedRef to the initial value to prevent emitting on mount
     const lastEmittedRef = useRef<T>(initialValue)
 
@@ -80,7 +76,7 @@ export function useDebounceInput<T>(
     // Emit only when value differs from what was last emitted.
     // This prevents update feedback loops while ensuring user changes are always emitted.
     useEffect(() => {
-        const shouldEmit = valueToEmit !== lastEmittedRef.current
+        const shouldEmit = !Object.is(valueToEmit, lastEmittedRef.current)
         if (shouldEmit) {
             lastEmittedRef.current = valueToEmit
             onChange?.(valueToEmit)
@@ -93,11 +89,11 @@ export function useDebounceInput<T>(
         if (value === undefined || value === null) return
         // Update lastEmittedRef to prevent re-emitting the same value we just received
         lastEmittedRef.current = value
-        setDebouncedValue(value)
+        clearDebounceTimeout()
         setLocalValue((prevValue) => {
-            return value !== prevValue ? value : prevValue
+            return Object.is(value, prevValue) ? prevValue : value
         })
-    }, [value, setDebouncedValue])
+    }, [value, clearDebounceTimeout, setLocalValue])
 
     return [localValue, setLocalValue] as const
 }

@@ -17,14 +17,27 @@
         "./entity-selector": "./src/components/EntitySelector/index.ts",
         "./input-mapping": "./src/components/InputMappingModal/index.ts",
         "./loadable": "./src/components/LoadableEntityPanel/index.ts",
-        "./testset-selection": "./src/components/TestsetSelectionModal/index.ts"
+        "./testset-selection": "./src/components/TestsetSelectionModal/index.ts",
+        "./tool-call-view": "./src/components/ToolCallView/index.tsx",
+        "./chat-controls": "./src/components/ControlsBar.tsx",
+        "./chat-attachments": "./src/components/ChatAttachments/index.ts",
+        "./adapters": "./src/components/adapters/index.ts",
+        "./state": "./src/state/index.ts",
+        "./hooks": "./src/hooks/index.ts",
+        "./generations": "./src/components/ExecutionItems/index.tsx",
+        "./comparison-view": "./src/components/ExecutionItemComparisonView/index.tsx",
+        "./execution-items": "./src/components/ExecutionItems/index.tsx",
+        "./execution-item-comparison-view": "./src/components/ExecutionItemComparisonView/index.tsx"
     },
     "dependencies": {
-        "@agenta/playground": "workspace:../agenta-playground",
         "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/entity-ui": "workspace:../agenta-entity-ui",
+        "@agenta/playground": "workspace:../agenta-playground",
+        "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
-        "@agenta/shared": "workspace:../agenta-shared"
+        "clsx": "^2.1.1",
+        "json5": "^2.2.3",
+        "uuid": "^11.1.0"
     },
     "peerDependencies": {
         "@ant-design/icons": ">=5.0.0",
@@ -37,10 +50,10 @@
         "react-dom": ">=18.0.0"
     },
     "devDependencies": {
-        "typescript": "5.8.3",
         "@types/node": "^20.8.10",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.0",
-        "jotai-family": "^1.0.1"
+        "jotai-family": "^1.0.1",
+        "typescript": "5.8.3"
     }
 }

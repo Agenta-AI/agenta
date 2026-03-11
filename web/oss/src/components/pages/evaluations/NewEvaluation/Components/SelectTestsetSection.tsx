@@ -3,7 +3,7 @@ import {memo, useMemo} from "react"
 import clsx from "clsx"
 
 import TestsetsTable from "@/oss/components/TestsetsTable/TestsetsTable"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 import type {SelectTestsetSectionProps} from "../types"
 

@@ -1,7 +1,8 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {AddButtonProps} from "@/oss/components/Playground/assets/AddButton"
-import {EnhancedVariant} from "@/oss/components/Playground/assets/utilities/transformer/types"
+import {type AddButtonProps} from "@agenta/ui/components/presentational"
+
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 
 export interface NewVariantButtonProps extends AddButtonProps {
     children?: React.ReactNode

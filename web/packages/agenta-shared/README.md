@@ -64,6 +64,20 @@ const setProjectId = useSetAtom(setProjectIdAtom)
 setProjectId('my-project-id')
 ```
 
+Jotai recipe helpers are also available from `@agenta/shared/state`:
+
+```typescript
+import {
+  atomWithDebounce,
+  atomWithRefresh,
+  atomWithCompare,
+  atomWithToggle,
+  atomWithToggleAndStorage,
+  atomWithBroadcast,
+  atomWithRefreshAndDefault,
+} from "@agenta/shared/state"
+```
+
 ### Validation Utilities
 
 ```typescript
@@ -275,9 +289,9 @@ if (schema) {
 | Subpath | Description | Key Exports |
 |---------|-------------|-------------|
 | `@agenta/shared/api` | API utilities | `axios`, `getAgentaApiUrl`, `getEnv`, `configureAxios` |
-| `@agenta/shared/state` | Jotai atoms | `projectIdAtom`, `setProjectIdAtom` |
+| `@agenta/shared/state` | Jotai atoms + recipes | `projectIdAtom`, `setProjectIdAtom`, `atomWithDebounce`, `atomWithRefresh`, `atomWithCompare`, `atomWithToggle`, `atomWithBroadcast`, `atomWithRefreshAndDefault` |
 | `@agenta/shared/utils` | Pure utilities | `dayjs`, `createBatchFetcher`, `isValidUUID`, `dereferenceSchema`, path utils, mapping utils, formatters |
-| `@agenta/shared/hooks` | React hooks | `useDebounceInput` |
+| `@agenta/shared/hooks` | React hooks | `useDebounceInput`, `useReducerAtom` |
 | `@agenta/shared/schemas` | Zod schemas | `MESSAGE_CONTENT_SCHEMA`, `CHAT_MESSAGE_SCHEMA`, `CHAT_MESSAGES_ARRAY_SCHEMA` |
 | `@agenta/shared/types` | TypeScript types | `SimpleChatMessage`, `MessageContent`, `TextContentPart`, `ToolCall` |
 
@@ -288,7 +302,13 @@ if (schema) {
 import {axios, getAgentaApiUrl, getEnv} from "@agenta/shared/api"
 
 // State atoms
-import {projectIdAtom, setProjectIdAtom} from "@agenta/shared/state"
+import {
+  projectIdAtom,
+  setProjectIdAtom,
+  atomWithDebounce,
+  atomWithRefresh,
+  atomWithToggle,
+} from "@agenta/shared/state"
 
 // Utilities (most common)
 import {
@@ -305,7 +325,7 @@ import {
 } from "@agenta/shared/utils"
 
 // React hooks
-import {useDebounceInput} from "@agenta/shared/hooks"
+import {useDebounceInput, useReducerAtom} from "@agenta/shared/hooks"
 
 // Schemas (for validation)
 import {

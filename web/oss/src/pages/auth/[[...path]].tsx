@@ -421,7 +421,7 @@ const Auth = () => {
         >
             <section
                 className={clsx(
-                    "h-screen flex items-center justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem] shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
+                    "h-screen overflow-y-auto flex items-start justify-center rounded-tr-[1.5rem] rounded-br-[1.5rem] shadow-[15px_0px_80px_0px_rgba(214,222,230,0.5)]",
                     "w-full lg:w-1/2",
                     "px-4 lg:px-0",
                 )}
@@ -433,7 +433,7 @@ const Auth = () => {
                     height={39}
                     className={clsx(["absolute", "top-4 lg:top-14", "left-4 lg:left-14"])}
                 />
-                <div className="w-full max-w-[400px] flex flex-col justify-start gap-8 mx-auto">
+                <div className="w-full max-w-[400px] flex flex-col justify-start gap-8 mx-auto pt-24 pb-10 lg:pt-40 lg:pb-14">
                     <div>
                         <Title level={2} className="font-bold">
                             Welcome to Agenta AI

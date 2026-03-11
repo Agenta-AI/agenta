@@ -22,7 +22,7 @@ import {
     type Testset,
 } from "@agenta/entities"
 // Specialized utilities require subpath imports
-import {derivedColumnChangesAtomFamily} from "@agenta/entities/loadable"
+import {derivedColumnChangesAtomFamily, loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {latestRevisionForTestsetAtomFamily, saveTestsetAtom} from "@agenta/entities/testset"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -188,8 +188,6 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
         // Build original (server) state - only non-deleted server entities
         const originalTestcases: {id: string; data: Record<string, unknown>}[] = []
         for (const id of serverIds) {
-            if (deletedIds.has(id)) continue // Skip deleted
-
             // Get server data (without drafts) - still use selectors.serverData for raw data
             const serverData = get(testcase.selectors.serverData(id))
             if (serverData) {
@@ -203,9 +201,13 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
         // Build modified state - server entities with drafts + new entities
         const modifiedTestcases: {id: string; data: Record<string, unknown>}[] = []
 
-        // Add server entities (with drafts applied, excluding deleted)
+        // Get playground state for hidden rows if loadableId is provided
+        const loadableState = loadableId ? get(loadableStateAtomFamily(loadableId)) : null
+        const hiddenTestcaseIds = loadableState?.hiddenTestcaseIds ?? new Set<string>()
+
+        // Add server entities (with drafts applied, excluding deleted and hidden)
         for (const id of serverIds) {
-            if (deletedIds.has(id)) continue // Skip deleted
+            if (deletedIds.has(id) || hiddenTestcaseIds.has(id)) continue // Skip deleted and hidden
 
             // Get merged data (server + draft)
             const mergedData = get(testcase.data(id))
@@ -219,6 +221,8 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
 
         // Add new entities
         for (const id of newIds) {
+            if (hiddenTestcaseIds.has(id)) continue // Skip local entities that were added then removed
+
             const newData = get(testcase.data(id))
             if (newData) {
                 modifiedTestcases.push({
@@ -236,12 +240,30 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
         const original = JSON.stringify(originalStructure, null, 2)
         const modified = JSON.stringify(modifiedStructure, null, 2)
 
+        // Count hidden testcases
+        let extraDeletions = 0
+        let hiddenNewIdsCount = 0
+        hiddenTestcaseIds.forEach((id) => {
+            if (!id.startsWith("new-") && !id.startsWith("local-")) {
+                extraDeletions++
+            } else {
+                hiddenNewIdsCount++
+            }
+        })
+
+        // Adjust changes summary - subtract hidden local items from newTestcases
+        const adjustedNewTestcases = Math.max(
+            0,
+            (changesSummary?.newTestcases ?? 0) - hiddenNewIdsCount,
+        )
+        const adjustedDeletedTestcases = (changesSummary?.deletedTestcases ?? 0) + extraDeletions
+
         // Only include diff data if there are actual changes (testcases OR columns)
         const hasChanges =
             changesSummary &&
             (changesSummary.updatedTestcases > 0 ||
-                changesSummary.newTestcases > 0 ||
-                changesSummary.deletedTestcases > 0 ||
+                adjustedNewTestcases > 0 ||
+                adjustedDeletedTestcases > 0 ||
                 changesSummary.renamedColumns > 0 ||
                 changesSummary.addedColumns > 0 ||
                 changesSummary.deletedColumns > 0)
@@ -255,8 +277,8 @@ const revisionCommitContextAtom = (revisionId: string, metadata?: Record<string,
             changesSummary: changesSummary
                 ? {
                       modifiedCount: changesSummary.updatedTestcases,
-                      addedCount: changesSummary.newTestcases,
-                      deletedCount: changesSummary.deletedTestcases,
+                      addedCount: adjustedNewTestcases,
+                      deletedCount: adjustedDeletedTestcases,
                       // Include column changes
                       addedColumns: changesSummary.addedColumns,
                       renamedColumns: changesSummary.renamedColumns,

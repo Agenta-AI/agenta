@@ -1,7 +1,8 @@
 import {isValidElement, cloneElement, useState, useTransition, useCallback} from "react"
 
+import {AddButton} from "@agenta/ui/components/presentational"
+
 import CreateVariantModal from "../.."
-import AddButton from "../../../../../assets/AddButton"
 import {NewVariantButtonProps} from "../types"
 
 /**

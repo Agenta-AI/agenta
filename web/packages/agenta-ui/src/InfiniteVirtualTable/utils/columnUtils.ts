@@ -64,26 +64,19 @@ export const buildColumnDescendantMap = <RecordType extends object>(
 
 /**
  * Merges two optional event handlers into one.
- * Note: Uses 'any' for args because event handlers have varying signatures
- * (MouseEvent, KeyboardEvent, etc.) that cannot be unified with unknown[].
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export const mergeHandlers = <
-    T extends (...args: any[]) => void,
-    U extends (...args: any[]) => void,
->(
-    first?: T,
-    second?: U,
-): ((...args: Parameters<T>) => void) | undefined => {
+export const mergeHandlers = <Args extends unknown[]>(
+    first?: (...args: Args) => void,
+    second?: (...args: Args) => void,
+): ((...args: Args) => void) | undefined => {
     if (!first && !second) return undefined
-    if (!first) return second as ((...args: Parameters<T>) => void) | undefined
+    if (!first) return second
     if (!second) return first
-    return (...args: any[]) => {
+    return (...args: Args) => {
         first(...args)
         second(...args)
     }
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Shallow equality check for objects

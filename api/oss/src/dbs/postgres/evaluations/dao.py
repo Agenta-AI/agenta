@@ -439,6 +439,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
+            stmt = stmt.order_by(EvaluationRunDBE.id)
+
             stmt = stmt.limit(len(run_ids))
 
             res = await session.execute(stmt)
@@ -521,6 +523,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
             )
+
+            stmt = stmt.order_by(EvaluationRunDBE.id)
 
             stmt = stmt.limit(len(run_ids))
 
@@ -613,6 +617,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
                 EvaluationRunDBE.id.in_(run_ids),
             )
+
+            stmt = stmt.order_by(EvaluationRunDBE.id)
 
             stmt = stmt.limit(len(run_ids))
 

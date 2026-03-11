@@ -1,35 +1,43 @@
-// Import legacyAppRevision to ensure the snapshot adapter is registered
-// This side-effect import must happen before any snapshot operations
-import "@agenta/entities/legacyAppRevision"
+// Import workflow to ensure the snapshot adapter is registered
+import "@agenta/entities/workflow"
 
 import {
-    isLocalDraftId,
-    legacyAppRevisionMolecule,
-    localDraftIdsAtom,
-    revisionCacheVersionAtom,
+    cleanupStalePersistedDrafts,
+    initializeLocalDrafts,
 } from "@agenta/entities/legacyAppRevision"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {getRunnableTypeHint, registerRunnableTypeHint} from "@agenta/entities/shared"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {
-    urlSnapshotController,
-    setRunnableTypeResolver,
-    setSelectionUpdateCallback,
+    applyPendingHydrationsForRevision,
+    displayedEntityIdsAtom,
+    getRunnableTypeResolver,
     isPlaceholderId,
     pendingHydrations,
     pendingHydrationsAtom,
-    applyPendingHydrationsForRevision,
+    playgroundController,
+    playgroundInitializedAtom,
+    setRunnableTypeResolver,
+    setSelectionUpdateCallback,
+    urlSnapshotController,
 } from "@agenta/playground"
+import type {PlaygroundSnapshot} from "@agenta/playground/snapshot"
+import {playgroundSnapshotController} from "@agenta/playground/state"
 import {atom, getDefaultStore} from "jotai"
 import type {Store} from "jotai/vanilla/store"
 
-import {
-    selectedVariantsAtom,
-    urlRevisionsAtom,
-    isSelectionStorageHydrated,
-    revisionListAtom,
-    playgroundRevisionListAtom,
-    playgroundRevisionsReadyAtom,
-    playgroundLatestRevisionIdAtom,
-} from "@/oss/components/Playground/state/atoms"
+import {routerAppIdAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
+
+// ============================================================================
+// ENTITY MODE
+// ============================================================================
+
+/**
+ * Determines which entity system the current playground uses.
+ * Currently always "workflow" (modern /preview/workflows/ API).
+ */
+export const playgroundEntityModeAtom = atom<"workflow">("workflow")
 
 // ============================================================================
 // OSS RUNNABLE TYPE RESOLVER
@@ -37,10 +45,17 @@ import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 /**
  * Register the OSS runnable type resolver.
- * For OSS, all revisions are legacyAppRevision type.
+ * Reads from playgroundEntityModeAtom to determine the entity type.
  */
 setRunnableTypeResolver({
-    getType: () => "legacyAppRevision",
+    getType: (entityId: string) => {
+        // Check type hints first — ephemeral entities (e.g. baseRunnable) register hints
+        // during URL hydration before setEntityIds is called.
+        const hint = getRunnableTypeHint(entityId)
+        if (hint) return hint as RunnableType
+        const store = getDefaultStore()
+        return store.get(playgroundEntityModeAtom)
+    },
 })
 
 // ============================================================================
@@ -55,7 +70,7 @@ setRunnableTypeResolver({
  */
 setSelectionUpdateCallback((idToReplace, localDraftId, index) => {
     const store = getDefaultStore()
-    const currentSelection = store.get(selectedVariantsAtom)
+    const currentSelection = store.get(playgroundController.selectors.entityIds())
 
     // For placeholder IDs (compare mode), find by the placeholder ID
     // For source IDs (single mode), find by the source ID at the given index
@@ -69,15 +84,7 @@ setSelectionUpdateCallback((idToReplace, localDraftId, index) => {
     if (targetIndex >= 0 && targetIndex < currentSelection.length) {
         const newSelection = [...currentSelection]
         newSelection[targetIndex] = localDraftId
-        store.set(selectedVariantsAtom, newSelection)
-
-        // Also update URL revisions atom
-        const currentUrlRevisions = store.get(urlRevisionsAtom)
-        if (targetIndex < currentUrlRevisions.length) {
-            const newUrlRevisions = [...currentUrlRevisions]
-            newUrlRevisions[targetIndex] = localDraftId
-            store.set(urlRevisionsAtom, newUrlRevisions)
-        }
+        store.set(playgroundController.actions.setEntityIds, newSelection)
     }
 })
 
@@ -88,8 +95,15 @@ const REVISIONS_QUERY_PARAM = "revisions"
 /** RAF handle for coalescing URL updates */
 let urlUpdateRafId: number | null = null
 
-/** Track the last URL we wrote to prevent re-processing our own changes */
-let lastWrittenUrl: string | null = null
+/**
+ * Track the last URL we wrote to prevent re-processing our own changes.
+ * Stored in a Jotai atom so the value survives HMR (module re-execution
+ * resets plain `let` variables, but atom state lives in the default store).
+ */
+const _lastWrittenUrlAtom = atom<string | null>(null)
+
+/** Track whether URL encoding has failed to suppress repeated warnings */
+let lastEncodingFailed = false
 
 /**
  * Extract snapshot parameter from URL hash.
@@ -116,8 +130,32 @@ const extractSnapshotFromHash = (url: URL): string | null => {
 
 /**
  * Track the last snapshot hash we wrote to prevent re-hydration loops.
+ * Stored in a Jotai atom so the value survives HMR.
  */
-let lastWrittenSnapshotHash: string | null = null
+const _lastWrittenSnapshotHashAtom = atom<string | null>(null)
+
+// Flag to skip URL revision processing after ephemeral entity hydration
+// until the URL is updated with the new entity IDs
+let skipUrlRevisionsUntilUpdate = false
+
+// Convenience helpers for the HMR-safe atoms
+const _store = () => getDefaultStore()
+const getLastWrittenUrl = () => _store().get(_lastWrittenUrlAtom)
+const setLastWrittenUrl = (v: string | null) => _store().set(_lastWrittenUrlAtom, v)
+const getLastWrittenSnapshotHash = () => _store().get(_lastWrittenSnapshotHashAtom)
+const setLastWrittenSnapshotHash = (v: string | null) =>
+    _store().set(_lastWrittenSnapshotHashAtom, v)
+
+/**
+ * Track the current selection in memory to survive HMR.
+ * Replaces the old OSS selectedVariantsAtom bridge.
+ */
+const _selectedVariantsAtom = atom<string[]>([])
+
+/**
+ * Track the last processed URL revisions to prevent loops.
+ */
+const _urlRevisionsAtom = atom<string[]>([])
 
 const sanitizeRevisionList = (values: (string | null | undefined)[]) => {
     const seen = new Set<string>()
@@ -139,6 +177,154 @@ const arraysEqual = (a: string[], b: string[]) => {
         if (a[i] !== b[i]) return false
     }
     return true
+}
+
+interface HydratedEntityDescriptor {
+    id: string
+    runnableType: RunnableType
+    entityType?: string
+    depth?: number
+    label?: string
+}
+
+type RunnableType =
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "workflow"
+    | "baseRunnable"
+
+type PlaygroundEntityType =
+    | "evaluator"
+    | "legacyEvaluator"
+    | "evaluatorRevision"
+    | "legacyAppRevision"
+    | "workflow"
+    | "baseRunnable"
+
+interface SnapshotSelectionInput {
+    id: string
+    runnableType: RunnableType
+    entityType?: PlaygroundEntityType
+    depth?: number
+    label?: string
+}
+
+interface PlaygroundNode {
+    id: string
+    entityType: string
+    entityId: string
+    label?: string
+    depth: number
+}
+
+const entityTypeToRunnableType = (entityType: string | undefined): RunnableType | null => {
+    switch (entityType) {
+        case "evaluator":
+            return "evaluator"
+        case "legacyEvaluator":
+            return "legacyEvaluator"
+        case "evaluatorRevision":
+            return "evaluatorRevision"
+        case "workflow":
+            return "workflow"
+        case "baseRunnable":
+            return "baseRunnable"
+        default:
+            return null
+    }
+}
+
+const runnableTypeToEntityType = (runnableType: RunnableType): PlaygroundEntityType | null => {
+    switch (runnableType) {
+        case "evaluator":
+            return "evaluator"
+        case "legacyEvaluator":
+            return "legacyEvaluator"
+        case "evaluatorRevision":
+            return "evaluatorRevision"
+        case "workflow":
+            return "workflow"
+        case "baseRunnable":
+            return "baseRunnable"
+        default:
+            return null
+    }
+}
+
+const buildSnapshotSelectionInputs = (
+    rootEntityIds: string[],
+    nodes: PlaygroundNode[],
+): SnapshotSelectionInput[] => {
+    if (rootEntityIds.length === 0) return []
+
+    const resolver = getRunnableTypeResolver()
+    const hasDownstreamNodes = nodes.some((node) => node.depth > 0)
+    const rootNodeByEntityId = new Map(
+        nodes.filter((node) => node.depth === 0).map((node) => [node.entityId, node] as const),
+    )
+    const snapshotInputs: SnapshotSelectionInput[] = []
+
+    for (const rootEntityId of rootEntityIds) {
+        const node = rootNodeByEntityId.get(rootEntityId)
+        const runnableType =
+            entityTypeToRunnableType(node?.entityType) ?? resolver.getType(rootEntityId)
+        snapshotInputs.push({
+            id: rootEntityId,
+            runnableType,
+            ...(node?.entityType ? {entityType: node.entityType as PlaygroundEntityType} : {}),
+            ...(hasDownstreamNodes ? {depth: 0} : {}),
+            ...(node?.label ? {label: node.label} : {}),
+        })
+    }
+
+    for (const node of nodes) {
+        if (node.depth <= 0) continue
+
+        const runnableType = entityTypeToRunnableType(node.entityType)
+        if (!runnableType) continue
+
+        snapshotInputs.push({
+            id: node.entityId,
+            runnableType,
+            entityType: node.entityType as PlaygroundEntityType,
+            depth: node.depth,
+            ...(node.label ? {label: node.label} : {}),
+        })
+    }
+
+    return snapshotInputs
+}
+
+/**
+ * Build the playground URL for a given selection synchronously.
+ * Returns the full URL path with query params and hash.
+ * Used for navigation to playground with proper snapshot state.
+ */
+export const buildPlaygroundUrl = (selection: string[], basePath: string): string => {
+    const store = getDefaultStore()
+    const sanitized = sanitizeRevisionList(selection)
+    const nodes = store.get(playgroundController.selectors.nodes())
+    const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
+
+    const url = new URL(basePath, window.location.origin)
+
+    const urlComponents = store.set(
+        urlSnapshotController.actions.buildUrlComponents,
+        snapshotSelection,
+    )
+
+    if (urlComponents.ok) {
+        if (urlComponents.queryParam) {
+            url.searchParams.set(REVISIONS_QUERY_PARAM, urlComponents.queryParam)
+        }
+        if (urlComponents.hashParam) {
+            url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
+        }
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`
 }
 
 /**
@@ -173,17 +359,17 @@ const writeUrlNow = (selection: string[]): boolean => {
         // Set hash param
         if (urlComponents.hashParam) {
             url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
-            lastWrittenSnapshotHash = urlComponents.hashParam
+            setLastWrittenSnapshotHash(urlComponents.hashParam)
         } else {
             url.hash = ""
-            lastWrittenSnapshotHash = null
+            setLastWrittenSnapshotHash(null)
         }
 
         const newUrl = `${url.pathname}${url.search}${url.hash}`
 
         // Only update if URL actually changed and we didn't just write this URL
-        if (newUrl !== lastWrittenUrl) {
-            lastWrittenUrl = newUrl
+        if (newUrl !== getLastWrittenUrl()) {
+            setLastWrittenUrl(newUrl)
             window.history.replaceState(window.history.state, "", newUrl)
         }
 
@@ -207,10 +393,56 @@ export const writePlaygroundSelectionToQuery = (selection: string[]) => {
         urlUpdateRafId = null
     }
 
-    // Use RAF to coalesce updates within the same frame
+    // RAF coalesces multiple calls within the same frame into one URL write.
     urlUpdateRafId = requestAnimationFrame(() => {
         urlUpdateRafId = null
-        writeUrlNow(selection)
+        try {
+            const sanitized = sanitizeRevisionList(selection)
+            const store = getDefaultStore()
+            const nodes = store.get(playgroundController.selectors.nodes())
+            const snapshotSelection = buildSnapshotSelectionInputs(sanitized, nodes)
+
+            const urlComponents = store.set(
+                urlSnapshotController.actions.buildUrlComponents,
+                snapshotSelection,
+            )
+
+            // Build the full URL (query params + hash)
+            const url = new URL(window.location.href)
+
+            const queryParam = urlComponents.queryParam ?? sanitized.join(",")
+            if (queryParam) {
+                url.searchParams.set(REVISIONS_QUERY_PARAM, queryParam)
+            } else {
+                url.searchParams.delete(REVISIONS_QUERY_PARAM)
+            }
+
+            if (urlComponents.ok && urlComponents.hashParam) {
+                url.hash = `${SNAPSHOT_HASH_PARAM}=${urlComponents.hashParam}`
+                setLastWrittenSnapshotHash(urlComponents.hashParam)
+            } else {
+                url.hash = ""
+                setLastWrittenSnapshotHash(null)
+            }
+
+            if (!urlComponents.ok && !lastEncodingFailed) {
+                console.warn(
+                    "[Playground] Draft state too large for URL — persisted to localStorage only.",
+                    urlComponents.error,
+                )
+                lastEncodingFailed = true
+            } else if (urlComponents.ok) {
+                lastEncodingFailed = false
+            }
+
+            const newUrl = `${url.pathname}${url.search}${url.hash}`
+            if (newUrl !== getLastWrittenUrl()) {
+                setLastWrittenUrl(newUrl)
+                window.history.replaceState(window.history.state, "", newUrl)
+            }
+        } catch (error) {
+            console.error("Failed to write playground state to URL:", error)
+        }
     })
 }
 
@@ -223,7 +455,9 @@ export const updatePlaygroundUrlWithDrafts = () => {
 
     try {
         const store = getDefaultStore()
-        const currentSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
+        const currentSelected = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
 
         if (currentSelected.length > 0) {
             writePlaygroundSelectionToQuery(currentSelected)
@@ -233,62 +467,181 @@ export const updatePlaygroundUrlWithDrafts = () => {
     }
 }
 
-const applyPlaygroundSelection = (store: Store, next: string[]) => {
+/**
+ * Apply a playground selection from URL hydration or defaults.
+ * Returns `true` if the selection was actually changed, `false` if it was a no-op
+ * (e.g. the selection already matched). Callers should skip side-effects like
+ * loadable/localTestset restore when this returns `false`.
+ */
+const applyPlaygroundSelection = (
+    store: Store,
+    next: string[],
+    hydratedEntities?: HydratedEntityDescriptor[],
+    options?: {skipInitialRow?: boolean},
+): boolean => {
     const sanitized = sanitizeRevisionList(next)
-    const currentSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
+    const normalizedHydratedEntities = (hydratedEntities ?? []).filter((entity) => {
+        const id = String(entity?.id ?? "").trim()
+        return Boolean(id && id !== "null" && id !== "undefined")
+    })
 
-    // Preserve local drafts that are in current selection but not in URL
-    // (local drafts are filtered out when writing to URL, so we need to keep them)
-    const localDraftsInCurrent = currentSelected.filter((id) => isLocalDraftId(id))
-    const mergedSelection =
-        sanitized.length > 0
-            ? [...sanitized, ...localDraftsInCurrent.filter((id) => !sanitized.includes(id))]
-            : sanitized
+    const rootHydratedEntities = normalizedHydratedEntities.filter(
+        (entity) => (entity.depth ?? 0) === 0,
+    )
+    const rootEntityIdsFromHydrated = sanitizeRevisionList(
+        rootHydratedEntities.map((entity) => entity.id),
+    )
+    const rootEntityIdsFromRunnableType = sanitizeRevisionList(
+        normalizedHydratedEntities
+            .filter((entity) => entity.runnableType === "workflow")
+            .map((entity) => entity.id),
+    )
+    const rootEntityIds =
+        rootEntityIdsFromHydrated.length > 0
+            ? rootEntityIdsFromHydrated
+            : rootEntityIdsFromRunnableType.length > 0
+              ? rootEntityIdsFromRunnableType
+              : sanitized
 
-    if (!arraysEqual(currentSelected, mergedSelection)) {
-        store.set(selectedVariantsAtom, mergedSelection)
+    const currentSelected = sanitizeRevisionList(
+        store.get(playgroundController.selectors.entityIds()),
+    )
+    const hasHydratedDownstream = normalizedHydratedEntities.some(
+        (entity) => (entity.depth ?? 0) > 0,
+    )
+
+    if (arraysEqual(currentSelected, rootEntityIds) && !hasHydratedDownstream) {
+        return false
     }
 
-    const currentUrlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
-    if (!arraysEqual(currentUrlSelection, sanitized)) {
-        store.set(urlRevisionsAtom, sanitized)
+    const currentNodes = store.get(playgroundController.selectors.nodes())
+
+    if (currentNodes.length === 0 && rootEntityIds.length > 0) {
+        const primaryHydratedEntity =
+            rootHydratedEntities.find((entity) => entity.id === rootEntityIds[0]) ??
+            rootHydratedEntities[0]
+        const primaryEntityType =
+            (primaryHydratedEntity?.entityType as PlaygroundEntityType | undefined) ??
+            (primaryHydratedEntity
+                ? runnableTypeToEntityType(primaryHydratedEntity.runnableType)
+                : null) ??
+            "workflow"
+
+        // No nodes yet — use addPrimaryNode for the first entity so the
+        // loadable is linked to the runnable and an initial testcase row
+        // is created with proper input variables.
+        // When skipInitialRow is set, the default empty row is deferred
+        // because a loadable/localTestset restore will populate rows afterwards.
+        store.set(
+            playgroundController.actions.addPrimaryNode,
+            {
+                type: primaryEntityType,
+                id: rootEntityIds[0],
+                label: primaryHydratedEntity?.label ?? rootEntityIds[0],
+            },
+            options?.skipInitialRow ? {skipInitialRow: true} : undefined,
+        )
+
+        // If there are additional entities (comparison mode from URL),
+        // add them via setEntityIds which preserves the first node.
+        if (rootEntityIds.length > 1) {
+            store.set(playgroundController.actions.setEntityIds, rootEntityIds)
+        }
+    } else {
+        // Pre-register type hints from hydrated entities so the resolver
+        // returns the correct entity type (e.g. "baseRunnable") when
+        // setEntityIds creates new nodes for regenerated ephemeral IDs.
+        for (const entity of rootHydratedEntities) {
+            const entityType =
+                (entity.entityType as PlaygroundEntityType | undefined) ??
+                runnableTypeToEntityType(entity.runnableType)
+            if (entityType) {
+                registerRunnableTypeHint(entity.id, entityType)
+            }
+        }
+        store.set(playgroundController.actions.setEntityIds, rootEntityIds)
     }
 
-    // viewTypeAtom was removed - isComparisonViewAtom derives comparison state
-    // directly from selectedVariantsAtom, so no manual sync needed.
+    if (!hasHydratedDownstream) return true
+
+    const downstreamHydratedEntities = normalizedHydratedEntities
+        .filter((entity) => (entity.depth ?? 0) > 0)
+        .sort((a, b) => (a.depth ?? 1) - (b.depth ?? 1))
+
+    if (downstreamHydratedEntities.length === 0) return true
+
+    const nodesAfterRoots = store.get(playgroundController.selectors.nodes())
+    const rootNode = nodesAfterRoots.find((node) => node.depth === 0)
+    if (!rootNode) return true
+
+    const sourceNodeByDepth = new Map<number, string>([[0, rootNode.id]])
+    for (const node of nodesAfterRoots) {
+        sourceNodeByDepth.set(node.depth, node.id)
+    }
+
+    for (const downstream of downstreamHydratedEntities) {
+        const depth = downstream.depth ?? 1
+        const entityType =
+            (downstream.entityType as PlaygroundEntityType | undefined) ??
+            runnableTypeToEntityType(downstream.runnableType)
+        if (!entityType) continue
+
+        const sourceNodeId =
+            sourceNodeByDepth.get(Math.max(depth - 1, 0)) ?? sourceNodeByDepth.get(0) ?? rootNode.id
+
+        const result = store.set(playgroundController.actions.connectDownstreamNode, {
+            sourceNodeId,
+            entity: {
+                type: entityType,
+                id: downstream.id,
+                label: downstream.label ?? downstream.id,
+            },
+        })
+
+        if (result?.nodeId) {
+            sourceNodeByDepth.set(depth, result.nodeId)
+        }
+    }
+
+    return true
 }
 
 let lastPlaygroundAppId: string | null = null
+/** Whether playgroundSyncAtom has been mounted at least once in this page session. */
+let playgroundSyncMountedOnce = false
 
-export const ensurePlaygroundDefaults = (store: Store) => {
-    if (!isBrowser) return
+export const ensurePlaygroundDefaults = (store: Store): boolean => {
+    if (!isBrowser) return false
 
     const appState = store.get(appStateSnapshotAtom)
     if (
         !appState.pathname?.includes("/playground") ||
         appState.pathname?.includes("/playground-test")
-    )
-        return
-
-    const urlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
-    if (urlSelection.length > 0) return
-
-    // Don't apply defaults if storage hasn't been hydrated yet
-    // This prevents overwriting persisted selections before they're loaded from localStorage
-    if (!isSelectionStorageHydrated()) return
+    ) {
+        return false
+    }
 
     // Check if there's already a valid selection
-    const selected = sanitizeRevisionList(store.get(selectedVariantsAtom))
+    const selected = sanitizeRevisionList(store.get(playgroundController.selectors.entityIds()))
 
     // If there are valid selected revisions, don't override
-    if (selected.length > 0) return
+    if (selected.length > 0) return true
 
-    // Derives from the same entity store that powers the playground's revision
-    // list, so it's always available when the playground's data has loaded.
-    const latestRevisionId = store.get(playgroundLatestRevisionIdAtom)
-    if (!latestRevisionId) return
+    const rawAppId = store.get(selectedAppIdAtom)
+    const appId = typeof rawAppId === "string" ? rawAppId : null
 
-    applyPlaygroundSelection(store, [latestRevisionId])
+    if (!appId) {
+        return true // Mark as "applied" so we don't keep retrying
+    }
+
+    const revisions = store.get(workflowRevisionsByWorkflowListDataAtomFamily(appId))
+    const latest = revisions[0]
+    if (latest) {
+        applyPlaygroundSelection(store, [latest.id])
+        return true
+    }
+
+    return false
 }
 
 /**
@@ -300,16 +653,13 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
 
     const fullUrl = nextUrl ? new URL(nextUrl, window.location.origin).href : window.location.href
     const normalizedUrl = `${new URL(fullUrl).pathname}${new URL(fullUrl).search}${new URL(fullUrl).hash}`
-
-    if (normalizedUrl === lastWrittenUrl) return
+    if (normalizedUrl === getLastWrittenUrl()) return
 
     try {
         const store = getDefaultStore()
         const url = new URL(nextUrl ?? window.location.href, window.location.origin)
         const isPlaygroundRoute =
             url.pathname.includes("/playground") && !url.pathname.includes("/playground-test")
-        const appState = store.get(appStateSnapshotAtom)
-        const currentAppId = appState.appId ?? null
 
         const revisionsParam = url.searchParams.get(REVISIONS_QUERY_PARAM)
         const urlRevisions = revisionsParam ? sanitizeRevisionList(revisionsParam.split(",")) : []
@@ -317,8 +667,12 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
         const snapshotEncoded = extractSnapshotFromHash(url)
 
         // Use package controller for hydration
-        if (snapshotEncoded && snapshotEncoded !== lastWrittenSnapshotHash && isPlaygroundRoute) {
-            lastWrittenSnapshotHash = snapshotEncoded
+        if (
+            snapshotEncoded &&
+            snapshotEncoded !== getLastWrittenSnapshotHash() &&
+            isPlaygroundRoute
+        ) {
+            setLastWrittenSnapshotHash(snapshotEncoded)
 
             const hydrateResult = store.set(
                 urlSnapshotController.actions.hydrateFromUrl,
@@ -326,9 +680,75 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             )
 
             if (hydrateResult.ok && hydrateResult.selection) {
-                applyPlaygroundSelection(store, hydrateResult.selection)
+                // Determine if a loadable restore will follow — skip initial row to avoid flash
+                const hasLoadableRestore = Boolean(
+                    hydrateResult.loadable || hydrateResult.localTestset,
+                )
+
+                const selectionChanged = applyPlaygroundSelection(
+                    store,
+                    hydrateResult.selection,
+                    hydrateResult.entities as HydratedEntityDescriptor[] | undefined,
+                    hasLoadableRestore ? {skipInitialRow: true} : undefined,
+                )
+
+                // If selection didn't actually change (e.g. HMR re-processed the same
+                // snapshot), skip the loadable/localTestset restore to avoid duplicating
+                // testcase rows.
+                if (!selectionChanged) {
+                    return
+                }
+
+                // For ephemeral entities, the restored entity ID differs from the URL's query param.
+                // Update the URL to reflect the new entity IDs so subsequent syncs don't re-apply stale IDs.
+                const hasEphemeralEntities = hydrateResult.entities?.some(
+                    (e) => e.runnableType === "baseRunnable",
+                )
+                if (hasEphemeralEntities) {
+                    // Set flag to skip URL revision processing until URL is updated
+                    skipUrlRevisionsUntilUpdate = true
+                    // Update URL with new selection (deferred to avoid sync loop)
+                    requestAnimationFrame(() => {
+                        writePlaygroundSelectionToQuery(hydrateResult.selection)
+                        skipUrlRevisionsUntilUpdate = false
+                    })
+                }
+
+                // Restore testset connection after nodes are set up (nodes are now populated)
+                if (hydrateResult.loadable) {
+                    void store
+                        .set(
+                            playgroundController.actions.restoreLoadableConnection,
+                            hydrateResult.loadable,
+                        )
+                        .catch((err) => {
+                            console.warn(
+                                "[Playground URL] Failed to restore testset connection, falling back to empty row:",
+                                err,
+                            )
+                            // Fall back to creating an empty row so the user isn't stuck
+                            const loadableId = store.get(
+                                playgroundController.selectors.loadableId(),
+                            )
+                            if (loadableId) {
+                                store.set(playgroundController.actions.addRowWithInit, {loadableId})
+                            }
+                        })
+                } else if (hydrateResult.localTestset) {
+                    // Restore local testcase data (synchronous)
+                    store.set(
+                        playgroundController.actions.restoreLocalTestset,
+                        hydrateResult.localTestset,
+                    )
+                }
                 return
             }
+        }
+
+        // Skip URL revision processing if we just hydrated ephemeral entities
+        // and haven't updated the URL yet
+        if (skipUrlRevisionsUntilUpdate && isPlaygroundRoute) {
+            return
         }
 
         // Skip URL revision processing if there are pending hydrations
@@ -346,25 +766,8 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
             return
         }
 
-        const currentSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
-        const currentUrlSelection = sanitizeRevisionList(store.get(urlRevisionsAtom))
-
         if (isPlaygroundRoute) {
-            if (lastPlaygroundAppId && currentAppId && lastPlaygroundAppId !== currentAppId) {
-                if (currentSelected.length > 0) {
-                    store.set(selectedVariantsAtom, [])
-                }
-                if (currentUrlSelection.length > 0) {
-                    store.set(urlRevisionsAtom, [])
-                }
-            }
-            lastPlaygroundAppId = currentAppId
             ensurePlaygroundDefaults(store)
-        } else {
-            lastPlaygroundAppId = null
-            if (currentUrlSelection.length > 0) {
-                store.set(urlRevisionsAtom, [])
-            }
         }
     } catch (err) {
         console.error("Failed to sync playground state from URL:", nextUrl, err)
@@ -382,12 +785,13 @@ export const syncPlaygroundStateFromUrl = (nextUrl?: string) => {
  * decouple from React.
  */
 const selectedDraftHashAtom = atom((get) => {
-    const selectedVariants = get(selectedVariantsAtom)
+    const selectedVariants = get(playgroundController.selectors.entityIds())
 
     const parts = selectedVariants.map((revisionId) => {
-        const isDirty = get(legacyAppRevisionMolecule.atoms.isDirty(revisionId))
-        const draft = get(legacyAppRevisionMolecule.atoms.draft(revisionId))
+        const isDirty = get(runnableBridge.isDirty(revisionId))
+        const draft = get(runnableBridge.draft(revisionId))
         const draftHash = draft ? JSON.stringify(draft) : ""
+
         return `${revisionId}:${isDirty}:${draftHash}`
     })
 
@@ -447,18 +851,38 @@ playgroundSyncAtom.onMount = (set) => {
         for (const sourceId of currentSourceIds) {
             if (sourceIdSubs.has(sourceId)) continue
 
-            const serverDataAtom = legacyAppRevisionMolecule.atoms.serverData(sourceId)
-            const unsub = store.sub(serverDataAtom, () => {
-                const serverData = store.get(serverDataAtom)
-                if (serverData && serverData.variantId) {
+            const queryAtom = runnableBridge.query(sourceId)
+            const dataAtom = runnableBridge.data(sourceId)
+
+            const tryApplyHydrations = () => {
+                const query = store.get(queryAtom)
+                if (!query.isPending && query.data) {
                     // Apply all pending hydrations for this source via the
                     // ordered helper — it processes createLocalDraft entries
                     // before applyDraftPatch entries so local copies are
                     // cloned from clean server data.
                     applyPendingHydrationsForRevision(sourceId)
                 }
+            }
+
+            // Subscribe to both the base query AND the merged entity data.
+            // The query sub fires when server data loads; the data sub fires
+            // when secondary schema resolution completes (e.g. OpenAPI fetch
+            // for app workflows). This ensures local draft cloning retries
+            // once schemas are available.
+            const unsubQuery = store.sub(queryAtom, tryApplyHydrations)
+            const unsubData = store.sub(dataAtom, tryApplyHydrations)
+            sourceIdSubs.set(sourceId, () => {
+                unsubQuery()
+                unsubData()
             })
-            sourceIdSubs.set(sourceId, unsub)
+
+            // Immediately check if data is already available.
+            // store.sub() only fires on FUTURE changes — if the query was
+            // already resolved (e.g. cache-primed by another query via
+            // initialData) before this subscription was set up, the sub
+            // would never fire and the draft would never be applied.
+            tryApplyHydrations()
         }
     }
 
@@ -477,11 +901,12 @@ playgroundSyncAtom.onMount = (set) => {
         const pending = store.get(pendingHydrationsAtom)
         // Collect unique source IDs that are ready, then apply via the ordered helper
         const readySourceIds = new Set<string>()
-        for (const [, hydration] of pending.entries()) {
-            const serverData = store.get(
-                legacyAppRevisionMolecule.atoms.serverData(hydration.sourceRevisionId),
-            )
-            if (serverData && serverData.variantId) {
+        for (const hydration of pending.values()) {
+            const query = store.get(runnableBridge.query(hydration.sourceRevisionId)) as {
+                isPending: boolean
+                data: any
+            }
+            if (!query.isPending && query.data) {
                 readySourceIds.add(hydration.sourceRevisionId)
             }
         }
@@ -491,52 +916,132 @@ playgroundSyncAtom.onMount = (set) => {
     }
 
     // -----------------------------------------------------------------------
-    // SUB 2: Apply default selection when revisions load
+    // SUB 2: Apply default selection when revisions become ready
     // -----------------------------------------------------------------------
-    // Uses dual subscription: revisionListAtom fires when data arrives,
-    // playgroundRevisionsReadyAtom fires when ALL variant revision queries
-    // have completed. Both are needed because revisionListAtom may fire
-    // before readiness (partial data), and readiness may fire after the
-    // revision list has already settled.
+    // Subscribes to playgroundController.selectors.revisionsReady() which checks per-entity query
+    // state via runnableBridge. No app-scoped atom needed.
     let hasAppliedDefaults = false
     const tryApplyDefaults = () => {
+        const isReady = store.get(playgroundController.selectors.revisionsReady())
+        const selected = store.get(playgroundController.selectors.entityIds())
         if (hasAppliedDefaults) return
-        const isReady = store.get(playgroundRevisionsReadyAtom)
         if (!isReady) return
 
         // Bump the revision cache version so that revisionListItemFromCacheAtomFamily
         // re-evaluates now that revision list queries have completed and populated the
         // React Query cache. This unlocks the fast enriched query path for entity data.
-        store.set(revisionCacheVersionAtom, (prev: number) => prev + 1)
+        runnableBridge.invalidateAllCaches()
 
-        const selected = store.get(selectedVariantsAtom)
         if (selected.length > 0) {
             hasAppliedDefaults = true
-
-            // Ensure URL reflects the in-memory selection. This covers the case
-            // where the user navigated away (which clears urlRevisionsAtom) and
-            // returned — the selection persists in memory but the URL has no
-            // ?revisions param. Write synchronously to avoid RAF cancellation.
-            const urlRevs = sanitizeRevisionList(store.get(urlRevisionsAtom))
-            if (urlRevs.length === 0) {
-                store.set(urlRevisionsAtom, selected)
-                writeUrlNow(selected)
-            }
+            store.set(playgroundInitializedAtom, true)
             return
         }
-        hasAppliedDefaults = true
-        ensurePlaygroundDefaults(store)
-
-        // After applying defaults, sync the URL synchronously
-        const newSelected = sanitizeRevisionList(store.get(selectedVariantsAtom))
-        if (newSelected.length > 0) {
-            writeUrlNow(newSelected)
+        const applied = ensurePlaygroundDefaults(store)
+        if (applied) {
+            hasAppliedDefaults = true
+            store.set(playgroundInitializedAtom, true)
         }
     }
-    const unsubRevisions = store.sub(revisionListAtom, tryApplyDefaults)
-    const unsubReady = store.sub(playgroundRevisionsReadyAtom, tryApplyDefaults)
-    unsubs.push(unsubRevisions)
-    unsubs.push(unsubReady)
+    // Re-bind when the app changes so defaults apply to the new app
+    let currentRevReadyUnsub: (() => void) | null = null
+    let currentLatestRevUnsub: (() => void) | null = null
+    const bindRevisionsReady = () => {
+        // Use URL-based app ID only — project-level playground has no app context
+        const currentAppId = store.get(routerAppIdAtom) as string | null
+        let currentSelected = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
+        const appState = store.get(appStateSnapshotAtom) as {pathname?: string}
+        const isPlaygroundRoute =
+            appState.pathname?.includes("/playground") &&
+            !appState.pathname?.includes("/playground-test")
+
+        // Detect app changes during in-page navigation. Declared before the
+        // if/else so it's accessible in the post-block early-return check.
+        const appChanged =
+            isPlaygroundRoute &&
+            playgroundSyncMountedOnce &&
+            currentAppId &&
+            currentSelected.length > 0 &&
+            lastPlaygroundAppId !== currentAppId
+
+        if (isPlaygroundRoute) {
+            if (appChanged) {
+                store.set(playgroundController.actions.setEntityIds, [])
+                currentSelected = []
+            }
+            lastPlaygroundAppId = currentAppId
+        } else {
+            // Keep lastPlaygroundAppId so that returning to the same app's
+            // playground does not mistakenly clear the selection.
+            // It was previously nullified here, causing the "appChanged" check
+            // on re-entry to clear the valid selection.
+
+            // Clean up existing subscriptions and skip re-binding since
+            // we're not on a playground route.
+            currentRevReadyUnsub?.()
+            currentLatestRevUnsub?.()
+            return
+        }
+
+        currentRevReadyUnsub?.()
+        currentLatestRevUnsub?.()
+
+        // When returning to the same app with a valid selection that's already
+        // initialized, skip resetting playgroundInitializedAtom to avoid a
+        // false→true transition that causes unnecessary re-renders (which can
+        // trigger editor re-hydration and cursor jumps).
+        if (!appChanged && currentSelected.length > 0 && store.get(playgroundInitializedAtom)) {
+            hasAppliedDefaults = true
+            return
+        }
+
+        hasAppliedDefaults = false
+        store.set(playgroundInitializedAtom, false)
+
+        // Check if URL already provided a selection
+        const existingSelection = currentSelected
+        if (existingSelection.length > 0) {
+            hasAppliedDefaults = true
+            // Subscribe to revisionsReady (per-entity query state)
+            // so we can mark initialized once the selected entities load.
+            currentRevReadyUnsub = store.sub(
+                playgroundController.selectors.revisionsReady(),
+                () => {
+                    const isReady = store.get(playgroundController.selectors.revisionsReady())
+                    if (isReady) {
+                        store.set(playgroundInitializedAtom, true)
+                    }
+                },
+            )
+            // Immediate check
+            if (store.get(playgroundController.selectors.revisionsReady())) {
+                store.set(playgroundInitializedAtom, true)
+            }
+        } else {
+            currentRevReadyUnsub = store.sub(playgroundController.selectors.revisionsReady(), () =>
+                tryApplyDefaults(),
+            )
+            // Subscribe to entity data so we retry when it finishes loading.
+            // Only needed when no URL selection exists and we must find a default.
+            if (currentAppId) {
+                currentLatestRevUnsub = store.sub(
+                    workflowRevisionsByWorkflowListDataAtomFamily(currentAppId),
+                    () => tryApplyDefaults(),
+                )
+            }
+            // Immediate check in case already ready
+            tryApplyDefaults()
+        }
+    }
+    bindRevisionsReady()
+    const unsubAppChange = store.sub(routerAppIdAtom, () => {
+        bindRevisionsReady()
+    })
+    unsubs.push(unsubAppChange)
+    unsubs.push(() => currentRevReadyUnsub?.())
+    unsubs.push(() => currentLatestRevUnsub?.())
 
     // -----------------------------------------------------------------------
     // SUB 3: Update URL when draft content changes
@@ -552,52 +1057,251 @@ playgroundSyncAtom.onMount = (set) => {
     unsubs.push(unsubDraftHash)
 
     // -----------------------------------------------------------------------
-    // SUB 4: Clean stale IDs from selection when revision list changes
-    // (replaces MainLayout validation useEffect)
+    // SUB 4: Clean stale IDs from selection via displayedEntityIdsAtom
     // -----------------------------------------------------------------------
-    const unsubValidation = store.sub(playgroundRevisionListAtom, () => {
-        const revisionList = store.get(playgroundRevisionListAtom)
-        if (!revisionList || revisionList.length === 0) return
-
-        const selected = store.get(selectedVariantsAtom)
+    // displayedEntityIdsAtom validates each entity individually via
+    // runnableBridge.query() — no app-scoped revision list needed.
+    // When it filters out stale IDs, sync entityIdsAtom to match.
+    const unsubValidation = store.sub(displayedEntityIdsAtom, () => {
+        const displayed = store.get(displayedEntityIdsAtom)
+        const selected = store.get(playgroundController.selectors.entityIds())
         if (selected.length === 0) return
 
         // Don't filter until all revision queries have completed.
-        // During incremental loading, some variants' revisions may not be
-        // in the list yet — filtering now would incorrectly remove them.
-        const isReady = store.get(playgroundRevisionsReadyAtom)
+        const isReady = store.get(playgroundController.selectors.revisionsReady())
         if (!isReady) return
 
-        const revisionIds = new Set(
-            revisionList.map((revision: any) => revision?.id).filter(Boolean),
-        )
-
-        const trackedLocalDraftIds = new Set(store.get(localDraftIdsAtom) || [])
-
-        const valid = selected.filter((id) => {
-            if (revisionIds.has(id) || isPlaceholderId(id)) return true
-            if (isLocalDraftId(id)) return trackedLocalDraftIds.has(id)
-            return false
-        })
-
-        if (process.env.NODE_ENV !== "production" && !arraysEqual(valid, selected)) {
-            const removed = selected.filter((id) => !valid.includes(id))
-            console.log("[SUB4] Cleaning stale IDs", {
-                selected,
-                valid,
-                removed,
-                revisionIdsInList: [...revisionIds],
-            })
-        }
-
-        if (valid.length === 0) {
+        if (displayed.length === 0) {
             ensurePlaygroundDefaults(store)
-        } else if (!arraysEqual(valid, selected)) {
-            store.set(selectedVariantsAtom, valid)
-            writePlaygroundSelectionToQuery(valid)
+        } else if (!arraysEqual(displayed, selected)) {
+            store.set(playgroundController.actions.setEntityIds, displayed)
+            writePlaygroundSelectionToQuery(displayed)
         }
     })
     unsubs.push(unsubValidation)
+
+    // -----------------------------------------------------------------------
+    // SUB 5: Update URL when testset connection changes
+    // -----------------------------------------------------------------------
+    // When the user connects/disconnects from an API-backed testset, the
+    // loadable state changes. We re-encode the URL so the testset connection
+    // is captured in (or removed from) the #pgSnapshot hash.
+    const unsubConnectedTestset = store.sub(
+        playgroundController.selectors.connectedTestset(),
+        () => {
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubConnectedTestset)
+
+    // -----------------------------------------------------------------------
+    // SUB 6: Update URL when testcase visibility changes
+    // -----------------------------------------------------------------------
+    // When the user removes/hides testcase rows, hiddenTestcaseIds changes
+    // in the loadable state. Re-encode the URL so the hidden IDs are captured
+    // in the #pgSnapshot hash and persist across page reloads.
+    const unsubHiddenTestcases = store.sub(
+        playgroundController.selectors.hiddenTestcaseCount(),
+        () => {
+            const currentSelected = sanitizeRevisionList(
+                store.get(playgroundController.selectors.entityIds()),
+            )
+            if (currentSelected.length > 0) {
+                writePlaygroundSelectionToQuery(currentSelected)
+            }
+        },
+    )
+    unsubs.push(unsubHiddenTestcases)
+
+    // -----------------------------------------------------------------------
+    // SUB 7: Update URL when new testcase rows are added/removed
+    // -----------------------------------------------------------------------
+    // When the user adds a new testcase row (locally-created, not yet committed),
+    // the snapshot must be re-encoded so the new row data is captured in draftRows
+    // and persists across page reloads.
+    const unsubNewTestcases = store.sub(playgroundController.selectors.newTestcaseCount(), () => {
+        store.get(playgroundController.selectors.newTestcaseCount())
+        const currentSelected = sanitizeRevisionList(
+            store.get(playgroundController.selectors.entityIds()),
+        )
+        if (currentSelected.length > 0) {
+            writePlaygroundSelectionToQuery(currentSelected)
+        }
+    })
+    unsubs.push(unsubNewTestcases)
+
+    // -----------------------------------------------------------------------
+    // SUB 8: Update URL when new testcase row DATA changes
+    // -----------------------------------------------------------------------
+    // When the user edits the content of a locally-created testcase row,
+    // the snapshot must be re-encoded so the updated data is captured in
+    // draftRows and persists across page reloads.
+    let prevNewTestcaseDataHash = store.get(playgroundController.selectors.newTestcaseDataHash())
+    const unsubNewTestcaseData = store.sub(
+        playgroundController.selectors.newTestcaseDataHash(),
+        () => {
+            const hash = store.get(playgroundController.selectors.newTestcaseDataHash())
+            if (hash !== prevNewTestcaseDataHash) {
+                prevNewTestcaseDataHash = hash
+                const currentSelected = sanitizeRevisionList(
+                    store.get(playgroundController.selectors.entityIds()),
+                )
+                if (currentSelected.length > 0) {
+                    writePlaygroundSelectionToQuery(currentSelected)
+                }
+            }
+        },
+    )
+    unsubs.push(unsubNewTestcaseData)
+
+    // -----------------------------------------------------------------------
+    // SUB 9: Persist full playground snapshot to localStorage (debounced 1s)
+    // -----------------------------------------------------------------------
+    // Subscribes to the same selectedDraftHashAtom as SUB 3 (URL sync).
+    // When the URL encoding fails for large entities (>8KB), this ensures
+    // draft state is still persisted to localStorage as a fallback.
+    // Uses playgroundSnapshotController.createSnapshot for entity-type-agnostic
+    // snapshot building (works for workflow, legacyAppRevision, etc.)
+    const DRAFT_SNAPSHOT_KEY = "agenta:playground-draft-snapshot"
+
+    let persistDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const persistSnapshot = () => {
+        try {
+            const entityIds = store.get(playgroundController.selectors.entityIds())
+            if (entityIds.length === 0) {
+                localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                return
+            }
+
+            const nodes = store.get(playgroundController.selectors.nodes())
+            const snapshotInputs = buildSnapshotSelectionInputs(entityIds, nodes)
+
+            const result = store.set(
+                playgroundSnapshotController.actions.createSnapshot,
+                snapshotInputs,
+            ) as {snapshot?: PlaygroundSnapshot}
+
+            if (result.snapshot) {
+                const hasDraftChanges =
+                    result.snapshot.drafts.length > 0 ||
+                    result.snapshot.selection.some((s: any) => s.kind === "ephemeral")
+
+                if (hasDraftChanges) {
+                    localStorage.setItem(
+                        DRAFT_SNAPSHOT_KEY,
+                        JSON.stringify({
+                            snapshot: result.snapshot,
+                            timestamp: Date.now(),
+                        }),
+                    )
+                } else {
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                }
+            }
+        } catch (err) {
+            console.warn("[SUB 9] Error persisting snapshot:", err)
+        }
+    }
+
+    const unsubPersist = store.sub(selectedDraftHashAtom, () => {
+        if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+
+        // Check if any entity has an active draft. When no drafts exist
+        // (e.g. after discard/commit), clear localStorage IMMEDIATELY
+        // so a page reload within the debounce window won't re-apply stale drafts.
+        const entityIds = store.get(playgroundController.selectors.entityIds())
+        const hasAnyDraft = entityIds.some((id) => {
+            const isDirty = store.get(runnableBridge.isDirty(id))
+            return isDirty
+        })
+
+        if (!hasAnyDraft) {
+            persistDebounceTimer = null
+            persistSnapshot()
+            return
+        }
+
+        // Debounce writes when drafts are active (reduces I/O during rapid editing)
+        persistDebounceTimer = setTimeout(() => {
+            persistDebounceTimer = null
+            persistSnapshot()
+        }, 1000)
+    })
+    unsubs.push(unsubPersist)
+    unsubs.push(() => {
+        if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+    })
+
+    // -----------------------------------------------------------------------
+    // SUB 10: Restore persisted snapshot from localStorage (one-time on mount)
+    // -----------------------------------------------------------------------
+    // Initialize local draft data from localStorage FIRST (before SUB 4 validation)
+    initializeLocalDrafts()
+
+    // Clean up stale persisted drafts older than 7 days
+    cleanupStalePersistedDrafts()
+
+    // Check if URL had a snapshot — if so, skip localStorage restoration
+    // (URL snapshot takes priority as it's an explicit sharing action)
+    const urlHadSnapshot = getLastWrittenSnapshotHash() !== null
+
+    if (!urlHadSnapshot) {
+        // Read the persisted full snapshot from localStorage
+        let persistedSnapshot: PlaygroundSnapshot | null = null
+        try {
+            const raw = localStorage.getItem(DRAFT_SNAPSHOT_KEY)
+            if (raw) {
+                const parsed = JSON.parse(raw)
+                const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+                if (parsed?.timestamp && Date.now() - parsed.timestamp > SEVEN_DAYS_MS) {
+                    localStorage.removeItem(DRAFT_SNAPSHOT_KEY)
+                } else if (parsed?.snapshot) {
+                    persistedSnapshot = parsed.snapshot as PlaygroundSnapshot
+                }
+            }
+        } catch (err) {
+            console.warn("[SUB 10] Parse error:", err)
+        }
+
+        if (persistedSnapshot && persistedSnapshot.drafts.length > 0) {
+            // Wait for entity IDs to be populated (by URL sync or defaults),
+            // then hydrate the snapshot to apply draft patches.
+            // The snapshot's selection matches the URL's ?revisions= param,
+            // so we only need the pending hydrations mechanism (SUB 1).
+            let restoreSetupDone = false
+            const entityIdsAtom = playgroundController.selectors.entityIds()
+
+            const tryHydrateSnapshot = () => {
+                if (restoreSetupDone) return
+                const selected = store.get(entityIdsAtom)
+                if (selected.length === 0) return
+
+                restoreSetupDone = true
+
+                // Hydrate the snapshot — this creates pending hydrations
+                // that SUB 1 will apply when server data loads.
+                // NOTE: We do NOT clear localStorage here. hydrateSnapshot only
+                // QUEUES pending hydrations — the actual patches are applied later
+                // by SUB 1 when server data loads. If the user reloads before that,
+                // we'd lose the drafts. SUB 9 manages the localStorage lifecycle:
+                // once drafts are applied, it re-persists; when committed/discarded,
+                // it removes from localStorage.
+                store.set(playgroundSnapshotController.actions.hydrateSnapshot, persistedSnapshot!)
+            }
+
+            const unsubRestoreSetup = store.sub(entityIdsAtom, tryHydrateSnapshot)
+            unsubs.push(unsubRestoreSetup)
+
+            // Also try immediately in case selection is already populated
+            tryHydrateSnapshot()
+        }
+    }
 
     // -----------------------------------------------------------------------
     // INITIAL URL SYNC: ensure URL reflects in-memory selection
@@ -607,13 +1311,15 @@ playgroundSyncAtom.onMount = (set) => {
     // ?revisions param even though a selection exists. Write synchronously
     // (bypassing RAF) so a subsequent RAF-based call cannot cancel this write.
     {
-        const initialSelection = sanitizeRevisionList(store.get(selectedVariantsAtom))
-        const initialUrlRevisions = sanitizeRevisionList(store.get(urlRevisionsAtom))
+        const initialSelection = sanitizeRevisionList(store.get(_selectedVariantsAtom))
+        const initialUrlRevisions = sanitizeRevisionList(store.get(_urlRevisionsAtom))
         if (initialSelection.length > 0 && initialUrlRevisions.length === 0) {
-            store.set(urlRevisionsAtom, initialSelection)
+            store.set(_urlRevisionsAtom, initialSelection)
             writeUrlNow(initialSelection)
         }
     }
+
+    playgroundSyncMountedOnce = true
 
     // -----------------------------------------------------------------------
     // CLEANUP

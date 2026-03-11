@@ -11,10 +11,18 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import type {RequestPayloadData} from "../../runnable/types"
 import type {StoreOptions, EntitySchema} from "../../shared"
 import type {ExecutionMode} from "../core"
 
-import {legacyAppRevisionSchemaQueryAtomFamily} from "./schemaAtoms"
+import {
+    legacyAppRevisionSchemaQueryAtomFamily,
+    revisionOpenApiSchemaAtomFamily,
+} from "./schemaAtoms"
+import {
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionInputPortsAtomFamily,
+} from "./store"
 
 // ============================================================================
 // HELPERS
@@ -54,7 +62,17 @@ export const invocationUrlAtomFamily = atomFamily((revisionId: string) =>
         const endpoint = get(endpointAtomFamily(revisionId))
 
         const runtimePrefix = schemaQuery.data?.runtimePrefix
-        if (!runtimePrefix) return null
+        if (!runtimePrefix) {
+            // Fallback: use serviceUrl from entity data when URI isn't a parseable URL
+            // (e.g. "agenta:builtin:completion:v0" — the backend provides the actual
+            // service URL in data.url which is stored as serviceUrl)
+            const entity = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+            if (entity?.serviceUrl) {
+                const cleanEndpoint = endpoint.replace(/^\//, "")
+                return `${entity.serviceUrl.replace(/\/$/, "")}/${cleanEndpoint}`
+            }
+            return null
+        }
 
         const prefix = runtimePrefix.replace(/\/$/, "")
         const routePath = schemaQuery.data?.routePath || ""
@@ -232,6 +250,94 @@ export const outputPortsAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
+// REQUEST PAYLOAD
+// ============================================================================
+
+/**
+ * Pre-built request payload for a legacy app revision.
+ *
+ * Reads raw parameters.ag_config directly from entity state.
+ * The playground package merges in inputs (from loadable) and
+ * chat history (from chat state) on top via transformToRequestBody.
+ */
+export const requestPayloadAtomFamily = atomFamily((revisionId: string) =>
+    atom<RequestPayloadData | null>((get) => {
+        const entityData = get(legacyAppRevisionEntityWithBridgeAtomFamily(revisionId))
+        if (!entityData) return null
+
+        const schemaQuery = get(legacyAppRevisionSchemaQueryAtomFamily(revisionId))
+        const openApiSchema = get(revisionOpenApiSchemaAtomFamily(revisionId))
+        const routePath = schemaQuery.data?.routePath || ""
+        const runtimePrefix = schemaQuery.data?.runtimePrefix || null
+        const isChat = get(isChatVariantAtomFamily(revisionId))
+        const invocationUrl = get(invocationUrlAtomFamily(revisionId))
+
+        // Access runtime fields not in the Zod schema via Record indexing
+        const entityRecord = entityData as Record<string, unknown>
+        const appType = typeof entityRecord.appType === "string" ? entityRecord.appType : undefined
+
+        // Read raw ag_config directly from entity parameters
+        const params = entityData.parameters as Record<string, unknown> | undefined
+        const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
+
+        // Primary source of truth: live input ports derived from current prompts/schema.
+        // Fallback to persisted input_keys only when ports are unavailable.
+        const variablesFromPorts = get(legacyAppRevisionInputPortsAtomFamily(revisionId))
+            .map((port) => port?.key)
+            .filter((key): key is string => typeof key === "string" && key.length > 0)
+        const variables = Array.from(new Set(variablesFromPorts))
+
+        if (variables.length === 0) {
+            try {
+                for (const val of Object.values(agConfig)) {
+                    const valRecord = val as Record<string, unknown> | null
+                    if (valRecord && typeof valRecord === "object" && "input_keys" in valRecord) {
+                        const keys = valRecord.input_keys
+                        if (Array.isArray(keys)) {
+                            for (const k of keys) {
+                                if (typeof k === "string" && !variables.includes(k)) {
+                                    variables.push(k)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // best-effort
+            }
+        }
+
+        // Build references for trace attribution
+        // Use nested format: application { id, variant_id, revision_id }
+        const appId = entityData.appId ?? (entityRecord.app_id as string | undefined)
+        const variantId = entityData.variantId ?? (entityRecord.variant_id as string | undefined)
+        const references: Record<string, Record<string, string | undefined>> = {}
+        if (appId) {
+            references.application = {
+                id: appId,
+                variant_id: variantId,
+                revision_id: revisionId,
+            }
+        }
+
+        return {
+            ag_config: agConfig,
+            isChat,
+            appType: appType ?? null,
+            invocationUrl,
+            runtimePrefix: runtimePrefix,
+            variables,
+            spec: openApiSchema,
+            routePath: routePath || undefined,
+            isCustom: appType?.toLowerCase() === "custom" || undefined,
+            appId: appId ?? null,
+            // Include references for trace attribution
+            references: Object.keys(references).length > 0 ? references : undefined,
+        }
+    }),
+)
+
+// ============================================================================
 // RUNNABLE EXTENSION EXPORTS
 // ============================================================================
 
@@ -250,6 +356,7 @@ export const runnableAtoms = {
     messagesSchema: messagesSchemaAtomFamily,
     runtimePrefix: runtimePrefixAtomFamily,
     routePath: routePathAtomFamily,
+    requestPayload: requestPayloadAtomFamily,
 }
 
 /**
