@@ -244,7 +244,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
         }, [inputs, outputs, shouldRenderMessagePanels])
 
     return (
-        <Space orientation="vertical" size={24} className="w-full">
+        <div className="w-full flex flex-col gap-2">
             {metaConfig && (
                 <Space style={{flexWrap: "wrap"}}>
                     {Object.entries(metaConfig)
@@ -459,7 +459,7 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     />
                 </Space>
             )}
-        </Space>
+        </div>
     )
 }
 

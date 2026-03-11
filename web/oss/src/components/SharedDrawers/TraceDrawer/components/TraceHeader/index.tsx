@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDown, CaretUp, ListChecks} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {
     setTraceDrawerTraceAtom,
@@ -24,6 +25,11 @@ import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTrace
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
 import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -443,10 +449,11 @@ const TraceHeader = ({
     ])
 
     const displayTrace = propActiveTrace || drawerTraces?.[0]
+    const displayTraceId = getTraceIdFromNode(displayTrace) || ""
 
     return (
         <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
                 <Space>
                     {backTarget && (
                         <Button
@@ -474,15 +481,21 @@ const TraceHeader = ({
                     )}
 
                     <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
-                    <TooltipWithCopyAction
-                        copyText={getTraceIdFromNode(displayTrace) || ""}
-                        title="Copy trace id"
-                    >
+                    <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
                         <Tag className="font-mono bg-[#0517290F]" variant="filled">
-                            # {getTraceIdFromNode(displayTrace) || "-"}
+                            # {displayTraceId || "-"}
                         </Tag>
                     </TooltipWithCopyAction>
                 </Space>
+                <AddToQueuePopover
+                    itemType="traces"
+                    itemIds={displayTraceId ? [displayTraceId] : []}
+                    disabled={!displayTraceId}
+                >
+                    <Button type="default" size="small" icon={<ListChecks size={14} />}>
+                        Add to queue
+                    </Button>
+                </AddToQueuePopover>
             </div>
         </>
     )

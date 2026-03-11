@@ -1,7 +1,13 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
+import {
+    ArrowsClockwiseIcon,
+    DatabaseIcon,
+    ExportIcon,
+    ListChecks,
+    TrashIcon,
+} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -38,6 +44,11 @@ const DeleteTraceModal = dynamic(
     {
         ssr: false,
     },
+)
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
 )
 
 const AutoRefreshControl: React.FC<{
@@ -142,6 +153,17 @@ const ObservabilityHeader = ({
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
         [attributeKeyOptions],
+    )
+    const selectedTraceIds = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    selectedRowKeys
+                        .map((key) => getNodeById(traces, String(key))?.trace_id || "")
+                        .filter((traceId): traceId is string => Boolean(traceId)),
+                ),
+            ),
+        [traces, selectedRowKeys],
     )
 
     useEffect(() => {
@@ -475,6 +497,17 @@ const ObservabilityHeader = ({
                                     tooltipProps={{title: "Add to testset"}}
                                     data-tour="create-testset-button"
                                 />
+                                <AddToQueuePopover
+                                    itemType="traces"
+                                    itemIds={selectedTraceIds}
+                                    disabled={traces.length === 0 || selectedTraceIds.length === 0}
+                                >
+                                    <EnhancedButton
+                                        aria-label="Add selected traces to annotation queue"
+                                        icon={<ListChecks size={14} />}
+                                        tooltipProps={{title: "Add to queue"}}
+                                    />
+                                </AddToQueuePopover>
                             </>
                         ) : null}
                         {isScrolled && componentType === "sessions" && setRealtimeMode ? (
@@ -549,6 +582,13 @@ const ObservabilityHeader = ({
                             >
                                 Add to testset
                             </Button>
+                            <AddToQueuePopover
+                                itemType="traces"
+                                itemIds={selectedTraceIds}
+                                disabled={traces.length === 0 || selectedTraceIds.length === 0}
+                            >
+                                <Button icon={<ListChecks size={14} />}>Add to queue</Button>
+                            </AddToQueuePopover>
                         </Space>
                     </div>
                 ) : null}

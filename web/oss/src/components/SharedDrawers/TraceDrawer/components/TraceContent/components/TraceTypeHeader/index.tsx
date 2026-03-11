@@ -59,7 +59,6 @@ const TraceTypeHeader = ({
     const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
-
     const spanIds = useMemo(() => {
         if (!activeTrace?.span_id) return []
         return [activeTrace.span_id]
@@ -145,7 +144,6 @@ const TraceTypeHeader = ({
                     spanIds={spanIds}
                     disabled={!activeTrace?.span_id}
                 />
-
                 <AnnotateDrawerButton
                     label="Annotate"
                     size="small"
