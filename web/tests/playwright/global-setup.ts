@@ -234,7 +234,8 @@ async function authenticateUser({
     const otpAlreadyRequested = await resendOtpLink.isVisible().catch(() => false)
     const canSendOtp =
         (await continueWithOtpButton.isVisible().catch(() => false)) ||
-        (await continueWithOtpButton.waitFor({state: "visible", timeout: 5000})
+        (await continueWithOtpButton
+            .waitFor({state: "visible", timeout: 5000})
             .then(() => true)
             .catch(() => false))
 
@@ -265,7 +266,9 @@ async function authenticateUser({
                 try {
                     // Approach 1: Direct CSS selector for the Turnstile iframe
                     const turnstileIframe = page
-                        .locator('iframe[src*="challenges.cloudflare.com/cdn-cgi/challenge-platform"]')
+                        .locator(
+                            'iframe[src*="challenges.cloudflare.com/cdn-cgi/challenge-platform"]',
+                        )
                         .first()
                     if (await turnstileIframe.isVisible().catch(() => false)) {
                         console.log(
@@ -320,13 +323,15 @@ async function authenticateUser({
 
             // Set up a short-lived listener for the createCode response
             const createCodeRace = Promise.race([
-                page.waitForResponse((response) => {
-                    const url = response.url()
-                    return (
-                        /\/api\/auth\/signinup\/code(?:\?|$)/.test(url) &&
-                        response.request().method() === "POST"
-                    )
-                }).then((r) => ({fired: true as const, response: r})),
+                page
+                    .waitForResponse((response) => {
+                        const url = response.url()
+                        return (
+                            /\/api\/auth\/signinup\/code(?:\?|$)/.test(url) &&
+                            response.request().method() === "POST"
+                        )
+                    })
+                    .then((r) => ({fired: true as const, response: r})),
                 new Promise<{fired: false}>((resolve) =>
                     setTimeout(() => resolve({fired: false}), OTP_SEND_RETRY_DELAY),
                 ),
@@ -336,9 +341,7 @@ async function authenticateUser({
             const result = await createCodeRace
 
             if (result.fired) {
-                console.log(
-                    `[global-setup] createCode API responded on attempt ${attempt}`,
-                )
+                console.log(`[global-setup] createCode API responded on attempt ${attempt}`)
                 otpSent = true
                 break
             }

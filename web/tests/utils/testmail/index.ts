@@ -55,9 +55,7 @@ export function generateNamespacedTestEmail(
     return `${namespace}.${identifier}.test.agenta@inbox.testmail.app`
 }
 
-export function generateRuntimeTestEmail(
-    params: Testmail.EmailTagParams = {},
-): Testmail.TestEmail {
+export function generateRuntimeTestEmail(params: Testmail.EmailTagParams = {}): Testmail.TestEmail {
     const namespace = process.env.TESTMAIL_NAMESPACE?.trim()
 
     if (namespace) {
