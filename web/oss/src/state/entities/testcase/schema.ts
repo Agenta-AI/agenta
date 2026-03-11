@@ -77,12 +77,8 @@ const hasWrappedDataShape = (row: Record<string, unknown>): boolean => {
     if (!isRecord(row.data)) return false
 
     const keys = Object.keys(row)
-    if (keys.length === 1 && keys[0] === "data") return true
 
-    const nonWrapperKeys = keys.filter((key) => key !== "data" && !SYSTEM_FIELDS.has(key))
-    if (nonWrapperKeys.length === 0) return true
-
-    return false
+    return keys.every((key) => key === "data" || SYSTEM_FIELDS.has(key))
 }
 
 /**
@@ -184,7 +180,6 @@ export function normalizeToFlattenedTestcase(input: unknown): FlattenedTestcase 
     if (!isRecord(input)) return null
 
     const base = isRecord(input.testcase) ? input.testcase : input
-    if (!isRecord(base)) return null
 
     if (hasWrappedDataShape(base)) {
         const data = isRecord(base.data) ? base.data : {}
