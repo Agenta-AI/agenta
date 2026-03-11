@@ -4,6 +4,8 @@
 
 **Scope:** Frontend only. Make the registry commit flow always use the workflow commit path.
 
+The current implementation plan is intentionally narrow: fix the commit path now, and treat create/delete as separate follow-ups unless we reproduce the same cold-refresh bug there.
+
 ## Files
 
 - `context.md` — Background, root cause analysis, the two bugs

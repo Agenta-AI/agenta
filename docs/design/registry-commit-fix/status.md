@@ -1,12 +1,13 @@
 # Status
 
-## Current State: Plan written, awaiting approval
+## Current State: Plan narrowed after review
 
 - [x] Root cause identified
 - [x] Code paths traced
 - [x] Plan written
+- [x] Side effects reviewed
 - [ ] Step 1: Fix entity type resolution in controllerCommitRevisionAtom
-- [ ] Step 2: Fix entity type resolution in controllerCreateVariantAtom
-- [ ] Step 3: Fix entity type resolution in controllerDeleteRevisionAtom
-- [ ] Step 4: Clean up CommitVariantChangesModal payload
-- [ ] Step 5: Manual verification
+- [ ] Step 2: Clean up CommitVariantChangesModal payload
+- [ ] Step 3: Manual verification
+- [ ] Follow-up A: Audit create-variant refresh behavior
+- [ ] Follow-up B: Audit delete flow separately
