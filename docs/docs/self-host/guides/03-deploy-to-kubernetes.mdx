@@ -65,12 +65,11 @@ helm install agenta hosting/helm/agenta-oss \
   --namespace agenta --create-namespace \
   --set secrets.agentaAuthKey=$AG_AUTH_KEY \
   --set secrets.agentaCryptKey=$AG_CRYPT_KEY \
-  --set secrets.postgresPassword=$PG_PASS \
-  --set postgresql.auth.password=$PG_PASS
+  --set secrets.postgresPassword=$PG_PASS
 ```
 
 :::info
-`secrets.postgresPassword` and `postgresql.auth.password` must match. The first is used by the application pods; the second is used by the Bitnami PostgreSQL subchart to set the database password.
+The chart automatically wires `secrets.postgresPassword` to both the application pods and the Bitnami PostgreSQL subchart (via a shared Kubernetes Secret). You only need to set it once.
 :::
 
 :::caution Security note
