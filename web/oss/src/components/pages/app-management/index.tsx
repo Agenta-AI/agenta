@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -25,8 +26,6 @@ import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-
-import PageLayout from "../../PageLayout/PageLayout"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
