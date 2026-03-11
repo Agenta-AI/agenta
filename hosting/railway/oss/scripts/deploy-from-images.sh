@@ -102,7 +102,7 @@ ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 
-CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["/opt/venv/bin/gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 
@@ -120,7 +120,7 @@ ENV REDIS_URI=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 
-CMD ["gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["/opt/venv/bin/gunicorn", "entrypoints.main:app", "--bind", "0.0.0.0:8080", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 
@@ -133,7 +133,7 @@ FROM ${AGENTA_WEB_IMAGE}
 ENV HOSTNAME=0.0.0.0
 ENV AGENTA_LICENSE=oss
 
-CMD ["sh", "-lc", "/app/entrypoint.sh node /app/oss/server.js"]
+CMD ["node", "/app/oss/server.js"]
 EOF
 }
 
@@ -149,7 +149,7 @@ ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.in
 ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
 
 COPY create_databases.py /tmp/create_databases.py
-CMD ["sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m oss.databases.postgres.migrations.runner"]
+CMD ["/bin/sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m oss.databases.postgres.migrations.runner"]
 EOF
 }
 
@@ -175,11 +175,11 @@ render_services_wrapper
 render_web_wrapper
 render_alembic_wrapper
 render_redis_wrapper
-render_api_like_wrapper worker-tracing '["python", "-m", "entrypoints.worker_tracing"]'
-render_api_like_wrapper worker-evaluations '["python", "-m", "entrypoints.worker_evaluations"]'
-render_api_like_wrapper worker-webhooks '["python", "-m", "entrypoints.worker_webhooks"]'
-render_api_like_wrapper worker-events '["python", "-m", "entrypoints.worker_events"]'
-render_api_like_wrapper cron '["supercronic", "/app/crontab"]'
+render_api_like_wrapper worker-tracing '["/opt/venv/bin/python", "-m", "entrypoints.worker_tracing"]'
+render_api_like_wrapper worker-evaluations '["/opt/venv/bin/python", "-m", "entrypoints.worker_evaluations"]'
+render_api_like_wrapper worker-webhooks '["/opt/venv/bin/python", "-m", "entrypoints.worker_webhooks"]'
+render_api_like_wrapper worker-events '["/opt/venv/bin/python", "-m", "entrypoints.worker_events"]'
+render_api_like_wrapper cron '["/usr/local/bin/supercronic", "/app/crontab"]'
 
 export RAILWAY_PROJECT_NAME="$PROJECT_NAME"
 export RAILWAY_ENVIRONMENT_NAME="$ENV_NAME"

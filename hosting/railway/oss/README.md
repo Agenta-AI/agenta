@@ -197,9 +197,17 @@ The fix (already applied in `gateway/nginx.conf`):
 
 `bootstrap.sh` now checks `railway volume list --json` before adding a volume.
 
-### API image venv path
+### API image venv path and Railway exec lookup
 
-The GHCR API image installs packages in `/opt/venv/` but the default `PATH` at build time resolves `python` to `/usr/local/bin/python` (bare system python without packages). When running custom commands (like alembic migrations), use `/opt/venv/bin/python` explicitly.
+The GHCR API image installs app binaries in `/opt/venv/bin/`. Railway redeploys can fail with `Failed to fork exec: no such file or directory` if a wrapper image relies on PATH lookup for commands like `python`, `gunicorn`, or `supercronic`.
+
+Use absolute executable paths in wrapper commands:
+
+- `/opt/venv/bin/python`
+- `/opt/venv/bin/gunicorn`
+- `/usr/local/bin/supercronic`
+
+For the web image, keep the base image entrypoint and set the Railway command to `node /app/oss/server.js` instead of invoking `/app/entrypoint.sh` twice.
 
 ### Worker Redis defaults
 

@@ -12,5 +12,5 @@ ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 
-# Start gunicorn with uvicorn workers
-CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+# Use the venv binary explicitly because Railway execs can fail if PATH lookup is skipped.
+CMD ["/opt/venv/bin/gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]

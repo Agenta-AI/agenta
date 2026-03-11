@@ -11,4 +11,4 @@ ENV ALEMBIC_CFG_PATH_CORE=/app/oss/databases/postgres/migrations/core/alembic.in
 ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alembic.ini
 
 # Background worker for asynchronous event stream processing
-CMD ["python", "-m", "entrypoints.worker_events"]
+CMD ["/opt/venv/bin/python", "-m", "entrypoints.worker_events"]

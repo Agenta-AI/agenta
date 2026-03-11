@@ -8,4 +8,4 @@ ENV ALEMBIC_CFG_PATH_TRACING=/app/oss/databases/postgres/migrations/tracing/alem
 COPY create_databases.py /tmp/create_databases.py
 
 # Create required databases, then run migrations
-CMD ["sh", "-lc", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m oss.databases.postgres.migrations.runner"]
+CMD ["/bin/sh", "-c", "/opt/venv/bin/python /tmp/create_databases.py && /opt/venv/bin/python -m oss.databases.postgres.migrations.runner"]
