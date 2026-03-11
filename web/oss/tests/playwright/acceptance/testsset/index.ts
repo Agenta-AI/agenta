@@ -86,7 +86,9 @@ const testsetTests = () => {
 
             // 6. Verify testset page
             await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await expect(page.getByRole("heading", {name: /testset|test set/i}).first()).toBeVisible()
+            await expect(
+                page.getByRole("heading", {name: /testset|test set/i}).first(),
+            ).toBeVisible()
 
             const response = await testsetResponsePromise
             const testset = response.testset

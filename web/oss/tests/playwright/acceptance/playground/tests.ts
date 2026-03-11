@@ -85,9 +85,9 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await uiHelpers.expectPath(`/apps/${appId}/playground`)
             }
 
-            await expect(
-                page.getByRole("button", {name: "Run", exact: true}).first(),
-            ).toBeVisible({timeout: 30000})
+            await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible({
+                timeout: 30000,
+            })
         })
     },
 
