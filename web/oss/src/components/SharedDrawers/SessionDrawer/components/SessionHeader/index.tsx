@@ -1,10 +1,10 @@
 import {useCallback, useMemo} from "react"
 
+import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import TooltipWithCopyAction from "@/oss/components/EnhancedUIs/Tooltip"
 import {filteredSessionIdsAtom} from "@/oss/state/newObservability"
 import {openSessionDrawerWithUrlAtom} from "@/oss/state/url/session"
 

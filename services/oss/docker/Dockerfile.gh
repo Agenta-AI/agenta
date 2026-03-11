@@ -67,10 +67,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app:/app/sdk \
     PATH="/opt/venv/bin:${PATH}"
 
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
 COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /app/oss /app/oss
-COPY --from=builder /app/entrypoints /app/entrypoints
-COPY --from=builder /app/sdk /app/sdk
+COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
+COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
+COPY --chown=agenta:agenta --from=builder /app/sdk /app/sdk
+
+USER 10001
 
 LABEL org.opencontainers.image.title="agenta-services" \
     org.opencontainers.image.description="Agenta Services GH runtime image" \
@@ -78,4 +83,4 @@ LABEL org.opencontainers.image.title="agenta-services" \
     org.opencontainers.image.revision="${VCS_REF}" \
     org.opencontainers.image.created="${BUILD_DATE}"
 
-EXPOSE 80
+EXPOSE 8080

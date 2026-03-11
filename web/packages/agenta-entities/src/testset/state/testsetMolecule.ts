@@ -716,8 +716,7 @@ export const testsetMolecule = {
         // 2. Create an initial testcase with default properties
         // Columns are derived from testcase properties - not set separately
         // Note: testcase schema expects properties inside `data` field
-        const result = store.set(testcaseMolecule.actions.add, {data: initialTestcase})
-        console.log("[createWithTestcases] testsetId:", testsetId, "testcase result:", result)
+        store.set(testcaseMolecule.actions.add, {data: initialTestcase})
 
         return testsetId
     },

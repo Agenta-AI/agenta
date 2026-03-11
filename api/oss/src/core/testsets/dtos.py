@@ -137,10 +137,6 @@ class TestsetRevisionData(BaseModel):
     testcase_ids: Optional[List[UUID]] = None
     testcases: Optional[List[Testcase]] = None
 
-    # trace_ids: Optional[List[str]] = None
-    # traces: Optional[List[Link]] = None
-    # mappings: Optional[Dict[str, str]] = None
-
 
 class TestsetRevision(
     Revision,

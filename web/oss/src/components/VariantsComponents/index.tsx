@@ -4,11 +4,12 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     variantsListQueryStateAtomFamily,
     revisionsListQueryStateAtomFamily,
+    invalidateEntityQueries,
 } from "@agenta/entities/legacyAppRevision"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
-import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
@@ -17,13 +18,11 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useQueryParamState} from "@/oss/state/appState"
 import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
-import {moleculeBackedPromptsAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
+import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
 
 import DeploymentsDashboard from "../DeploymentsDashboard"
 import {envRevisionsAtom} from "../DeploymentsDashboard/atoms"
@@ -120,6 +119,13 @@ const VariantsDashboard = () => {
         [registryHref, tabBreadcrumbLabel],
     )
 
+    // Force fresh data on mount — works around jotai-tanstack-query's observer
+    // caching which can serve stale data after cross-page mutations (e.g. variant
+    // created on playground page).
+    useEffect(() => {
+        void invalidateEntityQueries()
+    }, [])
+
     useEffect(() => {
         setEnvRevisions(envRevisions)
     }, [envRevisions, setEnvRevisions])
@@ -142,21 +148,16 @@ const VariantsDashboard = () => {
             .map((r: any) => {
                 if (Number(r?.revision ?? 0) <= 0) return null
                 const timestamp = r.createdAt ? new Date(r.createdAt).valueOf() : Date.now()
-                const params = r.parameters || {}
-                const llmConfig = (params as any)?.prompt?.llm_config || params
-                const modelName =
-                    (typeof llmConfig?.model === "string" && llmConfig.model.trim()) || undefined
                 const variantName = variantNameMap[r.variantId] ?? "-"
                 return {
                     id: r.id,
                     variantId: r.variantId,
                     variantName,
                     commitMessage: r.commitMessage ?? r.commit_message ?? null,
-                    createdAt: formatDate24(timestamp),
                     createdAtTimestamp: timestamp,
                     updatedAtTimestamp: timestamp,
                     modifiedBy: r.author ?? r.modifiedBy ?? r.modified_by ?? null,
-                    modelName,
+                    parameters: r.parameters ?? null,
                     _revisionId: r.id,
                 }
             })
@@ -214,12 +215,7 @@ const VariantsDashboard = () => {
         async (record?: any) => {
             // Try to prefetch chunks before navigating for a seamless transition
             prefetchPlayground()
-            // Prewarm prompts for the selected revision specifically
-            const store = getDefaultStore()
             const revId = record?._revisionId ?? record?.id
-            if (revId) {
-                store.get(moleculeBackedPromptsAtomFamily(revId))
-            }
             if (revId) {
                 goToPlayground(revId)
             } else {
@@ -272,7 +268,7 @@ const VariantsDashboard = () => {
     )
 
     const variantContent = (
-        <Space direction="vertical" className="w-full">
+        <Space orientation="vertical" className="w-full">
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 flex-1">
                     <Input.Search

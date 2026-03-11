@@ -9,3 +9,7 @@ pytest-mock
 pytest-xdist
 asyncpg
 sendgrid
+agenta
+opentelemetry-proto>=1
+posthog>=7
+structlog>=25

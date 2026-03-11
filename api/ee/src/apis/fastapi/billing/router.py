@@ -33,7 +33,7 @@ from ee.src.core.subscriptions.service import (
     SwitchException,
     EventException,
 )
-from ee.src.models.api.organization_models import OrganizationUpdate
+from ee.src.core.organizations.types import OrganizationUpdate
 
 
 log = get_module_logger(__name__)

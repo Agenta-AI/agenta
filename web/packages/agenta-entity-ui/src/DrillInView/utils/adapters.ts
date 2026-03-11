@@ -61,7 +61,6 @@ export interface AdaptableMolecule<TEntity, TDraft> {
             entity: TEntity | null,
             rootData: unknown,
             path: DataPath,
-            value: unknown,
         ) => TDraft | null
         /** Value mode */
         valueMode?: "structured" | "string"
@@ -120,11 +119,7 @@ export function createMoleculeDrillInAdapter<TEntity, TDraft>(
     const drillInConfig: DrillInMoleculeConfig<TEntity, TDraft> = {
         getRootData: molecule.drillIn.getRootData,
         getChangesFromRoot: (entity, rootData, path) => {
-            // The molecule's getChangesFromRoot needs the value, but MoleculeDrillInView
-            // will provide it differently. For now, we return a partial that the view
-            // will use with its own value.
-            // The actual value will be provided when onValueChange is called.
-            return {} as TDraft
+            return molecule.drillIn.getChangesFromRoot(entity, rootData, path)
         },
         display: display ?? {
             valueMode: molecule.drillIn.valueMode ?? "structured",

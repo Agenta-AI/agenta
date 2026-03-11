@@ -4,8 +4,8 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {customWorkflowBannerVisibleAtom} from "@/oss/state/variant/atoms/appStatus"
 
+import {customWorkflowBannerVisibleAtom} from "./atoms"
 import {CustomWorkflowBannerProps} from "./types"
 
 const CustomWorkflowBanner = ({

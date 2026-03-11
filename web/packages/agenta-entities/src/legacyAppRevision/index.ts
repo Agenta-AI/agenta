@@ -39,36 +39,36 @@
 // ============================================================================
 
 export {
+    apiAppVariantRevisionSchema,
+    configDBSchema,
+    createEmptyLegacyAppRevision,
+    createEmptySchemaState,
     // Zod schemas
     executionModeSchema,
-    configDBSchema,
-    apiAppVariantRevisionSchema,
     legacyAppRevisionDataSchema,
     // Parse utilities
     parseLegacyAppRevision,
-    createEmptyLegacyAppRevision,
-    createEmptySchemaState,
 } from "./core"
 
 export type {
-    // Execution mode
-    ExecutionMode,
+    ApiAppVariantRevision,
     // Backend types
     ConfigDB,
-    ApiAppVariantRevision,
-    // Data types
-    LegacyAppRevisionData,
     EndpointSchema,
-    RevisionSchemaState,
-    // Selection types
-    LegacyAppRevisionSelectionResult,
-    // API params
-    LegacyAppRevisionDetailParams,
-    LegacyAppRevisionBatchParams,
-    LegacyAppRevisionListParams,
     // Re-exports
     EntitySchema,
     EntitySchemaProperty,
+    // Execution mode
+    ExecutionMode,
+    LegacyAppRevisionBatchParams,
+    // Data types
+    LegacyAppRevisionData,
+    // API params
+    LegacyAppRevisionDetailParams,
+    LegacyAppRevisionListParams,
+    // Selection types
+    LegacyAppRevisionSelectionResult,
+    RevisionSchemaState,
 } from "./core"
 
 // ============================================================================
@@ -76,8 +76,8 @@ export type {
 // ============================================================================
 
 export {
-    createLocalLegacyAppRevision,
     cloneAsLocalDraft,
+    createLocalLegacyAppRevision,
     type CreateLocalLegacyAppRevisionParams,
     type LocalLegacyAppRevision,
 } from "./core/factory"
@@ -89,11 +89,11 @@ export {
 export {
     // Relations
     ossAppToVariantRelation,
+    // Root-level atom
+    ossAppsListAtom,
     ossVariantToRevisionRelation,
     // Registration function
     registerLegacyAppRevisionRelations,
-    // Root-level atom
-    ossAppsListAtom,
     // Types
     type OssAppRootEntity,
 } from "./relations"
@@ -103,15 +103,19 @@ export {
 // ============================================================================
 
 export {
-    // Data transformers
-    transformApiRevision,
-    transformEnhancedVariant,
+    buildRevisionSchemaState,
+    constructEndpointPath,
+    // Schema conversion (openapi-json-schema)
+    convertOpenApiSchemaToJsonSchema,
+    extractAllEndpointSchemas,
+    extractEndpointSchema,
+    // List API functions
+    fetchAppsList,
     // Fetch functions
     fetchOssRevision,
     fetchOssRevisionById,
-    fetchOssRevisionsBatch,
     fetchOssRevisionEnriched,
-    fetchVariantDetail,
+    fetchOssRevisionsBatch,
     // Batch fetchers
     revisionBatchFetcher,
     variantDetailBatchFetcher,
@@ -119,32 +123,32 @@ export {
     // Cache invalidation
     clearVariantDetailCache,
     // URI utilities
-    normalizeUri,
-    // List API functions
-    fetchAppsList,
-    fetchVariantsList,
-    fetchRevisionsList,
     // Schema functions
     fetchRevisionSchema,
-    buildRevisionSchemaState,
-    extractEndpointSchema,
-    extractAllEndpointSchemas,
-    constructEndpointPath,
+    fetchRevisionSchemaWithProbe,
+    fetchRevisionsList,
+    fetchVariantDetail,
+    fetchVariantsList,
     // Validation
     isValidUUID,
-    // Types
-    type TransformContext,
-    type RevisionsQueryRequest,
-    type RevisionsQueryResponse,
-    type VariantListItem,
-    type RevisionListItem,
-    type AppListItem,
-    type ApiVariant,
+    jsonSchemaToEntitySchema,
+    // URI utilities
+    normalizeUri,
+    // URI probing functions
+    probeEndpointPath,
     type ApiApp,
     type ApiRevisionListItem,
+    type ApiVariant,
     type ApiVariantDetail,
-    type VariantDetail,
+    type AppListItem,
     type OpenAPISpec,
+    type RevisionListItem,
+    type RevisionsQueryRequest,
+    type RevisionsQueryResponse,
+    // Types
+    type TransformContext,
+    type VariantDetail,
+    type VariantListItem,
 } from "./api"
 
 // ============================================================================
@@ -156,9 +160,9 @@ export {
     legacyAppRevisionSelectionConfig,
     // Controller hook and types
     useLegacyAppRevisionController,
-    type LegacyAppRevisionControllerState,
     type LegacyAppRevisionControllerDispatch,
     type LegacyAppRevisionControllerResult,
+    type LegacyAppRevisionControllerState,
     type LegacyAppRevisionMolecule,
     type LegacyAppRevisionSelectionConfig,
 } from "./state"
@@ -168,141 +172,165 @@ export {
 // ============================================================================
 
 export {
-    buildLegacyAppRevisionDraftPatch,
     applyLegacyAppRevisionDraftPatch,
-    initializeServerData,
+    buildLegacyAppRevisionDraftPatch,
     hasDraftChanges,
-    type LegacyAppRevisionDraftPatch,
+    initializeServerData,
     type BuildPatchResult,
+    type LegacyAppRevisionDraftPatch,
 } from "./snapshot"
+export {legacyAppRevisionSnapshotAdapter} from "./snapshotAdapter"
 
 // Auto-register snapshot adapter when this module is imported
 // This ensures the adapter is available in the registry for snapshot operations
 import "./snapshotAdapter"
-export {legacyAppRevisionSnapshotAdapter} from "./snapshotAdapter"
 
 // Re-export store atoms for direct access if needed
 export {
-    // Query atoms
-    legacyAppRevisionQueryAtomFamily,
-    legacyAppRevisionDraftAtomFamily,
-    legacyAppRevisionEntityAtomFamily,
-    legacyAppRevisionIsDirtyAtomFamily,
-    legacyAppRevisionInputPortsAtomFamily,
-    type LegacyAppRevisionInputPort,
-    // Enriched query atoms (with URI from variant)
-    enrichedQueryAtomFamily,
-    variantDetailCacheAtomFamily,
-    legacyAppRevisionEnrichedDataFamily,
-    createEnrichedKey,
-    type EnrichedQueryKey,
-    // Entity atoms with enrichment support
-    legacyAppRevisionEntityWithBridgeAtomFamily,
-    legacyAppRevisionServerDataSelectorFamily,
-    legacyAppRevisionIsDirtyWithBridgeAtomFamily,
-    // Legacy atoms (deprecated - use enriched query pattern)
-    legacyAppRevisionServerDataAtomFamily,
-    // List atoms
-    appsListAtom,
-    variantsListAtomFamily,
-    variantsListQueryStateAtomFamily,
-    revisionsListAtomFamily,
-    revisionsListQueryStateAtomFamily,
-    appsQueryAtom,
-    variantsQueryAtomFamily,
-    revisionsQueryAtomFamily,
     // List atoms with local drafts
     LOCAL_DRAFTS_VARIANT_ID,
-    variantsListWithDraftsAtomFamily,
-    revisionsListWithDraftsAtomFamily,
-    type VariantListItemWithDrafts,
-    type RevisionListItemWithDrafts,
-    // Mutations
-    updateLegacyAppRevisionAtom,
-    discardLegacyAppRevisionDraftAtom,
-    // Server data management
-    setServerDataAtom,
+    appRevisionsWithDraftsAtomFamily,
+    // List atoms
+    appsListAtom,
+    appsQueryAtom,
     clearServerDataAtom,
-    // Enhanced prompts/custom properties
-    setEnhancedPromptsAtom,
-    mutateEnhancedPromptsAtom,
-    setEnhancedCustomPropertiesAtom,
-    mutateEnhancedCustomPropertiesAtom,
-    updatePropertyAtom,
+    createEnrichedKey,
+    discardLegacyAppRevisionDraftAtom,
+    // Enriched query atoms (with URI from variant)
+    enrichedQueryAtomFamily,
+    latestServerRevisionIdAtomFamily,
+    legacyAppRevisionDraftAtomFamily,
+    legacyAppRevisionEnrichedDataFamily,
+    legacyAppRevisionEntityAtomFamily,
+    // Entity atoms with enrichment support
+    legacyAppRevisionEntityWithBridgeAtomFamily,
+    legacyAppRevisionInputPortsAtomFamily,
+    legacyAppRevisionIsDirtyAtomFamily,
+    legacyAppRevisionIsDirtyWithBridgeAtomFamily,
+    // Query atoms
+    legacyAppRevisionQueryAtomFamily,
+    // Bridge server data (written imperatively, read by entity/molecule atoms)
+    legacyAppRevisionServerDataAtomFamily,
+    legacyAppRevisionServerDataSelectorFamily,
+    // Cache management
+    revisionCacheVersionAtom,
+    revisionsListAtomFamily,
+    revisionsListQueryStateAtomFamily,
+    revisionsListWithDraftsAtomFamily,
+    revisionsQueryAtomFamily,
     // Override functions
     setAppsListAtom,
-    setVariantsListAtomFamily,
     setRevisionsListAtomFamily,
-    // Cache reactivity
-    revisionCacheVersionAtom,
+    // Server data management
+    setServerDataAtom,
+    setVariantsListAtomFamily,
+    // Mutations
+    updateLegacyAppRevisionAtom,
+    variantDetailCacheAtomFamily,
+    variantsListAtomFamily,
+    variantsListQueryStateAtomFamily,
+    variantsListWithDraftsAtomFamily,
+    variantsQueryAtomFamily,
+    type EnrichedQueryKey,
+    type LegacyAppRevisionInputPort,
+    type RevisionListItemWithDrafts,
+    type VariantListItemWithDrafts,
 } from "./state"
 
 // Re-export schema atoms
 export {
-    legacyAppRevisionSchemaQueryAtomFamily,
-    revisionOpenApiSchemaAtomFamily,
-    revisionAgConfigSchemaAtomFamily,
-    revisionPromptSchemaAtomFamily,
-    revisionCustomPropertiesSchemaAtomFamily,
-    revisionSchemaAtPathAtomFamily,
-    revisionEndpointsAtomFamily,
+    chatServiceSchemaAtom,
+    // Service schema prefetch atoms (mount in app root for eager fetch)
+    completionServiceSchemaAtom,
     getSchemaPropertyAtPath,
-    // Enhanced custom properties (with values)
-    revisionEnhancedCustomPropertiesAtomFamily,
-    revisionCustomPropertyKeysAtomFamily,
-    type EnhancedCustomProperty,
-    // Enhanced prompts (with values)
-    revisionEnhancedPromptsAtomFamily,
-    revisionPromptKeysAtomFamily,
-    type EnhancedPrompt,
-    // Service schema metadata warmer
-    serviceSchemaMetadataWarmerAtom,
+    legacyAppRevisionSchemaQueryAtomFamily,
+    revisionAgConfigSchemaAtomFamily,
+    revisionCustomPropertiesSchemaAtomFamily,
+    revisionEndpointsAtomFamily,
+    revisionOpenApiSchemaAtomFamily,
+    revisionPromptSchemaAtomFamily,
+    revisionSchemaAtPathAtomFamily,
 } from "./state"
+
+// ============================================================================
+// TYPES - Enhanced Value Pattern & Schema Types
+// ============================================================================
+
+export type {
+    AnyOfSchema,
+    ArrayMetadata,
+    ArraySchema,
+    // Schema types
+    Base,
+    BaseMetadata,
+    BaseOption,
+    BaseSchema,
+    BaseSchemaProperties,
+    BooleanMetadata,
+    Common,
+    CompoundOption,
+    // Metadata types (canonical home — formerly in metadataAtoms.ts)
+    ConfigMetadata,
+    ConstDiscriminatedSchema,
+    Enhanced,
+    EnhancedArrayValue,
+    EnhancedConfigValue,
+    EnhancedObjectConfig,
+    ExtractedSchema,
+    // Enhanced value pattern
+    Merge,
+    NumberMetadata,
+    ObjectMetadata,
+    ObjectSchema,
+    ObjectWithConstSchema,
+    OpenAPISpecStrict,
+    OptionGroup,
+    PrimitiveSchema,
+    PrimitiveSchemaType,
+    SchemaProperty,
+    SchemaType,
+    SelectOptions,
+    StartsWith__,
+    StringMetadata,
+    WithEnum,
+} from "./types"
 
 // Re-export spec derivation utilities (pure functions)
 export {
-    extractRawValue,
-    stripVolatileKeys,
-    enhancedPromptsToParameters,
-    enhancedCustomPropertiesToParameters,
     areParametersDifferent,
-    resolveRootSourceId,
-    deriveEnhancedPrompts,
-    deriveEnhancedCustomProperties,
-    isPromptLikeStructure,
+    enhancedCustomPropertiesToParameters,
+    enhancedPromptsToParameters,
+    // Input helpers
+    extractInputKeysFromSchema,
+    extractInputValues,
+    extractRawValue,
+    // Parameter extraction
+    extractVariantParameters,
     isPromptLikeSchema,
+    // Detection helpers
+    isPromptLikeStructure,
     isPromptProperty,
-    enhanceToolsArray,
+    resolveRootSourceId,
+    // Value extraction
+    stripAgentaMetadataDeep,
+    stripEnhancedWrappers,
+    stripVolatileKeys,
+    toSnakeCase,
+    // Request body builder
+    transformToRequestBody,
+    type TransformMessage,
+    type TransformToRequestBodyParams,
+    // Request body types
+    type TransformVariantInput,
 } from "./utils"
-
-// Re-export metadata atoms
-export {
-    // Atoms
-    metadataAtom,
-    metadataSelectorFamily,
-    // Utilities
-    updateMetadataAtom,
-    getMetadataLazy,
-    getAllMetadata,
-    hashMetadata,
-    hashAndStoreMetadata,
-    // Types
-    type ConfigMetadata,
-    type BaseMetadata,
-    type StringMetadata,
-    type NumberMetadata,
-    type BooleanMetadata,
-    type ArrayMetadata,
-    type ObjectMetadata,
-} from "./state/metadataAtoms"
 
 // Re-export runnable extension
 export {
-    runnableAtoms,
-    runnableReducers,
-    runnableGet,
-    runnableSet,
     legacyAppRevisionRunnableExtension,
+    runnableAtoms,
+    runnableGet,
+    runnableReducers,
+    runnableSet,
     type LegacyAppRevisionOutputPort,
 } from "./state"
 
@@ -311,46 +339,117 @@ export {
 // ============================================================================
 
 export {
+    clearCommitCallbacks,
+    commitRevision,
     // Commit atom and function
     commitRevisionAtom,
-    commitRevision,
-    // Callback registration
-    registerCommitCallbacks,
-    clearCommitCallbacks,
     // Utilities
     newestRevisionForVariantAtomFamily,
+    // Callback registration
+    registerCommitCallbacks,
+    waitForNewRevision,
+    type CommitCallbacks,
+    type CommitResult,
+    type CommitRevisionError,
     // Types
     type CommitRevisionParams,
     type CommitRevisionResult,
-    type CommitRevisionError,
-    type CommitResult,
-    type CommitCallbacks,
 } from "./state"
+
+// ============================================================================
+// CREATE VARIANT
+// ============================================================================
+
+export {
+    clearCreateVariantCallbacks,
+    createVariantAtom,
+    registerCreateVariantCallbacks,
+    type CreateVariantCallbacks,
+    type CreateVariantError,
+    type CreateVariantOutcome,
+    type CreateVariantParams,
+    type CreateVariantResult,
+} from "./state"
+
+// ============================================================================
+// DELETE REVISION
+// ============================================================================
+
+export {
+    clearDeleteRevisionCallbacks,
+    deleteRevisionAtom,
+    registerDeleteRevisionCallbacks,
+    type DeleteRevisionCallbacks,
+    type DeleteRevisionError,
+    type DeleteRevisionOutcome,
+    type DeleteRevisionParams,
+    type DeleteRevisionResult,
+} from "./state"
+
+// ============================================================================
+// DEPLOY (LEGACY-COMPAT)
+// ============================================================================
+
+export {
+    publishMutationAtom,
+    type PublishPayload,
+    type PublishRevisionPayload,
+    type PublishVariantPayload,
+} from "./state"
+
+// ============================================================================
+// ENTITY QUERY INVALIDATION
+// ============================================================================
+
+export {invalidateEntityQueries} from "./state"
 
 // ============================================================================
 // LOCAL DRAFTS - Entity-level local draft management
 // ============================================================================
 
 export {
-    // Atoms
-    localDraftIdsAtom,
-    localDraftsListAtom,
-    hasLocalDraftsAtom,
-    hasUnsavedLocalDraftsAtom,
-    // Write atoms
-    createLocalDraftAtom,
-    discardLocalDraftAtom,
-    discardAllLocalDraftsAtom,
+    cleanupStaleLocalDrafts,
     // Imperative functions
     createLocalDraftFromRevision,
-    discardLocalDraft,
     discardAllLocalDrafts,
-    cleanupStaleLocalDrafts,
-    // App scoping setup
-    setCurrentAppIdAtom,
+    discardLocalDraft,
+    discardRevisionDraftAtom,
+    extractSourceIdFromDraft,
+    getSourceRevisionId,
+    hasUnsavedLocalDraftsAtom,
+    initializeLocalDrafts,
     // Re-exports
     isLocalDraftId,
-    extractSourceIdFromDraft,
+    isLocalDraftsGroupId,
+    // App-scoped latest revision
+    latestAppRevisionIdAtom,
+    // Backward-compat global atoms (use families when appId is available)
+    localDraftIdsAtom,
+    // Atom families (preferred — explicit app scoping)
+    localDraftIdsAtomFamily,
+    localDraftsListAtomFamily,
+    // App ID registration (called from OSS bridge)
+    registerAppIdAtom,
+} from "./state"
+
+// ============================================================================
+// DRAFT PERSISTENCE - localStorage backup for draft state
+// ============================================================================
+
+export {
+    cleanupStalePersistedDrafts,
+    clearPersistedDraft,
+    clearPersistedLocalDraftData,
+    getPersistedDraftPatches,
+    // Imperative functions
+    persistDraftPatch,
+    persistLocalDraftData,
+    // Atoms (for direct access if needed)
+    persistedDraftPatchesAtom,
+    persistedLocalDraftDataAtom,
+    restoreAllLocalDraftData,
+    restorePersistedDraft,
     // Types
-    type LocalDraftEntry,
+    type PersistedDraftPatch,
+    type PersistedLocalDraftData,
 } from "./state"

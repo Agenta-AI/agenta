@@ -1,8 +1,7 @@
 import {memo} from "react"
 
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {useAtomValue} from "jotai"
-
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Avatar from "../Avatar/Avatar"
 
@@ -14,7 +13,7 @@ interface VariantUserAvatarTagProps {
 
 const VariantUserAvatarTag = memo(
     ({variantId, fallback, nameOverride}: VariantUserAvatarTagProps) => {
-        const revisionData = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
+        const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
         const derivedName: string | null =
             revisionData?.modifiedByDisplayName ??
             revisionData?.modifiedBy ??

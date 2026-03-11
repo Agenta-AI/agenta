@@ -18,11 +18,11 @@ import type {RefinePromptModalProps} from "./types"
 const RefinePromptModal: React.FC<RefinePromptModalProps> = ({
     open,
     onClose,
-    variantId,
-    promptId,
+    revisionId,
+    promptKey,
 }) => {
-    const [isOpen, setIsOpen] = useAtom(refineModalOpenAtomFamily(promptId))
-    const resetModal = useSetAtom(resetRefineModalAtomFamily(promptId))
+    const [isOpen, setIsOpen] = useAtom(refineModalOpenAtomFamily(promptKey))
+    const resetModal = useSetAtom(resetRefineModalAtomFamily(promptKey))
 
     // Sync external open prop with internal state
     useEffect(() => {
@@ -60,8 +60,8 @@ const RefinePromptModal: React.FC<RefinePromptModalProps> = ({
             destroyOnClose
         >
             <RefinePromptModalContent
-                variantId={variantId}
-                promptId={promptId}
+                revisionId={revisionId}
+                promptKey={promptKey}
                 onClose={handleClose}
             />
         </EnhancedModal>

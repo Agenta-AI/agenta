@@ -3,7 +3,7 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 import {ModalProps} from "antd"
 
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
 
 export interface NewEvaluationAppOption {
@@ -75,7 +75,6 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     evaluationType: "auto" | "human"
-    selectedTestsetId?: string
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {

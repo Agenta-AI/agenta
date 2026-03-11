@@ -1,10 +1,10 @@
 import {useCallback, useMemo} from "react"
 
+import {CopyTooltip as EnhancedTooltip} from "@agenta/ui/copy-tooltip"
 import {Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import EnhancedTooltip from "@/oss/components/EnhancedUIs/Tooltip"
 import {getObservabilityColumns} from "@/oss/components/pages/observability/assets/getObservabilityColumns"
 import {
     LinkedSpanRow,

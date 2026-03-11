@@ -400,25 +400,29 @@ const findSpanInCache = (
         }
     }
 
-    // Check playground response cache (responseAtom from useStatelessVariants)
+    // Check playground execution results from package store
     try {
-        // Import lazily to avoid circular dependencies
+        const store = getDefaultStore()
+        // Lazy-import to avoid circular deps at module level
         // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const {getAllResponses} = require("@/oss/lib/hooks/useStatelessVariants/state")
-        const responses = getAllResponses()
-
-        for (const response of Object.values(responses)) {
-            const tree = (response as any)?.response?.tree
-            if (!tree?.nodes) continue
-
-            // tree.nodes is an array of ExecutionNode
-            const nodes = Array.isArray(tree.nodes) ? tree.nodes : Object.values(tree.nodes)
-            for (const node of nodes) {
-                // Check both node.node.id (UUID format) and node.span_id (OTel hex format)
-                // The drawer passes spanId in hex format from response.tree.nodes[0].span_id
-                if (node?.node?.id === spanId || node?.span_id === spanId) {
-                    const converted = executionNodeToTraceSpan(node, spanId)
-                    if (converted) return converted
+        const {loadableIdAtom, resultsByKeyAtomFamily} = require("@agenta/playground")
+        const loadableId = store.get(loadableIdAtom)
+        if (loadableId) {
+            const resultsMap = store.get(resultsByKeyAtomFamily(loadableId)) as Record<string, any>
+            for (const result of Object.values(resultsMap || {})) {
+                const outputs = Array.isArray(result?.output) ? result.output : [result?.output]
+                for (const output of outputs) {
+                    const tree = (output as any)?.response?.tree
+                    if (!tree?.nodes) continue
+                    const nodes = Array.isArray(tree.nodes) ? tree.nodes : Object.values(tree.nodes)
+                    for (const node of nodes) {
+                        // Check both node.node.id (UUID format) and node.span_id (OTel hex format)
+                        // The drawer passes spanId in hex format from response.tree.nodes[0].span_id
+                        if (node?.node?.id === spanId || node?.span_id === spanId) {
+                            const converted = executionNodeToTraceSpan(node, spanId)
+                            if (converted) return converted
+                        }
+                    }
                 }
             }
         }

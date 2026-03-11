@@ -69,6 +69,68 @@ export interface EvaluatorRevisionActions {
 }
 
 // ============================================================================
+// APP REVISION LIST INTERFACES
+// ============================================================================
+
+/**
+ * List selectors for app revision entity hierarchies.
+ * Allows the playground controller to query variants/revisions
+ * without knowing the concrete data source.
+ */
+export interface AppRevisionListSelectors {
+    /** Variants for an app (includes local draft groups) */
+    variantsForApp: (appId: string) => Atom<{data: unknown[] | null}> | undefined
+    /** Revisions for a variant */
+    revisionsForVariant: (variantId: string) => Atom<unknown[]> | undefined
+    /** All revisions for an app (flattened, includes local drafts) */
+    allRevisions: (appId: string) => Atom<unknown[]>
+    /** Readiness signal — true when initial revision load is complete */
+    isReady: Atom<boolean>
+}
+
+// ============================================================================
+// APP REVISION CRUD INTERFACES
+// ============================================================================
+
+export interface AppRevisionCreateVariantPayload {
+    baseRevisionId?: string
+    baseVariantName?: string
+    newVariantName: string
+    note?: string
+    callback?: (newRevision: {id: string}, state: {selected: string[]}) => void
+}
+
+export interface AppRevisionCommitPayload {
+    revisionId: string
+    note?: string
+    commitMessage?: string
+    variantId?: string
+    parameters?: Record<string, unknown>
+}
+
+export interface AppRevisionCrudResult {
+    success: boolean
+    newRevisionId?: string
+    message?: string
+    error?: string
+}
+
+/**
+ * CRUD actions for app revision entities.
+ * OSS/EE provides concrete implementations via the provider.
+ */
+export interface AppRevisionActions {
+    createVariant: WritableAtom<
+        null,
+        [AppRevisionCreateVariantPayload],
+        Promise<AppRevisionCrudResult>
+    >
+    commitRevision: WritableAtom<null, [AppRevisionCommitPayload], Promise<AppRevisionCrudResult>>
+    deleteRevision: WritableAtom<null, [string], Promise<AppRevisionCrudResult>>
+    invalidateQueries: WritableAtom<null, [], Promise<void>>
+}
+
+// ============================================================================
 // RAW DATA TYPES
 // ============================================================================
 
@@ -91,7 +153,60 @@ export interface AppRevisionRawData {
 }
 
 /**
- * Evaluator revision raw data (as returned by the controller)
+ * Evaluator raw data (as returned by the new evaluator molecule)
+ */
+export interface EvaluatorRawData {
+    id: string
+    name?: string | null
+    slug?: string | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+        is_chat?: boolean
+    } | null
+}
+
+/**
+ * Workflow raw data (as returned by the workflow molecule)
+ */
+export interface WorkflowRawData {
+    id: string
+    name?: string | null
+    slug?: string | null
+    version?: number | null
+    workflow_id?: string | null
+    flags?: {
+        is_custom?: boolean
+        is_evaluator?: boolean
+        is_human?: boolean
+        is_chat?: boolean
+    } | null
+    data?: {
+        uri?: string | null
+        url?: string | null
+        parameters?: Record<string, unknown> | null
+        schemas?: {
+            inputs?: Record<string, unknown> | null
+            outputs?: Record<string, unknown> | null
+            parameters?: Record<string, unknown> | null
+        } | null
+    } | null
+}
+
+/**
+ * Evaluator revision raw data (as returned by the legacy stub controller)
+ * @deprecated Use EvaluatorRawData instead
  */
 export interface EvaluatorRevisionRawData {
     id: string
@@ -113,15 +228,44 @@ export interface EvaluatorRevisionRawData {
 // ============================================================================
 
 /**
+ * Selectors for the new evaluator entity
+ */
+export interface EvaluatorSelectors extends EntityRevisionSelectors<EvaluatorRawData> {
+    /** Evaluator URI (e.g., "agenta:builtin:auto_exact_match:v0") */
+    uri?: (id: string) => Atom<string | null>
+    /** Evaluator key parsed from URI */
+    evaluatorKey?: (id: string) => Atom<string | null>
+    /** Configuration parameters */
+    parameters?: (id: string) => Atom<Record<string, unknown> | null>
+    /** Is custom evaluator */
+    isCustom?: (id: string) => Atom<boolean>
+}
+
+/**
  * Injected entity providers
  *
  * This interface defines what entity providers must supply for the
  * playground to work with different entity implementations.
  */
 export interface PlaygroundEntityProviders {
-    appRevision: {
+    /** @deprecated Legacy app revision entity — use `workflow` instead */
+    legacyAppRevision?: {
         selectors: EntityRevisionSelectors<AppRevisionRawData>
+        lists?: AppRevisionListSelectors
+        actions?: AppRevisionActions
     }
+    /** Workflow entity (modern /preview/workflows/ API) */
+    workflow?: {
+        selectors: EntityRevisionSelectors<WorkflowRawData>
+    }
+    /** New evaluator entity (workflow-based SimpleEvaluator) */
+    evaluator?: {
+        selectors: EvaluatorSelectors
+    }
+    /**
+     * Legacy evaluator revision (stub molecule).
+     * @deprecated Use `evaluator` instead.
+     */
     evaluatorRevision: {
         selectors: EvaluatorRevisionSelectors<EvaluatorRevisionRawData>
         actions: EvaluatorRevisionActions

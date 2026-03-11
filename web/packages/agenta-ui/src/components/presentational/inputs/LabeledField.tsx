@@ -58,7 +58,7 @@ export function LabeledField({
     description,
     withTooltip = true,
     tooltipPlacement = "right",
-    size = "sm",
+    size = "xs",
     direction = "vertical",
     children,
     className,

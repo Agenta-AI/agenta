@@ -1,19 +1,14 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {runnableBridge} from "@agenta/entities/runnable"
+import {executionItemController, playgroundController} from "@agenta/playground"
+import {atom, useAtomValue} from "jotai"
 
-import {
-    displayedVariantsVariablesAtom,
-    schemaInputKeysAtom,
-} from "@/oss/components/Playground/state/atoms/variants"
 import {Testset} from "@/oss/lib/Types"
-import {requestSchemaMetaAtomFamily} from "@/oss/state/newPlayground/core/requestSchemaMeta"
 
 import {useInputsVsColumns} from "./useInputsVsColumns"
 
 export interface UseTestsetInputsAnalysisParams {
-    // Optional: pass routePath to fetch schema meta via atom
-    routePath?: string
     // Explicit overrides to decouple from atoms when desired
     displayedVariablesOverride?: string[]
     schemaInputKeysOverride?: string[]
@@ -39,13 +34,12 @@ export interface UseTestsetInputsAnalysisResult {
 /**
  * High-level hook that can operate in two modes:
  * 1) Controlled mode: receive explicit schema/vars via overrides (no atom reads)
- * 2) Atom-backed mode: provide routePath and it will read from atoms
+ * 2) Atom-backed mode: reads input ports from runnableBridge for the primary entity
  */
 export function useTestsetInputsAnalysis(
     params: UseTestsetInputsAnalysisParams,
 ): UseTestsetInputsAnalysisResult {
     const {
-        routePath,
         displayedVariablesOverride,
         schemaInputKeysOverride,
         requestSchemaMetaOverride,
@@ -53,16 +47,36 @@ export function useTestsetInputsAnalysis(
     } = params
 
     // Resolve dynamic variables
-    const displayedVariablesFromAtoms = useAtomValue(displayedVariantsVariablesAtom)
+    const displayedVariablesFromAtoms = useAtomValue(
+        playgroundController.selectors.inputVariableNames(),
+    )
     const displayedVariables = displayedVariablesOverride ?? displayedVariablesFromAtoms
 
     // Resolve schema keys
-    const schemaInputKeysFromAtoms = useAtomValue(schemaInputKeysAtom)
+    const schemaInputKeysFromAtoms = useAtomValue(executionItemController.selectors.schemaInputKeys)
     const schemaInputKeys = schemaInputKeysOverride ?? schemaInputKeysFromAtoms
 
-    // Resolve schema meta
+    // Resolve schema meta from the primary entity's input ports (via runnableBridge)
     const requestSchemaMetaFromAtom = useAtomValue(
-        useMemo(() => requestSchemaMetaAtomFamily({variant: {} as any, routePath}), [routePath]),
+        useMemo(
+            () =>
+                atom((get) => {
+                    const rootNode = get(playgroundController.selectors.nodes()).find(
+                        (n) => n.depth === 0,
+                    )
+                    const primaryId = rootNode?.entityId ?? null
+                    const meta = {
+                        required: [] as string[],
+                        inputKeys: [] as string[],
+                    }
+                    if (!primaryId) return meta
+                    const ports = get(runnableBridge.inputPorts(primaryId))
+                    meta.inputKeys = ports.map((p) => p.key)
+                    meta.required = ports.filter((p) => p.required).map((p) => p.key)
+                    return meta
+                }),
+            [],
+        ),
     )
     const requestSchemaMeta = requestSchemaMetaOverride ?? requestSchemaMetaFromAtom
 

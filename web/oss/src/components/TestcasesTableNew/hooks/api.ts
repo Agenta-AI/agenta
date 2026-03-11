@@ -20,7 +20,7 @@ export async function fetchRevision(projectId: string, revisionId: string) {
 
 /**
  * Fetch paginated testcases using /preview/testcases/query endpoint
- * Uses testset_revision_id to fetch testcases for a specific revision
+ * Uses testset_revision_ref.id to fetch testcases for a specific revision
  */
 export async function fetchTestcasesPage(
     projectId: string,
@@ -30,7 +30,7 @@ export async function fetchTestcasesPage(
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/testcases/query`,
         {
-            testset_revision_id: revisionId,
+            testset_revision_ref: {id: revisionId},
             windowing: {
                 limit: PAGE_SIZE,
                 ...(cursor && {next: cursor}),

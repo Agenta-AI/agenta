@@ -22,9 +22,6 @@ def _subscription_payload(*, name=None, url="https://example.com/hook"):
                 "url": url,
                 "event_types": ["environments.revisions.committed"],
             },
-            "flags": {
-                "is_active": True,
-            },
         }
     }
 
@@ -101,9 +98,6 @@ class TestWebhooksSubscriptionsBasics:
                             "webhooks.subscriptions.tested",
                         ],
                     },
-                    "flags": {
-                        "is_active": False,
-                    },
                 }
             },
         )
@@ -115,7 +109,6 @@ class TestWebhooksSubscriptionsBasics:
         assert body["count"] == 1
         updated = body["subscription"]
         assert updated["name"] == "Updated Webhook Name"
-        assert updated["flags"]["is_active"] is False
         assert len(updated["data"]["event_types"]) == 2
         # ----------------------------------------------------------------------
 

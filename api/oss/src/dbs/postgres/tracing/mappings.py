@@ -18,7 +18,7 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     Analytics,
 )
-from oss.src.core.tracing.utils import marshall, unmarshall
+from oss.src.core.tracing.utils.attributes import marshall, unmarshall
 
 
 log = get_module_logger(__name__)

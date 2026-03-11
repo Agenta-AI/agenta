@@ -10,6 +10,36 @@ End-to-end tests for the Agenta web application. This guide reflects the latest 
 
 ---
 
+## Quick Start (Current Runner)
+
+The current runner is `playwright/scripts/run-tests.ts` and does **not** use `--preset`.
+Use environment variables to select target and license.
+
+```bash
+# List OSS acceptance tests
+AGENTA_LICENSE=oss AGENTA_WEB_URL="http://localhost:3000" \
+pnpm -C web/tests test:acceptance -- --list
+
+# Run a single smoke test against deployed OSS
+AGENTA_LICENSE=oss AGENTA_WEB_URL="http://<deployment-url>" \
+pnpm -C web/tests test:acceptance -- \
+  --grep "smoke: auth works and can navigate to apps" \
+  --max-failures=1 --workers=1 --retries=1
+```
+
+Auth behavior in global setup:
+
+- `AGENTA_TEST_AUTH_MODE=auto` (default): detect flow from UI.
+- `AGENTA_TEST_AUTH_MODE=password`: enforce password flow.
+- `AGENTA_TEST_AUTH_MODE=otp`: enforce OTP flow (requires Testmail envs).
+
+Safety behavior in teardown:
+
+- Destructive cleanup is disabled by default.
+- Enable only when needed with `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
+
+---
+
 ## Supported Environments & Presets
 
 - `local` – Local development (requires explicit `--license`)
@@ -25,10 +55,10 @@ End-to-end tests for the Agenta web application. This guide reflects the latest 
 
 ## Required Environment Variables
 
-- `TESTMAIL_API_KEY` – Required for all test runs (email-based auth)
-- `TESTMAIL_NAMESPACE` – Required for all test runs (email-based auth)
-- `AGENTA_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
-- `AGENTA_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and local part must start with `TESTMAIL_NAMESPACE`. If not provided, a valid testmail address will be auto-generated.
+- `TESTMAIL_API_KEY` – Required only for OTP auth mode
+- `TESTMAIL_NAMESPACE` – Required only for OTP auth mode
+- `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
+- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and local part must start with `TESTMAIL_NAMESPACE`. If not provided, a valid testmail address will be auto-generated.
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
 All required secrets are injected automatically in CI via the reusable workflow.
@@ -120,8 +150,8 @@ You can filter tests using these flags:
 - `--speed <fast|slow>`
 
 **Notes:**
-- If you use `--license oss`, you **must** set `AGENTA_OSS_OWNER_PASSWORD`.
-- `AGENTA_OSS_OWNER_EMAIL` is optional for OSS, but if provided, must be a valid testmail address for your namespace.
+- If you use `--license oss`, you **must** set `AGENTA_TEST_OSS_OWNER_PASSWORD`.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` is optional for OSS, but if provided, must be a valid testmail address for your namespace.
 - `--feature` can only be used with license `ee`.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
 
@@ -171,7 +201,7 @@ End-to-end tests for Agenta web application.
 - Staging/Beta: Ensure you have access to the cloud environments
 
 **Note:**
-- If you use `--license oss`, you **must** set the `AGENTA_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
+- If you use `--license oss`, you **must** set the `AGENTA_TEST_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
 - `--feature` can only be used if the license is `ee`. If you provide `--feature` with any other license, the script will exit with an error.
 - `--entitlement` and `--permission` are always optional and can be combined with other filters.
 - `--coverage full` means all coverage levels are included (no coverage filter is applied), but other annotation filters (e.g. `--scope`, `--path`) will still be used if present.

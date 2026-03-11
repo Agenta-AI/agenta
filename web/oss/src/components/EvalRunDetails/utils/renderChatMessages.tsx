@@ -1,13 +1,12 @@
 import {ReactNode} from "react"
 
+import {dataUriToObjectUrl, isBase64, isUrl} from "@agenta/shared/utils"
+import {ImagePreview, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import ImagePreview from "@/oss/components/Common/ImagePreview"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import {isBase64, dataUriToObjectUrl, isUrl} from "@/oss/lib/helpers/utils"
 
 const Tooltip = dynamic(() => import("antd").then((mod) => mod.Tooltip), {ssr: false})
 

@@ -260,7 +260,6 @@ import { useAtomValue, useSetAtom } from 'jotai'
 
 // Read state via selectors
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
 const connections = useAtomValue(outputConnectionController.selectors.allConnections())
 
 // Write via compound actions (multi-step operations)
@@ -324,10 +323,9 @@ export const ConfigPanel = memo(function ConfigPanel({ ... }) {
 ```typescript
 // ✅ GOOD: Fine-grained subscriptions
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
 
 // ❌ BAD: Consolidated object returns cause cascade re-renders
-const { nodes, primaryNode, connections } = usePlaygroundState() // Object ref changes on any update
+const { nodes, connections } = usePlaygroundState() // Object ref changes on any update
 ```
 
 **Rule:** Keep fine-grained atom subscriptions. Never consolidate subscriptions into a single hook that returns an object.

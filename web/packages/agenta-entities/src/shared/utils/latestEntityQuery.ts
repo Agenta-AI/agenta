@@ -33,6 +33,7 @@
  * 4. **Reusable**: Same pattern can be applied to any entity with a "latest" concept
  */
 
+import {sessionAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -161,7 +162,7 @@ export function createLatestEntityQueryFactory<TResult>(
             const projectId = projectIdMap.get(parentId) ?? null
             const requested = get(requestedAtom)
             const isRequested = requested.has(parentId)
-            const isEnabled = Boolean(projectId && parentId && isRequested)
+            const isEnabled = get(sessionAtom) && Boolean(projectId && parentId && isRequested)
 
             return {
                 queryKey: [queryKeyPrefix, projectId, parentId],

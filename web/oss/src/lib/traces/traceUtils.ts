@@ -1,5 +1,6 @@
 import type {TraceTree} from "@/oss/lib/evaluations"
 import {uuidToTraceId} from "@/oss/lib/traces/helpers"
+import type {TraceSpan} from "@/oss/state/entities/trace"
 
 export function findTraceForStep(traces: any[] | undefined, traceId?: string): any | undefined {
     if (!traces?.length || !traceId) return undefined
@@ -219,4 +220,95 @@ export function readInvocationResponse({
         testcaseId,
         resolvedPath,
     }
+}
+
+export interface TestsetTraceReference {
+    traceId: string | null
+    spanId: string | null
+}
+
+export function asNonEmptyString(value: unknown): string | null {
+    if (typeof value !== "string") return null
+
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+}
+
+export function asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+    return value as Record<string, unknown>
+}
+
+export function extractSpanIdFromResultPayload(payload: unknown): string | null {
+    if (!payload) return null
+
+    if (Array.isArray(payload)) {
+        for (let i = payload.length - 1; i >= 0; i -= 1) {
+            const found = extractSpanIdFromResultPayload(payload[i])
+            if (found) return found
+        }
+        return null
+    }
+
+    if (typeof payload !== "object") return null
+
+    const obj = payload as Record<string, unknown>
+    const response = asRecord(obj.response)
+    const tree = asRecord(response?.tree)
+    const nodes = Array.isArray(tree?.nodes)
+        ? tree.nodes
+        : tree?.nodes && typeof tree.nodes === "object"
+          ? Object.values(tree.nodes as Record<string, unknown>)
+          : []
+    const firstNode = asRecord(nodes[0])
+
+    const directCandidates = [
+        obj.spanId,
+        obj.span_id,
+        response?.spanId,
+        response?.span_id,
+        firstNode?.span_id,
+    ]
+
+    for (const candidate of directCandidates) {
+        const normalized = asNonEmptyString(candidate)
+        if (normalized) return normalized
+    }
+
+    const nestedCandidates = [obj.output, obj.result, obj.response]
+    for (const nested of nestedCandidates) {
+        const found = extractSpanIdFromResultPayload(nested)
+        if (found) return found
+    }
+
+    return null
+}
+
+export function extractRootSpanIdFromTraceData(traceId: string, data: unknown): string | null {
+    const traceResponse = asRecord(data)
+    const traces = asRecord(traceResponse?.traces)
+    if (!traces) return null
+
+    const canonicalTraceId = traceId.replace(/-/g, "")
+    const traceEntry = asRecord(traces[canonicalTraceId] ?? traces[traceId])
+    const spansRecord = asRecord(traceEntry?.spans)
+    if (!spansRecord) return null
+
+    const spans = Object.values(spansRecord) as TraceSpan[]
+    if (spans.length === 0) return null
+
+    const rootSpan = spans.find((span) => !span?.parent_id) ?? spans[0]
+    return asNonEmptyString(rootSpan?.span_id)
+}
+
+export function toTestsetTraceReference(result: unknown): TestsetTraceReference | null {
+    const record = asRecord(result)
+    if (!record) return null
+
+    const traceId = asNonEmptyString(record.traceId)
+    const spanId = extractSpanIdFromResultPayload(result)
+
+    if (!traceId && !spanId) return null
+
+    return {traceId, spanId}
 }
