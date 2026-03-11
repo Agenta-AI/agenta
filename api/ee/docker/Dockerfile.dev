@@ -3,7 +3,7 @@ FROM python:3.11-slim-bookworm
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y curl cron gnupg2 lsb-release && \
+    apt-get install -y curl gnupg2 lsb-release && \
     echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
     gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg && \
@@ -11,6 +11,19 @@ RUN apt-get update && \
     apt-get install -y postgresql-client-16 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install supercronic (non-root-compatible cron daemon)
+ARG SUPERCRONIC_VERSION=v0.2.33
+RUN ARCH=$(dpkg --print-architecture) && \
+    case "${ARCH}" in \
+      amd64) SHA1=71b0d58cc53f6bd72cf2f293e09e294b79c666d8 ;; \
+      arm64) SHA1=e0f0c06ebc5627e43b25475711e694450489ab00 ;; \
+      *) echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" \
+      -o /usr/local/bin/supercronic && \
+    echo "${SHA1}  /usr/local/bin/supercronic" | sha1sum -c - && \
+    chmod +x /usr/local/bin/supercronic
 
 RUN pip install --upgrade pip \
     && pip install poetry
@@ -20,34 +33,30 @@ COPY ./pyproject.toml /app/
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
 
-COPY ./ee /app/ee/
-COPY ./oss /app/oss/
-COPY ./entrypoints /app/entrypoints/
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --chown=agenta:agenta ./ee /app/ee/
+COPY --chown=agenta:agenta ./oss /app/oss/
+COPY --chown=agenta:agenta ./entrypoints /app/entrypoints/
 
 ENV PYTHONPATH=/sdk:$PYTHONPATH
 
 COPY ./oss/src/crons/queries.sh /queries.sh
 COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
-
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
-
 COPY ./ee/src/crons/meters.sh /meters.sh
 COPY ./ee/src/crons/meters.txt /etc/cron.d/meters-cron
-RUN sed -i -e '$a\' /etc/cron.d/meters-cron
-RUN cat -A /etc/cron.d/meters-cron
-
-RUN chmod +x /meters.sh \
-    && chmod 0644 /etc/cron.d/meters-cron
-
 COPY ./ee/src/crons/spans.sh /spans.sh
 COPY ./ee/src/crons/spans.txt /etc/cron.d/spans-cron
-RUN sed -i -e '$a\' /etc/cron.d/spans-cron
-RUN cat -A /etc/cron.d/spans-cron
 
-RUN chmod +x /spans.sh \
-    && chmod 0644 /etc/cron.d/spans-cron
+RUN chmod +x /queries.sh /meters.sh /spans.sh \
+    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
+    && for f in /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron; do sed -i -e '$a\' "$f"; done \
+    && cat /etc/cron.d/queries-cron /etc/cron.d/meters-cron /etc/cron.d/spans-cron \
+        | sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' \
+        | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
+    && chown agenta:agenta /app/crontab
+
+USER 10001
 
 EXPOSE 8000

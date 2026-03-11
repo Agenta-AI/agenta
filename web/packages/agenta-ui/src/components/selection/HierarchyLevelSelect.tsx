@@ -29,6 +29,7 @@
 import React, {useMemo} from "react"
 
 import {Select, Typography} from "antd"
+import type {DefaultOptionType} from "antd/es/select"
 
 import {cn, textColors} from "../../utils/styles"
 
@@ -149,10 +150,36 @@ export interface HierarchyLevelSelectProps<T> {
     allowClear?: boolean
 
     /**
+     * Get a group key for this item (for grouped select rendering).
+     * Items with the same key are grouped under a shared header.
+     * Return null/undefined for ungrouped items.
+     */
+    getGroupKey?: (item: T) => string | null | undefined
+
+    /**
+     * Map a group key to a human-readable display label.
+     * Falls back to the key itself if not provided.
+     */
+    getGroupLabel?: (key: string) => string
+
+    /**
      * Additional class name for the container
      */
     className?: string
 }
+
+interface HierarchyLevelSelectLeafOption extends DefaultOptionType {
+    value: string
+    label: React.ReactNode
+    searchLabel: string
+}
+
+interface HierarchyLevelSelectGroupOption extends DefaultOptionType {
+    label: React.ReactNode
+    options: HierarchyLevelSelectLeafOption[]
+}
+
+type HierarchyLevelSelectOption = HierarchyLevelSelectLeafOption | HierarchyLevelSelectGroupOption
 
 // ============================================================================
 // COMPONENT
@@ -179,6 +206,8 @@ export function HierarchyLevelSelect<T>({
     getItemLabel,
     getItemLabelNode,
     getPlaceholderNode,
+    getGroupKey,
+    getGroupLabel,
     label,
     showLabel = false,
     placeholder,
@@ -214,19 +243,46 @@ export function HierarchyLevelSelect<T>({
     }, [getPlaceholderNode, effectivePlaceholderText])
 
     // Build options - use getItemLabelNode for rich rendering, keep string label for search
+    // When getGroupKey is provided, produce Ant Design grouped option structure
     const options = useMemo(() => {
-        return items.map((item) => {
+        const buildOption = (item: T): HierarchyLevelSelectLeafOption => {
             const stringLabel = getItemLabel(item)
             const labelNode = getItemLabelNode?.(item)
             return {
                 value: getItemId(item),
-                // Use labelNode for display if available, otherwise use string
                 label: labelNode ?? stringLabel,
-                // Store string label for search filtering
                 searchLabel: stringLabel,
             }
-        })
-    }, [items, getItemId, getItemLabel, getItemLabelNode])
+        }
+
+        if (!getGroupKey) {
+            return items.map(buildOption)
+        }
+
+        // Group items by key, preserving insertion order
+        const groups = new Map<string, T[]>()
+        for (const item of items) {
+            const key = getGroupKey(item) ?? "__ungrouped__"
+            const group = groups.get(key)
+            if (group) {
+                group.push(item)
+            } else {
+                groups.set(key, [item])
+            }
+        }
+
+        // If only one group exists and it's ungrouped, return flat
+        if (groups.size === 1 && groups.has("__ungrouped__")) {
+            return items.map(buildOption)
+        }
+
+        return Array.from(groups.entries()).map(
+            ([key, groupItems]): HierarchyLevelSelectGroupOption => ({
+                label: key === "__ungrouped__" ? "Other" : (getGroupLabel?.(key) ?? key),
+                options: groupItems.map(buildOption),
+            }),
+        )
+    }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel])
 
     // Handle change
     const handleChange = (value: string | null) => {
@@ -252,7 +308,7 @@ export function HierarchyLevelSelect<T>({
                     )}
                 </Text>
             )}
-            <Select
+            <Select<string, HierarchyLevelSelectOption>
                 className="w-full"
                 placeholder={effectivePlaceholder}
                 value={selectedId}
@@ -266,7 +322,9 @@ export function HierarchyLevelSelect<T>({
                 filterOption={(input, option) => {
                     // Use searchLabel for filtering if available, otherwise try label
                     const searchText =
-                        (option as {searchLabel?: string})?.searchLabel ?? String(option?.label)
+                        option && "searchLabel" in option && typeof option.searchLabel === "string"
+                            ? option.searchLabel
+                            : String(option?.label ?? "")
                     return searchText.toLowerCase().includes(input.toLowerCase())
                 }}
                 notFoundContent={getNotFoundContentText()}

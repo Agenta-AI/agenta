@@ -108,6 +108,9 @@ class AuthConfig(BaseModel):
     )
     boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
 
+    turnstile_site_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SITE_KEY")
+    turnstile_secret_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SECRET_KEY")
+
     model_config = ConfigDict(extra="ignore")
 
     def model_post_init(self, _):
@@ -246,6 +249,11 @@ class AuthConfig(BaseModel):
     def any_enabled(self) -> bool:
         """At least one auth method enabled"""
         return self.email_enabled or self.oidc_enabled
+
+    @property
+    def turnstile_enabled(self) -> bool:
+        """Turnstile enabled if both site and secret keys are configured."""
+        return bool(self.turnstile_site_key and self.turnstile_secret_key)
 
     def validate_config(self) -> None:
         """Validate auth configuration"""

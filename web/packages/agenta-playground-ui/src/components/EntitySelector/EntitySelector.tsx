@@ -19,7 +19,7 @@
  * import { useEntitySelector } from '@agenta/playground/entity-selector'
  *
  * const { open } = useEntitySelector()
- * const selection = await open({ allowedTypes: ['appRevision', 'evaluatorRevision'] })
+ * const selection = await open({ allowedTypes: ['legacyAppRevision', 'evaluatorRevision'] })
  * ```
  */
 
@@ -36,8 +36,9 @@ import {
 import type {EntitySelectorConfig, EntitySelection, EntityType} from "@agenta/entities/runnable"
 import {
     EntityPicker,
+    type EvaluatorSelectionResult,
     type EvaluatorRevisionSelectionResult,
-    type AppRevisionSelectionResult,
+    type LegacyAppRevisionSelectionResult,
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -62,15 +63,15 @@ interface EntitySelectorContextType {
 
 function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
     const handleSelect = useCallback(
-        (selection: AppRevisionSelectionResult) => {
+        (selection: LegacyAppRevisionSelectionResult) => {
             onSelect({
-                type: "appRevision",
+                type: "legacyAppRevision",
                 id: selection.id,
                 label: selection.label,
                 metadata: {
                     appId: selection.metadata.appId,
                     appName: selection.metadata.appName,
-                    variantId: selection.metadata.variantId,
+                    entityId: selection.metadata.variantId,
                     variantName: selection.metadata.variantName,
                 },
             })
@@ -79,9 +80,9 @@ function AppRevisionSelector({onSelect}: {onSelect: (selection: EntitySelection)
     )
 
     return (
-        <EntityPicker<AppRevisionSelectionResult>
+        <EntityPicker<LegacyAppRevisionSelectionResult>
             variant="cascading"
-            adapter="appRevision"
+            adapter="legacyAppRevision"
             onSelect={handleSelect}
             instanceId="entity-selector-app-revision"
         />
@@ -124,6 +125,41 @@ function EvaluatorRevisionSelector({onSelect}: {onSelect: (selection: EntitySele
             loadingMessage="Loading evaluators..."
             maxHeight={300}
             instanceId="entity-selector-evaluator-revision"
+        />
+    )
+}
+
+// ============================================================================
+// EVALUATOR SELECTOR (Flat list)
+// ============================================================================
+
+function EvaluatorSelector({onSelect}: {onSelect: (selection: EntitySelection) => void}) {
+    const handleSelect = useCallback(
+        (selection: EvaluatorSelectionResult) => {
+            onSelect({
+                type: "evaluator",
+                id: selection.id,
+                label: selection.label,
+                metadata: {
+                    evaluatorId: selection.metadata.evaluatorId,
+                    evaluatorName: selection.metadata.evaluatorName,
+                },
+            })
+        },
+        [onSelect],
+    )
+
+    return (
+        <EntityPicker<EvaluatorSelectionResult>
+            variant="breadcrumb"
+            adapter="evaluator"
+            onSelect={handleSelect}
+            showSearch
+            rootLabel="Evaluators"
+            emptyMessage="No evaluators available"
+            loadingMessage="Loading evaluators..."
+            maxHeight={300}
+            instanceId="entity-selector-evaluator"
         />
     )
 }
@@ -214,16 +250,16 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
 // ============================================================================
 
 const ALL_ENTITY_TYPES: EntityType[] = [
-    "appRevision",
     "legacyAppRevision",
+    "evaluator",
     "evaluatorRevision",
     "testcase",
     "span",
 ]
 
-const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
-    appRevision: "App Revision",
-    legacyAppRevision: "OSS App Revision",
+const ENTITY_TYPE_LABELS: Partial<Record<EntityType, string>> = {
+    legacyAppRevision: "App Revision",
+    evaluator: "Evaluator",
     evaluatorRevision: "Evaluator Revision",
     testcase: "Testcase",
     span: "Span",
@@ -238,15 +274,16 @@ function EntitySelectorContent({
 }) {
     const allowedTypes = config.allowedTypes ?? ALL_ENTITY_TYPES
     const [entityType, setEntityType] = useState<EntityType>(
-        config.defaultType ?? allowedTypes[0] ?? "appRevision",
+        config.defaultType ?? allowedTypes[0] ?? "legacyAppRevision",
     )
 
     const tabItems = allowedTypes.map((type) => ({
         key: type,
-        label: ENTITY_TYPE_LABELS[type],
+        label: ENTITY_TYPE_LABELS[type] ?? type,
         children: (
             <div className="pt-2 min-h-[200px]">
-                {type === "appRevision" && <AppRevisionSelector onSelect={onSelect} />}
+                {type === "legacyAppRevision" && <AppRevisionSelector onSelect={onSelect} />}
+                {type === "evaluator" && <EvaluatorSelector onSelect={onSelect} />}
                 {type === "evaluatorRevision" && <EvaluatorRevisionSelector onSelect={onSelect} />}
                 {type === "testcase" && <TestcaseSelector onSelect={onSelect} />}
                 {type === "span" && <SpanSelector onSelect={onSelect} />}
@@ -317,8 +354,8 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
 
     // Use controller actions - but don't use the return value for Promises
     // (Jotai's useSetAtom doesn't properly forward Promise return values)
-    const setModalOpen = useSetAtom(useMemo(() => entitySelectorController.selectors.isOpen(), []))
-    const setConfig = useSetAtom(useMemo(() => entitySelectorController.selectors.config(), []))
+    const setModalOpen = useSetAtom(entitySelectorController.actions.setOpen)
+    const setConfig = useSetAtom(entitySelectorController.actions.setConfig)
 
     const open = useCallback(
         (config: EntitySelectorConfig = {}): Promise<EntitySelection | null> => {
@@ -375,7 +412,7 @@ export function EntitySelectorProvider({children}: {children: ReactNode}) {
  * const handleConnect = async () => {
  *     const selection = await open({
  *         title: "Connect Input",
- *         allowedTypes: ["appRevision", "testcase"],
+ *         allowedTypes: ["legacyAppRevision", "testcase"],
  *     })
  *     if (selection) {
  *         // Use the selection

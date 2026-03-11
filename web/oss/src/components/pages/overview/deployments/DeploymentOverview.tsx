@@ -7,7 +7,7 @@ import {useRouter} from "next/router"
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
 import useURL from "@/oss/hooks/useURL"
 import type {Environment} from "@/oss/lib/Types"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import {useEnvironments} from "@/oss/state/environment/hooks/useEnvironments"
 
 const {Title} = Typography
 

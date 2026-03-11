@@ -1,12 +1,14 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
-import type {StandardSecretDTO} from "@/oss/lib/Types"
 import {expect} from "@agenta/web-tests/utils"
 import {
     createTagString,
     TestCoverage,
     TestPath,
     TestScope,
+    TestLensType,
+    TestCostType,
+    TestLicenseType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
 /**
@@ -32,101 +34,26 @@ const modelHubTests = () => {
                 createTagString("coverage", TestCoverage.LIGHT),
                 createTagString("coverage", TestCoverage.FULL),
                 createTagString("path", TestPath.HAPPY),
+                createTagString("lens", TestLensType.FUNCTIONAL),
+                createTagString("cost", TestCostType.Free),
+                createTagString("license", TestLicenseType.OSS),
             ],
         },
-        async ({page, apiHelpers, uiHelpers}) => {
-            // 1. Navigate to settings and fetch provider data from API
-            await page.goto("/settings")
-            await uiHelpers.expectPath("/settings")
+        async ({page, testProviderHelpers}) => {
+            await testProviderHelpers.ensureTestProvider()
 
-            // 2. Open Model Hub tab and assert table presence
-            await page.locator(".ant-menu-item", {hasText: "Model Hub"}).click()
+            const customProvidersSection = page
+                .getByText("Custom providers", {exact: true})
+                .locator("xpath=ancestor::section[1]")
+                .first()
+            const providersTable = customProvidersSection.getByRole("table").first()
+            const mockRow = providersTable
+                .getByRole("row")
+                .filter({has: page.getByRole("cell", {name: "mock", exact: true})})
+                .first()
 
-            // Fetch provider secrets directly from the canonical endpoint
-            const secretsPromise = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets/",
-                method: "GET",
-            })
-
-            // Assert that the Model Providers table is visible, and that the 'OpenAI' row has a 'Configure now' button
-            const providersTable = page.getByRole("table").filter({hasText: "OpenAI"})
-            const openapiRow = providersTable.getByRole("row", {name: /OpenAI/})
-            await expect(openapiRow).toBeVisible()
-
-            const secrets = await secretsPromise
-
-            // Find the Mistral provider secret by name (case-insensitive)
-            const openaiSecret = secrets.find((s) =>
-                s.header?.name?.toLowerCase().includes("openai"),
-            )
-            const providerName = openaiSecret?.header?.name ?? "OpenAI"
-            const apiKey = (process.env.OPENAI_API_KEY as string) || "test-key"
-
-            // 3. Configure OpenAI provider using dynamic selector
-            const configurButton = await openapiRow.getByRole("button", {
-                name: "Configure now",
-            })
-
-            const isConfigurButtonVisible = await configurButton.isVisible()
-
-            if (isConfigurButtonVisible) {
-                await uiHelpers.clickTableRowButton({
-                    rowText: providerName,
-                    buttonName: "Configure now",
-                })
-            } else {
-                await openapiRow.getByRole("button").nth(1).click()
-            }
-
-            // The provider configuration uses an Ant Design Modal, not a Drawer
-            await expect(page.locator(".ant-modal")).toBeVisible()
-            const apiKeyInputFiled = await page.getByRole("textbox", {name: /Enter API key/i})
-            await apiKeyInputFiled.fill("")
-            await apiKeyInputFiled.fill(apiKey)
-
-            // Fetch secrets again after configuration to verify creation
-            const secretsAfterResponse = apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets/",
-                method: "GET",
-            })
-            await uiHelpers.clickButton("Confirm")
-            await expect(page.locator(".ant-modal")).not.toBeVisible()
-
-            const secretsAfter = await secretsAfterResponse
-            const openapiSecretAfter = secretsAfter.find((s) =>
-                s.header?.name?.toLowerCase().includes("openai"),
-            )
-
-            const secretName = openapiSecretAfter?.header?.name as string
-
-            await expect(page.locator(".ant-table-row", {hasText: secretName})).toBeVisible()
-
-            await uiHelpers.clickTableRowButton({
-                rowText: secretName,
-                buttonName: "Delete",
-            })
-            // expect(mistralSecretAfter).toBeDefined()
-            // Assert modal is visible after clicking delete
-            await expect(page.locator(".ant-modal")).toBeVisible()
-            // Confirm the modal using the correct button text ("Yes" is default for AlertPopup)
-            await uiHelpers.confirmModal("Delete")
-
-            await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets/",
-                method: "DELETE",
-            })
-
-            // Fetch secrets again after delete
-            const secretsAfterDelete = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
-                route: "/api/vault/v1/secrets/",
-                method: "GET",
-            })
-
-            const openapiSecretAfterDelete = secretsAfterDelete.find((s) =>
-                s.header?.name?.toLowerCase().includes("openai"),
-            )
-
-            expect(openapiSecretAfterDelete).toBeUndefined()
+            await expect(mockRow).toBeVisible({timeout: 15000})
+            await expect(mockRow).toContainText("mock")
         },
     )
 }

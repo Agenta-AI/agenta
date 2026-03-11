@@ -26,7 +26,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
 )
 from oss.src.dbs.postgres.folders.dbes import FolderDBE  # noqa: F401 — registers 'folders' table in SQLAlchemy metadata
 from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.core.applications.services import ApplicationsService
+from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.dtos import (
     Application,
     ApplicationCreate,

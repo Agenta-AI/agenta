@@ -108,7 +108,7 @@ export function RevisionLabel({
     author,
     renderAuthor,
     compact = false,
-    showDateInline = true,
+    showDateInline = false,
     maxMessageWidth = 220,
     reserveSubtitleSpace = false,
     className,
@@ -156,7 +156,7 @@ export function RevisionLabel({
                 <VersionBadge version={version} variant="chip" />
                 {showDateInline && (formattedDate || reserveSubtitleSpace) && (
                     <span className={cn(textColors.muted, !formattedDate && "invisible")}>
-                        {formattedDate || "Jan 1, 2024"}
+                        {formattedDate || ""}
                     </span>
                 )}
             </div>

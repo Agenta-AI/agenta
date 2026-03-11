@@ -1,5 +1,12 @@
 import {memo, useCallback, useMemo} from "react"
 
+import {runnableBridge} from "@agenta/entities/runnable"
+import {isLocalDraftId} from "@agenta/entities/shared"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
 import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
@@ -8,19 +15,9 @@ import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {removeVariantFromSelectionMutationAtom} from "@/oss/components/Playground/state/atoms/variantCrudMutations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
-import {isLocalDraft, revisionIsDirtyAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import Version from "../../../../../assets/Version"
-import {
-    moleculeBackedVariantAtomFamily,
-    generationResultAtomFamily,
-    appChatModeAtom,
-} from "../../../../../state/atoms"
 
 import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
@@ -35,11 +32,15 @@ const VariantNavigationCard = ({
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
 
-    // Use molecule-backed variant for single source of truth
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(revisionId)) as any
-    const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
-    const isDirty = useAtomValue(revisionIsDirtyAtomFamily(revisionId))
-    const isLocalDraftVariant = isLocalDraft(revisionId)
+    // Use runnableBridge for entity-type-aware data access
+    const runnableData = useAtomValue(runnableBridge.data(revisionId))
+    const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
+    const isDirty = useAtomValue(runnableBridge.isDirty(revisionId))
+    const isLocalDraftVariant = isLocalDraftId(revisionId)
+
+    // Map RunnableData fields to display values
+    const variantName = runnableData?.name ?? ""
+    const variantVersion = runnableData?.version as number | undefined
 
     // Handle close with confirmation only if there are actual committable changes
     // A local draft without changes (isDirty === false) should close without confirmation
@@ -66,38 +67,27 @@ const VariantNavigationCard = ({
     const metricsAtom = useMemo(
         () =>
             atom((get) => {
-                const isChat = Boolean(get(appChatModeAtom))
-                const rowIds = (get(compatRowIdsAtom) as string[]) || []
+                // Subscribe to chat mode and run status so changes trigger recompute
+                get(executionController.selectors.isChatMode)
+                const rowIds =
+                    (get(executionItemController.selectors.generationRowIds) as string[]) || []
                 const results: any[] = []
-                // Read run status map up-front so changes trigger recompute even if other deps don't
-                const statusMap = get(runStatusByRowRevisionAtom) || {}
+                get(executionItemController.selectors.runStatusByRowEntity)
 
                 for (const rowId of rowIds) {
-                    // Try run-status map first (works for both chat and completion, including local drafts)
-                    const key = `${rowId}:${revisionId}`
-                    const statusEntry = (statusMap as any)[key]
-
-                    if (statusEntry?.resultHash) {
-                        const res = getResponseLazy(statusEntry.resultHash)
-                        if (res) {
-                            results.push(res)
-                            continue
-                        }
-                    }
-
-                    if (isChat) {
-                        // Chat mode already tried via statusMap above
-                        continue
-                    }
-
-                    // Completion: use canonical selector as fallback
-                    const {resultHash} = get(
-                        generationResultAtomFamily({variantId: revisionId, rowId}),
+                    // Read full result from package store
+                    const fullResult = get(
+                        executionItemController.selectors.fullResult({rowId, entityId: revisionId}),
                     )
-                    const res = getResponseLazy(resultHash)
-                    if (res) {
-                        results.push(res)
-                        continue
+                    if (fullResult?.output) {
+                        const output = fullResult.output
+                        if (Array.isArray(output)) {
+                            // Take the last result for metrics (most recent)
+                            const last = output[output.length - 1]
+                            if (last) results.push(last)
+                        } else {
+                            results.push(output)
+                        }
                     }
                 }
 
@@ -185,19 +175,15 @@ const VariantNavigationCard = ({
                             <>
                                 <DraftTag />
                                 <Text className="text-gray-500">
-                                    from{" "}
-                                    {String(variant?.variantName ?? "").replace(
-                                        /\s*\(Draft\)$/,
-                                        "",
-                                    )}{" "}
-                                    v{variant?.revision}
+                                    from {String(variantName).replace(/\s*\(Draft\)$/, "")}
+                                    {variantVersion != null ? ` v${variantVersion}` : ""}
                                 </Text>
                             </>
                         ) : (
                             // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
-                                <Text>{variant?.variantName}</Text>
-                                <Version revision={variant?.revision as number} />
+                                <Text>{variantName}</Text>
+                                {variantVersion != null && <Version revision={variantVersion} />}
                                 {isDirty && <DraftTag />}
                             </>
                         )}
@@ -220,13 +206,13 @@ const VariantNavigationCard = ({
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Latency</Text>
-                    <Tag color="default" bordered={false} className="flex items-center gap-1">
+                    <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <Timer size={14} /> {avgLatency}
                     </Tag>
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Cost</Text>
-                    <Tag color="default" bordered={false} className="flex items-center gap-1">
+                    <Tag color="default" variant="filled" className="flex items-center gap-1">
                         <PlusCircle size={14} /> {avgTokens} / {avgCost}
                     </Tag>
                 </div>

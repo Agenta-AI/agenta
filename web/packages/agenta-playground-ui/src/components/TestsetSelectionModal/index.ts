@@ -2,26 +2,29 @@
  * TestsetSelectionModal
  *
  * Modal for selecting testcases from testsets using entity-layer state management.
- * Supports "load" (initial), "edit" (modify selection), and "save" (create new) modes.
+ * Supports "load" (initial connection) and "edit" (modify selection) modes.
+ *
+ * For saving new testsets, use EntityCommitModal from @agenta/entity-ui.
  */
 
-export {TestsetSelectionModal, default} from "./TestsetSelectionModal"
+export {default, TestsetSelectionModal} from "./TestsetSelectionModal"
 export type {
-    TestsetSelectionModalProps,
+    CreateCardRenderProps,
+    PreviewPanelRenderProps,
+    RevisionInfo,
+    SelectionSummaryProps,
     TestsetSelectionModalContentProps,
+    TestsetSelectionModalProps,
     TestsetSelectionMode,
     TestsetSelectionPayload,
-    TestsetSavePayload,
-    SelectionSummaryProps,
     UseTestsetSelectionReturn,
-    RevisionInfo,
 } from "./types"
 
 // Re-export TestcaseTable type from shared entities
 export type {TestcaseTableProps} from "@agenta/entity-ui"
 
 // Export hooks
-export {useTestsetSelection, useSaveTestset} from "./hooks"
+export {useTestsetSelection} from "./hooks"
 
 // Export sub-components for potential reuse
-export {TestcaseTable, SelectionSummary, SaveTestsetPanel} from "./components"
+export {CreateTestsetCard, SelectionSummary, TestcaseTable} from "./components"

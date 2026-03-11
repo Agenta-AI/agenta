@@ -79,11 +79,9 @@ from oss.src.models.db_models import (
     EvaluationAggregatedResultDB,
 )
 from oss.src.core.testcases.dtos import Testcase
-from oss.src.core.testsets.dtos import TestsetRevisionData
-
-from oss.src.apis.fastapi.testsets.models import (
+from oss.src.core.testsets.dtos import (
+    TestsetRevisionData,
     SimpleTestsetCreate,
-    SimpleTestsetCreateRequest,
 )
 
 
@@ -230,18 +228,16 @@ async def add_default_simple_testsets(
             testset_name = filename.replace("_testset.json", "_testset")
             testset_slug = get_slug_from_name_and_id(testset_name, uuid.uuid4())
 
-            simple_testset_create_request = SimpleTestsetCreateRequest(
-                testset=SimpleTestsetCreate(
-                    slug=testset_slug,
-                    name=testset_name,
-                    data=testset_revision_data,
-                )
+            simple_testset_create = SimpleTestsetCreate(
+                slug=testset_slug,
+                name=testset_name,
+                data=testset_revision_data,
             )
 
             await simple_testsets_service.create(
                 project_id=project_uuid,
                 user_id=user_uuid,
-                simple_testset_create_request=simple_testset_create_request,
+                simple_testset_create=simple_testset_create,
             )
         except Exception:
             log.error(

@@ -38,6 +38,7 @@ export type {
     // Entity types
     EntityType,
     RunnableType,
+    RunnableExecutionMode,
     EntitySelection,
     EntitySelectorConfig,
     // Connection types
@@ -60,12 +61,13 @@ export type {
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
-    AppRevisionData,
     EvaluatorRevisionData,
     // Path types
     PathInfo,
     ExtendedPathInfo,
     PathItem,
+    // Request payload
+    RequestPayloadData,
     // State types
     PlaygroundState,
     PlaygroundAction,
@@ -122,18 +124,28 @@ export type {
 
 export {
     computeTopologicalOrder,
+    computeTopologicalLevels,
     resolveChainInputs,
     resolveInputsFromMappings,
     autoMapInputs,
     executeRunnable,
+    buildEvaluatorExecutionInputs,
+    validateEvaluatorInputs,
     // Template variable extraction
     extractTemplateVariables,
     extractTemplateVariablesFromJson,
     extractVariablesFromPrompts,
-    extractVariablesFromAgConfig,
+    extractVariablesFromConfig,
     extractVariablesFromEnhancedPrompts,
 } from "./utils"
-export type {PathSource, ExecuteRunnableOptions} from "./utils"
+export type {ExecuteRunnableOptions} from "./utils"
+
+// ============================================================================
+// DEPLOYMENT
+// ============================================================================
+
+export {publishMutationAtom} from "./deploy"
+export type {PublishPayload, PublishRevisionPayload, PublishVariantPayload} from "./deploy"
 
 // ============================================================================
 // SNAPSHOT ADAPTER
@@ -146,6 +158,9 @@ export type {
     BuildDraftPatchResult,
 } from "./snapshotAdapter"
 
+export {computeShallowDiff, applyShallowPatch} from "./snapshotDiff"
+export type {ShallowDiffOptions} from "./snapshotDiff"
+
 // ============================================================================
 // PROVIDER TYPES (for playground entity injection)
 // ============================================================================
@@ -153,10 +168,17 @@ export type {
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
+    EvaluatorSelectors,
     EvaluatorRevisionSelectors,
     EvaluatorRevisionActions,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
+    EvaluatorRawData,
     EvaluatorRevisionRawData,
+    AppRevisionListSelectors,
+    AppRevisionActions,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCommitPayload,
+    AppRevisionCrudResult,
 } from "./providerTypes"

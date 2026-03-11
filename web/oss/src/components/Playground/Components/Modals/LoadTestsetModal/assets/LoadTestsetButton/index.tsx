@@ -1,12 +1,11 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
+import {loadTestsetNormalizedMutationAtom, executionController} from "@agenta/playground"
 import {Database} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
-import {loadTestsetNormalizedMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/testset/loadNormalized"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 
 import {LoadTestsetSelectionPayload} from "../types"
@@ -24,7 +23,7 @@ const LoadTestsetButton = ({
 }: LoadTestsetButtonProps) => {
     const loadTestsetData = useSetAtom(loadTestsetNormalizedMutationAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
-    const isChat = useAtomValue(appChatModeAtom) ?? false
+    const isChat = useAtomValue(executionController.selectors.isChatMode) ?? false
 
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
     const [, setTestsetData] = useState<LoadTestsetSelectionPayload | null>(null)

@@ -157,6 +157,21 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
+## Community Topics
+
+Repository-level deployment and hosting topics are tracked in [docs/community-topics.md](docs/community-topics.md).
+
+That matrix records, for each first-class topic:
+
+- provider
+- platform
+- runtime
+- OLAP database
+- maintenance mode
+- support level
+
+Use it together with [CONTRIBUTING.md](CONTRIBUTING.md) when proposing changes to self-hosting or surfaces with community maintenance.
+
 ## 💬 Community
 
 Find help, explore resources, or get involved:
@@ -169,11 +184,11 @@ Find help, explore resources, or get involved:
 
 ### 🤝 Contribute
 
-We welcome contributions of all kinds — from filing issues and sharing ideas to improving the codebase.
+We welcome contributions of all kinds, from filing issues and sharing ideas to improving the codebase.
 
 - **🐛 [Report bugs](https://github.com/Agenta-AI/agenta/issues)** – Help us by reporting problems you encounter  
 - **💡 [Share ideas and feedback](https://github.com/Agenta-AI/agenta/discussions)** – Suggest features or vote on ideas
-- **🔧 [Contribute to the codebase](https://agenta.ai/docs/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
+- **🔧 [Contribute to the codebase](https://agenta.ai/docs/contributing/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
 
 ## ⭐ Star Agenta
 

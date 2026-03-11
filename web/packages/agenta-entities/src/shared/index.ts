@@ -171,6 +171,10 @@ export {
     composeTransforms,
     parseISODate,
     normalizeTimestampsBasic,
+    // Date formatting utilities
+    type EntityDateInput,
+    type EntityDateTimeFormatOptions,
+    formatEntityDateTime,
     // ID & batch utilities
     isLocalId,
     isServerId,
@@ -252,6 +256,11 @@ export {
     // Factories
     createLoadableBridge,
     createRunnableBridge,
+    // Type hint registry (prevent spurious cross-molecule probing)
+    registerRunnableTypeHint,
+    getRunnableTypeHint,
+    clearRunnableTypeHint,
+    clearAllRunnableTypeHints,
     // Internal state (advanced)
     loadableStateFamily,
 } from "./createEntityBridge"
@@ -276,6 +285,8 @@ export type {
     CreateRunnableBridgeConfig,
     RunnableBridge,
     RunnableBridgeSelectors,
+    RunnableBridgeCrudActions,
+    TypeScopedRunnableSelectors,
     // Aliases
     SourceConfig,
     RunnableConfig,
@@ -434,11 +445,9 @@ export {
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
-    extractRevisionParametersFromEnhanced,
     extractRevisionParametersFromApiRevision,
     // Deprecated agConfig aliases
     extractAgConfig,
-    extractAgConfigFromEnhanced,
     extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
@@ -452,7 +461,4 @@ export {
     transformAppToListItem,
     transformVariantToListItem,
     transformRevisionToListItem,
-    // Enhanced variant types
-    type EnhancedVariantLike,
-    extractUriFromEnhanced,
 } from "./utils"

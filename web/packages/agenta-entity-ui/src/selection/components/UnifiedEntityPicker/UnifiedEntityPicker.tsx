@@ -30,8 +30,10 @@ import type {EntitySelectionResult} from "../../types"
 import type {EntityPickerProps} from "./types"
 import {
     BreadcrumbVariant,
+    CascaderVariant,
     CascadingVariant,
     ListPopoverVariant,
+    PopoverCascaderVariant,
     TreeSelectVariant,
 } from "./variants"
 
@@ -97,6 +99,12 @@ export function EntityPicker<TSelection = EntitySelectionResult>(
 
         case "tree-select":
             return <TreeSelectVariant {...props} />
+
+        case "cascader":
+            return <CascaderVariant {...props} />
+
+        case "popover-cascader":
+            return <PopoverCascaderVariant {...props} />
 
         default:
             // TypeScript should catch this, but throw for runtime safety

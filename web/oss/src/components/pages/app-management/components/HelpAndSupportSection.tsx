@@ -39,7 +39,7 @@ const HelpAndSupportSection = () => {
 
     return (
         <div className="flex flex-col gap-4">
-            <Space direction="vertical" size={8}>
+            <Space orientation="vertical" size={8}>
                 <Title level={2} className="!my-0">
                     Have a question?
                 </Title>

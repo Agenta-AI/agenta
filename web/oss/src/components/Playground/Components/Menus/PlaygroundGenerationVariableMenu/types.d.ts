@@ -1,9 +1,9 @@
 import {DropDownProps} from "antd"
 
-import {TestResult} from "@/oss/components/Playground/assets/utilities/transformer/types/testRun"
+import {TestResult} from "@/oss/lib/shared/variant/types/testRun"
 
 export interface PlaygroundGenerationVariableMenuProps extends DropDownProps {
-    duplicateInputRow: () => void
+    duplicateRow: () => void
     result?: TestResult | null | undefined
     resultHash?: string | null | undefined
 }

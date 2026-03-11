@@ -144,7 +144,7 @@ export async function fetchTestcasesPage(params: TestcaseListParams): Promise<Te
         const response = await axios.post(
             `${getAgentaApiUrl()}/testcases/query`,
             {
-                testset_revision_id: revisionId,
+                testset_revision_ref: {id: revisionId},
                 windowing: {
                     limit,
                     ...(cursor && {next: cursor}),
@@ -212,7 +212,9 @@ export async function fetchTestcasesRaw(
     query: {
         testcase_ids?: string[]
         testset_id?: string
-        testset_revision_id?: string
+        testset_revision_ref?: {
+            id?: string
+        }
         windowing?: {
             newest?: string
             oldest?: string

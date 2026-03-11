@@ -41,11 +41,6 @@ from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.annotations.service import AnnotationsService
 
-# from oss.src.apis.fastapi.tracing.utils import make_hash_id
-from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
-
 
 log = get_module_logger(__name__)
 
@@ -122,25 +117,11 @@ evaluations_service = EvaluationsService(
     #
 )
 
-# APIS -------------------------------------------------------------------------
-
-tracing_router = TracingRouter(
-    tracing_service=tracing_service,
-)
-
-simple_testsets_router = SimpleTestsetsRouter(
-    simple_testsets_service=simple_testsets_service,
-)  # TODO: REMOVE/REPLACE ONCE TRANSFER IS MOVED TO 'core'
-
 annotations_service = AnnotationsService(
-    tracing_router=tracing_router,
+    tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
 )
-
-annotations_router = AnnotationsRouter(
-    annotations_service=annotations_service,
-)  # TODO: REMOVE/REPLACE ONCE ANNOTATE IS MOVED TO 'core'
 
 # ------------------------------------------------------------------------------
 

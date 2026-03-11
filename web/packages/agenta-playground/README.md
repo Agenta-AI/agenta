@@ -151,7 +151,6 @@ import { usePlaygroundState, useChainExecution, useDerivedState } from '@agenta/
 function MyComponent() {
     // Full playground state access
     const {
-        primaryNode,
         nodes,
         connectedTestset,
         extraColumns,
@@ -167,12 +166,10 @@ function MyComponent() {
 
     // Transform controller state to view model types for UI
     const {
-        primaryNodeEntity,
         runnableNodes,
         outputReceivers,
         executionResults,
     } = useDerivedState({
-        primaryNode,
         nodes,
         allConnections,
         editingConnectionId,
@@ -344,7 +341,7 @@ import { playgroundController, outputConnectionController } from "@agenta/playgr
 
 // Selectors (read state)
 const nodes = useAtomValue(playgroundController.selectors.nodes())
-const primaryNode = useAtomValue(playgroundController.selectors.primaryNode())
+const rootNode = nodes.find(n => n.depth === 0)
 
 // Dispatch (simple actions)
 const dispatch = useSetAtom(playgroundController.dispatch)

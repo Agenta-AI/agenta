@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {variantsListQueryStateAtomFamily} from "@agenta/entities/legacyAppRevision"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {Table, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -9,7 +10,7 @@ import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQuery} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"
-import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
 import {DeploymentRevisionWithVariant} from "../../atoms"
 
@@ -40,7 +41,10 @@ const DeploymentTable = ({
 }: DeploymentTableProps) => {
     const [, updateQuery] = useQuery()
     const {goToPlayground} = usePlaygroundNavigation()
-    const variantsLoading = useAtomValue(variantsLoadingAtom)
+    const appId = useAtomValue(selectedAppIdAtom) || ""
+    const variantsLoading = useAtomValue(
+        useMemo(() => variantsListQueryStateAtomFamily(appId), [appId]),
+    ).isPending
 
     const handleAssignRevisionId = useCallback(
         (record: DeploymentRevisionWithVariant) => {

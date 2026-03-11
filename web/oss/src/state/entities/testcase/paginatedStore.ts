@@ -231,7 +231,7 @@ async function fetchTestcasesPage({
         const response = await axios.post(
             `${getAgentaApiUrl()}/testcases/query`,
             {
-                testset_revision_id: meta.revisionId,
+                testset_revision_ref: {id: meta.revisionId},
                 windowing: windowingPayload,
             },
             {params: {project_id: meta.projectId}},

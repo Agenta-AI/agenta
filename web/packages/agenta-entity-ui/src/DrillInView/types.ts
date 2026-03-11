@@ -155,7 +155,7 @@ export interface DrillInMoleculeConfig<TEntity = unknown, TDraft = Partial<TEnti
     /**
      * Convert a change at a path back to entity draft changes
      */
-    getChangesFromRoot: (entity: TEntity | null, rootData: unknown, path: DataPath) => TDraft
+    getChangesFromRoot: (entity: TEntity | null, rootData: unknown, path: DataPath) => TDraft | null
 
     /**
      * Display configuration
@@ -171,6 +171,12 @@ export interface DrillInMoleculeConfig<TEntity = unknown, TDraft = Partial<TEnti
      * Custom renderers
      */
     renderers?: DrillInRenderers<TEntity>
+
+    /**
+     * Optional: Get JSON schema for a field at a given path.
+     * When provided, enables schema-aware rendering (rich controls for numbers, enums, messages, etc.)
+     */
+    getSchemaAtPath?: (path: DataPath) => import("jotai").Atom<unknown>
 }
 
 // ============================================================================
