@@ -1,6 +1,7 @@
-import {chromium, type BrowserContext, type Page} from "@playwright/test"
 import {existsSync, mkdirSync, writeFileSync} from "fs"
 import {dirname} from "path"
+
+import {chromium, type BrowserContext, type Page} from "@playwright/test"
 
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
 import {
@@ -10,6 +11,7 @@ import {
 } from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
 import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from "../utils/testmail"
+
 import {
     getChromiumLaunchOptions,
     getProjectMetadataPath,
@@ -109,22 +111,108 @@ async function handlePostSignup(page: Page): Promise<void> {
     await clickButton(page, "Continue")
 }
 
-async function waitForSettledAuthenticatedPage(page: Page, timeout: number): Promise<void> {
-    await page.waitForURL(
-        (url) => !url.pathname.includes("/auth") && !url.pathname.endsWith("/post-signup"),
-        {timeout, waitUntil: "domcontentloaded"},
-    )
+async function getCurrentPathname(page: Page): Promise<string> {
+    try {
+        return await page.evaluate(() => {
+            const browserContext = globalThis as {location?: {pathname?: string}}
+            return browserContext.location?.pathname ?? "/"
+        })
+    } catch {
+        return new URL(page.url()).pathname
+    }
+}
 
-    if (new URL(page.url()).pathname.startsWith("/workspaces/accept")) {
-        await page
-            .waitForURL((url) => !url.pathname.startsWith("/workspaces/accept"), {
-                timeout,
-                waitUntil: "domcontentloaded",
-            })
-            .catch(() => {})
+async function waitForPathname(
+    page: Page,
+    predicate: (pathname: string) => boolean,
+    timeout: number,
+    description: string,
+): Promise<string> {
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeout) {
+        const pathname = await getCurrentPathname(page)
+        if (predicate(pathname)) {
+            return pathname
+        }
+
+        await page.waitForTimeout(250)
     }
 
-    console.log(`[global-setup] Settled on: ${page.url()}`)
+    const lastPathname = await getCurrentPathname(page).catch(() => "unknown")
+    throw new Error(
+        `[global-setup] Timed out waiting for ${description}. Last pathname: ${lastPathname}`,
+    )
+}
+
+async function handleGetStarted(page: Page, timeout: number): Promise<boolean> {
+    const pathname = await getCurrentPathname(page)
+    if (!pathname.startsWith("/get-started")) {
+        return false
+    }
+
+    console.log("[global-setup] New user detected, on get-started page")
+
+    const skipButton = page.getByRole("button", {name: "Skip", exact: true})
+    await skipButton.waitFor({state: "visible", timeout: Math.min(timeout, 15000)})
+    await skipButton.click()
+
+    await waitForPathname(
+        page,
+        (nextPathname) => !nextPathname.startsWith("/get-started"),
+        timeout,
+        "get-started redirect",
+    )
+
+    console.log(`[global-setup] Get-started skipped, now on: ${page.url()}`)
+    return true
+}
+
+async function waitForSettledAuthenticatedPage(page: Page, timeout: number): Promise<void> {
+    const startedAt = Date.now()
+
+    while (Date.now() - startedAt < timeout) {
+        const pathname = await getCurrentPathname(page)
+        const remainingTimeout = Math.max(timeout - (Date.now() - startedAt), 1000)
+
+        if (pathname.endsWith("/post-signup")) {
+            await handlePostSignup(page)
+            continue
+        }
+
+        if (pathname.startsWith("/get-started")) {
+            await handleGetStarted(page, remainingTimeout)
+            continue
+        }
+
+        if (pathname.includes("/auth")) {
+            await waitForPathname(
+                page,
+                (nextPathname) => !nextPathname.includes("/auth"),
+                remainingTimeout,
+                "authentication redirect",
+            )
+            continue
+        }
+
+        if (pathname.startsWith("/workspaces/accept")) {
+            await waitForPathname(
+                page,
+                (nextPathname) => !nextPathname.startsWith("/workspaces/accept"),
+                remainingTimeout,
+                "workspace acceptance redirect",
+            ).catch(() => {})
+            continue
+        }
+
+        console.log(`[global-setup] Settled on: ${page.url()}`)
+        return
+    }
+
+    const pathname = await getCurrentPathname(page).catch(() => "unknown")
+    throw new Error(
+        `[global-setup] Timed out waiting for authenticated page to settle. Last pathname: ${pathname}`,
+    )
 }
 
 async function authenticateUser({
@@ -441,12 +529,12 @@ async function inviteOssUser({
         )
     }
 
-    const projects = (await projectsResponse.json()) as Array<{
+    const projects = (await projectsResponse.json()) as {
         organization_id?: string
         workspace_id?: string
         project_id?: string
         is_default_project?: boolean
-    }>
+    }[]
 
     const project = projects.find((candidate) => candidate.is_default_project) ?? projects[0]
     if (!project?.organization_id || !project.workspace_id || !project.project_id) {
