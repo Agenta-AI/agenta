@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Link} from "@phosphor-icons/react"
 import {Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
