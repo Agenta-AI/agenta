@@ -31,7 +31,7 @@
 | # | Criterion | Severity if violated |
 |---|---|---|
 | T‑4 | Business logic is separated from I/O (database reads, HTTP calls, file system) and can be exercised without a running server or database | high |
-| T‑5 | Framework lifecycle hooks, middleware, and routing glue do not contain untested business logic | high |
+| T‑5 | Business logic is not embedded directly in framework lifecycle hooks, middleware, or routing glue; it resides in units that can be tested in isolation | high |
 | T‑6 | Functions and methods have a single, clearly stated responsibility; testing one behaviour does not require triggering unrelated side effects | medium |
 | T‑7 | Side effects (emails, events, writes to external systems) are triggered through an injected abstraction, not directly | high |
 
