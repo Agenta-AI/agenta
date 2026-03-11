@@ -23,6 +23,7 @@ import {
     completionServiceSchemaAtom,
     chatServiceSchemaAtom,
 } from "../../legacyAppRevision/state/serviceSchemaAtoms"
+import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
@@ -1136,6 +1137,7 @@ export const updateWorkflowDraftAtom = atom(
     null,
     (_get, set, workflowId: string, updates: Partial<Workflow>) => {
         const current = _get(workflowDraftAtomFamily(workflowId))
+        const serverData = _get(workflowServerDataSelectorFamily(workflowId))
         // Accept both workflow payload shape (`{data: {parameters}}`) and
         // legacy bridge shape (`{parameters}`) to avoid no-op edits when routing
         // crosses entity types during navigation.
@@ -1144,18 +1146,34 @@ export const updateWorkflowDraftAtom = atom(
             rawUpdates.parameters === undefined
                 ? undefined
                 : (rawUpdates.parameters as Record<string, unknown> | null)
+        const rawUpdatedData = rawUpdates.data as {parameters?: unknown} | undefined
+        const nestedParameters =
+            rawUpdatedData && "parameters" in rawUpdatedData
+                ? (rawUpdatedData.parameters as Record<string, unknown> | null)
+                : undefined
+        const incomingParameters =
+            topLevelParameters !== undefined ? topLevelParameters : nestedParameters
+        const flags = serverData?.flags ?? current?.flags
+        const shouldSyncPromptInputKeys =
+            !!flags && !flags.is_custom && !flags.is_evaluator && !flags.is_human
         const normalizedUpdates =
-            topLevelParameters !== undefined
+            incomingParameters !== undefined
                 ? ({
                       ...updates,
                       data: {
                           ...((updates.data as Record<string, unknown> | undefined) ?? {}),
-                          parameters: topLevelParameters,
+                          parameters: shouldSyncPromptInputKeys
+                              ? syncPromptInputKeysInParameters(incomingParameters)
+                              : incomingParameters,
                       },
                   } as Partial<Workflow>)
                 : updates
 
-        const {data: updatedData, ...restUpdates} = normalizedUpdates
+        const {data: updatedData, ...restUpdatesWithBridgeShape} =
+            normalizedUpdates as Partial<Workflow> & {
+                parameters?: Record<string, unknown> | null
+            }
+        const {parameters: _bridgeParameters, ...restUpdates} = restUpdatesWithBridgeShape
         const mergedData =
             updatedData || current?.data
                 ? {
