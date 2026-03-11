@@ -382,10 +382,7 @@ async function authenticateUser({
         }
 
         const signInResponse = await signInResponsePromise
-        const signInPayload = await logAuthApiResponse(
-            signInResponse,
-            "password sign-in response",
-        )
+        const signInPayload = await logAuthApiResponse(signInResponse, "password sign-in response")
 
         if (
             signInResponse &&
@@ -409,10 +406,7 @@ async function authenticateUser({
                 new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)),
             ])
 
-            await logAuthApiResponse(
-                signUpFallbackResponse,
-                "password signup fallback response",
-            )
+            await logAuthApiResponse(signUpFallbackResponse, "password signup fallback response")
         }
 
         await handlePostSignup(page)
