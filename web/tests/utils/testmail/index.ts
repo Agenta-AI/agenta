@@ -2,6 +2,71 @@ import axios from "axios"
 
 import type Testmail from "./types"
 
+function createStructuredTag(params: Testmail.EmailTagParams = {}): string {
+    const {
+        scope = "test",
+        branch = process.env.BRANCH_NAME ?? "local",
+        workerId,
+        timestamp = Date.now(),
+    } = params
+
+    return [scope, branch, workerId !== undefined ? `w${workerId}` : "", timestamp]
+        .filter(Boolean)
+        .join("-")
+}
+
+function createFallbackEmail(params: Testmail.EmailTagParams = {}): Testmail.TestEmail {
+    const tag = createStructuredTag(params)
+    return `${tag}.test.agenta@test.agenta.ai`
+}
+
+export function isTestmailInboxEmail(email: string, namespace?: string): boolean {
+    if (!email.endsWith("@inbox.testmail.app")) {
+        return false
+    }
+
+    if (!namespace) {
+        return true
+    }
+
+    return email.startsWith(`${namespace}.`)
+}
+
+export function extractTestmailTag(email: string, namespace?: string): string {
+    const [fullTag] = email.split("@")
+    const parts = fullTag.split(".")
+
+    if (namespace && parts[0] === namespace) {
+        return parts.slice(1).join(".")
+    }
+
+    if (namespace && parts[parts.length - 1] === namespace) {
+        return parts.slice(1, -1).join(".")
+    }
+
+    return parts.slice(1).join(".")
+}
+
+export function generateNamespacedTestEmail(
+    namespace: string,
+    params: Testmail.EmailTagParams = {},
+): Testmail.TestEmail {
+    const identifier = createStructuredTag(params)
+    return `${namespace}.${identifier}.test.agenta@inbox.testmail.app`
+}
+
+export function generateRuntimeTestEmail(
+    params: Testmail.EmailTagParams = {},
+): Testmail.TestEmail {
+    const namespace = process.env.TESTMAIL_NAMESPACE?.trim()
+
+    if (namespace) {
+        return generateNamespacedTestEmail(namespace, params)
+    }
+
+    return createFallbackEmail(params)
+}
+
 export class TestmailClient {
     private readonly client
 
@@ -17,26 +82,8 @@ export class TestmailClient {
         })
     }
 
-    private generateRandomSuffix(): string {
-        return Math.random().toString(36).substring(2, 7)
-    }
-
     private extractTag(email: string): string {
-        const [fullTag] = email.split("@")
-        const parts = fullTag.split(".")
-        return parts.slice(1).join(".")
-    }
-
-    private createStructuredTag(params: Testmail.EmailTagParams = {}): string {
-        const {
-            scope = "test",
-            branch = process.env.BRANCH_NAME ?? "local",
-            workerId,
-            timestamp = Date.now(),
-        } = params
-        return [scope, branch, workerId !== undefined ? `w${workerId}` : "", timestamp]
-            .filter(Boolean)
-            .join("-")
+        return extractTestmailTag(email, this.config.namespace)
     }
 
     async waitForEmail(
@@ -44,6 +91,7 @@ export class TestmailClient {
         {timeout = 30000, timestamp_from = Date.now()}: Testmail.WaitOptions = {},
     ): Promise<Testmail.Message> {
         try {
+            const clientTimeoutMs = timeout + 5000
             const response = await this.client.get<Testmail.ApiResponse>("", {
                 params: {
                     namespace: this.config.namespace,
@@ -53,6 +101,7 @@ export class TestmailClient {
                     timestamp_from: timestamp_from,
                     timeout_seconds: Math.floor(timeout / 1000),
                 },
+                timeout: clientTimeoutMs,
             })
 
             const [email] = response.data.emails
@@ -61,7 +110,12 @@ export class TestmailClient {
             return email
         } catch (error) {
             if (axios.isAxiosError(error)) {
-                console.error("API Error:", error.response?.data || error.message)
+                console.error("API Error:", error.response?.data || error.message, {
+                    namespace: this.config.namespace,
+                    tag,
+                    timestamp_from,
+                    timeout,
+                })
             }
             throw error
         }
@@ -86,9 +140,7 @@ export class TestmailClient {
     }
 
     generateTestEmail(params: Testmail.EmailTagParams = {}): Testmail.TestEmail {
-        const tag = this.createStructuredTag(params)
-        const randomSuffix = this.generateRandomSuffix()
-        return `${this.config.namespace}.${randomSuffix}.${tag}@inbox.testmail.app`
+        return generateNamespacedTestEmail(this.config.namespace, params)
     }
 }
 

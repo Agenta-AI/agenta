@@ -28,6 +28,8 @@ from supertokens_python.asyncio import (
 )
 from supertokens_python.recipe.passwordless.interfaces import (
     RecipeInterface as PasswordlessRecipeInterface,
+    APIInterface as PasswordlessAPIInterface,
+    APIOptions as PasswordlessAPIOptions,
     ConsumeCodeOkResult,
 )
 from supertokens_python.recipe.emailpassword.interfaces import (
@@ -56,7 +58,11 @@ from oss.src.core.auth.helper import (
 from oss.src.core.auth.service import AuthService
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
-from oss.src.core.auth.turnstile import verify_turnstile_or_raise
+from oss.src.core.auth.turnstile import (
+    get_client_ip,
+    has_turnstile_token,
+    verify_turnstile_or_raise,
+)
 from oss.src.services import db_manager
 
 from oss.src.services.exceptions import UnauthorizedException
@@ -117,6 +123,35 @@ def _get_signup_cloud_region(cloud_url: str) -> str:
         return "US"
 
     return "Other"
+
+
+def _get_email_domain(email: Optional[str]) -> Optional[str]:
+    if not email or "@" not in email:
+        return None
+
+    domain = email.rsplit("@", 1)[-1].strip().lower()
+    return domain or None
+
+
+def _log_auth_attempt(
+    *,
+    auth_method: str,
+    api_name: str,
+    api_options: Union[APIOptions, EmailPasswordAPIOptions, PasswordlessAPIOptions],
+    email: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    provider_id: Optional[str] = None,
+) -> None:
+    log.info(
+        "[AUTH] Auth attempt auth_method=%s api_name=%s email_domain=%s client_ip=%s turnstile_token_present=%s tenant_id=%s provider_id=%s",
+        auth_method,
+        api_name,
+        _get_email_domain(email),
+        get_client_ip(api_options.request),
+        has_turnstile_token(api_options.request),
+        tenant_id,
+        provider_id,
+    )
 
 
 def _merge_session_identities(
@@ -362,11 +397,15 @@ def override_emailpassword_apis(
         *,
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
+        auth_flow: str,
     ) -> None:
         if user_context.get("turnstile_verified"):
             return
 
-        await verify_turnstile_or_raise(request=api_options.request)
+        await verify_turnstile_or_raise(
+            request=api_options.request,
+            auth_flow=auth_flow,
+        )
         user_context["turnstile_verified"] = True
 
     async def sign_in_post(
@@ -377,7 +416,23 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        await verify_turnstile(api_options=api_options, user_context=user_context)
+        email = (
+            form_fields[0].value
+            if form_fields and form_fields[0].id == "email"
+            else None
+        )
+        _log_auth_attempt(
+            auth_method="emailpassword",
+            api_name="sign_in_post",
+            api_options=api_options,
+            email=email,
+            tenant_id=tenant_id,
+        )
+        await verify_turnstile(
+            api_options=api_options,
+            user_context=user_context,
+            auth_flow="emailpassword_sign_in",
+        )
 
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
             auth_info = await ensure_auth_info_not_blocked(
@@ -417,7 +472,23 @@ def override_emailpassword_apis(
         api_options: EmailPasswordAPIOptions,
         user_context: Dict[str, Any],
     ):
-        await verify_turnstile(api_options=api_options, user_context=user_context)
+        email = (
+            form_fields[0].value
+            if form_fields and form_fields[0].id == "email"
+            else None
+        )
+        _log_auth_attempt(
+            auth_method="emailpassword",
+            api_name="sign_up_post",
+            api_options=api_options,
+            email=email,
+            tenant_id=tenant_id,
+        )
+        await verify_turnstile(
+            api_options=api_options,
+            user_context=user_context,
+            auth_flow="emailpassword_sign_up",
+        )
 
         # FLOW 1: Sign in (redirect existing users with emailpassword credential)
         auth_info = await ensure_auth_info_not_blocked(
@@ -468,22 +539,113 @@ def override_emailpassword_apis(
 
 
 def override_passwordless_apis(
-    original_implementation: PasswordlessRecipeInterface,
+    original_implementation: PasswordlessAPIInterface,
 ):
+    original_create_code_post = original_implementation.create_code_post
+    original_resend_code_post = original_implementation.resend_code_post
     original_consume_code_post = original_implementation.consume_code_post
+
+    async def verify_turnstile(
+        *,
+        api_options: PasswordlessAPIOptions,
+        user_context: Dict[str, Any],
+        auth_flow: str,
+    ) -> None:
+        if user_context.get("turnstile_verified"):
+            return
+
+        await verify_turnstile_or_raise(
+            request=api_options.request,
+            auth_flow=auth_flow,
+        )
+        user_context["turnstile_verified"] = True
+
+    async def create_code_post(
+        email: Union[str, None],
+        phone_number: Union[str, None],
+        session: Optional[SessionContainer],
+        should_try_linking_with_session_user: Union[bool, None],
+        tenant_id: str,
+        api_options: PasswordlessAPIOptions,
+        user_context: Dict[str, Any],
+    ):
+        _log_auth_attempt(
+            auth_method="passwordless",
+            api_name="create_code_post",
+            api_options=api_options,
+            email=email,
+            tenant_id=tenant_id,
+        )
+        await verify_turnstile(
+            api_options=api_options,
+            user_context=user_context,
+            auth_flow="passwordless_create_code",
+        )
+
+        return await original_create_code_post(
+            email,
+            phone_number,
+            session,
+            should_try_linking_with_session_user,
+            tenant_id,
+            api_options,
+            user_context,
+        )
+
+    async def resend_code_post(
+        device_id: str,
+        pre_auth_session_id: str,
+        session: Optional[SessionContainer],
+        should_try_linking_with_session_user: Union[bool, None],
+        tenant_id: str,
+        api_options: PasswordlessAPIOptions,
+        user_context: Dict[str, Any],
+    ):
+        _log_auth_attempt(
+            auth_method="passwordless",
+            api_name="resend_code_post",
+            api_options=api_options,
+            tenant_id=tenant_id,
+        )
+        # await verify_turnstile(
+        #     api_options=api_options,
+        #     user_context=user_context,
+        #     auth_flow="passwordless_resend_code",
+        # )
+
+        return await original_resend_code_post(
+            device_id,
+            pre_auth_session_id,
+            session,
+            should_try_linking_with_session_user,
+            tenant_id,
+            api_options,
+            user_context,
+        )
 
     async def consume_code_post(
         pre_auth_session_id: str,
         user_input_code: Union[str, None],
         device_id: Union[str, None],
         link_code: Union[str, None],
-        session: Optional[SessionContainer] = None,
-        should_try_linking_with_session_user: Optional[bool] = None,
-        tenant_id: str = "public",
-        api_options: Optional[APIOptions] = None,
-        user_context: Optional[Dict[str, Any]] = None,
+        session: Optional[SessionContainer],
+        should_try_linking_with_session_user: Optional[bool],
+        tenant_id: str,
+        api_options: PasswordlessAPIOptions,
+        user_context: Dict[str, Any],
     ):
-        # First we call the original implementation of consume_code_post.
+        _log_auth_attempt(
+            auth_method="passwordless",
+            api_name="consume_code_post",
+            api_options=api_options,
+            tenant_id=tenant_id,
+        )
+        # await verify_turnstile(
+        #     api_options=api_options,
+        #     user_context=user_context,
+        #     auth_flow="passwordless_consume_code",
+        # )
+
         response = await original_consume_code_post(
             pre_auth_session_id,
             user_input_code,
@@ -493,11 +655,13 @@ def override_passwordless_apis(
             should_try_linking_with_session_user,
             tenant_id,
             api_options,
-            user_context or {},
+            user_context,
         )
 
         return response
 
+    original_implementation.create_code_post = create_code_post  # type: ignore
+    original_implementation.resend_code_post = resend_code_post  # type: ignore
     original_implementation.consume_code_post = consume_code_post  # type: ignore
     return original_implementation
 
@@ -517,7 +681,17 @@ def override_thirdparty_apis(
         session: Optional[SessionContainer] = None,
         should_try_linking_with_session_user: Optional[bool] = None,
     ):
-        await verify_turnstile_or_raise(request=api_options.request)
+        _log_auth_attempt(
+            auth_method="thirdparty",
+            api_name="sign_in_up_post",
+            api_options=api_options,
+            tenant_id=tenant_id,
+            provider_id=provider.id,
+        )
+        await verify_turnstile_or_raise(
+            request=api_options.request,
+            auth_flow="thirdparty_sign_in_up",
+        )
 
         response = await original_sign_in_up(
             provider,

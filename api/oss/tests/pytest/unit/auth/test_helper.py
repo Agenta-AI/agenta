@@ -171,3 +171,80 @@ async def test_thirdparty_sign_in_up_checks_blocking_before_auth(monkeypatch):
     assert called is False
     assert isinstance(result, SignInUpNotAllowed)
     assert result.reason == "Access Denied."
+
+
+@pytest.mark.asyncio
+async def test_passwordless_create_code_checks_turnstile(monkeypatch):
+    verify_turnstile_or_raise = AsyncMock()
+    original_create_code_post = AsyncMock(return_value=object())
+    implementation = SimpleNamespace(
+        create_code_post=original_create_code_post,
+        resend_code_post=AsyncMock(),
+        consume_code_post=AsyncMock(),
+    )
+    api_options = SimpleNamespace(
+        request=SimpleNamespace(get_header=lambda _name: None)
+    )
+    user_context = {}
+
+    monkeypatch.setattr(
+        overrides,
+        "verify_turnstile_or_raise",
+        verify_turnstile_or_raise,
+    )
+
+    overrides.override_passwordless_apis(implementation)
+
+    await implementation.create_code_post(
+        email="user@example.com",
+        phone_number=None,
+        session=None,
+        should_try_linking_with_session_user=None,
+        tenant_id="public",
+        api_options=api_options,
+        user_context=user_context,
+    )
+
+    verify_turnstile_or_raise.assert_awaited_once_with(
+        request=api_options.request,
+        auth_flow="passwordless_create_code",
+    )
+    original_create_code_post.assert_awaited_once()
+    assert user_context["turnstile_verified"] is True
+
+
+@pytest.mark.asyncio
+async def test_passwordless_consume_code_does_not_check_turnstile(monkeypatch):
+    verify_turnstile_or_raise = AsyncMock()
+    original_consume_code_post = AsyncMock(return_value=object())
+    implementation = SimpleNamespace(
+        create_code_post=AsyncMock(),
+        resend_code_post=AsyncMock(),
+        consume_code_post=original_consume_code_post,
+    )
+    api_options = SimpleNamespace(
+        request=SimpleNamespace(get_header=lambda _name: None)
+    )
+
+    monkeypatch.setattr(
+        overrides,
+        "verify_turnstile_or_raise",
+        verify_turnstile_or_raise,
+    )
+
+    overrides.override_passwordless_apis(implementation)
+
+    await implementation.consume_code_post(
+        pre_auth_session_id="pre-auth-session-id",
+        user_input_code="123456",
+        device_id="device-id",
+        link_code=None,
+        session=None,
+        should_try_linking_with_session_user=None,
+        tenant_id="public",
+        api_options=api_options,
+        user_context={},
+    )
+
+    verify_turnstile_or_raise.assert_not_awaited()
+    original_consume_code_post.assert_awaited_once()

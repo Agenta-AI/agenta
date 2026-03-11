@@ -1,6 +1,6 @@
 import {WorkerInfo} from "@playwright/test"
 
-import {getTestmailClient} from "../../../../utils/testmail"
+import {generateRuntimeTestEmail} from "../../../../utils/testmail"
 import {UserState} from "../types"
 
 /**
@@ -21,10 +21,7 @@ import {UserState} from "../types"
  * // }
  */
 export function createInitialUserState(project: Partial<WorkerInfo["project"]>): UserState {
-    const testmail = getTestmailClient()
-
-    // Create email with structured tag
-    const email = testmail.generateTestEmail({
+    const email = generateRuntimeTestEmail({
         scope: project.name,
         branch: process.env.BRANCH_NAME,
     })

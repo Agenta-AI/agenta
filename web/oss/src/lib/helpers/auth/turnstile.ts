@@ -1,7 +1,12 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isEE} from "@/oss/lib/helpers/isEE"
 
-const TURNSTILE_AUTH_PATHS = new Set(["/api/auth/signin", "/api/auth/signup", "/api/auth/signinup"])
+const TURNSTILE_AUTH_PATHS = new Set([
+    "/api/auth/signin",
+    "/api/auth/signup",
+    "/api/auth/signinup",
+    "/api/auth/signinup/code",
+])
 
 export const TURNSTILE_HEADER = "x-turnstile-token"
 
@@ -9,6 +14,10 @@ let pendingTurnstileToken: string | null = null
 let fetchPatched = false
 
 export const getTurnstileSiteKey = () => {
+    // TEST: ENFORCE CHALLENGE
+    // const siteKey = "3x00000000000000000000FF"
+    // TEST: BYPASS CHALLENGE
+    // const siteKey = "1x00000000000000000000AA"
     const siteKey = getEnv("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY").trim()
 
     return isEE() ? siteKey : ""

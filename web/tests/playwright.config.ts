@@ -5,6 +5,13 @@ import {fileURLToPath} from "url"
 import {defineConfig} from "@playwright/test"
 import dotenv from "dotenv"
 
+import {
+    getChromiumLaunchOptions,
+    getOutputDir,
+    getReportDir,
+    getStorageStatePath,
+} from "./playwright/config/runtime"
+
 // Get current directory in ESM
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -26,7 +33,8 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
     workers: 1, // Temporarily disabled parallel worker
-    reporter: "html",
+    reporter: [["html", {outputFolder: getReportDir()}]],
+    outputDir: getOutputDir(),
     globalSetup: require.resolve("./playwright/global-setup"),
     globalTeardown: require.resolve("./playwright/global-teardown"),
     // Global test timeout
@@ -44,6 +52,7 @@ export default defineConfig({
         trace: "on-first-retry",
         screenshot: "only-on-failure",
         video: "retain-on-failure",
-        storageState: "state.json",
+        storageState: getStorageStatePath(),
+        launchOptions: getChromiumLaunchOptions(),
     },
 })
