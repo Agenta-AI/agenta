@@ -1,4 +1,4 @@
-name: "13 - check unit tests"
+name: "12 - check unit tests"
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
       - 'sdk/**'
       - 'services/**'
       - 'web/**'
-      - '.github/workflows/13-check-unit-tests.yml'
+      - '.github/workflows/12-check-unit-tests.yml'
   workflow_dispatch:
     inputs:
       packages:
