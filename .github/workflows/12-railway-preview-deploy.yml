@@ -1,0 +1,196 @@
+name: "12 - railway preview: build and deploy"
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
+        required: false
+        type: string
+        default: ""
+    outputs:
+      image_tag:
+        description: "Image tag used for the deployment"
+        value: ${{ jobs.prepare.outputs.image_tag }}
+      pr_number:
+        description: "PR number"
+        value: ${{ jobs.prepare.outputs.pr_number }}
+      preview_url:
+        description: "The URL of the deployed preview environment"
+        value: ${{ jobs.deploy.outputs.preview_url }}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+concurrency:
+  group: railway-preview-build-deploy-${{ inputs.pr_number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      pr_number: ${{ steps.meta.outputs.pr_number }}
+      cache_scope: ${{ steps.meta.outputs.cache_scope }}
+      build_images: ${{ steps.meta.outputs.build_images }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine build metadata
+        id: meta
+        run: |
+          PR="${{ inputs.pr_number }}"
+          INPUT_TAG="${{ inputs.image_tag }}"
+          SHA="$(git rev-parse --short HEAD)"
+
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+            BUILD_IMAGES=false
+          elif [ -n "$PR" ]; then
+            TAG="pr-${PR}-${SHA}"
+            BUILD_IMAGES=true
+          else
+            TAG="manual-${SHA}"
+            BUILD_IMAGES=true
+          fi
+
+          if [ -n "$PR" ]; then
+            CACHE_SCOPE="pr-${PR}"
+          else
+            REF="$(printf "%s" "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-')"
+            REF="${REF#-}"
+            REF="${REF%-}"
+            CACHE_SCOPE="${REF:-manual}"
+          fi
+
+          CACHE_SCOPE="${CACHE_SCOPE:0:80}"
+
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
+          echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
+          echo "build_images=${BUILD_IMAGES}" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Railway Preview Build And Deploy"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${{ steps.meta.outputs.pr_number }}\` |"
+            echo "| Image tag | \`${{ steps.meta.outputs.image_tag }}\` |"
+            echo "| Build images | \`${{ steps.meta.outputs.build_images }}\` |"
+            echo "| Cache scope | \`${{ steps.meta.outputs.cache_scope }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-and-push:
+    needs: prepare
+    if: needs.prepare.outputs.build_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image_name: agenta-api
+            context: api
+            dockerfile: api/oss/docker/Dockerfile.gh
+            needs_sdk: true
+          - image_name: agenta-web
+            context: web
+            dockerfile: web/oss/docker/Dockerfile.gh
+            needs_sdk: false
+          - image_name: agenta-services
+            context: services
+            dockerfile: services/oss/docker/Dockerfile.gh
+            needs_sdk: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Inject SDK into build context
+        if: matrix.needs_sdk
+        run: |
+          rm -rf "${{ matrix.context }}/sdk"
+          cp -R sdk "${{ matrix.context }}/sdk"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}
+          cache-to: |
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared,mode=max
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }},mode=max
+
+      - name: Verify SDK source path in image
+        if: matrix.image_name == 'agenta-api' || matrix.image_name == 'agenta-services'
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)")"
+          echo "Resolved SDK path: $sdk_path"
+          case "$sdk_path" in
+            /app/sdk/*) ;;
+            *)
+              echo "Expected SDK to resolve from /app/sdk, got: $sdk_path"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify image runs as non-root
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
+            exit 1
+          fi
+          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
+
+      - name: Summary
+        run: |
+          echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: [prepare, build-and-push]
+    if: |
+      needs.prepare.outputs.pr_number != '' &&
+      (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped')
+    uses: ./.github/workflows/07-railway-preview-deploy.yml
+    with:
+      image_tag: ${{ needs.prepare.outputs.image_tag }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+    secrets: inherit

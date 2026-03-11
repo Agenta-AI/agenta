@@ -265,7 +265,7 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
 ## Notes
 
 - This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`).
-- CI is wired for Railway preview environments via `.github/workflows/06-railway-preview-build.yml`, `.github/workflows/07-railway-preview-deploy.yml`, and `.github/workflows/08-railway-preview-cleanup.yml`.
+- CI is wired for Railway preview environments via `.github/workflows/06-railway-preview-build.yml` (automation entrypoint), `.github/workflows/12-railway-preview-deploy.yml` (reusable/manual build+deploy), `.github/workflows/11-railway-preview-tests.yml` (reusable/manual post-deploy tests), `.github/workflows/07-railway-preview-deploy.yml` (low-level deploy), and `.github/workflows/08-railway-preview-cleanup.yml`.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
 - `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis

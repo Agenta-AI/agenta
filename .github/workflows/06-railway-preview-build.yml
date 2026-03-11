@@ -1,4 +1,4 @@
-name: "06 - railway preview: build images"
+name: "06 - railway preview: automation"
 
 on:
   pull_request:
@@ -11,10 +11,61 @@ on:
       - 'hosting/railway/**'
       - '.github/workflows/06-railway-preview-build.yml'
       - '.github/workflows/07-railway-preview-deploy.yml'
+      - '.github/workflows/10-playwright-oss-tests.yml'
+      - '.github/workflows/11-railway-preview-tests.yml'
+      - '.github/workflows/12-railway-preview-deploy.yml'
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "PR number (for manual runs)"
+        description: "PR number"
+        required: true
+        type: string
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - all-but-web
+          - api-only
+          - services-only
+          - web-only
+          - none
+      coverage:
+        description: "Coverage (smoke, full)"
+        required: false
+        type: string
+      lens:
+        description: "Lens (functional, performance, security)"
+        required: false
+        type: string
+      path:
+        description: "Path (happy, grumpy)"
+        required: false
+        type: string
+      case:
+        description: "Case (typical, edge)"
+        required: false
+        type: string
+      speed:
+        description: "Speed (fast, slow)"
+        required: false
+        type: string
+      scope:
+        description: "Scope [free-text]"
+        required: false
+        type: string
+      cost:
+        description: "Cost (free, paid)"
+        required: false
+        type: string
+      role:
+        description: "Role (owner, admin, editor, viewer)"
+        required: false
+        type: string
+      plan:
+        description: "Plan (hobby, pro, business, enterprise)"
         required: false
         type: string
 
@@ -24,159 +75,32 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: railway-preview-build-${{ github.event.pull_request.number || github.ref_name }}
+  group: railway-preview-automation-${{ github.event.pull_request.number || inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  prepare:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.image_tag }}
-      pr_number: ${{ steps.meta.outputs.pr_number }}
-      cache_scope: ${{ steps.meta.outputs.cache_scope }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Determine build metadata
-        id: meta
-        run: |
-          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
-          SHA="$(git rev-parse --short HEAD)"
-
-          if [ -n "$PR" ]; then
-            TAG="pr-${PR}-${SHA}"
-          else
-            TAG="manual-${SHA}"
-          fi
-
-          if [ -n "$PR" ]; then
-            CACHE_SCOPE="pr-${PR}"
-          else
-            REF="$(printf "%s" "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-')"
-            REF="${REF#-}"
-            REF="${REF%-}"
-            CACHE_SCOPE="${REF:-manual}"
-          fi
-
-          CACHE_SCOPE="${CACHE_SCOPE:0:80}"
-
-          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
-          echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
-          echo "Image tag: ${TAG}"
-          echo "Cache scope: ${CACHE_SCOPE}"
-
-      - name: Summary
-        run: |
-          TAG="${{ steps.meta.outputs.image_tag }}"
-          echo "### Railway Preview Images" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Image | Tag |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-------|-----|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-api | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-web | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-services | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Cache scope: \`${{ steps.meta.outputs.cache_scope }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Shared cache: \`buildcache-shared\`" >> "$GITHUB_STEP_SUMMARY"
-
-  build-and-push:
-    needs: prepare
-    if: needs.prepare.outputs.image_tag != ''
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image_name: agenta-api
-            context: api
-            dockerfile: api/oss/docker/Dockerfile.gh
-            needs_sdk: true
-          - image_name: agenta-web
-            context: web
-            dockerfile: web/oss/docker/Dockerfile.gh
-            needs_sdk: false
-          - image_name: agenta-services
-            context: services
-            dockerfile: services/oss/docker/Dockerfile.gh
-            needs_sdk: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Inject SDK into build context
-        if: matrix.needs_sdk
-        run: |
-          rm -rf "${{ matrix.context }}/sdk"
-          cp -R sdk "${{ matrix.context }}/sdk"
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}
-          cache-from: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}
-          cache-to: |
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared,mode=max
-            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }},mode=max
-
-      - name: Verify SDK source path in image
-        if: matrix.image_name == 'agenta-api' || matrix.image_name == 'agenta-services'
-        run: |
-          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
-          docker pull "$IMAGE"
-          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)")"
-          echo "Resolved SDK path: $sdk_path"
-          case "$sdk_path" in
-            /app/sdk/*) ;;
-            *)
-              echo "Expected SDK to resolve from /app/sdk, got: $sdk_path"
-              exit 1
-              ;;
-          esac
-
-      - name: Verify image runs as non-root
-        run: |
-          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
-          docker pull "$IMAGE"
-          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
-          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
-            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
-            exit 1
-          fi
-          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
-
-      - name: Summary
-        run: |
-          echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-
   deploy:
-    needs: [prepare, build-and-push]
-    if: needs.prepare.outputs.pr_number != '' && needs.build-and-push.result == 'success'
-    uses: ./.github/workflows/07-railway-preview-deploy.yml
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    uses: ./.github/workflows/12-railway-preview-deploy.yml
     with:
-      image_tag: ${{ needs.prepare.outputs.image_tag }}
-      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
     secrets: inherit
 
-  playwright:
+  tests:
     needs: [deploy]
     if: needs.deploy.outputs.preview_url != ''
-    uses: ./.github/workflows/10-playwright-oss-tests.yml
+    uses: ./.github/workflows/11-railway-preview-tests.yml
     with:
       web_url: ${{ needs.deploy.outputs.preview_url }}
+      layers: acceptance,integration
+      packages: ${{ inputs.packages || 'all' }}
+      coverage: ${{ inputs.coverage || '' }}
+      lens: ${{ inputs.lens || '' }}
+      path: ${{ inputs.path || '' }}
+      case: ${{ inputs.case || '' }}
+      speed: ${{ inputs.speed || '' }}
+      scope: ${{ inputs.scope || '' }}
+      cost: ${{ inputs.cost || '' }}
+      role: ${{ inputs.role || '' }}
+      plan: ${{ inputs.plan || '' }}
     secrets: inherit
