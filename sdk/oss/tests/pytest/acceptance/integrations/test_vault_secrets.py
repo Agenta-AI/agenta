@@ -10,6 +10,8 @@ The vault middleware uses these endpoints during workflow execution to:
 - Fetch secrets from the vault API
 """
 
+import time
+
 import pytest
 
 import agenta as ag
@@ -22,6 +24,30 @@ from agenta.client.backend.types import (
 
 
 pytestmark = [pytest.mark.acceptance]
+
+
+def _wait_for_secret_ids(
+    *, should_contain: str, present: bool, timeout_s: float = 30.0
+):
+    """
+    Poll list_secrets() to tolerate eventually consistent deployments.
+
+    Remote acceptance runs can hit different API instances through a gateway, so
+    create/delete may succeed before list responses converge.
+    """
+    deadline = time.monotonic() + timeout_s
+    last_secret_ids = []
+
+    while time.monotonic() < deadline:
+        all_secrets = ag.api.secrets.list_secrets()
+        last_secret_ids = [s.id for s in all_secrets]
+
+        if (should_contain in last_secret_ids) is present:
+            return last_secret_ids
+
+        time.sleep(1)
+
+    return last_secret_ids
 
 
 class TestAccessControlPermissions:
@@ -141,8 +167,7 @@ class TestSecretsLifecycle:
             assert read_result.kind == "provider_key"
 
             # Verify it appears in the list
-            all_secrets = ag.api.secrets.list_secrets()
-            secret_ids = [s.id for s in all_secrets]
+            secret_ids = _wait_for_secret_ids(should_contain=secret_id, present=True)
             assert secret_id in secret_ids
 
         finally:
@@ -181,8 +206,7 @@ class TestSecretsLifecycle:
             ag.api.secrets.delete_secret(secret_id=secret_id)
 
             # Verify it's gone from the list
-            all_secrets = ag.api.secrets.list_secrets()
-            secret_ids = [s.id for s in all_secrets]
+            secret_ids = _wait_for_secret_ids(should_contain=secret_id, present=False)
             assert secret_id not in secret_ids
 
             # Mark as cleaned up
