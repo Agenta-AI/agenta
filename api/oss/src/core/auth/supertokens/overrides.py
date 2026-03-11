@@ -221,6 +221,7 @@ async def _create_account(email: str, uid: str) -> bool:
                     "is_ee": is_ee(),
                     "cloud_region": _get_signup_cloud_region(_get_signup_cloud_url()),
                     "cloud_url": _get_signup_cloud_url(),
+                    "$set": {"email": email},
                 },
             )
         except Exception:
