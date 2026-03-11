@@ -49,6 +49,15 @@ _CACHE_ENABLED = (
 _cache = TTLLRUCache()
 
 
+def invalidate_secrets_cache(credentials: Optional[str]) -> None:
+    if not _CACHE_ENABLED:
+        return
+
+    headers = {"Authorization": credentials} if credentials else None
+    _hash = dumps({"headers": headers}, sort_keys=True)
+    _cache.delete(_hash)
+
+
 class DenyException(Exception):
     def __init__(
         self,
@@ -368,7 +377,17 @@ class VaultMiddleware:
             ctx.vault_secrets = vault_secrets
             ctx.local_secrets = local_secrets
 
-        return await call_next(request)
+        response = await call_next(request)
+
+        status = getattr(response, "status", None)
+        status_type = getattr(status, "type", None)
+
+        if isinstance(status_type, str) and status_type.endswith(
+            "#v0:schemas:invalid-secrets"
+        ):
+            invalidate_secrets_cache(RunningContext.get().credentials)
+
+        return response
 
 
 def _strip_service_prefix(path: str) -> str:

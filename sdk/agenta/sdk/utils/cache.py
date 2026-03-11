@@ -51,3 +51,7 @@ class TTLLRUCache:
 
             # Put
             self.cache[key] = (value, time() + (ttl if ttl is not None else self.ttl))
+
+    def delete(self, key):
+        with self.lock:
+            self.cache.pop(key, None)

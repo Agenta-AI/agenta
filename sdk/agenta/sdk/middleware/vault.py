@@ -13,6 +13,7 @@ from agenta.sdk.middlewares.running.vault import (
     DenyException,
     _strip_service_prefix,
     _ALWAYS_ALLOW_LIST,
+    invalidate_secrets_cache,
 )
 
 import agenta as ag
@@ -66,4 +67,23 @@ class VaultMiddleware(BaseHTTPMiddleware):
         except Exception:  # pylint: disable=bare-except
             display_exception("Vault: Secrets Exception")
 
-        return await call_next(request)
+        response = await call_next(request)
+
+        detail = None
+        if hasattr(response, "body") and response.body:
+            try:
+                import json
+
+                payload = json.loads(response.body)
+                detail = payload.get("detail")
+            except Exception:  # pylint: disable=bare-except
+                detail = None
+
+        if (
+            getattr(response, "status_code", None) == 400
+            and isinstance(detail, str)
+            and "No API key found for model" in detail
+        ):
+            invalidate_secrets_cache(request.state.auth.get("credentials"))
+
+        return response
