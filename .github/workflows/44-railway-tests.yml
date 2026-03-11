@@ -324,6 +324,11 @@ jobs:
             exit 0
           fi
 
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty API layer path: $TARGET_PATH"
+            exit 0
+          fi
+
           CMD=(python run-tests.py --license oss)
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
@@ -415,6 +420,11 @@ jobs:
 
           if [ ! -d "$TARGET_PATH" ]; then
             echo "Skipping missing SDK layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty SDK layer path: $TARGET_PATH"
             exit 0
           fi
 
