@@ -8,6 +8,8 @@
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
+import {isRecord} from "../../shared"
+import {SYSTEM_FIELDS} from "../../testcase/core"
 // Testcase atoms - import directly from internal modules (not public index)
 import {
     currentRevisionIdAtom,
@@ -47,9 +49,6 @@ import {
 // ============================================================================
 // INTERNAL HELPERS
 // ============================================================================
-
-// System fields to exclude from column operations
-const SYSTEM_FIELDS = new Set(["id", "__id", "__isSkeleton", "key", "created_at", "updated_at"])
 
 interface Column {
     key: string
@@ -130,27 +129,6 @@ export interface SaveTestsetResult {
     error?: Error
 }
 
-const TESTCASE_SYSTEM_FIELDS = new Set([
-    "id",
-    "flags",
-    "tags",
-    "meta",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "testset_id",
-    "set_id",
-    "testset_variant_id",
-    "revision_id",
-    "testcase_dedup_id",
-])
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    !!value && typeof value === "object" && !Array.isArray(value)
-
 const normalizeCommittedRows = (
     testcases: unknown,
 ): {id: string; data: Record<string, unknown>}[] => {
@@ -169,7 +147,7 @@ const normalizeCommittedRows = (
             data = testcase.data
         } else {
             for (const [key, value] of Object.entries(testcase)) {
-                if (!TESTCASE_SYSTEM_FIELDS.has(key) && key !== "data") {
+                if (!SYSTEM_FIELDS.has(key) && key !== "data") {
                     data[key] = value
                 }
             }

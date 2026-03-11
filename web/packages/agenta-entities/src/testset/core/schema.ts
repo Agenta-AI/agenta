@@ -30,6 +30,7 @@ import {
     safeParseWithLogging,
     getVersionLabel,
 } from "../../shared"
+import {SYSTEM_FIELDS} from "../../testcase/core"
 
 // ============================================================================
 // REVISION SCHEMA
@@ -241,34 +242,12 @@ export type Variant = z.infer<typeof variantSchema>
 // ============================================================================
 
 /**
- * System/metadata fields to exclude when normalizing testcase data
- */
-const TESTCASE_SYSTEM_FIELDS = new Set([
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-    "__dedup_id__",
-])
-
-/**
  * Filter system fields from an object
  */
 function filterSystemFields(obj: Record<string, unknown>): Record<string, unknown> {
     const filtered: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(obj)) {
-        if (!TESTCASE_SYSTEM_FIELDS.has(key)) {
+        if (!SYSTEM_FIELDS.has(key)) {
             filtered[key] = value
         }
     }
@@ -290,7 +269,7 @@ function normalizeTestcase(tc: Record<string, unknown>): Record<string, unknown>
 
     const userData: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(tc)) {
-        if (!TESTCASE_SYSTEM_FIELDS.has(key) && key !== "data") {
+        if (!SYSTEM_FIELDS.has(key) && key !== "data") {
             userData[key] = value
         }
     }

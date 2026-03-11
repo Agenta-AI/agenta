@@ -83,6 +83,7 @@ import {
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
+import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
 import {getRunnableBridge} from "./runnableBridgeAccess"
@@ -497,18 +498,21 @@ const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) 
 const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayload) => {
     const {loadableId, revisionId, testcases, testsetName, testsetId, revisionVersion} = payload
 
-    // Generate display name from testset name and version
+    // Generate a fallback display name from the available selection info
     const displayName = testsetName
-        ? revisionVersion != null
-            ? `${testsetName} v${revisionVersion}`
+        ? revisionVersion
+            ? `${testsetName} (v${revisionVersion})`
             : testsetName
         : undefined
 
-    // Ensure testcases have IDs
-    const testcasesWithIds = testcases.map((tc, index) => {
-        const id = tc.id ?? `testcase-${Date.now()}-${index}`
-        return {id, ...tc}
+    const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
+
+    // Ensure testcases have IDs and store them in nested testcase formatat
+    const testcasesWithIds = normalizedRows.map((row, index) => {
+        const id = row.id ?? `testcase-${Date.now()}-${index}`
+        return {id, data: row.data}
     })
+    const flatRows = testcasesWithIds.map(({id, data}) => ({id, ...data}))
 
     // Connect to source via loadable controller
     set(
@@ -533,7 +537,7 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
-            testcaseRows: testcasesWithIds as Record<string, unknown>[],
+            testcaseRows: flatRows,
             skipBlankMessage: true,
         })
     }
@@ -550,9 +554,11 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
  */
 const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayload) => {
     const {loadableId, testcases} = payload
+    const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
+    const flatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
 
     // Import rows via loadable controller (stays in local mode)
-    set(loadableController.actions.importRows, loadableId, testcases)
+    set(loadableController.actions.importRows, loadableId, flatRows)
 
     // Extract chat messages from imported testcase rows if in chat mode.
     // Same reasoning as connectToTestsetAtom — the entity layer stores `messages`
@@ -561,7 +567,7 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
-            testcaseRows: testcases,
+            testcaseRows: flatRows,
             skipBlankMessage: true,
         })
     }

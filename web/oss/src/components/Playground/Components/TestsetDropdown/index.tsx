@@ -282,6 +282,7 @@ export function TestsetDropdown() {
                 importTestcases({
                     loadableId,
                     testcases: payload.testcases ?? [],
+                    jsonValueMode: payload.jsonValueMode,
                 })
             } else {
                 // Replace mode: connect and sync selected testcases from entity layer
@@ -296,6 +297,7 @@ export function TestsetDropdown() {
                     testsetName: payload.testsetName ?? "",
                     testsetId: payload.testsetId ?? null,
                     revisionVersion: payload.revisionVersion ?? null,
+                    jsonValueMode: payload.jsonValueMode,
                 })
             }
 
@@ -313,6 +315,7 @@ export function TestsetDropdown() {
                 importTestcases({
                     loadableId,
                     testcases: payload.testcases,
+                    jsonValueMode: payload.jsonValueMode,
                 })
             } else {
                 // Edit mode returns the newly selected set, which updateTestcaseSelection diffs against

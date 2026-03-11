@@ -40,7 +40,7 @@ import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
-import type {Testcase} from "../testcase/core"
+import {SYSTEM_FIELDS, type Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
 import {
     setTestcaseIdsAtom,
@@ -88,28 +88,6 @@ import {createOutputMappingId, extractPaths} from "./utils"
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-
-/**
- * System fields to exclude from column comparisons and row data
- * These are entity metadata fields, not actual testcase data
- */
-const SYSTEM_FIELDS = new Set([
-    "id",
-    "flags",
-    "tags",
-    "meta",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "testset_id",
-    "set_id",
-    "testset_variant_id",
-    "revision_id",
-    "testcase_dedup_id",
-])
 
 const LOCAL_TESTCASE_PREFIXES = ["new-", "local-"] as const
 const VERSION_SUFFIX_REGEX = /\s+v\d+\s*$/i
