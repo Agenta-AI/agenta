@@ -348,7 +348,7 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: api/tests/results/junit.xml
+          files: api/oss/tests/results/junit.xml
           check_name: Railway API Test Results
           comment_mode: off
 
@@ -358,7 +358,7 @@ jobs:
         with:
           name: railway-api-test-results-${{ matrix.layer }}
           path: |
-            api/tests/results/
+            api/oss/tests/results/
             api/pytest*.log
           retention-days: 14
 

@@ -144,7 +144,7 @@ jobs:
         if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: api/tests/results/junit.xml
+          files: api/oss/tests/results/junit.xml
           check_name: Application API Unit Test Results
           comment_mode: off
 
