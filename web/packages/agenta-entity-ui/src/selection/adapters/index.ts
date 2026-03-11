@@ -117,3 +117,18 @@ export type {
     WorkflowRevisionSelectionResult,
     CreateWorkflowRevisionAdapterOptions,
 } from "./workflowRevisionRelationAdapter"
+
+// ============================================================================
+// ENRICHED EVALUATOR ADAPTERS
+// ============================================================================
+
+// Label utilities for evaluator workflow items (colored type tags)
+export {renderEvaluatorPickerLabelNode, buildEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
+
+// Enriched adapter hooks with auto-fetching evaluator template data
+export {
+    useEvaluatorEnrichedData,
+    useEnrichedEvaluatorBrowseAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedAnnotationEvaluatorAdapter,
+} from "./useEnrichedEvaluatorAdapter"

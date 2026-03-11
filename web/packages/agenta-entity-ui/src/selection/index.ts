@@ -218,6 +218,16 @@ export type {
     CreateWorkflowRevisionAdapterOptions,
 } from "./adapters"
 
+// Enriched evaluator adapters (with colored type tags)
+export {
+    renderEvaluatorPickerLabelNode,
+    buildEvaluatorPickerLabelNode,
+    useEvaluatorEnrichedData,
+    useEnrichedEvaluatorBrowseAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedAnnotationEvaluatorAdapter,
+} from "./adapters"
+
 // Initialization
 export {
     initializeSelectionSystem,

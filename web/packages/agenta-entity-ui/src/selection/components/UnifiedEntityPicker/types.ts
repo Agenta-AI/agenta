@@ -628,6 +628,7 @@ export interface PopoverCascaderVariantProps<
  */
 export type EntityPickerProps<TSelection = EntitySelectionResult> =
     | CascadingVariantProps<TSelection>
+    | CascaderVariantProps<TSelection>
     | BreadcrumbVariantProps<TSelection>
     | ListPopoverVariantProps<TSelection>
     | TreeSelectVariantProps<TSelection>

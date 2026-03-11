@@ -91,6 +91,9 @@ export function EntityPicker<TSelection = EntitySelectionResult>(
         case "cascading":
             return <CascadingVariant {...props} />
 
+        case "cascader":
+            return <CascaderVariant {...props} />
+
         case "breadcrumb":
             return <BreadcrumbVariant {...props} />
 
