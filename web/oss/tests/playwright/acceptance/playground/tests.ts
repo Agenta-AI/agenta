@@ -69,7 +69,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
             // from the in-app sidebar. Direct Playground entry is still flaky on this branch.
             await page.goto(overviewUrl, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/overview`)
-            await page.waitForLoadState("networkidle")
+            // await page.waitForLoadState("networkidle") // TODO: Re-enable when ready
 
             const playgroundLink = page.getByRole("link", {name: "Playground"}).first()
             await expect(playgroundLink).toBeVisible({timeout: 10000})
@@ -85,9 +85,9 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await uiHelpers.expectPath(`/apps/${appId}/playground`)
             }
 
-            await expect(
-                page.getByRole("button", {name: "Run", exact: true}).first(),
-            ).toBeVisible({timeout: 30000})
+            await expect(page.getByRole("button", {name: "Run", exact: true}).first()).toBeVisible({
+                timeout: 30000,
+            })
         })
     },
 
