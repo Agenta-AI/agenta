@@ -1,10 +1,5 @@
 import {memo, useMemo} from "react"
 
-import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {AlertCircle} from "lucide-react"
-
-import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import {
     MetricCellContent,
     CellContentPopover,
@@ -14,6 +9,11 @@ import {
     METRIC_PLACEHOLDER,
     formatMetricDisplay,
 } from "@agenta/ui/cell-renderers"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import {AlertCircle} from "lucide-react"
+
+import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 
 import {scenarioHasInvocationAtomFamily} from "../../atoms/invocationTraceSummary"
 import type {EvaluationTableColumn} from "../../atoms/table"
@@ -76,8 +76,7 @@ const PreviewEvaluationMetricCell = ({
     const fallbackValue = value ?? displayValue ?? formatted
 
     const statsValue = useMemo<BasicStats | undefined>(() => extractBasicStats(value), [value])
-    const showDistribution =
-        column.stepType === "annotation" && hasDistributionData(statsValue)
+    const showDistribution = column.stepType === "annotation" && hasDistributionData(statsValue)
 
     if (showSkeleton) {
         return (

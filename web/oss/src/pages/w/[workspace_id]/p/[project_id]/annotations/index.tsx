@@ -88,7 +88,6 @@ const AnnotationQueuesPage = () => {
         <AnnotationUIProvider navigation={navigation}>
             <PageLayout
                 title="Annotation queue"
-                titleLevel={3}
                 headerTabsProps={headerTabsProps}
                 className="h-full min-h-0"
             >

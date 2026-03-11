@@ -46,9 +46,7 @@ export interface FrequencyEntryLocal {
     count: number
 }
 
-export const buildFrequencyEntries = (
-    stats: BasicStats | undefined,
-): FrequencyEntryLocal[] => {
+export const buildFrequencyEntries = (stats: BasicStats | undefined): FrequencyEntryLocal[] => {
     if (!stats) return []
     const rawFrequency =
         (stats as Record<string, any>)?.frequency ?? (stats as Record<string, any>)?.freq
