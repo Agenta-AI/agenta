@@ -76,3 +76,5 @@ services/sdk
 
 # IDE/LSP config (local tooling)
 pyrightconfig.json
+
+!.fern

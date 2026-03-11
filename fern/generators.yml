@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://schema.buildwithfern.dev/generators-yml.json
+api:
+  specs:
+    - openapi: >-
+        ../../../../../../private/var/folders/mk/l4mjxnns1p32bh09hm8swt4m0000gn/T/tmp-92726-7x19ErM1JchD/openapi.json
+default-group: all
+groups:
+  ts-sdk:
+    generators:
+      - name: fern-typescript-sdk
+        version: 3.53.11
+        output:
+          location: local-file-system
+          path: ../.clients/typescript
+  python-sdk:
+    generators:
+      - name: fern-python-sdk
+        version: 4.63.3
+        output:
+          location: local-file-system
+          path: ../.clients/python
+  rust-sdk:
+    generators:
+      - name: fern-rust-sdk
+        version: 0.19.2
+        output:
+          location: local-file-system
+          path: ../.clients/rust
+  go-sdk:
+    generators:
+      - name: fern-go-sdk
+        version: 1.29.1
+        output:
+          location: local-file-system
+          path: ../.clients/go
+        config:
+          module:
+            path: sdk
+
+aliases:
+  all:
+    - ts-sdk
+    - python-sdk
+    - rust-sdk
+    - go-sdk
