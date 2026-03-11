@@ -30,7 +30,7 @@ These files define the review process.  They are created by administrators and r
 | `guidelines.md` | File | Recommended | Yes (admin only) | This file – structure overview |
 | `instructions.md` | File | **Required** | Yes (admin only) | Step‑by‑step review procedure |
 | `deliverables.md` | File | **Required** | Yes (admin only) | Output requirements and severity definitions |
-| `criteria.md` | File | **Required** | Yes (admin only) | Universal review criteria — the 11 dimensions every review assesses |
+| `criteria.md` | File | **Required** | Yes (admin only) | Universal review criteria — the 10 criteria every review assesses |
 | `templates/` | Folder | Optional | Static during run | Reusable starting‑point files |
 | `rubrics/` | Folder | Optional | Static during run | Reviewer‑role rubrics — one file per domain or specialist area |
 
