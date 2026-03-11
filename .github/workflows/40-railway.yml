@@ -1,0 +1,12 @@
+name: 40 ---------- Railway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  railway:
+    name: Railway
+    runs-on: ubuntu-latest
+    steps:
+      - name: Railway
+        run: echo "railway"

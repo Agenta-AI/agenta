@@ -47,14 +47,6 @@ async function globalSetup() {
     console.log(`[global-setup] Base URL: ${baseURL}, License: ${license}`)
     const timeout = 60000
     const inputDelay = 100
-    const authModeRaw = (process.env.AGENTA_TEST_AUTH_MODE || "auto").toLowerCase()
-    if (!["auto", "password", "otp"].includes(authModeRaw)) {
-        throw new Error(
-            `Invalid AGENTA_TEST_AUTH_MODE='${authModeRaw}'. Supported values: auto, password, otp`,
-        )
-    }
-    const authMode = authModeRaw as "auto" | "password" | "otp"
-    console.log(`[global-setup] Auth mode: ${authMode}`)
     const hasTestmailConfig = Boolean(
         process.env.TESTMAIL_API_KEY && process.env.TESTMAIL_NAMESPACE,
     )
@@ -229,11 +221,6 @@ async function globalSetup() {
 
     try {
         if (hasSigninButton) {
-            if (authMode === "otp") {
-                throw new Error(
-                    "AGENTA_TEST_AUTH_MODE=otp is incompatible with Sign in password flow",
-                )
-            }
             // Password sign-in flow (OSS with pre-created admin account)
             if (!ossOwnerEmail) {
                 throw new Error(
@@ -266,17 +253,11 @@ async function globalSetup() {
             const verifyEmailLocator = page.getByText("Verify your email")
             const passwordInput = page.locator("input[type='password']")
 
-            if (authMode === "password") {
-                await passwordInput.waitFor({state: "visible", timeout})
-            } else if (authMode === "otp") {
-                await verifyEmailLocator.waitFor({state: "visible", timeout})
-            } else {
-                // Auto-detect: whichever appears first determines the flow
-                await Promise.race([
-                    verifyEmailLocator.waitFor({state: "visible", timeout}),
-                    passwordInput.waitFor({state: "visible", timeout}),
-                ])
-            }
+            // Detect whichever flow the rendered frontend exposes.
+            await Promise.race([
+                verifyEmailLocator.waitFor({state: "visible", timeout}),
+                passwordInput.waitFor({state: "visible", timeout}),
+            ])
 
             const isPasswordFlow = await passwordInput.isVisible()
             if (isPasswordFlow) {
@@ -303,11 +284,6 @@ async function globalSetup() {
                 )
                 console.log(`[global-setup] Settled on: ${page.url()}`)
             } else {
-                if (authMode === "password") {
-                    throw new Error(
-                        "AGENTA_TEST_AUTH_MODE=password requested but OTP flow was rendered",
-                    )
-                }
                 // OTP flow (cloud EE with SuperTokens passwordless)
                 if (!testmail) {
                     throw new Error(

@@ -1,4 +1,4 @@
-name: "12 - railway preview: build and deploy"
+name: "42 - railway build"
 
 on:
   workflow_call:
@@ -14,14 +14,11 @@ on:
         default: ""
     outputs:
       image_tag:
-        description: "Image tag used for the deployment"
+        description: "Image tag produced by the build"
         value: ${{ jobs.prepare.outputs.image_tag }}
       pr_number:
         description: "PR number"
         value: ${{ jobs.prepare.outputs.pr_number }}
-      preview_url:
-        description: "The URL of the deployed preview environment"
-        value: ${{ jobs.deploy.outputs.preview_url }}
   workflow_dispatch:
     inputs:
       pr_number:
@@ -37,10 +34,9 @@ on:
 permissions:
   contents: read
   packages: write
-  pull-requests: write
 
 concurrency:
-  group: railway-preview-build-deploy-${{ inputs.pr_number || github.ref_name }}
+  group: railway-preview-build-${{ inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -91,7 +87,7 @@ jobs:
       - name: Summary
         run: |
           {
-            echo "### Railway Preview Build And Deploy"
+            echo "### Railway Preview Build"
             echo
             echo "| Item | Value |"
             echo "| --- | --- |"
@@ -183,14 +179,3 @@ jobs:
       - name: Summary
         run: |
           echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-
-  deploy:
-    needs: [prepare, build-and-push]
-    if: |
-      needs.prepare.outputs.pr_number != '' &&
-      (needs.build-and-push.result == 'success' || needs.build-and-push.result == 'skipped')
-    uses: ./.github/workflows/07-railway-preview-deploy.yml
-    with:
-      image_tag: ${{ needs.prepare.outputs.image_tag }}
-      pr_number: ${{ needs.prepare.outputs.pr_number }}
-    secrets: inherit

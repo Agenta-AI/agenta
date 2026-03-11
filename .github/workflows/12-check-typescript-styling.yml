@@ -1,4 +1,4 @@
-name: 04 - check frontend linting
+name: 12 - check typescript styling
 
 permissions:
   contents: read

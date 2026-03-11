@@ -51,8 +51,8 @@ Operational rule:
 - Always use the current deployment URL from the active PR checks. Do not reuse an older preview URL. Preview deployments can expire after about one day of inactivity, and failures against an expired preview are not valid test results.
 
 Optional:
-- `AGENTA_TEST_AUTH_MODE=auto|password|otp` (default: `auto`)
-- `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
+- Auth mode is inferred from the rendered frontend flow.
+- `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true` (only for disposable CI environments)
 - `TESTMAIL_API_KEY` + `TESTMAIL_NAMESPACE` (required for OTP auth flow)
 
 ## Test Coverage Map

@@ -2,6 +2,12 @@
 
 This directory contains a CLI-first bootstrap path to deploy Agenta OSS on Railway with minimal manual steps.
 
+By default, the Railway scripts resolve the infra image tags for `postgres`,
+`redis`, and `supertokens` from
+`hosting/docker-compose/oss/docker-compose.gh.yml`. Override that source with
+`RAILWAY_SOURCE_COMPOSE_FILE` if Railway should follow a different compose
+baseline.
+
 ## Goals
 
 - Deploy quickly using existing public images for Agenta core services.
@@ -43,11 +49,15 @@ This directory contains a CLI-first bootstrap path to deploy Agenta OSS on Railw
 
 ## Security Note
 
-The scripts use placeholder defaults for `AGENTA_AUTH_KEY` and `AGENTA_CRYPT_KEY` (all-zeros and all-ones). This is fine for ephemeral preview environments. For persistent deployments, set unique values:
+The scripts default to compose-like placeholder values for `AGENTA_AUTH_KEY`,
+`AGENTA_CRYPT_KEY`, and `POSTGRES_PASSWORD`. This is acceptable for ephemeral
+preview environments, but not for persistent deployments. For persistent
+deployments, set unique values:
 
 ```bash
 export AGENTA_AUTH_KEY="$(openssl rand -hex 32)"
 export AGENTA_CRYPT_KEY="$(openssl rand -hex 32)"
+export POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 ```
 
 ## Quick Start
@@ -265,7 +275,7 @@ the deploy flow grows or back-to-back deploys hit the 1,000 RPH Hobby ceiling.
 ## Notes
 
 - This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`).
-- CI is wired for Railway preview environments via `.github/workflows/06-railway-preview-build.yml` (automation entrypoint), `.github/workflows/12-railway-preview-deploy.yml` (reusable/manual build+deploy), `.github/workflows/11-railway-preview-tests.yml` (reusable/manual post-deploy tests), `.github/workflows/07-railway-preview-deploy.yml` (low-level deploy), and `.github/workflows/08-railway-preview-cleanup.yml`.
+- CI is wired for Railway preview environments via `.github/workflows/14-check-pr-preview.yml` (PR preview automation entrypoint), `.github/workflows/41-railway-setup.yml` (reusable/manual setup), `.github/workflows/42-railway-build.yml` (reusable/manual image build), `.github/workflows/43-railway-deploy.yml` (reusable/manual deploy from image tags), `.github/workflows/44-railway-tests.yml` (reusable/manual post-deploy tests), and `.github/workflows/45-railway-cleanup.yml`.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
 - `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis

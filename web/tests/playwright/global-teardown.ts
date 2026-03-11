@@ -50,12 +50,12 @@ async function globalTeardown() {
     const token = process.env.AGENTA_AUTH_KEY
     const apiURL = getApiURL(baseURL)
     const allowDestructiveTeardown =
-        String(process.env.AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN).toLowerCase() === "true"
+        String(process.env.AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN).toLowerCase() === "true"
     console.log(`[global-teardown] Using api-url: ${apiURL}`)
 
     const license = process.env.AGENTA_LICENSE || "oss"
     console.log(
-        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, AGENTA_LICENSE: ${license}, AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN: ${allowDestructiveTeardown}`,
+        `[global-teardown] Environment variables - token: ${token ? "present" : "absent"}, AGENTA_LICENSE: ${license}, AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN: ${allowDestructiveTeardown}`,
     )
 
     // --- Phase 1: Delete ephemeral project ---
@@ -79,7 +79,7 @@ async function globalTeardown() {
         }
     } else {
         console.log(
-            "[global-teardown] Skipping delete-all accounts (set AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true to enable)",
+            "[global-teardown] Skipping delete-all accounts (set AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true to enable)",
         )
     }
 
@@ -112,9 +112,7 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
             return
         }
 
-        console.log(
-            `[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`,
-        )
+        console.log(`[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`)
 
         const statePath = resolve(__dirname, "../state.json")
         const sessionToken = getSessionToken(statePath)

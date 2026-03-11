@@ -173,9 +173,9 @@ Only linting checks are active in CI:
 
 | Workflow | File | What it checks |
 |----------|------|---------------|
-| Python formatting | `.github/workflows/02-check-python-formatting.yml` | `ruff format` on `api/` and `sdk/` |
-| Python linting | `.github/workflows/03-check-python-linting.yml` | `ruff check` on `api/` and `sdk/` |
-| Frontend linting | `.github/workflows/04-check-frontend-linting.yml` | ESLint and Prettier on `web/` |
+| Python styling | `.github/workflows/11-check-python-styling.yml` | `ruff format --check` and `ruff check` on `api/` and `sdk/` |
+| TypeScript styling | `.github/workflows/12-check-typescript-styling.yml` | ESLint and Prettier on `web/` |
+| Unit tests | `.github/workflows/13-check-unit-tests.yml` | OSS unit checks for API, SDK, services, and web |
 
 No test execution workflows are currently active.
 

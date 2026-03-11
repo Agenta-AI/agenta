@@ -1,12 +1,22 @@
-name: "11 - railway preview: post-deploy tests"
+name: "44 - railway tests"
 
 on:
   workflow_call:
     inputs:
-      web_url:
-        description: "URL of the Agenta deployment to test against"
+      agenta_web_url:
+        description: "AGENTA_WEB_URL for the deployment to test against"
         required: true
         type: string
+      agenta_api_url:
+        description: "Optional AGENTA_API_URL override"
+        required: false
+        type: string
+        default: ""
+      agenta_services_url:
+        description: "Optional AGENTA_SERVICES_URL override"
+        required: false
+        type: string
+        default: ""
       packages:
         description: "Packages to test"
         required: false
@@ -62,13 +72,24 @@ on:
         required: false
         type: string
         default: ""
+    secrets:
+      AGENTA_TEST_OSS_AUTH_KEY:
+        required: true
   workflow_dispatch:
     inputs:
-      web_url:
-        description: "URL of the Agenta deployment to test against"
+      agenta_web_url:
+        description: "AGENTA_WEB_URL for the deployment to test against"
         required: true
         type: string
         default: "https://gateway-production-99ee.up.railway.app/w"
+      agenta_api_url:
+        description: "Optional AGENTA_API_URL override"
+        required: false
+        type: string
+      agenta_services_url:
+        description: "Optional AGENTA_SERVICES_URL override"
+        required: false
+        type: string
       packages:
         description: "Packages to test"
         required: true
@@ -78,6 +99,7 @@ on:
           - all
           - all-but-web
           - api-only
+          - sdk-only
           - services-only
           - web-only
           - none
@@ -127,7 +149,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: railway-preview-tests-${{ inputs.web_url }}
+  group: railway-preview-tests-${{ inputs.agenta_web_url }}
   cancel-in-progress: true
 
 jobs:
@@ -135,28 +157,35 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       base_url: ${{ steps.urls.outputs.base_url }}
-      web_url: ${{ steps.urls.outputs.web_url }}
-      api_url: ${{ steps.urls.outputs.api_url }}
-      services_url: ${{ steps.urls.outputs.services_url }}
+      agenta_web_url: ${{ steps.urls.outputs.agenta_web_url }}
+      agenta_api_url: ${{ steps.urls.outputs.agenta_api_url }}
+      agenta_services_url: ${{ steps.urls.outputs.agenta_services_url }}
       auth_key: ${{ steps.urls.outputs.auth_key }}
       layers_json: ${{ steps.layers.outputs.layers_json }}
       needs_deployment: ${{ steps.layers.outputs.needs_deployment }}
     steps:
       - name: Derive deployment URLs
         id: urls
+        env:
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
         run: |
-          WEB_URL="${{ inputs.web_url }}"
-          BASE_URL="$(printf "%s" "$WEB_URL" | sed 's|/[^/]*$||; s|/$||')"
+          AGENTA_WEB_URL_INPUT="${{ inputs.agenta_web_url }}"
+          AGENTA_API_URL_INPUT="${{ inputs.agenta_api_url }}"
+          AGENTA_SERVICES_URL_INPUT="${{ inputs.agenta_services_url }}"
+
+          BASE_URL="$(printf "%s" "$AGENTA_WEB_URL_INPUT" | sed 's|/[^/]*$||; s|/$||')"
           if ! printf "%s" "$BASE_URL" | grep -q '://'; then
-            BASE_URL="$WEB_URL"
+            BASE_URL="$AGENTA_WEB_URL_INPUT"
           fi
 
-          AUTH_KEY="0000000000000000000000000000000000000000000000000000000000000000"
+          AGENTA_API_URL="${AGENTA_API_URL_INPUT:-${BASE_URL}/api}"
+          AGENTA_SERVICES_URL="${AGENTA_SERVICES_URL_INPUT:-${BASE_URL}/services}"
+          AUTH_KEY="${AGENTA_AUTH_KEY}"
 
-          echo "web_url=${WEB_URL}" >> "$GITHUB_OUTPUT"
+          echo "agenta_web_url=${AGENTA_WEB_URL_INPUT}" >> "$GITHUB_OUTPUT"
           echo "base_url=${BASE_URL}" >> "$GITHUB_OUTPUT"
-          echo "api_url=${BASE_URL}/api" >> "$GITHUB_OUTPUT"
-          echo "services_url=${BASE_URL}/services" >> "$GITHUB_OUTPUT"
+          echo "agenta_api_url=${AGENTA_API_URL}" >> "$GITHUB_OUTPUT"
+          echo "agenta_services_url=${AGENTA_SERVICES_URL}" >> "$GITHUB_OUTPUT"
           echo "auth_key=${AUTH_KEY}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve test layers
@@ -189,9 +218,9 @@ jobs:
             echo
             echo "| Item | Value |"
             echo "| --- | --- |"
-            echo "| Web URL | \`${{ steps.urls.outputs.web_url }}\` |"
-            echo "| API URL | \`${{ steps.urls.outputs.api_url }}\` |"
-            echo "| Services URL | \`${{ steps.urls.outputs.services_url }}\` |"
+            echo "| AGENTA_WEB_URL | \`${{ steps.urls.outputs.agenta_web_url }}\` |"
+            echo "| AGENTA_API_URL | \`${{ steps.urls.outputs.agenta_api_url }}\` |"
+            echo "| AGENTA_SERVICES_URL | \`${{ steps.urls.outputs.agenta_services_url }}\` |"
             echo "| Packages | \`${{ inputs.packages }}\` |"
             echo "| Layers | \`${{ inputs.layers }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -203,9 +232,9 @@ jobs:
     steps:
       - name: Wait for deployed services
         env:
-          API_HEALTH_URL: ${{ needs.prepare.outputs.api_url }}/health
-          SERVICES_CHAT_HEALTH_URL: ${{ needs.prepare.outputs.services_url }}/chat/health
-          SERVICES_COMPLETION_HEALTH_URL: ${{ needs.prepare.outputs.services_url }}/completion/health
+          API_HEALTH_URL: ${{ needs.prepare.outputs.agenta_api_url }}/health
+          SERVICES_CHAT_HEALTH_URL: ${{ needs.prepare.outputs.agenta_services_url }}/chat/health
+          SERVICES_COMPLETION_HEALTH_URL: ${{ needs.prepare.outputs.agenta_services_url }}/completion/health
         run: |
           wait_for() {
             local label="$1"
@@ -231,7 +260,11 @@ jobs:
 
   run-api-tests:
     needs: [prepare, wait-for-readiness]
-    if: ${{ contains(fromJSON('["all","all-but-web","api-only"]'), inputs.packages) }}
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","api-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
     runs-on: ubuntu-latest
     permissions:
       checks: write
@@ -243,7 +276,7 @@ jobs:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
       AGENTA_LICENSE: oss
-      AGENTA_API_URL: ${{ needs.prepare.outputs.api_url }}
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ needs.prepare.outputs.auth_key }}
     steps:
       - uses: actions/checkout@v4
@@ -324,7 +357,11 @@ jobs:
 
   run-sdk-tests:
     needs: [prepare, wait-for-readiness]
-    if: ${{ contains(fromJSON('["all","all-but-web","api-only"]'), inputs.packages) }}
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","sdk-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
     runs-on: ubuntu-latest
     permissions:
       checks: write
@@ -336,7 +373,7 @@ jobs:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
       AGENTA_LICENSE: oss
-      AGENTA_API_URL: ${{ needs.prepare.outputs.api_url }}
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
       AGENTA_AUTH_KEY: ${{ needs.prepare.outputs.auth_key }}
     steps:
       - uses: actions/checkout@v4
@@ -413,15 +450,19 @@ jobs:
 
   run-services-tests:
     needs: [prepare, wait-for-readiness]
-    if: ${{ contains(fromJSON('["all","all-but-web","services-only"]'), inputs.packages) }}
+    if: >-
+      ${{
+        contains(fromJSON('["all","all-but-web","services-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
     env:
-      AGENTA_API_URL: ${{ needs.prepare.outputs.api_url }}
-      AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.services_url }}
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -473,24 +514,125 @@ jobs:
             echo
             echo "| Item | Value |"
             echo "| --- | --- |"
-            echo "| Services URL | \`${{ env.AGENTA_SERVICES_URL }}\` |"
+            echo "| AGENTA_SERVICES_URL | \`${{ env.AGENTA_SERVICES_URL }}\` |"
             echo "| Status | \`${{ job.status }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   run-web-tests:
     needs: [prepare, wait-for-readiness]
-    if: ${{ contains(fromJSON('["all","web-only"]'), inputs.packages) }}
-    uses: ./.github/workflows/10-playwright-oss-tests.yml
-    with:
-      web_url: ${{ needs.prepare.outputs.web_url }}
-      layers: ${{ inputs.layers }}
-      coverage: ${{ inputs.coverage }}
-      lens: ${{ inputs.lens }}
-      path: ${{ inputs.path }}
-      case: ${{ inputs.case }}
-      speed: ${{ inputs.speed }}
-      scope: ${{ inputs.scope }}
-      cost: ${{ inputs.cost }}
-      role: ${{ inputs.role }}
-      plan: ${{ inputs.plan }}
-    secrets: inherit
+    if: >-
+      ${{
+        contains(fromJSON('["all","web-only"]'), inputs.packages) &&
+        (needs.prepare.outputs.needs_deployment != 'true' || needs.wait-for-readiness.result == 'success')
+      }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: ${{ fromJson(needs.prepare.outputs.layers_json) }}
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
+      AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+      AGENTA_SERVICES_URL: ${{ needs.prepare.outputs.agenta_services_url }}
+      AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+      AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+      AGENTA_TEST_LLM_PROVIDER: mock
+      AGENTA_TEST_EPHEMERAL_PROJECT: "true"
+      TESTMAIL_API_KEY: ${{ secrets.TESTMAIL_API_KEY }}
+      TESTMAIL_NAMESPACE: ${{ secrets.TESTMAIL_NAMESPACE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Install Playwright browsers
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run web tests
+        working-directory: web/tests
+        run: |
+          TARGET_PATH="../oss/tests/playwright/${{ matrix.layer }}"
+
+          if [ ! -d "$TARGET_PATH" ]; then
+            echo "Skipping missing web layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          if ! find "$TARGET_PATH" -type f ! -name '.gitkeep' | grep -q .; then
+            echo "Skipping empty web layer path: $TARGET_PATH"
+            exit 0
+          fi
+
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --reporter=html,github)
+
+          if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
+          if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
+          if [ -n "${{ inputs.path }}" ]; then CMD+=(--path "${{ inputs.path }}"); fi
+          if [ -n "${{ inputs.case }}" ]; then CMD+=(--case "${{ inputs.case }}"); fi
+          if [ -n "${{ inputs.scope }}" ]; then CMD+=(--scope "${{ inputs.scope }}"); fi
+          if [ -n "${{ inputs.speed }}" ]; then CMD+=(--speed "${{ inputs.speed }}"); fi
+          if [ -n "${{ inputs.cost }}" ]; then CMD+=(--cost "${{ inputs.cost }}"); fi
+          if [ -n "${{ inputs.role }}" ]; then CMD+=(--role "${{ inputs.role }}"); fi
+          if [ -n "${{ inputs.plan }}" ]; then CMD+=(--plan "${{ inputs.plan }}"); fi
+
+          CMD+=(-- "$TARGET_PATH")
+          "${CMD[@]}"
+
+      - name: Upload test report
+        id: upload_report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.layer }}
+          path: web/tests/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        id: upload_results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results-${{ matrix.layer }}
+          path: web/tests/test-results/
+          retention-days: 7
+
+      - name: Write job summary
+        if: always()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          REPORT_URL="${{ steps.upload_report.outputs.artifact-url }}"
+          RESULTS_URL="${{ steps.upload_results.outputs.artifact-url }}"
+          JOB_STATUS="${{ job.status }}"
+
+          {
+            echo "## Playwright Test Summary"
+            echo
+            echo "| Item | Link | Notes |"
+            echo "| --- | --- | --- |"
+            echo "| Workflow run | [Open run](${RUN_URL}) | Current run |"
+            echo "| Playwright report | ${REPORT_URL:+[Artifact](${REPORT_URL})} | Layer: \`${{ matrix.layer }}\` |"
+            echo "| Playwright results | ${RESULTS_URL:+[Artifact](${RESULTS_URL})} | Uploaded on failures only |"
+            echo "| AGENTA_WEB_URL | \`${AGENTA_WEB_URL}\` | |"
+            echo "| AGENTA_API_URL | \`${AGENTA_API_URL}\` | |"
+            echo "| AGENTA_SERVICES_URL | \`${AGENTA_SERVICES_URL}\` | |"
+            echo "| Status | \`${JOB_STATUS}\` | |"
+          } >> "$GITHUB_STEP_SUMMARY"
