@@ -1,17 +1,41 @@
 import {loadableController} from "@agenta/entities/loadable"
 import {playgroundController} from "@agenta/playground"
+import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {initialState, testsetDisconnectConfirmModalAtom} from "./store/state"
 
 const TestsetDisconnectConfirmModal = () => {
-    const {open, loadableId, isSaving} = useAtomValue(testsetDisconnectConfirmModalAtom)
+    const {open, loadableId, isSaving, intent, meta, onComplete} = useAtomValue(
+        testsetDisconnectConfirmModalAtom,
+    )
     const setModalState = useSetAtom(testsetDisconnectConfirmModalAtom)
     const disconnectAndReset = useSetAtom(playgroundController.actions.disconnectAndResetToLocal)
     const commitChanges = useSetAtom(loadableController.actions.commitChanges)
+
+    const targetName = meta?.targetTestsetName?.trim() || null
+    const isChangeIntent = intent === "change-testset"
+
+    const title = isChangeIntent
+        ? targetName
+            ? `Load ${targetName} test set?`
+            : "Load different test set?"
+        : "Save changes?"
+
+    const descriptionLine1 = isChangeIntent
+        ? targetName
+            ? `You have unsaved changes. Do you want to save them before loading ${targetName} test set?`
+            : "You have unsaved changes. Do you want to save them before loading a different test set?"
+        : "You have unsaved changes. Do you want to save them before disconnecting the testset?"
+
+    const descriptionLine2 = isChangeIntent
+        ? "Loading testcases from a different testset will remove any previously loaded testcases."
+        : "Unsaved testcases will convert into local testcases."
+
+    const discardLabel = isChangeIntent ? "Discard & Load" : "Discard & disconnect"
+    const saveLabel = isChangeIntent ? "Save & load" : "Save & disconnect"
 
     const handleCancel = () => {
         if (isSaving) return
@@ -21,6 +45,7 @@ const TestsetDisconnectConfirmModal = () => {
     const handleDiscardAndDisconnect = () => {
         if (!loadableId || isSaving) return
         disconnectAndReset(loadableId)
+        onComplete?.()
         setModalState(initialState)
     }
 
@@ -31,6 +56,7 @@ const TestsetDisconnectConfirmModal = () => {
         try {
             await commitChanges(loadableId)
             disconnectAndReset(loadableId)
+            onComplete?.()
             setModalState(initialState)
             message.success("Testset updated successfully")
         } catch (err) {
@@ -49,25 +75,20 @@ const TestsetDisconnectConfirmModal = () => {
                         Cancel
                     </Button>
                     <Button danger onClick={handleDiscardAndDisconnect} disabled={isSaving}>
-                        Discard &amp; disconnect
+                        {discardLabel}
                     </Button>
                     <Button type="primary" onClick={handleSaveAndDisconnect} loading={isSaving}>
-                        Save &amp; disconnect
+                        {saveLabel}
                     </Button>
                 </div>
             }
-            title={"Save changes?"}
+            title={title}
             width={500}
         >
-            <div className="flex flex-col gap-1">
-                <Typography.Text>
-                    You have unsaved changes. Do you want to save them before disconnecting the
-                    testset?
-                </Typography.Text>
-                <Typography.Text>
-                    Unsaved testcases will convert into local testcases.
-                </Typography.Text>
-            </div>
+            <ModalContent gap="small">
+                <Typography.Text>{descriptionLine1}</Typography.Text>
+                <Typography.Text>{descriptionLine2}</Typography.Text>
+            </ModalContent>
         </EnhancedModal>
     )
 }

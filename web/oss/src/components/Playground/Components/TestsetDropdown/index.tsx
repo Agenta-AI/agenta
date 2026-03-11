@@ -21,9 +21,9 @@ import {
 import {
     TestsetSelectionModal,
     type PreviewPanelRenderProps,
-    type TestsetSelectionMode,
     type TestsetSelectionPayload,
 } from "@agenta/playground-ui/components"
+import {message} from "@agenta/ui/app-message"
 import {
     ArrowsLeftRightIcon,
     CaretDownIcon,
@@ -34,8 +34,8 @@ import {
     XCircleIcon,
 } from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Dropdown, Input, Typography, message} from "antd"
-import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {Button, Dropdown, Input, Typography} from "antd"
+import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
@@ -47,10 +47,11 @@ import {saveNewTestsetAtom} from "@/oss/state/entities/testset/mutations"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import TestsetDisconnectConfirmModal from "../Modals/TestsetDisconnectConfirmModal"
+import {testsetDisconnectConfirmModalAtom} from "../Modals/TestsetDisconnectConfirmModal/store/state"
 
 import {CreateTestsetCardWrapper} from "./CreateTestsetCardWrapper"
+import {testsetSelectionModalModeAtom, testsetSyncCommitModalOpenAtom} from "./store/modalState"
 import {TestsetPreviewPanelWrapper} from "./TestsetPreviewPanelWrapper"
-import {testsetDisconnectConfirmModalAtom} from "../Modals/TestsetDisconnectConfirmModal/store/state"
 
 // ── Lazy-loaded AddToTestset drawer ────────────────────────────────────────
 const TestsetDrawer = dynamic(
@@ -258,7 +259,7 @@ export function TestsetDropdown() {
 
     // ── TestsetSelectionModal state ─────────────────────────────────────────
     // null = closed, "load" = connect/change, "edit" = manage testcases
-    const [selectionModalMode, setSelectionModalMode] = useState<TestsetSelectionMode | null>(null)
+    const [selectionModalMode, setSelectionModalMode] = useAtom(testsetSelectionModalModeAtom)
 
     // ── Load/Change mode: connect or replace testset ───────────────────────
     const handleLoadConfirm = useCallback(
@@ -378,6 +379,7 @@ export function TestsetDropdown() {
                 open: true,
                 loadableId,
                 isSaving: false,
+                intent: "disconnect",
             })
             return
         }
@@ -385,8 +387,28 @@ export function TestsetDropdown() {
         disconnectAndReset(loadableId)
     }, [loadableId, hasLocalChanges, setDisconnectConfirmModalState, disconnectAndReset])
 
+    const handleChangeTestset = useCallback(() => {
+        if (!loadableId) return
+
+        if (hasLocalChanges) {
+            setDisconnectConfirmModalState({
+                open: true,
+                loadableId,
+                isSaving: false,
+                intent: "change-testset",
+                meta: {
+                    targetTestsetName: null,
+                },
+                onComplete: () => setSelectionModalMode("load"),
+            })
+            return
+        }
+
+        setSelectionModalMode("load")
+    }, [loadableId, hasLocalChanges, setDisconnectConfirmModalState, setSelectionModalMode])
+
     // ── Sync changes (EntityCommitModal) ───────────────────────────────────
-    const [syncOpen, setSyncOpen] = useState(false)
+    const [syncOpen, setSyncOpen] = useAtom(testsetSyncCommitModalOpenAtom)
     const [newTestsetName, setNewTestsetName] = useState("")
     const [currentSyncMode, setCurrentSyncMode] = useState("commit")
     const syncModeRef = useRef("commit")
@@ -493,7 +515,7 @@ export function TestsetDropdown() {
                 key: "change",
                 icon: <ArrowsLeftRightIcon size={14} />,
                 label: "Change testset",
-                onClick: () => setSelectionModalMode("load"),
+                onClick: handleChangeTestset,
             },
             {
                 key: "add-to-testset",
@@ -517,6 +539,7 @@ export function TestsetDropdown() {
         hasSuccessfulResults,
         handleSyncOpen,
         handleDisconnect,
+        handleChangeTestset,
         handleAddToTestset,
     ])
 
