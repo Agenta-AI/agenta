@@ -122,6 +122,12 @@ importers:
 
   ee:
     dependencies:
+      '@agenta/annotation':
+        specifier: workspace:../packages/agenta-annotation
+        version: link:../packages/agenta-annotation
+      '@agenta/annotation-ui':
+        specifier: workspace:../packages/agenta-annotation-ui
+        version: link:../packages/agenta-annotation-ui
       '@agenta/entities':
         specifier: workspace:../packages/agenta-entities
         version: link:../packages/agenta-entities
@@ -333,6 +339,12 @@ importers:
 
   oss:
     dependencies:
+      '@agenta/annotation':
+        specifier: workspace:../packages/agenta-annotation
+        version: link:../packages/agenta-annotation
+      '@agenta/annotation-ui':
+        specifier: workspace:../packages/agenta-annotation-ui
+        version: link:../packages/agenta-annotation-ui
       '@agenta/entities':
         specifier: workspace:../packages/agenta-entities
         version: link:../packages/agenta-entities
@@ -682,6 +694,80 @@ importers:
       tailwind-scrollbar:
         specifier: ^3
         version: 3.1.0(tailwindcss@3.4.17(ts-node@10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.17.24)(typescript@5.8.3)))
+
+  packages/agenta-annotation:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
+      jotai:
+        specifier: '>=2.0.0'
+        version: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
+      jotai-family:
+        specifier: '>=0.1.0'
+        version: 1.0.1(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))
+      jotai-tanstack-query:
+        specifier: '>=0.9.0'
+        version: 0.11.0(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.21(react@19.0.0))(jotai@2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.8.10
+        version: 20.19.33
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+
+  packages/agenta-annotation-ui:
+    dependencies:
+      '@agenta/annotation':
+        specifier: workspace:../agenta-annotation
+        version: link:../agenta-annotation
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/entity-ui':
+        specifier: workspace:../agenta-entity-ui
+        version: link:../agenta-entity-ui
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@phosphor-icons/react':
+        specifier: '>=2.0.0'
+        version: 2.1.10(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      antd:
+        specifier: '>=5.0.0'
+        version: 6.1.4(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      jotai:
+        specifier: '>=2.0.0'
+        version: 2.16.1(@babel/core@7.28.5)(@babel/template@7.27.2)(@types/react@19.0.10)(react@19.0.0)
+      react:
+        specifier: '>=18.0.0'
+        version: 19.0.0
+      react-dom:
+        specifier: '>=18.0.0'
+        version: 19.0.0(react@19.0.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.8.10
+        version: 20.19.33
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.0.10
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.0.4(@types/react@19.0.10)
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
 
   packages/agenta-entities:
     dependencies:
