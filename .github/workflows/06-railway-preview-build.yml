@@ -139,7 +139,10 @@ jobs:
         run: |
           IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
           docker pull "$IMAGE"
-          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)")"
+          # Redirect stderr and take only the last stdout line so that
+          # third-party import noise (e.g. litellm >=1.82 prints a
+          # "Provider List" banner) doesn't pollute the captured path.
+          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)" 2>/dev/null | tail -1)"
           echo "Resolved SDK path: $sdk_path"
           case "$sdk_path" in
             /app/sdk/*) ;;
