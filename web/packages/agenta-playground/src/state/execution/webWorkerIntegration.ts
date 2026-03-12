@@ -510,6 +510,9 @@ export const triggerExecutionAtom = atom(
                         })
 
                         if (isChat && !isTargetingDownstream) {
+                            // handleExecutionResultAtom already calls failRunAtom
+                            // internally when it detects an error message, so we
+                            // must NOT fall through to the failRunAtom block below.
                             set(handleExecutionResultAtom, {
                                 loadableId,
                                 sessionId,
@@ -521,6 +524,24 @@ export const triggerExecutionAtom = atom(
                                     },
                                 },
                             })
+
+                            // When root execution fails, also fail all downstream
+                            // evaluator sessions that were marked as running.
+                            // Without this, evaluators stay in "running" state forever.
+                            for (const n of nodes) {
+                                if (n.depth === 0) continue
+                                if (connections.some((c) => c.targetNodeId === n.id)) {
+                                    set(failRunAtom, {
+                                        loadableId,
+                                        stepId: rowId,
+                                        sessionId: `sess:${rootEntityId}:${n.entityId}`,
+                                        error: {
+                                            message: "Generation failed",
+                                        },
+                                    })
+                                }
+                            }
+                            return
                         }
 
                         if (!isTargetingDownstream) {
