@@ -13,6 +13,7 @@ from oss.src.core.events.types import EventType, RequestType
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
+    UpdateSecretDTO,
     WebhookProviderDTO,
     WebhookProviderSettingsDTO,
 )
@@ -22,6 +23,7 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.types import (
     WEBHOOK_TEST_MAX_ATTEMPTS,
     WEBHOOK_TEST_POLL_INTERVAL_MS,
+    WebhookSubscriptionFlags,
     WebhookSubscription,
     WebhookSubscriptionCreate,
     WebhookSubscriptionEdit,
@@ -141,6 +143,10 @@ class WebhooksService:
             ),
         )
 
+        subscription.flags = WebhookSubscriptionFlags(
+            is_valid=False,
+        )
+
         result = await self.dao.create_subscription(
             project_id=project_id,
             user_id=user_id,
@@ -209,6 +215,34 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionEdit,
     ) -> Optional[WebhookSubscription]:
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription.id,
+        )
+
+        if existing is None:
+            return None
+
+        if subscription.secret is not None and existing.secret_id is not None:
+            await self.vault_service.update_secret(
+                secret_id=existing.secret_id,
+                project_id=project_id,
+                update_secret_dto=UpdateSecretDTO(
+                    secret=SecretDTO(
+                        kind=SecretKind.WEBHOOK_PROVIDER,
+                        data=WebhookProviderDTO(
+                            provider=WebhookProviderSettingsDTO(
+                                key=subscription.secret,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+
+        subscription.flags = WebhookSubscriptionFlags(
+            is_valid=False,
+        )
+
         result = await self.dao.edit_subscription(
             project_id=project_id,
             user_id=user_id,
@@ -217,6 +251,14 @@ class WebhooksService:
 
         if result is None:
             return None
+
+        if subscription.secret is not None:
+            result = self._with_secret(
+                subscription=result,
+                secret=subscription.secret,
+            )
+
+            return result
 
         if result.secret_id:
             secret_value = await self._resolve_secret(
@@ -298,6 +340,12 @@ class WebhooksService:
         subscription_id: UUID,
     ) -> WebhookDelivery:
         """Test delivery by emitting an event and polling for resulting delivery."""
+        log.info(
+            "[WEBHOOKS CORE] Starting webhook test",
+            project_id=str(project_id),
+            subscription_id=str(subscription_id),
+        )
+
         subscription = await self.dao.fetch_subscription(
             project_id=project_id,
             #
@@ -305,9 +353,25 @@ class WebhooksService:
         )
 
         if subscription is None:
+            log.warning(
+                "[WEBHOOKS CORE] Webhook test aborted: subscription not found",
+                project_id=str(project_id),
+                subscription_id=str(subscription_id),
+            )
             raise WebhookSubscriptionNotFoundError(
                 subscription_id=str(subscription_id),
             )
+
+        log.info(
+            "[WEBHOOKS CORE] Subscription loaded for webhook test",
+            project_id=str(project_id),
+            subscription_id=str(subscription_id),
+            subscription_name=subscription.name,
+            subscription_url=str(subscription.data.url),
+            auth_mode=subscription.data.auth_mode or "signature",
+            has_secret=bool(subscription.secret_id),
+            is_valid=subscription.flags.is_valid if subscription.flags else None,
+        )
 
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
         request_id = uuid.uuid7()
@@ -332,18 +396,51 @@ class WebhooksService:
         )
         # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
 
+        log.info(
+            "[WEBHOOKS CORE] Publishing webhook test event",
+            project_id=str(project_id),
+            subscription_id=str(subscription_id),
+            request_id=str(request_id),
+            event_id=str(event_id),
+            event_type=event_type.value,
+        )
+
         published = await publish_event(
             project_id=project_id,
             event=event,
         )
 
         if not published:
+            log.error(
+                "[WEBHOOKS CORE] Failed to publish webhook test event",
+                project_id=str(project_id),
+                subscription_id=str(subscription_id),
+                event_id=str(event_id),
+            )
             raise WebhookTestEventPublishFailedError(
                 subscription_id=str(subscription_id),
                 event_id=str(event_id),
             )
 
+        log.info(
+            "[WEBHOOKS CORE] Webhook test event published; polling for delivery",
+            project_id=str(project_id),
+            subscription_id=str(subscription_id),
+            event_id=str(event_id),
+            max_attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
+            poll_interval_ms=WEBHOOK_TEST_POLL_INTERVAL_MS,
+        )
+
         for attempt in range(1, WEBHOOK_TEST_MAX_ATTEMPTS + 1):
+            log.debug(
+                "[WEBHOOKS CORE] Polling for webhook test delivery",
+                project_id=str(project_id),
+                subscription_id=str(subscription_id),
+                event_id=str(event_id),
+                attempt=attempt,
+                max_attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
+            )
+
             deliveries = await self.dao.query_deliveries(
                 project_id=project_id,
                 #
@@ -360,19 +457,54 @@ class WebhooksService:
 
             if deliveries:
                 delivery = deliveries[0]
+                status_message = delivery.status.message if delivery.status else None
+                status_code = delivery.status.code if delivery.status else None
+
+                log.info(
+                    "[WEBHOOKS CORE] Webhook test delivery found",
+                    project_id=str(project_id),
+                    subscription_id=str(subscription_id),
+                    event_id=str(event_id),
+                    delivery_id=str(delivery.id),
+                    status_message=status_message,
+                    status_code=status_code,
+                )
 
                 if delivery.status and delivery.status.message == "success":
-                    await self.dao.enable_subscription(
+                    enabled_subscription = await self.dao.enable_subscription(
                         project_id=project_id,
                         #
                         subscription_id=subscription_id,
                     )
 
+                    log.info(
+                        "[WEBHOOKS CORE] Enabled subscription after successful webhook test",
+                        project_id=str(project_id),
+                        subscription_id=str(subscription_id),
+                        delivery_id=str(delivery.id),
+                        updated=enabled_subscription is not None,
+                    )
+
                 return delivery
 
             if attempt < WEBHOOK_TEST_MAX_ATTEMPTS:
+                log.debug(
+                    "[WEBHOOKS CORE] No webhook test delivery yet; waiting before next poll",
+                    project_id=str(project_id),
+                    subscription_id=str(subscription_id),
+                    event_id=str(event_id),
+                    attempt=attempt,
+                    sleep_ms=WEBHOOK_TEST_POLL_INTERVAL_MS,
+                )
                 await asyncio.sleep(WEBHOOK_TEST_POLL_INTERVAL_MS / 1000)
 
+        log.error(
+            "[WEBHOOKS CORE] Timed out waiting for webhook test delivery",
+            project_id=str(project_id),
+            subscription_id=str(subscription_id),
+            event_id=str(event_id),
+            attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
+        )
         raise WebhookTestDeliveryTimeoutError(
             subscription_id=str(subscription_id),
             event_id=str(event_id),

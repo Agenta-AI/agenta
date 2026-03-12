@@ -32,7 +32,6 @@ export const buildSubscription = (
     // Common data
     const baseSubscription = {
         name,
-        flags: {is_valid: true},
         ...(isEdit && {id: subscriptionId}),
     }
 

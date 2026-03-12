@@ -7,13 +7,13 @@ import {WebhookDeliveryResponse} from "@/oss/services/automations/types"
  */
 export const handleTestResult = (response: WebhookDeliveryResponse) => {
     const delivery = response?.delivery
+    const isSuccess = delivery?.status?.message === "success"
+    const statusCode = delivery?.data?.response?.status_code ?? delivery?.status?.code
+    const errorDetail = delivery?.data?.error || delivery?.status?.message || "Unknown error"
 
-    if (delivery?.status?.code === "success" || delivery?.status?.type === "success") {
-        message.success(
-            `Connection successful! Status: ${delivery.data?.response?.status_code || 200}`,
-            10,
-        )
+    if (isSuccess) {
+        message.success(`Connection successful! Status: ${statusCode || 200}`, 10)
     } else {
-        message.error(`Connection failed. ${delivery?.status?.message || "Unknown error"}`, 10)
+        message.error(`Connection failed. ${errorDetail}`, 10)
     }
 }

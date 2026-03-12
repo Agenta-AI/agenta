@@ -25,7 +25,7 @@ const Automations: React.FC = () => {
     const [{data: webhooks, isPending: isLoading}] = useAtom(automationsAtom)
     const setIsDrawerOpen = useSetAtom(isAutomationDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingAutomationAtom)
-    const testWebhook = useSetAtom(testAutomationAtom)
+    const testWebhookSubscription = useSetAtom(testAutomationAtom)
     const setWebhookToDelete = useSetAtom(webhookToDeleteAtom)
 
     const [testingWebhookId, setTestingWebhookId] = useState<string | null>(null)
@@ -51,7 +51,7 @@ const Automations: React.FC = () => {
         async (webhook: WebhookSubscription) => {
             try {
                 setTestingWebhookId(webhook.id)
-                const response = await testWebhook(webhook.id)
+                const response = await testWebhookSubscription(webhook.id)
                 handleTestResult(response)
             } catch (error) {
                 console.error(error)
@@ -60,7 +60,7 @@ const Automations: React.FC = () => {
                 setTestingWebhookId(null)
             }
         },
-        [testWebhook],
+        [testWebhookSubscription],
     )
 
     const handleModalSuccess = useCallback(() => {
@@ -142,6 +142,19 @@ const Automations: React.FC = () => {
                     </>
                 ),
             },
+            {
+                title: "Status",
+                key: "status",
+                width: 120,
+                render: (_: any, record: WebhookSubscription) => {
+                    const isValid = record.flags?.is_valid === true
+                    return (
+                        <Tag color={isValid ? "green" : "gold"}>
+                            {isValid ? "Active" : "Pending"}
+                        </Tag>
+                    )
+                },
+            },
 
             {
                 title: "Created At",
@@ -159,8 +172,7 @@ const Automations: React.FC = () => {
                     const items: MenuProps["items"] = [
                         {
                             key: "test",
-                            label:
-                                testingWebhookId === record.id ? "Testing..." : "Test Connection",
+                            label: testingWebhookId === record.id ? "Testing..." : "Test",
                             icon: <Lightning size={14} />,
                             disabled: testingWebhookId !== null,
                             onClick: () => handleTestWebhook(record),
@@ -205,7 +217,7 @@ const Automations: React.FC = () => {
                     Automations
                 </Title>
                 <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleCreate}>
-                    Create Automation
+                    Create
                 </Button>
             </div>
 
@@ -215,6 +227,19 @@ const Automations: React.FC = () => {
                 loading={isLoading}
                 rowKey="id"
                 uniqueKey="automations-table"
+                onRow={(record) => ({
+                    onClick: (e) => {
+                        // Don't open edit drawer when clicking the actions column
+                        if (
+                            (e.target as HTMLElement).closest(
+                                ".ant-dropdown-trigger, .ant-dropdown",
+                            )
+                        )
+                            return
+                        handleEdit(record)
+                    },
+                    style: {cursor: "pointer"},
+                })}
             />
 
             <AutomationDrawer onSuccess={handleModalSuccess} />

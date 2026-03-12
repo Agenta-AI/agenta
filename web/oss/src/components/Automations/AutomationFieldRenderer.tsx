@@ -1,4 +1,4 @@
-import {Fragment} from "react"
+import {Fragment, useState} from "react"
 
 import {Button, Divider, Form, Input, Select} from "antd"
 
@@ -14,12 +14,12 @@ interface Props {
 
 const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditMode: boolean}) => {
     const form = Form.useFormInstance()
+    const [isChangingSecret, setIsChangingSecret] = useState(false)
 
     // Determine visibility using useWatch safely inside this separate component
     // Always call the hook to satisfy React rules
     const watchField = field.visibleWhen?.field || ""
     const dependsOnValue = Form.useWatch(watchField, form)
-    const isChangingSecret = Form.useWatch(`_changing_${field.key}`, form)
 
     if (field.visibleWhen && dependsOnValue !== field.visibleWhen.value) {
         return null
@@ -92,7 +92,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                                     size="small"
                                     className="!p-0"
                                     onClick={() => {
-                                        form.setFieldValue(`_changing_${field.key}`, true)
+                                        setIsChangingSecret(true)
                                         form.setFieldValue(field.key, undefined)
                                     }}
                                 >

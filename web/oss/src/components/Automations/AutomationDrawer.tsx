@@ -132,7 +132,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             handleTestResult(response)
         } catch (error) {
             console.error(error)
-            message.error("Failed to test connection")
+            message.error(error instanceof Error ? error.message : "Failed to test connection")
         } finally {
             setIsTesting(false)
         }
@@ -164,7 +164,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
             if (isEdit && initialValues?.id) {
                 await updateAutomation({
-                    webhookId: initialValues.id,
+                    webhookSubscriptionId: initialValues.id,
                     payload: payload as WebhookSubscriptionEditRequest,
                 })
                 message.success("Automation updated successfully")
@@ -246,7 +246,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                                     onClick={handleTestConnection}
                                     disabled={!isEdit}
                                 >
-                                    Test Connection
+                                    Test Automation
                                 </Button>
                             </Tooltip>
                             <Button type="primary" onClick={handleOk} loading={isSubmitting}>

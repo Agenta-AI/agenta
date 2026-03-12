@@ -3,11 +3,11 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {
-    createWebhook,
-    deleteWebhook,
-    listWebhooks,
-    testWebhook,
-    updateWebhook,
+    createWebhookSubscription,
+    deleteWebhookSubscription,
+    queryWebhookSubscriptions,
+    testWebhookSubscription,
+    editWebhookSubscription,
 } from "@/oss/services/automations/api"
 import {
     WebhookSubscriptionCreateRequest,
@@ -21,7 +21,7 @@ export const automationsAtom = atomWithQuery((get) => {
     return {
         queryKey: ["automations", projectId],
         queryFn: async () => {
-            const response = await listWebhooks()
+            const response = await queryWebhookSubscriptions()
             return response.subscriptions
         },
         staleTime: 60_000,
@@ -34,7 +34,7 @@ export const automationsAtom = atomWithQuery((get) => {
 export const createAutomationAtom = atom(
     null,
     async (_get, _set, payload: WebhookSubscriptionCreateRequest) => {
-        const res = await createWebhook(payload)
+        const res = await createWebhookSubscription(payload)
         await queryClient.invalidateQueries({queryKey: ["automations"]})
         return res
     },
@@ -45,19 +45,27 @@ export const updateAutomationAtom = atom(
     async (
         _get,
         _set,
-        {webhookId, payload}: {webhookId: string; payload: WebhookSubscriptionEditRequest},
+        {
+            webhookSubscriptionId,
+            payload,
+        }: {webhookSubscriptionId: string; payload: WebhookSubscriptionEditRequest},
     ) => {
-        const res = await updateWebhook(webhookId, payload)
+        const res = await editWebhookSubscription(webhookSubscriptionId, payload)
         await queryClient.invalidateQueries({queryKey: ["automations"]})
         return res
     },
 )
 
-export const deleteAutomationAtom = atom(null, async (_get, _set, webhookId: string) => {
-    await deleteWebhook(webhookId)
-    await queryClient.invalidateQueries({queryKey: ["automations"]})
-})
+export const deleteAutomationAtom = atom(
+    null,
+    async (_get, _set, webhookSubscriptionId: string) => {
+        await deleteWebhookSubscription(webhookSubscriptionId)
+        await queryClient.invalidateQueries({queryKey: ["automations"]})
+    },
+)
 
-export const testAutomationAtom = atom(null, async (_get, _set, webhookId: string) => {
-    return await testWebhook(webhookId)
+export const testAutomationAtom = atom(null, async (_get, _set, webhookSubscriptionId: string) => {
+    const res = await testWebhookSubscription(webhookSubscriptionId)
+    await queryClient.invalidateQueries({queryKey: ["automations"]})
+    return res
 })
