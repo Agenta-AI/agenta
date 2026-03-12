@@ -705,6 +705,54 @@ export function extractVariablesFromConfig(
     return variables
 }
 
+/**
+ * Synchronize `input_keys` for prompt configs in a parameters object.
+ *
+ * Supports both wrapped params (`{ag_config: {...}}`) and direct config objects.
+ * Only prompt configs with a `messages` array are updated.
+ */
+export function syncPromptInputKeysInParameters(
+    parameters: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null | undefined {
+    if (parameters == null) return parameters
+
+    const agConfig = parameters.ag_config
+    if (agConfig && typeof agConfig === "object" && !Array.isArray(agConfig)) {
+        const synced = syncPromptInputKeysInConfig(agConfig as Record<string, unknown>)
+        return synced !== agConfig ? {...parameters, ag_config: synced} : parameters
+    }
+
+    return syncPromptInputKeysInConfig(parameters)
+}
+
+function syncPromptInputKeysInConfig(config: Record<string, unknown>): Record<string, unknown> {
+    let changed = false
+    const result = {...config}
+
+    for (const [key, value] of Object.entries(result)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+
+        const promptConfig = value as Record<string, unknown>
+        if (!Array.isArray(promptConfig.messages)) continue
+
+        const variables = extractVariablesFromConfig({[key]: promptConfig})
+        const existing = promptConfig.input_keys
+
+        if (
+            Array.isArray(existing) &&
+            existing.length === variables.length &&
+            existing.every((existingKey, index) => existingKey === variables[index])
+        ) {
+            continue
+        }
+
+        result[key] = {...promptConfig, input_keys: variables}
+        changed = true
+    }
+
+    return changed ? result : config
+}
+
 // ============================================================================
 // EVALUATOR INPUT CONSTRUCTION
 // ============================================================================
