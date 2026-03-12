@@ -33,9 +33,7 @@ def _provider_slug_to_env_var(provider_slug: str) -> str:
     if canonical_provider:
         return canonical_provider.value
 
-    return _PROVIDER_ENV_ALIASES.get(
-        provider_slug, f"{provider_slug.upper()}_API_KEY"
-    )
+    return _PROVIDER_ENV_ALIASES.get(provider_slug, f"{provider_slug.upper()}_API_KEY")
 
 
 async def get_system_llm_providers_secrets() -> Dict[str, Any]:
