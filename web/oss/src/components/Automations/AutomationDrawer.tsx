@@ -25,7 +25,7 @@ import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
-import {handleTestResult} from "./utils/handleTestResult"
+import {AUTOMATION_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 
 const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
@@ -132,7 +132,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             handleTestResult(response)
         } catch (error) {
             console.error(error)
-            message.error(error instanceof Error ? error.message : "Failed to test connection")
+            message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
         } finally {
             setIsTesting(false)
         }

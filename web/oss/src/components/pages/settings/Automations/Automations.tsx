@@ -8,7 +8,10 @@ import {useAtom, useSetAtom} from "jotai"
 import AutomationDrawer from "@/oss/components/Automations/AutomationDrawer"
 import DeleteAutomationModal from "@/oss/components/Automations/Modals/DeleteAutomationModal"
 import SecretRevealModal from "@/oss/components/Automations/Modals/SecretRevealModal"
-import {handleTestResult} from "@/oss/components/Automations/utils/handleTestResult"
+import {
+    AUTOMATION_TEST_FAILURE_MESSAGE,
+    handleTestResult,
+} from "@/oss/components/Automations/utils/handleTestResult"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {EnhancedColumnType} from "@/oss/components/EnhancedUIs/Table/types"
 import {AutomationProvider, WebhookSubscription} from "@/oss/services/automations/types"
@@ -55,7 +58,7 @@ const Automations: React.FC = () => {
                 handleTestResult(response)
             } catch (error) {
                 console.error(error)
-                message.error("Failed to test connection")
+                message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
             } finally {
                 setTestingWebhookId(null)
             }
