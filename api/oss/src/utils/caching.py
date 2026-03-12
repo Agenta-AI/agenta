@@ -4,7 +4,8 @@ from asyncio import sleep
 from uuid import uuid4
 
 import orjson
-from cachetools import TTLCache
+
+# from cachetools import TTLCache
 from redis.asyncio import Redis
 from pydantic import BaseModel
 
