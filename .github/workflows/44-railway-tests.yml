@@ -259,6 +259,44 @@ jobs:
           wait_for "API" "$API_HEALTH_URL"
           wait_for "Web" "$AGENTA_WEB_URL"
 
+      - uses: actions/checkout@v4
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+
+      - name: Setup Node.js
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install auth bootstrap dependencies
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Install Playwright browser
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Bootstrap auth with global setup
+        if: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL != '' && secrets.AGENTA_TEST_OSS_OWNER_PASSWORD != '' }}
+        env:
+          AGENTA_WEB_URL: ${{ needs.prepare.outputs.agenta_web_url }}
+          AGENTA_API_URL: ${{ needs.prepare.outputs.agenta_api_url }}
+          AGENTA_LICENSE: oss
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+          AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+          AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+          AGENTA_TEST_EPHEMERAL_PROJECT: "false"
+        working-directory: web/tests
+        run: pnpm exec tsx playwright/scripts/bootstrap-auth.ts
+
   run-api-tests:
     name: run-api-tests (${{ matrix.layer }})
     needs: [prepare, wait-for-readiness]
