@@ -5,7 +5,6 @@ import {fileURLToPath} from "url"
 import {defineConfig} from "@playwright/test"
 import dotenv from "dotenv"
 
-
 // Get current directory in ESM
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
