@@ -20,6 +20,7 @@ from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.decorators.running import auto_workflow, Workflow
 from agenta.sdk.workflows.errors import ErrorStatus
@@ -236,6 +237,14 @@ class route:
                     secrets=secrets,
                     credentials=credentials,
                 )
+
+                status = getattr(response, "status", None)
+                status_type = getattr(status, "type", None)
+
+                if isinstance(status_type, str) and status_type.endswith(
+                    "#v0:schemas:invalid-secrets"
+                ):
+                    invalidate_secrets_cache(credentials)
 
                 return await handle_invoke_success(req, response)
 
