@@ -13,7 +13,6 @@ export const handleTestResult = (response: WebhookDeliveryResponse) => {
     const delivery = response?.delivery
     const isSuccess = delivery?.status?.message === "success"
     const statusCode = delivery?.status?.code
-    const statusMessage = delivery?.status?.message
     const failureSuffix = statusCode ? ` [${statusCode}]` : ""
 
     if (isSuccess) {
