@@ -128,6 +128,7 @@ def capture_oss_deployment_created(user_email: str, organization_id: str):
                 properties={
                     "organization_id": organization_id,
                     "deployment_type": "oss",
+                    "$set": {"email": user_email},
                 },
             )
             log.info(f"Captured 'oss_deployment_created' event for {user_email}")
@@ -246,6 +247,8 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 pass
 
             if distinct_id and env.posthog.api_key:
+                properties["$set"] = {"email": distinct_id}
+
                 posthog.capture(
                     distinct_id=distinct_id,
                     event=event_name,
