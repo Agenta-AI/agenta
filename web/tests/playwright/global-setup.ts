@@ -42,18 +42,11 @@ function logAuthEmail(event: string, email: string): void {
     console.log(`[global-setup] ${event}: ${email}`)
 }
 
-function getOssOwnerEmail({testmail}: {testmail: TestmailClient | null}): string {
+function getOssOwnerEmail(): string {
     const configuredEmail = process.env.AGENTA_TEST_OSS_OWNER_EMAIL?.trim().toLowerCase()
-    const namespace = process.env.TESTMAIL_NAMESPACE
 
     if (configuredEmail) {
-        if (!testmail || isTestmailInboxEmail(configuredEmail, namespace)) {
-            return configuredEmail
-        }
-
-        console.warn(
-            "[global-setup] AGENTA_TEST_OSS_OWNER_EMAIL is not a Testmail inbox; falling back to a generated inbox address",
-        )
+        return configuredEmail
     }
 
     return createTestEmail("oss-owner")
@@ -290,14 +283,13 @@ async function authenticateUser({
     let otpRequestedAt = Date.now()
     const namespace = process.env.TESTMAIL_NAMESPACE
 
+    // Each auth flow uses a fresh browser context. Clear cookies up front, but do
+    // not wipe storage after loading the entry URL because invite flows persist
+    // token/context from the URL into storage during initial page load.
+    await page.context().clearCookies()
+
     console.log(`[global-setup] Navigating to auth entry: ${entryUrl}`)
     await page.goto(entryUrl, {timeout, waitUntil: "domcontentloaded"})
-
-    console.log("[global-setup] Clearing browser auth state")
-    await page.evaluate(() => {
-        window.localStorage.clear()
-        window.sessionStorage.clear()
-    })
 
     const emailInput = page.locator('input[type="email"]').first()
     await emailInput.waitFor({state: "visible", timeout})
@@ -683,7 +675,7 @@ async function globalSetup() {
         process.env.TESTMAIL_API_KEY && process.env.TESTMAIL_NAMESPACE,
     )
     const testmail = hasTestmailConfig ? getTestmailClient() : null
-    const ownerEmail = getOssOwnerEmail({testmail})
+    const ownerEmail = getOssOwnerEmail()
     const userEmail = createTestEmail(`${license}-user`)
     const ownerPassword =
         process.env.AGENTA_TEST_OSS_OWNER_PASSWORD ||
