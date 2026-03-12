@@ -42,7 +42,9 @@ def test_invalidate_secrets_cache_roundtrip(monkeypatch):
 
 
 def test_unpack_secrets_cache_payload_defaults_missing_lists():
-    assert vault.unpack_secrets_cache_payload({"secrets": [{"kind": "provider_key"}]}) == (
+    assert vault.unpack_secrets_cache_payload(
+        {"secrets": [{"kind": "provider_key"}]}
+    ) == (
         [{"kind": "provider_key"}],
         [],
         [],
