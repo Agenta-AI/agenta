@@ -33,7 +33,7 @@ const deleteWebhookSubscription = async (webhookSubscriptionId: string): Promise
 }
 
 const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse> => {
-    // Backend uses POST /api/webhooks/query
+    // Backend uses POST /api/webhooks/subscriptions/query
     // Scoping to project_id happens via auth session injected on backend
     const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/query`, {})
     return response.data
