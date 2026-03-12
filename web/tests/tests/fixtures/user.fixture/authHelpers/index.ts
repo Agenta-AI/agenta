@@ -123,9 +123,6 @@ export const authHelpers = () => {
                     }
 
                     const verifyEmailText = page.getByText("Verify your email")
-                    const continueWithOtpButton = page.getByRole("button", {
-                        name: "Continue with OTP",
-                    })
                     const resendOtpLink = page.getByText("Resend one-time password")
                     await Promise.race([
                         verifyEmailText.waitFor({state: "visible", timeout}),

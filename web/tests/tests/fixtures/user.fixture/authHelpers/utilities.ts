@@ -14,8 +14,13 @@ import {UserState} from "../types"
  *
  * @example
  * const userState = createInitialUserState(project);
- * // Returns {
- * //   email: "abc123@namespace.testmail.app",
+ * // Returns either {
+ * //   email: "my-branch-1700000000000.test.agenta@test.agenta.ai",
+ * //   isAuthenticated: false,
+ * //   requiresAuth: true
+ * // }
+ * // or, when TESTMAIL_NAMESPACE is set: {
+ * //   email: "namespace.my-branch-1700000000000.test.agenta@inbox.testmail.app",
  * //   isAuthenticated: false,
  * //   requiresAuth: true
  * // }
