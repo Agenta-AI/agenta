@@ -13,7 +13,17 @@ import agenta as ag
 log = get_module_logger(__name__)
 
 
+_PROVIDER_KIND_ALIASES = {
+    "mistralai": "mistral",
+}
+
+
 class SecretsManager:
+    @staticmethod
+    def _normalize_provider_kind(provider_kind: str) -> str:
+        normalized = re.sub(r"[\s-]+", "", provider_kind.lower())
+        return _PROVIDER_KIND_ALIASES.get(normalized, normalized)
+
     @staticmethod
     def get_from_route(scope: str = "all") -> Optional[List[Dict[str, Any]]]:
         context = RoutingContext.get()
@@ -192,9 +202,7 @@ class SecretsManager:
 
         # STEP 3: initialize provider settings and simplify provider name
         provider_settings = dict(model=compatible_provider_model)
-        request_provider_kind = re.sub(
-            r"[\s-]+", "", provider.lower()
-        )  # normalizing other special characters too (azure-openai)
+        request_provider_kind = SecretsManager._normalize_provider_kind(provider)
 
         # STEP 4: get credentials for model
         for secret in secrets:
@@ -204,7 +212,9 @@ class SecretsManager:
             # i). Extract API key if present
             # (for standard models -- openai/anthropic/gemini, etc)
             if secret.get("kind") == "provider_key":
-                secret_provider_kind = secret_data.get("kind", "")
+                secret_provider_kind = SecretsManager._normalize_provider_kind(
+                    secret_data.get("kind", "")
+                )
 
                 if request_provider_kind == secret_provider_kind:
                     if "key" in provider_info:
