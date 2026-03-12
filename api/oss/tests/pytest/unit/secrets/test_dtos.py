@@ -1,10 +1,10 @@
 import pytest
 from pydantic import ValidationError
 
-from oss.src.core.secrets.dtos import CreateSecretDTO
+from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 
 
-def test_create_secret_accepts_mistralai_standard_provider_payload():
+def test_create_secret_normalizes_mistralai_standard_provider_payload():
     payload = {
         "header": {"name": "Mistral AI", "description": ""},
         "secret": {
@@ -20,7 +20,26 @@ def test_create_secret_accepts_mistralai_standard_provider_payload():
 
     secret = CreateSecretDTO.model_validate(payload)
 
-    assert secret.secret.data.kind == "mistralai"
+    assert secret.secret.data.kind == "mistral"
+    assert secret.secret.data.provider.key == "TEST_KEY"
+
+
+def test_update_secret_normalizes_mistralai_standard_provider_payload():
+    payload = {
+        "secret": {
+            "kind": "provider_key",
+            "data": {
+                "kind": "mistralai",
+                "provider": {
+                    "key": "TEST_KEY",
+                },
+            },
+        },
+    }
+
+    secret = UpdateSecretDTO.model_validate(payload)
+
+    assert secret.secret.data.kind == "mistral"
     assert secret.secret.data.provider.key == "TEST_KEY"
 
 

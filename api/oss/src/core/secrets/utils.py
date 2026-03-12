@@ -7,6 +7,37 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.models.api.evaluation_model import LMProvidersEnum
 
 
+_LEGACY_SYSTEM_ENV_NAMES = {
+    LMProvidersEnum.mistral.value: ("MISTRALAI_API_KEY",),
+}
+
+_PROVIDER_ENV_ALIASES = {
+    "mistralai": LMProvidersEnum.mistral.value,
+}
+
+
+def _get_system_env_secret(secret_name: str) -> str | None:
+    for env_name in (secret_name, *_LEGACY_SYSTEM_ENV_NAMES.get(secret_name, ())):
+        env_var = os.getenv(env_name)
+        if env_var:
+            return env_var
+
+    return None
+
+
+def _provider_slug_to_env_var(provider_slug: str) -> str:
+    if not provider_slug:
+        return ""
+
+    canonical_provider = LMProvidersEnum.__members__.get(provider_slug.replace("_", ""))
+    if canonical_provider:
+        return canonical_provider.value
+
+    return _PROVIDER_ENV_ALIASES.get(
+        provider_slug, f"{provider_slug.upper()}_API_KEY"
+    )
+
+
 async def get_system_llm_providers_secrets() -> Dict[str, Any]:
     """
     Fetches LLM providers secrets from system environment variables.
@@ -15,7 +46,7 @@ async def get_system_llm_providers_secrets() -> Dict[str, Any]:
     secrets = {}
     for llm_provider in LMProvidersEnum:
         secret_name = llm_provider.value
-        env_var = os.getenv(secret_name)
+        env_var = _get_system_env_secret(secret_name)
         if env_var:
             secrets[secret_name] = env_var
 
@@ -46,7 +77,7 @@ async def get_user_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     for secret in secrets:
         kind = secret["data"].get("kind")
         provider_slug = kind.value if kind else ""
-        secret_name = f"{provider_slug.upper()}_API_KEY"
+        secret_name = _provider_slug_to_env_var(provider_slug)
         if provider_slug:
             provider = secret["data"].get("provider")
             readable_secrets[secret_name] = provider.get("key") if provider else None

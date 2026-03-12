@@ -97,6 +97,9 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
                 )
+            # Accept the legacy provider slug on input, but persist the canonical value.
+            if data.get("kind") == StandardProviderKind.MISTRALAI.value:
+                data["kind"] = StandardProviderKind.MISTRAL.value
             if data.get("kind") not in standard_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid StandardProviderKind enum"
