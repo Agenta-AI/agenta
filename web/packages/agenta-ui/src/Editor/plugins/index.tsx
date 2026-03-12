@@ -65,9 +65,6 @@ const DebugPlugin = lazy(importDebugPlugin)
 const SingleLinePlugin = lazy(importSingleLinePlugin)
 const CodeEditorPlugin = lazy(importCodeEditorPlugin)
 const NativeCodeOnlyPlugin = lazy(importNativeCodeOnlyPlugin)
-// const TokenPlugin = lazy(importTokenPlugin)
-// const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
-// const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
