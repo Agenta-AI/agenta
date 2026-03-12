@@ -713,8 +713,6 @@ export function registerDiffHighlightBehavior(
                         const parsedLines = rawLines.map((line) => parseDiffLine(line))
 
                         // Pre-compute inline diff pairs for removed→added sequences.
-                        // Stores unified segments (single-line view) keyed by the
-                        // removed line index, and marks the added line index for skipping.
                         const unifiedByRemovedIndex = new Map<
                             number,
                             {
@@ -734,6 +732,16 @@ export function registerDiffHighlightBehavior(
                                 typeof current.content === "string" &&
                                 typeof next.content === "string"
                             ) {
+                                // Skip inline diff for lines that exceed the truncation
+                                // threshold — they'll be truncated to plain text anyway,
+                                // and creating Lexical TextNodes with thousands of chars
+                                // freezes the DOM reconciler.
+                                if (
+                                    current.content.length > DIFF_LINE_TRUNCATE_THRESHOLD ||
+                                    next.content.length > DIFF_LINE_TRUNCATE_THRESHOLD
+                                ) {
+                                    continue
+                                }
                                 const inlinePair = buildInlineDiffPair(
                                     current.content,
                                     next.content,
@@ -893,6 +901,14 @@ export function registerDiffHighlightBehavior(
                     typeof next.content === "string"
 
                 if (!isReplacementPair) continue
+
+                // Skip inline diff for lines exceeding the truncation threshold
+                if (
+                    current.content.length > DIFF_LINE_TRUNCATE_THRESHOLD ||
+                    next.content.length > DIFF_LINE_TRUNCATE_THRESHOLD
+                ) {
+                    continue
+                }
 
                 const inlinePair = buildInlineDiffPair(current.content, next.content)
                 if (!inlinePair) continue

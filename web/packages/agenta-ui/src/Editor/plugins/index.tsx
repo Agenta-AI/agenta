@@ -142,7 +142,7 @@ const EditorPlugins = ({
                 }
                 ErrorBoundary={LexicalErrorBoundary}
             />
-            <HistoryPlugin />
+            {!isDiffView && <HistoryPlugin />}
             {autoFocus ? <AutoFocusPlugin /> : null}
             {hasOnChange && <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />}
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
