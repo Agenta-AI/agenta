@@ -2,10 +2,11 @@ import {FC, useEffect, useMemo} from "react"
 
 import {
     ArrowLeft,
-    Sparkle,
-    Receipt,
-    Key,
     Buildings,
+    Key,
+    Link,
+    Receipt,
+    Sparkle,
     UsersThree,
     Wrench,
 } from "@phosphor-icons/react"
@@ -59,6 +60,11 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 key: "secrets",
                 title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
+            },
+            {
+                key: "automations",
+                title: "Automations",
+                icon: <Link size={16} className="mt-0.5" />,
                 divider: !canShowTools,
             },
             ...(canShowTools
