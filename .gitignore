@@ -74,5 +74,8 @@ services/ee/tests/results/
 api/sdk
 services/sdk
 
+# Helm chart packages (built artifacts)
+agenta-oss-*.tgz
+
 # IDE/LSP config (local tooling)
 pyrightconfig.json

@@ -616,9 +616,14 @@ export function createRunnableBridge<
             if (hinted) {
                 return get(hinted.config.molecule.selectors.isDirty(runnableId))
             }
-            for (const [_type, config] of Object.entries(runnables)) {
-                const isDirty = get(config.molecule.selectors.isDirty(runnableId))
-                if (isDirty) return true
+            // Only check isDirty for the molecule that actually owns this entity
+            // (i.e. has data for it). Blindly probing all types causes false
+            // positives when a molecule returns isDirty=true for an ID it doesn't own.
+            for (const [, config] of Object.entries(runnables)) {
+                const entity = get(config.molecule.selectors.data(runnableId))
+                if (entity) {
+                    return get(config.molecule.selectors.isDirty(runnableId))
+                }
             }
             return false
         }),
