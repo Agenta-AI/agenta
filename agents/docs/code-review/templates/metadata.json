@@ -1,0 +1,26 @@
+{
+  "_comment": "Machine-readable review metadata.  Update programmatically throughout the review.  Required fields: review_id, created_at, updated_at, scope_ref, reviewed_files, finding_counts, complete.",
+  "review_id": "CR-YYYY-MM-DD-001",
+  "created_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "updated_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "scope_ref": "scope.md",
+  "review_types": ["general"],
+  "reviewers": ["agent"],
+  "repository": "REPO_URL_OR_NAME",
+  "branch": "BRANCH_OR_SHA",
+  "reviewed_files": [],
+  "files_in_scope": 0,
+  "finding_counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0
+  },
+  "open_risks": 0,
+  "open_questions": 0,
+  "review_duration_minutes": null,
+  "verdict": null,
+  "tools_used": [],
+  "complete": false
+}

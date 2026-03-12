@@ -1,9 +1,9 @@
 ---
 title: How to Upgrade
-description: "Guide for upgrading a self-hosted instance of Agenta using docker-compose and applying schema migrations."
+description: "Guide for upgrading a self-hosted instance of Agenta using Docker Compose or Helm, and applying schema migrations."
 ---
 
-This guide walks you through upgrading your self-hosted Agenta instance using Docker Compose and applying any necessary database schema migrations.
+This guide walks you through upgrading your self-hosted Agenta instance and applying any necessary database schema migrations. Choose the section that matches your deployment method.
 
 ## Understanding Agenta Versioning
 
@@ -78,6 +78,39 @@ Each command will:
 - Scale the service to double the current instances
 - Wait for new containers to be ready
 - Remove old containers once new ones are healthy
+
+## Helm Chart Upgrade
+
+If you deployed Agenta on Kubernetes using the Helm chart, upgrade with:
+
+```bash
+helm upgrade agenta hosting/helm/agenta-oss \
+  --namespace agenta \
+  -f values.yaml
+```
+
+Database migrations run automatically as a post-upgrade hook. Check the migration job status:
+
+```bash
+kubectl -n agenta get jobs -l app.kubernetes.io/component=alembic
+kubectl -n agenta logs job/agenta-agenta-oss-alembic -n agenta
+```
+
+To pin to a specific version, set the image tags in your `values.yaml`:
+
+```yaml
+api:
+  image:
+    tag: "v0.86.8"
+web:
+  image:
+    tag: "v0.86.8"
+services:
+  image:
+    tag: "v0.86.8"
+```
+
+For full details, see the [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes#upgrading) guide.
 
 ## Database Schema Migrations
 
