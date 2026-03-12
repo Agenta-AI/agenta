@@ -525,20 +525,23 @@ export const triggerExecutionAtom = atom(
                                 },
                             })
 
-                            // When root execution fails, also fail all downstream
-                            // evaluator sessions that were marked as running.
-                            // Without this, evaluators stay in "running" state forever.
-                            for (const n of nodes) {
-                                if (n.depth === 0) continue
-                                if (connections.some((c) => c.targetNodeId === n.id)) {
-                                    set(failRunAtom, {
-                                        loadableId,
-                                        stepId: rowId,
-                                        sessionId: `sess:${rootEntityId}:${n.entityId}`,
-                                        error: {
-                                            message: "Generation failed",
-                                        },
-                                    })
+                            // When root execution fails (full chain only), also fail
+                            // all downstream evaluator sessions that were marked as
+                            // running. Use !params.targetNodeId to match the guard in
+                            // startRunAtom — targeted-root never starts downstream.
+                            if (!params.targetNodeId) {
+                                for (const n of nodes) {
+                                    if (n.depth === 0) continue
+                                    if (connections.some((c) => c.targetNodeId === n.id)) {
+                                        set(failRunAtom, {
+                                            loadableId,
+                                            stepId: rowId,
+                                            sessionId: `sess:${rootEntityId}:${n.entityId}`,
+                                            error: {
+                                                message: "Generation failed",
+                                            },
+                                        })
+                                    }
                                 }
                             }
                             return
@@ -553,20 +556,23 @@ export const triggerExecutionAtom = atom(
                                 ...(traceId !== null ? {traceId} : {}),
                             })
 
-                            // When root execution fails, also fail all downstream
-                            // evaluator sessions that were marked as running.
-                            // Without this, evaluators stay in "running" state forever.
-                            for (const n of nodes) {
-                                if (n.depth === 0) continue
-                                if (connections.some((c) => c.targetNodeId === n.id)) {
-                                    set(failRunAtom, {
-                                        loadableId,
-                                        stepId: rowId,
-                                        sessionId: `sess:${rootEntityId}:${n.entityId}`,
-                                        error: {
-                                            message: "Generation failed",
-                                        },
-                                    })
+                            // When root execution fails (full chain only), also fail
+                            // all downstream evaluator sessions that were marked as
+                            // running. Use !params.targetNodeId to match the guard in
+                            // startRunAtom — targeted-root never starts downstream.
+                            if (!params.targetNodeId) {
+                                for (const n of nodes) {
+                                    if (n.depth === 0) continue
+                                    if (connections.some((c) => c.targetNodeId === n.id)) {
+                                        set(failRunAtom, {
+                                            loadableId,
+                                            stepId: rowId,
+                                            sessionId: `sess:${rootEntityId}:${n.entityId}`,
+                                            error: {
+                                                message: "Generation failed",
+                                            },
+                                        })
+                                    }
                                 }
                             }
                         } else {
@@ -585,8 +591,10 @@ export const triggerExecutionAtom = atom(
                             : sessionId
                         set(cancelRunAtom, {loadableId, stepId: rowId, sessionId: cancelSessionId})
 
-                        // Also cancel downstream evaluator sessions
-                        if (!isTargetingDownstream) {
+                        // Also cancel downstream evaluator sessions (full chain only).
+                        // Use !params.targetNodeId to match startRunAtom guard —
+                        // targeted-root never starts downstream sessions.
+                        if (!params.targetNodeId) {
                             for (const n of nodes) {
                                 if (n.depth === 0) continue
                                 if (connections.some((c) => c.targetNodeId === n.id)) {
