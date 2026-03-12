@@ -68,8 +68,8 @@ jobs:
       - name: Install dependencies
         run: cd web && pnpm install --frozen-lockfile
 
-      - name: Run Prettier formatting fix
-        run: cd web && pnpm run format-fix
+      - name: Run Prettier formatting check
+        run: cd web && pnpm run format
 
   eslint:
     name: TypeScript lint
@@ -92,5 +92,5 @@ jobs:
       - name: Install dependencies
         run: cd web && pnpm install --frozen-lockfile
 
-      - name: Run ESLint fix
-        run: cd web && pnpm run lint-fix
+      - name: Run ESLint check
+        run: cd web && pnpm run lint
