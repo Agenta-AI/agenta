@@ -19,21 +19,34 @@ def test_invalidate_secrets_cache_roundtrip(monkeypatch):
 
     assert vault.get_secrets_cache(credentials) is None
 
-    vault.set_secrets_cache(
-        credentials,
+    payload = vault.pack_secrets_cache_payload(
         secrets=[{"kind": "provider_key"}],
         vault_secrets=[{"kind": "provider_key"}],
         local_secrets=[],
     )
+    vault.set_secrets_cache(credentials, payload)
 
     cached = vault.get_secrets_cache(credentials)
     assert cached is not None
     assert cached["secrets"] == [{"kind": "provider_key"}]
+    assert vault.unpack_secrets_cache_payload(cached) == (
+        [{"kind": "provider_key"}],
+        [{"kind": "provider_key"}],
+        [],
+    )
 
     invalidated = vault.invalidate_secrets_cache(credentials)
     assert invalidated is not None
     assert invalidated["vault_secrets"] == [{"kind": "provider_key"}]
     assert vault.get_secrets_cache(credentials) is None
+
+
+def test_unpack_secrets_cache_payload_defaults_missing_lists():
+    assert vault.unpack_secrets_cache_payload({"secrets": [{"kind": "provider_key"}]}) == (
+        [{"kind": "provider_key"}],
+        [],
+        [],
+    )
 
 
 def test_has_invalid_secrets_error_detection_from_status_type():

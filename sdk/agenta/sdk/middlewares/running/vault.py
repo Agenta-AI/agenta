@@ -56,7 +56,37 @@ def _secrets_cache_key(credentials: Optional[str]) -> str:
     return dumps({"headers": headers}, sort_keys=True)
 
 
-def get_secrets_cache(credentials: Optional[str]) -> Optional[Dict[str, Any]]:
+def pack_secrets_cache_payload(
+    secrets: list,
+    vault_secrets: list,
+    local_secrets: list,
+) -> Dict[str, Any]:
+    return {
+        "secrets": secrets,
+        "vault_secrets": vault_secrets,
+        "local_secrets": local_secrets,
+    }
+
+
+def unpack_secrets_cache_payload(
+    secrets_cache: Optional[Dict[str, Any]],
+) -> tuple[Optional[list], list, list]:
+    if not secrets_cache:
+        return None, [], []
+
+    secrets = secrets_cache.get("secrets")
+    vault_secrets = secrets_cache.get("vault_secrets")
+    local_secrets = secrets_cache.get("local_secrets")
+
+    if vault_secrets is None or local_secrets is None:
+        return secrets, [], []
+
+    return secrets, vault_secrets, local_secrets
+
+
+def get_secrets_cache(
+    credentials: Optional[str],
+) -> Optional[Dict[str, Any]]:
     if not _CACHE_ENABLED:
         return None
 
@@ -65,21 +95,14 @@ def get_secrets_cache(credentials: Optional[str]) -> Optional[Dict[str, Any]]:
 
 def set_secrets_cache(
     credentials: Optional[str],
-    secrets: list,
-    vault_secrets: list,
-    local_secrets: list,
+    secrets_cache: Dict[str, Any],
 ) -> None:
-    _cache.put(
-        _secrets_cache_key(credentials),
-        {
-            "secrets": secrets,
-            "vault_secrets": vault_secrets,
-            "local_secrets": local_secrets,
-        },
-    )
+    _cache.put(_secrets_cache_key(credentials), secrets_cache)
 
 
-def invalidate_secrets_cache(credentials: Optional[str]) -> Optional[Dict[str, Any]]:
+def invalidate_secrets_cache(
+    credentials: Optional[str],
+) -> Optional[Dict[str, Any]]:
     return _cache.pop(_secrets_cache_key(credentials))
 
 
@@ -267,12 +290,11 @@ async def get_secrets(
     secrets_cache = get_secrets_cache(credentials)
 
     if secrets_cache:
-        secrets = secrets_cache.get("secrets")
-        vault_secrets = secrets_cache.get("vault_secrets")
-        local_secrets = secrets_cache.get("local_secrets")
-
-        if vault_secrets is None or local_secrets is None:
-            return secrets, [], []
+        (
+            secrets,
+            vault_secrets,
+            local_secrets,
+        ) = unpack_secrets_cache_payload(secrets_cache)
 
         return secrets, vault_secrets, local_secrets
 
@@ -355,12 +377,13 @@ async def get_secrets(
     combined_vault = list(vault_standard.values()) + vault_custom
     secrets = list(combined_standard.values()) + vault_custom
 
-    set_secrets_cache(
-        credentials,
+    secrets_cache = pack_secrets_cache_payload(
         secrets=secrets,
         vault_secrets=combined_vault,
         local_secrets=local_secrets,
     )
+
+    set_secrets_cache(credentials, secrets_cache)
 
     return secrets, combined_vault, local_secrets
 
