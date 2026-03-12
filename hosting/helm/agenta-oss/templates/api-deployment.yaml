@@ -1,0 +1,115 @@
+{{- if .Values.api.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-api
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with .Values.api.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- if .Values.postgresql.enabled }}
+        {{- include "agenta.waitForPostgres" . | nindent 8 }}
+        {{- end }}
+        {{- include "agenta.waitForRedis" . | nindent 8 }}
+      containers:
+        - name: api
+          image: {{ include "agenta.apiImage" . }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          {{- with .Values.api.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - newrelic-admin
+            - run-program
+            - gunicorn
+            - entrypoints.routers:app
+            - --bind
+            - 0.0.0.0:{{ .Values.api.port }}
+            - --worker-class
+            - uvicorn.workers.UvicornWorker
+            - --workers
+            - {{ .Values.api.workers | quote }}
+            - --max-requests
+            - "10000"
+            - --max-requests-jitter
+            - "1000"
+            - --timeout
+            - "60"
+            - --graceful-timeout
+            - "60"
+            - --log-level
+            - info
+            - --access-logfile
+            - "-"
+            - --error-logfile
+            - "-"
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+              protocol: TCP
+          env:
+            {{- include "agenta.commonEnv" . | nindent 12 }}
+            - name: SCRIPT_NAME
+              value: "/api"
+            {{- range $key, $val := .Values.api.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

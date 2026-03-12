@@ -36,7 +36,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const variantName = runnableData?.name || "Variant"
     const variantSlug = runnableData?.slug
-    const configuration = runnableData?.configuration
 
     const environmentOptions = useMemo(
         () =>
@@ -100,8 +99,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 revisionId: variantId,
                 note,
                 commitMessage: note,
-                variantId: variantSlug,
-                parameters: configuration ?? {},
             })
 
             if (!result.success || !result.newRevisionId) {
@@ -130,7 +127,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             variantId,
             variantName,
             variantSlug,
-            configuration,
             newVariantName,
             shouldDeploy,
             selectedEnvironment,
