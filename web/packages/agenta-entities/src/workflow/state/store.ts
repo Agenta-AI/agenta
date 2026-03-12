@@ -1053,7 +1053,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // For local drafts, edits may be baked into the clone, so skip this check.
         if (!isLocal) {
             const draft = get(workflowDraftAtomFamily(workflowId))
-            if (!draft) return false
+            if (!draft) {
+                return false
+            }
         }
 
         // Get the effective current parameters (entity = server/clone + draft overlay)
@@ -1063,7 +1065,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         // source entity's live server data via workflowServerDataSelectorFamily.
         const serverData = get(workflowServerDataSelectorFamily(workflowId))
 
-        if (!serverData) return !!entityData // No server data, dirty if entity exists
+        if (!serverData) {
+            return !!entityData
+        }
         if (!entityData) return false
 
         const entityParams = entityData.data?.parameters
