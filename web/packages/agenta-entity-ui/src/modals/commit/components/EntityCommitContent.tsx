@@ -285,6 +285,7 @@ export function EntityCommitContent({
                                 className="h-full"
                                 showErrors
                                 enableFolding
+                                computeOnMountOnly
                             />
                         </Suspense>
                     </div>

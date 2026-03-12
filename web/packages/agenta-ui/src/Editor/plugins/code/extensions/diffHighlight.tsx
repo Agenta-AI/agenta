@@ -36,6 +36,7 @@ import {
     $hasUpdateTag,
     COMMAND_PRIORITY_CRITICAL,
     defineExtension,
+    TextNode,
     type LexicalEditor,
 } from "lexical"
 
@@ -582,14 +583,14 @@ function $setLineContentWithInlineDiff(
         const truncatedSegs = $truncateDiffLineToSegments(fullContent)
         if (truncatedSegs) {
             truncatedSegs.forEach((seg) => {
-                const node = $createTextNode(seg.text)
+                const node = $createTextNode(seg.text).setMode("token")
                 if (seg.segmentType === "truncated") {
                     node.setStyle(DIFF_SEGMENT_STYLES.truncated)
                 }
                 lineNode.append(node)
             })
         } else {
-            lineNode.append($createTextNode(fullContent))
+            lineNode.append($createTextNode(fullContent).setMode("token"))
         }
         return
     }
@@ -597,7 +598,7 @@ function $setLineContentWithInlineDiff(
     const truncatedSegments = $truncateInlineDiffSegments(segments)
 
     truncatedSegments.forEach((segment) => {
-        const node = $createTextNode(segment.text)
+        const node = $createTextNode(segment.text).setMode("token")
 
         if (segment.segmentType === "truncated") {
             node.setStyle(DIFF_SEGMENT_STYLES.truncated)
@@ -644,6 +645,12 @@ function isDiffContent(blockText: string): boolean {
     return isDiff
 }
 
+// ─── Diff-built tracking ─────────────────────────────────────────────────────
+// Tracks which editors have completed their initial diff DOM build.
+// Uses a WeakMap keyed on editor instance so the flag survives React Strict Mode
+// double-mounts (where closures are discarded and recreated).
+const diffBuiltEditors = new WeakSet<LexicalEditor>()
+
 // ─── Behavior registration ───────────────────────────────────────────────────
 
 export function registerDiffHighlightBehavior(
@@ -657,6 +664,9 @@ export function registerDiffHighlightBehavior(
         showFoldedLineCount = true,
     }: DiffHighlightPluginProps = {},
 ): () => void {
+    // Reset the diff-built flag for this editor on (re-)registration.
+    diffBuiltEditors.delete(editor)
+
     const removeCommandListener = editor.registerCommand(
         INITIAL_CONTENT_COMMAND,
         (payload: InitialContentPayload) => {
@@ -664,6 +674,8 @@ export function registerDiffHighlightBehavior(
                 payload.preventDefault()
                 editor.update(() => {
                     $addUpdateTag("diff-initial-content")
+                    $addUpdateTag("agenta:initial-content")
+
                     try {
                         let originalData: unknown, modifiedData: unknown
 
@@ -772,12 +784,17 @@ export function registerDiffHighlightBehavior(
                                         parsed.diffType,
                                     )
                                 } else {
-                                    lineNode.append($createTextNode(lineContent))
+                                    lineNode.append($createTextNode(lineContent).setMode("token"))
                                 }
 
                                 lineNodes.push(lineNode)
                             }
                         })
+
+                        // Mark diff as built BEFORE appending to root —
+                        // appending triggers CodeBlockNode transforms synchronously,
+                        // so the flag must be set first to prevent the infinite loop.
+                        diffBuiltEditors.add(editor)
 
                         // Wrap in segments for efficient virtualization
                         $wrapLinesInSegments(lineNodes).forEach((node) => {
@@ -786,7 +803,7 @@ export function registerDiffHighlightBehavior(
 
                         root.append(codeBlock)
                     } catch (parseError) {
-                        // Silently fail - the editor will show empty content
+                        console.error("DiffHighlight: error building diff content:", parseError)
                     }
                 })
 
@@ -802,6 +819,13 @@ export function registerDiffHighlightBehavior(
         COMMAND_PRIORITY_CRITICAL,
     )
 
+    // No-op transforms for TextNode and CodeLineNode.
+    // These absorb dirty nodes during Lexical's internal $applyAllTransforms loop,
+    // preventing $normalizeTextNode from creating an infinite cycle when diff
+    // content contains backtick characters.
+    const removeTextTransform = editor.registerNodeTransform(TextNode, () => {})
+    const removeLineTransform = editor.registerNodeTransform(CodeLineNode, () => {})
+
     const removeTransform = editor.registerNodeTransform(
         CodeBlockNode,
         (codeBlockNode: CodeBlockNode) => {
@@ -814,6 +838,10 @@ export function registerDiffHighlightBehavior(
             // on all line nodes; re-parsing here would strip them because
             // the content is already cleaned (no pipe-delimited format).
             if ($hasUpdateTag("diff-initial-content")) {
+                return
+            }
+
+            if (diffBuiltEditors.has(editor)) {
                 return
             }
 
@@ -928,7 +956,13 @@ export function registerDiffHighlightBehavior(
         // Check if root element is already available
         const existingRoot = editor.getRootElement()
         if (existingRoot) {
-            editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
+            // Defer dispatch to avoid nesting inside another Lexical update cycle
+            // (e.g. history-merge from Strict Mode double-mount). Nested updates
+            // cause the inner editor.update() to be batched, leading to two
+            // reconciliation passes that can hang Lexical's reconciler.
+            queueMicrotask(() => {
+                editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
+            })
         } else {
             // Defer dispatch until the editor has a root DOM element.
             // The extension's register callback runs during editor creation
@@ -939,15 +973,23 @@ export function registerDiffHighlightBehavior(
             removeRootListener = editor.registerRootListener((rootElement) => {
                 if (rootElement && !dispatched) {
                     dispatched = true
-                    editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
+                    // Defer to next microtask so the dispatch runs outside
+                    // any active Lexical update cycle, ensuring editor.update()
+                    // in the command handler executes as a top-level update.
+                    queueMicrotask(() => {
+                        editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
+                    })
                 }
             })
         }
     }
 
     return () => {
+        diffBuiltEditors.delete(editor)
         removeCommandListener()
         removeTransform()
+        removeTextTransform()
+        removeLineTransform()
         removeRootListener?.()
     }
 }
