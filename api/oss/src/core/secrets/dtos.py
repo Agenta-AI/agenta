@@ -84,31 +84,35 @@ class SecretDTO(BaseModel):
             data = data.model_dump()
             values["data"] = data
 
+        standard_provider_kinds = {provider.value for provider in StandardProviderKind}
+        custom_provider_kinds = {provider.value for provider in CustomProviderKind}
+
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
                 raise ValueError(
                     "The provided request secret dto is not a valid type for StandardProviderDTO"
                 )
-            if not isinstance(data["provider"], dict) or "key" not in data["provider"]:
+            provider = data.get("provider")
+            if not isinstance(provider, dict) or "key" not in provider:
                 raise ValueError(
                     "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
                 )
-            if data["kind"] not in StandardProviderKind.__members__.values():
+            if data.get("kind") not in standard_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid StandardProviderKind enum"
                 )
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for CustomProviderDTO"
+                )
             # Fix inconsistent API naming - Users might enter 'togetherai' but the API requires 'together_ai'
             # This ensures compatibility with LiteLLM which requires the provider in "together_ai" format
             if data.get("kind", "") == "togetherai":
                 data["kind"] = "together_ai"
 
-            if not isinstance(data, dict):
-                raise ValueError(
-                    "The provided request secret dto is not a valid type for CustomProviderDTO"
-                )
-            if data["kind"] not in CustomProviderKind.__members__.values():
+            if data.get("kind") not in custom_provider_kinds:
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
                 )
