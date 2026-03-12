@@ -42,7 +42,7 @@ const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse
 const testWebhookSubscription = async (
     webhookSubscriptionId: string,
 ): Promise<WebhookDeliveryResponse> => {
-    // Backend uses POST /api/webhooks/test/{subscription_id} with no body
+    // Backend uses POST /api/webhooks/subscriptions/{subscription_id}/test with no body
     const response = await axios.post(
         `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}/test`,
     )
