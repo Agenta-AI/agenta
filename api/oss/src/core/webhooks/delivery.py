@@ -61,15 +61,9 @@ class PreparedWebhookRequestError(ValueError):
 
 
 def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Return a copy of *headers* with sensitive values replaced by a placeholder.
-
-    Used to build the header dict stored in delivery records so that
-    secrets (Authorization tokens, HMAC signatures) are never persisted.
-    """
-
     return {
-        k: (REDACTED_VALUE if k.lower() in REDACTED_HEADERS else v)
-        for k, v in headers.items()
+        key: (REDACTED_VALUE if key.lower() in REDACTED_HEADERS else value)
+        for key, value in headers.items()
     }
 
 
