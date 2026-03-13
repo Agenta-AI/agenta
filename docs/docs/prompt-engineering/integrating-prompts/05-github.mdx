@@ -184,16 +184,16 @@ on:
 
 ## Create a personal access token
 
-Next, create a GitHub personal access token that Agenta can use to call the GitHub API.
+Agenta uses a GitHub personal access token (PAT) to call the GitHub API on your behalf. The token must have access to the target repository and the right permissions for the dispatch mode you use.
 
-In GitHub:
+### Required permissions
 
-1. Open `Settings`.
-2. Go to `Developer settings`.
-3. Open `Personal access tokens`.
-4. Create a fine grained token or a classic token.
-5. Grant the token access to the target repository.
-6. Make sure it can trigger workflows.
+| Dispatch mode | Fine-grained token permission | Classic token scope |
+|---|---|---|
+| **Workflow dispatch** | **Actions**: Read and Write | `repo` |
+| **Repository dispatch** | **Contents**: Read and Write | `repo` |
+
+You can create either a [fine-grained token](https://github.com/settings/personal-access-tokens/new) or a [classic token](https://github.com/settings/tokens/new). For fine-grained tokens, make sure to scope the token to the target repository and grant the permission listed above. For classic tokens, select the `repo` scope.
 
 ## Set up GitHub in Agenta
 
@@ -227,7 +227,7 @@ Use `workflow_dispatch` when you want Agenta to trigger one known workflow file 
 
 ### GitHub returns 401 or 403
 
-Check that the personal access token can access the target repository and trigger workflows.
+Check that the personal access token is not expired and has the correct permissions. For workflow dispatch, the fine-grained token needs **Actions: Read and Write**. For repository dispatch, it needs **Contents: Read and Write**. The token must also be scoped to the target repository.
 
 ### Workflow dispatch does not run
 
