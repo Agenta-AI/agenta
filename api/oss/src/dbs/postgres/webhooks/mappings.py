@@ -109,6 +109,9 @@ def map_subscription_dto_to_dbe_edit(
     )
     merged_flags = {**existing_flags, **incoming_flags}
 
+    if "is_valid" in existing_flags:
+        merged_flags["is_valid"] = existing_flags["is_valid"]
+
     subscription_dbe.flags = merged_flags
     subscription_dbe.tags = subscription.tags
     subscription_dbe.meta = subscription.meta

@@ -23,7 +23,6 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.webhooks.types import (
     WEBHOOK_TEST_MAX_ATTEMPTS,
     WEBHOOK_TEST_POLL_INTERVAL_MS,
-    WebhookSubscriptionFlags,
     WebhookSubscription,
     WebhookSubscriptionCreate,
     WebhookSubscriptionEdit,
@@ -117,6 +116,8 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionCreate,
     ) -> WebhookSubscription:
+        subscription.flags = None
+
         auth_mode = subscription.data.auth_mode if subscription.data else None
 
         if auth_mode == "authorization" and not subscription.secret:
@@ -141,10 +142,6 @@ class WebhooksService:
                     ),
                 ),
             ),
-        )
-
-        subscription.flags = WebhookSubscriptionFlags(
-            is_valid=False,
         )
 
         result = await self.dao.create_subscription(
@@ -215,6 +212,8 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionEdit,
     ) -> Optional[WebhookSubscription]:
+        subscription.flags = None
+
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -238,10 +237,6 @@ class WebhooksService:
                     ),
                 ),
             )
-
-        subscription.flags = WebhookSubscriptionFlags(
-            is_valid=False,
-        )
 
         result = await self.dao.edit_subscription(
             project_id=project_id,
