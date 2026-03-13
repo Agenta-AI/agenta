@@ -179,7 +179,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
         const providerKind = envNameMap[provider.name as string]
         if (!providerKind) {
             throw new Error(
-                `[vault] Unknown provider name "${provider.name}" when creating standard secret`
+                `[vault] Unknown provider name "${provider.name}" when creating standard secret`,
             )
         }
 
