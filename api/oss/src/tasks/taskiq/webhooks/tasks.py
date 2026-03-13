@@ -56,9 +56,29 @@ NON_OVERRIDABLE_HEADERS = {
     "authorization",
 }
 
+REDACTED_HEADERS = {
+    "authorization",
+    "x-agenta-signature",
+}
+
+REDACTED_VALUE = "[REDACTED]"
+
 
 def _is_retryable(status_code: int) -> bool:
     return status_code >= 500
+
+
+def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    """Return a copy of *headers* with sensitive values replaced by a placeholder.
+
+    Used to build the header dict stored in delivery records so that
+    secrets (Authorization tokens, HMAC signatures) are never persisted.
+    """
+
+    return {
+        k: (REDACTED_VALUE if k.lower() in REDACTED_HEADERS else v)
+        for k, v in headers.items()
+    }
 
 
 def _merge_headers(
@@ -265,7 +285,9 @@ async def deliver_webhook(
         user_headers=headers,
         system_headers=system_headers,
     )
-    base_data = base_data.model_copy(update={"headers": request_headers})
+    base_data = base_data.model_copy(
+        update={"headers": _redact_headers(request_headers)}
+    )
 
     try:
         async with httpx.AsyncClient(timeout=WEBHOOK_TIMEOUT) as client:
