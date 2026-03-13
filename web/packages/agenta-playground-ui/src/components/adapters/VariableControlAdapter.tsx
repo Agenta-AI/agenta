@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {isJsonString} from "@agenta/shared/utils"
@@ -144,24 +144,15 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     const isJsonType = portType === "object" || portType === "array"
     const jsonDefault = portType === "array" ? "[]" : "{}"
 
-    const [isEditingJsonString, setIsEditingJsonString] = useState(false)
+    // Capture whether the initial value looks like JSON at mount time.
+    // This is safe because codeOnly is set once before Lexical initialises.
+    // Switching codeOnly dynamically at runtime crashes Lexical
+    // (MarkdownShortcuts: missing dependency code), so the flag is immutable.
+    const initialValueLooksLikeJson = useRef(
+        typeof value === "string" && !!value && isJsonString(value),
+    ).current
 
-    // Detect if current string is valid JSON without modifying/formatting it
-    const looksLikeJson = useMemo(() => {
-        if (typeof value !== "string" || !value) return false
-        return isJsonString(value)
-    }, [value])
-
-    // Lock the JSON editor on once the user types valid JSON.
-    // Keep it locked even when the content is cleared so the editor
-    // stays in code mode (same behaviour as Structured Output Schema).
-    useEffect(() => {
-        if (looksLikeJson) {
-            setIsEditingJsonString(true)
-        }
-    }, [looksLikeJson])
-
-    const isJsonEditor = isJsonType || isEditingJsonString || looksLikeJson
+    const isJsonEditor = isJsonType || initialValueLooksLikeJson
     const effectiveValue =
         isJsonEditor && isJsonType && (!value || value === "") ? jsonDefault : value
 
