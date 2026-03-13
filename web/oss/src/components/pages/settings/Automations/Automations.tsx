@@ -165,7 +165,7 @@ const Automations: React.FC = () => {
                         </Tag>
                     ) : (
                         <Tag icon={<ClockCircleOutlined />} color="warning">
-                            Pending
+                            Test pending
                         </Tag>
                     )
                 },
