@@ -45,9 +45,9 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 ---
 
-## G3. No OpenAPI-Compatible Endpoint in New System
+## G3. OpenAPI Is Missing as a First-Class Discovery Surface in the New System
 
-**What:** The legacy system exposes `/openapi.json` with `x-agenta.flags` on each operation. The new system has `/inspect` which returns a `WorkflowServiceRequest` — a different format.
+**What:** The legacy system exposes `/openapi.json` with `x-agenta.flags` on each operation. The new system has `/inspect` which returns a `WorkflowServiceRequest` — a different format. The target contract needs both: `inspect` as the native runnable discovery surface and `openapi.json` as the OpenAPI discovery surface for the same runnable namespace.
 
 **Why it matters:** External consumers (tools, integrations, other services) may expect OpenAPI format for discovery. The frontend currently reads from the legacy OpenAPI spec.
 
@@ -57,15 +57,17 @@ This document catalogs gaps found during the initial exploration, organized by c
 - No equivalent of OpenAPI in new system
 
 **Action:**
-- [ ] Decide whether the new system needs an OpenAPI endpoint, or if inspect is sufficient
-- [ ] If OpenAPI is needed, determine if it should be generated from the inspect response or maintained separately
-- [ ] Consider whether the frontend should migrate from reading `/openapi.json` to reading `/inspect`
+- [ ] Add `openapi.json` as a first-class discovery peer to `inspect` in the new runnable system
+- [ ] Add SDK-level discovery helpers for the same documents: `get_workflow_openapi()`, `get_application_openapi()`, `get_evaluator_openapi()`
+- [ ] Determine whether `openapi.json` should be generated from the inspect response or maintained separately
+- [ ] Ensure inspect and `openapi.json` stay schema- and flag-consistent for the same runnable
+- [ ] Consider whether the frontend should migrate from reading `/openapi.json` to reading `/inspect`, `openapi.json`, or API-provided classification depending on the consumer
 
 ---
 
 ## G4. Capability Flags — Incomplete and Inconsistent
 
-**What:** `WorkflowFlags` defines `is_custom`, `is_evaluator`, `is_human`, `is_chat`. Several flags are missing, and the existing ones don't distinguish between identity (what the workflow IS) and capability (what the workflow CAN do).
+**What:** `WorkflowFlags` defines `is_custom`, `is_evaluator`, `is_human`, `is_chat`. Several flags are missing, and the existing ones don't distinguish between identity (what the workflow IS) and capability (what the workflow CAN do). There is also a naming mismatch: the product/domain vocabulary is `application` / `evaluator`, while the capability and command vocabulary currently says `annotate`.
 
 **Why it matters:** Without proper capability flags, consumers can't discover what a workflow supports. Without separating identity from capability, the system can't express things like "this is primarily a chat app, but it can also accept completion input", "this evaluator can also stream", or "this chat workflow can optionally return the full verbose payload instead of only the last message".
 
@@ -77,7 +79,7 @@ There are two kinds of flags, and they must not be conflated:
 
 | Flag | Meaning | Implication |
 |------|---------|-------------|
-| `is_evaluator` | This workflow is an evaluator — it can annotate only (automated) | It's the identity flag equivalent of `can_annotate`-only. An evaluator IS a thing that annotates. |
+| `is_evaluator` | This workflow is an evaluator | Product/domain identity aligned with applications vs evaluators. |
 | `is_chat` | This workflow is a chat workflow — there is no completion form for it | Default presentation is chat. Different from `can_chat`. |
 | `is_verbose` | This workflow always returns the full verbose response payload, not just the last chat message | Verbose is the only output mode. Different from `can_verbose`. |
 | `is_human` | This workflow is **not runnable** — no handler and no URL (misnomer; see G15) | No invoke possible. External input required. Derivable from handler/URL absence. |
@@ -88,7 +90,7 @@ There are two kinds of flags, and they must not be conflated:
 | Flag | Meaning | Relationship to identity |
 |------|---------|--------------------------|
 | `can_stream` | Workflow supports streaming output | Batch is always available (streaming implies batching via aggregation). So `can_stream` is the only flag needed — there's no `can_batch` because batch is the baseline. |
-| `can_annotate` | Workflow can be used for annotation/evaluation | `is_evaluator` implies `can_annotate`-only. But a non-evaluator workflow (e.g. LLM-as-a-judge used as an app) can also `can_annotate=true`, meaning it can do both. |
+| `can_evaluate` | Workflow can be used for evaluation | `is_evaluator` implies `can_evaluate`-first behavior. But a non-evaluator workflow (e.g. an application that can also score) can also `can_evaluate=true`, meaning it can do both. |
 | `can_chat` | Workflow accepts chat-style message input | `is_chat` means chat-only (no completion form). `can_chat` means chat is supported alongside completion. A workflow can be `is_chat=false, can_chat=true` (supports both modes). |
 | `can_verbose` | Workflow can return either the concise chat output or the full verbose response payload | `is_verbose` means verbose-only. `can_verbose` means the caller can choose concise vs verbose per invocation. |
 
@@ -99,7 +101,17 @@ There are two kinds of flags, and they must not be conflated:
 - `can_stream=false` (or absent) → batch only
 - No `can_batch` flag needed
 
-**Annotate:** `can_annotate` is the capability. `is_evaluator` is the identity of "a thing that can only annotate". An LLM-as-a-judge could be `is_evaluator=false, can_annotate=true` — it's an app that can also evaluate. Or `is_evaluator=true` — it's purely an evaluator.
+**Evaluate:** `can_evaluate` is the capability. `is_evaluator` is the identity. This keeps the external runnable contract aligned with the product/domain split between applications and evaluators. An LLM-as-a-judge could be `is_evaluator=false, can_evaluate=true` — it is still an application that can also evaluate. Or `is_evaluator=true` — evaluation is its primary identity.
+
+### G4b1. Proposed Naming Alignment: `is_evaluator` / `can_evaluate` / `request.flags.evaluate`
+
+At the runnable-contract layer, the more coherent trio is:
+
+- identity: `is_evaluator`
+- capability: `can_evaluate`
+- request flag: `flags.evaluate`
+
+Trace internals can still use `annotation` and `invocation` terminology as lower-level execution concepts without forcing the public runnable contract to do the same.
 
 **Chat:** `is_chat` means there's no completion form — chat is the only UI. `can_chat` means the workflow supports chat input but may also support completion. So:
 - `is_chat=true, can_chat=true` → chat-only workflow
@@ -130,62 +142,86 @@ Note: `is_human` is a misnomer — it really means "not runnable" (see G15). `is
 Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the `data` JSONB on revisions or are runtime-only. This makes querying by flag (e.g. "find all evaluators" or "find all verbose chat workflows") require JSONB queries.
 
 **Action:**
-- [ ] Add `can_stream`, `can_annotate`, `can_chat`, `can_verbose` capability flags to `WorkflowFlags`
+- [ ] Add `can_stream`, `can_evaluate`, `can_chat`, `can_verbose` capability flags to `WorkflowFlags`
 - [ ] Remove `can_batch` from consideration — batch is the baseline, not a capability
 - [ ] Clarify `is_chat` vs `can_chat` distinction in the SDK decorator API
 - [ ] Clarify `is_verbose` vs `can_verbose` distinction for response verbosity
-- [ ] Clarify `is_evaluator` as the identity equivalent of `can_annotate`-only
+- [ ] Align evaluator identity, capability, and request-flag naming around `is_evaluator`, `can_evaluate`, and `flags.evaluate`
 - [ ] Document the `is_human` + `is_custom` matrix for runtime classification
 - [ ] Evaluate promoting key flags to first-class DB columns for efficient querying
 - [ ] Consider whether flags should live on the artifact (workflow) level, the variant level, or the revision level
 
 ---
 
-## G5. No Command Flags in Invoke Request
+## G5. Request Flags in Invoke Request Are Underspecified
 
-**What:** The invoke request has no mechanism for the caller to specify desired runtime behavior (e.g. "stream this response", "run in annotation mode", "use chat input format", "return the full verbose payload").
+**What:** The invoke request model already has `flags`, but the plan currently treats invocation control as if it required a separate `commands` object. What is actually missing is a dedicated request-side type: `WorkflowRequestFlags`. `WorkflowServiceRequest.flags` should be typed as `WorkflowRequestFlags`, while `WorkflowFlags` remains the static workflow identity/capability type.
 
-**Why it matters:** Capability flags (G4) declare what a workflow supports. Command flags let the caller activate those capabilities per-invocation. Without commands, the workflow always runs in its default mode.
+**Why it matters:** Capability flags (G4) declare what a workflow supports. Request flags let the caller activate those capabilities per-invocation. Without clearly defined request-flag semantics, the workflow always runs in its default mode.
 
 **Current state:**
-- `WorkflowServiceRequest` has `flags`, `tags`, `meta` — but `flags` is the workflow's static flags, not caller commands
+- `WorkflowServiceRequest` already has `flags`, `tags`, `meta`
+- current docs incorrectly imply a separate `commands` field
+- what is actually needed is a new `WorkflowRequestFlags` type on the existing `flags` field
+- static workflow identity/capability truth stays on `WorkflowFlags`
 - `aggregate` param on `workflow` decorator converts stream to batch — but is static, set at decoration time
-- `annotate` param exists on the decorator but isn't connected to the flag system or request
+- `annotate` param exists on the decorator but isn't connected to the flag system or request; today it is the closest lower-level mechanism behind evaluation behavior
 
-**Relationship between capabilities and commands:**
+**Relationship between capabilities and request flags:**
 
-| Capability Flag | Command Flag | Behavior |
+| Capability Flag | Request Flag | Behavior |
 |----------------|--------------|----------|
 | `can_stream` | `stream=true` / `stream=false` | `stream=true`: return a stream if `can_stream`, fall back to batch otherwise. `stream=false`: force batch even if workflow supports streaming. No command: default behavior (batch). |
-| `can_annotate` | `annotate=true` | If `can_annotate` and caller sends `annotate=true`, run in annotation/evaluation mode. If `is_evaluator`, annotate is the default. |
+| `can_evaluate` | `evaluate=true` | If `can_evaluate` and caller sends `evaluate=true`, run in evaluation mode. Internal tracing may still materialize this as annotation-oriented execution. If `is_evaluator`, evaluation is the default. |
 | `can_chat` | `chat=true` | If `can_chat` and caller sends `chat=true`, accept chat-style input. If `is_chat`, chat is the default. |
 | `can_verbose` | `verbose=true` / `verbose=false` | `verbose=true`: return the full structured response payload if supported. `verbose=false`: return the concise output (e.g. last message only). If `is_verbose`, verbose is the only mode and `verbose=false` cannot be honored. |
 
 **Action:**
-- [ ] Design a `commands` dict (or similar) in the invoke request for caller-specified runtime behavior
-- [ ] Define fallback behavior: command requests a capability the workflow doesn't have → graceful fallback to default mode
+- [ ] Add `WorkflowRequestFlags` as a new DTO/type
+- [ ] Define `WorkflowServiceRequest.flags: WorkflowRequestFlags`
+- [ ] Define request-time invocation semantics on `WorkflowRequestFlags`
+- [ ] Define fallback behavior: request flag asks for a capability the workflow doesn't have → graceful fallback to default mode
 - [ ] Connect `aggregate` to the stream command (aggregate = forced batch from a stream-capable workflow)
-- [ ] Connect `annotate` to the annotate command
+- [ ] Connect the existing internal `annotate` mechanism to the external `evaluate` request flag
 - [ ] Define `verbose=true|false` semantics for chat responses and map them onto response DTOs
 
 ---
 
-## G6. Trace Propagation Gap
+## G5a. SDK Invoke Has No Explicit Local-vs-Remote Execution Choice
 
-**What:** When the API invokes a workflow, no trace context (`traceparent`, `tracestate`) is propagated to the SDK execution. Each invocation creates a new root trace.
+**What:** From the SDK boundary, "invoke this workflow" is not the same question as from the API boundary. An SDK caller may want to execute locally in the current SDK process, or remotely through the configured API/services path. That choice should be an explicit SDK invoke argument, not hidden inside request flags.
 
-**Why it matters:** The API-side request and the SDK-side execution are disconnected traces. You can't follow a request from the API through to the handler and back.
+**Why it matters:** Execution location affects network topology, latency, auth, and which runtime actually handles the request. It is a transport/execution decision, not part of the workflow contract itself.
 
 **Current state:**
-- API's `invoke_workflow()` calls SDK's `invoke_workflow()` with `credentials` but no trace context
-- SDK creates a new root span in the `TracingContext`
-- `ag-project-id` header is passed, but not `traceparent`
+- SDK invoke methods do not yet expose a dedicated local-versus-remote execution argument in the design
+- current docs mostly describe SDK invocation as if there were one execution path
+- request flags are about invocation behavior, not execution location
 
 **Action:**
-- [ ] Pass `traceparent` from the API request context into the SDK invocation
-- [ ] Ensure the SDK's tracing system respects an incoming parent context
-- [ ] For the HTTP path (legacy proxy), pass `traceparent` as an HTTP header to the SDK service
-- [ ] For the programmatic path (new system), inject trace context into `TracingContext` before invoking
+- [ ] Add an explicit SDK invoke argument for local versus remote execution
+- [ ] Keep execution location separate from `WorkflowRequestFlags`
+- [ ] Decide the default mode; current leaning is local-by-default
+- [ ] Define how remote SDK invocation resolves the configured API/services path
+
+---
+
+## G6. Passive Incoming Trace Context Support Is Underspecified in SDK Runtime
+
+**What:** The plan should not treat trace propagation as an API-to-SDK integration task. The only relevant requirement here is that SDK routing/running can accept incoming parent trace context when present, especially for workflow-to-workflow execution.
+
+**Why it matters:** A workflow calling another workflow should be able to preserve parent-child trace relationships. That requires passive support in SDK routing/running. It does not require this plan to add any new propagation path from the backend API into the SDK.
+
+**Current state:**
+- lower-level tracing terminology and machinery already exist in the SDK runtime
+- current docs overstate trace propagation as an API-to-SDK gap
+- there is no decision in this plan to introduce any new producer of incoming trace context
+
+**Action:**
+- [ ] Clarify that trace-context support in this plan is limited to passive handling in SDK routing/running
+- [ ] Ensure SDK tracing can respect incoming parent context when it is already present
+- [ ] Ensure workflow-to-workflow execution can preserve parent-child relationships
+- [ ] Remove API-to-SDK propagation work from the plan
 
 ---
 
@@ -226,42 +262,51 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 ---
 
-## G9. `aggregate` and `annotate` — Disconnected Params
+## G9. `aggregate` and `annotate` — Disconnected Internal Params Behind the Future Evaluate Contract
 
-**What:** The `workflow` decorator accepts `aggregate` (stream-to-batch conversion) and `annotate` (annotation vs invocation mode) params. These exist in the running context but aren't connected to the flag or command systems.
+**What:** The `workflow` decorator accepts `aggregate` (stream-to-batch conversion) and `annotate` (annotation vs invocation mode) params. These exist in the running context but aren't connected to the external flag or command systems.
 
-**Why it matters:** These params are the implementation mechanisms for capabilities described in G4/G5, but they're not wired up. `aggregate` is the mechanism behind `can_stream` + batch fallback. `annotate` is the mechanism behind `can_annotate`.
+**Why it matters:** These params are the implementation mechanisms for capabilities described in G4/G5, but they're not wired up. `aggregate` is the mechanism behind `can_stream` + batch fallback. `annotate` is the current lower-level mechanism behind the future `can_evaluate` / `evaluate` contract.
 
 **Current state:**
 - `aggregate`: Optional[Union[bool, Callable]] — if truthy, NormalizerMiddleware converts stream to batch
-- `annotate`: Optional[bool] — stored in running context and tracing context, but no consumer reads it
+- `annotate`: Optional[bool] — stored in running context and tracing context, but no consumer reads it directly as part of a public evaluation contract
 - Both are set in `workflow.__init__()` and passed through to context managers
 
 **How they should connect (per G4/G5):**
 - `aggregate` = the implementation of "this workflow streams natively, but batch is requested" → should be activated by `stream=false` (or absent) command when `can_stream=true`
-- `annotate` = the implementation of "run in annotation mode" → should be activated by `annotate=true` command when `can_annotate=true`
+- `annotate` = the current implementation of "run in evaluation mode" → should be activated by `evaluate=true` command when `can_evaluate=true`
 
 **Action:**
 - [ ] Wire `aggregate` to `can_stream` capability + `stream` command (G4/G5)
-- [ ] Wire `annotate` to `can_annotate` capability + `annotate` command (G4/G5)
-- [ ] Keep them as decorator-level params for setting defaults, but allow per-invocation override via commands
+- [ ] Wire `annotate` to `can_evaluate` capability + `evaluate` command (G4/G5)
+- [ ] Keep them as decorator-level params for setting defaults, but allow per-invocation override via request flags
 
 ---
 
-## G10. Dual Invoke Paths on the API
+## G10. API Execution Path Is Split Between In-Process Calls and Service Handoff
 
-**What:** The API has two invoke paths: the new `POST /workflows/invoke` (direct SDK call) and the legacy proxy pattern (resolve deployment URL -> HTTP call to SDK service).
+**What:** The API currently has multiple execution patterns: the new `POST /workflows/invoke` calls SDK code in-process, while the legacy path resolves a deployment URL and calls an SDK service over HTTP. The subsystem design now points toward a control-plane model where the API classifies targets and hands runnable ones to the runtime `/services` surface.
 
-**Why it matters:** Two paths means two sets of bugs, two auth flows, two streaming implementations. The legacy path requires a running SDK HTTP service; the new path calls SDK functions directly.
+**Why it matters:** We should not blur API responsibilities with runtime execution responsibilities. If the runnable lives in another container, the API should dispatch to it rather than behaving like the execution engine. This matters for auth, streaming, timeouts, builtins exposure, and non-runnable custom workflows.
 
 **Current state:**
 - New: `POST /workflows/invoke` -> `WorkflowsService.invoke_workflow()` -> SDK's `invoke_workflow()` (in-process)
 - Legacy: `POST /api/app/{app_id}/generate` -> `InvocationsService` -> HTTP call to SDK service -> response
+- Runtime service mounting already exists separately, but the runnable family is not yet cleanly standardized around it
 
 **Action:**
 - [ ] Map which consumers use which path
-- [ ] Determine if the new path can fully replace the legacy proxy
-- [ ] The new path is in-process (no HTTP hop) which is better for latency but means the handler must be loadable in the API process — verify this works for all handler types
+- [ ] Decide whether the target runnable handoff should be redirect, gateway/proxy, or another explicit pattern
+- [ ] Route runnable builtin execution through the runtime `/services` family
+- [ ] Expand the runtime `/services` surface so all Agenta builtins are reachable, not only the currently exposed subset
+- [ ] Review and standardize runtime service URL shapes
+- [ ] Make non-runnable custom workflows fail invoke explicitly
+- [ ] Keep inspect working for non-runnable targets from persisted discovery truth
+- [ ] Define whether `openapi.json` is runtime-backed, API-synthesized, or split by runnable kind
+- [ ] Refresh builtin service URLs from URI on reads and writes
+- [ ] Refresh builtin input/output schemas from URI/inspect on reads and writes, with caching
+- [ ] Avoid blindly overwriting user-owned parameter schema during builtin refresh
 
 ---
 
@@ -269,7 +314,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 **What:** The frontend reads workflow capability flags from the legacy `/openapi.json` via `x-agenta.flags.is_chat`. It doesn't use the new `/inspect` endpoint or API-provided classification.
 
-**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, annotation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
+**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, evaluation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
 
 **Current state:**
 - `web/packages/agenta-entities/src/appRevision/api/schema.ts` reads `x-agenta.flags` from legacy OpenAPI
@@ -280,7 +325,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 **Action:**
 - [ ] Migrate frontend to read flags from the new system: `/inspect` response, per-workflow `/openapi.json` (G13), or API-provided classification in revision/query responses
-- [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`, `is_verbose`), capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`), derived classification (`is_custom`, `is_runnable`), and schemas
+- [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`, `is_verbose`), capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`), derived classification (`is_custom`, `is_runnable`), and schemas
 - [ ] Remove the legacy `x-agenta.flags` reading path once the new source is available
 - [ ] Remove the heuristic `messages` property fallback — use explicit flags
 
@@ -288,9 +333,9 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 ## G12. Applications and Evaluators Missing Invoke/Inspect Endpoints
 
-**What:** Only the workflows router (`/workflows/invoke`, `/workflows/inspect`) has invoke and inspect endpoints. The applications router (`/applications/`) and evaluators router (`/evaluators/`) have no equivalent — despite applications and evaluators being the primary consumer-facing entities.
+**What:** Only the workflows router (`/workflows/invoke`, `/workflows/inspect`) has invoke and inspect endpoints. The applications router (`/applications/`) and evaluators router (`/evaluators/`) have no equivalent — despite applications and evaluators being filtered workflow views and the primary consumer-facing entities.
 
-**Why it matters:** Applications and evaluators are thin domain wrappers around workflows. Consumers think in terms of "invoke my application" or "inspect my evaluator", not "invoke a workflow". Without domain-level endpoints, consumers must know the underlying workflow ID and hit the generic workflows endpoint, breaking the abstraction.
+**Why it matters:** Applications and evaluators are thin domain wrappers around workflows. Consumers think in terms of "invoke my application" or "inspect my evaluator", not "invoke a workflow". Without domain-level endpoints, consumers must know the underlying workflow ID and hit the generic workflows endpoint, breaking the abstraction. The workflow family should be canonical, and the domain families should expose the same execution/discovery surface as filtered projections over it.
 
 **Current state:**
 - `POST /workflows/invoke` and `POST /workflows/inspect` — exist, implemented
@@ -315,27 +360,25 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 **Action:**
 - [ ] Add `POST /applications/invoke` and `POST /applications/inspect` to the applications router
 - [ ] Add `POST /evaluators/invoke` and `POST /evaluators/inspect` to the evaluators router
-- [ ] These can be thin wrappers that delegate to `WorkflowsService.invoke_workflow()` / `inspect_workflow()` — same as the workflows router does, but accepting application/evaluator-specific request types
+- [ ] Keep the workflows router as the canonical execution/discovery family and make the domain routes thin filtered wrappers over `WorkflowsService.invoke_workflow()` / `inspect_workflow()`
 - [ ] Consider whether the simple routers (`/simple/applications/`, `/simple/evaluators/`) also need invoke/inspect
 - [ ] Ensure the SDK-side `invoke_application`, `inspect_application`, `invoke_evaluator`, `inspect_evaluator` functions are properly connected
 
 ---
 
-## G12a. Evaluator Templates Endpoint Mixes Catalog, Presets, and Partial Runtime Contract
+## G12a. Catalog Surface Is Partial, Evaluator-Specific, and Not Centered on Workflows
 
 **What:** `GET /preview/simple/evaluators/templates` is a monolithic payload that currently mixes several concerns:
-- catalog entry metadata (`name`, `key`, `tags`, `description`)
+- catalog entry metadata (`name`, `key`, `categories`, `description`)
 - preset bundles (`settings_presets`)
 - UI form metadata (`settings_template`)
-- partial runtime contract (`outputs_schema`)
+- partial schema detail (`outputs_schema`)
 
-It is evaluator-specific today, and there is no equivalent schema-first catalog surface for predefined applications/workflows.
+It is evaluator-specific today, and there is no equivalent schema-first catalog surface for predefined workflows or the filtered application/workflow views derived from them.
 
 **Why it matters:** We need a proper runnable catalog, not a template dump. Consumers should be able to:
 - list predefined evaluators and predefined applications/workflows
 - retrieve presets separately from the catalog entry
-- know whether an entry is runnable, inspect-only, or schema-only
-- know where its spec lives (`/inspect`, `{path}/openapi.json`, or no runtime surface for non-runnable types)
 - create a workflow/evaluator/application with a complete persisted contract (`inputs`, `parameters`, `outputs`)
 
 Without this split, evaluator creation stays ad hoc and the resulting workflow revision data is incomplete.
@@ -343,31 +386,56 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 **Current state:**
 - `GET /preview/simple/evaluators/templates` returns static Python data from `api/oss/src/resources/evaluators/evaluators.py`
 - `EvaluatorTemplate` mixes catalog, preset, UI, and runtime concerns in one DTO
-- `build_evaluator_data()` materializes `uri` and mostly only `schemas.outputs`; `schemas.inputs` and `schemas.parameters` are not first-class for builtin evaluators
+- `build_evaluator_data()` derives `uri` and mostly only `schemas.outputs`; `schemas.inputs` and `schemas.parameters` are not first-class for builtin evaluators
 - `auto_ai_critique` can effectively define its output contract through `json_schema`, but `auto_custom_code_run` does not have the same first-class schema authoring path
-- The evaluator input shape is effectively shared and hard-coded at the workflow level, but that shared input schema is not modeled explicitly as part of the catalog/runtime contract
+- The evaluator input shape is effectively shared and hard-coded at the workflow level, but that shared input schema is not modeled explicitly as part of the catalog contract
 - Parameter schema is not modeled as a first-class contract for builtin evaluators; it is implicit in `settings_template`
 - `settings_template` is effectively a frontend form-definition shape, not the canonical JSON Schema contract for workflow revision data
-- Special evaluator kinds (human, webhook, custom code, LLM-as-a-judge, etc.) are identified mainly by template key conventions rather than explicit type/discriminator fields
-- There is no explicit spec-discovery field telling consumers whether a predefined entry should resolve to `{path}/openapi.json`, `/inspect`, or no runtime surface
+- Special evaluator kinds (human, webhook, custom code, LLM-as-a-judge, etc.) are identified mainly by template key conventions rather than by URI classification and workflow flags
 
 **Action:**
 - [ ] Replace the monolithic templates payload with a proper catalog surface for predefined runnables
-- [ ] Add evaluator catalog endpoints, e.g. `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}`, `/evaluators/catalog/{entry_key}/presets/`
-- [ ] Add the same abstraction for applications/workflows so predefined applications and predefined evaluators are symmetric
-- [ ] Define catalog DTOs that separate catalog identity, presets, UI form metadata, and runtime contract
-- [ ] Make `uri`, runnable kind/type, and spec discovery explicit on catalog entries
+- [ ] Add canonical workflow catalog endpoints, e.g. `/workflows/catalog/`, `/workflows/catalog/{entry_key}`, `/workflows/catalog/{entry_key}/presets/`
+- [ ] Add evaluator catalog endpoints as filtered workflow catalog views, e.g. `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}`, `/evaluators/catalog/{entry_key}/presets/`
+- [ ] Add the same abstraction for applications as filtered workflow catalog views so predefined applications and predefined evaluators stay symmetric over one workflow catalog source
+- [ ] Define catalog DTOs around one catalog entry shape plus preset bundles
+- [ ] Make the catalog shape explicit rather than implied:
+  - list response with `count` and `items`
+  - entry fields including `uri`, optional compatibility `key`, optional precomputed `url`, optional `headers`, `name`, `description`, `categories`, workflow flags, and `schemas.inputs` / `schemas.parameters` / `schemas.outputs`
+  - optional single-entry fetch returning the same shape for one item
+  - presets response that returns override bundles with `parameters`, optional `script`, optional `headers`, and other presettable workflow fields when relevant
 - [ ] Give code evaluators the same first-class output-schema definition path as AI-critique evaluators; output schema is required for a proper runnable evaluator
 - [ ] Model evaluator `schemas.inputs` explicitly as the shared predefined input contract for evaluator workflows, rather than leaving it implicit
 - [ ] Support `schemas.parameters` for evaluator entries as optional: useful when we want schema-driven parameter validation, but not required for every evaluator
-- [ ] Persist full workflow revision schemas (`inputs`, `parameters`, `outputs`) when materializing a workflow/evaluator/application from a catalog entry or preset
+- [ ] When clients use catalog entries or presets to populate normal workflow/application/evaluator creation flows, persist full workflow revision schemas (`inputs`, `parameters`, `outputs`)
 - [ ] Keep `settings_template` as UI convenience metadata only, not the source of truth for runnable schema
+
+---
+
+## G12b. Legacy `service` / `configuration` Fields Still Exist in Workflow Revision Data
+
+**What:** The target revision contract has already effectively normalized around `uri`, `url`, `headers`, `schemas`, `script`, `parameters`, and `runtime`, but legacy `service` and `configuration` fields still exist in workflow/application/evaluator revision DTOs and generated client types.
+
+**Why it matters:** As long as those legacy fields exist, the revision contract stays ambiguous. The codebase can keep re-introducing legacy semantics, and catalog/create flows cannot rely on one clean source of truth.
+
+**Current state:**
+- `WorkflowRevisionData` in the SDK/API model layer still exposes `service` and `configuration` in generated client types and revision DTOs
+- evaluator creation and compatibility flows still construct legacy payloads in some paths
+- acceptance tests still assert on legacy `data.service` / `data.configuration` fields
+- the legacy adapter still carries old template-era mapping logic that can keep these fields alive
+
+**Action:**
+- [ ] Audit code paths that read or write `data.service` / `data.configuration`
+- [ ] Migrate those paths to normalized revision fields (`uri`, `url`, `headers`, `schemas`, `script`, `parameters`, `runtime`)
+- [ ] Update evaluator builders/defaults that still construct legacy service/configuration payloads
+- [ ] Add migrations or normalization on read/write if persisted legacy revision payloads still exist
+- [ ] Remove the legacy fields from revision DTOs and generated client types once compatibility coverage is complete
 
 ---
 
 ## G13. Route Isolation — Each Workflow Must Be Its Own Namespace
 
-**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app and a single `/openapi.json`. Each workflow should instead be an isolated unit with its own `invoke`, `inspect`, and `openapi.json` — mountable independently.
+**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app and a single `/openapi.json`. Each workflow should instead be an isolated unit with its own `invoke`, `inspect`, and `openapi.json` — mountable independently. `openapi.json` is not a substitute for `inspect`; it is the OpenAPI-format discovery peer for the same runnable namespace.
 
 **Why it matters:** A shared `/openapi.json` conflates multiple workflows into one spec. Consumers can't discover the interface of a specific workflow in isolation. If you have a codebase with `/summarize`, `/embed`, and `/chat`, today they all appear in one OpenAPI spec. Instead, each should be a self-contained "app" with:
 - `{path}/invoke` — execute this specific workflow
@@ -636,26 +704,26 @@ See [taxonomy.md](./taxonomy.md) for full details.
 
 ## G17. Frontend/Playground — No Command Flag Support
 
-**What:** The playground and frontend have no mechanism to send command flags (`stream`, `annotate`, `chat`, `verbose`) per-invocation, and no handling for the different response modes those commands produce.
+**What:** The playground and frontend have no mechanism to send request flags (`stream`, `evaluate`, `chat`, `verbose`) per-invocation, and no handling for the different response modes those flags produce.
 
-**Why it matters:** Command flags (G5) let callers activate capabilities per-invocation. But even once the backend supports them, the frontend needs UI and response handling for each:
+**Why it matters:** Request flags (G5) let callers activate capabilities per-invocation. But even once the backend supports them, the frontend needs UI and response handling for each:
 
 - **`stream=true`/`stream=false`**: The playground must handle both streaming and batch responses. `stream=true` requires progressive rendering, chunked output display, and abort/cancel support. `stream=false` forces batch even when the workflow supports streaming. Today the playground only handles batch responses.
-- **`annotate=true`**: Annotation mode changes the trace that is generated (evaluation trace vs invocation trace). The frontend needs to understand and display the different trace shape.
+- **`evaluate=true`**: Evaluation mode changes the trace that is generated (often materialized internally as annotation trace vs invocation trace). The frontend needs to understand and display the different trace shape.
 - **`chat=true`/`chat=false`**: Switching between chat and completion mode should change the playground UI — chat mode shows a message thread, completion mode shows input/output forms. Today the mode is static per variant (`is_chat`), not switchable per-invocation.
 - **`verbose=true`/`verbose=false`**: In chat mode, `verbose=true` means render the full structured response payload; `verbose=false` means render the concise output (typically the last assistant message only). If `is_verbose=true`, the toggle should be disabled because concise mode is not available.
 
 **Current state:**
-- Playground sends invoke requests with no command flags
+- Playground sends invoke requests with no request flags
 - Response handling assumes batch-only (no streaming support in playground)
 - Chat vs completion mode is determined by `is_chat` identity flag, not switchable at invocation time
-- No UI toggle for stream/annotate/chat/verbose commands
+- No UI toggle for stream/evaluate/chat/verbose request flags
 - No concise vs verbose response rendering path
 
 **Relationship to other gaps:**
-- **G4** defines the capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`) — what the workflow advertises
-- **G5** defines the command flags (`stream`, `annotate`, `chat`, `verbose`) — what the caller requests
-- **G17** is the frontend counterpart — the UI must let users send commands and handle the resulting response modes
+- **G4** defines the capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`) — what the workflow advertises
+- **G5** defines the request flags (`stream`, `evaluate`, `chat`, `verbose`) — what the caller requests
+- **G17** is the frontend counterpart — the UI must let users send request flags and handle the resulting response modes
 
 **Action:**
 - [ ] Add stream toggle to playground when workflow advertises `can_stream=true`
@@ -663,7 +731,7 @@ See [taxonomy.md](./taxonomy.md) for full details.
 - [ ] Add chat/completion mode toggle when workflow advertises `can_chat=true` and `is_chat=false` (supports both modes)
 - [ ] Add verbose/concise response toggle when workflow advertises `can_verbose=true` and `is_verbose=false`
 - [ ] Handle both concise chat rendering and verbose structured payload rendering
-- [ ] Handle annotation mode traces when `annotate=true` is sent
+- [ ] Handle evaluation mode traces when `evaluate=true` is sent
 - [ ] Disable command toggles when the workflow doesn't advertise the corresponding capability
 - [ ] Define graceful fallback UX when a command is sent but the workflow doesn't support it
 
@@ -682,10 +750,11 @@ The system carries a full legacy layer — legacy SDK serving, legacy API adapte
 | G1 (Dual serving) | `serving.py` — `/run`, `/test`, `/generate`, `/openapi.json` | `running.py` + `routing.py` — `{path}/invoke`, `{path}/inspect` |
 | G3 (No OpenAPI in new) | Legacy `/openapi.json` with `x-agenta.flags` | Per-workflow `{path}/openapi.json` in new system (G13) |
 | G7 (Legacy adapter) | `legacy_adapter.py` — bidirectional `AppType` ↔ flags mapping | URI-derived classification (G16), no adapter needed |
-| G10 (Dual invoke) | Legacy proxy: resolve deployment URL → HTTP to SDK service | New direct: `WorkflowsService.invoke_workflow()` → SDK in-process |
+| G10 (API execution split) | In-process API execution and service handoff coexist without a clear target | Converge on API control-plane dispatch to runtime services |
 | G11 (Frontend flag source) | Frontend reads `x-agenta.flags` from legacy `/openapi.json` | Frontend reads from `/inspect`, per-workflow `/openapi.json`, or API-provided classification |
+| G12b (Legacy revision fields) | `data.service` / `data.configuration` still exist in revision DTOs and generated client types | Normalize on `uri`, `url`, `headers`, `schemas`, `script`, `parameters`, `runtime` |
 
-These gaps should be tackled together as a coordinated legacy removal effort. Removing the legacy serving system (G1) unblocks removing the legacy adapter (G7), which unblocks removing the dual invoke paths (G10), which unblocks the frontend migration (G11). The new system needs OpenAPI per workflow (G3/G13) before the legacy `/openapi.json` can be dropped.
+These gaps should be tackled together as a coordinated legacy removal effort. Removing the legacy serving system (G1) unblocks removing the legacy adapter (G7), which clarifies the control-plane/runtime split in G10, which unblocks the frontend migration (G11). The new system needs OpenAPI per workflow (G3/G13) before the legacy `/openapi.json` can be dropped.
 
 ### Theme 2: Flag and Classification System
 
@@ -693,27 +762,29 @@ The flag system conflates identity, capability, and classification. Flags are st
 
 | Gap | What's Wrong | What Fixes It |
 |-----|-------------|---------------|
-| G4 (Flags: identity vs capability) | No capability flags; identity and capability conflated | Add `can_stream`, `can_annotate`, `can_chat`, `can_verbose`; separate from `is_*` |
-| G5 (Command flags) | No per-invocation runtime commands | Add `commands` dict to invoke request |
+| G4 (Flags: identity vs capability) | No capability flags; identity and capability conflated | Add `can_stream`, `can_evaluate`, `can_chat`, `can_verbose`; separate from `is_*` |
+| G5 (Request flags) | Request-time invocation semantics on `flags` are undefined | Define `WorkflowServiceRequest.flags` as the per-invocation flag surface |
+| G5a (SDK local/remote invoke) | SDK invoke has no explicit execution-location choice | Add explicit local-versus-remote SDK invoke argument |
 | G9 (aggregate/annotate) | Decorator params disconnected from flag/command system | Wire to G4/G5 |
 | G14 (`is_custom` overloaded) | Flag controls request format, caching, topology | Decompose; derive from URI |
 | G15 (`is_human` misnomer) | Means "not runnable", not "human" | Derive from handler/URL absence |
 | G16 (URI-derived classification) | Stored flags drift from URI truth | Derive `is_custom` from URI, `is_runnable` from handler/URL |
-| G17 (Frontend command support) | Playground can't send or handle command flags | UI toggles for stream/chat/annotate/verbose + response mode handling |
+| G17 (Frontend request-flag support) | Playground can't send or handle request flags | UI toggles for stream/chat/evaluate/verbose + response mode handling |
 
 ### Theme 3: New System Completeness
 
-The new serving/routing system exists but is incomplete. It lacks features the legacy system provides (OpenAPI, route isolation, domain-level endpoints) and features neither system has (trace propagation, custom schema parity, frontend command support).
+The new serving/routing system exists but is incomplete. It lacks features the legacy system provides (OpenAPI, route isolation, domain-level endpoints) and features still underspecified in the new design (passive incoming trace-context support, custom schema parity, frontend command support).
 
 | Gap | What's Missing |
 |-----|---------------|
 | G3 (No OpenAPI in new) | Per-workflow OpenAPI spec |
-| G6 (Trace propagation) | `traceparent` not passed to SDK execution |
+| G6 (Passive incoming trace support) | SDK runtime trace-context expectations are underspecified and should stay SDK-local |
 | G8 (Custom schemas) | Custom workflows have weaker introspection than builtins |
 | G12 (App/Eval invoke/inspect) | Applications and evaluators have no invoke/inspect endpoints |
-| G12a (Catalog split) | Evaluators/apps lack a clean catalog surface with separated presets, schemas, and spec discovery |
+| G12a (Catalog split) | Evaluators/apps lack a clean catalog surface with revision-like entries and separate preset bundles |
+| G12b (Legacy revision fields) | Workflow revision data still carries legacy `service` / `configuration` fields |
 | G13 (Route isolation) | Multiple workflows share one namespace instead of being isolated |
-| G17 (Frontend command support) | Playground has no stream/chat/annotate command toggles or response handling |
+| G17 (Frontend request-flag support) | Playground has no stream/chat/evaluate toggles or response handling |
 
 ---
 
@@ -724,18 +795,20 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G1 (Dual systems) | High | Large | Legacy | Core — clean up dual serving systems |
 | G2 (Inspect caching) | Low | Small | — | Quick win — check if revision data suffices |
 | G3 (No OpenAPI in new) | High | Medium | Legacy + Completeness | Core — new system needs OpenAPI per workflow |
-| G4 (Flags: identity vs capability) | High | Medium | Flags | Core — add can_stream, can_annotate, can_chat, can_verbose; clarify is_* vs can_* |
-| G5 (Command flags in request) | High | Medium | Flags | Core — stream/annotate/chat/verbose commands per-invocation |
-| G6 (Trace propagation) | High | Small | Completeness | Core — pass traceparent for end-to-end observability |
+| G4 (Flags: identity vs capability) | High | Medium | Flags | Core — add can_stream, can_evaluate, can_chat, can_verbose; clarify is_* vs can_* |
+| G5 (Request flags in request) | High | Medium | Flags | Core — stream/evaluate/chat/verbose request flags on `WorkflowServiceRequest.flags`, distinct from static `WorkflowFlags` |
+| G5a (SDK local/remote invoke) | Medium | Small | Interface | Important — add explicit SDK execution-location choice |
+| G6 (Passive incoming trace support) | Medium | Small | Completeness | Narrow — keep support inside SDK routing/running only |
 | G7 (Legacy adapter) | High | Small | Legacy | Core — remove legacy adapter |
 | G8 (Custom schemas) | High | Medium | Completeness | Core — parity with builtins |
 | G9 (aggregate/annotate) | High | Small | Flags | Core — connect to G4/G5 flag and command systems |
-| G10 (Dual invoke) | High | Large | Legacy | Core — clean up dual invoke paths, tied to G1 |
+| G10 (API execution split) | High | Large | Architecture + Legacy | Core — converge on API control-plane dispatch to runtime services |
 | G11 (Frontend flag source) | High | Medium | Legacy | Core — frontend must read flags from new system, not legacy OpenAPI |
 | G12 (App/Eval invoke/inspect) | High | Small | Completeness | Core — thin wrappers over existing workflow endpoints |
 | G12a (Catalog split) | High | Medium | Completeness | Core — split evaluator templates into proper catalogs and persist full schemas on create |
+| G12b (Legacy revision fields) | High | Medium | Legacy + Completeness | Core — remove `data.service` / `data.configuration` from revision contracts |
 | G13 (Route isolation) | High | Medium | Completeness | Core — each workflow must be its own namespace with invoke/inspect/openapi.json |
 | G14 (`is_custom` overloaded) | High | Medium | Flags | Core — decompose into request format, caching, and topology concerns |
 | G15 (`is_human` = not runnable) | High | Small | Flags | Core — rename/derive from handler/URL absence |
 | G16 (URI-derived classification) | High | Large | Flags | Core — unify G14+G15 into URI-based derivation |
-| G17 (Frontend command support) | High | Medium | Flags + Completeness | Core — playground stream/chat/annotate toggles and response handling |
+| G17 (Frontend request-flag support) | High | Medium | Flags + Completeness | Core — playground stream/chat/evaluate toggles and response handling |

@@ -3,6 +3,16 @@
 > Status: exploration / audit
 > Date: 2026-03-05
 
+## Companion Documents
+
+- [gap-analysis.md](./gap-analysis.md)
+- [plan.md](./plan.md)
+- [taxonomy.md](./taxonomy.md)
+- [runnables-system-layer.md](./runnables-system-layer.md)
+- [runnables-subsystem-layer.md](./runnables-subsystem-layer.md)
+- [runnables-component-layer.md](./runnables-component-layer.md)
+- [runnables-function-layer.md](./runnables-function-layer.md)
+
 ## 1. Conceptual Model
 
 A **runnable** is a black box with:
@@ -63,6 +73,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 |-------|--------|-----------|
 | Programmatic | `invoke(request=...)` | `WorkflowServiceRequest` -> `WorkflowServiceBatchResponse \| WorkflowServiceStreamResponse` |
 | Programmatic | `inspect()` | `() -> WorkflowServiceRequest` |
+| Programmatic | OpenAPI getter | Missing today; target parity would add `get_workflow_openapi()` / domain peers |
 | HTTP | `POST {path}/invoke` | JSON body as `WorkflowServiceRequest` -> JSON or NDJSON/SSE stream |
 | HTTP | `GET {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
 
@@ -247,9 +258,17 @@ Standard Git-pattern CRUD. **Dual mounted** under both `/workflows` and `/previe
 - `WorkflowsService` is shared — injected into both `ApplicationsService` and `EvaluatorsService`
 - These all reuse the same Git DAO with different DBE types
 
+**Architectural implication for the migration plan:**
+- workflows are the canonical runnable API family
+- applications and evaluators are filtered workflow projections, not separate execution systems
+- when execution or discovery surfaces are added at the workflow family level, the application and evaluator families should normally expose the same surface with domain filtering rather than inventing parallel behavior
+- at the subsystem boundary, the target direction is for the API to act as a control plane and hand runnable execution/discovery toward runtime services rather than keeping execution inside the API container
+
 ### 5.3 Invoke & Inspect (New System)
 
 The workflows router has **both invoke and inspect** endpoints:
+
+This is the current implementation shape, not necessarily the target subsystem boundary.
 
 **`POST /workflows/invoke`** (router.py lines 1114-1139):
 ```
@@ -303,6 +322,11 @@ Client -> API (resolve variant -> deployment URL) -> SDK HTTP Service (/run or /
 
 ### 6.2 How Flags Are Exposed
 
+There are two different flag types in this migration discussion:
+
+- `WorkflowFlags`: static workflow flags used for identity/capability discovery
+- `WorkflowRequestFlags`: per-invocation flags carried on `WorkflowServiceRequest.flags`
+
 **Legacy serving** (`serving.py:904-935`):
 ```json
 // In OpenAPI spec, on each path operation:
@@ -350,17 +374,17 @@ Result stored in `RevisionSchemaState.isChatVariant`, used to toggle chat vs com
 | Flag | Status | Description |
 |------|--------|-------------|
 | `can_stream` / `is_streaming` | Missing | Whether the workflow supports streaming output |
-| `can_annotate` | Missing | Whether the workflow can be used for human annotation |
+| `can_evaluate` | Missing | Whether the workflow can be used for evaluation at the product/API contract level |
 | `can_batch` | Missing | Whether the workflow supports batch execution |
 | `is_async` | Missing | Whether the workflow supports async execution |
 
-### 6.6 Missing Command Flags
+### 6.6 Missing Workflow Request Flag Semantics
 
 The invoke request currently has no way to specify runtime behavior. There's no mechanism like:
 ```python
-# Hypothetical command flags in request:
+# Hypothetical request flags in request:
 WorkflowServiceRequest(
-    commands={
+    flags={
         "stream": True,
         "evaluate": True,
         "chat_mode": True,
@@ -368,7 +392,7 @@ WorkflowServiceRequest(
 )
 ```
 
-The `aggregate` and `annotate` params on the `workflow` decorator hint at this direction but aren't exposed as request-level commands.
+The `aggregate` and `annotate` params on the `workflow` decorator hint at this direction but aren't exposed as clearly defined request-level flags yet. In the target contract, the request-time flag should be `evaluate`, even if the lower-level implementation still uses `annotate`. The important distinction is that these flags should live on a separate `WorkflowRequestFlags` type, not on `WorkflowFlags`.
 
 ---
 
@@ -393,17 +417,13 @@ Endpoints:
 - `POST /observability/v1/traces/query` — query
 - Various span query endpoints
 
-### 7.3 Trace Propagation Gap
+### 7.3 Trace Context Scope for This Plan
 
-Current flow:
-```
-API receives invoke request
-  -> API calls SDK HTTP service (NO traceparent header)
-    -> SDK creates NEW root span (new trace)
-      -> SDK exports spans to API tracing endpoint
-```
+The only trace-related concern relevant to this runnable plan is narrower than the API-level flow above:
 
-There is **no trace context propagation** from the API's request context into the SDK invocation. Each SDK call starts a fresh trace. The `ag-project-id` header is passed, but not `traceparent`/`tracestate`.
+- SDK routing/running should be able to honor incoming parent trace context when it is already present
+- this matters primarily for workflow-to-workflow execution
+- this plan does **not** imply adding new API-to-SDK trace propagation behavior
 
 ---
 
@@ -473,9 +493,9 @@ This is the richest schema definition in the system, but it only covers builtins
 | 2 | **API inspect exists but doesn't cache** | `POST /workflows/inspect` delegates to SDK but doesn't persist/cache results |
 | 3 | **No OpenAPI-compatible endpoint in new system** | Legacy serving has `/openapi.json` with `x-agenta.flags`; new system has `/inspect` but not OpenAPI-formatted |
 | 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_human` are runtime-only |
-| 5 | **Missing capability flags** | `can_stream`, `can_annotate`, `can_batch`, `is_async` not defined |
-| 6 | **No command flags in request** | Can't tell the workflow to stream, evaluate, or use chat mode at invocation time |
-| 7 | **No trace propagation** | API -> SDK invocation creates separate trace; no `traceparent` forwarding |
-| 8 | **Mutual exclusion of flags** | `is_evaluator` and `can_annotate` can't coexist; `is_chat` doesn't imply `can_chat` |
+| 5 | **Missing capability flags** | `can_stream`, `can_evaluate`, `can_batch`, `is_async` not defined |
+| 6 | **Request flags in invoke are underspecified** | The request model has `flags`, but invocation-mode semantics are not clearly defined on it |
+| 7 | **Trace scope is easy to overstate** | The plan should stay limited to passive incoming trace-context support inside SDK routing/running |
+| 8 | **Mutual exclusion of flags** | `is_evaluator` and `can_evaluate` can't coexist cleanly today; `is_chat` doesn't imply `can_chat` |
 | 9 | **Custom workflow schemas** | Custom workflows rely on Python signature extraction (legacy) rather than explicit JSON Schema (new) |
-| 10 | **`aggregate` and `annotate` params** | Exist on `workflow` decorator but aren't connected to flags or request commands |
+| 10 | **`aggregate` and `annotate` params** | Exist on `workflow` decorator but aren't connected to the external evaluate flag/command contract |
