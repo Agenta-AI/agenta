@@ -44,6 +44,12 @@ importers:
         specifier: 15.5.10
         version: 15.5.10(@babel/core@7.28.5)(@playwright/test@1.57.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
     devDependencies:
+      '@agenta/ee':
+        specifier: workspace:./ee
+        version: link:ee
+      '@agenta/oss':
+        specifier: workspace:./oss
+        version: link:oss
       '@eslint/eslintrc':
         specifier: ^3.3.3
         version: 3.3.3

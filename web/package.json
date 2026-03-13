@@ -18,6 +18,8 @@
         "next": "15.5.10"
     },
     "devDependencies": {
+        "@agenta/ee": "workspace:./ee",
+        "@agenta/oss": "workspace:./oss",
         "@eslint/eslintrc": "^3.3.3",
         "@eslint/js": "^9.39.2",
         "@lexical/eslint-plugin": "^0.40.0",
