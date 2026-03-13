@@ -321,7 +321,9 @@ export const getEvaluationRuns = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {waitUntil: "domcontentloaded"})
+    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {
+        waitUntil: "domcontentloaded",
+    })
     const evaluationRuns = await evaluationRunsResponse
 
     // Fix: Check for .runs array in the response

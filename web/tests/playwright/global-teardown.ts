@@ -112,9 +112,7 @@ async function deleteEphemeralProject(apiURL: string): Promise<void> {
             return
         }
 
-        console.log(
-            `[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`,
-        )
+        console.log(`[global-teardown] Deleting ephemeral project: ${projectName} (${projectId})`)
 
         const statePath = resolve(__dirname, "../state.json")
         const sessionToken = getSessionToken(statePath)
