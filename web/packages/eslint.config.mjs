@@ -98,16 +98,7 @@ const config = [
                     ],
                 },
             ],
-            "prettier/prettier": [
-                "error",
-                {
-                    printWidth: 100,
-                    tabWidth: 4,
-                    useTabs: false,
-                    semi: false,
-                    bracketSpacing: false,
-                },
-            ],
+            "prettier/prettier": "error",
         },
     },
     eslintPluginPrettier,

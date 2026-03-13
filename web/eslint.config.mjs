@@ -45,12 +45,12 @@ const config = [
             "no-restricted-syntax": [
                 "error",
                 {
-                    selector: 'ExportNamedDeclaration[source.value=/^@agenta/]',
+                    selector: "ExportNamedDeclaration[source.value=/^@agenta/]",
                     message:
                         "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
                 },
                 {
-                    selector: 'ExportAllDeclaration[source.value=/^@agenta/]',
+                    selector: "ExportAllDeclaration[source.value=/^@agenta/]",
                     message:
                         "Do not re-export from @agenta/* packages. Consumers should import directly from the source package for proper tree-shaking.",
                 },
@@ -135,16 +135,7 @@ const config = [
                     ],
                 },
             ],
-            "prettier/prettier": [
-                "error",
-                {
-                    printWidth: 100,
-                    tabWidth: 4,
-                    useTabs: false,
-                    semi: false,
-                    bracketSpacing: false,
-                },
-            ],
+            "prettier/prettier": "error",
         },
     },
     eslintPluginPrettier,

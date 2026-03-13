@@ -7,19 +7,19 @@ repos:
         language: system
         types: [python]
       - id: ruff-check
-        name: ruff check --fix
-        entry: ruff check --fix --exit-non-zero-on-fix
+        name: ruff check
+        entry: ruff check
         language: system
         types: [python]
-      - id: pnpm-format-fix
-        name: pnpm format-fix (web)
-        entry: bash -c 'cd web && pnpm format-fix'
+      - id: prettier-format
+        name: prettier --write (web)
+        entry: bash -c 'cd web && npx prettier --write --cache --log-level warn "**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore'
         language: system
         files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
         pass_filenames: false
-      - id: pnpm-lint-fix
-        name: pnpm lint-fix (web)
-        entry: bash -c 'cd web && pnpm lint-fix'
+      - id: turbo-lint
+        name: turbo lint (web)
+        entry: bash -c 'cd web && turbo run lint'
         language: system
         files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
         pass_filenames: false
