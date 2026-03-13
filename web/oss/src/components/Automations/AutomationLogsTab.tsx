@@ -23,36 +23,6 @@ const isDeliverySuccess = (delivery: WebhookDelivery) => {
     return delivery.status.message === "success"
 }
 
-/** Headers whose values must never be displayed in the UI. */
-const SENSITIVE_HEADERS = new Set(["authorization", "x-agenta-signature"])
-const REDACTED_VALUE = "[REDACTED]"
-
-/**
- * Return a deep copy of a delivery with sensitive header values replaced.
- * Defence-in-depth: the backend already redacts before persisting, but older
- * delivery records (created before the fix) may still contain raw secrets.
- */
-const sanitizeDelivery = (delivery: WebhookDelivery): WebhookDelivery => {
-    const headers = delivery.data?.headers
-    if (!headers) return delivery
-
-    const needsRedaction = Object.keys(headers).some((k) => SENSITIVE_HEADERS.has(k.toLowerCase()))
-    if (!needsRedaction) return delivery
-
-    const sanitized: Record<string, string> = {}
-    for (const [k, v] of Object.entries(headers)) {
-        sanitized[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? REDACTED_VALUE : v
-    }
-
-    return {
-        ...delivery,
-        data: {
-            ...delivery.data,
-            headers: sanitized,
-        },
-    }
-}
-
 const DeliveryListItem = ({
     delivery,
     isSelected,
@@ -138,7 +108,7 @@ export const AutomationLogsTab = ({subscriptionId}: {subscriptionId: string}) =>
 
     const deliveryJson = useMemo(() => {
         if (!selectedDelivery) return ""
-        return JSON.stringify(sanitizeDelivery(selectedDelivery), null, 2)
+        return JSON.stringify(selectedDelivery, null, 2)
     }, [selectedDelivery])
 
     if (isPending) {
@@ -161,14 +131,14 @@ export const AutomationLogsTab = ({subscriptionId}: {subscriptionId: string}) =>
     return (
         <div
             className={cn(
-                "flex min-h-[420px] overflow-hidden rounded border",
+                "flex h-full min-h-0 overflow-hidden rounded border",
                 borderColors.secondary,
             )}
         >
             {/* Delivery list */}
             <div
                 className={cn(
-                    "w-[220px] shrink-0 overflow-y-auto border-r",
+                    "h-full min-h-0 w-[220px] shrink-0 overflow-y-auto border-r",
                     borderColors.secondary,
                 )}
             >
@@ -183,9 +153,9 @@ export const AutomationLogsTab = ({subscriptionId}: {subscriptionId: string}) =>
             </div>
 
             {/* Detail: raw JSON */}
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 {selectedDelivery ? (
-                    <div className="h-full overflow-auto p-3">
+                    <div className="flex h-full min-h-0 flex-1 overflow-hidden p-3">
                         <SimpleSharedEditor
                             headerName="Delivery JSON"
                             value={deliveryJson}
@@ -194,6 +164,7 @@ export const AutomationLogsTab = ({subscriptionId}: {subscriptionId: string}) =>
                             defaultMinimized={false}
                             isMinimizeVisible={false}
                             isFormatVisible={false}
+                            className="h-full min-h-0 flex-1 [&_.agenta-editor-wrapper]:h-full [&_.agenta-editor-wrapper]:overflow-auto [&_.agenta-editor-wrapper]:!mb-0"
                         />
                     </div>
                 ) : (

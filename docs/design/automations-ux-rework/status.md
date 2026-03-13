@@ -34,8 +34,9 @@ Checkpoints 1, 2, and 3 implemented in code. Checkpoint 3 logs UI redesigned for
 | 3.2 Add delivery query atom family | Completed | Delivery logs are fetched per subscription via `automationDeliveriesAtomFamily`. |
 | 3.3 Build logs tab UI | Completed | Drawer now renders a `Logs` tab for persisted automations. |
 | 3.4 Delivery detail view | Completed | Simplified: removed overview/JSON tabs, now shows raw JSON directly via `SimpleSharedEditor`. |
+| 3.5 Constrain scrolling to the list/detail panes | Completed | Prevented the full drawer tab from growing/scrolling when logs increase; the delivery list now owns list overflow while the JSON editor scrolls internally. |
 | 3.6 Redesign delivery list items | Completed | Replaced opaque button rows with `ListItem`-pattern styling: left-border accent on selection, status dots, design-token colors (`bgColors`, `textColors`, `borderColors` from `@agenta/ui`), keyboard navigation, hover feedback. |
-| 3.5 Widen drawer layout | Completed | Drawer width increased to accommodate config and log inspection. |
+| 3.7 Widen drawer layout | Completed | Drawer width increased to accommodate config and log inspection. |
 
 ## Decisions log
 
@@ -50,3 +51,4 @@ Checkpoints 1, 2, and 3 implemented in code. Checkpoint 3 logs UI redesigned for
 | 2026-03-13 | Logs live only on persisted automations | Draft tests are ephemeral, so the drawer exposes logs only after a subscription has been created. |
 | 2026-03-13 | Simplify delivery detail to raw JSON only | Overview tab with separate fields added unnecessary complexity; raw JSON is more useful for debugging. |
 | 2026-03-13 | Use design tokens for list items | Replaced hard-coded `bg-white` / CSS variable approach with `@agenta/ui` tokens for theme consistency. |
+| 2026-03-13 | Deliveries list loads the newest 25 logs | `queryWebhookDeliveries` already supports `Windowing`, but the current drawer uses a simple first page (`limit=25`, `order=descending`) until we add explicit pagination/load-more UX. |
