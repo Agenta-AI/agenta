@@ -33,69 +33,9 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-MAX_RESOLVE_DEPTH = 10
-
-NON_OVERRIDABLE_HEADERS = {
-    "content-type",
-    "content-length",
-    "host",
-    "user-agent",
-    "x-agenta-event-type",
-    "x-agenta-delivery-id",
-    "x-agenta-event-id",
-    "x-agenta-signature",
-    "idempotency-key",
-    "authorization",
-}
-
-REDACTED_HEADERS = {
-    "authorization",
-    "x-agenta-signature",
-}
-
-REDACTED_VALUE = "[REDACTED]"
-
 
 def _is_retryable(status_code: int) -> bool:
     return status_code >= 500
-
-
-def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Return a copy of *headers* with sensitive values replaced by a placeholder.
-
-    Used to build the header dict stored in delivery records so that
-    secrets (Authorization tokens, HMAC signatures) are never persisted.
-    """
-
-    return {
-        k: (REDACTED_VALUE if k.lower() in REDACTED_HEADERS else v)
-        for k, v in headers.items()
-    }
-
-
-def _merge_headers(
-    *,
-    user_headers: Optional[dict],
-    system_headers: dict[str, str],
-) -> dict[str, str]:
-    merged: dict[str, str] = {}
-    dropped: list[str] = []
-
-    for key, value in (user_headers or {}).items():
-        key_str = str(key)
-        if key_str.lower() in NON_OVERRIDABLE_HEADERS:
-            dropped.append(key_str)
-            continue
-        merged[key_str] = str(value)
-
-    if dropped:
-        log.warning(
-            "[WEBHOOKS TASK] Dropped non-overwritable user headers: %s",
-            ", ".join(sorted(set(dropped))),
-        )
-
-    merged.update(system_headers)
-    return merged
 
 
 def _log_response(
@@ -183,48 +123,6 @@ async def deliver_webhook(
             ),
         )
         return
-
-    signing_secret = decrypt(encrypted_secret)
-
-    resolved_auth_mode = auth_mode or "signature"
-
-    payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    timestamp = str(int(datetime.now(timezone.utc).timestamp()))
-
-    if resolved_auth_mode == "authorization":
-        system_headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Agenta-Webhook/1.0",
-            "X-Agenta-Event-Type": event_type,
-            "X-Agenta-Delivery-Id": str(delivery_id),
-            "X-Agenta-Event-Id": str(event_id),
-            "Idempotency-Key": str(delivery_id),
-            "Authorization": signing_secret,
-        }
-    else:
-        to_sign = f"{timestamp}.{payload_json}"
-        signature = hmac.new(
-            key=signing_secret.encode("utf-8"),
-            msg=to_sign.encode("utf-8"),
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-        system_headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Agenta-Webhook/1.0",
-            "X-Agenta-Event-Type": event_type,
-            "X-Agenta-Delivery-Id": str(delivery_id),
-            "X-Agenta-Event-Id": str(event_id),
-            "Idempotency-Key": str(delivery_id),
-            "X-Agenta-Signature": f"t={timestamp},v1={signature}",
-        }
-
-    request_headers = _merge_headers(
-        user_headers=headers,
-        system_headers=system_headers,
-    )
-    base_data = base_data.model_copy(
-        update={"headers": _redact_headers(request_headers)}
-    )
 
     try:
         response = await send_webhook_request(
