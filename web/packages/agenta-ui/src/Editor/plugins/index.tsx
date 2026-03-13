@@ -65,9 +65,6 @@ const DebugPlugin = lazy(importDebugPlugin)
 const SingleLinePlugin = lazy(importSingleLinePlugin)
 const CodeEditorPlugin = lazy(importCodeEditorPlugin)
 const NativeCodeOnlyPlugin = lazy(importNativeCodeOnlyPlugin)
-// const TokenPlugin = lazy(importTokenPlugin)
-// const AutoCloseTokenBracesPlugin = lazy(importAutoCloseTokenBracesPlugin)
-// const TokenTypeaheadPlugin = lazy(importTokenTypeaheadPlugin)
 
 const EditorPlugins = ({
     id,
@@ -142,7 +139,7 @@ const EditorPlugins = ({
                 }
                 ErrorBoundary={LexicalErrorBoundary}
             />
-            <HistoryPlugin />
+            {!isDiffView && <HistoryPlugin />}
             {autoFocus ? <AutoFocusPlugin /> : null}
             {hasOnChange && <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />}
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}

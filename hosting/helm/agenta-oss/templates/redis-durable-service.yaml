@@ -1,0 +1,19 @@
+{{- if .Values.redisDurable.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-redis-durable
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-durable
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redisDurable.port }}
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis-durable
+{{- end }}

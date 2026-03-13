@@ -23,12 +23,6 @@
  */
 
 import {createBaseRunnable, baseRunnableMolecule} from "@agenta/entities/baseRunnable"
-import {
-    fetchOssRevisionById,
-    createVariantAtom as createLegacyVariantAtom,
-    commitRevisionAtom as commitLegacyRevisionAtom,
-    deleteRevisionAtom as deleteLegacyRevisionAtom,
-} from "@agenta/entities/legacyAppRevision"
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {registerRunnableTypeHint, clearRunnableTypeHint} from "@agenta/entities/shared"
@@ -1491,58 +1485,10 @@ const controllerCreateVariantAtom = atom(
             }
         }
 
-        // Check if this entity is a workflow type
-        const node = nodes.find((n) => n.entityId === baseRevisionId)
-
-        if (node?.entityType === "workflow") {
-            const result = await set(createWorkflowVariantAtom, {
-                baseRevisionId,
-                newVariantName: payload.newVariantName,
-                commitMessage: payload.note,
-            })
-
-            if (!result.success) {
-                return {
-                    success: false,
-                    error: result.error.message,
-                }
-            }
-
-            if (payload.callback) {
-                const state = {selected: [...selectedIds]}
-                payload.callback({id: result.newRevisionId}, state)
-                set(setEntityIdsAtom, state.selected)
-            }
-
-            return {
-                success: true,
-                newRevisionId: result.newRevisionId,
-            }
-        }
-
-        // Legacy path (unchanged)
-        const projectId = get(projectIdAtom)
-        if (!projectId) {
-            return {
-                success: false,
-                error: "No project ID available",
-            }
-        }
-
-        const baseRevision = await fetchOssRevisionById(baseRevisionId, projectId)
-        const appId = asNonEmptyString(baseRevision?.appId)
-        if (!appId) {
-            return {
-                success: false,
-                error: "Could not resolve app ID for base revision",
-            }
-        }
-
-        const result = await set(createLegacyVariantAtom, {
+        const result = await set(createWorkflowVariantAtom, {
             baseRevisionId,
             newVariantName: payload.newVariantName,
             commitMessage: payload.note,
-            appId,
         })
 
         if (!result.success) {
@@ -1567,115 +1513,47 @@ const controllerCreateVariantAtom = atom(
 
 const controllerCommitRevisionAtom = atom(
     null,
-    async (get, set, payload: AppRevisionCommitPayload): Promise<AppRevisionCrudResult> => {
-        // Check if this entity is a workflow type
-        const nodes = get(playgroundNodesAtom)
-        const node = nodes.find((n) => n.entityId === payload.revisionId)
-
-        if (node?.entityType === "workflow") {
-            const result = await set(commitWorkflowRevisionAtom, {
-                revisionId: payload.revisionId,
-                commitMessage: payload.commitMessage ?? payload.note,
-            })
-            return {
-                success: result.success,
-                newRevisionId: result.success ? result.newRevisionId : undefined,
-                error: result.success ? undefined : result.error.message,
-            }
-        }
-
-        // Legacy path (unchanged)
-        const bridge = getRunnableBridge()
-        const runnableData = get(bridge.selectors.data(payload.revisionId)) as
-            | ({configuration?: Record<string, unknown>; variantId?: string} & Record<
-                  string,
-                  unknown
-              >)
-            | null
-
-        // Resolve variantId: payload → bridge data → direct API fetch
-        let variantId =
-            asNonEmptyString(payload.variantId) ?? asNonEmptyString(runnableData?.variantId)
-        if (!variantId) {
-            const projectId = get(projectIdAtom)
-            if (projectId) {
-                const fetched = await fetchOssRevisionById(payload.revisionId, projectId)
-                variantId = asNonEmptyString(fetched?.variantId)
-            }
-        }
-
-        if (!variantId) {
-            return {
-                success: false,
-                error: "Could not resolve variant ID for commit",
-            }
-        }
-
-        const result = await set(commitLegacyRevisionAtom, {
+    async (_get, set, payload: AppRevisionCommitPayload): Promise<AppRevisionCrudResult> => {
+        const result = await set(commitWorkflowRevisionAtom, {
             revisionId: payload.revisionId,
             commitMessage: payload.commitMessage ?? payload.note,
-            parameters: payload.parameters ?? runnableData?.configuration ?? {},
-            variantId,
         })
-
-        if (!result.success) {
-            return {
-                success: false,
-                error: result.error.message,
-            }
-        }
-
         return {
-            success: true,
-            newRevisionId: result.newRevisionId,
+            success: result.success,
+            newRevisionId: result.success ? result.newRevisionId : undefined,
+            error: result.success ? undefined : result.error.message,
         }
     },
 )
 
 const controllerDeleteRevisionAtom = atom(
     null,
-    async (get, set, revisionId: string): Promise<AppRevisionCrudResult> => {
-        // Check if this entity is a workflow type
-        const nodes = get(playgroundNodesAtom)
-        const node = nodes.find((n) => n.entityId === revisionId)
-
-        if (node?.entityType === "workflow") {
-            // Read raw workflow entity data (NOT bridge.data which transforms to RunnableData
-            // and strips workflow_id). The archive API expects the artifact-level workflow ID.
-            const entityData = workflowMolecule.get.data(revisionId) as
-                | ({workflow_id?: unknown; workflow_variant_id?: unknown; id?: unknown} & Record<
-                      string,
-                      unknown
-                  >)
-                | null
-            const workflowId = asNonEmptyString(entityData?.workflow_id)
-            if (!workflowId) {
-                return {
-                    success: false,
-                    error: `Cannot delete workflow: missing workflow_id for revision ${revisionId}`,
-                }
-            }
-            const variantId = asNonEmptyString(entityData?.workflow_variant_id)
-            const result = await set(archiveWorkflowRevisionAtom, {
-                revisionId,
-                workflowId,
-                variantId: variantId ?? undefined,
-            })
-            return {
-                success: result.success,
-                error: result.success ? undefined : result.error.message,
-            }
-        }
-
-        // Legacy path (unchanged)
-        const result = await set(deleteLegacyRevisionAtom, {revisionId})
-        if (!result.success) {
+    async (_get, set, revisionId: string): Promise<AppRevisionCrudResult> => {
+        // Read raw workflow entity data (NOT bridge.data which transforms to RunnableData
+        // and strips workflow_id). The archive API expects the artifact-level workflow ID.
+        const entityData = workflowMolecule.get.data(revisionId) as
+            | ({workflow_id?: unknown; workflow_variant_id?: unknown; id?: unknown} & Record<
+                  string,
+                  unknown
+              >)
+            | null
+        const workflowId = asNonEmptyString(entityData?.workflow_id)
+        if (!workflowId) {
             return {
                 success: false,
-                error: result.error.message,
+                error: `Cannot delete workflow: missing workflow_id for revision ${revisionId}`,
             }
         }
-        return {success: true}
+        const variantId = asNonEmptyString(entityData?.workflow_variant_id)
+        const result = await set(archiveWorkflowRevisionAtom, {
+            revisionId,
+            workflowId,
+            variantId: variantId ?? undefined,
+        })
+        return {
+            success: result.success,
+            error: result.success ? undefined : result.error.message,
+        }
     },
 )
 

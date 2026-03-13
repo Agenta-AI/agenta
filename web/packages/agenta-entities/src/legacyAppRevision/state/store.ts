@@ -1174,7 +1174,7 @@ export const legacyAppRevisionIsDirtyWithBridgeAtomFamily = atomFamily((revision
         if (draftParams === null) return false
 
         const serverData = get(legacyAppRevisionServerDataSelectorFamily(revisionId))
-        if (!serverData) return true // New entity
+        if (!serverData) return false // Server data not yet loaded — don't report dirty prematurely
 
         const serverParams = serverData.parameters ?? {}
         const strippedDraft = stripVolatileKeys(draftParams, true)
