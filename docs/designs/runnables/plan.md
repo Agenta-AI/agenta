@@ -37,12 +37,12 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 ### 1b. Capability Flags (G4, G8)
 
-**What:** Add capability flags (`can_stream`, `can_annotate`, `can_chat`) to `WorkflowFlags` and populate them from handler inspection.
+**What:** Add capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`) to `WorkflowFlags` and populate them from handler inspection.
 
-- [ ] Add `can_stream`, `can_annotate`, `can_chat` to `WorkflowFlags`
+- [ ] Add `can_stream`, `can_annotate`, `can_chat`, `can_verbose` to `WorkflowFlags`
 - [ ] Populate capability flags during `inspect_workflow()` — derive from handler metadata (decorator params, interface schema)
 - [ ] For builtins: set capability flags in `INTERFACE_REGISTRY` or `CONFIGURATION_REGISTRY`
-- [ ] For custom workflows: derive from handler inspection (does it yield? → `can_stream`. Has `annotate=True`? → `can_annotate`. Has `messages` schema? → `can_chat`)
+- [ ] For custom workflows: derive from handler inspection (does it yield? → `can_stream`. Has `annotate=True`? → `can_annotate`. Has `messages` schema? → `can_chat`. Can return either verbose or concise chat payloads? → `can_verbose`)
 - [ ] Ensure custom workflows produce explicit schemas during registration (G8) — parity with builtins
 - [ ] Store capability flags on revision data so they're available without re-inspecting
 - [ ] Expose capability flags in API responses alongside identity flags
@@ -53,11 +53,12 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **What:** Add a `commands` dict to the invoke request so callers can specify per-invocation behavior.
 
-- [ ] Add `commands` field to invoke request schema: `{ stream?: boolean, annotate?: boolean, chat?: boolean }`
+- [ ] Add `commands` field to invoke request schema: `{ stream?: boolean, annotate?: boolean, chat?: boolean, verbose?: boolean }`
 - [ ] Wire `commands.stream` to the `aggregate` mechanism — `stream=true` returns a stream, `stream=false` forces batch via aggregation
 - [ ] Wire `commands.annotate` to the `annotate` mechanism — sets annotation mode on the tracing context
 - [ ] Wire `commands.chat` to input format selection — chat-style messages vs completion-style inputs
-- [ ] Define fallback behavior: command requests a capability the workflow doesn't have → graceful fallback to default mode (batch, no annotation, completion)
+- [ ] Wire `commands.verbose` to response shaping — `verbose=true` returns the full structured chat payload, `verbose=false` returns the concise output when available
+- [ ] Define fallback behavior: command requests a capability the workflow doesn't have → graceful fallback to default mode (batch, no annotation, completion, workflow-default verbosity)
 - [ ] Keep decorator-level `aggregate` and `annotate` params as defaults — commands override per-invocation
 
 **Does not remove:** Existing invoke requests without commands still work (default behavior).
@@ -118,10 +119,12 @@ The goal is to get the new system to feature parity with the legacy system — a
 **What:** Frontend reads flags from the new system and supports command flags.
 
 - [ ] Add frontend code to read flags from `/inspect` response or API-provided classification in revision responses
-- [ ] Support reading capability flags (`can_stream`, `can_annotate`, `can_chat`) alongside identity flags
+- [ ] Support reading capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`) alongside identity flags
 - [ ] Add stream toggle to playground when `can_stream=true` — handle both streaming and batch responses
 - [ ] Add chat/completion mode toggle when `can_chat=true` and `is_chat=false`
+- [ ] Add verbose/concise response toggle when `can_verbose=true` and `is_verbose=false`
 - [ ] Handle streaming responses in playground (progressive rendering, abort/cancel)
+- [ ] Handle both concise chat rendering and verbose structured payload rendering
 - [ ] Send `commands` dict in invoke requests from playground
 
 **Does not remove:** Legacy `x-agenta.flags` reading still works as fallback. Existing playground behavior unchanged for workflows without capability flags.
@@ -134,8 +137,8 @@ After checkpoint 1, all of the following are true:
 
 1. Every workflow has a URI (including human evaluators)
 2. `is_custom` and `is_runnable` are derivable from URI + handler/URL and exposed in API responses
-3. Capability flags (`can_stream`, `can_annotate`, `can_chat`) exist and are populated
-4. Command flags (`stream`, `annotate`, `chat`) are accepted in invoke requests
+3. Capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`) exist and are populated
+4. Command flags (`stream`, `annotate`, `chat`, `verbose`) are accepted in invoke requests
 5. Each workflow has its own `{path}/invoke`, `{path}/inspect`, `{path}/openapi.json`
 6. Applications and evaluators expose catalog endpoints for predefined runnables and presets
 7. Code evaluators and AI-critique evaluators have equivalent output-schema definition support

@@ -67,7 +67,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 **What:** `WorkflowFlags` defines `is_custom`, `is_evaluator`, `is_human`, `is_chat`. Several flags are missing, and the existing ones don't distinguish between identity (what the workflow IS) and capability (what the workflow CAN do).
 
-**Why it matters:** Without proper capability flags, consumers can't discover what a workflow supports. Without separating identity from capability, the system can't express things like "this is primarily a chat app, but it can also accept completion input" or "this evaluator can also stream".
+**Why it matters:** Without proper capability flags, consumers can't discover what a workflow supports. Without separating identity from capability, the system can't express things like "this is primarily a chat app, but it can also accept completion input", "this evaluator can also stream", or "this chat workflow can optionally return the full verbose payload instead of only the last message".
 
 ### G4a. Flag Semantics — Identity vs Capability
 
@@ -79,6 +79,7 @@ There are two kinds of flags, and they must not be conflated:
 |------|---------|-------------|
 | `is_evaluator` | This workflow is an evaluator — it can annotate only (automated) | It's the identity flag equivalent of `can_annotate`-only. An evaluator IS a thing that annotates. |
 | `is_chat` | This workflow is a chat workflow — there is no completion form for it | Default presentation is chat. Different from `can_chat`. |
+| `is_verbose` | This workflow always returns the full verbose response payload, not just the last chat message | Verbose is the only output mode. Different from `can_verbose`. |
 | `is_human` | This workflow is **not runnable** — no handler and no URL (misnomer; see G15) | No invoke possible. External input required. Derivable from handler/URL absence. |
 | `is_custom` | This workflow is user-deployed code, not a backend-managed builtin | Derivable from URI (`user:custom:*`). See G14/G16. |
 
@@ -89,6 +90,7 @@ There are two kinds of flags, and they must not be conflated:
 | `can_stream` | Workflow supports streaming output | Batch is always available (streaming implies batching via aggregation). So `can_stream` is the only flag needed — there's no `can_batch` because batch is the baseline. |
 | `can_annotate` | Workflow can be used for annotation/evaluation | `is_evaluator` implies `can_annotate`-only. But a non-evaluator workflow (e.g. LLM-as-a-judge used as an app) can also `can_annotate=true`, meaning it can do both. |
 | `can_chat` | Workflow accepts chat-style message input | `is_chat` means chat-only (no completion form). `can_chat` means chat is supported alongside completion. A workflow can be `is_chat=false, can_chat=true` (supports both modes). |
+| `can_verbose` | Workflow can return either the concise chat output or the full verbose response payload | `is_verbose` means verbose-only. `can_verbose` means the caller can choose concise vs verbose per invocation. |
 
 ### G4b. Key Distinctions
 
@@ -103,6 +105,11 @@ There are two kinds of flags, and they must not be conflated:
 - `is_chat=true, can_chat=true` → chat-only workflow
 - `is_chat=false, can_chat=true` → supports both chat and completion
 - `is_chat=false, can_chat=false` → completion-only
+
+**Verbose output:** `is_verbose` means the workflow always returns the full response payload. `can_verbose` means the workflow supports both verbose and concise output modes. So:
+- `is_verbose=true, can_verbose=true` → verbose-only workflow
+- `is_verbose=false, can_verbose=true` → caller can choose concise vs verbose per invocation
+- `is_verbose=false, can_verbose=false` → concise-only workflow
 
 **Runtime classification — runnability depends on provider:**
 
@@ -120,12 +127,13 @@ Note: `is_human` is a misnomer — it really means "not runnable" (see G15). `is
 
 ### G4c. Flags Not Stored as First-Class DB Columns
 
-Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the `data` JSONB on revisions or are runtime-only. This makes querying by flag (e.g. "find all evaluators") require JSONB queries.
+Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the `data` JSONB on revisions or are runtime-only. This makes querying by flag (e.g. "find all evaluators" or "find all verbose chat workflows") require JSONB queries.
 
 **Action:**
-- [ ] Add `can_stream`, `can_annotate`, `can_chat` capability flags to `WorkflowFlags`
+- [ ] Add `can_stream`, `can_annotate`, `can_chat`, `can_verbose` capability flags to `WorkflowFlags`
 - [ ] Remove `can_batch` from consideration — batch is the baseline, not a capability
 - [ ] Clarify `is_chat` vs `can_chat` distinction in the SDK decorator API
+- [ ] Clarify `is_verbose` vs `can_verbose` distinction for response verbosity
 - [ ] Clarify `is_evaluator` as the identity equivalent of `can_annotate`-only
 - [ ] Document the `is_human` + `is_custom` matrix for runtime classification
 - [ ] Evaluate promoting key flags to first-class DB columns for efficient querying
@@ -135,7 +143,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 ## G5. No Command Flags in Invoke Request
 
-**What:** The invoke request has no mechanism for the caller to specify desired runtime behavior (e.g. "stream this response", "run in annotation mode", "use chat input format").
+**What:** The invoke request has no mechanism for the caller to specify desired runtime behavior (e.g. "stream this response", "run in annotation mode", "use chat input format", "return the full verbose payload").
 
 **Why it matters:** Capability flags (G4) declare what a workflow supports. Command flags let the caller activate those capabilities per-invocation. Without commands, the workflow always runs in its default mode.
 
@@ -151,12 +159,14 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 | `can_stream` | `stream=true` / `stream=false` | `stream=true`: return a stream if `can_stream`, fall back to batch otherwise. `stream=false`: force batch even if workflow supports streaming. No command: default behavior (batch). |
 | `can_annotate` | `annotate=true` | If `can_annotate` and caller sends `annotate=true`, run in annotation/evaluation mode. If `is_evaluator`, annotate is the default. |
 | `can_chat` | `chat=true` | If `can_chat` and caller sends `chat=true`, accept chat-style input. If `is_chat`, chat is the default. |
+| `can_verbose` | `verbose=true` / `verbose=false` | `verbose=true`: return the full structured response payload if supported. `verbose=false`: return the concise output (e.g. last message only). If `is_verbose`, verbose is the only mode and `verbose=false` cannot be honored. |
 
 **Action:**
 - [ ] Design a `commands` dict (or similar) in the invoke request for caller-specified runtime behavior
 - [ ] Define fallback behavior: command requests a capability the workflow doesn't have → graceful fallback to default mode
 - [ ] Connect `aggregate` to the stream command (aggregate = forced batch from a stream-capable workflow)
 - [ ] Connect `annotate` to the annotate command
+- [ ] Define `verbose=true|false` semantics for chat responses and map them onto response DTOs
 
 ---
 
@@ -259,7 +269,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 **What:** The frontend reads workflow capability flags from the legacy `/openapi.json` via `x-agenta.flags.is_chat`. It doesn't use the new `/inspect` endpoint or API-provided classification.
 
-**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, annotation mode). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
+**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, annotation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
 
 **Current state:**
 - `web/packages/agenta-entities/src/appRevision/api/schema.ts` reads `x-agenta.flags` from legacy OpenAPI
@@ -270,7 +280,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 **Action:**
 - [ ] Migrate frontend to read flags from the new system: `/inspect` response, per-workflow `/openapi.json` (G13), or API-provided classification in revision/query responses
-- [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`), capability flags (`can_stream`, `can_annotate`, `can_chat`), derived classification (`is_custom`, `is_runnable`), and schemas
+- [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`, `is_verbose`), capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`), derived classification (`is_custom`, `is_runnable`), and schemas
 - [ ] Remove the legacy `x-agenta.flags` reading path once the new source is available
 - [ ] Remove the heuristic `messages` property fallback — use explicit flags
 
@@ -626,29 +636,33 @@ See [taxonomy.md](./taxonomy.md) for full details.
 
 ## G17. Frontend/Playground — No Command Flag Support
 
-**What:** The playground and frontend have no mechanism to send command flags (`stream`, `annotate`, `chat`) per-invocation, and no handling for the different response modes those commands produce.
+**What:** The playground and frontend have no mechanism to send command flags (`stream`, `annotate`, `chat`, `verbose`) per-invocation, and no handling for the different response modes those commands produce.
 
 **Why it matters:** Command flags (G5) let callers activate capabilities per-invocation. But even once the backend supports them, the frontend needs UI and response handling for each:
 
 - **`stream=true`/`stream=false`**: The playground must handle both streaming and batch responses. `stream=true` requires progressive rendering, chunked output display, and abort/cancel support. `stream=false` forces batch even when the workflow supports streaming. Today the playground only handles batch responses.
 - **`annotate=true`**: Annotation mode changes the trace that is generated (evaluation trace vs invocation trace). The frontend needs to understand and display the different trace shape.
 - **`chat=true`/`chat=false`**: Switching between chat and completion mode should change the playground UI — chat mode shows a message thread, completion mode shows input/output forms. Today the mode is static per variant (`is_chat`), not switchable per-invocation.
+- **`verbose=true`/`verbose=false`**: In chat mode, `verbose=true` means render the full structured response payload; `verbose=false` means render the concise output (typically the last assistant message only). If `is_verbose=true`, the toggle should be disabled because concise mode is not available.
 
 **Current state:**
 - Playground sends invoke requests with no command flags
 - Response handling assumes batch-only (no streaming support in playground)
 - Chat vs completion mode is determined by `is_chat` identity flag, not switchable at invocation time
-- No UI toggle for stream/annotate/chat commands
+- No UI toggle for stream/annotate/chat/verbose commands
+- No concise vs verbose response rendering path
 
 **Relationship to other gaps:**
-- **G4** defines the capability flags (`can_stream`, `can_annotate`, `can_chat`) — what the workflow advertises
-- **G5** defines the command flags (`stream`, `annotate`, `chat`) — what the caller requests
+- **G4** defines the capability flags (`can_stream`, `can_annotate`, `can_chat`, `can_verbose`) — what the workflow advertises
+- **G5** defines the command flags (`stream`, `annotate`, `chat`, `verbose`) — what the caller requests
 - **G17** is the frontend counterpart — the UI must let users send commands and handle the resulting response modes
 
 **Action:**
 - [ ] Add stream toggle to playground when workflow advertises `can_stream=true`
 - [ ] Handle streaming responses in playground (progressive rendering, abort)
 - [ ] Add chat/completion mode toggle when workflow advertises `can_chat=true` and `is_chat=false` (supports both modes)
+- [ ] Add verbose/concise response toggle when workflow advertises `can_verbose=true` and `is_verbose=false`
+- [ ] Handle both concise chat rendering and verbose structured payload rendering
 - [ ] Handle annotation mode traces when `annotate=true` is sent
 - [ ] Disable command toggles when the workflow doesn't advertise the corresponding capability
 - [ ] Define graceful fallback UX when a command is sent but the workflow doesn't support it
@@ -679,13 +693,13 @@ The flag system conflates identity, capability, and classification. Flags are st
 
 | Gap | What's Wrong | What Fixes It |
 |-----|-------------|---------------|
-| G4 (Flags: identity vs capability) | No capability flags; identity and capability conflated | Add `can_stream`, `can_annotate`, `can_chat`; separate from `is_*` |
+| G4 (Flags: identity vs capability) | No capability flags; identity and capability conflated | Add `can_stream`, `can_annotate`, `can_chat`, `can_verbose`; separate from `is_*` |
 | G5 (Command flags) | No per-invocation runtime commands | Add `commands` dict to invoke request |
 | G9 (aggregate/annotate) | Decorator params disconnected from flag/command system | Wire to G4/G5 |
 | G14 (`is_custom` overloaded) | Flag controls request format, caching, topology | Decompose; derive from URI |
 | G15 (`is_human` misnomer) | Means "not runnable", not "human" | Derive from handler/URL absence |
 | G16 (URI-derived classification) | Stored flags drift from URI truth | Derive `is_custom` from URI, `is_runnable` from handler/URL |
-| G17 (Frontend command support) | Playground can't send or handle command flags | UI toggles for stream/chat/annotate + response mode handling |
+| G17 (Frontend command support) | Playground can't send or handle command flags | UI toggles for stream/chat/annotate/verbose + response mode handling |
 
 ### Theme 3: New System Completeness
 
@@ -710,8 +724,8 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G1 (Dual systems) | High | Large | Legacy | Core — clean up dual serving systems |
 | G2 (Inspect caching) | Low | Small | — | Quick win — check if revision data suffices |
 | G3 (No OpenAPI in new) | High | Medium | Legacy + Completeness | Core — new system needs OpenAPI per workflow |
-| G4 (Flags: identity vs capability) | High | Medium | Flags | Core — add can_stream, can_annotate, can_chat; clarify is_* vs can_* |
-| G5 (Command flags in request) | High | Medium | Flags | Core — stream/annotate/chat commands per-invocation |
+| G4 (Flags: identity vs capability) | High | Medium | Flags | Core — add can_stream, can_annotate, can_chat, can_verbose; clarify is_* vs can_* |
+| G5 (Command flags in request) | High | Medium | Flags | Core — stream/annotate/chat/verbose commands per-invocation |
 | G6 (Trace propagation) | High | Small | Completeness | Core — pass traceparent for end-to-end observability |
 | G7 (Legacy adapter) | High | Small | Legacy | Core — remove legacy adapter |
 | G8 (Custom schemas) | High | Medium | Completeness | Core — parity with builtins |
