@@ -9,6 +9,7 @@ import {lazy, Suspense, useState, useEffect} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
 import {Input, Alert, Typography, Skeleton, Radio} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -23,7 +24,7 @@ import {
 } from "../state"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
-const DiffView = lazy(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
+// const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
 
 const {TextArea} = Input
 const {Text} = Typography
@@ -283,7 +284,17 @@ export function EntityCommitContent({
                         </Text>
                     </div>
                     <div className="flex-1 overflow-auto">
-                        {diffReady ? (
+                        <DiffView
+                            key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
+                            original={context.diffData?.original ?? ""}
+                            modified={context.diffData?.modified ?? ""}
+                            language={context.diffData?.language === "yaml" ? "yaml" : "json"}
+                            className="h-full"
+                            showErrors
+                            enableFolding
+                            computeOnMountOnly
+                        />
+                        {/* {diffReady ? (
                             <Suspense
                                 fallback={
                                     <div className="p-4">
@@ -291,24 +302,12 @@ export function EntityCommitContent({
                                     </div>
                                 }
                             >
-                                <DiffView
-                                    key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
-                                    original={context.diffData?.original ?? ""}
-                                    modified={context.diffData?.modified ?? ""}
-                                    language={
-                                        context.diffData?.language === "yaml" ? "yaml" : "json"
-                                    }
-                                    className="h-full"
-                                    showErrors
-                                    enableFolding
-                                    computeOnMountOnly
-                                />
                             </Suspense>
                         ) : (
                             <div className="p-4">
                                 <Skeleton active paragraph={{rows: 8}} />
                             </div>
-                        )}
+                        )} */}
                     </div>
                 </div>
             )}
