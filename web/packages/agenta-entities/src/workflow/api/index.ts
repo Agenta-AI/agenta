@@ -42,4 +42,5 @@ export {
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,
+    fetchWorkflowRevisionsByIdsBatch,
 } from "./api"

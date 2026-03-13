@@ -1222,6 +1222,12 @@ playgroundSyncAtom.onMount = (set) => {
         })
 
         if (!hasAnyDraft) {
+            // Don't clear localStorage while pending hydrations exist.
+            // Hydrations are queued by SUB 10 (localStorage restore) or URL snapshot
+            // and haven't been applied yet. Clearing localStorage now would lose the
+            // draft data before it can be applied by SUB 1.
+            if (pendingHydrations.size > 0) return
+
             persistDebounceTimer = null
             persistSnapshot()
             return
@@ -1235,7 +1241,15 @@ playgroundSyncAtom.onMount = (set) => {
     })
     unsubs.push(unsubPersist)
     unsubs.push(() => {
-        if (persistDebounceTimer) clearTimeout(persistDebounceTimer)
+        if (persistDebounceTimer) {
+            // Flush the pending snapshot write before unmounting.
+            // Without this, navigating away within the 1s debounce window
+            // would lose draft state — the timer is cleared but the
+            // snapshot is never written to localStorage.
+            clearTimeout(persistDebounceTimer)
+            persistDebounceTimer = null
+            persistSnapshot()
+        }
     })
 
     // -----------------------------------------------------------------------

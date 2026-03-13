@@ -28,6 +28,7 @@ export {
     unarchiveEvaluator,
     // Batch
     fetchEvaluatorsBatch,
+    fetchEvaluatorRevisionsByIdsBatch,
 } from "./api"
 
 // Templates

@@ -12,20 +12,6 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 import type {Workflow} from "../core"
 
 /**
- * Resolve the correct service URL for a builtin (non-custom) app workflow.
- *
- * For builtin apps with URI like "agenta:builtin:completion:v0", the service
- * is hosted at a deterministic path: `{origin}/services/{serviceType}`.
- *
- * This handles stale `data.url` values pointing to old/migrated domains.
- *
- * TODO: Remove once backend migration patches all revision data.url values.
- * After migration, data.url will always be correct and this resolution
- * will be unnecessary for non-evaluator app workflows.
- *
- * @returns Corrected service URL, or null if not a builtin app
- */
-/**
  * Extract service type from a URI like "agenta:builtin:completion:v0".
  *
  * @returns "completion" | "chat" | null
@@ -52,6 +38,19 @@ export function resolveServiceTypeFromUrl(url: string | null | undefined): strin
     return match ? match[1] : null
 }
 
+/**
+ * Resolve the correct service URL for a builtin (non-custom) app workflow.
+ *
+ * For builtin apps with URI like "agenta:builtin:completion:v0", the service
+ * is hosted at a deterministic path: `{origin}/services/{serviceType}`.
+ * The URI is preferred because `data.url` may point to a stale/migrated domain.
+ *
+ * When the URI is missing (post-migration data corruption), falls back to
+ * `data.url` if it matches the builtin `/services/{type}` pattern — these
+ * revisions were created after the migration so their URL is already correct.
+ *
+ * @returns Corrected service URL, or null if not a builtin app
+ */
 export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
     if (!entity.data) return null
     if (entity.flags?.is_evaluator) return null

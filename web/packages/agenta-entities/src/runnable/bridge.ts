@@ -765,6 +765,7 @@ function workflowParametersSchemaSelector(workflowId: string) {
         const entity = get(workflowMolecule.selectors.data(workflowId)) as WorkflowEntity | null
         const flatSchema =
             (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+
         if (!flatSchema) return null
 
         // Check if this is an evaluator workflow.

@@ -11,13 +11,14 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {StoreOptions} from "../../shared"
-import {queryLegacyEvaluators, fetchLegacyEvaluator} from "../api"
+import {queryLegacyEvaluators, fetchLegacyEvaluatorsBatch} from "../api"
 import type {LegacyEvaluator, LegacyEvaluatorsResponse} from "../core"
 
 // ============================================================================
@@ -27,6 +28,55 @@ import type {LegacyEvaluator, LegacyEvaluatorsResponse} from "../core"
 function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
+
+interface LegacyEvaluatorBatchRequest {
+    projectId: string
+    evaluatorId: string
+}
+
+const legacyEvaluatorBatchFetcher = createBatchFetcher<
+    LegacyEvaluatorBatchRequest,
+    LegacyEvaluator | null
+>({
+    maxBatchSize: 50,
+    flushDelay: 10,
+    serializeKey: (req) => `${req.projectId}:${req.evaluatorId}`,
+    batchFn: async (requests, serializedKeys) => {
+        const results = new Map<string, LegacyEvaluator | null>()
+        const byProject = new Map<string, {evaluatorIds: string[]; keys: string[]}>()
+
+        requests.forEach((req, index) => {
+            const key = serializedKeys[index]
+            if (!req.projectId || !req.evaluatorId) {
+                results.set(key, null)
+                return
+            }
+
+            const existing = byProject.get(req.projectId)
+            if (existing) {
+                existing.evaluatorIds.push(req.evaluatorId)
+                existing.keys.push(key)
+            } else {
+                byProject.set(req.projectId, {
+                    evaluatorIds: [req.evaluatorId],
+                    keys: [key],
+                })
+            }
+        })
+
+        await Promise.all(
+            Array.from(byProject.entries()).map(async ([projectId, group]) => {
+                const evaluatorMap = await fetchLegacyEvaluatorsBatch(projectId, group.evaluatorIds)
+                group.evaluatorIds.forEach((evaluatorId, index) => {
+                    const key = group.keys[index]
+                    results.set(key, evaluatorMap.get(evaluatorId) ?? null)
+                })
+            }),
+        )
+
+        return results
+    },
+})
 
 // ============================================================================
 // PROJECT ID ATOM
@@ -99,7 +149,8 @@ export const legacyEvaluatorQueryAtomFamily = atomFamily((evaluatorId: string) =
             queryKey: ["legacyEvaluators", "detail", evaluatorId, projectId],
             queryFn: async (): Promise<LegacyEvaluator | null> => {
                 if (!projectId || !evaluatorId) return null
-                return fetchLegacyEvaluator({id: evaluatorId, projectId})
+
+                return legacyEvaluatorBatchFetcher({projectId, evaluatorId})
             },
             enabled: get(sessionAtom) && !!projectId && !!evaluatorId,
             staleTime: 30_000,

@@ -662,7 +662,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                 : true
 
             // [HUMAN_EVAL_REFRESH_LOG] Log run-level refresh decision factors
-            if (evaluationType === "human") {
+            if (evaluationType === "human" && process.env.NODE_ENV !== "production") {
                 console.log("[RunMetrics:HumanEval] Run-level refresh decision factors", {
                     runId,
                     evaluationType,
@@ -729,7 +729,7 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         isRunInProgress && !isPendingWithExecutedScenarios
 
                     // [HUMAN_EVAL_REFRESH_LOG] Log queryFn refresh decision for human eval
-                    if (evaluationType === "human") {
+                    if (evaluationType === "human" && process.env.NODE_ENV !== "production") {
                         console.log("[RunMetrics:HumanEval] queryFn refresh decision", {
                             runId,
                             evaluationType,

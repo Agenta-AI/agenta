@@ -637,6 +637,59 @@ export async function fetchEvaluatorTemplates(projectId: string): Promise<Evalua
 // ============================================================================
 
 /**
+ * Batch fetch evaluator revisions by revision IDs.
+ *
+ * Uses the revision query endpoint with workflow_revision_refs to fetch
+ * multiple revisions in a single HTTP call.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/query`
+ *
+ * @param projectId - Project ID
+ * @param revisionIds - Array of revision IDs to fetch
+ * @returns Map of revision ID → Evaluator
+ */
+export async function fetchEvaluatorRevisionsByIdsBatch(
+    projectId: string,
+    revisionIds: string[],
+): Promise<Map<string, Evaluator>> {
+    const results = new Map<string, Evaluator>()
+
+    if (!projectId || revisionIds.length === 0) return results
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
+        {
+            workflow_revision_refs: revisionIds.map((id) => ({id})),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        evaluatorRevisionsResponseSchema,
+        response.data,
+        "[fetchEvaluatorRevisionsByIdsBatch]",
+    )
+    if (!validated) return results
+
+    for (const raw of validated.workflow_revisions) {
+        try {
+            const evaluator = safeParseWithLogging(
+                evaluatorSchema,
+                raw,
+                "[fetchEvaluatorRevisionsByIdsBatch:item]",
+            )
+            if (evaluator) {
+                results.set(evaluator.id, evaluator)
+            }
+        } catch (e) {
+            console.error("[fetchEvaluatorRevisionsByIdsBatch] Failed to parse evaluator:", e, raw)
+        }
+    }
+
+    return results
+}
+
+/**
  * Batch fetch evaluator revisions by workflow IDs.
  *
  * Uses the revision query endpoint with workflow_refs to fetch latest revisions.

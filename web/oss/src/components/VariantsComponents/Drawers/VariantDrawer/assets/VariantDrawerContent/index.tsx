@@ -7,7 +7,7 @@ import {
     legacyAppRevisionSchemaQueryAtomFamily,
 } from "@agenta/entities/legacyAppRevision"
 import {runnableBridge} from "@agenta/entities/runnable"
-import {UserAuthorLabel} from "@agenta/entities/shared"
+import {registerRunnableTypeHint, UserAuthorLabel} from "@agenta/entities/shared"
 import {PlaygroundConfigSection} from "@agenta/entity-ui"
 import {FormattedDate} from "@agenta/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
@@ -72,6 +72,14 @@ const VariantDrawerContent = ({
 }: VariantDrawerContentProps) => {
     const {goToPlayground} = usePlaygroundNavigation()
     const resolvedVariantId = variantId || EMPTY_REVISION_ID
+
+    // Register type hint so runnableBridge skips probing evaluator/workflow
+    // molecules for this legacyAppRevision entity.
+    // Must run synchronously before bridge reads to prevent spurious queries.
+    if (resolvedVariantId && resolvedVariantId !== EMPTY_REVISION_ID) {
+        registerRunnableTypeHint(resolvedVariantId, "legacyAppRevision")
+    }
+
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(resolvedVariantId))
     const runnableData = useAtomValue(runnableBridge.data(resolvedVariantId))
 

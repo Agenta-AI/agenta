@@ -4,7 +4,6 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     variantsListQueryStateAtomFamily,
     revisionsListQueryStateAtomFamily,
-    invalidateEntityQueries,
 } from "@agenta/entities/legacyAppRevision"
 import {PageLayout} from "@agenta/ui"
 import {SwapOutlined} from "@ant-design/icons"
@@ -118,13 +117,6 @@ const VariantsDashboard = () => {
         },
         [registryHref, tabBreadcrumbLabel],
     )
-
-    // Force fresh data on mount — works around jotai-tanstack-query's observer
-    // caching which can serve stale data after cross-page mutations (e.g. variant
-    // created on playground page).
-    useEffect(() => {
-        void invalidateEntityQueries()
-    }, [])
 
     useEffect(() => {
         setEnvRevisions(envRevisions)
