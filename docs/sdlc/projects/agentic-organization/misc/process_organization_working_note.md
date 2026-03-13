@@ -185,7 +185,7 @@ Current shape that seems directionally correct:
 
 This layer should adapt to the process model, not compete with it.
 
-There is also a cross-cutting space of activities that may later become skills, agents, or agent bundles beyond the basic worker/reviewer/tester roles. See `activities_skills_agents.md`.
+There is also a cross-cutting space of activities that may later become skills, agents, or agent bundles beyond the basic design/implementation actor and verification/validation critic roles. See `activities_skills_agents.md`.
 
 ## Minimal artifact set worth testing
 

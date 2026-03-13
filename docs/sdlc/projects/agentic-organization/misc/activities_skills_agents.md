@@ -14,17 +14,18 @@ It is cross-cutting relative to product, system, process, and knowledge work.
 
 For each layer of the local V-loop, we already have at least:
 
-- one worker actor
-- one reviewer critic
-- one tester critic
+- one design actor
+- one implementation actor
+- one verification critic
+- one validation critic
 
-So at minimum, that suggests at least three role-shaped agents per layer.
+So at minimum, that suggests at least four role-shaped agents per layer.
 
-It also suggests at least three skills per layer, though an agent may carry multiple skills.
+It also suggests at least four skills per layer, though an agent may carry multiple skills.
 
 ## Product-layer possibilities
 
-At the product layer, even the worker side may split into multiple specialized activities.
+At the product layer, even the actor side may split into multiple specialized activities.
 
 Examples:
 
@@ -38,7 +39,7 @@ These could later become:
 
 - specialized research skills
 - specialized product agents
-- or product-worker sub-agents
+- or product-side sub-agents
 
 ## System- and product-level issue understanding
 
@@ -134,7 +135,7 @@ Each item below could exist as:
 
 ## Product layer
 
-### Worker-side agents or skills
+### Actor-side agents or skills
 
 - product framer
 - user researcher
@@ -143,10 +144,10 @@ Each item below could exist as:
 - interface shaper
 - product definer
 
-### Reviewer and tester critics
+### Verification and validation critics
 
 - product reviewer
-- product validator
+- product tester
 
 ### Product-layer skills
 
@@ -160,17 +161,17 @@ Each item below could exist as:
 
 ## System layer
 
-### Worker-side agents or skills
+### Actor-side agents or skills
 
-- system architect
+- system designer
 - interface-contract designer
 - system-observability designer
 - system-test designer
 
-### Reviewer and tester critics
+### Verification and validation critics
 
-- architecture reviewer
-- system validator
+- system design reviewer
+- system tester
 
 ### System-layer skills
 
@@ -183,17 +184,17 @@ Each item below could exist as:
 
 ## Subsystem layer
 
-### Worker-side agents or skills
+### Actor-side agents or skills
 
-- subsystem architect
+- subsystem designer
 - dependency mapper
 - integration designer
 - transport-model designer
 
-### Reviewer and tester critics
+### Verification and validation critics
 
 - subsystem reviewer
-- integration validator
+- integration tester
 
 ### Subsystem-layer skills
 
@@ -203,11 +204,11 @@ Each item below could exist as:
 - define transport objects across boundaries
 - define push vs pull and sync vs async choices
 - define ports and adapters at subsystem boundaries
-- assess architecture tradeoffs for those choices
+- assess design tradeoffs for those choices
 
 ## Component level
 
-### Worker-side agents or skills
+### Actor-side agents or skills
 
 - component designer
 - domain modeler
@@ -215,10 +216,10 @@ Each item below could exist as:
 - port designer
 - adapter designer
 
-### Reviewer and tester critics
+### Verification and validation critics
 
 - component reviewer
-- component validator
+- component tester
 
 ### Component-layer skills
 
@@ -232,13 +233,13 @@ Each item below could exist as:
 
 ## Implementation level
 
-### Worker-side agents or skills
+### Actor-side agents or skills
 
 - implementer
 - refactorer
 - helper and utility builder
 
-### Reviewer and tester critics
+### Verification and validation critics
 
 - code reviewer
 - unit tester
@@ -291,7 +292,7 @@ If we want coverage similar to strong product and engineering teams, the obvious
 
 - product framing and research
 - interaction and interface definition
-- technical architecture
+- system design
 - subsystem and integration design
 - component and domain design
 - implementation
@@ -310,13 +311,14 @@ The double V model does not imply only three generic roles repeated forever.
 
 At minimum it gives:
 
-- worker actor
-- reviewer critic
-- tester critic
+- design actor
+- implementation actor
+- verification critic
+- validation critic
 
 But in practice, to cover the whole model well, we likely need:
 
-- layer-specific worker skills
-- layer-specific reviewer skills
-- layer-specific tester skills
+- layer-specific design and implementation skills
+- layer-specific verification skills
+- layer-specific validation skills
 - and cross-cutting investigative, exploratory, security, observability, documentation, and process-improvement skills

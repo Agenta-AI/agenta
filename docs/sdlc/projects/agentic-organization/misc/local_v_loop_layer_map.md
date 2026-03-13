@@ -17,17 +17,17 @@ It is not yet a canonical process document.
 For each layer:
 
 - `left inbound` = what enters the construction side from the next more abstract layer above
-- `left outbound` = what the worker sends downward to the next more concrete layer below
-- `right inbound` = what arrives from the next more concrete critique layer below
-- `right outbound` = what the critique side sends upward to the next more abstract critique layer above
-- `left -> right` = what the worker submits to the reviewer critic and tester critic at the same layer
-- `right -> left` = what the reviewer critic and tester critic send back to the worker at the same layer
+- `left outbound` = what the active actor sends downward to the next more concrete layer below
+- `right inbound` = what arrives from the next more concrete critic layer below
+- `right outbound` = what the critic side sends upward to the next more abstract critic layer above
+- `left -> right` = what the active actor submits to the verification critic and validation critic at the same layer
+- `right -> left` = what the verification critic and validation critic send back to the active actor at the same layer
 
 Role conventions:
 
 - role types = actor and critic
-- left side role = worker, which is the actor
-- right side roles = reviewer and tester, which are the two critics
+- left side actor roles = design actor and implementation actor
+- right side critic roles = verification critic and validation critic
 
 These arrows do not have to be read as literal file transport.
 
@@ -72,7 +72,7 @@ They feed each layer and can also be improved by each layer.
 
 ### 1. Knowledge plane
 
-This is the context and truth surface that each worker and critic consumes.
+This is the context and truth surface that each actor and critic consumes.
 
 The project slice can be understood as living largely in the project stratum of this plane.
 
@@ -163,15 +163,16 @@ This is the operating layer of who acts at each layer of the V.
 
 At each layer we currently have:
 
-- one worker on the left
-- one reviewer critic on the right
-- one tester critic on the right
+- one design actor on the left
+- one implementation actor on the left
+- one verification critic on the right
+- one validation critic on the right
 
 Skills are no longer modeled as a separate plane here.
 
 They fit better under the capability plane because they are reusable ways of acting, not the actors themselves.
 
-So the role plane answers "which actor and critics are responsible at this layer."
+So the role plane answers "which actors and critics are responsible at this layer."
 
 The capability plane answers "what that role can do."
 
@@ -218,7 +219,7 @@ So the clean reading is:
 
 ## 1. Product layer
 
-### Worker
+### Design actor
 
 Product shaper, product designer, or requirements author.
 
@@ -529,11 +530,11 @@ It is what prevents:
 - acceptance failures
 - requests to tighten or change requirements
 
-### Reviewer critic
+### Verification critic
 
 Product reviewer checking clarity, consistency, and completeness.
 
-### Tester critic
+### Validation critic
 
 Acceptance tester validating behavior against product requirements.
 
@@ -545,9 +546,9 @@ Its left inbound usually comes from outside the engineering loop proper, and its
 
 ## 2. System layer
 
-### Worker
+### Design actor
 
-System designer or architect.
+System designer.
 
 ### Left inbound
 
@@ -560,7 +561,7 @@ System designer or architect.
 
 - system specifications
 - public interface contracts
-- architecture decisions
+- design decisions
 - boundary definitions
 - runtime and observability requirements
 - risk notes
@@ -573,7 +574,7 @@ System designer or architect.
 
 ### Right outbound
 
-- architecture review verdict
+- design review verdict
 - system validation status
 - unresolved systemic risks
 - escalations that affect product-level commitments
@@ -583,27 +584,27 @@ System designer or architect.
 - system specification package
 - interface contracts
 - ADR delta
-- architecture diagrams or boundary notes
+- design diagrams or boundary notes
 - threat or risk notes
 
 ### Right -> Left
 
-- architecture findings
+- design findings
 - system test failures
 - public-contract mismatches
 - missing runtime or observability requirements
 
-### Reviewer critic
+### Verification critic
 
-Architecture reviewer.
+System design reviewer.
 
-### Tester critic
+### Validation critic
 
 System tester validating the running assembled system through its public boundaries.
 
 ## 3. Slice or module layer (name pending)
 
-### Worker
+### Design actor
 
 Slice designer, domain designer, or boundary owner.
 
@@ -649,11 +650,11 @@ Slice designer, domain designer, or boundary owner.
 - dependency-boundary findings
 - missing or invalid edge cases
 
-### Reviewer critic
+### Verification critic
 
 Slice or module reviewer checking boundary design, responsibility split, and dependency direction.
 
-### Tester critic
+### Validation critic
 
 Integration or contract tester validating the slice boundary with real collaborators or real boundary behavior.
 
@@ -665,7 +666,7 @@ The name is still open because we may want a term that better emphasizes vertica
 
 ## 4. Inner component layer (name pending)
 
-### Worker
+### Design actor
 
 Component designer or detailed design owner.
 
@@ -711,11 +712,11 @@ Component designer or detailed design owner.
 - refactor requests
 - signs that the component split is wrong
 
-### Reviewer critic
+### Verification critic
 
 Component reviewer checking interface quality, cohesion, and responsibility separation.
 
-### Tester critic
+### Validation critic
 
 Component tester validating the component against its specification, often with doubles or controlled collaborators.
 
@@ -727,7 +728,7 @@ The name is also still open because it may collide with broader usage of "compon
 
 ## 5. Implementation layer
 
-### Worker
+### Implementation actor
 
 Implementer.
 
@@ -767,11 +768,11 @@ Implementer.
 - required refactors
 - requests for clarification when the spec does not survive implementation
 
-### Reviewer critic
+### Verification critic
 
 Code reviewer.
 
-### Tester critic
+### Validation critic
 
 Unit tester or unit-test automation.
 
@@ -798,8 +799,8 @@ A useful way to read the model is:
 
 So for a normal slice:
 
-1. the worker receives an inbound artifact from above
-2. the worker produces a more concrete artifact below
+1. the active actor receives an inbound artifact from above
+2. the active actor produces a more concrete artifact below
 3. that artifact is also submitted horizontally for same-layer review and testing
 4. findings come back horizontally for revision
 5. stabilized evidence contributes upward on the critique side
@@ -858,9 +859,9 @@ Likely resources:
 
 Typical roles:
 
-- worker = product shaper
-- reviewer critic = product reviewer
-- tester critic = acceptance tester
+- design actor = product shaper
+- verification critic = product reviewer
+- validation critic = acceptance tester
 
 ## System layer overlays
 
@@ -878,8 +879,8 @@ Knowledge into the layer:
 Knowledge back out of the layer:
 
 - candidate system invariants
-- architecture learnings
-- new architecture risks
+- design learnings
+- new design risks
 - observability learnings
 - system-level project-state updates
 
@@ -888,7 +889,7 @@ Knowledge back out of the layer:
 Likely capabilities:
 
 - repo-wide code reading
-- architecture review skills
+- design review skills
 - interface inspection
 - API or schema inspection
 - threat-modeling procedures
@@ -900,7 +901,7 @@ Likely capabilities:
 Likely resources:
 
 - codebase
-- architecture diagrams
+- design diagrams
 - schema stores
 - test environments
 - staging runtime
@@ -910,9 +911,9 @@ Likely resources:
 
 Typical roles:
 
-- worker = system designer
-- reviewer critic = architecture reviewer
-- tester critic = system tester
+- design actor = system designer
+- verification critic = system reviewer
+- validation critic = system tester
 
 ## Slice or module layer overlays
 
@@ -959,9 +960,9 @@ Likely resources:
 
 Typical roles:
 
-- worker = slice designer
-- reviewer critic = slice reviewer
-- tester critic = integration or contract tester
+- design actor = slice designer
+- verification critic = slice reviewer
+- validation critic = integration or contract tester
 
 ## Inner component layer overlays
 
@@ -1008,9 +1009,9 @@ Likely resources:
 
 Typical roles:
 
-- worker = component designer
-- reviewer critic = component reviewer
-- tester critic = component tester
+- design actor = component designer
+- verification critic = component reviewer
+- validation critic = component tester
 
 ## Implementation layer overlays
 
@@ -1059,9 +1060,9 @@ Likely resources:
 
 Typical roles:
 
-- worker = implementer
-- reviewer critic = code reviewer
-- tester critic = unit tester
+- implementation actor = implementer
+- verification critic = code reviewer
+- validation critic = unit tester
 
 ## Naming decisions still open
 
