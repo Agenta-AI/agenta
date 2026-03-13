@@ -74,5 +74,5 @@ Global setup (`global-setup.ts`) supports:
 ### Teardown Safety
 
 `global-teardown.ts` has two cleanup actions:
-1. **Account deletion** - `POST /api/admin/accounts/delete-all` - only runs when `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true` AND `AGENTA_AUTH_KEY` is set AND `AGENTA_LICENSE=oss`.
+1. **Account deletion** - `POST /api/admin/accounts/delete-all` - only runs when `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true` AND `AGENTA_AUTH_KEY` is set AND `AGENTA_LICENSE=oss`.
 2. **OpenAI secret cleanup** - Attempts to delete OpenAI secrets from vault. May fail with "Unauthorized" if session cookie expired (benign).

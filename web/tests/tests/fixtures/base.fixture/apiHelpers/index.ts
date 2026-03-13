@@ -1,6 +1,7 @@
 import {expect, Page} from "@playwright/test"
 import {existsSync, readFileSync} from "fs"
 
+import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
@@ -32,7 +33,7 @@ export const getKnownLatestRevisionId = (appId: string): string | null => {
 }
 
 const readTestProjectMetadata = (): TestProjectMetadata | null => {
-    const metadataPath = `${process.cwd()}/test-project.json`
+    const metadataPath = getProjectMetadataPath()
 
     if (!existsSync(metadataPath)) {
         return null
@@ -321,7 +322,9 @@ export const getEvaluationRuns = async (page: Page) => {
         method: "POST",
     })
 
-    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {waitUntil: "domcontentloaded"})
+    await page.goto(`${getProjectScopedBasePath(page)}/evaluations`, {
+        waitUntil: "domcontentloaded",
+    })
     const evaluationRuns = await evaluationRunsResponse
 
     // Fix: Check for .runs array in the response

@@ -1,4 +1,4 @@
-name: Generate Demo Traces
+name: "32 - generate demo traces"
 
 permissions:
   contents: read

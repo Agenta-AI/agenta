@@ -7,7 +7,7 @@
 3. ~~Fix API response interception race conditions~~
 4. ~~Add graceful skip for testset test when no testsets exist~~
 5. ~~Add BDD feature specs in Gherkin format~~
-6. ~~Add explicit safety guard for destructive teardown paths (`AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN`)~~
+6. ~~Add explicit safety guard for destructive teardown paths (`AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN`)~~
 7. ~~Harden auth setup with explicit mode selection (auto/password/otp)~~
 8. ~~Add all required dimension tags (`coverage`, `path`, `lens`, `cost`, `license`) to every test~~
 9. ~~Analyze 15 legacy BDD feature files and produce prioritized coverage plan~~
