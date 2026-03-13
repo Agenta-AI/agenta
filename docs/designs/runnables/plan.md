@@ -73,7 +73,25 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Legacy shared `/openapi.json` still exists. Legacy `serving.py` routes still mounted.
 
-### 1e. Domain-Level Invoke/Inspect (G12)
+### 1e. Catalogs for Predefined Applications and Evaluators (G12a)
+
+**What:** Split the legacy evaluator templates payload into a proper catalog surface, and use the same catalog model for predefined applications/workflows.
+
+- [ ] Add evaluator catalog endpoints modeled after the tools catalog: `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}`, `/evaluators/catalog/{entry_key}/presets/`
+- [ ] Add application catalog endpoints with the same shape: `/applications/catalog/`, `/applications/catalog/{entry_key}`, `/applications/catalog/{entry_key}/presets/`
+- [ ] Back both domain surfaces with shared workflow catalog primitives so predefined applications and predefined evaluators stay symmetric
+- [ ] Split the current `EvaluatorTemplate` DTO into separate catalog-entry, preset, UI-metadata, and runtime-schema contracts
+- [ ] Put `uri`, type/discriminator, `is_runnable`, and spec discovery metadata (`inspect_path`, `openapi_path`, or no runtime surface) on catalog entries
+- [ ] Define explicit special types for evaluator entries such as human, webhook, custom code, and LLM-as-a-judge instead of inferring from template keys
+- [ ] Give `custom code` evaluators the same schema-definition capability as `LLM-as-a-judge` / `ai_critique` evaluators for `schemas.outputs`
+- [ ] Define one shared evaluator-workflow `schemas.inputs` contract and persist it explicitly on created evaluator revisions
+- [ ] Treat `schemas.parameters` as optional for evaluator catalog entries: supported when needed, omitted when settings are simple or UI-only
+- [ ] When creating workflows/evaluators/applications from catalog entries or presets, persist full `schemas.inputs`, `schemas.parameters`, and `schemas.outputs` on the revision data
+- [ ] Treat `settings_template` as a UI helper only; revision schemas become the source of truth
+
+**Does not remove:** Existing `/simple/evaluators/templates` can remain as a compatibility endpoint until consumers migrate.
+
+### 1f. Domain-Level Invoke/Inspect (G12)
 
 **What:** Add invoke and inspect endpoints to applications and evaluators routers.
 
@@ -84,7 +102,7 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Workflows-level invoke/inspect still works. Legacy invoke paths still work.
 
-### 1f. Trace Propagation (G6)
+### 1g. Trace Propagation (G6)
 
 **What:** Pass trace context from API to SDK execution.
 
@@ -95,7 +113,7 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Nothing — this is purely additive.
 
-### 1g. Frontend: New Flag Source and Command Support (G11, G17)
+### 1h. Frontend: New Flag Source and Command Support (G11, G17)
 
 **What:** Frontend reads flags from the new system and supports command flags.
 
@@ -119,10 +137,13 @@ After checkpoint 1, all of the following are true:
 3. Capability flags (`can_stream`, `can_annotate`, `can_chat`) exist and are populated
 4. Command flags (`stream`, `annotate`, `chat`) are accepted in invoke requests
 5. Each workflow has its own `{path}/invoke`, `{path}/inspect`, `{path}/openapi.json`
-6. Applications and evaluators have invoke/inspect endpoints
-7. Trace context propagates from API to SDK
-8. Frontend can read from the new flag source and send command flags
-9. **The legacy system still works** — nothing has been removed
+6. Applications and evaluators expose catalog endpoints for predefined runnables and presets
+7. Code evaluators and AI-critique evaluators have equivalent output-schema definition support
+8. Creating from evaluator/application catalog entries persists explicit shared evaluator input schema, optional parameter schema, full output schema, and spec discovery metadata
+9. Applications and evaluators have invoke/inspect endpoints
+10. Trace context propagates from API to SDK
+11. Frontend can read from the new flag source and send command flags
+12. **The legacy system still works** — nothing has been removed
 
 ---
 

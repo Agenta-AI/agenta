@@ -311,6 +311,50 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 ---
 
+## G12a. Evaluator Templates Endpoint Mixes Catalog, Presets, and Partial Runtime Contract
+
+**What:** `GET /preview/simple/evaluators/templates` is a monolithic payload that currently mixes several concerns:
+- catalog entry metadata (`name`, `key`, `tags`, `description`)
+- preset bundles (`settings_presets`)
+- UI form metadata (`settings_template`)
+- partial runtime contract (`outputs_schema`)
+
+It is evaluator-specific today, and there is no equivalent schema-first catalog surface for predefined applications/workflows.
+
+**Why it matters:** We need a proper runnable catalog, not a template dump. Consumers should be able to:
+- list predefined evaluators and predefined applications/workflows
+- retrieve presets separately from the catalog entry
+- know whether an entry is runnable, inspect-only, or schema-only
+- know where its spec lives (`/inspect`, `{path}/openapi.json`, or no runtime surface for non-runnable types)
+- create a workflow/evaluator/application with a complete persisted contract (`inputs`, `parameters`, `outputs`)
+
+Without this split, evaluator creation stays ad hoc and the resulting workflow revision data is incomplete.
+
+**Current state:**
+- `GET /preview/simple/evaluators/templates` returns static Python data from `api/oss/src/resources/evaluators/evaluators.py`
+- `EvaluatorTemplate` mixes catalog, preset, UI, and runtime concerns in one DTO
+- `build_evaluator_data()` materializes `uri` and mostly only `schemas.outputs`; `schemas.inputs` and `schemas.parameters` are not first-class for builtin evaluators
+- `auto_ai_critique` can effectively define its output contract through `json_schema`, but `auto_custom_code_run` does not have the same first-class schema authoring path
+- The evaluator input shape is effectively shared and hard-coded at the workflow level, but that shared input schema is not modeled explicitly as part of the catalog/runtime contract
+- Parameter schema is not modeled as a first-class contract for builtin evaluators; it is implicit in `settings_template`
+- `settings_template` is effectively a frontend form-definition shape, not the canonical JSON Schema contract for workflow revision data
+- Special evaluator kinds (human, webhook, custom code, LLM-as-a-judge, etc.) are identified mainly by template key conventions rather than explicit type/discriminator fields
+- There is no explicit spec-discovery field telling consumers whether a predefined entry should resolve to `{path}/openapi.json`, `/inspect`, or no runtime surface
+
+**Action:**
+- [ ] Replace the monolithic templates payload with a proper catalog surface for predefined runnables
+- [ ] Add evaluator catalog endpoints, e.g. `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}`, `/evaluators/catalog/{entry_key}/presets/`
+- [ ] Add the same abstraction for applications/workflows so predefined applications and predefined evaluators are symmetric
+- [ ] Define catalog DTOs that separate catalog identity, presets, UI form metadata, and runtime contract
+- [ ] Make `uri`, runnable kind/type, and spec discovery explicit on catalog entries
+- [ ] Give code evaluators the same first-class output-schema definition path as AI-critique evaluators; output schema is required for a proper runnable evaluator
+- [ ] Model evaluator `schemas.inputs` explicitly as the shared predefined input contract for evaluator workflows, rather than leaving it implicit
+- [ ] Support `schemas.parameters` for evaluator entries as optional: useful when we want schema-driven parameter validation, but not required for every evaluator
+- [ ] Persist full workflow revision schemas (`inputs`, `parameters`, `outputs`) when materializing a workflow/evaluator/application from a catalog entry or preset
+- [ ] Keep `settings_template` as UI convenience metadata only, not the source of truth for runnable schema
+
+---
+
 ## G13. Route Isolation — Each Workflow Must Be Its Own Namespace
 
 **What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app and a single `/openapi.json`. Each workflow should instead be an isolated unit with its own `invoke`, `inspect`, and `openapi.json` — mountable independently.
@@ -653,6 +697,7 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G6 (Trace propagation) | `traceparent` not passed to SDK execution |
 | G8 (Custom schemas) | Custom workflows have weaker introspection than builtins |
 | G12 (App/Eval invoke/inspect) | Applications and evaluators have no invoke/inspect endpoints |
+| G12a (Catalog split) | Evaluators/apps lack a clean catalog surface with separated presets, schemas, and spec discovery |
 | G13 (Route isolation) | Multiple workflows share one namespace instead of being isolated |
 | G17 (Frontend command support) | Playground has no stream/chat/annotate command toggles or response handling |
 
@@ -674,6 +719,7 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G10 (Dual invoke) | High | Large | Legacy | Core — clean up dual invoke paths, tied to G1 |
 | G11 (Frontend flag source) | High | Medium | Legacy | Core — frontend must read flags from new system, not legacy OpenAPI |
 | G12 (App/Eval invoke/inspect) | High | Small | Completeness | Core — thin wrappers over existing workflow endpoints |
+| G12a (Catalog split) | High | Medium | Completeness | Core — split evaluator templates into proper catalogs and persist full schemas on create |
 | G13 (Route isolation) | High | Medium | Completeness | Core — each workflow must be its own namespace with invoke/inspect/openapi.json |
 | G14 (`is_custom` overloaded) | High | Medium | Flags | Core — decompose into request format, caching, and topology concerns |
 | G15 (`is_human` = not runnable) | High | Small | Flags | Core — rename/derive from handler/URL absence |
