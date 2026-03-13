@@ -2,7 +2,7 @@
 
 ## Current state
 
-Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
+Checkpoints 1, 2, and 3 implemented in code. Checkpoint 3 still needs final review/PR creation.
 
 ## Checkpoint 1: Remove gate, auto-ping, restore test button
 
@@ -26,6 +26,16 @@ Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
 | 2.5 Add `testDraftAutomationAtom` | Completed | Drawer uses a dedicated draft test atom. |
 | 2.6 Enable test button for drafts in drawer | Completed | Test now uses current form values in both create and edit mode. |
 
+## Checkpoint 3: Delivery logs in the drawer
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 3.1 Add frontend delivery query client | Completed | `queryWebhookDeliveries` added to the automations API client. |
+| 3.2 Add delivery query atom family | Completed | Delivery logs are fetched per subscription via `automationDeliveriesAtomFamily`. |
+| 3.3 Build logs tab UI | Completed | Drawer now renders a `Logs` tab for persisted automations. |
+| 3.4 Add overview/json log detail views | Completed | Selected deliveries show summary fields plus a raw JSON view. |
+| 3.5 Widen drawer layout | Completed | Drawer width increased to accommodate config and log inspection. |
+
 ## Decisions log
 
 | Date | Decision | Rationale |
@@ -36,3 +46,4 @@ Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
 | 2026-03-13 | Table status stays `Active` in checkpoint 1 | Avoids implying that saved automations are blocked before the log UI exists. |
 | 2026-03-13 | Test-draft bypasses event bus entirely | Direct HTTP call via extracted `execute_webhook_request`. No persisted subscription needed. |
 | 2026-03-13 | Test button always tests form values | In edit mode, draft testing uses the current form state rather than the persisted subscription. |
+| 2026-03-13 | Logs live only on persisted automations | Draft tests are ephemeral, so the drawer exposes logs only after a subscription has been created. |
