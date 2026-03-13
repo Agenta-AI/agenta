@@ -10,7 +10,7 @@ System OS defines how the application and platform are designed, built, reviewed
 - subsystem boundaries
 - ports and adapters
 - domain and component design
-- implementation
+- functional development
 - testing
 - code review
 - system delivery process
@@ -20,7 +20,7 @@ System OS defines how the application and platform are designed, built, reviewed
 - system layer
 - subsystem layer
 - component layer
-- implementation layer
+- functional layer
 
 ## Overlaps
 

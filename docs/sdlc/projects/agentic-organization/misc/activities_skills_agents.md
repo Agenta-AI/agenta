@@ -123,6 +123,38 @@ It is also:
 
 That feedback direction is part of the model, not an afterthought.
 
+## Agent, sub-agent, and skill note
+
+One agent may carry multiple skills.
+
+So the inventories in this note should not be read as requiring one top-level agent per bullet.
+
+A useful working distinction is:
+
+- `skill` = reusable capability
+- `agent` = operating shape that carries one or more skills
+- `sub-agent` = narrower operating shape used for a focused task
+
+This matters especially for review and testing work.
+
+A good default is:
+
+- broader generalist reviewer and tester agents
+- plus specialist review or testing skills
+- plus specialist sub-agents only when a deeper pass is actually needed
+
+So things like:
+
+- security review
+- performance review
+- observability review
+- frontend review
+- backend review
+- API testing
+- web testing
+
+should often be read first as skills, contexts, or specialist sub-agents, not automatically as separate permanent top-level agents.
+
 ## Attempt at full coverage across the double V model
 
 This is a first-pass inventory of the skills and agents needed to cover the whole model without splitting hairs too early.

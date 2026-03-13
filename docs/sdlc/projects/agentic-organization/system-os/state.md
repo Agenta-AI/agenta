@@ -24,7 +24,7 @@
 
 - updated system state for the current work
 - candidate system truth
-- implementation residue
+- functional-layer residue
 - test and review residue
 - updates to project, system, process, product, and agent knowledge where needed
 
