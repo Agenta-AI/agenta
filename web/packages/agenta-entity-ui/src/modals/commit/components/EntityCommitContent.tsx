@@ -5,7 +5,7 @@
  * Supports version info, changes summary, and diff view via adapter.
  */
 
-import {lazy, Suspense} from "react"
+import {lazy, Suspense, useState, useEffect} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
@@ -73,6 +73,19 @@ export function EntityCommitContent({
     const canCommit = useAtomValue(commitModalCanCommitAtom)
     const context = useAtomValue(commitModalContextAtom)
     const setMessage = useSetAtom(setCommitMessageAtom)
+
+    // Defer DiffView mounting until after the first paint so the modal
+    // shell and form appear immediately without being blocked by Lexical
+    // editor creation + DOM reconciliation.
+    const [diffReady, setDiffReady] = useState(false)
+    useEffect(() => {
+        if (!context?.diffData?.original || !context?.diffData?.modified) {
+            setDiffReady(false)
+            return
+        }
+        const id = requestAnimationFrame(() => setDiffReady(true))
+        return () => cancelAnimationFrame(id)
+    }, [context?.diffData?.original, context?.diffData?.modified])
 
     // Build changes description from context
     const changesDescription: string[] = []
@@ -253,7 +266,7 @@ export function EntityCommitContent({
                 )}
             </div>
 
-            {/* Diff view section (if diff data available) */}
+            {/* Diff view section — deferred until after first paint to avoid blocking the modal */}
             {hasDiffData && (
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-zinc-2 bg-zinc-1">
                     <div className="flex items-center justify-between border-b border-zinc-2 bg-zinc-1 px-3 py-2 shrink-0">
@@ -270,24 +283,32 @@ export function EntityCommitContent({
                         </Text>
                     </div>
                     <div className="flex-1 overflow-auto">
-                        <Suspense
-                            fallback={
-                                <div className="p-4">
-                                    <Skeleton active paragraph={{rows: 8}} />
-                                </div>
-                            }
-                        >
-                            <DiffView
-                                key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
-                                original={context.diffData?.original ?? ""}
-                                modified={context.diffData?.modified ?? ""}
-                                language={context.diffData?.language === "yaml" ? "yaml" : "json"}
-                                className="h-full"
-                                showErrors
-                                enableFolding
-                                computeOnMountOnly
-                            />
-                        </Suspense>
+                        {diffReady ? (
+                            <Suspense
+                                fallback={
+                                    <div className="p-4">
+                                        <Skeleton active paragraph={{rows: 8}} />
+                                    </div>
+                                }
+                            >
+                                <DiffView
+                                    key={`${context.diffData?.original.length}-${context.diffData?.modified.length}`}
+                                    original={context.diffData?.original ?? ""}
+                                    modified={context.diffData?.modified ?? ""}
+                                    language={
+                                        context.diffData?.language === "yaml" ? "yaml" : "json"
+                                    }
+                                    className="h-full"
+                                    showErrors
+                                    enableFolding
+                                    computeOnMountOnly
+                                />
+                            </Suspense>
+                        ) : (
+                            <div className="p-4">
+                                <Skeleton active paragraph={{rows: 8}} />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
