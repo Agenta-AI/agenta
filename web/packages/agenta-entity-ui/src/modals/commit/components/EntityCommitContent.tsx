@@ -5,7 +5,7 @@
  * Supports version info, changes summary, and diff view via adapter.
  */
 
-import {lazy, Suspense, useState, useEffect} from "react"
+import {useState, useEffect} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
