@@ -22,6 +22,7 @@ from oss.src.core.webhooks.exceptions import (
 )
 from oss.src.apis.fastapi.webhooks.models import (
     WebhookSubscriptionCreateRequest,
+    WebhookSubscriptionDraftTestRequest,
     WebhookSubscriptionEditRequest,
     WebhookSubscriptionQueryRequest,
     WebhookSubscriptionResponse,
@@ -59,6 +60,15 @@ class WebhooksRouter:
             methods=["POST"],
             operation_id="create_webhook_subscription",
             response_model=WebhookSubscriptionResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/subscriptions/test-draft",
+            self.test_draft_webhook,
+            methods=["POST"],
+            operation_id="test_webhook_draft",
+            response_model=WebhookDeliveryResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
@@ -468,6 +478,37 @@ class WebhooksRouter:
         )
 
     # --- WEBHOOK TESTS ------------------------------------------------------ #
+
+    @intercept_exceptions()
+    async def test_draft_webhook(
+        self,
+        request: Request,
+        *,
+        body: WebhookSubscriptionDraftTestRequest,
+    ) -> WebhookDeliveryResponse:
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=Permission.EDIT_WEBHOOKS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        try:
+            delivery = await self.webhooks_service.test_draft_webhook(
+                project_id=UUID(request.state.project_id),
+                subscription=body.subscription,
+            )
+        except WebhookAuthorizationSecretRequiredError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except WebhookSubscriptionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+
+        return WebhookDeliveryResponse(
+            count=1 if delivery else 0,
+            delivery=delivery,
+        )
 
     @intercept_exceptions()
     async def test_webhook(

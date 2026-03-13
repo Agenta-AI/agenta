@@ -2,7 +2,7 @@
 
 ## Current state
 
-Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
+Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
 
 ## Checkpoint 1: Remove gate, auto-ping, restore test button
 
@@ -19,12 +19,12 @@ Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 2.1 Extract HTTP delivery logic | Not started | |
-| 2.2 Add `test_draft` service method | Not started | |
-| 2.3 Add `POST /subscriptions/test-draft` route | Not started | |
-| 2.4 Add `testWebhookDraft` API function | Not started | |
-| 2.5 Add `testDraftAutomationAtom` | Not started | |
-| 2.6 Enable test button for drafts in drawer | Not started | |
+| 2.1 Extract HTTP delivery logic | Completed | Shared request preparation/execution now lives in `core/webhooks/delivery.py`. |
+| 2.2 Add `test_draft` service method | Completed | Supports create drafts and edit drafts with existing secrets. |
+| 2.3 Add `POST /subscriptions/test-draft` route | Completed | Route registered before param routes to avoid UUID path conflicts. |
+| 2.4 Add `testWebhookDraft` API function | Completed | Frontend API client calls the new draft test endpoint. |
+| 2.5 Add `testDraftAutomationAtom` | Completed | Drawer uses a dedicated draft test atom. |
+| 2.6 Enable test button for drafts in drawer | Completed | Test now uses current form values in both create and edit mode. |
 
 ## Decisions log
 
@@ -35,4 +35,4 @@ Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
 | 2026-03-13 | Save flow triggers test from the drawer | Reuses the existing polling test endpoint and gives immediate user feedback. |
 | 2026-03-13 | Table status stays `Active` in checkpoint 1 | Avoids implying that saved automations are blocked before the log UI exists. |
 | 2026-03-13 | Test-draft bypasses event bus entirely | Direct HTTP call via extracted `execute_webhook_request`. No persisted subscription needed. |
-| 2026-03-13 | Test button always tests form values (Checkpoint 2 target) | Even in edit mode, test-draft will use current form state, not persisted config. Predictable behavior. |
+| 2026-03-13 | Test button always tests form values | In edit mode, draft testing uses the current form state rather than the persisted subscription. |

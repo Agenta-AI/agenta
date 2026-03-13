@@ -99,6 +99,10 @@ export interface WebhookSubscriptionEditRequest {
     }
 }
 
+export type WebhookSubscriptionDraftTestRequest =
+    | WebhookSubscriptionCreateRequest
+    | WebhookSubscriptionEditRequest
+
 // --- RESPONSE SHAPES ------------------------------------------------------- //
 
 export interface WebhookSubscriptionResponse {
@@ -122,6 +126,7 @@ export interface WebhookDeliveryData {
     event_type?: WebhookEventType
     url: string
     headers?: Record<string, string>
+    payload?: Record<string, unknown>
     response?: WebhookDeliveryResponseInfo
     error?: string
 }

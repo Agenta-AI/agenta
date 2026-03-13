@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -22,6 +22,10 @@ class WebhookSubscriptionCreateRequest(BaseModel):
 
 class WebhookSubscriptionEditRequest(BaseModel):
     subscription: WebhookSubscriptionEdit
+
+
+class WebhookSubscriptionDraftTestRequest(BaseModel):
+    subscription: Union[WebhookSubscriptionEdit, WebhookSubscriptionCreate]
 
 
 class WebhookSubscriptionQueryRequest(BaseModel):
