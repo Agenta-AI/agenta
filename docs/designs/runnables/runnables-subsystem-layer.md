@@ -47,8 +47,8 @@ Defines runnable identity, interface, configuration, handler registration, inspe
 ### Key subsystem changes
 
 - extend the workflow service-flag model with `can_verbose` and derived identity/capability separation
-- add `WorkflowRequestFlags` with `stream`, `evaluate`, `chat`, `verbose`
-- add an SDK invoke-time execution-location argument so SDK callers can choose local versus remote execution
+- add `WorkflowRequestFlags` with `stream`, `evaluate`, `chat`, `verbose`, `remote`
+- make `flags.remote` the SDK-side remote-forwarding control, and clear it on forwarded requests to avoid recursion
 - derive richer capabilities from handler metadata and explicit interface declarations
 - ensure builtin and custom workflows converge on explicit schema contracts
 
@@ -151,12 +151,9 @@ Receives authenticated API requests, resolves workflow references, classifies ru
 - pass workflow request flags through cleanly
 - expose derived classification and flag truth in fetch/query/revision responses
 - keep external evaluate/evaluator vocabulary separate from internal trace-level annotation terminology
-- decide one runnable-service handoff strategy for invoke/inspect/openapi on runnable targets:
-  - redirect
-  - gateway/proxy
-  - or another explicit dispatch pattern
+- use redirect as the runnable-service handoff strategy for invoke/inspect/openapi on runnable targets
 - make non-runnable custom targets fail invoke while still supporting inspect from persisted discovery truth
-- keep open the possibility that inspect/OpenAPI for runnable targets come from services, while non-runnable inspect/OpenAPI are synthesized from API-side stored truth
+- require `openapi.json` to share the same provenance as `inspect` for a given target
 
 ### Boundary rule
 
@@ -252,7 +249,7 @@ Reads runnable definitions, configures invocation mode, and renders responses.
 
 - legacy schema parsing
 - legacy `x-agenta.flags`
-- no command transport
+- no request-flag transport
 
 ### Target boundary
 
@@ -290,7 +287,7 @@ Carries telemetry across API and SDK execution boundaries.
 | From | To | Interface | Object(s) in transit |
 |---|---|---|---|
 | Frontend | API orchestration | invoke / inspect / query / retrieve / catalog | JSON request/response payloads |
-| API orchestration | Services | runnable handoff for invoke / inspect / openapi | `WorkflowServiceRequest`, `WorkflowRequestFlags`, target service URL or runnable path |
+| API orchestration | Services | runnable handoff for invoke / inspect / openapi via redirect | `WorkflowServiceRequest`, `WorkflowRequestFlags`, target service URL or runnable path |
 | Services | Runtime HTTP routing | mounted runtime execution and discovery routes | invoke/inspect/OpenAPI handlers, mounted sub-applications |
 | API orchestration | Persistence | artifact / variant / revision CRUD and retrieval | workflow DTOs and revision data |
 | Catalog | API orchestration | workflow catalog and filtered domain catalog views | catalog DTOs and filters |
@@ -302,7 +299,7 @@ Carries telemetry across API and SDK execution boundaries.
 - invoke may return batch or stream
 - verbose vs concise response shaping occurs in the invoke path
 - no new async worker topology is required by the current plan
-- redirect versus gateway/proxy remains an open transport tradeoff at the API-to-services boundary
+- redirect is the chosen transport at the API-to-services boundary
 
 ## Subsystem-layer design decisions implied by the plan
 

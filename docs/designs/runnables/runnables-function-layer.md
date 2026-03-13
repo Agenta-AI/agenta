@@ -46,8 +46,9 @@ This document is derived from [plan.md](./plan.md).
   - `flags.evaluate`
   - `flags.chat`
   - `flags.verbose`
+-  - `flags.remote`
 - make `WorkflowServiceRequest.flags: WorkflowRequestFlags` explicit in the contract
-- add an explicit invoke argument for local versus remote execution selection at the SDK boundary
+- make the SDK consume `flags.remote` as the remote-forwarding selector
 - ensure typed aliases for applications and evaluators inherit the new contract cleanly
 
 ## 2. SDK inspect, invoke, and OpenAPI discovery semantics
@@ -80,11 +81,11 @@ This document is derived from [plan.md](./plan.md).
 - derive and expose new capability flags during inspect
 - carry derived identity/classification fields where appropriate
 - read request flags during invoke
-- honor the SDK execution-location argument separately from request flags
+- honor `flags.remote` at the SDK boundary and clear it on forwarded requests
 - expose OpenAPI generation through SDK getters, not only HTTP routes
 - implement verbose response shaping
 - align `aggregate` with `stream`
-- align the current internal `annotate` mechanism with the external `evaluate` command semantics
+- align the current internal `annotate` mechanism with the external `evaluate` request-flag semantics
 - define default behavior when a command is unsupported
 - ensure handler registration validates or captures explicit schemas for custom workflows
 
@@ -138,7 +139,7 @@ This document is derived from [plan.md](./plan.md).
 - keep these methods as the central generic execution path used by domain wrappers
 - classify runnable versus non-runnable targets before dispatch
 - hand off runnable invoke requests toward the runtime `/services` surface instead of relying on long-running in-process execution in API as the target design
-- decide whether the API-to-services handoff is redirect or gateway/proxy and keep streaming/auth behavior correct
+- use redirect for the API-to-services handoff and keep streaming/auth behavior correct
 - make non-runnable custom invoke fail explicitly
 - allow inspect to resolve from runtime services or persisted discovery truth depending on target kind
 - define how workflow OpenAPI discovery is served for runnable versus non-runnable targets
@@ -212,8 +213,6 @@ This document is derived from [plan.md](./plan.md).
 
 - `GET /workflows/catalog/`
   - returns `count` plus `items`
-- `GET /workflows/catalog/{entry_lookup}`
-  - returns the same catalog entry shape for one item, if we keep a single-entry route
 - `GET /workflows/catalog/{entry_key}/presets/`
   - returns `count` plus preset `items`
   - each preset item is a reusable override bundle with `key`, `name`, `description`, `parameters`, optional `script`, optional `headers`, optional workflow fields such as flags, and optional other presettable workflow fields
@@ -241,7 +240,8 @@ This document is derived from [plan.md](./plan.md).
 
 - backfill `agenta:builtin:human:v0` and `user:custom:{variant_slug}:v{N}` cases
 - add computed classification fields
-- align URI versioning with revision versioning
+- align `user:custom` URI versioning with revision versioning where the backend defines the variant slug / revision version
+- keep builtin URI key/version semantics tied to builtin handler identity and builtin version
 - refresh builtin service URLs from URI on reads and writes
 - refresh builtin input/output schemas from URI/inspect with caching
 - avoid clobbering user-owned parameter schema during builtin refresh

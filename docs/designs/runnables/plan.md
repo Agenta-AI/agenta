@@ -29,7 +29,7 @@ The goal is to get the new system to feature parity with the legacy system — a
 - [ ] Add `is_runnable` as a computed property on workflow DTOs — derived from URI provider + handler/URL presence
 - [ ] Add `is_custom` as a computed property on workflow DTOs — derived from `is_custom_uri(uri)`
 - [ ] Backfill URIs for human evaluators: default → `agenta:builtin:human:v0`, user-created → `user:custom:{variant_slug}:v{N}`
-- [ ] Align URI key with variant slug, URI version with revision version
+- [ ] Align backend-defined `user:custom` URI key with variant slug, and its URI version with revision version
 - [ ] Expose derived classification (`is_custom`, `is_runnable`, `is_builtin`) in API query and revision responses
 - [ ] Keep existing `is_custom` and `is_human` flags — they still work, just now redundant with the derived values
 
@@ -51,30 +51,31 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 ### 1c. Workflow Request Flags in Invoke Request (G5, G9)
 
-**What:** Introduce a dedicated `WorkflowRequestFlags` type and use it on `WorkflowServiceRequest.flags` as the per-invocation request-flag surface.
+**What:** Introduce a dedicated `WorkflowRequestFlags` type and use it on `WorkflowServiceRequest.flags` as the per-invocation request-flag surface, including SDK-side remote-forwarding control.
 
 - [ ] Add `WorkflowRequestFlags` as a new type
 - [ ] Define `WorkflowServiceRequest.flags: WorkflowRequestFlags`
-- [ ] Define per-invocation request flags on `WorkflowRequestFlags`: `stream`, `evaluate`, `chat`, `verbose`
+- [ ] Define per-invocation request flags on `WorkflowRequestFlags`: `stream`, `evaluate`, `chat`, `verbose`, `remote`
 - [ ] Keep `WorkflowFlags` reserved for static workflow identity/capability truth
 - [ ] Wire `flags.stream` to the `aggregate` mechanism — `stream=true` returns a stream, `stream=false` forces batch via aggregation
 - [ ] Wire `flags.evaluate` to the existing evaluate-oriented runtime mechanism (implemented today through `annotate`) — this may set annotation/evaluation mode on the tracing context internally while keeping the external contract named `evaluate`
 - [ ] Wire `flags.chat` to input format selection — chat-style messages vs completion-style inputs
 - [ ] Wire `flags.verbose` to response shaping — `verbose=true` returns the full structured chat payload, `verbose=false` returns the concise output when available
+- [ ] Wire `flags.remote=true` to SDK-side forwarding through the configured API/services path
+- [ ] When the SDK forwards because `flags.remote=true`, clear or force `flags.remote=false` before dispatching so the runtime-side SDK execution path does not recurse into another remote forward
 - [ ] Define fallback behavior: request flag asks for a capability the workflow doesn't have → graceful fallback to default mode (batch, no evaluation, completion, workflow-default verbosity)
 - [ ] Keep decorator-level `aggregate` and current internal `annotate` param as defaults during migration — request flags override per invocation
 
 **Does not remove:** Existing invoke requests without request flags still work (default behavior).
 
-### 1d. SDK Local vs Remote Execution Choice
+### 1d. SDK Remote Forwarding Behavior
 
-**What:** SDK programmatic invoke methods should accept an explicit execution-location argument so an SDK caller can choose between local execution and remote execution through the configured API/services path.
+**What:** SDK programmatic invoke methods should honor `WorkflowRequestFlags.remote` as the explicit remote-forwarding control.
 
-- [ ] Add an explicit SDK invoke argument for execution location
-- [ ] Keep that argument separate from `WorkflowRequestFlags`
-- [ ] Support local execution for builtins from the SDK process
-- [ ] Support remote execution through the configured API/services path
-- [ ] Decide the default mode; current leaning is local-by-default
+- [ ] Default to local execution when `flags.remote` is absent or false
+- [ ] Support remote execution through the configured API/services path when `flags.remote=true`
+- [ ] Ensure forwarded requests are normalized so `flags.remote` is turned off before the runtime-side SDK handles execution
+- [ ] Use the same `flags.remote` behavior across workflow, application, and evaluator SDK helpers
 
 **Does not remove:** Existing local in-process behavior can remain the default during expand.
 
@@ -94,15 +95,14 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **What:** Split the legacy evaluator templates payload into a proper catalog surface, make the workflow catalog the canonical source, and expose application/evaluator catalog views as filtered workflow catalogs.
 
-- [ ] Add canonical workflow catalog endpoints: `/workflows/catalog/`, `/workflows/catalog/{entry_key}`, `/workflows/catalog/{entry_key}/presets/`
-- [ ] Add evaluator catalog endpoints modeled as filtered workflow catalog views: `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}`, `/evaluators/catalog/{entry_key}/presets/`
-- [ ] Add application catalog endpoints with the same filtered shape: `/applications/catalog/`, `/applications/catalog/{entry_key}`, `/applications/catalog/{entry_key}/presets/`
+- [ ] Add canonical workflow catalog endpoints: `/workflows/catalog/`, `/workflows/catalog/{entry_key}/presets/`
+- [ ] Add evaluator catalog endpoints modeled as filtered workflow catalog views: `/evaluators/catalog/`, `/evaluators/catalog/{entry_key}/presets/`
+- [ ] Add application catalog endpoints with the same filtered shape: `/applications/catalog/`, `/applications/catalog/{entry_key}/presets/`
 - [ ] Back both domain surfaces with shared workflow catalog primitives so predefined workflows, applications, and evaluators stay symmetric
 - [ ] Replace the current `EvaluatorTemplate` DTO with explicit catalog entry data plus preset bundles
 - [ ] Define the concrete catalog shape:
   - list response with `count` and `items`
   - entry fields including `uri`, optional compatibility `key`, optional precomputed `url`, optional `headers`, `name`, `description`, `categories`, workflow flags, and `schemas.inputs` / `schemas.parameters` / `schemas.outputs`
-  - optional single-entry fetch returning the same shape for one item
   - presets response that returns override bundles with `parameters`, optional `script`, optional `headers`, and other presettable workflow fields when relevant
 - [ ] Make evaluator identity/capability differences visible through workflow flags and URI-driven classification rather than template-key conventions
 - [ ] Give `custom code` evaluators the same schema-definition capability as `LLM-as-a-judge` / `ai_critique` evaluators for `schemas.outputs`
@@ -118,7 +118,8 @@ The goal is to get the new system to feature parity with the legacy system — a
 **What:** Remove `WorkflowRevisionData.service` and `WorkflowRevisionData.configuration` from the target contract, and migrate remaining code paths to the normalized revision fields (`uri`, `url`, `headers`, `schemas`, `script`, `parameters`, `runtime`).
 
 - [ ] Audit API, SDK, generated client types, migrations, and tests that still read or write `data.service` / `data.configuration`
-- [ ] Replace those usages with normalized workflow revision fields
+- [ ] If normalized flat fields already exist, prefer them as the source of truth and drop the redundant nested legacy fields
+- [ ] If only nested legacy fields exist in stored data, hydrate the normalized flat fields from them during migration
 - [ ] Update evaluator creation/defaulting paths that still construct legacy `SimpleEvaluatorData(service=..., configuration=...)`
 - [ ] Update or add data migrations if stored legacy revision payloads need normalization
 - [ ] Remove the legacy fields from workflow/application/evaluator revision DTOs and generated client types once compatibility coverage is no longer needed
@@ -129,13 +130,14 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **What:** Treat the API as a control plane that classifies targets and hands runnable execution/discovery toward the runtime `/services` surface instead of making the API container the long-running execution engine.
 
-- [ ] Decide the API-to-services handoff strategy for runnable targets: redirect, gateway/proxy, or another explicit dispatch pattern
+- [ ] Use redirect as the API-to-services handoff strategy for runnable targets
+- [ ] Normalize `flags.remote=false` on API-originated runnable invoke requests before redirecting to `/services`
 - [ ] Route runnable builtin invoke requests toward the runtime `/services` surface
 - [ ] Expose all Agenta builtin runtime routes through the `/services` family, not just the current narrow subset
 - [ ] Review and standardize the service URL shape
 - [ ] Make non-runnable custom targets fail invoke explicitly
 - [ ] Keep inspect working for both runnable and non-runnable targets
-- [ ] Define whether `openapi.json` is runtime-backed, API-synthesized, or split by target kind
+- [ ] Make `openapi.json` come from the same provenance as `inspect` for a given target
 - [ ] Refresh builtin service URLs from URI on reads and writes
 - [ ] Refresh builtin input/output schemas from URI/inspect on reads and writes, with caching
 - [ ] Avoid blindly overwriting user-owned parameter schema during builtin refresh
@@ -163,7 +165,7 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Nothing — this is purely about preserving passive support in the SDK runtime.
 
-### 1j. Frontend: New Flag Source and Command Support (G11, G17)
+### 1j. Frontend: New Flag Source and Request-Flag Support (G11, G17)
 
 **What:** Frontend reads flags from the new system and supports request-time invocation flags.
 
@@ -191,7 +193,7 @@ After checkpoint 1, all of the following are true:
 3. Capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`) exist and are populated
 4. Request flags (`stream`, `evaluate`, `chat`, `verbose`) are accepted in invoke requests
 5. `WorkflowFlags` and `WorkflowRequestFlags` exist as distinct contract types
-6. SDK invoke methods expose a local-versus-remote execution choice separate from request flags
+6. SDK invoke methods honor `flags.remote` for remote forwarding and clear it on forwarded requests to avoid recursion
 7. Each workflow has its own `{path}/invoke`, `{path}/inspect`, `{path}/openapi.json`, and matching SDK OpenAPI getter
 8. Workflows expose the canonical catalog for predefined runnables, and applications/evaluators expose filtered catalog views over the same source
 9. Code evaluators and AI-critique evaluators have equivalent output-schema definition support

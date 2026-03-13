@@ -128,8 +128,9 @@ At subsystem boundaries, the API should be treated as a control plane, not the l
 - runnable builtins should be reachable through the runtime `/services` surface rather than executed inside the API process as the target architecture
 - runnable custom workflows only invoke if there is a reachable engine behind them
 - non-runnable custom workflows remain discoverable through inspect-style responses, but invoke must fail
-- inspect and `openapi.json` may come either from runtime services or from API-side persisted discovery truth depending on whether the target is runnable
-- redirect versus gateway/proxy remains an implementation choice, but the API contract must preserve auth, streaming, and runnable identity semantics in either case
+- `openapi.json` must come from the same provenance as `inspect` for a given target
+- API-to-services handoff for runnable targets uses redirect; the redirect contract must preserve auth, streaming, and runnable identity semantics
+- API-originated runnable invoke requests should normalize `flags.remote=false` before redirecting to `/services`
 
 ### API interface I/O
 
@@ -231,9 +232,9 @@ The SDK exposes programmatic workflow execution and inspection:
 ### Target system-level changes
 
 - Programmatic invocation accepts the new runtime request-flag model.
-- Programmatic invocation also needs an explicit execution-location argument so the SDK caller can choose:
-  - local execution from the SDK process
-  - remote execution through the configured API/services path
+- Programmatic invocation also uses `flags.remote` as the explicit remote-forwarding control:
+  - `flags.remote=false` or absent → local execution from the SDK process
+  - `flags.remote=true` → remote execution through the configured API/services path
 - Programmatic inspection exposes derived classification and expanded workflow service flags.
 - Programmatic discovery also exposes OpenAPI getters:
   - `get_workflow_openapi`
@@ -251,7 +252,8 @@ The SDK exposes programmatic workflow execution and inspection:
 - Workflow catalog entries are the source of truth; application and evaluator catalogs are filtered views over that same source.
 - `WorkflowFlags` are static inspect/discovery truth.
 - `WorkflowRequestFlags` are per-invocation requests, not static workflow identity.
-- SDK-local and SDK-remote execution are separate programmatic choices from request flags.
+- `flags.remote` is a request flag consumed at the SDK boundary, not a static workflow property.
+- when the SDK forwards because `flags.remote=true`, it must clear or force `flags.remote=false` before the runtime-side SDK handles execution.
 - Trace-level `annotation` and `invocation` remain lower-level execution concepts, separate from the external application/evaluator contract.
 
 ### SDK programmatic I/O
@@ -260,7 +262,7 @@ At the system layer, the SDK programmatic interface is intentionally close to th
 
 | SDK call family | Input shape | Output shape | Identity mode |
 |---|---|---|---|
-| `invoke_*` | `WorkflowServiceRequest` plus execution-location argument | batch or stream workflow service response | references, URI, or mixed |
+| `invoke_*` | `WorkflowServiceRequest` with `flags: WorkflowRequestFlags` including optional `remote` | batch or stream workflow service response | references, URI, or mixed |
 | `inspect_*` | `WorkflowServiceRequest` | inspected `WorkflowServiceRequest` | references, URI, or mixed |
 | `get_*_openapi` | same logical runnable identification as inspect | OpenAPI document object | references, URI, or mixed |
 
@@ -268,7 +270,7 @@ The main contract decision here is:
 
 - SDK programmatic discovery should not invent a second identification system
 - if inspect accepts a request identified by references or URI, `get_*_openapi` should accept the same logical identification shape
-- invoke should expose a local-versus-remote execution choice at the SDK boundary; request flags are not the right place for that choice
+- invoke should honor `flags.remote` at the SDK boundary and clear it before any remote-forwarded request reaches the runtime-side SDK execution path
 
 ### SDK examples
 
@@ -491,7 +493,7 @@ At this layer the observability interface is narrow:
 | Interface | Current gap | Target contract |
 |---|---|---|
 | API execution | only generic workflows have invoke/inspect and current implementation runs in-process | workflows are canonical, applications and evaluators expose filtered execution/discovery views, and runnable execution is treated as a handoff to runtime services while non-runnable targets fail invoke |
-| API catalogs | evaluator templates are a mixed payload | canonical workflow catalog with filtered application/evaluator views, plus presets and detail schemas |
+| API catalogs | evaluator templates are a mixed payload | canonical workflow catalog with revision-like catalog entries and separate preset bundles, plus filtered application/evaluator views |
 | SDK inspect/invoke | flags and request-flag semantics incomplete | unified identity, capability, and request-flag model |
 | Runtime HTTP | no per-workflow OpenAPI in new stack | isolated per-workflow `invoke` / `inspect` / `openapi.json` as one discovery family |
 | Frontend consumption | relies on legacy `x-agenta.flags` | relies on explicit inspect/query/revision truth |

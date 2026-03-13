@@ -3,10 +3,20 @@
 > Status: exploration / audit
 > Date: 2026-03-05
 
+> Note: this document is the exploration snapshot. The current target design is defined by
+> [plan.md](./plan.md),
+> [gap-analysis.md](./gap-analysis.md),
+> [runnables-system-layer.md](./runnables-system-layer.md),
+> [runnables-subsystem-layer.md](./runnables-subsystem-layer.md),
+> [runnables-component-layer.md](./runnables-component-layer.md),
+> and [runnables-function-layer.md](./runnables-function-layer.md).
+> Where this document records earlier hypotheses or only the current-state code, the newer layer docs win.
+
 ## Companion Documents
 
 - [gap-analysis.md](./gap-analysis.md)
 - [plan.md](./plan.md)
+- [design-review.md](./design-review.md)
 - [taxonomy.md](./taxonomy.md)
 - [runnables-system-layer.md](./runnables-system-layer.md)
 - [runnables-subsystem-layer.md](./runnables-subsystem-layer.md)
@@ -375,8 +385,8 @@ Result stored in `RevisionSchemaState.isChatVariant`, used to toggle chat vs com
 |------|--------|-------------|
 | `can_stream` / `is_streaming` | Missing | Whether the workflow supports streaming output |
 | `can_evaluate` | Missing | Whether the workflow can be used for evaluation at the product/API contract level |
-| `can_batch` | Missing | Whether the workflow supports batch execution |
-| `is_async` | Missing | Whether the workflow supports async execution |
+| `can_chat` | Missing | Whether the workflow can also accept chat-style input when it is not chat-only |
+| `can_verbose` | Missing | Whether the workflow can switch between concise and verbose response modes |
 
 ### 6.6 Missing Workflow Request Flag Semantics
 
@@ -387,7 +397,8 @@ WorkflowServiceRequest(
     flags={
         "stream": True,
         "evaluate": True,
-        "chat_mode": True,
+        "chat": True,
+        "verbose": True,
     }
 )
 ```
@@ -493,9 +504,9 @@ This is the richest schema definition in the system, but it only covers builtins
 | 2 | **API inspect exists but doesn't cache** | `POST /workflows/inspect` delegates to SDK but doesn't persist/cache results |
 | 3 | **No OpenAPI-compatible endpoint in new system** | Legacy serving has `/openapi.json` with `x-agenta.flags`; new system has `/inspect` but not OpenAPI-formatted |
 | 4 | **Flags not persisted in DB** | Only `is_custom` stored; `is_evaluator`, `is_chat`, `is_human` are runtime-only |
-| 5 | **Missing capability flags** | `can_stream`, `can_evaluate`, `can_batch`, `is_async` not defined |
+| 5 | **Missing capability flags** | `can_stream`, `can_evaluate`, `can_chat`, `can_verbose` not defined |
 | 6 | **Request flags in invoke are underspecified** | The request model has `flags`, but invocation-mode semantics are not clearly defined on it |
 | 7 | **Trace scope is easy to overstate** | The plan should stay limited to passive incoming trace-context support inside SDK routing/running |
-| 8 | **Mutual exclusion of flags** | `is_evaluator` and `can_evaluate` can't coexist cleanly today; `is_chat` doesn't imply `can_chat` |
+| 8 | **Identity vs capability still conflated** | `is_*` and `can_*` are not cleanly separated today |
 | 9 | **Custom workflow schemas** | Custom workflows rely on Python signature extraction (legacy) rather than explicit JSON Schema (new) |
-| 10 | **`aggregate` and `annotate` params** | Exist on `workflow` decorator but aren't connected to the external evaluate flag/command contract |
+| 10 | **`aggregate` and `annotate` params** | Exist on `workflow` decorator but aren't connected to the external evaluate request-flag contract |

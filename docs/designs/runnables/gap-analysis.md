@@ -171,7 +171,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 | Capability Flag | Request Flag | Behavior |
 |----------------|--------------|----------|
-| `can_stream` | `stream=true` / `stream=false` | `stream=true`: return a stream if `can_stream`, fall back to batch otherwise. `stream=false`: force batch even if workflow supports streaming. No command: default behavior (batch). |
+| `can_stream` | `stream=true` / `stream=false` | `stream=true`: return a stream if `can_stream`, fall back to batch otherwise. `stream=false`: force batch even if workflow supports streaming. No request flag: default behavior (batch). |
 | `can_evaluate` | `evaluate=true` | If `can_evaluate` and caller sends `evaluate=true`, run in evaluation mode. Internal tracing may still materialize this as annotation-oriented execution. If `is_evaluator`, evaluation is the default. |
 | `can_chat` | `chat=true` | If `can_chat` and caller sends `chat=true`, accept chat-style input. If `is_chat`, chat is the default. |
 | `can_verbose` | `verbose=true` / `verbose=false` | `verbose=true`: return the full structured response payload if supported. `verbose=false`: return the concise output (e.g. last message only). If `is_verbose`, verbose is the only mode and `verbose=false` cannot be honored. |
@@ -181,27 +181,28 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 - [ ] Define `WorkflowServiceRequest.flags: WorkflowRequestFlags`
 - [ ] Define request-time invocation semantics on `WorkflowRequestFlags`
 - [ ] Define fallback behavior: request flag asks for a capability the workflow doesn't have → graceful fallback to default mode
-- [ ] Connect `aggregate` to the stream command (aggregate = forced batch from a stream-capable workflow)
+- [ ] Connect `aggregate` to the stream request flag (aggregate = forced batch from a stream-capable workflow)
 - [ ] Connect the existing internal `annotate` mechanism to the external `evaluate` request flag
 - [ ] Define `verbose=true|false` semantics for chat responses and map them onto response DTOs
 
 ---
 
-## G5a. SDK Invoke Has No Explicit Local-vs-Remote Execution Choice
+## G5a. SDK Invoke Has No Explicit `flags.remote` Forwarding Contract
 
-**What:** From the SDK boundary, "invoke this workflow" is not the same question as from the API boundary. An SDK caller may want to execute locally in the current SDK process, or remotely through the configured API/services path. That choice should be an explicit SDK invoke argument, not hidden inside request flags.
+**What:** From the SDK boundary, "invoke this workflow" is not the same question as from the API boundary. The design should use `flags.remote` as the explicit remote-forwarding control, but the SDK forwarding contract is not yet fully specified.
 
-**Why it matters:** Execution location affects network topology, latency, auth, and which runtime actually handles the request. It is a transport/execution decision, not part of the workflow contract itself.
+**Why it matters:** Remote forwarding affects network topology, latency, auth, and which runtime actually handles the request. It is a transport concern carried on the request, not a static workflow property. If forwarding does not clear the flag before the runtime-side SDK handles execution, it can recurse.
 
 **Current state:**
-- SDK invoke methods do not yet expose a dedicated local-versus-remote execution argument in the design
+- SDK invoke methods do not yet define the exact `flags.remote` handling contract in the design
 - current docs mostly describe SDK invocation as if there were one execution path
-- request flags are about invocation behavior, not execution location
+- loop-prevention behavior for forwarded requests is not yet spelled out everywhere
 
 **Action:**
-- [ ] Add an explicit SDK invoke argument for local versus remote execution
-- [ ] Keep execution location separate from `WorkflowRequestFlags`
-- [ ] Decide the default mode; current leaning is local-by-default
+- [ ] Add `remote` to `WorkflowRequestFlags`
+- [ ] Define that `flags.remote=true` means SDK-side forwarding through the configured API/services path
+- [ ] Define that forwarded requests must clear or force `flags.remote=false` before the runtime-side SDK handles execution
+- [ ] Define that API-originated runnable invoke requests also normalize `flags.remote=false` before redirecting to `/services`
 - [ ] Define how remote SDK invocation resolves the configured API/services path
 
 ---
@@ -264,7 +265,7 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 ## G9. `aggregate` and `annotate` — Disconnected Internal Params Behind the Future Evaluate Contract
 
-**What:** The `workflow` decorator accepts `aggregate` (stream-to-batch conversion) and `annotate` (annotation vs invocation mode) params. These exist in the running context but aren't connected to the external flag or command systems.
+**What:** The `workflow` decorator accepts `aggregate` (stream-to-batch conversion) and `annotate` (annotation vs invocation mode) params. These exist in the running context but aren't connected to the external flag or request-flag systems.
 
 **Why it matters:** These params are the implementation mechanisms for capabilities described in G4/G5, but they're not wired up. `aggregate` is the mechanism behind `can_stream` + batch fallback. `annotate` is the current lower-level mechanism behind the future `can_evaluate` / `evaluate` contract.
 
@@ -274,12 +275,12 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 - Both are set in `workflow.__init__()` and passed through to context managers
 
 **How they should connect (per G4/G5):**
-- `aggregate` = the implementation of "this workflow streams natively, but batch is requested" → should be activated by `stream=false` (or absent) command when `can_stream=true`
-- `annotate` = the current implementation of "run in evaluation mode" → should be activated by `evaluate=true` command when `can_evaluate=true`
+- `aggregate` = the implementation of "this workflow streams natively, but batch is requested" → should be activated by `stream=false` (or absent) request flag when `can_stream=true`
+- `annotate` = the current implementation of "run in evaluation mode" → should be activated by `evaluate=true` request flag when `can_evaluate=true`
 
 **Action:**
-- [ ] Wire `aggregate` to `can_stream` capability + `stream` command (G4/G5)
-- [ ] Wire `annotate` to `can_evaluate` capability + `evaluate` command (G4/G5)
+- [ ] Wire `aggregate` to `can_stream` capability + `stream` request flag (G4/G5)
+- [ ] Wire `annotate` to `can_evaluate` capability + `evaluate` request flag (G4/G5)
 - [ ] Keep them as decorator-level params for setting defaults, but allow per-invocation override via request flags
 
 ---
@@ -297,13 +298,13 @@ Only `is_custom` is a column on `WorkflowArtifactDBE`. The rest flow through the
 
 **Action:**
 - [ ] Map which consumers use which path
-- [ ] Decide whether the target runnable handoff should be redirect, gateway/proxy, or another explicit pattern
+- [ ] Use redirect as the target runnable handoff pattern
 - [ ] Route runnable builtin execution through the runtime `/services` family
 - [ ] Expand the runtime `/services` surface so all Agenta builtins are reachable, not only the currently exposed subset
 - [ ] Review and standardize runtime service URL shapes
 - [ ] Make non-runnable custom workflows fail invoke explicitly
 - [ ] Keep inspect working for non-runnable targets from persisted discovery truth
-- [ ] Define whether `openapi.json` is runtime-backed, API-synthesized, or split by runnable kind
+- [ ] Make `openapi.json` come from the same provenance as `inspect` for a given target
 - [ ] Refresh builtin service URLs from URI on reads and writes
 - [ ] Refresh builtin input/output schemas from URI/inspect on reads and writes, with caching
 - [ ] Avoid blindly overwriting user-owned parameter schema during builtin refresh
@@ -402,7 +403,6 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 - [ ] Make the catalog shape explicit rather than implied:
   - list response with `count` and `items`
   - entry fields including `uri`, optional compatibility `key`, optional precomputed `url`, optional `headers`, `name`, `description`, `categories`, workflow flags, and `schemas.inputs` / `schemas.parameters` / `schemas.outputs`
-  - optional single-entry fetch returning the same shape for one item
   - presets response that returns override bundles with `parameters`, optional `script`, optional `headers`, and other presettable workflow fields when relevant
 - [ ] Give code evaluators the same first-class output-schema definition path as AI-critique evaluators; output schema is required for a proper runnable evaluator
 - [ ] Model evaluator `schemas.inputs` explicitly as the shared predefined input contract for evaluator workflows, rather than leaving it implicit
@@ -659,21 +659,26 @@ Runnability depends on the URI provider — it's not fully independent:
 ```
 agenta:* URI  → always runnable (platform guarantees handlers)
 user:* URI    → runnable only if handler or URL present
-no URI        → configuration-only (just parameters — current no-URI state is a bug to backfill)
+no URI        → legacy / unresolved (current no-URI state is a bug to backfill)
 ```
 
-`agenta:*` URIs are always runnable because the platform ships and registers their handlers. `user:*` URIs need a deployed engine — either a handler loaded in the SDK process or a reachable URL. No URI is currently a bug (human evaluators should have URIs but don't); in the future, no URI will be valid for configuration-only workflows (parameter store, no interface, no engine).
+`agenta:*` URIs are always runnable because the platform ships and registers their handlers. `user:*` URIs need a deployed engine — either a handler loaded in the SDK process or a reachable URL. No URI is currently a bug (human evaluators should have URIs but don't); in this design set it is a legacy state to backfill, not a target contract shape.
 
 The primary derivation:
 - **`is_custom`** → `is_custom_uri(uri)` — already exists in SDK (`sdk/agenta/sdk/workflows/utils.py:320`)
 - **`is_runnable`** → `agenta:*` → always true; `user:*` → has handler OR has url; no URI → false
 
-### G16b. URI Key = Variant Slug, Version = Revision Version
+### G16b. `user:custom` URI Key = Variant Slug, Version = Revision Version
 
-The URI should map to the git-style model:
-- `provider:kind:variant_slug:v{revision_version}`
+For backend-defined `user:custom` cases, the URI should map to the git-style model:
+- `user:custom:variant_slug:v{revision_version}`
 - Example: `user:custom:my-app:v3` → variant slug `my-app`, revision version 3
 - `latest` resolves to highest `vN`
+
+Builtins are different:
+- `agenta:builtin:{key}:{builtin_version}`
+- the third field is the builtin key, not the backend variant slug
+- the version is the builtin version, not the backend revision version
 
 See [taxonomy.md](./taxonomy.md) for full details.
 
@@ -682,7 +687,7 @@ See [taxonomy.md](./taxonomy.md) for full details.
 1. **Give all workflows URIs** — including human evaluators (default: `agenta:builtin:human:v0`, user-created: `user:custom:{variant_slug}:v{N}`)
 2. **`is_custom`** → derive from `is_custom_uri(uri)` (already exists)
 3. **`is_human`** → derive from `not is_runnable` (no handler AND no url) — NOT from URI absence
-4. **Align URI key with variant slug**, version with revision version
+4. **Align backend-defined `user:custom` URI key with variant slug**, version with revision version
 5. **Remove stored `is_custom`/`is_human` flags** — compute at read time
 6. **Frontend** must stop inferring `isCustom` from schema shape — use API-provided values
 7. **API** must expose derived classification in query/inspect responses
@@ -697,12 +702,12 @@ See [taxonomy.md](./taxonomy.md) for full details.
 **Action:**
 - [ ] Design URI-based derivation for `is_custom` (from URI) and `is_runnable` (from handler/URL)
 - [ ] Backfill URIs for human evaluators
-- [ ] Align URI key with variant slug, version with revision version
+- [ ] Align backend-defined `user:custom` URI key with variant slug, version with revision version
 - [ ] Add computed properties to DTOs
 - [ ] Phase out stored `is_custom`/`is_human` flags
 - [ ] Update legacy adapter to produce URIs
 
-## G17. Frontend/Playground — No Command Flag Support
+## G17. Frontend/Playground — No Request-Flag Support
 
 **What:** The playground and frontend have no mechanism to send request flags (`stream`, `evaluate`, `chat`, `verbose`) per-invocation, and no handling for the different response modes those flags produce.
 
@@ -732,8 +737,8 @@ See [taxonomy.md](./taxonomy.md) for full details.
 - [ ] Add verbose/concise response toggle when workflow advertises `can_verbose=true` and `is_verbose=false`
 - [ ] Handle both concise chat rendering and verbose structured payload rendering
 - [ ] Handle evaluation mode traces when `evaluate=true` is sent
-- [ ] Disable command toggles when the workflow doesn't advertise the corresponding capability
-- [ ] Define graceful fallback UX when a command is sent but the workflow doesn't support it
+- [ ] Disable request-flag toggles when the workflow doesn't advertise the corresponding capability
+- [ ] Define graceful fallback UX when a request flag is sent but the workflow doesn't support it
 
 ---
 
@@ -764,8 +769,8 @@ The flag system conflates identity, capability, and classification. Flags are st
 |-----|-------------|---------------|
 | G4 (Flags: identity vs capability) | No capability flags; identity and capability conflated | Add `can_stream`, `can_evaluate`, `can_chat`, `can_verbose`; separate from `is_*` |
 | G5 (Request flags) | Request-time invocation semantics on `flags` are undefined | Define `WorkflowServiceRequest.flags` as the per-invocation flag surface |
-| G5a (SDK local/remote invoke) | SDK invoke has no explicit execution-location choice | Add explicit local-versus-remote SDK invoke argument |
-| G9 (aggregate/annotate) | Decorator params disconnected from flag/command system | Wire to G4/G5 |
+| G5a (SDK remote forwarding) | SDK invoke has no explicit `flags.remote` forwarding contract | Add `flags.remote` semantics and loop-prevention normalization |
+| G9 (aggregate/annotate) | Decorator params disconnected from flag/request-flag system | Wire to G4/G5 |
 | G14 (`is_custom` overloaded) | Flag controls request format, caching, topology | Decompose; derive from URI |
 | G15 (`is_human` misnomer) | Means "not runnable", not "human" | Derive from handler/URL absence |
 | G16 (URI-derived classification) | Stored flags drift from URI truth | Derive `is_custom` from URI, `is_runnable` from handler/URL |
@@ -773,7 +778,7 @@ The flag system conflates identity, capability, and classification. Flags are st
 
 ### Theme 3: New System Completeness
 
-The new serving/routing system exists but is incomplete. It lacks features the legacy system provides (OpenAPI, route isolation, domain-level endpoints) and features still underspecified in the new design (passive incoming trace-context support, custom schema parity, frontend command support).
+The new serving/routing system exists but is incomplete. It lacks features the legacy system provides (OpenAPI, route isolation, domain-level endpoints) and features still underspecified in the new design (passive incoming trace-context support, custom schema parity, frontend request-flag support).
 
 | Gap | What's Missing |
 |-----|---------------|
@@ -784,7 +789,7 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G12a (Catalog split) | Evaluators/apps lack a clean catalog surface with revision-like entries and separate preset bundles |
 | G12b (Legacy revision fields) | Workflow revision data still carries legacy `service` / `configuration` fields |
 | G13 (Route isolation) | Multiple workflows share one namespace instead of being isolated |
-| G17 (Frontend request-flag support) | Playground has no stream/chat/evaluate toggles or response handling |
+| G17 (Frontend request-flag support) | Playground has no stream/chat/evaluate/verbose toggles or response handling |
 
 ---
 
@@ -797,11 +802,11 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G3 (No OpenAPI in new) | High | Medium | Legacy + Completeness | Core — new system needs OpenAPI per workflow |
 | G4 (Flags: identity vs capability) | High | Medium | Flags | Core — add can_stream, can_evaluate, can_chat, can_verbose; clarify is_* vs can_* |
 | G5 (Request flags in request) | High | Medium | Flags | Core — stream/evaluate/chat/verbose request flags on `WorkflowServiceRequest.flags`, distinct from static `WorkflowFlags` |
-| G5a (SDK local/remote invoke) | Medium | Small | Interface | Important — add explicit SDK execution-location choice |
+| G5a (SDK remote forwarding) | Medium | Small | Interface | Important — add `flags.remote` semantics and loop-prevention normalization |
 | G6 (Passive incoming trace support) | Medium | Small | Completeness | Narrow — keep support inside SDK routing/running only |
 | G7 (Legacy adapter) | High | Small | Legacy | Core — remove legacy adapter |
 | G8 (Custom schemas) | High | Medium | Completeness | Core — parity with builtins |
-| G9 (aggregate/annotate) | High | Small | Flags | Core — connect to G4/G5 flag and command systems |
+| G9 (aggregate/annotate) | High | Small | Flags | Core — connect to G4/G5 flag and request-flag systems |
 | G10 (API execution split) | High | Large | Architecture + Legacy | Core — converge on API control-plane dispatch to runtime services |
 | G11 (Frontend flag source) | High | Medium | Legacy | Core — frontend must read flags from new system, not legacy OpenAPI |
 | G12 (App/Eval invoke/inspect) | High | Small | Completeness | Core — thin wrappers over existing workflow endpoints |
@@ -811,4 +816,4 @@ The new serving/routing system exists but is incomplete. It lacks features the l
 | G14 (`is_custom` overloaded) | High | Medium | Flags | Core — decompose into request format, caching, and topology concerns |
 | G15 (`is_human` = not runnable) | High | Small | Flags | Core — rename/derive from handler/URL absence |
 | G16 (URI-derived classification) | High | Large | Flags | Core — unify G14+G15 into URI-based derivation |
-| G17 (Frontend request-flag support) | High | Medium | Flags + Completeness | Core — playground stream/chat/evaluate toggles and response handling |
+| G17 (Frontend request-flag support) | High | Medium | Flags + Completeness | Core — playground stream/chat/evaluate/verbose toggles and response handling |

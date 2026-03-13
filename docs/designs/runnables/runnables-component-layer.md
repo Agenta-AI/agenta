@@ -65,7 +65,7 @@ The plan decomposes into these component groups:
 
 - compute derived flags during inspect
 - accept and honor request flags during invoke
-- add SDK-side invoke argument(s) for local versus remote execution selection
+- add SDK-side handling for `flags.remote` as the local versus remote forwarding selector
 - define response shaping for concise vs verbose chat output
 - keep stream aggregation and evaluate behavior connected to declared capabilities
 - improve custom-workflow schema parity at registration time
@@ -120,7 +120,7 @@ The plan decomposes into these component groups:
 - expose derived classification in retrieval/query responses
 - route runnable targets toward the runtime `/services` surface instead of treating API as the execution container
 - make non-runnable custom targets fail invoke while still allowing inspect
-- decide whether API handoff uses redirect or gateway/proxy and keep streaming/auth behavior consistent
+- use redirect for API handoff and keep streaming/auth behavior consistent
 - keep inspect/OpenAPI available for non-runnable targets from persisted discovery truth
 - avoid turning API orchestration into an API-to-SDK trace propagation layer in this checkpoint
 - maintain thin-wrapper behavior rather than reimplementing runnable semantics in domain services
@@ -343,16 +343,16 @@ Current path:
 
 Target path:
 - SDK caller constructs `WorkflowServiceRequest`
-- SDK caller passes execution-location argument
+- SDK caller leaves `flags.remote` absent or false
 - SDK execution path runs locally when requested
 
 Intermediate contracts:
-- caller -> SDK invoke function: `WorkflowServiceRequest`, `WorkflowRequestFlags`, execution-location argument
+- caller -> SDK invoke function: `WorkflowServiceRequest`, `WorkflowRequestFlags`
 - SDK invoke function -> execution stack: normalized request plus resolved configuration/secrets
 
 Gap:
 - request flags are being clarified
-- execution location still needs to become a first-class invoke argument instead of being implicit
+- `flags.remote` forwarding behavior still needs to be wired and normalized
 
 ### Sequence D: SDK programmatic invoke, remote mode
 
@@ -361,20 +361,21 @@ Entry point:
 
 Target path:
 - SDK caller constructs `WorkflowServiceRequest`
-- SDK caller passes remote execution mode
+- SDK caller sets `flags.remote=true`
 - SDK client resolves configured API/services base URL
+- SDK client clears or forces `flags.remote=false` on the forwarded request
 - request goes through API control plane
 - API dispatches to `Services`
 - runtime route reaches SDK execution on the remote side
 
 Intermediate contracts:
-- caller -> SDK invoke function: `WorkflowServiceRequest`, execution-location argument
-- SDK invoke function -> remote transport: serialized request plus auth/base URL context
+- caller -> SDK invoke function: `WorkflowServiceRequest`
+- SDK invoke function -> remote transport: serialized request with `flags.remote` cleared plus auth/base URL context
 - API -> Services: runnable handoff contract
 
 Gap:
 - remote SDK execution is not yet explicit in the current component contract
-- the boundary between SDK request flags and SDK execution-location choice must stay clean
+- the boundary between user-provided `flags.remote` and forwarded `flags.remote=false` must stay clean to avoid recursion
 
 ### Sequence E: Builtin persistence refresh on read/write
 
@@ -433,7 +434,6 @@ Current path:
 
 Target path:
 - list route returns catalog entries with URI, categories, flags, and schemas
-- single-entry route, if kept, returns the same shape for one item
 - presets route returns override bundles that can include parameters and other presettable workflow fields
 - clients continue to use existing create/edit contracts when they want to instantiate a workflow/application/evaluator from catalog data
 

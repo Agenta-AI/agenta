@@ -143,7 +143,9 @@ Revision `version` column stores sequential integers as strings: `"0"`, `"1"`, `
 
 **URI identifies the workflow definition** (who made it, which variant, which version). It says nothing about whether the workflow can be invoked. Runnability is a separate axis determined by whether there's an engine (handler in registry or reachable URL).
 
-This means **every workflow should have a URI** — including today's "human evaluators". A user who creates a custom annotation schema is creating a `user:custom` entity. It just happens to have no engine.
+For the current runnable plan, this means **every workflow should have a URI** — including today's "human evaluators". A user who creates a custom annotation schema is creating a `user:custom` entity. It just happens to have no engine.
+
+Possible future extensions such as configuration-only objects with no URI are outside the scope of this runnable plan and should be treated as an open taxonomy question, not as the target contract for this design set.
 
 ### 4b. URI Maps to Git-Style Model
 
@@ -183,16 +185,15 @@ user:* URIs → RUNNABLE ONLY IF there's a handler OR a URL
   - Has URL → runnable remotely
   - Neither → NOT runnable (definition exists, no engine)
 
-No URI → CONFIGURATION-ONLY
+No URI → LEGACY / UNRESOLVED
   Current state: a bug — human evaluators should have URIs but don't (backfill needed).
-  Future state: a valid configuration-only workflow — "look at my parameters, that's all there is."
-  No interface (no schemas), no engine. Just a parameter store.
+  Target state for this plan: eliminate this case by backfilling URIs.
 ```
 
 This is NOT "two fully independent axes". The provider constrains runnability:
 - `agenta:*` → runnable (platform guarantee)
 - `user:*` → runnable only with handler/URL
-- No URI → not runnable
+- No URI → not runnable during migration, then eliminated by backfill
 
 ### 4d. Workflow Purpose Spectrum
 
@@ -200,14 +201,13 @@ Not all workflows are about running code. A workflow can serve different purpose
 
 | What It Has | URI? | Purpose | Example |
 |-------------|------|---------|---------|
-| **Configuration only** (parameters) | No URI | A parameter store — "look at my parameters, that's all there is" | Prompt templates, model settings blob |
 | **Interface only** (schemas) | Has URI | Defines expected input/output shape, no engine | Human evaluator with custom annotation schema (`user:custom:my-eval:v2`) |
 | **Interface + configuration** | Has URI | Full definition, but no engine yet | A workflow waiting to be deployed |
 | **Interface + configuration + engine** (handler/URL) | Has URI | Full runnable | A deployed app or evaluator that can be invoked |
 
 The relationship between URI and purpose:
 
-- **No URI** = configuration-only. Just parameters. No interface, no engine. (Currently a bug — human evaluators have no URI but should. Future: a valid state for configuration-only workflows.)
+- **No URI** = legacy / unresolved. In the current plan this should be backfilled, not preserved as a target state.
 - **Has URI** = has an identity. May or may not have an interface, configuration, or engine.
 
 The interface defines what a workflow accepts and produces (schemas for inputs, outputs, parameters). The configuration provides the actual parameter values. The engine (handler/URL) makes it executable.
@@ -222,10 +222,9 @@ Non-runnable workflows with URIs are still useful:
 |----------|-----------|
 | `is_custom` | `is_custom_uri(uri)` — `provider == "user" and kind == "custom"` |
 | `is_builtin` | URI starts with `agenta:` |
-| `is_runnable` | `agenta:*` URI → always true. `user:*` URI → true if has handler or URL. No URI → false. |
+| `is_runnable` | `agenta:*` URI → always true. `user:*` URI → true if has handler or URL. No URI → false during migration, then eliminated by backfill. |
 | `has_interface` | `schemas is not None` (has input/output definitions) |
 | `has_configuration` | `parameters is not None` (has configuration values) |
-| `is_config_only` | No URI (future: valid state for parameter-only workflows) |
 
 ### 4f. What Replaces `is_human`
 
@@ -234,7 +233,7 @@ Non-runnable workflows with URIs are still useful:
 The derivation:
 - `agenta:*` URI → runnable (always)
 - `user:*` URI → runnable only if handler or URL present
-- No URI → not runnable (legacy)
+- No URI → not runnable (legacy state to backfill)
 
 A user-created human evaluator with a custom schema IS `user:custom:my-eval:v2` — it has a URI, it's custom, it has an interface (annotation schema), but it has no engine. It's not runnable.
 
@@ -279,7 +278,7 @@ Today's human evaluators have `uri=None`. They should get proper URIs:
 
 This makes URI universal — every workflow has one. Runnability is determined separately.
 
-### 6b. Align URI Key with Variant Slug, Version with Revision Version
+### 6b. Align `user:custom` URI Key with Variant Slug, Version with Revision Version
 
 Currently:
 - Builtin URIs use handler names as keys (`echo`, `auto_exact_match`)
@@ -287,13 +286,13 @@ Currently:
 - Neither maps to variant slugs
 
 Proposed:
-- URI key = variant slug
-- URI version = `v{revision_version}` (where revision_version is the integer from the DB)
+- For backend-defined `user:custom` cases, URI key = variant slug
+- For backend-defined `user:custom` cases, URI version = `v{revision_version}` (where revision_version is the integer from the DB)
 - `latest` resolves to highest version
 
 This gives a natural mapping: `user:custom:my-app-variant:v3` → variant slug `my-app-variant`, revision version 3.
 
-For builtins, the handler name IS the variant slug (they have a single variant per handler key).
+For builtins, the third URI field remains the builtin handler/catalog key, and the version remains the builtin version rather than the backend revision version.
 
 ### 6c. Stop Storing `is_custom` and `is_human` as Flags
 
@@ -353,7 +352,7 @@ Runnability rules:
   agenta:* URI            → always runnable (platform guarantees handlers)
   user:* URI + handler/URL → runnable
   user:* URI, no handler/URL → not runnable (definition only — has interface, no engine)
-  no URI                  → configuration-only (just parameters; current no-URI is a bug to backfill)
+  no URI                  → legacy / unresolved state to backfill
 
 Workflow purpose (what it has):
   configuration only      → configuration/settings store
