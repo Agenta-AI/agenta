@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {executionItemController, playgroundController} from "@agenta/playground"
+import {isJsonString} from "@agenta/shared/utils"
 import {getCollapseStyle} from "@agenta/ui/components/presentational"
 import {TOGGLE_MARKDOWN_VIEW, EditorProvider, useLexicalComposerContext} from "@agenta/ui/editor"
 import type {EditorProps} from "@agenta/ui/editor"
@@ -142,7 +143,18 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
     // For object/array types, provide a sensible default when value is empty
     const isJsonType = portType === "object" || portType === "array"
     const jsonDefault = portType === "array" ? "[]" : "{}"
-    const effectiveValue = isJsonType && (!value || value === "") ? jsonDefault : value
+
+    // Capture whether the initial value looks like JSON at mount time.
+    // This is safe because codeOnly is set once before Lexical initialises.
+    // Switching codeOnly dynamically at runtime crashes Lexical
+    // (MarkdownShortcuts: missing dependency code), so the flag is immutable.
+    const initialValueLooksLikeJson = useRef(
+        typeof value === "string" && !!value && isJsonString(value),
+    ).current
+
+    const isJsonEditor = isJsonType || initialValueLooksLikeJson
+    const effectiveValue =
+        isJsonEditor && isJsonType && (!value || value === "") ? jsonDefault : value
 
     // Seed the default back to the store so the execution payload has the correct value
     useEffect(() => {
@@ -236,8 +248,8 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         )
     }
 
-    // Object/array types → JSON code editor
-    const mergedEditorProps: EditorProps = isJsonType
+    // Object/array types (and detected JSON strings) → JSON code editor
+    const mergedEditorProps: EditorProps = isJsonEditor
         ? {codeOnly: true, language: "json", enableResize: false, boundWidth: true, ...editorProps}
         : {enableResize: false, boundWidth: true, ...editorProps}
 
@@ -248,9 +260,9 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 initialValue={effectiveValue}
                 placeholder={effectivePlaceholder}
                 showToolbar={false}
-                codeOnly={isJsonType || !!editorProps?.codeOnly}
-                language={isJsonType ? "json" : undefined}
-                enableTokens={!isJsonType && !editorProps?.codeOnly}
+                codeOnly={isJsonEditor || !!editorProps?.codeOnly}
+                language={isJsonEditor ? "json" : undefined}
+                enableTokens={!isJsonEditor && !editorProps?.codeOnly}
                 disabled={isEffectivelyDisabled}
             >
                 <MarkdownToggleRegistrar onMarkdownToggleReady={onMarkdownToggleReady} />
@@ -285,7 +297,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                             : viewType === "single" && view !== "focus"
                               ? ""
                               : "bg-transparent",
-                        isJsonType && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
+                        isJsonEditor && "!pt-[11px] !pb-0 [&_.agenta-editor-wrapper]:!mb-0",
                         className,
                     )}
                     editorProps={mergedEditorProps}
