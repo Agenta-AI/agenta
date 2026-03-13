@@ -136,7 +136,7 @@ export const buildPreviewRequest = (
         const previewHeaders: Record<string, string> = buildSystemHeaders(
             auth_mode === "authorization"
                 ? {
-                      Authorization: auth_value ? "Bearer ••••••••••" : "Bearer <token>",
+                      Authorization: auth_value ? "••••••••••" : "<secret>",
                   }
                 : {
                       "X-Agenta-Signature": "t=<unix_ts>,v1=<hex_hmac>",

@@ -1,6 +1,6 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Collapse, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {Button, Collapse, Form, Input, message, Select, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -9,11 +9,7 @@ import {
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/automations/types"
-import {
-    createAutomationAtom,
-    testAutomationAtom,
-    updateAutomationAtom,
-} from "@/oss/state/automations/atoms"
+import {createAutomationAtom, updateAutomationAtom} from "@/oss/state/automations/atoms"
 import {
     createdWebhookSecretAtom,
     editingAutomationAtom,
@@ -25,20 +21,17 @@ import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
-import {AUTOMATION_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 
 const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
     const [open, setOpen] = useAtom(isAutomationDrawerOpenAtom)
     const [initialValues, setEditingWebhook] = useAtom(editingAutomationAtom)
-    const [isTesting, setIsTesting] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const setCreatedWebhookSecret = useSetAtom(createdWebhookSecretAtom)
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
     const createAutomation = useSetAtom(createAutomationAtom)
     const updateAutomation = useSetAtom(updateAutomationAtom)
-    const testAutomation = useSetAtom(testAutomationAtom)
 
     const isEdit = !!initialValues
 
@@ -122,21 +115,6 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             })
         }
     }, [open, initialValues, form])
-
-    const handleTestConnection = useCallback(async () => {
-        if (!initialValues?.id) return
-
-        try {
-            setIsTesting(true)
-            const response = await testAutomation(initialValues.id)
-            handleTestResult(response)
-        } catch (error) {
-            console.error(error)
-            message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
-        } finally {
-            setIsTesting(false)
-        }
-    }, [initialValues?.id, testAutomation])
 
     const handleOk = useCallback(async () => {
         try {
@@ -233,26 +211,9 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                 footer={
                     <div className="flex items-center justify-between gap-2">
                         <Button onClick={onCancel}>Cancel</Button>
-                        <div className="flex items-center gap-2">
-                            <Tooltip
-                                title={
-                                    isEdit
-                                        ? "Test this automation"
-                                        : "You must save the automation before testing it"
-                                }
-                            >
-                                <Button
-                                    loading={isTesting}
-                                    onClick={handleTestConnection}
-                                    disabled={!isEdit}
-                                >
-                                    Test Automation
-                                </Button>
-                            </Tooltip>
-                            <Button type="primary" onClick={handleOk} loading={isSubmitting}>
-                                {isEdit ? "Update Automation" : "Create Automation"}
-                            </Button>
-                        </div>
+                        <Button type="primary" onClick={handleOk} loading={isSubmitting}>
+                            {isEdit ? "Update Automation" : "Create Automation"}
+                        </Button>
                     </div>
                 }
             >
@@ -274,7 +235,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     <div className="flex flex-col gap-3">
                         <Form.Item
                             name="provider"
-                            label="Destination"
+                            label="Webhook Type"
                             initialValue="webhook"
                             className="!mb-0"
                         >
@@ -287,7 +248,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                         <Form.Item
                             name="name"
-                            label="Name"
+                            label="Webhook Name"
                             className="!mb-0"
                             rules={[{required: true, message: "Please enter a name"}]}
                         >
@@ -296,7 +257,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                         <Form.Item
                             name="events"
-                            label="Event types"
+                            label="Event Types"
                             className="!mb-0"
                             rules={[{required: true, message: "Please select at least one event"}]}
                         >

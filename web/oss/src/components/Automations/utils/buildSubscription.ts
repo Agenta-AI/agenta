@@ -48,9 +48,7 @@ export const buildSubscription = (
 
         // Add secret for new or if changed in edit
         if (auth_mode === "authorization" && auth_value) {
-            subscription.secret = auth_value.startsWith("Bearer ")
-                ? auth_value
-                : `Bearer ${auth_value}`
+            subscription.secret = auth_value
         }
 
         return {subscription}

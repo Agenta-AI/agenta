@@ -20,6 +20,14 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
     // Always call the hook to satisfy React rules
     const watchField = field.visibleWhen?.field || ""
     const dependsOnValue = Form.useWatch(watchField, form)
+    const currentValue = Form.useWatch(field.key, form)
+
+    const dynamicExtra =
+        currentValue !== undefined && field.extraByValue
+            ? field.extraByValue[String(currentValue)]
+            : undefined
+
+    const fieldExtra = dynamicExtra ?? field.extra
 
     if (field.visibleWhen && dependsOnValue !== field.visibleWhen.value) {
         return null
@@ -85,7 +93,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                 extra={
                     field.secret ? (
                         <div className="flex items-start justify-between">
-                            {field.extra && <span>{field.extra}</span>}
+                            {fieldExtra && <span>{fieldExtra}</span>}
                             {isEditMode && !isChangingSecret && (
                                 <Button
                                     type="link"
@@ -101,7 +109,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
                             )}
                         </div>
                     ) : (
-                        field.extra
+                        fieldExtra
                     )
                 }
             >
@@ -128,7 +136,7 @@ const FieldRendererItem = ({field, isEditMode}: {field: FieldDescriptor; isEditM
             initialValue={field.initialValue}
             rules={field.rules || (field.required ? [{required: true, message: "Required"}] : [])}
             className="!mb-0"
-            extra={field.extra}
+            extra={fieldExtra}
         >
             {InputComponent}
         </Form.Item>
