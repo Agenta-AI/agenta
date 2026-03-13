@@ -335,26 +335,10 @@ export {
 } from "./state"
 
 // ============================================================================
-// COMMIT
+// REVISION POLLING UTILITIES
 // ============================================================================
 
-export {
-    clearCommitCallbacks,
-    commitRevision,
-    // Commit atom and function
-    commitRevisionAtom,
-    // Utilities
-    newestRevisionForVariantAtomFamily,
-    // Callback registration
-    registerCommitCallbacks,
-    waitForNewRevision,
-    type CommitCallbacks,
-    type CommitResult,
-    type CommitRevisionError,
-    // Types
-    type CommitRevisionParams,
-    type CommitRevisionResult,
-} from "./state"
+export {newestRevisionForVariantAtomFamily, waitForNewRevision} from "./state"
 
 // ============================================================================
 // CREATE VARIANT

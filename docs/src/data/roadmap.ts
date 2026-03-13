@@ -27,6 +27,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Integration: FFA500
   // Security: 000000
   {
+    id: "deployment-webhooks",
+    title: "Webhooks and GitHub Automations for Prompt Deployments",
+    description:
+      "Trigger CI and repository workflows when you deploy a prompt. Send deployment events to your own HTTPS endpoint or call GitHub directly with repository dispatch and workflow dispatch.",
+    changelogPath: "/docs/changelog/deployment-webhooks-and-github-automations",
+    shippedAt: "2026-03-11",
+    labels: [
+      {
+        name: "Integration",
+        color: "FFA500",
+      },
+    ],
+  },
+  {
     id: "tool-integrations",
     title: "Tool Integrations in the Playground",
     description:
@@ -482,19 +496,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Playground",
         color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "deployment-webhooks",
-    title: "Webhooks for Deployment Linked to CI",
-    description:
-      "Trigger CI/CD pipelines automatically when you deploy a prompt version. Connect Agenta deployments to your existing CI workflows so that deploying a new version kicks off automated tests, approval gates, or release processes.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3706",
-    labels: [
-      {
-        name: "Integration",
-        color: "FFA500",
       },
     ],
   },

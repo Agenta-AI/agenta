@@ -87,7 +87,6 @@ export const moleculeBackedPromptsAtomFamily = atomFamily((revisionId: string) =
 // Wire the configured runnableBridge into the playground package
 // ============================================================================
 
-console.log("[entityBridge] registering runnableBridge with playground")
 setRunnableBridge(runnableBridge)
 
 // ============================================================================

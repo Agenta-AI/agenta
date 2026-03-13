@@ -45,12 +45,6 @@ import {
     type LocalLegacyAppRevision,
 } from "../core/factory"
 
-import {
-    // Commit abstraction
-    commitRevisionAtom,
-    type CommitRevisionParams,
-    type CommitResult,
-} from "./commit"
 import {createVariantAtom} from "./createVariant"
 import {deleteRevisionAtom} from "./deleteRevision"
 import {discardRevisionDraftAtom} from "./localDrafts"
@@ -209,8 +203,6 @@ export interface LegacyAppRevisionControllerDispatch {
     update: (changes: Partial<LegacyAppRevisionData>) => void
     /** Discard local draft changes */
     discard: () => void
-    /** Commit changes to create a new revision */
-    commit: (params: Omit<CommitRevisionParams, "revisionId">) => Promise<CommitResult>
     /** Set execution mode */
     setExecutionMode: (mode: ExecutionMode) => void
 }
@@ -262,7 +254,6 @@ export function useLegacyAppRevisionController(
     // Get dispatch setters
     const setUpdate = useSetAtom(updateLegacyAppRevisionAtom)
     const setDiscard = useSetAtom(discardRevisionDraftAtom)
-    const setCommit = useSetAtom(commitRevisionAtom)
     const setExecutionModeAtom = useSetAtom(runnableReducers.setExecutionMode)
 
     // Build state object
@@ -280,11 +271,9 @@ export function useLegacyAppRevisionController(
         () => ({
             update: (changes: Partial<LegacyAppRevisionData>) => setUpdate(revisionId, changes),
             discard: () => setDiscard(revisionId),
-            commit: (params: Omit<CommitRevisionParams, "revisionId">) =>
-                setCommit({...params, revisionId}),
             setExecutionMode: (mode: ExecutionMode) => setExecutionModeAtom(revisionId, mode),
         }),
-        [revisionId, setUpdate, setDiscard, setCommit, setExecutionModeAtom],
+        [revisionId, setUpdate, setDiscard, setExecutionModeAtom],
     )
 
     return [state, dispatch]
@@ -488,24 +477,6 @@ export const legacyAppRevisionMolecule = {
         setServerData: setServerDataAtom,
         clearServerData: clearServerDataAtom,
         /**
-         * Commit changes to create a new revision.
-         *
-         * LEGACY: This action encapsulates the workaround for the API not
-         * returning new revision IDs. Will be replaced when migrating to appRevision.
-         *
-         * @example
-         * ```typescript
-         * const result = await set(legacyAppRevisionMolecule.actions.commit, {
-         *   revisionId: currentId,
-         *   variantId,
-         *   parameters: { ag_config: {...} },
-         *   commitMessage: 'Updated prompts',
-         * })
-         * ```
-         */
-        commit: commitRevisionAtom,
-
-        /**
          * Create a new variant from a base revision.
          *
          * Entity-level action that handles: parameter resolution → API call →
@@ -682,13 +653,6 @@ export const legacyAppRevisionMolecule = {
             getStore(options).set(setServerDataAtom, revisionId, data),
         clearServerData: (revisionId: string, options?: StoreOptions) =>
             getStore(options).set(clearServerDataAtom, revisionId),
-        /**
-         * Commit changes to create a new revision (imperative API).
-         *
-         * LEGACY: Encapsulates the workaround for the API not returning new revision IDs.
-         */
-        commit: (params: CommitRevisionParams, options?: StoreOptions): Promise<CommitResult> =>
-            getStore(options).set(commitRevisionAtom, params),
         /** Bump the revision cache version to force dependent atoms to re-evaluate */
         invalidateCache: (options?: StoreOptions) =>
             getStore(options).set(revisionCacheVersionAtom, (prev: number) => prev + 1),
