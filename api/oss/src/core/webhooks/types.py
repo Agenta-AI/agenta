@@ -105,6 +105,8 @@ class WebhookSubscriptionEdit(Identifier, Lifecycle, Header, Metadata):
 
     data: WebhookSubscriptionData
 
+    secret: Optional[str] = None
+
 
 class WebhookSubscriptionQuery(Header, Metadata):
     flags: Optional[WebhookSubscriptionQueryFlags] = None

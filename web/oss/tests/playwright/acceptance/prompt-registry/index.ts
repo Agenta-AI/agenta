@@ -37,9 +37,9 @@ const promptRegistryTests = () => {
             await uiHelpers.expectPath("/prompts")
 
             // Verify the Prompts heading is visible
-            await expect(
-                page.getByRole("heading", {name: /prompts/i}).first(),
-            ).toBeVisible({timeout: 15000})
+            await expect(page.getByRole("heading", {name: /prompts/i}).first()).toBeVisible({
+                timeout: 15000,
+            })
 
             // Verify the prompts table is visible (uses div-based rows)
             const promptsTable = page.getByRole("table").first()

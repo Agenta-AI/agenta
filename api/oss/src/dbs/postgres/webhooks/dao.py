@@ -99,6 +99,8 @@ class WebhooksDAO(WebhooksDAOInterface):
         user_id: UUID,
         #
         subscription: WebhookSubscriptionEdit,
+        #
+        secret_id: UUID | None = None,
     ) -> Optional[WebhookSubscription]:
         async with engine.core_session() as session:
             stmt = select(WebhookSubscriptionDBE).where(
@@ -119,6 +121,8 @@ class WebhooksDAO(WebhooksDAOInterface):
                 user_id=user_id,
                 #
                 subscription=subscription,
+                #
+                secret_id=secret_id,
             )
 
             await session.commit()

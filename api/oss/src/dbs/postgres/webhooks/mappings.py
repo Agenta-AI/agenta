@@ -94,6 +94,8 @@ def map_subscription_dto_to_dbe_edit(
     user_id: UUID,
     #
     subscription: WebhookSubscriptionEdit,
+    #
+    secret_id: UUID | None = None,
 ) -> None:
     subscription_dbe.updated_by_id = user_id
 
@@ -109,7 +111,6 @@ def map_subscription_dto_to_dbe_edit(
     )
     merged_flags = {**existing_flags, **incoming_flags}
 
-    # Preserve system-set is_valid; user edits must not overwrite it.
     if "is_valid" in existing_flags:
         merged_flags["is_valid"] = existing_flags["is_valid"]
 
@@ -125,6 +126,9 @@ def map_subscription_dto_to_dbe_edit(
         if subscription.data
         else None
     )
+
+    if secret_id is not None:
+        subscription_dbe.secret_id = secret_id
 
 
 # --- Delivery --------------------------------------------------------------- #

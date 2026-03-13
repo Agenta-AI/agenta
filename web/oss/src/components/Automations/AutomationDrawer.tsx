@@ -1,5 +1,6 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {BookOpen} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, message, Select, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -25,7 +26,7 @@ import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
-import {handleTestResult} from "./utils/handleTestResult"
+import {AUTOMATION_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 
 const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
@@ -37,8 +38,8 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
     const createAutomation = useSetAtom(createAutomationAtom)
-    const updateAutomation = useSetAtom(updateAutomationAtom)
     const testAutomation = useSetAtom(testAutomationAtom)
+    const updateAutomation = useSetAtom(updateAutomationAtom)
 
     const isEdit = !!initialValues
 
@@ -132,7 +133,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             handleTestResult(response)
         } catch (error) {
             console.error(error)
-            message.error("Failed to test connection")
+            message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
         } finally {
             setIsTesting(false)
         }
@@ -161,15 +162,18 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
             }
 
             const payload = buildSubscription(processedValues, isEdit, initialValues?.id)
+            let subscriptionId: string | undefined
 
             if (isEdit && initialValues?.id) {
                 await updateAutomation({
-                    webhookId: initialValues.id,
+                    webhookSubscriptionId: initialValues.id,
                     payload: payload as WebhookSubscriptionEditRequest,
                 })
+                subscriptionId = initialValues.id
                 message.success("Automation updated successfully")
             } else {
                 const response = await createAutomation(payload as WebhookSubscriptionCreateRequest)
+                subscriptionId = response.subscription?.id
                 const webhookSecret =
                     response.subscription?.secret || response.subscription?.secret_id
 
@@ -182,8 +186,22 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                 message.success("Automation created successfully")
             }
+
             onSuccess()
             onCancel()
+
+            if (subscriptionId) {
+                try {
+                    const response = await testAutomation(subscriptionId)
+                    handleTestResult(response)
+                } catch (error) {
+                    console.error(error)
+                    message.warning(
+                        "Automation saved, but the connection test could not complete. You can retry it from the drawer or table.",
+                        10,
+                    )
+                }
+            }
         } catch (error) {
             if ((error as {errorFields?: unknown}).errorFields) return
             console.error(error)
@@ -199,6 +217,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         onCancel,
         setCreatedWebhookSecret,
         createAutomation,
+        testAutomation,
         updateAutomation,
         selectedProvider,
     ])
@@ -222,10 +241,28 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         [selectedProvider],
     )
 
+    const docsUrl =
+        selectedProvider === "github"
+            ? "https://agenta.ai/docs/prompt-engineering/integrating-prompts/github"
+            : "https://agenta.ai/docs/prompt-engineering/integrating-prompts/webhooks"
+
     return (
         <>
             <EnhancedDrawer
                 title={isEdit ? "Edit Automation" : "Add Automation"}
+                extra={
+                    <Tooltip title="Documentation">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<BookOpen size={16} />}
+                            href={docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open automation documentation"
+                        />
+                    </Tooltip>
+                }
                 open={open}
                 onClose={onCancel}
                 width={450}
@@ -234,21 +271,13 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     <div className="flex items-center justify-between gap-2">
                         <Button onClick={onCancel}>Cancel</Button>
                         <div className="flex items-center gap-2">
-                            <Tooltip
-                                title={
-                                    isEdit
-                                        ? "Test this automation"
-                                        : "You must save the automation before testing it"
-                                }
+                            <Button
+                                onClick={handleTestConnection}
+                                loading={isTesting}
+                                disabled={!isEdit || isSubmitting}
                             >
-                                <Button
-                                    loading={isTesting}
-                                    onClick={handleTestConnection}
-                                    disabled={!isEdit}
-                                >
-                                    Test Connection
-                                </Button>
-                            </Tooltip>
+                                Test Connection
+                            </Button>
                             <Button type="primary" onClick={handleOk} loading={isSubmitting}>
                                 {isEdit ? "Update Automation" : "Create Automation"}
                             </Button>
@@ -274,7 +303,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     <div className="flex flex-col gap-3">
                         <Form.Item
                             name="provider"
-                            label="Destination"
+                            label="Webhook Type"
                             initialValue="webhook"
                             className="!mb-0"
                         >
@@ -287,7 +316,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                         <Form.Item
                             name="name"
-                            label="Name"
+                            label="Webhook Name"
                             className="!mb-0"
                             rules={[{required: true, message: "Please enter a name"}]}
                         >
@@ -296,7 +325,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
                         <Form.Item
                             name="events"
-                            label="Event types"
+                            label="Event Types"
                             className="!mb-0"
                             rules={[{required: true, message: "Please select at least one event"}]}
                         >

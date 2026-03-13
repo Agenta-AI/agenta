@@ -57,10 +57,7 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
             await page.getByText(appType).first().click()
             const createAppPromise = page.waitForResponse((response) => {
-                if (
-                    !response.url().includes("/apps") ||
-                    response.request().method() !== "POST"
-                ) {
+                if (!response.url().includes("/apps") || response.request().method() !== "POST") {
                     return false
                 }
 

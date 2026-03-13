@@ -31,9 +31,7 @@ const run = () => {
     assert.deepEqual(extractChatMessages(nested), [{role: "user", content: "nested"}])
     assert.equal(extractChatMessages(deep), null)
 
-    assert.deepEqual(extractChatMessages(choices), [
-        {role: "assistant", content: "from choices"},
-    ])
+    assert.deepEqual(extractChatMessages(choices), [{role: "assistant", content: "from choices"}])
     assert.deepEqual(extractChatMessages(single), [{role: "assistant", content: "single message"}])
     assert.equal(extractChatMessages(plainJson), null)
 
