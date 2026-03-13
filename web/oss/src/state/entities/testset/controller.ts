@@ -75,7 +75,7 @@ import {
     resetColumnsAtom,
 } from "../testcase/columnState"
 
-import {hasUnsavedChangesAtom, changesSummaryAtom, type ChangesSummary} from "./dirtyState"
+import {type ChangesSummary, changesSummaryAtom, hasUnsavedChangesAtom} from "./dirtyState"
 import {
     clearRevisionDraftAtom,
     enableRevisionsListQueryAtom,

@@ -1,6 +1,6 @@
 import {atom} from "jotai"
 
-import {TestResult} from "@/oss/lib/shared/variant/transformer/types"
+import {TestResult} from "@/oss/lib/shared/variant/types"
 
 export interface TraceDrawerState {
     open: boolean

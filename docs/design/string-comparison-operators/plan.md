@@ -71,7 +71,7 @@ export const customOperatorIdsForType = (t: CustomValueType): FilterConditions[]
 
 ### 3.1 API E2E Tests
 
-**File:** `api/oss/tests/pytest/e2e/tracing/test_spans_queries.py`
+**File:** `api/oss/tests/pytest/acceptance/tracing/test_spans_queries.py`
 
 Add test cases to the existing `TestSpansQueries` class. Following the existing fixture pattern:
 
@@ -279,10 +279,10 @@ class TestStringComparisonOperators:
 # Run only the new string comparison tests
 cd api
 AGENTA_API_URL=http://localhost:10180/api AGENTA_AUTH_KEY=change-me-auth \
-  python -m pytest oss/tests/pytest/e2e/tracing/test_spans_queries.py::TestStringComparisonOperators -v
+  python -m pytest oss/tests/pytest/acceptance/tracing/test_spans_queries.py::TestStringComparisonOperators -v
 
 # Run all tracing tests
-python -m pytest oss/tests/pytest/e2e/tracing/ -v -m coverage_smoke
+python -m pytest oss/tests/pytest/acceptance/tracing/ -v -m coverage_smoke
 ```
 
 ---
@@ -292,7 +292,7 @@ python -m pytest oss/tests/pytest/e2e/tracing/ -v -m coverage_smoke
 - [x] Backend: Allow numeric operators in `_parse_string_field_condition()`
 - [x] Backend: Route numeric operators in `_handle_string_field()`
 - [x] Tests: Add API E2E tests for string comparison operators
-- [ ] Tests: Run `python -m pytest oss/tests/pytest/e2e/tracing/ -v` (blocked locally: API server not running)
+- [ ] Tests: Run `python -m pytest oss/tests/pytest/acceptance/tracing/ -v` (blocked locally: API server not running)
 - [x] Frontend: Update `operatorRegistry.ts` - add `"string"` to `forTypes`
 - [x] Frontend: Add `STRING_COMPARISON_OPS` array in `utils.ts`
 - [x] Frontend: Update `customOperatorIdsForType()` in `helpers/utils.ts`

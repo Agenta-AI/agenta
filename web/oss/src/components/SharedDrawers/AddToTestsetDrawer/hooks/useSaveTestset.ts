@@ -1,13 +1,23 @@
 import {useCallback} from "react"
 
+import {
+    invalidateRevisionsListCache as invalidateEntityRevisionsListCache,
+    invalidateTestsetCache as invalidateEntityTestsetCache,
+    invalidateTestsetsListCache as invalidateEntityTestsetsListCache,
+} from "@agenta/entities/testset"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {createNewTestset} from "@/oss/services/testsets/api"
 import {currentColumnsAtom, saveTestsetAtom} from "@/oss/state/entities/testcase"
-import {fetchRevisionsList} from "@/oss/state/entities/testset"
+import {
+    fetchRevisionsList,
+    invalidateRevisionsListCache as invalidateOssRevisionsListCache,
+    invalidateTestsetCache as invalidateOssTestsetCache,
+    invalidateTestsetsListCache as invalidateOssTestsetsListCache,
+} from "@/oss/state/entities/testset"
 import {projectIdAtom} from "@/oss/state/project"
-import {setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
+import {clearRevisionsCacheAtom, setRevisionsForTestsetAtom} from "@/oss/state/testsetSelection"
 
 import {isNewTestsetAtom, newTestsetNameAtom, selectedTestsetInfoAtom} from "../atoms/cascaderState"
 import {
@@ -69,6 +79,27 @@ export function useSaveTestset() {
     // Revision select setters
     const setSelectedRevisionId = useSetAtom(selectedRevisionIdAtom)
     const setRevisionsForTestset = useSetAtom(setRevisionsForTestsetAtom)
+    const clearRevisionsCache = useSetAtom(clearRevisionsCacheAtom)
+
+    const invalidateSelectionCaches = useCallback(
+        (testsetId?: string) => {
+            // Invalidate both entity-package and OSS testset caches so all
+            // selectors/modals (including Testset Sync modal) see fresh data.
+            invalidateEntityTestsetsListCache()
+            invalidateOssTestsetsListCache()
+
+            if (testsetId) {
+                invalidateEntityTestsetCache(testsetId)
+                invalidateEntityRevisionsListCache(testsetId)
+                invalidateOssTestsetCache(testsetId)
+                invalidateOssRevisionsListCache(testsetId)
+            }
+
+            // Clear shared in-memory revisions map used by selection UIs.
+            clearRevisionsCache()
+        },
+        [clearRevisionsCache],
+    )
 
     /**
      * Convert trace data to export format
@@ -135,6 +166,8 @@ export function useSaveTestset() {
                             : "Testset created successfully",
                     )
 
+                    invalidateSelectionCaches(newTestsetId)
+
                     // Refetch testsets list so the new testset appears
                     await revisionSelect.refetchTestsets()
 
@@ -175,6 +208,8 @@ export function useSaveTestset() {
 
                         // Reload revisions and update cache
                         try {
+                            invalidateSelectionCaches(testset.id)
+
                             const response = await fetchRevisionsList({
                                 projectId,
                                 testsetId: testset.id,
@@ -222,6 +257,7 @@ export function useSaveTestset() {
             revisionSelect,
             resetSaveState,
             setIsSaving,
+            invalidateSelectionCaches,
         ],
     )
 

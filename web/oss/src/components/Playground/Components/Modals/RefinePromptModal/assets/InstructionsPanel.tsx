@@ -20,8 +20,8 @@ import {
 } from "../store/refinePromptStore"
 
 interface InstructionsPanelProps {
-    variantId: string
-    promptId: string
+    revisionId: string
+    promptKey: string
     submitRef: MutableRefObject<(() => void) | null>
 }
 
@@ -33,15 +33,19 @@ const PREDEFINED_PROMPTS = [
     },
 ]
 
-const InstructionsPanel: React.FC<InstructionsPanelProps> = ({variantId, promptId, submitRef}) => {
+const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
+    revisionId,
+    promptKey,
+    submitRef,
+}) => {
     const [inputValue, setInputValue] = useState("")
     const scrollRef = useRef<HTMLDivElement>(null)
 
-    const iterations = useAtomValue(refineIterationsAtomFamily(promptId))
-    const isLoading = useAtomValue(refineLoadingAtomFamily(promptId))
-    const pendingGuidelines = useAtomValue(pendingGuidelinesAtomFamily(promptId))
+    const iterations = useAtomValue(refineIterationsAtomFamily(promptKey))
+    const isLoading = useAtomValue(refineLoadingAtomFamily(promptKey))
+    const pendingGuidelines = useAtomValue(pendingGuidelinesAtomFamily(promptKey))
 
-    const {refine} = useRefinePrompt({variantId, promptId})
+    const {refine} = useRefinePrompt({revisionId, promptKey})
 
     const scrollToBottom = useCallback(() => {
         setTimeout(() => {
@@ -94,22 +98,22 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({variantId, promptI
     const bubbleItems = useMemo(() => {
         const items: {
             key: string
+            role: string
             content: string
-            placement: "start" | "end"
             variant?: "filled" | "outlined" | "shadow" | "borderless"
         }[] = []
 
         for (const iteration of iterations) {
             items.push({
                 key: `${iteration.id}-guidelines`,
+                role: "user",
                 content: iteration.guidelines,
-                placement: "end",
                 variant: "filled",
             })
             items.push({
                 key: `${iteration.id}-explanation`,
+                role: "assistant",
                 content: iteration.explanation,
-                placement: "start",
                 variant: "outlined",
             })
         }
@@ -118,8 +122,8 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({variantId, promptI
         if (pendingGuidelines) {
             items.push({
                 key: "pending-guidelines",
+                role: "user",
                 content: pendingGuidelines,
-                placement: "end",
                 variant: "filled",
             })
         }
@@ -146,7 +150,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({variantId, promptI
                     <Bubble.List
                         items={bubbleItems}
                         style={{fontSize: 12}}
-                        roles={{
+                        role={{
                             user: {
                                 placement: "end",
                                 variant: "filled",
@@ -195,7 +199,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({variantId, promptI
                     style={{fontSize: 12}}
                     styles={{
                         input: {minHeight: 0, padding: "2px 0"},
-                        actions: {alignSelf: "flex-end"},
+                        suffix: {alignSelf: "flex-end"},
                     }}
                 />
             </div>

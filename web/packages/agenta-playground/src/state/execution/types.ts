@@ -13,8 +13,11 @@ import type {
     ChainProgress,
     StageExecutionResult,
     RunnableType,
+    RunnableData,
     ExecutionMetrics,
+    ExecutionResult,
 } from "@agenta/entities/runnable"
+import type {ExecuteRunnableOptions} from "@agenta/entities/runnable"
 
 // ============================================================================
 // EXECUTION MODE
@@ -181,6 +184,14 @@ export interface RunResult {
     isChain?: boolean
     /** Total number of stages in the chain */
     totalStages?: number
+    /** Per-repetition results when repetitionCount > 1 */
+    repetitions?: {
+        output?: unknown
+        structuredOutput?: unknown
+        metrics?: ExecutionMetrics
+        traceId?: string | null
+        chainResults?: Record<string, StageExecutionResult>
+    }[]
 }
 
 // ============================================================================
@@ -195,6 +206,23 @@ export interface InitSessionsPayload {
 }
 
 /**
+ * Per-session execution options passed through to the adapter.
+ *
+ * Allows callers (e.g., the OSS playground trigger) to supply a pre-built
+ * request body and/or custom headers on a per-session basis. This is the
+ * key mechanism for the "thin OSS trigger" pattern where data gathering
+ * happens in OSS, but orchestration is delegated to the package controller.
+ */
+export interface SessionExecutionOptions {
+    /** Pre-built HTTP request body — bypasses default body construction */
+    rawBody?: Record<string, unknown>
+    /** HTTP headers for the request (e.g., Authorization) */
+    headers?: Record<string, string>
+    /** Project ID used to append `project_id` query param on invocation URLs */
+    projectId?: string
+}
+
+/**
  * Payload for running a step
  */
 export interface RunStepPayload {
@@ -204,6 +232,10 @@ export interface RunStepPayload {
     sessionIds?: string[]
     /** Input data (for completion mode, overrides step input) */
     data?: Record<string, unknown>
+    /** Per-session options passed through to the adapter. Keyed by sessionId. */
+    sessionOptions?: Record<string, SessionExecutionOptions>
+    /** When set, only execute this specific node instead of the full chain */
+    targetNodeId?: string
 }
 
 /**
@@ -262,4 +294,64 @@ export function createInitialExecutionState(): ExecutionState {
         stepIds: [],
         resultsByKey: {},
     }
+}
+
+// ============================================================================
+// EXECUTION ADAPTER
+// ============================================================================
+
+/**
+ * Injectable execution adapter
+ *
+ * Allows the consuming application to customize how runnables are executed.
+ * The default adapter uses `executeRunnable()` from `@agenta/entities/runnable`
+ * which makes a direct HTTP POST call. Consumers can inject a custom adapter
+ * to route execution through web workers, add streaming support, or apply
+ * custom data transformations.
+ *
+ * @example
+ * ```typescript
+ * import { executionAdapterAtom } from '@agenta/playground'
+ * import { getDefaultStore } from 'jotai/vanilla'
+ *
+ * // Set a custom adapter (e.g., web worker-backed)
+ * const store = getDefaultStore()
+ * store.set(executionAdapterAtom, {
+ *     execute: async (type, data, options) => {
+ *         // Custom execution logic (web worker, streaming, etc.)
+ *         return myWebWorkerExecute(type, data, options)
+ *     },
+ *     cancel: (runId) => {
+ *         myWebWorkerCancel(runId)
+ *     },
+ * })
+ * ```
+ */
+// Generic test result shape used by Playground UIs (legacy compat)
+export interface PlaygroundTestResult {
+    response?: unknown
+    error?: string
+    metadata?: Record<string, unknown>
+}
+
+export interface ExecutionAdapter {
+    /** Execute a runnable with the given inputs */
+    execute(
+        type: RunnableType,
+        data: RunnableData,
+        options: ExecuteRunnableOptions,
+    ): Promise<ExecutionResult>
+    /** Cancel a running execution by runId (optional) */
+    cancel?: (runId: string) => void
+}
+
+/**
+ * Parameters for cancelling tests.
+ * If no entity IDs are specified, cancels across all displayed entities.
+ */
+export interface CancelTestsParams {
+    rowId?: string
+    entityId?: string
+    entityIds?: string[]
+    reason?: string
 }

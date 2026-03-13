@@ -277,7 +277,8 @@ services:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
         # === EXECUTION ============================================ #
-        command: cron -f
+        init: true
+        command: supercronic /app/crontab
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
@@ -335,7 +336,7 @@ services:
                 "--host",
                 "0.0.0.0",
                 "--port",
-                "80",
+                "8080",
                 "--reload",
                 "--root-path",
                 "/services",
@@ -361,7 +362,7 @@ services:
             - "traefik.http.middlewares.services-strip.stripprefix.prefixes=/services"
             - "traefik.http.middlewares.services-strip.stripprefix.forceslash=true"
             - "traefik.http.routers.services.middlewares=services-strip"
-            - "traefik.http.services.services.loadbalancer.server.port=80"
+            - "traefik.http.services.services.loadbalancer.server.port=8080"
             - "traefik.http.routers.services.service=services"
         # === LIFECYCLE ============================================ #
         restart: always

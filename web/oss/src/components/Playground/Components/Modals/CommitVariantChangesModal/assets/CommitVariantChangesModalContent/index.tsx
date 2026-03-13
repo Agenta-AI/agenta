@@ -1,5 +1,11 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import {
+    legacyAppRevisionMolecule,
+    newestRevisionForVariantAtomFamily,
+    stripAgentaMetadataDeep,
+} from "@agenta/entities/legacyAppRevision"
+import {formatLocalDraftLabel, getVersionLabel, isLocalDraftId} from "@agenta/entities/shared"
 import {ArrowRight} from "@phosphor-icons/react"
 import {
     Checkbox,
@@ -18,15 +24,7 @@ import dynamic from "next/dynamic"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import {
-    moleculeBackedVariantAtomFamily,
-    newestRevisionForVariantIdAtomFamily,
-    parametersOverrideAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
-import {stripAgentaMetadataDeep} from "@/oss/lib/shared/variant/valueHelpers"
-import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {revisionLabelInfoAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 import {CommitVariantChangesModalContentProps} from "../types"
 
@@ -119,7 +117,6 @@ const CommitVariantChangesModalContent = ({
     setNote,
     selectedCommitType,
     setSelectedCommitType,
-    commitType,
     shouldDeploy,
     onToggleDeploy,
     selectedEnvironment,
@@ -127,25 +124,20 @@ const CommitVariantChangesModalContent = ({
     isDeploymentPending,
 }: CommitVariantChangesModalContentProps) => {
     // Use molecule-backed variant for single source of truth (merged data = serverData + draft)
-    const variant = useAtomValue(moleculeBackedVariantAtomFamily(variantId)) as any
-    const latestRevisionForVariant = useAtomValue(
-        newestRevisionForVariantIdAtomFamily(variant?.variantId || ""),
+    const variant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId)) as any
+    // Get serverData (initial state) - this is the baseline before any edits
+    const serverData = useAtomValue(
+        useMemo(() => legacyAppRevisionMolecule.atoms.serverData(variantId), [variantId]),
     ) as any
-    // Get original (server) ag_config through the SAME transformation pipeline as modified,
-    // so both sides have identical key ordering and only actual content changes appear in the diff.
-    const stableAtomParam = useMemo(
-        () => ({revisionId: variantId, useStableParams: true}),
-        [variantId],
-    )
-    const originalAgConfig = useAtomValue(transformedPromptsAtomFamily(stableAtomParam))?.ag_config
-    // Get current (modified) ag_config - includes local edits via molecule
-    const currentAgConfig = useAtomValue(transformedPromptsAtomFamily(variantId))?.ag_config
-    const jsonOverride = useAtomValue(parametersOverrideAtomFamily(variantId))
+    const latestRevisionForVariant = useAtomValue(
+        newestRevisionForVariantAtomFamily(variant?.variantId || ""),
+    ) as any
+    // Get current (modified) ag_config - entity-native conversion from enhanced → raw params
+    const currentAgConfig = useAtomValue(legacyAppRevisionMolecule.atoms.draftParameters(variantId))
 
-    // Use revision label API to properly handle local drafts
-    const revisionLabelInfo = useAtomValue(
-        useMemo(() => revisionLabelInfoAtomFamily(variantId), [variantId]),
-    )
+    const revisionLabel = isLocalDraftId(variantId)
+        ? formatLocalDraftLabel((variant as any)?._sourceRevision ?? null)
+        : getVersionLabel(variant?.revision)
 
     const onChange = useCallback(
         (e: RadioChangeEvent) => {
@@ -157,28 +149,28 @@ const CommitVariantChangesModalContent = ({
     // Snapshot target revision on first render so it doesn't shift while the modal is open
     const settledTargetRevisionRef = useRef<number | null>(null)
 
-    const modifiedParams =
-        commitType === "parameters" && jsonOverride ? jsonOverride : currentAgConfig
+    // For diff: compare serverData.parameters (original) vs currentAgConfig (current with edits)
+    const modifiedParams = currentAgConfig
+    // Use serverData.parameters as the original (initial state before edits)
+    // Unwrap ag_config if present (serverData.parameters may have { ag_config: {...} })
+    const rawOriginalParams = serverData?.parameters
+    const originalParams = rawOriginalParams?.ag_config ?? rawOriginalParams
 
-    // Compute diff strings as a derived value — StrictMode-safe (no refs/effects).
-    // Returns null while data is still loading.
+    // Compute diff strings as a derived value — StrictMode-safe.
     const diffData = useMemo<DiffData | null>(() => {
-        if (!originalAgConfig || !modifiedParams) return null
-        return computeDiffStrings(originalAgConfig, modifiedParams)
-    }, [originalAgConfig, modifiedParams])
+        if (!originalParams || !modifiedParams) return null
+        return computeDiffStrings(originalParams, modifiedParams)
+    }, [originalParams, modifiedParams])
 
-    // Guard against undefined variant during commit invalidation (after all hooks)
+    // Guard against undefined variant during commit invalidation
     if (!variant) {
         return (
-            <div className="flex gap-4">
-                <section className="flex flex-col gap-4">
-                    <Text>Loading variant data...</Text>
-                </section>
+            <div className="flex p-4">
+                <Text>Loading variant data...</Text>
             </div>
         )
     }
 
-    // Extract values from the variant object (safe now - after hooks and guard)
     const variantName = variant.variantName
 
     // Settle the target revision on first render so it stays stable while the modal is open
@@ -224,7 +216,7 @@ const CommitVariantChangesModalContent = ({
                                         bordered={false}
                                         className="bg-[rgba(5,23,41,0.06)]"
                                     >
-                                        {revisionLabelInfo.label}
+                                        {revisionLabel}
                                     </Tag>
                                     <ArrowRight size={14} />
                                     <Version revision={targetRevision} />

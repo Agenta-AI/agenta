@@ -139,7 +139,11 @@ jobs:
         run: |
           IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
           docker pull "$IMAGE"
-          sdk_path="$(docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)")"
+          # Redirect stderr and take only the last stdout line so that
+          # third-party import noise (e.g. litellm >=1.82 prints a
+          # "Provider List" banner) doesn't pollute the captured path.
+          docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)" >/tmp/sdk_stdout 2>/tmp/sdk_stderr || { cat /tmp/sdk_stderr >&2; exit 1; }
+          sdk_path="$(tail -1 /tmp/sdk_stdout)"
           echo "Resolved SDK path: $sdk_path"
           case "$sdk_path" in
             /app/sdk/*) ;;
@@ -148,6 +152,17 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Verify image runs as non-root
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}"
+          docker pull "$IMAGE"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::${{ matrix.image_name }} runs as root (User='${USER}')"
+            exit 1
+          fi
+          echo "PASS: ${{ matrix.image_name }} runs as User='${USER}'"
 
       - name: Summary
         run: |
@@ -160,4 +175,12 @@ jobs:
     with:
       image_tag: ${{ needs.prepare.outputs.image_tag }}
       pr_number: ${{ needs.prepare.outputs.pr_number }}
+    secrets: inherit
+
+  playwright:
+    needs: [deploy]
+    if: needs.deploy.outputs.preview_url != ''
+    uses: ./.github/workflows/10-playwright-oss-tests.yml
+    with:
+      web_url: ${{ needs.deploy.outputs.preview_url }}
     secrets: inherit

@@ -35,33 +35,40 @@ COPY packages/css-modules.d.ts ./packages/
 COPY tests/package.json ./tests/
 
 COPY ./pnpm-workspace.yaml ./turbo.json ./
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
+    chown -R agenta:agenta /app
+
+USER 10001
+
 RUN pnpm i
 
-COPY tsconfig.json .
+COPY --chown=agenta:agenta tsconfig.json .
 
 # Copy workspace package sources (after install to preserve layer caching)
-COPY packages/agenta-shared/src ./packages/agenta-shared/src
-COPY packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
-COPY packages/agenta-ui/src ./packages/agenta-ui/src
-COPY packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
-COPY packages/agenta-entities/src ./packages/agenta-entities/src
-COPY packages/agenta-entities/tsconfig.json ./packages/agenta-entities/
-COPY packages/agenta-entity-ui/src ./packages/agenta-entity-ui/src
-COPY packages/agenta-entity-ui/tsconfig.json ./packages/agenta-entity-ui/
-COPY packages/agenta-playground/src ./packages/agenta-playground/src
-COPY packages/agenta-playground/tsconfig.json ./packages/agenta-playground/
-COPY packages/agenta-playground-ui/src ./packages/agenta-playground-ui/src
-COPY packages/agenta-playground-ui/tsconfig.json ./packages/agenta-playground-ui/
+COPY --chown=agenta:agenta packages/agenta-shared/src ./packages/agenta-shared/src
+COPY --chown=agenta:agenta packages/agenta-shared/tsconfig.json ./packages/agenta-shared/
+COPY --chown=agenta:agenta packages/agenta-ui/src ./packages/agenta-ui/src
+COPY --chown=agenta:agenta packages/agenta-ui/tsconfig.json ./packages/agenta-ui/
+COPY --chown=agenta:agenta packages/agenta-entities/src ./packages/agenta-entities/src
+COPY --chown=agenta:agenta packages/agenta-entities/tsconfig.json ./packages/agenta-entities/
+COPY --chown=agenta:agenta packages/agenta-entity-ui/src ./packages/agenta-entity-ui/src
+COPY --chown=agenta:agenta packages/agenta-entity-ui/tsconfig.json ./packages/agenta-entity-ui/
+COPY --chown=agenta:agenta packages/agenta-playground/src ./packages/agenta-playground/src
+COPY --chown=agenta:agenta packages/agenta-playground/tsconfig.json ./packages/agenta-playground/
+COPY --chown=agenta:agenta packages/agenta-playground-ui/src ./packages/agenta-playground-ui/src
+COPY --chown=agenta:agenta packages/agenta-playground-ui/tsconfig.json ./packages/agenta-playground-ui/
 
-COPY oss/src ./oss/src
-COPY oss/public ./oss/public
-COPY oss/tsconfig.json ./oss
+COPY --chown=agenta:agenta oss/src ./oss/src
+COPY --chown=agenta:agenta oss/public ./oss/public
+COPY --chown=agenta:agenta oss/tsconfig.json ./oss
 
-COPY oss/postcss.config.mjs ./oss/postcss.config.mjs
+COPY --chown=agenta:agenta oss/postcss.config.mjs ./oss/postcss.config.mjs
 
-COPY oss/next.config.ts ./oss/next.config.ts
+COPY --chown=agenta:agenta oss/next.config.ts ./oss/next.config.ts
 
-COPY oss/tailwind.config.ts ./oss/tailwind.config.ts
+COPY --chown=agenta:agenta oss/tailwind.config.ts ./oss/tailwind.config.ts
+
 
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 3000

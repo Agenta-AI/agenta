@@ -1,6 +1,48 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 import {RoleType, VariantFixtures} from "./assets/types"
+import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+
+const SECRET_PROPAGATION_TIMEOUT_MS = 65_000
+const SECRET_PROPAGATION_POLL_MS = 5_000
+
+const isSecretPropagationFailure = (response: Record<string, any> | null): boolean => {
+    const raw = JSON.stringify(response ?? {}).toLowerCase()
+    return raw.includes("invalid-secrets") || raw.includes("no api key found for model")
+}
+
+const waitForSuccessfulRun = async (
+    triggerRun: () => Promise<void>,
+    waitForRunResponse: () => Promise<Record<string, any> | null>,
+) => {
+    const deadline = Date.now() + SECRET_PROPAGATION_TIMEOUT_MS
+    let attempt = 0
+    let lastResponse: Record<string, any> | null = null
+
+    while (Date.now() <= deadline) {
+        attempt += 1
+        const runResponsePromise = waitForRunResponse()
+        await triggerRun()
+        lastResponse = await runResponsePromise
+
+        if (!lastResponse || !isSecretPropagationFailure(lastResponse)) {
+            return lastResponse
+        }
+
+        if (Date.now() + SECRET_PROPAGATION_POLL_MS > deadline) {
+            break
+        }
+
+        console.warn(
+            `[Playground E2E] Run attempt ${attempt} hit secret propagation delay. Retrying...`,
+        )
+        await new Promise((resolve) => setTimeout(resolve, SECRET_PROPAGATION_POLL_MS))
+    }
+
+    throw new Error(
+        `Run did not recover from secret propagation within ${SECRET_PROPAGATION_TIMEOUT_MS}ms. Last response: ${JSON.stringify(lastResponse)}`,
+    )
+}
 
 /**
  * Playground-specific test fixtures extending the base test fixture.
@@ -9,18 +51,53 @@ import {RoleType, VariantFixtures} from "./assets/types"
 const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
     navigateToPlayground: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
-            await page.goto(`/apps/${appId}/playground`)
+            const currentPathname = new URL(page.url()).pathname
+            const scopedPrefixMatch = currentPathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)
+            const scopedPrefix = scopedPrefixMatch?.[1] ?? ""
+            const appsUrl = scopedPrefix ? `${scopedPrefix}/apps` : "/apps"
+            const overviewUrl = scopedPrefix
+                ? `${scopedPrefix}/apps/${appId}/overview`
+                : `/apps/${appId}/overview`
+            const playgroundUrl = scopedPrefix
+                ? `${scopedPrefix}/apps/${appId}/playground`
+                : `/apps/${appId}/playground`
+
+            await page.goto(appsUrl, {waitUntil: "domcontentloaded"})
+            await uiHelpers.expectPath("/apps")
+
+            // Enter the app through its scoped overview route, then switch to Playground
+            // from the in-app sidebar. Direct Playground entry is still flaky on this branch.
+            await page.goto(overviewUrl, {waitUntil: "domcontentloaded"})
+            await uiHelpers.expectPath(`/apps/${appId}/overview`)
+            await page.waitForLoadState("networkidle")
+
+            const playgroundLink = page.getByRole("link", {name: "Playground"}).first()
+            await expect(playgroundLink).toBeVisible({timeout: 10000})
+            await playgroundLink.click()
+
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
 
-            await uiHelpers.waitForLoadingState("Loading Playground...")
+            const latestRevisionId = getKnownLatestRevisionId(appId)
+            if (latestRevisionId) {
+                await page.goto(`${playgroundUrl}?revisions=${latestRevisionId}`, {
+                    waitUntil: "domcontentloaded",
+                })
+                await uiHelpers.expectPath(`/apps/${appId}/playground`)
+            }
 
-            // Confirm Playground is loaded
-            await uiHelpers.expectText("Generations", {exact: true})
+            await expect(
+                page.getByRole("button", {name: "Run", exact: true}).first(),
+            ).toBeVisible({timeout: 30000})
         })
     },
 
-    runCompletionSingleViewVariant: async ({page, uiHelpers, apiHelpers}, use) => {
+    runCompletionSingleViewVariant: async (
+        {page, uiHelpers, apiHelpers, testProviderHelpers},
+        use,
+    ) => {
         await use(async (appId: string, messages: string[]) => {
+            await testProviderHelpers.selectTestModel()
+
             for (let i = 0; i < messages.length; i++) {
                 // 1. Load the message
                 const message = messages[i]
@@ -28,7 +105,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 2. Find out the empty textbox
                 const textboxes = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Enter value")) [role="textbox"]',
+                    '.agenta-shared-editor:has(div:text-is("Enter a value")) [role="textbox"]',
                 )
                 const targetTextbox = textboxes.first()
 
@@ -38,13 +115,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-
-                await runButtons.nth(i).click()
-
-                await apiHelpers.waitForApiResponse<Record<string, any>>({
-                    route: /\/test(\?|$)/,
-                    method: "POST",
-                })
+                await waitForSuccessfulRun(
+                    async () => {
+                        await runButtons.nth(i).click()
+                    },
+                    async () => {
+                        return await apiHelpers.waitForApiResponse<Record<string, any>>({
+                            route: /\/test(\?|$)/,
+                            method: "POST",
+                            validateStatus: false,
+                        })
+                    },
+                )
 
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
@@ -57,9 +139,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
         })
     },
 
-    runChatSingleViewVariant: async ({page, uiHelpers, apiHelpers}, use) => {
+    runChatSingleViewVariant: async ({page, uiHelpers, apiHelpers, testProviderHelpers}, use) => {
         await use(async (appId: string, messages: string[]) => {
             let isMessageButtonDisabled = false
+            await testProviderHelpers.selectTestModel()
 
             for (let i = 0; i < messages.length; i++) {
                 if (isMessageButtonDisabled) {
@@ -72,7 +155,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 2. Find out the empty chat textbox
                 const targetTextbox = page.locator(
-                    '.agenta-shared-editor:has(div:text-is("Type a message...")) [role="textbox"]',
+                    '.agenta-shared-editor:has(div:text-is("Type your message\u2026")) [role="textbox"]',
                 )
 
                 await targetTextbox.scrollIntoViewIfNeeded()
@@ -81,13 +164,18 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
-
-                await runButtons.click()
-
-                await apiHelpers.waitForApiResponse<Record<string, any>>({
-                    route: /\/test(\?|$)/,
-                    method: "POST",
-                })
+                await waitForSuccessfulRun(
+                    async () => {
+                        await runButtons.click()
+                    },
+                    async () => {
+                        return await apiHelpers.waitForApiResponse<Record<string, any>>({
+                            route: /\/test(\?|$)/,
+                            method: "POST",
+                            validateStatus: false,
+                        })
+                    },
+                )
 
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 
@@ -224,8 +312,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     // 4. Confirm the modal
                     await uiHelpers.confirmModal("Commit")
 
-                    // 5. Assert the success message
-                    await uiHelpers.waitForLoadingState("Updating playground with new revision...")
+                    // 5. Wait for the commit modal to close (indicates success)
+                    await expect(page.locator(".ant-modal")).not.toBeVisible({timeout: 30000})
                 }
             },
         )

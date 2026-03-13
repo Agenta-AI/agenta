@@ -542,8 +542,6 @@ async def inspect_workflow(
     **kwargs,
 ) -> WorkflowServiceRequest:
     return await workflow(
-        data=request.data,
-        #
         interface=request.interface,
         configuration=request.configuration,
         #

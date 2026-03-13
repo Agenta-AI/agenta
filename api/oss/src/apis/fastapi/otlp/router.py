@@ -16,7 +16,7 @@ from oss.src.utils.common import is_ee
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
-from oss.src.core.tracing.utils import calculate_and_propagate_metrics
+from oss.src.core.tracing.utils.trees import calculate_and_propagate_metrics_by_trace
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
@@ -169,6 +169,16 @@ class OTLPRouter:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        if spans:
+            try:
+                spans = calculate_and_propagate_metrics_by_trace(spans)
+            except Exception:
+                log.error(
+                    "[OTLP] Failed to calculate tracing metrics before queueing",
+                    project_id=str(request.state.project_id),
+                    exc_info=True,
+                )
+
         # -------------------------------------------------------------------- #
         # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
@@ -205,20 +215,6 @@ class OTLPRouter:
                     org_id=str(request.state.organization_id),
                     exc_info=True,
                 )
-
-        # -------------------------------------------------------------------- #
-        # Calculate and propagate costs/tokens BEFORE batching
-        # This ensures complete trace trees for proper metric propagation
-        # -------------------------------------------------------------------- #
-        if spans:
-            try:
-                spans = calculate_and_propagate_metrics(spans)
-            except Exception as e:
-                log.error(
-                    f"[OTLP] Failed to calculate metrics: {e}",
-                    exc_info=True,
-                )
-                # Continue without metrics rather than failing the entire request
 
         # -------------------------------------------------------------------- #
         # Write spans to Redis Streams for async processing

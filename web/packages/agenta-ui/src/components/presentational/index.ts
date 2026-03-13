@@ -46,7 +46,9 @@ export {
     EntityListItemLabel,
     AppListItemLabel,
     VariantListItemLabel,
+    EntityTypeIcon,
     type EntityListItemLabelProps,
+    type EntityTypeIconProps,
 } from "./entity"
 
 // ============================================================================
@@ -71,6 +73,12 @@ export {
 // ============================================================================
 
 export {CopyButton, type CopyButtonProps} from "./CopyButton"
+
+// ============================================================================
+// ENHANCED BUTTON
+// ============================================================================
+
+export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
 
 // ============================================================================
 // SELECT COMPONENTS
@@ -99,9 +107,17 @@ export {
     ImageAttachment,
     FileAttachment,
     AttachmentGrid,
+    ImagePreview,
+    ImageWithFallback,
     type ImageAttachmentProps,
     type FileAttachmentProps,
     type AttachmentGridProps,
+    type ImagePreviewProps,
+    type ImageWithFallbackProps,
+    PromptImageUpload,
+    type PromptImageUploadProps,
+    PromptDocumentUpload,
+    type PromptDocumentUploadProps,
 } from "./attachments"
 
 // ============================================================================
@@ -199,3 +215,31 @@ export {
     type ExecutionMetricsData,
     type MappingStatusTagProps,
 } from "./metrics"
+
+// ============================================================================
+// DATE COMPONENTS
+// ============================================================================
+
+export {FormattedDate, type FormattedDateProps} from "./FormattedDate"
+
+// ============================================================================
+// BUTTON COMPONENTS
+// ============================================================================
+
+export {
+    AddButton,
+    RunButton,
+    CollapseToggleButton,
+    useCollapseToggle,
+    useCollapseStyle,
+    useContentOverflow,
+    getCollapseIcon,
+    getCollapseLabel,
+    getCollapseStyle,
+    DEFAULT_COLLAPSED_MAX_HEIGHT,
+    type AddButtonProps,
+    type RunButtonProps,
+    type CollapseToggleButtonProps,
+    type UseCollapseToggleOptions,
+    type UseCollapseToggleReturn,
+} from "./buttons"

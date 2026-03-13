@@ -5,8 +5,9 @@
  * These components work with JSON Schema to automatically render
  * appropriate controls based on schema metadata.
  *
- * Components that need OSS-specific UI (like ChatMessageList, SelectLLMProvider)
- * use the DrillInUIContext for dependency injection.
+ * Components that need OSS-specific UI (like ChatMessageList) use the
+ * DrillInUIContext for dependency injection. SelectLLMProviderBase is used
+ * directly from @agenta/ui with config data from context.
  */
 
 // ============================================================================
@@ -38,8 +39,27 @@ export type {MessagesSchemaControlProps} from "./MessagesSchemaControl"
 export {ResponseFormatControl, responseFormatModalOpenAtom} from "./ResponseFormatControl"
 export type {ResponseFormatValue, ResponseFormatControlProps} from "./ResponseFormatControl"
 
+export {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
+export type {
+    FeedbackConfigurationControlProps,
+    FeedbackConfig,
+    ResponseFormatType,
+    CategoricalOption,
+} from "./FeedbackConfigurationControl"
+
 export {PromptSchemaControl, isPromptSchema, isPromptValue} from "./PromptSchemaControl"
 export type {PromptSchemaControlProps} from "./PromptSchemaControl"
+
+// ============================================================================
+// TOOL CONTROLS
+// ============================================================================
+
+export {ToolItemControl} from "./ToolItemControl"
+export type {ToolItemControlProps} from "./ToolItemControl"
+export {ToolSelectorPopover} from "./ToolSelectorPopover"
+export type {ToolSelectorPopoverProps} from "./ToolSelectorPopover"
+export {TOOL_PROVIDERS_META, TOOL_SPECS} from "./toolUtils"
+export type {ToolObj, ToolFunction} from "./toolUtils"
 
 // ============================================================================
 // COMPOSITE CONTROLS

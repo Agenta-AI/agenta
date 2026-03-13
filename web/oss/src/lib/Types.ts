@@ -3,7 +3,7 @@ import type {StaticImageData} from "next/image"
 
 import type {AgentaNodeDTO} from "@/oss/services/observability/types"
 
-import {VariantParameters} from "./shared/variant/transformer/types"
+import {VariantParameters} from "./shared/variant/types"
 
 // Type utility to convert snake_case object properties to camelCase
 export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
@@ -389,6 +389,7 @@ export interface Environment {
     deployed_variant_name: string | null
     deployed_app_variant_revision_id: string | null
     revision: string | null
+    updated_at?: string | null
 }
 
 export type FilterValue =

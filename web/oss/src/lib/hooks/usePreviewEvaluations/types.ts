@@ -1,5 +1,5 @@
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
 
 /**

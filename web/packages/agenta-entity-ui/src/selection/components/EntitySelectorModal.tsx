@@ -209,10 +209,14 @@ function formatEntityTypeLabel(type: SelectableEntityType): string {
         ossVariant: "Variant",
         legacyAppRevision: "App Revision",
         evaluator: "Evaluator",
+        legacyEvaluator: "Evaluator",
         evaluatorVariant: "Evaluator Variant",
         evaluatorRevision: "Evaluator Revision",
         playgroundVariant: "Variant",
         playgroundRevision: "Revision",
+        workflow: "Workflow",
+        workflowVariant: "Workflow Variant",
+        workflowRevision: "Workflow Revision",
     }
 
     return labels[type] ?? type

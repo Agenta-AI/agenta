@@ -12,6 +12,9 @@ base.fixture/
 │   ├── index.ts     # API helper implementations
 │   ├── types.d.ts   # API helper types
 │   └── README.md    # API helper documentation
+├── providerHelpers/ # Test provider setup and model selection helpers
+│   ├── index.ts     # Provider helper implementations
+│   └── types.d.ts   # Provider helper types
 └── uiHelpers/       # UI interaction helpers
     ├── index.ts     # UI helper implementations
     ├── types.d.ts   # UI helper types
@@ -64,6 +67,14 @@ Namespaced API interaction helpers
 - Type-safe response handlers
 
 [API Helpers Documentation](./apiHelpers/README.md)
+
+### `testProviderHelpers: TestProviderHelpers`
+
+Project scoped test provider helpers.
+
+- `ensureTestProvider()` creates or reuses the active test provider in the current project
+- `selectTestModel()` selects the active test model in the Playground
+- `getActiveProfile()` returns the active provider mode, provider name, and model name
 
 ## Extending
 

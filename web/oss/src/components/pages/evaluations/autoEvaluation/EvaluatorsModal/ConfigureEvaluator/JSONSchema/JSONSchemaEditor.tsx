@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {
     Button,
@@ -18,7 +19,6 @@ import {
 } from "antd"
 import {createUseStyles} from "react-jss"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import {
@@ -31,7 +31,7 @@ import {CategoricalOption, ResponseFormatType, SchemaConfig} from "./types"
 interface JSONSchemaEditorProps {
     form: FormInstance
     name: string | string[]
-    defaultValue?: string
+    fallbackValue?: string
 }
 
 const normalizeSchemaValue = (value: unknown): string | undefined => {
@@ -64,7 +64,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, defaultValue}) => {
+export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, fallbackValue}) => {
     const [modal, contextHolder] = Modal.useModal()
     const classes = useStyles()
     const [mode, setMode] = useState("basic")
@@ -77,7 +77,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     const [categories, setCategories] = useState<CategoricalOption[]>(createDefaultCategories())
 
     // Advanced mode state
-    const initialSchema = normalizeSchemaValue(defaultValue)
+    const initialSchema = normalizeSchemaValue(fallbackValue)
     const [rawSchema, setRawSchema] = useState(initialSchema ?? "")
     const [supportsBasicMode, setSupportsBasicMode] = useState<boolean>(() =>
         initialSchema ? isSchemaCompatibleWithBasicMode(initialSchema) : true,
@@ -90,7 +90,10 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
     const namePath = useMemo(() => (Array.isArray(name) ? name : [name]), [name])
     const watchedValue = Form.useWatch(namePath as any, form)
     const normalizedWatchedValue = useMemo(() => normalizeSchemaValue(watchedValue), [watchedValue])
-    const normalizedDefaultValue = useMemo(() => normalizeSchemaValue(defaultValue), [defaultValue])
+    const normalizedDefaultValue = useMemo(
+        () => normalizeSchemaValue(fallbackValue),
+        [fallbackValue],
+    )
 
     const applyParsedConfig = useCallback((parsed: SchemaConfig) => {
         setResponseFormat(parsed.responseFormat)
@@ -338,7 +341,7 @@ export const JSONSchemaEditor: React.FC<JSONSchemaEditorProps> = ({form, name, d
                     {/* Conditional fields based on response format */}
                     {responseFormat === "boolean" && (
                         <Alert
-                            message="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
+                            title="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
                             type="info"
                             showIcon
                         />

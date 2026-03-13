@@ -66,6 +66,11 @@ export interface CollapsibleGroupHeaderProps {
      * @default 14
      */
     iconSize?: number
+    /**
+     * Custom icon renderer. When provided, replaces the default CaretDown/CaretRight icons.
+     * Receives the current collapsed state and icon size.
+     */
+    renderIcon?: (isCollapsed: boolean, iconSize: number) => ReactNode
 }
 
 export function CollapsibleGroupHeader({
@@ -76,6 +81,7 @@ export function CollapsibleGroupHeader({
     className,
     renderLabel,
     iconSize = DEFAULT_ICON_SIZE,
+    renderIcon,
 }: CollapsibleGroupHeaderProps) {
     const handleCaretClick = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -117,14 +123,16 @@ export function CollapsibleGroupHeader({
         >
             <span
                 className={cn(
-                    "flex-shrink-0 rounded",
+                    "flex-shrink-0",
                     hasCustomLabel && "cursor-pointer",
                     hasCustomLabel && focusStyles.ring,
                 )}
                 onClick={hasCustomLabel ? handleCaretClick : undefined}
                 {...(hasCustomLabel && a11yProps)}
             >
-                {isCollapsed ? (
+                {renderIcon ? (
+                    renderIcon(isCollapsed, iconSize)
+                ) : isCollapsed ? (
                     <CaretRight size={iconSize} className={textColors.secondary} />
                 ) : (
                     <CaretDown size={iconSize} className={textColors.secondary} />

@@ -1,20 +1,16 @@
 import {memo, useEffect} from "react"
 
 import {
-    completionServiceSchemaAtom,
     chatServiceSchemaAtom,
-} from "@agenta/entities/appRevision/state"
-import {
-    serviceSchemaMetadataWarmerAtom,
+    completionServiceSchemaAtom,
     revisionCacheVersionAtom,
 } from "@agenta/entities/legacyAppRevision"
 import {setUserAtoms} from "@agenta/entities/shared/user"
-// import {} from "@agenta/entity-ui/modals"
+import {playgroundRevisionsReadyAtom} from "@agenta/playground/state"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
-import {playgroundRevisionsReadyAtom} from "@/oss/components/Playground/state/atoms/variants"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
@@ -206,7 +202,7 @@ const RevisionCacheSync = () => {
 
     useEffect(() => {
         if (isReady) {
-            bumpCacheVersion((prev) => prev + 1)
+            bumpCacheVersion((prev: number) => prev + 1)
         }
     }, [isReady, bumpCacheVersion])
 
@@ -223,10 +219,6 @@ const AppGlobalWrappers = () => {
     useAtomValue(chatServiceSchemaAtom)
 
     // Pre-heat metadata for service schemas as soon as they resolve.
-    // This ensures UI controls have metadata available on first paint
-    // when a variant drawer opens, without waiting for per-revision derivation.
-    useAtomValue(serviceSchemaMetadataWarmerAtom)
-
     return (
         <EntityModalsProvider>
             <NavigationCommandListener />

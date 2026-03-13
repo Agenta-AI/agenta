@@ -169,11 +169,11 @@ Find help, explore resources, or get involved:
 
 ### 🤝 Contribute
 
-We welcome contributions of all kinds — from filing issues and sharing ideas to improving the codebase.
+We welcome contributions of all kinds, from filing issues and sharing ideas to improving the codebase. Check out our [CONTRIBUTING.md](CONTRIBUTING.md) and:
 
 - **🐛 [Report bugs](https://github.com/Agenta-AI/agenta/issues)** – Help us by reporting problems you encounter  
 - **💡 [Share ideas and feedback](https://github.com/Agenta-AI/agenta/discussions)** – Suggest features or vote on ideas
-- **🔧 [Contribute to the codebase](https://agenta.ai/docs/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
+- **🔧 [Contribute to the codebase](https://agenta.ai/docs/contributing/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
 
 ## ⭐ Star Agenta
 

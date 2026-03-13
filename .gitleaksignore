@@ -280,3 +280,5 @@ bb4b06cd13e5aca1c75886990f164b643360da2b:sdk/tests/legacy/debugging/simple-app/c
 9b02348e6037157ba341bdcb1b7e11f55689ac13:docs/design/agents-feature/pre-research/research-vellum-composio-api.md:generic-api-key:366
 8bf2b0643b024e17904269830d941cb324a26b0f:docs/design/agents-feature/research-composio-oauth.md:curl-auth-header:150
 ce2aa0c2d9990d25d5771b65e0fad6db01518e14:sdk/tests/integration/conftest.py:agenta-api-key:23
+a00f015276504fbf7a4820b26d17eb725c63635b:bench_traces.py:generic-api-key:19
+a00f015276504fbf7a4820b26d17eb725c63635b:bench_bulk_insert.py:generic-api-key:304

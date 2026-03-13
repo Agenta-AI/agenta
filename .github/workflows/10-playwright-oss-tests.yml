@@ -1,0 +1,131 @@
+name: "10 - playwright: OSS acceptance tests"
+
+on:
+  workflow_call:
+    inputs:
+      web_url:
+        description: "URL of the Agenta deployment to test against"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      web_url:
+        description: "URL of the Agenta deployment to test against"
+        required: true
+        type: string
+        default: "https://gateway-production-99ee.up.railway.app"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playwright-oss-${{ inputs.web_url }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright OSS acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_WEB_URL: ${{ inputs.web_url }}
+      AGENTA_TEST_OSS_OWNER_EMAIL: ${{ secrets.AGENTA_TEST_OSS_OWNER_EMAIL }}
+      AGENTA_TEST_OSS_OWNER_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_OWNER_PASSWORD }}
+      AGENTA_TEST_LLM_PROVIDER: mock
+      AGENTA_TEST_AUTH_MODE: password
+      AGENTA_TEST_EPHEMERAL_PROJECT: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: web
+        run: pnpm install --no-frozen-lockfile --filter agenta-web-tests...
+
+      - name: Install Playwright browsers
+        working-directory: web/tests
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Wait for deployment readiness
+        run: |
+          # Strip any path suffix (e.g. /w) to get the base origin for health checks
+          BASE_URL="$(echo "$AGENTA_WEB_URL" | sed 's|/[^/]*$||; s|/$||')"
+          # If the URL had no path, use it as-is
+          if ! echo "$BASE_URL" | grep -q '://'; then
+            BASE_URL="$AGENTA_WEB_URL"
+          fi
+          HEALTH_URL="${BASE_URL}/api/health"
+          echo "Waiting for ${HEALTH_URL} to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf -o /dev/null "$HEALTH_URL" 2>/dev/null; then
+              echo "Deployment is ready."
+              exit 0
+            fi
+            echo "Attempt $i/30: not ready, waiting 10s..."
+            sleep 10
+          done
+          echo "Deployment did not become ready within 5 minutes."
+          exit 1
+
+      - name: Run Playwright tests
+        working-directory: web/tests
+        run: pnpm exec playwright test --reporter=html,github
+
+      - name: Upload test report
+        id: upload_report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: web/tests/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        id: upload_results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: web/tests/test-results/
+          retention-days: 7
+
+      - name: Write job summary
+        if: always()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          REPORT_URL="${{ steps.upload_report.outputs.artifact-url }}"
+          RESULTS_URL="${{ steps.upload_results.outputs.artifact-url }}"
+          JOB_STATUS="${{ job.status }}"
+
+          {
+            echo "## Playwright Test Summary"
+            echo
+            echo "| Item | Link | Notes |"
+            echo "| --- | --- | --- |"
+            echo "| Workflow run | [Open run](${RUN_URL}) | Full logs and step output |"
+
+            if [ -n "${REPORT_URL}" ]; then
+              echo "| Playwright HTML report | [Download artifact](${REPORT_URL}) | Download the zip, then open \`index.html\` locally |"
+            else
+              echo "| Playwright HTML report | Not available | Report upload did not complete |"
+            fi
+
+            if [ -n "${RESULTS_URL}" ]; then
+              echo "| Raw failure artifacts | [Download artifact](${RESULTS_URL}) | Includes failure screenshots, videos, and traces when present |"
+            else
+              echo "| Raw failure artifacts | Not uploaded | Only uploaded when the job fails |"
+            fi
+
+            echo
+            echo "**Job status:** \`${JOB_STATUS}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

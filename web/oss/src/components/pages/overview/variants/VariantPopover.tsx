@@ -1,3 +1,4 @@
+import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -6,9 +7,8 @@ import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/En
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {Environment} from "@/oss/lib/Types"
-import {moleculeBackedVariantAtomFamily} from "@/oss/state/newPlayground/legacyEntityBridge"
 
 type VariantPopoverProps = {
     env: Environment
@@ -16,7 +16,7 @@ type VariantPopoverProps = {
 } & React.ComponentProps<typeof Popover>
 
 const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
-    const revisionData = useAtomValue(moleculeBackedVariantAtomFamily(variant.id)) as any
+    const revisionData = useAtomValue(legacyAppRevisionMolecule.atoms.data(variant.id)) as any
     const name: string | null =
         revisionData?.modifiedByDisplayName ??
         revisionData?.modifiedBy ??

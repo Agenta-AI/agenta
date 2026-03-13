@@ -1,7 +1,6 @@
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 import {
     variantDrawerAtom,
     drawerVariantIdAtom,
@@ -122,7 +121,7 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
 
         store.set(variantDrawerAtom, (draft) => {
             if (!draft.variantsAtom) {
-                draft.variantsAtom = revisionListAtom
+                draft.variantsAtom = undefined
             }
             draft.type = desiredType
             draft.open = true

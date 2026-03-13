@@ -2,13 +2,19 @@
     "name": "@agenta/entities",
     "version": "0.75.0",
     "private": true,
-    "sideEffects": false,
+    "sideEffects": [
+        "./src/legacyAppRevision/snapshotAdapter.ts",
+        "./src/appRevision/snapshotAdapter.ts",
+        "./src/workflow/snapshotAdapter.ts"
+    ],
     "main": "./src/index.ts",
     "types": "./src/index.ts",
     "scripts": {
-        "build": "tsc --noEmit",
+        "build": "pnpm run types:check",
         "types:check": "tsc --noEmit",
-        "lint": "eslint --config ../eslint.config.mjs src/"
+        "lint": "eslint --config ../eslint.config.mjs src/ --max-warnings 0",
+        "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix",
+        "test": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -16,18 +22,34 @@
         "./shared/user": "./src/shared/user/index.ts",
         "./appRevision": "./src/appRevision/index.ts",
         "./appRevision/state": "./src/appRevision/state/index.ts",
+        "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
         "./legacyAppRevision": "./src/legacyAppRevision/index.ts",
+        "./legacyAppRevision/metadata": "./src/legacyAppRevision/state/metadataAtoms.ts",
+        "./legacyAppRevision/utils": "./src/legacyAppRevision/utils/index.ts",
+        "./legacyAppRevision/utils/parameterConversion": "./src/legacyAppRevision/utils/parameterConversion.ts",
+        "./legacyAppRevision/snapshotAdapter": "./src/legacyAppRevision/snapshotAdapter.ts",
+        "./evaluator": "./src/evaluator/index.ts",
+        "./evaluator/state": "./src/evaluator/state/index.ts",
+        "./legacyEvaluator": "./src/legacyEvaluator/index.ts",
+        "./legacyEvaluator/state": "./src/legacyEvaluator/state/index.ts",
         "./evaluatorRevision": "./src/evaluatorRevision/index.ts",
+        "./workflow": "./src/workflow/index.ts",
+        "./workflow/state": "./src/workflow/state/index.ts",
+        "./workflow/snapshotAdapter": "./src/workflow/snapshotAdapter.ts",
         "./loadable": "./src/loadable/index.ts",
         "./runnable": "./src/runnable/index.ts",
+        "./baseRunnable": "./src/baseRunnable/index.ts",
+        "./baseRunnable/snapshotAdapter": "./src/baseRunnable/snapshotAdapter.ts",
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
-        "./testcase": "./src/testcase/index.ts"
+        "./testcase": "./src/testcase/index.ts",
+        "./environment": "./src/environment/index.ts"
     },
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",
         "jotai-scheduler": "^0.0.5",
-        "lodash": "^4.17.21",
+        "lodash": ">=4.17.23",
+        "openapi-json-schema": "^2.0.0",
         "stable-hash": "^0.0.6"
     },
     "devDependencies": {
@@ -45,7 +67,8 @@
         "@lexical/utils": "^0.40.0",
         "@tanstack/react-virtual": "^3.13.2",
         "@types/js-yaml": "^4.0.9",
-        "@types/lodash": "^4.17.18",
+        "@types/json-schema": "^7.0.15",
+        "@types/lodash": "^4.17.23",
         "@types/node": "^20.8.10",
         "@types/prismjs": "^1.26.0",
         "@types/react": "^19.0.10",
