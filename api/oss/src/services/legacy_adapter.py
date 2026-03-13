@@ -370,7 +370,26 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
-        # Commit a revision with the parameters
+        # Match the newer create flows: initial commit is metadata-only.
+        initial_revision_commit = ApplicationRevisionCommit(
+            slug=uuid4().hex[-12:],
+            name=variant_name,
+            application_id=app_id,
+            application_variant_id=variant.id,
+            data=None,
+            message="Initial commit",
+            flags=flags,
+        )
+
+        initial_revision = await self.applications_service.commit_application_revision(
+            project_id=project_id,
+            user_id=user_id,
+            application_revision_commit=initial_revision_commit,
+        )
+
+        if not initial_revision:
+            return None
+
         revision_data = ApplicationRevisionData(
             version="2025.07.14",
             parameters=parameters,
@@ -382,7 +401,7 @@ class LegacyApplicationsAdapter:
             application_id=app_id,
             application_variant_id=variant.id,
             data=revision_data,
-            message=commit_message or "Initial commit",
+            message=commit_message,
             flags=flags,
         )
 
@@ -391,6 +410,9 @@ class LegacyApplicationsAdapter:
             user_id=user_id,
             application_revision_commit=revision_commit,
         )
+
+        if not revision:
+            return None
 
         return await self._application_variant_to_legacy(variant, revision, project_id)
 
@@ -860,7 +882,26 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
-        # Create initial revision with parameters
+        # Match the newer create flows: initial commit is metadata-only.
+        initial_revision_commit = ApplicationRevisionCommit(
+            slug=uuid4().hex[-12:],
+            name=variant_slug,
+            application_id=app_id,
+            application_variant_id=variant.id,
+            data=None,
+            message="Initial commit",
+            flags=flags,
+        )
+
+        initial_revision = await self.applications_service.commit_application_revision(
+            project_id=project_id,
+            user_id=user_id,
+            application_revision_commit=initial_revision_commit,
+        )
+
+        if not initial_revision:
+            return None
+
         revision_data = ApplicationRevisionData(
             version="2025.07.14",
             url=url,
@@ -873,7 +914,7 @@ class LegacyApplicationsAdapter:
             application_id=app_id,
             application_variant_id=variant.id,
             data=revision_data,
-            message=commit_message or "Initial commit",
+            message=commit_message,
             flags=flags,
         )
 
@@ -1123,27 +1164,25 @@ class LegacyApplicationsAdapter:
         if not variant:
             return None
 
-        # Create v0 - initial commit with URL only
-        v0_revision_data = ApplicationRevisionData(
-            version="2025.07.14",
-            url=url,
-        )
-
+        # Match the newer create flows: initial commit is metadata-only.
         v0_revision_commit = ApplicationRevisionCommit(
             slug=uuid4().hex[-12:],
             name=variant_name,
             application_id=app_id,
             application_variant_id=variant.id,
-            data=v0_revision_data,
+            data=None,
             message="Initial commit",
             flags=flags,
         )
 
-        await self.applications_service.commit_application_revision(
+        v0_revision = await self.applications_service.commit_application_revision(
             project_id=project_id,
             user_id=user_id,
             application_revision_commit=v0_revision_commit,
         )
+
+        if not v0_revision:
+            return None
 
         # Create v1 - with parameters from base
         v1_revision_data = ApplicationRevisionData(
@@ -1158,7 +1197,7 @@ class LegacyApplicationsAdapter:
             application_id=app_id,
             application_variant_id=variant.id,
             data=v1_revision_data,
-            message=commit_message or "Created from base",
+            message=commit_message,
             flags=flags,
         )
 

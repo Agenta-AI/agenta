@@ -1,4 +1,5 @@
-from typing import Optional
+from copy import deepcopy
+from typing import Any, Optional
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
 
@@ -15,6 +16,45 @@ _SCORE_AND_SUCCESS_EVALUATORS = (
 )
 
 _DATA_VERSION = "2025.07.14"
+
+
+def build_legacy_service(outputs_schema: dict[str, Any]) -> dict[str, Any]:
+    """Build the legacy service payload from an outputs schema."""
+    return {
+        "agenta": "0.1.0",
+        "format": {
+            "type": "object",
+            "$schema": "http://json-schema.org/schema#",
+            "required": ["outputs"],
+            "properties": {
+                "outputs": outputs_schema,
+            },
+        },
+    }
+
+
+def extract_outputs_schema_from_service(
+    service: Optional[dict[str, Any]],
+) -> Optional[dict[str, Any]]:
+    """Extract outputs schema from legacy service.format payloads."""
+    if not isinstance(service, dict):
+        return None
+
+    format_schema = service.get("format")
+    if not isinstance(format_schema, dict):
+        return None
+
+    properties = format_schema.get("properties")
+    if isinstance(properties, dict):
+        outputs_schema = properties.get("outputs")
+        if isinstance(outputs_schema, dict):
+            return deepcopy(outputs_schema)
+
+        output_schema = properties.get("output")
+        if isinstance(output_schema, dict):
+            return deepcopy(output_schema)
+
+    return deepcopy(format_schema)
 
 
 def build_evaluator_data(
@@ -87,17 +127,7 @@ def build_evaluator_data(
         else None
     )
 
-    service = {
-        "agenta": "0.1.0",
-        "format": {
-            "type": "object",
-            "$schema": "http://json-schema.org/schema#",
-            "required": ["outputs"],
-            "properties": {
-                "outputs": schemas["outputs"],
-            },
-        },
-    }
+    service = build_legacy_service(schemas["outputs"])
 
     return SimpleEvaluatorData(
         version=_DATA_VERSION,

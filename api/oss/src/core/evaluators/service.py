@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 from uuid import UUID, uuid4
 
 from oss.src.core.workflows.dtos import (
@@ -50,7 +50,10 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionQuery,
     EvaluatorRevisionData,
 )
-from oss.src.core.evaluators.utils import build_evaluator_data
+from oss.src.core.evaluators.utils import (
+    build_evaluator_data,
+    extract_outputs_schema_from_service,
+)
 from oss.src.utils.logging import get_module_logger
 
 
@@ -881,49 +884,56 @@ class SimpleEvaluatorsService:
 
         return bool(simple_evaluator_data.schemas.get("outputs"))
 
-    def _ensure_builtin_evaluator_data(
+    def _normalize_evaluator_data(
         self,
         simple_evaluator_data: Optional[SimpleEvaluatorData],
     ) -> Optional[SimpleEvaluatorData]:
+        if not simple_evaluator_data:
+            return simple_evaluator_data
+
         evaluator_key = self._extract_builtin_evaluator_key(simple_evaluator_data)
 
-        if not evaluator_key:
-            return simple_evaluator_data
-
-        if self._has_outputs_schema(simple_evaluator_data):
-            return simple_evaluator_data
-
-        settings_values = (
-            simple_evaluator_data.parameters
-            if simple_evaluator_data
-            and isinstance(simple_evaluator_data.parameters, dict)
-            else None
-        )
-
-        hydrated_data = build_evaluator_data(
-            evaluator_key=evaluator_key,
-            settings_values=settings_values,
-        )
-
-        hydrated_data_dict = hydrated_data.model_dump(
+        existing_data_dict: Dict[str, Any] = simple_evaluator_data.model_dump(
             mode="json",
             exclude_none=True,
             exclude_unset=True,
         )
 
-        existing_data_dict = (
-            simple_evaluator_data.model_dump(
+        normalized_data_dict: Dict[str, Any] = {}
+
+        if evaluator_key and not self._has_outputs_schema(simple_evaluator_data):
+            settings_values = (
+                simple_evaluator_data.parameters
+                if isinstance(simple_evaluator_data.parameters, dict)
+                else None
+            )
+
+            hydrated_data = build_evaluator_data(
+                evaluator_key=evaluator_key,
+                settings_values=settings_values,
+            )
+
+            normalized_data_dict = hydrated_data.model_dump(
                 mode="json",
                 exclude_none=True,
                 exclude_unset=True,
             )
-            if simple_evaluator_data
-            else {}
-        )
+
+        if "schemas" not in normalized_data_dict:
+            outputs_schema = extract_outputs_schema_from_service(
+                simple_evaluator_data.service
+            )
+            if outputs_schema:
+                normalized_data_dict["schemas"] = {
+                    "outputs": outputs_schema,
+                }
+
+        if "version" not in normalized_data_dict and simple_evaluator_data.version:
+            normalized_data_dict["version"] = simple_evaluator_data.version
 
         return SimpleEvaluatorData(
             **{
-                **hydrated_data_dict,
+                **normalized_data_dict,
                 **existing_data_dict,
             }
         )
@@ -1018,7 +1028,7 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
-        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
             simple_evaluator_create.data,
         )
 
@@ -1308,7 +1318,7 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
-        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
             simple_evaluator_edit.data,
         )
 
