@@ -28,7 +28,7 @@
 - updated GTM state for the current work
 - candidate GTM truth
 - inputs back to Product OS on demand, friction, and messaging gaps
-- inputs back to Engineering OS on capability, packaging, or interface needs
+- inputs back to System OS on capability, packaging, or interface needs
 
 ## Important distinction
 

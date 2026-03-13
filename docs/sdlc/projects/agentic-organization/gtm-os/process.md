@@ -8,7 +8,7 @@
 - prepare launch and distribution
 - measure adoption, conversion, and revenue signals
 - review and iterate
-- feed residue back into GTM, product, and engineering knowledge
+- feed residue back into GTM, product, and system knowledge
 
 ## Core activities
 

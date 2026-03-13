@@ -1,4 +1,4 @@
-# Engineering OS State
+# System OS State
 
 ## Main knowledge and state
 
@@ -9,20 +9,20 @@
 - tests
 - code
 - review findings
-- engineering documentation
+- system documentation
 
 ## Inputs
 
 - product knowledge
 - GTM knowledge where it affects interfaces or packaging
-- existing engineering knowledge
+- existing system knowledge
 - project knowledge
 - agent knowledge
 - SRE constraints and runtime feedback
 
 ## Outputs
 
-- updated engineering state for the current work
+- updated system state for the current work
 - candidate system truth
 - implementation residue
 - test and review residue
@@ -30,6 +30,6 @@
 
 ## Important distinction
 
-Engineering state is not only code.
+System state is not only code.
 
 It also includes the definitions, constraints, interfaces, and validation surfaces needed to change the system coherently.

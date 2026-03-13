@@ -1,8 +1,8 @@
-# Engineering OS Layer
+# System OS Layer
 
 ## Purpose
 
-Engineering OS defines how the application and platform are designed, built, reviewed, tested, and evolved.
+System OS defines how the application and platform are designed, built, reviewed, tested, and evolved.
 
 ## Main scope
 
@@ -13,9 +13,9 @@ Engineering OS defines how the application and platform are designed, built, rev
 - implementation
 - testing
 - code review
-- engineering delivery process
+- system delivery process
 
-## Main layers inside Engineering OS
+## Main layers inside System OS
 
 - system layer
 - subsystem layer
@@ -46,6 +46,6 @@ Engineering OS defines how the application and platform are designed, built, rev
 
 ## Distinction
 
-Engineering OS is the primary home for changing the software system itself.
+System OS is the primary home for changing the software system itself.
 
 It is not the primary home for running production operations.

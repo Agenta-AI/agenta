@@ -4,11 +4,12 @@ This folder reframes the earlier `agentic-engineering` work at the organization 
 
 Current structure:
 
-- `MISC/` = prior exploratory and transitional notes
+- `misc/` = prior exploratory and transitional notes
 - `product-os/`
 - `gtm-os/`
-- `engineering-os/`
+- `system-os/`
 - `sre-os/`
+- `os_process_state_and_location_working_note.md` = working note on OS process vs state, `agent-os`, project state, and provisional placement
 
 Each OS currently starts with:
 

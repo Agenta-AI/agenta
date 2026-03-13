@@ -20,7 +20,7 @@
 - agent knowledge
 - process knowledge where relevant
 - GTM feedback
-- engineering constraints
+- system constraints
 - SRE signals on reliability or performance
 
 ## Outputs
@@ -28,7 +28,7 @@
 - updated product state for the current work
 - candidate product truth
 - documentation updates where product-facing interfaces change
-- feedback to GTM, Engineering, and SRE
+- feedback to GTM, System, and SRE
 
 ## Important distinction
 

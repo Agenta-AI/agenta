@@ -41,7 +41,7 @@ Go-to-Market OS defines how the product is positioned, packaged, priced, communi
 - DevRel
 - adoption signals
 
-### With Engineering OS
+### With System OS
 
 - technical truth needed for accurate messaging
 - feature readiness

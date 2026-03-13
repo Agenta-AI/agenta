@@ -8,7 +8,7 @@
 - recover
 - harden
 - improve automation and observability
-- feed residue back into SRE and engineering knowledge
+- feed residue back into SRE and system knowledge
 
 ## Core activities
 

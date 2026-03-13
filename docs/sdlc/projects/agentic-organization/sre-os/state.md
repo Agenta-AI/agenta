@@ -14,7 +14,7 @@
 
 ## Inputs
 
-- engineering knowledge
+- system knowledge
 - product and GTM constraints when runtime behavior is user-visible
 - project knowledge
 - agent knowledge
@@ -24,7 +24,7 @@
 
 - updated runtime and operations state
 - candidate SRE truth
-- incident and reliability residue back to Engineering OS
+- incident and reliability residue back to System OS
 - user-visible reliability residue back to Product OS
 - externally relevant status residue back to GTM OS where needed
 

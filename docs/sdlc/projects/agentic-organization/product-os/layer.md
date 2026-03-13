@@ -35,7 +35,7 @@ Product OS defines what the product should be, how it should behave, and how use
 - launch surfaces
 - DevRel and docs
 
-### With Engineering OS
+### With System OS
 
 - product-facing interfaces become system interfaces
 - requirements refine into contracts and system behaviors

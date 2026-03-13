@@ -26,7 +26,7 @@ SRE OS defines how systems are run, observed, secured in production, recovered, 
 
 ## Overlaps
 
-### With Engineering OS
+### With System OS
 
 - instrumentation
 - deployability

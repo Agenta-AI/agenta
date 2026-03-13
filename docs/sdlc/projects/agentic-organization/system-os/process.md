@@ -1,4 +1,4 @@
-# Engineering OS Process
+# System OS Process
 
 ## Main loop
 
@@ -7,7 +7,7 @@
 - review the layer
 - validate the layer
 - implement what belongs at the layer
-- feed residue back into engineering knowledge
+- feed residue back into system knowledge
 
 ## Core activities
 
@@ -21,10 +21,10 @@
 
 ## Actors and critics
 
-- design actor = engineering designer
-- implementation actor = engineering implementer
-- verification critic = engineering reviewer
-- validation critic = engineering tester
+- design actor = system designer
+- implementation actor = system developer
+- verification critic = system reviewer
+- validation critic = system tester
 
 ## Likely skills or agents
 
