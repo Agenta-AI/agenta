@@ -59,6 +59,8 @@ class WebhooksDAOInterface:
         user_id: UUID,
         #
         subscription: WebhookSubscriptionEdit,
+        #
+        secret_id: Optional[UUID] = None,
     ) -> Optional[WebhookSubscription]:
         raise NotImplementedError
 

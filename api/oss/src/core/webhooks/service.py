@@ -222,26 +222,49 @@ class WebhooksService:
         if existing is None:
             return None
 
-        if subscription.secret is not None and existing.secret_id is not None:
-            await self.vault_service.update_secret(
-                secret_id=existing.secret_id,
-                project_id=project_id,
-                update_secret_dto=UpdateSecretDTO(
-                    secret=SecretDTO(
-                        kind=SecretKind.WEBHOOK_PROVIDER,
-                        data=WebhookProviderDTO(
-                            provider=WebhookProviderSettingsDTO(
-                                key=subscription.secret,
+        secret_id = None
+
+        if subscription.secret is not None:
+            if existing.secret_id is not None:
+                await self.vault_service.update_secret(
+                    secret_id=existing.secret_id,
+                    project_id=project_id,
+                    update_secret_dto=UpdateSecretDTO(
+                        secret=SecretDTO(
+                            kind=SecretKind.WEBHOOK_PROVIDER,
+                            data=WebhookProviderDTO(
+                                provider=WebhookProviderSettingsDTO(
+                                    key=subscription.secret,
+                                ),
                             ),
                         ),
                     ),
-                ),
-            )
+                )
+            else:
+                secret_dto = await self.vault_service.create_secret(
+                    project_id=project_id,
+                    create_secret_dto=CreateSecretDTO(
+                        header={
+                            "name": f"webhook-{subscription.name or existing.name or 'subscription'}",
+                            "description": "Webhook signing secret",
+                        },
+                        secret=SecretDTO(
+                            kind=SecretKind.WEBHOOK_PROVIDER,
+                            data=WebhookProviderDTO(
+                                provider=WebhookProviderSettingsDTO(
+                                    key=subscription.secret,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                secret_id = secret_dto.id
 
         result = await self.dao.edit_subscription(
             project_id=project_id,
             user_id=user_id,
             subscription=subscription,
+            secret_id=secret_id,
         )
 
         if result is None:
