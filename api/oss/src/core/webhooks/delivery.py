@@ -38,6 +38,13 @@ NON_OVERRIDABLE_HEADERS = {
     "authorization",
 }
 
+REDACTED_HEADERS = {
+    "authorization",
+    "x-agenta-signature",
+}
+
+REDACTED_VALUE = "[REDACTED]"
+
 
 @dataclass
 class PreparedWebhookRequest:
@@ -51,6 +58,13 @@ class PreparedWebhookRequestError(ValueError):
     def __init__(self, message: str, *, data: WebhookDeliveryData):
         super().__init__(message)
         self.data = data
+
+
+def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    return {
+        key: (REDACTED_VALUE if key.lower() in REDACTED_HEADERS else value)
+        for key, value in headers.items()
+    }
 
 
 def _merge_headers(
@@ -185,7 +199,7 @@ def prepare_webhook_request(
 
     return PreparedWebhookRequest(
         typed_event_type=typed_event_type,
-        data=base_data.model_copy(update={"headers": request_headers}),
+        data=base_data.model_copy(update={"headers": _redact_headers(request_headers)}),
         payload_json=payload_json,
         request_headers=request_headers,
     )
