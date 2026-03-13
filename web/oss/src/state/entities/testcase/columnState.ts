@@ -421,8 +421,8 @@ function collectObjectSubKeysRecursive(
     if (currentDepth >= MAX_COLUMN_DEPTH) return
 
     Object.entries(obj).forEach(([subKey, subValue]) => {
-        // Never expose internal/system fields as nested columns.
-        if (SYSTEM_FIELDS.has(subKey) || subKey.startsWith("_")) return
+        // Never expose internal fields as nested columns.
+        if (subKey.startsWith("__")) return
 
         const fullPath = prefix ? `${prefix}.${subKey}` : subKey
 

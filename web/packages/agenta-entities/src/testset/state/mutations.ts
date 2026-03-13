@@ -50,6 +50,14 @@ import {
 // INTERNAL HELPERS
 // ============================================================================
 
+/** Fields that should never appear as user columns inside entity.data */
+const DATA_INTERNAL_FIELDS = new Set([
+    "__isSkeleton",
+    "__isNew",
+    "__dedup_id__",
+    "testcase_dedup_id",
+])
+
 interface Column {
     key: string
     name: string
@@ -74,7 +82,7 @@ const currentColumnsAtom = atom<Column[]>((get) => {
         const entity = get(testcaseEntityAtomFamily(id))
         if (!entity?.data) continue
         for (const key of Object.keys(entity.data)) {
-            if (!SYSTEM_FIELDS.has(key)) {
+            if (!DATA_INTERNAL_FIELDS.has(key)) {
                 keySet.add(key)
             }
         }

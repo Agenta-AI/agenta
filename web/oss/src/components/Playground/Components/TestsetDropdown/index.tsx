@@ -541,6 +541,7 @@ export function TestsetDropdown() {
         handleDisconnect,
         handleChangeTestset,
         handleAddToTestset,
+        handleManageTestcasesClick,
     ])
 
     if (!loadableId) return null

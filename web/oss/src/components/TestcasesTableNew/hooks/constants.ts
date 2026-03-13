@@ -32,5 +32,6 @@ const SYSTEM_COLUMN_SET = new Set(SYSTEM_COLUMNS)
 export const isSystemColumnPath = (columnKey: string): boolean => {
     if (!columnKey) return false
 
-    return columnKey.split(".").some((segment) => SYSTEM_COLUMN_SET.has(segment))
+    const segments = columnKey.split(".")
+    return SYSTEM_COLUMN_SET.has(segments[0]) || segments.some((s) => s.startsWith("__"))
 }

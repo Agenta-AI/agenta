@@ -500,7 +500,7 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
 
     // Generate a fallback display name from the available selection info
     const displayName = testsetName
-        ? revisionVersion
+        ? revisionVersion != null
             ? `${testsetName} (v${revisionVersion})`
             : testsetName
         : undefined

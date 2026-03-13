@@ -152,15 +152,14 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
         return isJsonString(value)
     }, [value])
 
-    // Lock the JSON editor on if the user is typing something that was valid JSON,
-    // but might be temporarily invalid (like typing a new key). Unlock if they clear the box.
+    // Lock the JSON editor on once the user types valid JSON.
+    // Keep it locked even when the content is cleared so the editor
+    // stays in code mode (same behaviour as Structured Output Schema).
     useEffect(() => {
         if (looksLikeJson) {
             setIsEditingJsonString(true)
-        } else if (!value?.trim()) {
-            setIsEditingJsonString(false)
         }
-    }, [looksLikeJson, value])
+    }, [looksLikeJson])
 
     const isJsonEditor = isJsonType || isEditingJsonString || looksLikeJson
     const effectiveValue =
