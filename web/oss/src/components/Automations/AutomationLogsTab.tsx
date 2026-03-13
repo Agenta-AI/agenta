@@ -23,6 +23,36 @@ const isDeliverySuccess = (delivery: WebhookDelivery) => {
     return delivery.status.message === "success"
 }
 
+/** Headers whose values must never be displayed in the UI. */
+const SENSITIVE_HEADERS = new Set(["authorization", "x-agenta-signature"])
+const REDACTED_VALUE = "[REDACTED]"
+
+/**
+ * Return a deep copy of a delivery with sensitive header values replaced.
+ * Defence-in-depth: the backend already redacts before persisting, but older
+ * delivery records (created before the fix) may still contain raw secrets.
+ */
+const sanitizeDelivery = (delivery: WebhookDelivery): WebhookDelivery => {
+    const headers = delivery.data?.headers
+    if (!headers) return delivery
+
+    const needsRedaction = Object.keys(headers).some((k) => SENSITIVE_HEADERS.has(k.toLowerCase()))
+    if (!needsRedaction) return delivery
+
+    const sanitized: Record<string, string> = {}
+    for (const [k, v] of Object.entries(headers)) {
+        sanitized[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? REDACTED_VALUE : v
+    }
+
+    return {
+        ...delivery,
+        data: {
+            ...delivery.data,
+            headers: sanitized,
+        },
+    }
+}
+
 const DeliveryListItem = ({
     delivery,
     isSelected,
@@ -108,7 +138,7 @@ export const AutomationLogsTab = ({subscriptionId}: {subscriptionId: string}) =>
 
     const deliveryJson = useMemo(() => {
         if (!selectedDelivery) return ""
-        return JSON.stringify(selectedDelivery, null, 2)
+        return JSON.stringify(sanitizeDelivery(selectedDelivery), null, 2)
     }, [selectedDelivery])
 
     if (isPending) {
