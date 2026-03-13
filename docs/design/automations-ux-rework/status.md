@@ -2,7 +2,7 @@
 
 ## Current state
 
-Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
+Checkpoints 1, 2, and 3 implemented in code. Checkpoint 3 logs UI redesigned for clarity.
 
 ## Checkpoint 1: Remove gate, auto-ping, restore test button
 
@@ -26,6 +26,18 @@ Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
 | 2.5 Add `testDraftAutomationAtom` | Completed | Drawer uses a dedicated draft test atom. |
 | 2.6 Enable test button for drafts in drawer | Completed | Test now uses current form values in both create and edit mode. |
 
+## Checkpoint 3: Delivery logs in the drawer
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 3.1 Add frontend delivery query client | Completed | `queryWebhookDeliveries` added to the automations API client. |
+| 3.2 Add delivery query atom family | Completed | Delivery logs are fetched per subscription via `automationDeliveriesAtomFamily`. |
+| 3.3 Build logs tab UI | Completed | Drawer now renders a `Logs` tab for persisted automations. |
+| 3.4 Delivery detail view | Completed | Simplified: removed overview/JSON tabs, now shows raw JSON directly via `SimpleSharedEditor`. |
+| 3.5 Constrain scrolling to the list/detail panes | Completed | Prevented the full drawer tab from growing/scrolling when logs increase; the delivery list now owns list overflow while the JSON editor scrolls internally. |
+| 3.6 Redesign delivery list items | Completed | Replaced opaque button rows with `ListItem`-pattern styling: left-border accent on selection, status dots, design-token colors (`bgColors`, `textColors`, `borderColors` from `@agenta/ui`), keyboard navigation, hover feedback. |
+| 3.7 Widen drawer layout | Completed | Drawer width increased to accommodate config and log inspection. |
+
 ## Decisions log
 
 | Date | Decision | Rationale |
@@ -36,3 +48,7 @@ Checkpoints 1 and 2 implemented in code and linted. Checkpoint 3 not started.
 | 2026-03-13 | Table status stays `Active` in checkpoint 1 | Avoids implying that saved automations are blocked before the log UI exists. |
 | 2026-03-13 | Test-draft bypasses event bus entirely | Direct HTTP call via extracted `execute_webhook_request`. No persisted subscription needed. |
 | 2026-03-13 | Test button always tests form values | In edit mode, draft testing uses the current form state rather than the persisted subscription. |
+| 2026-03-13 | Logs live only on persisted automations | Draft tests are ephemeral, so the drawer exposes logs only after a subscription has been created. |
+| 2026-03-13 | Simplify delivery detail to raw JSON only | Overview tab with separate fields added unnecessary complexity; raw JSON is more useful for debugging. |
+| 2026-03-13 | Use design tokens for list items | Replaced hard-coded `bg-white` / CSS variable approach with `@agenta/ui` tokens for theme consistency. |
+| 2026-03-13 | Deliveries list loads the newest 25 logs | `queryWebhookDeliveries` already supports `Windowing`, but the current drawer uses a simple first page (`limit=25`, `order=descending`) until we add explicit pagination/load-more UX. |

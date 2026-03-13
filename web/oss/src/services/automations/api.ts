@@ -2,6 +2,8 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {
+    WebhookDeliveriesQueryRequest,
+    WebhookDeliveriesResponse,
     WebhookSubscriptionDraftTestRequest,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
@@ -60,9 +62,17 @@ const testWebhookDraft = async (
     return response.data
 }
 
+const queryWebhookDeliveries = async (
+    data: WebhookDeliveriesQueryRequest,
+): Promise<WebhookDeliveriesResponse> => {
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/deliveries/query`, data)
+    return response.data
+}
+
 export {
     createWebhookSubscription,
     deleteWebhookSubscription,
+    queryWebhookDeliveries,
     queryWebhookSubscriptions,
     testWebhookDraft,
     testWebhookSubscription,
