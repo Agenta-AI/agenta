@@ -334,35 +334,24 @@ Values:
   - `full`
   - `X`
 
-| **Current URI** | **Current URL** | **Current Flags** | **Current Schemas** | **Target URI** | **Target URL** | **Target Flags** | **Target Extra Flags** | **Target Outputs Schema** | **Target Parameters** | **Target Headers** | **Target Script** |
+| **#** | **Current URI** | **Current URL** | **Current Flags** | **Current Schemas** | **Target URI** | **Target URL** | **Target Flags** | **Target Outputs Schema** | **Target Headers** | **Target Parameters** | **Target Script** |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **`agenta:builtin:chat:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`agenta:builtin:completion:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`agenta:builtin:hook:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":true,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
-| **`agenta:builtin:code:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:code:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":true,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`preserve`** | **`null`** | **`preserve`** |
-| **`agenta:builtin:prompt:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:prompt:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":true,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`<hook-eval-url>`** | **`{"is_evaluator":true}`** | **`X`** | **`<hook-eval-uri>`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
-| **`null`** | **`<hook-app-url>`** | **`{"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** |
-| **`null`** | **`null`** | **`{"is_human":true,"is_evaluator":true}`** | **`none`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_human":true,"is_evaluator":true}`** | **`outputs`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_human":true,"is_custom":true,"is_evaluator":true}`** | **`none`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_human":true,"is_custom":true,"is_evaluator":true}`** | **`outputs`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_custom":true,"is_evaluator":true}`** | **`none`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_custom":true,"is_evaluator":true}`** | **`outputs`** | **`user:custom:annotator:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
-| **`<hook-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`none`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
-| **`<hook-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`outputs`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
-| **`<hook-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`full`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
-| **`<code-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`none`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`preserve`** |
-| **`<code-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`outputs`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`preserve`** |
-| **`<code-variant-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`full`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`preserve`** |
-| **`<other-builtin-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`none`** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`null`** |
-| **`<other-builtin-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`outputs`** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`null`** |
-| **`<other-builtin-uri>`** | **`null`** | **`{"is_evaluator":true}`** | **`full`** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":true}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`backfill`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_chat":true}`** | **`none`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_chat":true}`** | **`full`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{}`** | **`none`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{}`** | **`full`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`null`** |
-| **`null`** | **`null`** | **`{"is_custom":true}`** | **`none`** | **`user:custom:local:latest`** | **`null`** | **`{"is_chat":false,"is_human":"preserve","is_custom":"preserve","is_evaluator":false}`** | **`{"can_stream":false,"can_evaluate":false,"can_verbose":false,"can_chat":false,"is_verbose":false}`** | **`null`** | **`preserve`** | **`null`** | **`preserve`** |
+| **1** | **`agenta:builtin:chat:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **2** | **`agenta:builtin:completion:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **3** | **`agenta:builtin:code:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:code:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`null`** | **`preserve`** | **`preserve`** |
+| **4** | **`agenta:builtin:hook:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:webhook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
+| **5** | **`null`** | **`<url>`** | **`{"is_chat":X,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:webhook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
+| **6** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":true,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
+| **7** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":true,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
+| **8** | **`<hook-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
+| **9** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`preserve`** |
+| **10** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`null`** |
+| **11** | **`null`** | **`null`** | **`{"is_chat":true,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **12** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **13** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`user:custom:local:latest`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`preserve`** |
+| **14** | **`<user-custom-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`<user-custom-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`preserve`** | **`preserve`** |
+| **15** | **`null`** | **`<<url>>`** | **`{"is_chat":true,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
+| **16** | **`null`** | **`<<url>>`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 
 Legacy-field note:
 
@@ -390,9 +379,903 @@ Flags note:
 
 - omitted keys in `Current Flags` and `Target Flags` mean `X`, not `false`
 - a key only appears when that row is constraining it to a concrete boolean value
-- `is_human` and `is_custom` are legacy identity flags that will be dropped in a later phase
-  - they are kept during migration for classification and backward compatibility
+- `is_human` and `is_custom` are legacy identity flags, omitted from `Target Flags`
+  - they are preserved as-is during migration (same treatment as legacy `service` and `configuration`)
+  - they will be dropped in a later phase together with other legacy fields
   - the long-term identity contract uses only `is_chat` and `is_evaluator` plus the URI family
+
+### Matrix Validation SQL
+
+For each row below:
+
+- `membership` query: returns the candidate rows for that matrix row
+- `shape` query: surfaces the fields a human needs to verify the row is semantically uniform
+- `coverage` query: proves the row participates in the full partition and helps detect gaps or overlaps
+
+Shared conventions:
+
+- replace `workflow_revisions` if you are validating against a different revision table
+- all queries below assume `data` is `json` and therefore use `data::jsonb`
+- each `membership` query is the authoritative row predicate for that matrix row
+- after running all membership queries, the union of their counts should equal the total covered population
+
+#### Coverage Baseline
+
+Use this baseline before and after the row checks:
+
+```sql
+SELECT COUNT(*) AS total_rows
+FROM workflow_revisions;
+```
+
+```sql
+SELECT COUNT(*) AS total_non_null_data_rows
+FROM workflow_revisions
+WHERE data IS NOT NULL;
+```
+
+For covered-population accounting:
+
+```sql
+SELECT COUNT(*) AS total_classifiable_rows
+FROM workflow_revisions
+WHERE data IS NOT NULL;
+```
+
+Success criterion:
+
+- the sum of all row-level `membership` counts equals `total_classifiable_rows`
+- no row-level overlap query returns any rows unless the overlap is intentionally allowed and documented
+
+#### Row 1: Current URI = `agenta:builtin:chat:v0`
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:chat:v0';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb ->> 'url' AS url,
+  data::jsonb -> 'schemas' AS schemas,
+  data::jsonb -> 'parameters' AS parameters
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:chat:v0'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- sampled rows are recognizably chat-family rows
+- no sampled row obviously belongs to completion/hook/evaluator instead
+
+#### Row 2: Current URI = `agenta:builtin:completion:v0`
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:completion:v0';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb ->> 'url' AS url,
+  data::jsonb -> 'schemas' AS schemas,
+  data::jsonb -> 'parameters' AS parameters
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:completion:v0'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- sampled rows are prompt/completion-family rows
+- sampled rows do not read like hook/chat/evaluator rows
+
+#### Row 3: Current URI = `agenta:builtin:code:v0`
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'script' AS script,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:code:v0'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- sampled rows show code-family execution state
+- `script` and/or code-related parameter payloads make sense for the target
+
+#### Row 4: Current URI = `agenta:builtin:hook:v0`
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb ->> 'url' AS url,
+  data::jsonb -> 'headers' AS headers,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- sampled rows are remote webhook-style app rows
+- persisted `url` is meaningful and user-owned
+
+#### Row 5: No URI, URL present, custom non-evaluator
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_custom' = 'true'
+  AND flags->>'is_evaluator' = 'false';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb ->> 'url' AS url,
+  data::jsonb -> 'headers' AS headers,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_custom' = 'true'
+  AND flags->>'is_evaluator' = 'false'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Coverage refinement:
+
+```sql
+SELECT
+  data::jsonb ->> 'url' AS url,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_custom' = 'true'
+  AND flags->>'is_evaluator' = 'false'
+GROUP BY data::jsonb ->> 'url'
+ORDER BY count DESC, url;
+```
+
+Success criterion:
+
+- URLs are predominantly remote hook/webhook-style app targets
+- this bucket is semantically uniform enough to map to builtin webhook
+
+#### Row 6: No URI, no URL, human non-custom evaluator
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb;
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  data::jsonb -> 'schemas' AS schemas,
+  data::jsonb -> 'service' AS service
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows are human feedback/annotation evaluator shapes
+- service-only or outputs-schema shapes are coherent with annotator migration
+
+#### Row 7: No URI, no URL, non-human custom evaluator
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb;
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  data::jsonb -> 'schemas' AS schemas,
+  data::jsonb -> 'service' AS service
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows look like custom annotator/evaluator definitions
+- they do not look like builtin webhook/code evaluator families
+
+#### Row 8: Hook-variant builtin evaluator URI
+
+```sql
+SELECT
+  data::jsonb ->> 'uri' AS uri,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' IN (
+    'agenta:builtin:auto_webhook_test:v0'
+  )
+GROUP BY data::jsonb ->> 'uri'
+ORDER BY count DESC;
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb ->> 'url' AS url,
+  data::jsonb -> 'headers' AS headers,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' IN (
+    'agenta:builtin:auto_webhook_test:v0'
+  )
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- URL/headers remain meaningful
+- rows are webhook evaluator-family rows
+
+#### Row 9: Code-variant builtin evaluator URI
+
+```sql
+SELECT
+  data::jsonb ->> 'uri' AS uri,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' IN (
+    'agenta:builtin:auto_custom_code_run:v0'
+  )
+GROUP BY data::jsonb ->> 'uri'
+ORDER BY count DESC;
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'script' AS script,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' IN (
+    'agenta:builtin:auto_custom_code_run:v0'
+  )
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows carry code-runner semantics
+- preserving `script` is clearly correct
+
+#### Row 10: Other builtin evaluator URI
+
+```sql
+SELECT
+  data::jsonb ->> 'uri' AS uri,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' NOT IN (
+    'agenta:builtin:chat:v0',
+    'agenta:builtin:completion:v0',
+    'agenta:builtin:code:v0',
+    'agenta:builtin:hook:v0',
+    'agenta:builtin:auto_webhook_test:v0',
+    'agenta:builtin:auto_custom_code_run:v0'
+  )
+  AND flags->>'is_evaluator' = 'true'
+GROUP BY data::jsonb ->> 'uri'
+ORDER BY count DESC, uri;
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'schemas' AS schemas,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'service' AS service,
+  data::jsonb -> 'configuration' AS configuration
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' NOT IN (
+    'agenta:builtin:chat:v0',
+    'agenta:builtin:completion:v0',
+    'agenta:builtin:code:v0',
+    'agenta:builtin:hook:v0',
+    'agenta:builtin:auto_webhook_test:v0',
+    'agenta:builtin:auto_custom_code_run:v0'
+  )
+  AND flags->>'is_evaluator' = 'true'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- the remaining builtin evaluator URIs are semantically coherent as the generic evaluator bucket
+
+#### Row 11: No URI, no URL, chat fallback
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'true'
+  AND flags->>'is_evaluator' = 'false';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'true'
+  AND flags->>'is_evaluator' = 'false'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows are still recognizably chat-family rows despite lacking URI and URL
+
+#### Row 12: No URI, no URL, completion fallback
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_evaluator' = 'false'
+  AND flags->>'is_custom' = 'false';
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_evaluator' = 'false'
+  AND flags->>'is_custom' = 'false'
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows are completion-family rows, not custom local exceptions
+
+#### Row 13: No URI, no URL, custom non-evaluator local exception
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_custom' = 'true'
+  AND flags->>'is_evaluator' = 'false'
+  AND (
+    NOT (data::jsonb ? 'schemas')
+    OR jsonb_typeof(data::jsonb -> 'schemas') = 'null'
+  );
+```
+
+```sql
+SELECT
+  id,
+  version,
+  created_at,
+  flags,
+  data::jsonb -> 'parameters' AS parameters,
+  data::jsonb -> 'script' AS script,
+  data::jsonb -> 'schemas' AS schemas
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_custom' = 'true'
+  AND flags->>'is_evaluator' = 'false'
+  AND (
+    NOT (data::jsonb ? 'schemas')
+    OR jsonb_typeof(data::jsonb -> 'schemas') = 'null'
+  )
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+Success criterion:
+
+- rows are the known local/config-only custom exceptions
+- rows do not look like hidden completion/chat rows
+
+#### Row 14: user:custom URI, no URL, non-evaluator app
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' LIKE 'user:custom:%'
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_evaluator' = 'false';
+```
+
+```sql
+SELECT
+  data::jsonb ->> 'uri' AS uri,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' LIKE 'user:custom:%'
+  AND (
+    NOT (data::jsonb ? 'url')
+    OR data::jsonb ->> 'url' IS NULL
+  )
+  AND flags->>'is_evaluator' = 'false'
+GROUP BY data::jsonb ->> 'uri'
+ORDER BY count DESC;
+```
+
+Success criterion:
+
+- all rows are SDK-deployed application variants with existing user:custom URIs
+- URI key patterns follow `user:custom:<module>.<function>:latest` or `user:custom:<slug>:v0`
+- no row looks like a misclassified evaluator or builtin
+
+#### Row 15: No URI, Agenta service URL, chat
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_chat' = 'true'
+  AND flags->>'is_custom' = 'false'
+  AND flags->>'is_evaluator' = 'false';
+```
+
+```sql
+SELECT
+  data::jsonb ->> 'url' AS url,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_chat' = 'true'
+  AND flags->>'is_custom' = 'false'
+  AND flags->>'is_evaluator' = 'false'
+GROUP BY data::jsonb ->> 'url'
+ORDER BY count DESC;
+```
+
+Success criterion:
+
+- all URLs are Agenta-owned service endpoints (`/services/chat`)
+- no user-owned URLs appear in this bucket
+
+#### Row 16: No URI, Agenta service URL, completion
+
+```sql
+SELECT COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_custom' = 'false'
+  AND flags->>'is_evaluator' = 'false';
+```
+
+```sql
+SELECT
+  data::jsonb ->> 'url' AS url,
+  COUNT(*) AS count
+FROM workflow_revisions
+WHERE data IS NOT NULL
+  AND (
+    NOT (data::jsonb ? 'uri')
+    OR data::jsonb ->> 'uri' IS NULL
+  )
+  AND data::jsonb ->> 'url' IS NOT NULL
+  AND flags->>'is_chat' = 'false'
+  AND flags->>'is_custom' = 'false'
+  AND flags->>'is_evaluator' = 'false'
+GROUP BY data::jsonb ->> 'url'
+ORDER BY count DESC;
+```
+
+Success criterion:
+
+- all URLs are Agenta-owned service endpoints (`/services/completion`)
+- no user-owned URLs appear in this bucket
+
+#### Partition Coverage Check
+
+After validating the rows individually, use this query to confirm that every non-null-data row falls into one and only one matrix bucket:
+
+```sql
+WITH classified AS (
+  SELECT
+    id,
+    CASE
+      WHEN data IS NULL THEN 'unclassified:null-data'
+      WHEN data::jsonb ->> 'uri' = 'agenta:builtin:chat:v0' THEN 'row-1'
+      WHEN data::jsonb ->> 'uri' = 'agenta:builtin:completion:v0' THEN 'row-2'
+      WHEN data::jsonb ->> 'uri' = 'agenta:builtin:code:v0' THEN 'row-3'
+      WHEN data::jsonb ->> 'uri' = 'agenta:builtin:hook:v0' THEN 'row-4'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND data::jsonb ->> 'url' IS NOT NULL AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false' THEN 'row-5'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb THEN 'row-6'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
+      WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_webhook_test:v0') THEN 'row-8'
+      WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_custom_code_run:v0') THEN 'row-9'
+      WHEN data::jsonb ->> 'uri' IS NOT NULL AND flags->>'is_evaluator' = 'true' THEN 'row-10'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags->>'is_chat' = 'true' AND flags->>'is_evaluator' = 'false' THEN 'row-11'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags->>'is_chat' = 'false' AND flags->>'is_evaluator' = 'false' AND flags->>'is_custom' = 'false' THEN 'row-12'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags->>'is_chat' = 'false' AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false' THEN 'row-13'
+      WHEN data::jsonb ->> 'uri' LIKE 'user:custom:%' AND (
+        NOT (data::jsonb ? 'url')
+        OR data::jsonb ->> 'url' IS NULL
+      ) AND flags->>'is_evaluator' = 'false' THEN 'row-14'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND data::jsonb ->> 'url' IS NOT NULL
+        AND flags->>'is_chat' = 'true'
+        AND flags->>'is_custom' = 'false'
+        AND flags->>'is_evaluator' = 'false' THEN 'row-15'
+      WHEN (
+        NOT (data::jsonb ? 'uri')
+        OR data::jsonb ->> 'uri' IS NULL
+      ) AND data::jsonb ->> 'url' IS NOT NULL
+        AND flags->>'is_chat' = 'false'
+        AND flags->>'is_custom' = 'false'
+        AND flags->>'is_evaluator' = 'false' THEN 'row-16'
+      ELSE 'unclassified'
+    END AS bucket
+  FROM workflow_revisions
+)
+SELECT bucket, COUNT(*) AS count
+FROM classified
+GROUP BY bucket
+ORDER BY bucket;
+```
+
+Success criterion:
+
+- `unclassified` returns `0`
+- `unclassified:null-data` count matches the separately understood `data IS NULL` historical bucket
+- the row counts line up with the sum of the individual membership queries
+
+#### Unclassified Diagnostics
+
+If `unclassified` is non-zero, use the query below to assign each unclassified row to a named gap. The exclusion conditions use `IS DISTINCT FROM` for URI equality — `NOT (col = 'value')` evaluates to `NULL` when `col IS NULL`, silently dropping all null-URI rows before they reach any later conditions.
+
+```sql
+-- Use IS DISTINCT FROM for URI equality checks. NOT (col = 'value') evaluates to
+-- AND NULL when col IS NULL, silently dropping all null-URI rows. IS DISTINCT FROM
+-- treats NULL as a known value: (NULL IS DISTINCT FROM 'chat') = true.
+WITH unclassified AS (
+  SELECT id, flags, data::jsonb ->> 'uri' AS uri, data::jsonb ->> 'url' AS url
+  FROM workflow_revisions
+  WHERE data IS NOT NULL
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:chat:v0')
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:completion:v0')
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:code:v0')
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:hook:v0')
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND data::jsonb ->> 'url' IS NOT NULL
+      AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false'
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags = '{"is_chat": false, "is_human": true, "is_custom": false, "is_evaluator": true}'::jsonb
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb
+    )
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_webhook_test:v0')
+    AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_custom_code_run:v0')
+    AND NOT (data::jsonb ->> 'uri' IS NOT NULL AND flags->>'is_evaluator' = 'true')
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags->>'is_chat' = 'true' AND flags->>'is_evaluator' = 'false'
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags->>'is_chat' = 'false' AND flags->>'is_evaluator' = 'false' AND flags->>'is_custom' = 'false'
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags->>'is_chat' = 'false' AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false'
+    )
+    AND NOT (
+      data::jsonb ->> 'uri' LIKE 'user:custom:%'
+      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
+      AND flags->>'is_evaluator' = 'false'
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND data::jsonb ->> 'url' IS NOT NULL
+      AND flags->>'is_chat' = 'true'
+      AND flags->>'is_custom' = 'false' AND flags->>'is_evaluator' = 'false'
+    )
+    AND NOT (
+      (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
+      AND data::jsonb ->> 'url' IS NOT NULL
+      AND flags->>'is_chat' = 'false'
+      AND flags->>'is_custom' = 'false' AND flags->>'is_evaluator' = 'false'
+    )
+),
+gaps AS (
+  SELECT
+    CASE
+      -- null URI + URL present + not row-5
+      WHEN uri IS NULL AND url IS NOT NULL
+        THEN 'gap-1: null-uri + url-present + not-row-5'
+      -- null URI + null URL + is_evaluator=true + not rows 6/7
+      WHEN uri IS NULL AND url IS NULL AND flags->>'is_evaluator' = 'true'
+        THEN 'gap-2: null-uri + null-url + evaluator + flags-mismatch'
+      -- null URI + null URL + is_evaluator=false + flags not matching rows 11/12/13
+      WHEN uri IS NULL AND url IS NULL AND flags->>'is_evaluator' = 'false'
+        THEN 'gap-3: null-uri + null-url + non-evaluator + flags-mismatch'
+      -- non-null URI + is_evaluator=false + not a known builtin or user:custom
+      WHEN uri IS NOT NULL AND flags->>'is_evaluator' = 'false'
+        THEN 'gap-4: non-null-uri + non-evaluator + unknown-uri'
+      ELSE 'gap-unknown'
+    END AS gap,
+    flags,
+    uri,
+    url
+  FROM unclassified
+)
+SELECT gap, flags, uri, url, COUNT(*) AS count
+FROM gaps
+GROUP BY gap, flags, uri, url
+ORDER BY gap, count DESC
+LIMIT 100;
+```
 
 ### Normalization rules
 
