@@ -456,29 +456,46 @@ const resetAllAtom = atom(null, (_get, set) => {
  * Disconnect from testset and reset to local mode
  *
  * This compound action:
- * 1. Calls loadable disconnect (clears connectedSourceId, testcase IDs)
- * 2. Regenerates a local testset name from the primary node's label
- * 3. Creates an initial empty row for testcases
+ * 1. Snapshots current rows when `preserveRows` is true (must happen before disconnect)
+ * 2. Calls loadable disconnect (clears connectedSourceId, testcase IDs)
+ * 3. Regenerates a local testset name from the primary node's label
+ * 4. Re-populates with snapshotted rows or creates an initial empty row
  *
- * This ensures the playground returns to the same state as initial setup.
+ * When `preserveRows` is false (default), the playground returns to the same
+ * state as initial setup. When true (e.g. after "Save & disconnect"), the
+ * committed data stays visible as local rows.
  */
-const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) => {
-    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
-    if (!rootNode) return
+const disconnectAndResetToLocalAtom = atom(
+    null,
+    (get, set, loadableId: string, options?: {preserveRows?: boolean}) => {
+        const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+        if (!rootNode) return
 
-    // 1. Call loadable disconnect action
-    set(loadableController.actions.disconnect, loadableId)
+        // 1. Snapshot current rows before disconnect wipes testcase IDs
+        const rowsSnapshot = options?.preserveRows
+            ? get(loadableController.selectors.rows(loadableId))
+            : null
 
-    // 2. Generate and set local testset name
-    const localTestsetName = generateLocalTestsetName(rootNode.label)
-    set(connectedTestsetAtom, {
-        id: null, // null id indicates it's a local (unsaved) testset
-        name: localTestsetName,
-    })
+        // 2. Call loadable disconnect action
+        set(loadableController.actions.disconnect, loadableId)
 
-    // 3. Create an initial empty row via loadableController (uses testcaseMolecule)
-    set(loadableController.actions.addRow, loadableId, {})
-})
+        // 3. Generate and set local testset name
+        const localTestsetName = generateLocalTestsetName(rootNode.label)
+        set(connectedTestsetAtom, {
+            id: null, // null id indicates it's a local (unsaved) testset
+            name: localTestsetName,
+        })
+
+        // 4. Re-populate with snapshotted rows or create an initial empty row
+        if (rowsSnapshot && rowsSnapshot.length > 0) {
+            for (const row of rowsSnapshot) {
+                set(loadableController.actions.addRow, loadableId, row.data ?? {})
+            }
+        } else {
+            set(loadableController.actions.addRow, loadableId, {})
+        }
+    },
+)
 
 // ============================================================================
 // WP1: TESTSET CONNECTION COMPOUND ACTIONS

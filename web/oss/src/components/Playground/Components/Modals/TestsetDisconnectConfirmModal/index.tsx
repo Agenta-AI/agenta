@@ -55,7 +55,7 @@ const TestsetDisconnectConfirmModal = () => {
         setModalState((prev) => ({...prev, isSaving: true}))
         try {
             await commitChanges(loadableId)
-            disconnectAndReset(loadableId)
+            disconnectAndReset(loadableId, {preserveRows: true})
             onComplete?.()
             setModalState(initialState)
             message.success("Testset updated successfully")
