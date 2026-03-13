@@ -12,6 +12,7 @@ import {
 } from "@/oss/services/automations/types"
 import {
     createAutomationAtom,
+    testDraftAutomationAtom,
     testAutomationAtom,
     updateAutomationAtom,
 } from "@/oss/state/automations/atoms"
@@ -38,6 +39,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
     const createAutomation = useSetAtom(createAutomationAtom)
+    const testDraftAutomation = useSetAtom(testDraftAutomationAtom)
     const testAutomation = useSetAtom(testAutomationAtom)
     const updateAutomation = useSetAtom(updateAutomationAtom)
 
@@ -124,44 +126,52 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         }
     }, [open, initialValues, form])
 
+    const buildPayloadFromForm = useCallback(async () => {
+        const rawValues = await form.validateFields()
+
+        let headersRecord: Record<string, string> | undefined = undefined
+        if (rawValues.header_list && rawValues.header_list.length > 0) {
+            headersRecord = {}
+            rawValues.header_list.forEach((h: {key: string; value: string}) => {
+                if (h.key && h.value && headersRecord) {
+                    headersRecord[h.key] = h.value
+                }
+            })
+        }
+
+        const processedValues = {
+            ...rawValues,
+            headers: headersRecord,
+            event_types: rawValues.events,
+        }
+
+        return {
+            rawValues,
+            payload: buildSubscription(processedValues, isEdit, initialValues?.id),
+        }
+    }, [form, initialValues?.id, isEdit])
+
     const handleTestConnection = useCallback(async () => {
-        if (!initialValues?.id) return
+        if (!open) return
 
         try {
             setIsTesting(true)
-            const response = await testAutomation(initialValues.id)
+            const {payload} = await buildPayloadFromForm()
+            const response = await testDraftAutomation(payload)
             handleTestResult(response)
         } catch (error) {
+            if ((error as {errorFields?: unknown}).errorFields) return
             console.error(error)
             message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
         } finally {
             setIsTesting(false)
         }
-    }, [initialValues?.id, testAutomation])
+    }, [buildPayloadFromForm, open, testDraftAutomation])
 
     const handleOk = useCallback(async () => {
         try {
-            const rawValues = await form.validateFields()
             setIsSubmitting(true)
-
-            // Map the Form.List array back to Record<string, string>
-            let headersRecord: Record<string, string> | undefined = undefined
-            if (rawValues.header_list && rawValues.header_list.length > 0) {
-                headersRecord = {}
-                rawValues.header_list.forEach((h: {key: string; value: string}) => {
-                    if (h.key && h.value && headersRecord) {
-                        headersRecord[h.key] = h.value
-                    }
-                })
-            }
-
-            const processedValues = {
-                ...rawValues,
-                headers: headersRecord,
-                event_types: rawValues.events,
-            }
-
-            const payload = buildSubscription(processedValues, isEdit, initialValues?.id)
+            const {rawValues, payload} = await buildPayloadFromForm()
             let subscriptionId: string | undefined
 
             if (isEdit && initialValues?.id) {
@@ -216,7 +226,9 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         onSuccess,
         onCancel,
         setCreatedWebhookSecret,
+        buildPayloadFromForm,
         createAutomation,
+        testDraftAutomation,
         testAutomation,
         updateAutomation,
         selectedProvider,
@@ -274,7 +286,7 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                             <Button
                                 onClick={handleTestConnection}
                                 loading={isTesting}
-                                disabled={!isEdit || isSubmitting}
+                                disabled={isSubmitting}
                             >
                                 Test Connection
                             </Button>
