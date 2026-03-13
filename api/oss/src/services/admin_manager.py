@@ -161,6 +161,7 @@ async def legacy_create_organization(
 ) -> Union[OrganizationDB, WorkspaceDB]:
     async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
+        create_org_data.pop("is_demo", None)
 
         create_org_data["flags"] = {
             "is_demo": payload.is_demo,

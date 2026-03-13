@@ -41,7 +41,7 @@
     }
 
     &:global(.diff-modified) {
-        background-color: rgba(99, 102, 241, 0.06);
+        background-color: rgba(99, 102, 241, 0.12);
         border-left: 3px solid #6366f1;
         padding-left: 8px;
         position: relative;
