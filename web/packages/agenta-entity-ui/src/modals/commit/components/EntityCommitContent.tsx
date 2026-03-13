@@ -11,7 +11,7 @@ import {formatCount} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
-import {Input, Alert, Typography, Skeleton, Radio} from "antd"
+import {Input, Alert, Typography, Radio} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -78,7 +78,7 @@ export function EntityCommitContent({
     // Defer DiffView mounting until after the first paint so the modal
     // shell and form appear immediately without being blocked by Lexical
     // editor creation + DOM reconciliation.
-    const [diffReady, setDiffReady] = useState(false)
+    const [_, setDiffReady] = useState(false)
     useEffect(() => {
         if (!context?.diffData?.original || !context?.diffData?.modified) {
             setDiffReady(false)
