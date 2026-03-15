@@ -22,62 +22,63 @@ Checkpoint 1 is expand-only. Later checkpoints will handle contraction.
 
 The goal is to get the new system to feature parity with the legacy system — and beyond — without removing anything. After this checkpoint, the new system is fully functional and the legacy system is still running but no longer needed.
 
-### 1a. URI Taxonomy and Classification (G14, G15, G16)
+### 1a. URI Taxonomy and Derived Classification (G14, G15, G16)
 
-**What:** Establish URI-derived classification so that `is_custom` and `is_runnable` can be computed from URI + handler/URL presence.
+**What:** Establish URI-derived classification so that authored identity flags disappear from the primary contract.
 
-- [ ] Add `is_runnable` as a computed property on workflow DTOs — derived from URI provider + handler/URL presence
-- [ ] Add `is_custom` as a computed property on workflow DTOs — derived from `is_custom_uri(uri)`
-- [ ] Backfill URIs for human evaluators: default → `agenta:builtin:human:v0`, user-created → `user:custom:{variant_slug}:v{N}`
-- [ ] Align backend-defined `user:custom` URI key with variant slug, and its URI version with revision version
-- [ ] Expose derived classification (`is_custom`, `is_runnable`, `is_builtin`) in API query and revision responses
-- [ ] Keep existing `is_custom` and `is_human` flags — they still work, just now redundant with the derived values
+- [ ] Add URI-derived classification helpers for builtin vs custom families
+- [ ] Derive `is_custom` from URI family rather than from authored revision flags
+- [ ] Derive `is_human` from the custom feedback URI family rather than from authored revision flags
+- [ ] Backfill URIs for human/custom feedback families and any remaining no-URI rows
+- [ ] Expose derived classification in inspect/query/revision responses
+- [ ] Treat stored workflow revision flags as materialized metadata only, never as the primary authored source of truth
 
-**Does not remove:** Stored `is_custom`/`is_human` flags remain. Legacy adapter still runs. Frontend still reads from legacy source.
+**Does not remove:** Materialized legacy flags may remain stored during expand, but they are no longer the contract input.
 
-### 1b. Workflow Service Flags: Identity and Capability (G4, G8)
+### 1b. HTTP Content Negotiation for Streaming and Batching (G4, G5, G9)
 
-**What:** Keep `WorkflowFlags` as the static workflow flag type for identity and capability truth, then add capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`) and populate them from handler inspection.
+**What:** Remove stream/batch command flags from the primary contract and use HTTP media types instead.
 
-- [ ] Add `can_stream`, `can_evaluate`, `can_chat`, `can_verbose` to `WorkflowFlags`
-- [ ] Populate capability flags during `inspect_workflow()` — derive from handler metadata (decorator params, interface schema)
-- [ ] For builtins: set capability flags in `INTERFACE_REGISTRY` or `CONFIGURATION_REGISTRY`
-- [ ] For custom workflows: derive from handler inspection (does it yield? → `can_stream`. Has evaluate-oriented behavior today wired via `annotate=True`? → `can_evaluate`. Has `messages` schema? → `can_chat`. Can return either verbose or concise chat payloads? → `can_verbose`)
-- [ ] Ensure custom workflows produce explicit schemas during registration (G8) — parity with builtins
-- [ ] Store capability flags on revision data so they're available without re-inspecting
-- [ ] Expose capability flags in API responses alongside identity flags
+- [ ] Define supported response media types:
+  - `application/json`
+  - `text/event-stream`
+  - `application/x-ndjson`
+  - `application/jsonl`
+- [ ] Make runtime invoke honor `Accept` header negotiation
+- [ ] Fail explicitly when a runnable cannot satisfy the requested response media type
+- [ ] Remove stream/batch command semantics from workflow request flags
+- [ ] Keep caller-side batching / aggregation utilities for consumers that want batched behavior on top of streaming responses
+- [ ] Ensure SDK programmatic invoke exposes the same response-mode choices as HTTP runtime invoke
 
-**Does not remove:** Existing identity flags remain available during expand. `is_evaluator` stays the product/domain identity. Frontend still reads from legacy source.
+**Does not remove:** Existing default JSON invocation still works during expand.
 
-### 1c. Workflow Request Flags in Invoke Request (G5, G9)
+### 1c. Schema-Derived Chat / Message Semantics (G4, G8, G17)
 
-**What:** Introduce a dedicated `WorkflowRequestFlags` type and use it on `WorkflowServiceRequest.flags` as the per-invocation request-flag surface, including SDK-side remote-forwarding control.
+**What:** Remove chat/verbose command and capability flags from the primary contract and infer chat/message behavior from schemas and OpenAPI.
 
-- [ ] Add `WorkflowRequestFlags` as a new type
-- [ ] Define `WorkflowServiceRequest.flags: WorkflowRequestFlags`
-- [ ] Define per-invocation request flags on `WorkflowRequestFlags`: `stream`, `evaluate`, `chat`, `verbose`, `remote`
-- [ ] Keep `WorkflowFlags` reserved for static workflow identity/capability truth
-- [ ] Wire `flags.stream` to the `aggregate` mechanism — `stream=true` returns a stream, `stream=false` forces batch via aggregation
-- [ ] Wire `flags.evaluate` to the existing evaluate-oriented runtime mechanism (implemented today through `annotate`) — this may set annotation/evaluation mode on the tracing context internally while keeping the external contract named `evaluate`
-- [ ] Wire `flags.chat` to input format selection — chat-style messages vs completion-style inputs
-- [ ] Wire `flags.verbose` to response shaping — `verbose=true` returns the full structured chat payload, `verbose=false` returns the concise output when available
-- [ ] Wire `flags.remote=true` to SDK-side forwarding through the configured API/services path
-- [ ] When the SDK forwards because `flags.remote=true`, clear or force `flags.remote=false` before dispatching so the runtime-side SDK execution path does not recurse into another remote forward
-- [ ] Define fallback behavior: request flag asks for a capability the workflow doesn't have → graceful fallback to default mode (batch, no evaluation, completion, workflow-default verbosity)
-- [ ] Keep decorator-level `aggregate` and current internal `annotate` param as defaults during migration — request flags override per invocation
+- [ ] Add explicit `x-` schema parameters for fields that represent `message` or `messages`
+- [ ] Define one shared heuristic for input schemas and output schemas:
+  - direct top-level `message` / `messages`
+  - or top-level object properties annotated with the same `x-` schema parameter
+- [ ] Use that heuristic to drive rolling conversation behavior in the frontend and SDK helpers
+- [ ] Stop treating `is_chat`, `can_chat`, `chat`, `is_verbose`, and `verbose` as primary authored contract flags
+- [ ] Keep any remaining materialized chat metadata derived from schema/OpenAPI truth only
 
-**Does not remove:** Existing invoke requests without request flags still work (default behavior).
+**Does not remove:** Existing chat-oriented rows can still be recognized during migration, but from schemas/URI rather than from authored flags.
 
-### 1d. SDK Remote Forwarding Behavior
+### 1d. Evaluation / Annotation Semantics (G4, G9)
 
-**What:** SDK programmatic invoke methods should honor `WorkflowRequestFlags.remote` as the explicit remote-forwarding control.
+**What:** Remove evaluator/evaluate command flags from the primary contract and separate runtime observability classification from URI/schema classification.
 
-- [ ] Default to local execution when `flags.remote` is absent or false
-- [ ] Support remote execution through the configured API/services path when `flags.remote=true`
-- [ ] Ensure forwarded requests are normalized so `flags.remote` is turned off before the runtime-side SDK handles execution
-- [ ] Use the same `flags.remote` behavior across workflow, application, and evaluator SDK helpers
+- [ ] Stop treating `is_evaluator`, `can_evaluate`, and `evaluate` as primary authored contract flags
+- [ ] For builtins, derive evaluator identity/capability from URI family / registry truth
+- [ ] For `user:custom` and `agenta:custom` families, allow evaluator-related metadata to remain user-owned and materialized
+- [ ] Keep trace type terminology as:
+  - `invocation` when no trace links are present
+  - `annotation` when the trace has links
+- [ ] Move annotation detection to trace ingestion / trace parsing rather than evaluator flags
 
-**Does not remove:** Existing local in-process behavior can remain the default during expand.
+**Does not remove:** Lower-level runtime/tracing can still use `annotation` terminology internally during expand.
 
 ### 1e. Route Isolation and Per-Workflow OpenAPI (G3, G13)
 
@@ -165,22 +166,19 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Nothing — this is purely about preserving passive support in the SDK runtime.
 
-### 1j. Frontend: New Flag Source and Request-Flag Support (G11, G17)
+### 1j. Frontend: Inspect/OpenAPI Truth and Content Negotiation (G11, G17)
 
-**What:** Frontend reads flags from the new system and supports request-time invocation flags.
+**What:** Frontend stops depending on primary execution flags and instead uses inspect/OpenAPI truth plus explicit response media-type negotiation.
 
-- [ ] Add frontend code to read flags from `/inspect` response or API-provided classification in revision responses
-- [ ] Support reading capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`) alongside identity flags
-- [ ] Add stream toggle to playground when `can_stream=true` — handle both streaming and batch responses
-- [ ] Add evaluate toggle to playground when `can_evaluate=true` and `is_evaluator=false`
-- [ ] Add chat/completion mode toggle when `can_chat=true` and `is_chat=false`
-- [ ] Add verbose/concise response toggle when `can_verbose=true` and `is_verbose=false`
+- [ ] Add frontend code to read derived metadata from `/inspect` and revision/query responses
+- [ ] Add frontend code to read message/chat affordances from schemas / OpenAPI `x-` parameters
+- [ ] Send the correct `Accept` header for JSON, SSE, NDJSON, or JSONL responses
 - [ ] Handle streaming responses in playground (progressive rendering, abort/cancel)
-- [ ] Handle evaluation-mode requests and responses distinctly from standard invocation mode
-- [ ] Handle both concise chat rendering and verbose structured payload rendering
-- [ ] Send request flags in `WorkflowServiceRequest.flags` from playground
+- [ ] Fail explicitly and clearly when the runnable cannot satisfy the requested response media type
+- [ ] Add client-side batching / aggregation utilities where the frontend wants batched semantics on top of a streaming-capable runnable
+- [ ] Use schema/OpenAPI heuristics to drive rolling chat conversation behavior
 
-**Does not remove:** Legacy `x-agenta.flags` reading still works as fallback. Existing playground behavior unchanged for workflows without capability flags.
+**Does not remove:** Legacy `x-agenta.flags` reading may remain as a temporary fallback during expand.
 
 ---
 
@@ -189,11 +187,11 @@ The goal is to get the new system to feature parity with the legacy system — a
 After checkpoint 1, all of the following are true:
 
 1. Every workflow has a URI (including human evaluators)
-2. `is_custom` and `is_runnable` are derivable from URI + handler/URL and exposed in API responses
-3. Capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`) exist and are populated
-4. Request flags (`stream`, `evaluate`, `chat`, `verbose`) are accepted in invoke requests
-5. `WorkflowFlags` and `WorkflowRequestFlags` exist as distinct contract types
-6. SDK invoke methods honor `flags.remote` for remote forwarding and clear it on forwarded requests to avoid recursion
+2. `is_custom` / `is_human` style identity is derived from URI families and exposed in API responses as derived truth or materialized metadata
+3. Invoke supports explicit response media-type negotiation for JSON, SSE, NDJSON, and JSONL
+4. Unsupported requested media types fail explicitly
+5. Chat/message behavior is derivable from schemas / OpenAPI rather than authored primary flags
+6. Trace ingestion can classify `annotation` from trace links independently of runnable flags
 7. Each workflow has its own `{path}/invoke`, `{path}/inspect`, `{path}/openapi.json`, and matching SDK OpenAPI getter
 8. Workflows expose the canonical catalog for predefined runnables, and applications/evaluators expose filtered catalog views over the same source
 9. Code evaluators and AI-critique evaluators have equivalent output-schema definition support
@@ -204,7 +202,7 @@ After checkpoint 1, all of the following are true:
 14. Builtin service URLs and builtin input/output schemas are refreshed from URI/inspect with caching, without blindly overwriting user-owned parameter schema
 15. Applications and evaluators have invoke/inspect endpoints as filtered wrappers over the workflow family
 16. SDK routing/running can honor incoming trace context when present for workflow-to-workflow propagation
-17. Frontend can read from the new flag source and send request flags
+17. Frontend can read from inspect/OpenAPI truth and send negotiated response headers
 18. **The legacy system still works** — nothing has been removed
 
 ---
@@ -216,8 +214,8 @@ Once checkpoint 1 is validated and consumers have migrated:
 - Remove legacy `serving.py` endpoints (`/run`, `/test`, `/generate`, `/openapi.json`)
 - Remove `legacy_adapter.py`
 - Remove legacy invoke proxy path
-- Remove stored `is_custom`/`is_human` flags — use derived values only
-- Remove frontend legacy `x-agenta.flags` reading path and schema heuristics
+- Remove authored identity/capability/command flag reliance from the runnable contract
+- Remove frontend legacy `x-agenta.flags` reading path
 - Remove `create_app()` workaround for route isolation
 
 This checkpoint is intentionally left as a placeholder. The specific contraction steps depend on migration progress and consumer readiness.

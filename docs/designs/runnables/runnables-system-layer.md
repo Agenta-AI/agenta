@@ -93,15 +93,15 @@ The plan expands the API contract with one canonical workflow contract family an
   - `/workflows/catalog/*`
   - `/applications/catalog/*`
   - `/evaluators/catalog/*`
-- richer inspect and retrieval payloads carrying workflow service flags
-  - derived classification: `is_custom`, `is_runnable`, `is_builtin`
-  - identity flags: `is_chat`, `is_evaluator`, `is_verbose`
-  - capability flags: `can_stream`, `can_evaluate`, `can_chat`, `can_verbose`
-- richer invoke payloads carrying workflow request flags
-  - `flags.stream`
-  - `flags.evaluate`
-  - `flags.chat`
-  - `flags.verbose`
+- richer inspect and retrieval payloads carrying derived runnable discovery truth
+  - URI-derived classification
+  - schema-derived chat/message affordances
+  - optional materialized revision metadata derived from URI, schemas, registry truth, and trace heuristics
+- richer invoke payloads and runtime routes using HTTP content negotiation
+  - `Accept: application/json`
+  - `Accept: text/event-stream`
+  - `Accept: application/x-ndjson`
+  - `Accept: application/jsonl`
 
 ### System-level contract decisions
 
@@ -111,15 +111,24 @@ The plan expands the API contract with one canonical workflow contract family an
 - Applications and evaluators expose the same surfaces as filtered projections over workflows.
 - Catalog responses must stop mixing catalog entry discovery, preset bundles, and UI-only template metadata into one shape.
 - Catalog entry fields should stay close to persisted `WorkflowRevisionData` discovery truth:
-  - base entry data: `uri`, optional precomputed `url`, optional `headers`, `schemas`, workflow flags, and catalog metadata such as `name`, `description`, `categories`
+  - base entry data: `uri`, optional precomputed `url`, optional `headers`, `schemas`, derived/materialized revision metadata, and catalog metadata such as `name`, `description`, `categories`
   - preset data: reusable override material such as `parameters`, optional `script`, optional `headers`, and other presettable workflow fields
 - Legacy `WorkflowRevisionData.service` and `WorkflowRevisionData.configuration` should be treated as removal targets, not part of the target runnable contract.
 - Inspect and `openapi.json` are complementary discovery surfaces for the same runnable, not competing alternatives.
 - Inspect, `openapi.json`, and retrieval responses must expose enough truth that the frontend no longer depends on legacy OpenAPI heuristics.
-- The external runnable contract uses evaluation vocabulary (`is_evaluator`, `can_evaluate`, `flags.evaluate`) even if lower-level tracing internals still use annotation terminology.
-- To avoid overloading one word, the system should distinguish:
-  - `WorkflowFlags`: static identity and capability truth returned by inspect, retrieval, catalog, or OpenAPI
-  - `WorkflowRequestFlags`: per-invocation behavior requests carried on `WorkflowServiceRequest.flags`
+- The external runnable contract no longer treats identity flags, capability flags, or command flags as the primary authored interface.
+- Streaming and batching are selected through HTTP content negotiation rather than request flags.
+- If a caller asks for a response media type the runnable cannot produce, the request fails explicitly.
+- If a caller needs batched behavior on top of a streaming response, batching is a caller-side utility concern.
+- `is_custom` and `is_human` are derived from URI families.
+- chat behavior is derived from schemas and OpenAPI, primarily through explicit `x-` schema parameters marking `message` / `messages` fields.
+- evaluator identity and evaluator capability are derived differently:
+  - builtins derive from URI family / registry truth
+  - custom families may still materialize user-authored evaluator metadata
+- workflow revision flags remain only as materialized metadata:
+  - never the primary authored execution/discovery contract
+  - always derivable from some other source of truth or explicitly user-owned custom metadata
+- lower-level tracing still uses `annotation` vs `invocation`; trace ingestion should infer `annotation` from the presence of trace links.
 
 ### API execution dispatch decision
 
@@ -130,7 +139,7 @@ At subsystem boundaries, the API should be treated as a control plane, not the l
 - non-runnable custom workflows remain discoverable through inspect-style responses, but invoke must fail
 - `openapi.json` must come from the same provenance as `inspect` for a given target
 - API-to-services handoff for runnable targets uses redirect; the redirect contract must preserve auth, streaming, and runnable identity semantics
-- API-originated runnable invoke requests should normalize `flags.remote=false` before redirecting to `/services`
+- API-originated runnable invoke requests should preserve the negotiated media-type semantics when redirecting to `/services`
 
 ### API interface I/O
 
@@ -138,8 +147,8 @@ At the system layer, the main API request/response shapes are:
 
 | Operation family | Request carries identity through | Request shape | Response shape | Stateful vs stateless |
 |---|---|---|---|---|
-| `POST /workflows/invoke` | request body | `WorkflowServiceRequest` with `interface.uri`, `references`, `configuration`, `data`, and `flags: WorkflowRequestFlags` | batch or stream workflow service response, or explicit non-runnable failure | can be reference-driven or URI-driven |
-| `POST /workflows/inspect` | request body | `WorkflowServiceRequest` with enough identity/configuration to inspect | `WorkflowServiceRequest` enriched with `WorkflowFlags` and inspect truth | can be reference-driven or URI-driven |
+| `POST /workflows/invoke` | request body + HTTP headers | `WorkflowServiceRequest` with `interface.uri`, `references`, `configuration`, and `data`; response mode selected by `Accept` | batch or streaming workflow service response, or explicit non-runnable / unsupported-media-type failure | can be reference-driven or URI-driven |
+| `POST /workflows/inspect` | request body | `WorkflowServiceRequest` with enough identity/configuration to inspect | inspected request enriched with derived discovery truth and materialized revision metadata | can be reference-driven or URI-driven |
 | `POST /workflows/revisions/retrieve` | request body | reference triplet plus optional `resolve` flag | revision envelope, optionally with `resolution_info` | primarily stateful |
 | `POST /workflows/revisions/resolve` | request body | either references to a stored revision or inline `workflow_revision` plus resolve options | resolved revision plus `resolution_info` | supports both stateful and inline stateless resolution |
 | `/workflows/catalog/*` | path plus optional query/body filters | catalog lookup / list / preset selection | catalog entries / presets / metadata | neither stateful revision lookup nor raw runtime inspect; it is predefined runnable discovery |
@@ -181,14 +190,13 @@ POST /workflows/inspect
 }
 ```
 
-3. Generic invoke using reference-driven identity plus request flags:
+3. Generic invoke using reference-driven identity plus HTTP content negotiation:
 
 ```json
 POST /workflows/invoke
 {
   "references": {"workflow_revision": {"id": "<revision-id>"}},
-  "data": {"inputs": {"text": "hello"}},
-  "flags": {"stream": false, "evaluate": false}
+  "data": {"inputs": {"text": "hello"}}
 }
 ```
 
@@ -231,11 +239,8 @@ The SDK exposes programmatic workflow execution and inspection:
 
 ### Target system-level changes
 
-- Programmatic invocation accepts the new runtime request-flag model.
-- Programmatic invocation also uses `flags.remote` as the explicit remote-forwarding control:
-  - `flags.remote=false` or absent → local execution from the SDK process
-  - `flags.remote=true` → remote execution through the configured API/services path
-- Programmatic inspection exposes derived classification and expanded workflow service flags.
+- Programmatic invocation accepts explicit response-mode / media-type selection instead of authored command flags.
+- Programmatic inspection exposes derived classification and materialized revision metadata.
 - Programmatic discovery also exposes OpenAPI getters:
   - `get_workflow_openapi`
   - `get_application_openapi`
@@ -248,12 +253,9 @@ The SDK exposes programmatic workflow execution and inspection:
 - The same workflow identity should inspect the same way whether reached through generic workflow APIs or domain APIs.
 - The same workflow identity should produce the same OpenAPI document whether fetched through SDK getters or HTTP runtime routes.
 - The same workflow identity should resolve to the same OpenAPI discovery surface whether reached through a workflow path or a filtered domain path.
-- The same runnable should advertise the same flags and schemas through SDK inspect and HTTP inspect.
+- The same runnable should advertise the same derived metadata and schemas through SDK inspect and HTTP inspect.
 - Workflow catalog entries are the source of truth; application and evaluator catalogs are filtered views over that same source.
-- `WorkflowFlags` are static inspect/discovery truth.
-- `WorkflowRequestFlags` are per-invocation requests, not static workflow identity.
-- `flags.remote` is a request flag consumed at the SDK boundary, not a static workflow property.
-- when the SDK forwards because `flags.remote=true`, it must clear or force `flags.remote=false` before the runtime-side SDK handles execution.
+- media-type negotiation must mean the same thing across SDK and HTTP surfaces.
 - Trace-level `annotation` and `invocation` remain lower-level execution concepts, separate from the external application/evaluator contract.
 
 ### SDK programmatic I/O
@@ -262,7 +264,7 @@ At the system layer, the SDK programmatic interface is intentionally close to th
 
 | SDK call family | Input shape | Output shape | Identity mode |
 |---|---|---|---|
-| `invoke_*` | `WorkflowServiceRequest` with `flags: WorkflowRequestFlags` including optional `remote` | batch or stream workflow service response | references, URI, or mixed |
+| `invoke_*` | `WorkflowServiceRequest` plus explicit media-type / response-mode selection | batch or stream workflow service response | references, URI, or mixed |
 | `inspect_*` | `WorkflowServiceRequest` | inspected `WorkflowServiceRequest` | references, URI, or mixed |
 | `get_*_openapi` | same logical runnable identification as inspect | OpenAPI document object | references, URI, or mixed |
 
@@ -270,7 +272,7 @@ The main contract decision here is:
 
 - SDK programmatic discovery should not invent a second identification system
 - if inspect accepts a request identified by references or URI, `get_*_openapi` should accept the same logical identification shape
-- invoke should honor `flags.remote` at the SDK boundary and clear it before any remote-forwarded request reaches the runtime-side SDK execution path
+- invoke should expose the same media-type choices as runtime HTTP and fail when the runnable cannot satisfy the requested response mode
 
 ### SDK examples
 
@@ -291,7 +293,6 @@ await invoke_evaluator(
     WorkflowServiceRequest(
         references={"evaluator_revision": {"id": "<revision-id>"}},
         data={"inputs": {...}},
-        flags={"evaluate": True},
     )
 )
 ```
@@ -334,15 +335,15 @@ The runtime interface currently mixes:
   - `{path}/inspect`
   - `{path}/openapi.json`
 - the per-workflow OpenAPI document is isolated to one workflow namespace
-- the runtime contract carries both identity and capability information
-- the runtime contract supports response-shaping request flags, including verbose vs concise chat outputs
+- the runtime contract carries derived discovery truth and supported response media types
+- the runtime contract uses HTTP headers rather than request flags for stream/batch selection
 
 ### System-level invariants
 
 - one workflow namespace must not leak other workflow contracts into its OpenAPI document
-- inspect and OpenAPI must agree on schemas and flags
-- `verbose=false` is only meaningful when the workflow is not verbose-only
-- `stream=false` remains valid even for stream-capable workflows because batch is the baseline
+- inspect and OpenAPI must agree on schemas and derived metadata
+- response media-type support is part of the runtime contract
+- callers are responsible for client-side aggregation/batching when they want batched semantics on top of a streaming-capable runnable
 
 ### Runtime HTTP I/O
 
@@ -350,7 +351,7 @@ The runtime HTTP interface differs from the generic API and SDK interfaces becau
 
 | Runtime route | Runnable identity lives in | Request shape | Response shape |
 |---|---|---|---|
-| `{path}/invoke` | path namespace | runtime invoke body with data/config/flags | batch JSON or stream transport |
+| `{path}/invoke` | path namespace | runtime invoke body with data/config plus HTTP content negotiation | batch JSON or stream transport |
 | `{path}/inspect` | path namespace | no separate runnable identifier beyond the path | inspected runnable contract |
 | `{path}/openapi.json` | path namespace | no body | OpenAPI document |
 
@@ -359,7 +360,7 @@ Important runtime clarification:
 - at runtime HTTP level, the path itself identifies the runnable
 - this is different from `POST /workflows/invoke`, where the path only selects the contract family
 - query parameters should not be the primary runnable identifier in the new runtime family
-- the invoke body is for inputs, parameters, secrets, request flags, and overrides, not for choosing which runnable path was meant
+- the invoke body is for inputs, parameters, secrets, and overrides, not for choosing which runnable path was meant
 
 ### Runtime HTTP examples
 
@@ -370,8 +371,7 @@ POST /summarize/invoke
 Content-Type: application/json
 
 {
-  "data": {"inputs": {"text": "hello"}},
-  "flags": {"stream": false}
+  "data": {"inputs": {"text": "hello"}}
 }
 ```
 
@@ -395,18 +395,18 @@ This is still a system interface because the frontend consumes the system extern
 
 - frontend reads legacy `x-agenta.flags`
 - frontend uses heuristic chat detection
-- playground sends invoke requests without request flags
+- playground does not yet negotiate response media types explicitly
 
 ### Target system-level changes
 
 - frontend reads runnable truth from inspect or API revision/query responses
-- frontend renders based on explicit identity and capability flags
-- frontend sends request `flags`
+- frontend renders based on derived metadata, URI families, schema heuristics, and OpenAPI-derived affordances
+- frontend sends the right `Accept` header for the response type it wants
 - frontend supports:
-  - stream vs batch
-  - evaluate vs standard invocation mode
-  - chat vs completion
-  - verbose vs concise chat response rendering
+  - JSON vs SSE vs NDJSON/JSONL response handling
+  - chat/message-aware rolling conversation behavior derived from schemas
+  - explicit failure handling when the requested media type is unsupported
+  - client-side batching / aggregation utilities where needed
 
 ### System-level invariant
 
@@ -494,9 +494,9 @@ At this layer the observability interface is narrow:
 |---|---|---|
 | API execution | only generic workflows have invoke/inspect and current implementation runs in-process | workflows are canonical, applications and evaluators expose filtered execution/discovery views, and runnable execution is treated as a handoff to runtime services while non-runnable targets fail invoke |
 | API catalogs | evaluator templates are a mixed payload | canonical workflow catalog with revision-like catalog entries and separate preset bundles, plus filtered application/evaluator views |
-| SDK inspect/invoke | flags and request-flag semantics incomplete | unified identity, capability, and request-flag model |
-| Runtime HTTP | no per-workflow OpenAPI in new stack | isolated per-workflow `invoke` / `inspect` / `openapi.json` as one discovery family |
-| Frontend consumption | relies on legacy `x-agenta.flags` | relies on explicit inspect/query/revision truth |
+| SDK inspect/invoke | media-type negotiation and derived metadata semantics incomplete | unified URI/schema-derived discovery plus explicit media-type selection |
+| Runtime HTTP | no per-workflow OpenAPI in new stack | isolated per-workflow `invoke` / `inspect` / `openapi.json` plus explicit content negotiation |
+| Frontend consumption | relies on legacy `x-agenta.flags` | relies on inspect/query/revision truth, schemas, OpenAPI, and HTTP media-type negotiation |
 | Observability | incoming parent context handling is underspecified in SDK runtime | passive workflow-to-workflow trace continuity when parent context is present |
 
 ## Black-box validation dimensions
@@ -504,8 +504,8 @@ At this layer the observability interface is narrow:
 At the system layer, the runnable plan should be validated as a black-box contract across these dimensions:
 
 - functional
-  - inspect returns the expected schemas and flags
-  - invoke honors supported request flags
+  - inspect returns the expected schemas and derived metadata
+  - invoke honors supported response media types and fails clearly on unsupported ones
   - catalog endpoints expose correct entries and presets
 - compatibility
   - legacy execution paths still work during expand
@@ -528,8 +528,8 @@ At the system layer, the runnable plan should be validated as a black-box contra
 2. Domain-specific routes are additive filtered wrappers, not separate behavior stacks.
 3. Workflow catalog is the canonical system interface; application and evaluator catalogs are filtered system views.
 4. Inspect and OpenAPI become first-class paired runtime discovery surfaces.
-5. `WorkflowFlags`, `WorkflowRequestFlags`, and runnable classification are separate concerns.
-6. Verbose vs concise output is part of the system contract, not just UI rendering logic.
+5. HTTP content negotiation, URI/schema-derived classification, and materialized revision metadata are separate concerns.
+6. Chat/message behavior is inferred from schemas and OpenAPI rather than authored as primary flags.
 7. Passive incoming trace-context support belongs in SDK routing/running, not as an API-to-SDK integration commitment in this plan.
 
 ## Out of scope at this layer

@@ -313,6 +313,15 @@ This means:
 
 Use this as the canonical classifier for current workflow revision rows.
 
+Interpretation note:
+
+- this matrix is now a migration-time materialization matrix, not the authored external runnable contract
+- stream/batch, chat/verbose, and evaluate command semantics are moving out of primary flags and into:
+  - HTTP content negotiation
+  - schema / OpenAPI inference
+  - URI / registry-derived metadata
+- any target flags shown below should therefore be read as migration-time materialized metadata only
+
 Precedence:
 
 1. if `uri` is present and meaningful, classify by `uri` first
