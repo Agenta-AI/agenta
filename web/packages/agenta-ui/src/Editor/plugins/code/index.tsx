@@ -40,6 +40,7 @@ import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {$createLongTextNode, isLongTextString, parseLongTextString} from "./nodes/LongTextNode"
+import type {CodeLanguage} from "./types"
 import {$getEditorCodeAsString} from "./utils/editorCodeUtils"
 import {showEditorLoadingOverlay} from "./utils/loadingOverlay"
 import {$wrapLinesInSegments, $getAllCodeLines, $getLineCount} from "./utils/segmentUtils"
@@ -118,7 +119,7 @@ function getTokenValidation(
  */
 export function createHighlightedNodes(
     text: string,
-    language: "json" | "yaml",
+    language: CodeLanguage,
     disableLongText?: boolean,
 ): CodeLineNode[] {
     // For JSON, avoid splitting on \n inside string values
@@ -263,6 +264,33 @@ export function createHighlightedNodes(
 
     return codeLineNodes
 }
+
+function normalizeInitialCodeContent(content: string, language: CodeLanguage): string {
+    if (language === "json") {
+        try {
+            return JSON.stringify(JSON5.parse(content), null, 2)
+        } catch {
+            return content
+        }
+    }
+
+    if (language === "yaml") {
+        try {
+            const parsed = yaml.load(content)
+            if (parsed !== undefined) {
+                return yaml.dump(parsed, {indent: 2})
+            }
+        } catch {
+            try {
+                return yaml.dump(JSON5.parse(content), {indent: 2})
+            } catch {
+                return content
+            }
+        }
+    }
+
+    return content
+}
 /**
  * Plugin that initializes the editor with an empty code block.
  *
@@ -278,7 +306,7 @@ function InsertInitialCodeBlockPlugin({
     disableLongText = false,
 }: {
     initialValue: string
-    language?: "json" | "yaml"
+    language?: CodeLanguage
     onPropertyClick?: (path: string) => void
     disableLongText?: boolean
 }) {
@@ -321,52 +349,65 @@ function InsertInitialCodeBlockPlugin({
                                 return
                             }
 
-                            // Default processing for JSON/YAML content
+                            // Skip when the incoming payload matches what is already rendered.
                             const currentTextValue = $getEditorCodeAsString()
                             log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
-                            // Skip semantic equality check if forceUpdate is true (for undo/redo)
                             if (currentTextValue && !payload.forceUpdate) {
-                                try {
-                                    const currentObjectValue = JSON5.parse(currentTextValue)
-                                    const incomingObjectValue =
-                                        typeof payload.content === "string"
-                                            ? JSON5.parse(payload.content)
-                                            : payload.content
-                                    if (isEqual(currentObjectValue, incomingObjectValue)) {
-                                        log("DO NOT CLEAR AND RECONSTRUCT 1", {
-                                            content: payload.content,
-                                            currentTextValue,
-                                        })
+                                if (payload.language !== "json") {
+                                    if (
+                                        currentTextValue.trim() ===
+                                        normalizeInitialCodeContent(
+                                            payload.content,
+                                            payload.language,
+                                        ).trim()
+                                    ) {
+                                        log("DO NOT CLEAR AND RECONSTRUCT (raw)")
                                         return
                                     }
-                                } catch (e) {
+                                } else {
                                     try {
-                                        const currentObject = tryParsePartialJson(currentTextValue)
-                                        const incomingObject =
+                                        const currentObjectValue = JSON5.parse(currentTextValue)
+                                        const incomingObjectValue =
                                             typeof payload.content === "string"
                                                 ? JSON5.parse(payload.content)
                                                 : payload.content
-
-                                        if (isEqual(currentObject, incomingObject)) {
-                                            log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                        if (isEqual(currentObjectValue, incomingObjectValue)) {
+                                            log("DO NOT CLEAR AND RECONSTRUCT 1", {
+                                                content: payload.content,
+                                                currentTextValue,
+                                            })
                                             return
-                                        } else {
-                                            const trimmedIncoming =
-                                                typeof payload.content === "string"
-                                                    ? payload.content.trim()
-                                                    : JSON5.stringify(payload.content).trim()
-
-                                            if (currentTextValue.trim() === trimmedIncoming) {
-                                                log("DO NOT CLEAR AND RECONSTRUCT 3")
-                                                return
-                                            }
                                         }
                                     } catch (e) {
-                                        log("there was an error parsing to json", {
-                                            e,
-                                            content: payload.content,
-                                            currentTextValue,
-                                        })
+                                        try {
+                                            const currentObject =
+                                                tryParsePartialJson(currentTextValue)
+                                            const incomingObject =
+                                                typeof payload.content === "string"
+                                                    ? JSON5.parse(payload.content)
+                                                    : payload.content
+
+                                            if (isEqual(currentObject, incomingObject)) {
+                                                log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                                return
+                                            } else {
+                                                const trimmedIncoming =
+                                                    typeof payload.content === "string"
+                                                        ? payload.content.trim()
+                                                        : JSON5.stringify(payload.content).trim()
+
+                                                if (currentTextValue.trim() === trimmedIncoming) {
+                                                    log("DO NOT CLEAR AND RECONSTRUCT 3")
+                                                    return
+                                                }
+                                            }
+                                        } catch (e) {
+                                            log("there was an error parsing to json", {
+                                                e,
+                                                content: payload.content,
+                                                currentTextValue,
+                                            })
+                                        }
                                     }
                                 }
                             }
@@ -377,32 +418,10 @@ function InsertInitialCodeBlockPlugin({
                             log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
                             // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
                             try {
-                                // For JSON/YAML content, parse and format
-                                const objectValue =
-                                    payload.language === "json"
-                                        ? JSON5.parse(payload.content)
-                                        : payload.content
-                                let value: string
-                                if (payload.language === "json") {
-                                    value = JSON.stringify(objectValue, null, 2)
-                                } else {
-                                    try {
-                                        const obj = yaml.load(objectValue)
-                                        if (obj !== undefined) {
-                                            value = yaml.dump(obj, {indent: 2})
-                                        } else {
-                                            value = objectValue
-                                        }
-                                    } catch {
-                                        // Try JSON as a fallback and then dump to YAML for consistent highlighting
-                                        try {
-                                            const obj = JSON5.parse(objectValue)
-                                            value = yaml.dump(obj, {indent: 2})
-                                        } catch {
-                                            value = objectValue
-                                        }
-                                    }
-                                }
+                                const value = normalizeInitialCodeContent(
+                                    payload.content,
+                                    payload.language,
+                                )
                                 log(" Reconstructing code block due to prop change", {
                                     language: payload.language,
                                     value,
@@ -413,7 +432,7 @@ function InsertInitialCodeBlockPlugin({
                                 const lineCount = value.split("\n").length
                                 if (lineCount >= LARGE_DOC_INITIAL_HIGHLIGHT_LINE_THRESHOLD) {
                                     // Capture values for the deferred callback
-                                    const capturedLanguage = payload.language as "json" | "yaml"
+                                    const capturedLanguage = payload.language
                                     const capturedDisableLongText = disableLongText
 
                                     // Clear existing content and show a single empty line
@@ -475,7 +494,7 @@ function InsertInitialCodeBlockPlugin({
                                 })
                                 const highlightedNodes = createHighlightedNodes(
                                     value,
-                                    payload.language as "json" | "yaml",
+                                    payload.language,
                                     disableLongText,
                                 )
                                 $wrapLinesInSegments(highlightedNodes).forEach((node) => {
@@ -518,8 +537,8 @@ function InsertInitialCodeBlockPlugin({
                     }
                     const root = $getRoot()
                     const existingCodeBlock = root.getChildren().filter($isCodeBlockNode)[0]
-                    const oldLanguage = existingCodeBlock.getLanguage() as "json" | "yaml"
-                    const newLanguage = payload.language as "json" | "yaml"
+                    const oldLanguage = existingCodeBlock.getLanguage() as CodeLanguage
+                    const newLanguage = payload.language as CodeLanguage
                     log(" ON_CHANGE_LANGUAGE triggered", {oldLanguage, newLanguage})
                     if (oldLanguage === newLanguage) {
                         existingCodeBlock.setLanguage(newLanguage)
