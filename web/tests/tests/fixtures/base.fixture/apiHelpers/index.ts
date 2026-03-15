@@ -276,7 +276,7 @@ export const getAppById = async (page: Page, appId: string) => {
 
 export const getTestsets = async (page: Page) => {
     const testsetsResponse = waitForApiResponse<{testsets: testset[]}>(page, {
-        route: "/api/preview/testsets/query",
+        route: "/api/testsets/query",
         method: "POST",
     })
 
@@ -317,7 +317,7 @@ export const getEvaluationRuns = async (page: Page) => {
         runs: SnakeToCamelCaseKeys<EvaluationRun>[]
         count: number
     }>(page, {
-        route: `/api/preview/evaluations/runs/query`,
+        route: `/api/evaluations/runs/query`,
         method: "POST",
     })
 

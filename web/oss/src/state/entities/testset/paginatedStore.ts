@@ -41,7 +41,7 @@ import {createPaginatedEntityStore} from "../shared"
 // ============================================================================
 
 /**
- * API response row from /preview/testsets/query
+ * API response row from /testsets/query
  */
 export interface TestsetApiRow {
     id: string
@@ -139,7 +139,7 @@ interface QueryWindowingPayload {
 }
 
 /**
- * Fetch testsets with server-side pagination via POST /preview/testsets/query
+ * Fetch testsets with server-side pagination via POST /testsets/query
  */
 async function fetchTestsetsPage({
     meta,
@@ -196,7 +196,7 @@ async function fetchTestsetsPage({
 
     try {
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/query`,
+            `${getAgentaApiUrl()}/testsets/query`,
             queryPayload,
             {
                 params: {project_id: meta.projectId},

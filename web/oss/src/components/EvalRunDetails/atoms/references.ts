@@ -166,7 +166,7 @@ export const testsetReferenceQueryAtomFamily = atomFamily((testsetId: string | n
             queryFn: async () => {
                 if (!projectId || !testsetId) return null
                 try {
-                    const response = await axios.get(`/preview/testsets/${testsetId}`, {
+                    const response = await axios.get(`/testsets/${testsetId}`, {
                         params: {project_id: projectId},
                         _ignoreError: true,
                     } as any)

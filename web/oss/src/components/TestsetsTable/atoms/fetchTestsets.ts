@@ -31,7 +31,7 @@ interface FetchTestsetsWindowParams {
 }
 
 /**
- * Fetch testsets with server-side pagination via POST /preview/testsets/query
+ * Fetch testsets with server-side pagination via POST /testsets/query
  * Uses the lighter endpoint that returns metadata only (no testcases)
  */
 export const fetchTestsetsWindow = async ({
@@ -82,9 +82,9 @@ export const fetchTestsetsWindow = async ({
     }
 
     try {
-        // Use /preview/testsets/query - returns Testset metadata without testcases
+        // Use /testsets/query - returns Testset metadata without testcases
         const response = await axios.post(
-            `${getAgentaApiUrl()}/preview/testsets/query`,
+            `${getAgentaApiUrl()}/testsets/query`,
             queryPayload,
             {
                 params: {project_id: projectId},

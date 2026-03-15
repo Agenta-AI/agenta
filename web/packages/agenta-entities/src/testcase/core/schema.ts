@@ -137,7 +137,7 @@ export const windowingSchema = z.object({
 })
 
 /**
- * Query request schema for POST /preview/testcases/query
+ * Query request schema for POST /testcases/query
  */
 export const testcasesQueryRequestSchema = z.object({
     testcase_ids: z.array(z.string()).optional(),

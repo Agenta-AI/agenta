@@ -75,7 +75,7 @@ const getPreviewRunBatcherCore = () => {
                         }
 
                         const response = await axios.post(
-                            `/preview/evaluations/runs/query`,
+                            `/evaluations/runs/query`,
                             payload,
                             {
                                 params: {project_id: projectId},

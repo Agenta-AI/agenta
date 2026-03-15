@@ -18,7 +18,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 runs: SnakeToCamelCaseKeys<EvaluationRun>[]
                 count: number
             }>(page, {
-                route: `/api/preview/evaluations/runs/query`,
+                route: `/api/evaluations/runs/query`,
                 method: "POST",
             })
 

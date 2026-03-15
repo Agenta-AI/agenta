@@ -77,7 +77,7 @@ const testsetTests = () => {
             await expect(testsetRow).toBeVisible()
 
             const testsetResponsePromise = apiHelpers.waitForApiResponse<{testset: SimpleTestset}>({
-                route: `/api/preview/simple/testsets/${testsetId}`,
+                route: `/api/simple/testsets/${testsetId}`,
                 method: "GET",
             })
 
