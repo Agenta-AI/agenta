@@ -11,6 +11,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    TraceType,
 )
 
 log = get_module_logger(__name__)
@@ -81,6 +82,55 @@ def calculate_and_propagate_metrics_by_trace(
     processed: List[OTelFlatSpan] = []
     for trace_spans in spans_by_trace.values():
         processed.extend(calculate_and_propagate_metrics(trace_spans))
+
+    return processed
+
+
+def infer_and_propagate_trace_type_by_trace(
+    span_dtos: List[OTelFlatSpan],
+) -> List[OTelFlatSpan]:
+    """
+    Infer trace type once per trace from span links and propagate it to every span.
+
+    A trace is an annotation iff any span in that trace contains one or more links.
+    Otherwise the trace is an invocation.
+    """
+    if not span_dtos:
+        return span_dtos
+
+    spans_by_trace: Dict[str, List[OTelFlatSpan]] = {}
+
+    for span_dto in span_dtos:
+        trace_key = str(span_dto.trace_id)
+        spans_by_trace.setdefault(trace_key, []).append(span_dto)
+
+    processed: List[OTelFlatSpan] = []
+    for trace_spans in spans_by_trace.values():
+        inferred_trace_type = (
+            TraceType.ANNOTATION
+            if any(span.links for span in trace_spans)
+            else TraceType.INVOCATION
+        )
+
+        for span in trace_spans:
+            span.trace_type = inferred_trace_type
+
+            if span.attributes is None:
+                span.attributes = {}
+
+            ag = span.attributes.setdefault("ag", {})
+            if not isinstance(ag, dict):
+                ag = {}
+                span.attributes["ag"] = ag
+
+            ag_type = ag.setdefault("type", {})
+            if not isinstance(ag_type, dict):
+                ag_type = {}
+                ag["type"] = ag_type
+
+            ag_type["trace"] = inferred_trace_type.value
+
+        processed.extend(trace_spans)
 
     return processed
 

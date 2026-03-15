@@ -68,14 +68,33 @@ uri = f"user:custom:{app_slug}:v0"
 - If running via API direct invoke: handler may not be loadable (depends on deployment model)
 - `url` field: set to the SDK service's HTTP endpoint when deployed
 
+### `agenta:custom:annotation:v0` — Agenta-Managed Custom Annotation Definitions
+
+Simple-trace annotation definitions created through the API side. These are evaluator-backed workflow revisions, but the trace type is inferred at ingestion from links rather than authored as a runnable flag.
+
+**Characteristics:**
+- resolves to an evaluator / evaluator variant / evaluator revision
+- currently used for human and custom annotation-style simple traces
+- may be non-runnable while still having an explicit URI and schema
+- replaces the old no-URI human evaluator state
+
+### `agenta:custom:invocation:v0` — Agenta-Managed Custom Invocation Definitions
+
+Simple-trace invocation definitions created through the API side. These are application-backed workflow revisions, while the produced trace type is still inferred at ingestion.
+
+**Characteristics:**
+- resolves to an application / application variant / application revision
+- used for Agenta-managed custom invocation-style simple traces
+- gives custom invocation definitions an explicit URI family instead of overloading `user:custom`
+
 ### No URI — Legacy / Unresolved
 
-**Current use:** Human evaluators. Created with `SimpleEvaluatorData(service={...})` — the `service` dict contains a format schema but no `uri`.
+**Current use:** Legacy rows that were created before URI backfill and normalization.
 
 **Characteristics:**
 - `uri` is `None` on the revision data
-- Today identified by `is_human=True` flag
-- This is a legacy state — see section 4 for the proposed clean model where all workflows have URIs
+- this should be treated as migration debt, not as a target taxonomy state
+- human evaluators should move to `agenta:custom:annotation:v0`
 
 ---
 
@@ -143,7 +162,7 @@ Revision `version` column stores sequential integers as strings: `"0"`, `"1"`, `
 
 **URI identifies the workflow definition** (who made it, which variant, which version). It says nothing about whether the workflow can be invoked. Runnability is a separate axis determined by whether there's an engine (handler in registry or reachable URL).
 
-For the current runnable plan, this means **every workflow should have a URI** — including today's "human evaluators". A user who creates a custom annotation schema is creating a `user:custom` entity. It just happens to have no engine.
+For the current runnable plan, this means **every workflow should have a URI** — including today's human evaluators and Agenta-managed simple-trace invocations. A human/custom annotation definition created through the API side should be identified as `agenta:custom:annotation:v0`. A custom invocation definition created through the same simple-trace path should be identified as `agenta:custom:invocation:v0`.
 
 Possible future extensions such as configuration-only objects with no URI are outside the scope of this runnable plan and should be treated as an open taxonomy question, not as the target contract for this design set.
 
@@ -201,7 +220,7 @@ Not all workflows are about running code. A workflow can serve different purpose
 
 | What It Has | URI? | Purpose | Example |
 |-------------|------|---------|---------|
-| **Interface only** (schemas) | Has URI | Defines expected input/output shape, no engine | Human evaluator with custom annotation schema (`user:custom:my-eval:v2`) |
+| **Interface only** (schemas) | Has URI | Defines expected input/output shape, no engine | Human annotation definition (`agenta:custom:annotation:v0`) |
 | **Interface + configuration** | Has URI | Full definition, but no engine yet | A workflow waiting to be deployed |
 | **Interface + configuration + engine** (handler/URL) | Has URI | Full runnable | A deployed app or evaluator that can be invoked |
 
@@ -228,14 +247,14 @@ Non-runnable workflows with URIs are still useful:
 
 ### 4f. What Replaces `is_human`
 
-`is_human` → `not is_runnable`.
+`is_human` should not survive as an authored flag. For the current migration path it is better modeled as URI-family-derived classification for the Agenta-managed custom annotation family, with any remaining runnability decision handled separately.
 
 The derivation:
 - `agenta:*` URI → runnable (always)
 - `user:*` URI → runnable only if handler or URL present
 - No URI → not runnable (legacy state to backfill)
 
-A user-created human evaluator with a custom schema IS `user:custom:my-eval:v2` — it has a URI, it's custom, it has an interface (annotation schema), but it has no engine. It's not runnable.
+An Agenta-managed human/custom annotation definition should be represented as `agenta:custom:annotation:v0` — it has a URI, it has an interface, and it may or may not have an engine. A simple custom invocation definition should be represented as `agenta:custom:invocation:v0`.
 
 Non-runnable workflows:
 - Have a URI (identity — who made them, which variant, which version)
@@ -298,7 +317,7 @@ For builtins, the third URI field remains the builtin handler/catalog key, and t
 
 Both are derivable:
 - `is_custom` → `is_custom_uri(uri)` (already exists)
-- `is_human` (not runnable) → `no handler AND no url`
+- `is_human`-style classification → derive from the Agenta custom annotation URI family during this migration
 
 **Migration path:**
 1. Backfill: give all human evaluators proper URIs

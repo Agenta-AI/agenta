@@ -148,7 +148,7 @@ const AnnotateDrawerTitle = ({
 
             // 2. Invalidate SWR cache for useAnnotations hook (used by TraceDrawer)
             await mutateCache(
-                (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
+                (key) => Array.isArray(key) && key[0]?.includes("/simple/traces/"),
                 undefined,
                 {revalidate: true},
             )

@@ -6,6 +6,7 @@
 > Note: this document is the exploration snapshot. The current target design is defined by
 > [plan.md](./plan.md),
 > [gap-analysis.md](./gap-analysis.md),
+> [simple-traces-unification.md](./simple-traces-unification.md),
 > [runnables-system-layer.md](./runnables-system-layer.md),
 > [runnables-subsystem-layer.md](./runnables-subsystem-layer.md),
 > [runnables-component-layer.md](./runnables-component-layer.md),
@@ -17,6 +18,7 @@
 - [gap-analysis.md](./gap-analysis.md)
 - [plan.md](./plan.md)
 - [design-review.md](./design-review.md)
+- [simple-traces-unification.md](./simple-traces-unification.md)
 - [taxonomy.md](./taxonomy.md)
 - [runnables-system-layer.md](./runnables-system-layer.md)
 - [runnables-subsystem-layer.md](./runnables-subsystem-layer.md)

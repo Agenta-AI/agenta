@@ -100,21 +100,6 @@ class TraceProcessor(SpanProcessor):
 
         context = TracingContext.get()
 
-        trace_type = span.attributes.get("trace_type") if span.attributes else None
-
-        context.annotate = (
-            context.annotate
-            or (context.type == "annotation")
-            or (trace_type == "annotation")
-        )
-        context.type = (
-            (str(trace_type) if trace_type else None)
-            or context.type
-            or ("annotation" if context.annotate else "invocation")
-        )
-
-        span.set_attribute("ag.type.tree", context.type)
-
         if context.flags:
             for key in context.flags.keys():
                 span.set_attribute(f"ag.flags.{key}", context.flags[key])

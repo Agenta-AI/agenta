@@ -28,8 +28,9 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 - [ ] Add URI-derived classification helpers for builtin vs custom families
 - [ ] Derive `is_custom` from URI family rather than from authored revision flags
-- [ ] Derive `is_human` from the custom feedback URI family rather than from authored revision flags
-- [ ] Backfill URIs for human/custom feedback families and any remaining no-URI rows
+- [ ] Derive `is_human` from the `agenta:custom:annotation:v0` family rather than from authored revision flags
+- [ ] Introduce `agenta:custom:invocation:v0` for Agenta-managed custom invocation definitions created through the simple-trace path
+- [ ] Backfill URIs for human/custom annotation families, Agenta-managed custom invocation families, and any remaining no-URI rows
 - [ ] Expose derived classification in inspect/query/revision responses
 - [ ] Treat stored workflow revision flags as materialized metadata only, never as the primary authored source of truth
 
@@ -72,7 +73,9 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 - [ ] Stop treating `is_evaluator`, `can_evaluate`, and `evaluate` as primary authored contract flags
 - [ ] For builtins, derive evaluator identity/capability from URI family / registry truth
-- [ ] For `user:custom` and `agenta:custom` families, allow evaluator-related metadata to remain user-owned and materialized
+- [ ] For `agenta:custom:annotation:v0`, resolve/create evaluator-backed simple traces
+- [ ] For `agenta:custom:invocation:v0`, resolve/create application-backed simple traces
+- [ ] For `user:custom` and `agenta:custom` families, allow evaluator-related metadata to remain user-owned or URI-owned materialized metadata as appropriate
 - [ ] Keep trace type terminology as:
   - `invocation` when no trace links are present
   - `annotation` when the trace has links

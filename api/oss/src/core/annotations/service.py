@@ -18,7 +18,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
-    TraceType,
     SpanType,
 )
 from oss.src.core.tracing.service import TracingService
@@ -212,11 +211,43 @@ class AnnotationsService:
         if annotation_link is None:
             return None
 
-        annotation = await self._fetch_annotation(
-            project_id=project_id,
-            user_id=user_id,
+        _origin = (
+            AnnotationOrigin.CUSTOM
+            if annotation_flags.is_custom
+            else AnnotationOrigin.HUMAN
+            if annotation_flags.is_human
+            else AnnotationOrigin.AUTO
+        )
+
+        _kind = (
+            AnnotationKind.EVAL
+            if annotation_flags.is_evaluation
+            else AnnotationKind.ADHOC
+        )
+
+        _channel = (
+            AnnotationChannel.SDK
+            if annotation_flags.is_sdk
+            else AnnotationChannel.WEB
+            if annotation_flags.is_web
+            else AnnotationChannel.API
+        )
+
+        annotation = Annotation(
+            trace_id=annotation_link.trace_id,
+            span_id=annotation_link.span_id,
             #
-            annotation_link=annotation_link,
+            origin=_origin,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=annotation_create.tags,
+            meta=annotation_create.meta,
+            #
+            data=annotation_create.data,
+            #
+            references=annotation_references,
+            links=annotation_create.links,
         )
 
         return annotation
@@ -399,14 +430,53 @@ class AnnotationsService:
         if annotation_link is None:
             return None
 
-        annotation = await self._fetch_annotation(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            annotation_link=annotation_link,
+        _origin = (
+            AnnotationOrigin.CUSTOM
+            if annotation_flags.is_custom
+            else AnnotationOrigin.HUMAN
+            if annotation_flags.is_human
+            else AnnotationOrigin.AUTO
         )
 
-        return annotation
+        _kind = (
+            AnnotationKind.EVAL
+            if annotation_flags.is_evaluation
+            else AnnotationKind.ADHOC
+        )
+
+        _channel = (
+            AnnotationChannel.SDK
+            if annotation_flags.is_sdk
+            else AnnotationChannel.WEB
+            if annotation_flags.is_web
+            else AnnotationChannel.API
+        )
+
+        updated_annotation = Annotation(
+            trace_id=annotation_link.trace_id,
+            span_id=annotation_link.span_id,
+            #
+            created_at=annotation.created_at,
+            updated_at=annotation.updated_at,
+            deleted_at=annotation.deleted_at,
+            created_by_id=annotation.created_by_id,
+            updated_by_id=annotation.updated_by_id,
+            deleted_by_id=annotation.deleted_by_id,
+            #
+            origin=_origin,
+            kind=_kind,
+            channel=_channel,
+            #
+            tags=annotation_edit.tags,
+            meta=annotation_edit.meta,
+            #
+            data=annotation_edit.data,
+            #
+            references=annotation_references,
+            links=annotation.links,
+        )
+
+        return updated_annotation
 
     async def delete(
         self,
@@ -511,8 +581,6 @@ class AnnotationsService:
         links: AnnotationLinks,
     ) -> Optional[Link]:
         trace_id = uuid4().hex
-        trace_type = TraceType.ANNOTATION
-
         span_id = uuid4().hex[16:]
         span_type = SpanType.TASK
         span_name = name or references.evaluator.slug or "annotation"
@@ -528,7 +596,6 @@ class AnnotationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -543,7 +610,6 @@ class AnnotationsService:
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
-                    trace_type=trace_type,
                     span_id=span_id,
                     span_type=span_type,
                     span_name=span_name,
@@ -551,7 +617,6 @@ class AnnotationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = first_link(links)
@@ -676,7 +741,6 @@ class AnnotationsService:
         _flags = flags.model_dump(mode="json", exclude_none=True)
 
         _attributes = build_simple_trace_attributes(
-            trace_kind="annotation",
             flags=_flags,
             tags=tags,
             meta=meta,
@@ -696,7 +760,6 @@ class AnnotationsService:
                     links=_links,
                 )
             ],
-            sync=True,  # Synchronous for user-facing annotations
         )
 
         _link = first_link(links)

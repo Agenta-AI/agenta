@@ -24,9 +24,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -40,14 +40,12 @@ class TestAnnotationsBasics:
         # ----------------------------------------------------------------------
 
         # ASSERT ---------------------------------------------------------------
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["data"]["outputs"] == annotation_data_outputs
-        assert (
-            response["annotation"]["references"]["evaluator"]["slug"] == evaluator_slug
-        )
-        assert response["annotation"]["links"] == annotation_links
+        assert response["trace"]["data"]["outputs"] == annotation_data_outputs
+        assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
+        assert response["trace"]["links"] == annotation_links
         # ----------------------------------------------------------------------
 
     def test_fetch_annotations(self, authed_api):
@@ -72,9 +70,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -86,17 +84,16 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -104,13 +101,10 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["trace_id"] == trace_id
-        assert response["annotation"]["span_id"] == span_id
-        assert response["annotation"]["data"]["outputs"] == annotation_data_outputs
-        assert (
-            response["annotation"]["references"]["evaluator"]["slug"] == evaluator_slug
-        )
-        assert response["annotation"]["links"] == annotation_links
+        assert response["trace"]["trace_id"] == trace_id
+        assert response["trace"]["data"]["outputs"] == annotation_data_outputs
+        assert response["trace"]["references"]["evaluator"]["slug"] == evaluator_slug
+        assert response["trace"]["links"] == annotation_links
 
     def test_edit_annotations(self, authed_api):
         # ARRANGE --------------------------------------------------------------
@@ -134,9 +128,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -148,11 +142,10 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -163,9 +156,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "PATCH",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": new_annotation_data_outputs,
                     },
@@ -180,12 +173,11 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation"]["trace_id"] == trace_id
-        assert response["annotation"]["span_id"] == span_id
-        assert response["annotation"]["data"]["outputs"] == new_annotation_data_outputs
-        assert response["annotation"]["links"] == annotation_links
-        assert response["annotation"]["tags"] == {"tag3": "value3"}
-        assert response["annotation"]["meta"] == {"meta3": "value3"}
+        assert response["trace"]["trace_id"] == trace_id
+        assert response["trace"]["data"]["outputs"] == new_annotation_data_outputs
+        assert response["trace"]["links"] == annotation_links
+        assert response["trace"]["tags"] == {"tag3": "value3"}
+        assert response["trace"]["meta"] == {"meta3": "value3"}
         # ----------------------------------------------------------------------
 
     def test_delete_annotations(self, authed_api):
@@ -210,9 +202,9 @@ class TestAnnotationsBasics:
 
         response = authed_api(
             "POST",
-            "/preview/annotations/",
+            "/simple/traces/",
             json={
-                "annotation": {
+                "trace": {
                     "data": {
                         "outputs": annotation_data_outputs,
                     },
@@ -224,17 +216,16 @@ class TestAnnotationsBasics:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code in (200, 202)
         response = response.json()
         assert response["count"] == 1
-        trace_id = response["annotation"]["trace_id"]
-        span_id = response["annotation"]["span_id"]
+        trace_id = response["trace"]["trace_id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
@@ -242,14 +233,13 @@ class TestAnnotationsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["annotation_link"]["trace_id"] == trace_id
-        assert response["annotation_link"]["span_id"] == span_id
+        assert response["link"]["trace_id"] == trace_id
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
-            f"/preview/annotations/{trace_id}/{span_id}",
+            f"/simple/traces/{trace_id}",
         )
         # ----------------------------------------------------------------------
 
