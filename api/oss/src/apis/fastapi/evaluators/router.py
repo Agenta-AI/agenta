@@ -28,6 +28,9 @@ from oss.src.core.evaluators.service import (
     SimpleEvaluatorsService,
     EvaluatorsService,
 )
+from oss.src.core.environments.service import (
+    EnvironmentsService,
+)
 
 from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorCreateRequest,
@@ -94,8 +97,10 @@ class EvaluatorsRouter:
         self,
         *,
         evaluators_service: EvaluatorsService,
+        environments_service: EnvironmentsService,
     ):
         self.evaluators_service = evaluators_service
+        self.environments_service = environments_service
 
         self.router = APIRouter()
 
@@ -806,10 +811,115 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        evaluator_ref = evaluator_revision_retrieve_request.evaluator_ref
+        evaluator_variant_ref = (
+            evaluator_revision_retrieve_request.evaluator_variant_ref
+        )
+        evaluator_revision_ref = (
+            evaluator_revision_retrieve_request.evaluator_revision_ref
+        )
+
+        evaluator_lookup_requested = any(
+            (
+                evaluator_ref,
+                evaluator_variant_ref,
+                evaluator_revision_ref,
+            )
+        )
+        environment_ref = evaluator_revision_retrieve_request.environment_ref
+        environment_variant_ref = (
+            evaluator_revision_retrieve_request.environment_variant_ref
+        )
+        environment_revision_ref = (
+            evaluator_revision_retrieve_request.environment_revision_ref
+        )
+        key = evaluator_revision_retrieve_request.key
+
+        environment_refs_requested = any(
+            (
+                environment_ref,
+                environment_variant_ref,
+                environment_revision_ref,
+            )
+        )
+        environment_lookup_requested = environment_refs_requested or key is not None
+
+        if evaluator_lookup_requested and environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide either evaluator refs or environment refs with key, not both."
+                ),
+            )
+
+        if not evaluator_lookup_requested and not environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide evaluator refs or environment refs with key to retrieve an evaluator revision."
+                ),
+            )
+
+        if environment_lookup_requested:
+            if not environment_refs_requested:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed evaluator retrieve requires environment refs.",
+                )
+
+            if not key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed evaluator retrieve requires key.",
+                )
+
+            environment_revision = (
+                await self.environments_service.fetch_environment_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    environment_ref=environment_ref,
+                    environment_variant_ref=environment_variant_ref,
+                    environment_revision_ref=environment_revision_ref,
+                )
+            )
+
+            references_by_key = (
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
+                else None
+            )
+            evaluator_references = (
+                references_by_key.get(key) if references_by_key else None
+            )
+
+            if not evaluator_references:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        "Environment revision does not contain evaluator references for the requested key."
+                    ),
+                )
+
+            evaluator_ref = evaluator_references.get("evaluator")
+            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+            if not any(
+                (
+                    evaluator_ref,
+                    evaluator_variant_ref,
+                    evaluator_revision_ref,
+                )
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment reference entry does not contain evaluator refs.",
+                )
+
         cache_key = {
-            "artifact_ref": evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
-            "variant_ref": evaluator_revision_retrieve_request.evaluator_variant_ref,  # type: ignore
-            "revision_ref": evaluator_revision_retrieve_request.evaluator_revision_ref,  # type: ignore
+            "artifact_ref": evaluator_ref,
+            "variant_ref": evaluator_variant_ref,
+            "revision_ref": evaluator_revision_ref,
         }
 
         evaluator_revision = None
@@ -825,9 +935,9 @@ class EvaluatorsRouter:
             evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
                 project_id=UUID(request.state.project_id),
                 #
-                evaluator_ref=evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
-                evaluator_variant_ref=evaluator_revision_retrieve_request.evaluator_variant_ref,  # type: ignore
-                evaluator_revision_ref=evaluator_revision_retrieve_request.evaluator_revision_ref,  # type: ignore
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
             )
 
             await set_cache(

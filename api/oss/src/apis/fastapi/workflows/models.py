@@ -131,6 +131,11 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
     #
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
     resolve: bool = False  # Optionally resolve embeds on retrieve
 
 

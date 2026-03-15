@@ -14,6 +14,9 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.workflows.service import (
     WorkflowsService,
 )
+from oss.src.core.environments.service import (
+    EnvironmentsService,
+)
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.src.core.embeds.dtos import ErrorPolicy
 
@@ -80,8 +83,10 @@ class WorkflowsRouter:
     def __init__(
         self,
         workflows_service: WorkflowsService,
+        environments_service: EnvironmentsService,
     ):
         self.workflows_service = workflows_service
+        self.environments_service = environments_service
 
         self.router = APIRouter()
 
@@ -1115,10 +1120,111 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        workflow_ref = workflow_revision_retrieve_request.workflow_ref
+        workflow_variant_ref = workflow_revision_retrieve_request.workflow_variant_ref
+        workflow_revision_ref = workflow_revision_retrieve_request.workflow_revision_ref
+
+        workflow_lookup_requested = any(
+            (
+                workflow_ref,
+                workflow_variant_ref,
+                workflow_revision_ref,
+            )
+        )
+        environment_ref = workflow_revision_retrieve_request.environment_ref
+        environment_variant_ref = (
+            workflow_revision_retrieve_request.environment_variant_ref
+        )
+        environment_revision_ref = (
+            workflow_revision_retrieve_request.environment_revision_ref
+        )
+        key = workflow_revision_retrieve_request.key
+
+        environment_refs_requested = any(
+            (
+                environment_ref,
+                environment_variant_ref,
+                environment_revision_ref,
+            )
+        )
+        environment_lookup_requested = environment_refs_requested or key is not None
+
+        if workflow_lookup_requested and environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide either workflow refs or environment refs with key, not both."
+                ),
+            )
+
+        if not workflow_lookup_requested and not environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide workflow refs or environment refs with key to retrieve a workflow revision."
+                ),
+            )
+
+        if environment_lookup_requested:
+            if not environment_refs_requested:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed workflow retrieve requires environment refs.",
+                )
+
+            if not key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed workflow retrieve requires key.",
+                )
+
+            environment_revision = (
+                await self.environments_service.fetch_environment_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    environment_ref=environment_ref,
+                    environment_variant_ref=environment_variant_ref,
+                    environment_revision_ref=environment_revision_ref,
+                )
+            )
+
+            references_by_key = (
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
+                else None
+            )
+            workflow_references = (
+                references_by_key.get(key) if references_by_key else None
+            )
+
+            if not workflow_references:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        "Environment revision does not contain workflow references for the requested key."
+                    ),
+                )
+
+            workflow_ref = workflow_references.get("workflow")
+            workflow_variant_ref = workflow_references.get("workflow_variant")
+            workflow_revision_ref = workflow_references.get("workflow_revision")
+
+            if not any(
+                (
+                    workflow_ref,
+                    workflow_variant_ref,
+                    workflow_revision_ref,
+                )
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment reference entry does not contain workflow refs.",
+                )
+
         cache_key = {
-            "artifact_ref": workflow_revision_retrieve_request.workflow_ref,
-            "variant_ref": workflow_revision_retrieve_request.workflow_variant_ref,
-            "revision_ref": workflow_revision_retrieve_request.workflow_revision_ref,
+            "artifact_ref": workflow_ref,
+            "variant_ref": workflow_variant_ref,
+            "revision_ref": workflow_revision_ref,
         }
 
         workflow_revision = None
@@ -1134,9 +1240,9 @@ class WorkflowsRouter:
             workflow_revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),
                 #
-                workflow_ref=workflow_revision_retrieve_request.workflow_ref,
-                workflow_variant_ref=workflow_revision_retrieve_request.workflow_variant_ref,
-                workflow_revision_ref=workflow_revision_retrieve_request.workflow_revision_ref,
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
             )
 
             await set_cache(

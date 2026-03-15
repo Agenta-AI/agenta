@@ -147,6 +147,10 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
     evaluator_ref: Optional[Reference] = None
     evaluator_variant_ref: Optional[Reference] = None
     evaluator_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
     resolve: bool = False  # Optionally resolve embeds on retrieve
 
 

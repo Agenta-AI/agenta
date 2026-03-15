@@ -15,6 +15,9 @@ from oss.src.core.applications.service import (
     ApplicationsService,
     SimpleApplicationsService,
 )
+from oss.src.core.environments.service import (
+    EnvironmentsService,
+)
 from oss.src.core.applications.dtos import ApplicationRevisionData
 
 from oss.src.apis.fastapi.applications.models import (
@@ -79,8 +82,10 @@ class ApplicationsRouter:
         self,
         *,
         applications_service: ApplicationsService,
+        environments_service: EnvironmentsService,
     ):
         self.applications_service = applications_service
+        self.environments_service = environments_service
 
         self.router = APIRouter()
 
@@ -812,10 +817,117 @@ class ApplicationsRouter:
             application_revision_retrieve_request.application_revision_ref,
         )
 
+        application_ref = application_revision_retrieve_request.application_ref
+        application_variant_ref = (
+            application_revision_retrieve_request.application_variant_ref
+        )
+        application_revision_ref = (
+            application_revision_retrieve_request.application_revision_ref
+        )
+
+        application_lookup_requested = any(
+            (
+                application_ref,
+                application_variant_ref,
+                application_revision_ref,
+            )
+        )
+        environment_ref = application_revision_retrieve_request.environment_ref
+        environment_variant_ref = (
+            application_revision_retrieve_request.environment_variant_ref
+        )
+        environment_revision_ref = (
+            application_revision_retrieve_request.environment_revision_ref
+        )
+        key = application_revision_retrieve_request.key
+
+        environment_refs_requested = any(
+            (
+                environment_ref,
+                environment_variant_ref,
+                environment_revision_ref,
+            )
+        )
+        environment_lookup_requested = environment_refs_requested or key is not None
+
+        if application_lookup_requested and environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide either application refs or environment refs with key, not both."
+                ),
+            )
+
+        if not application_lookup_requested and not environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide application refs or environment refs with key to retrieve an application revision."
+                ),
+            )
+
+        if environment_lookup_requested:
+            if not environment_refs_requested:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed application retrieve requires environment refs.",
+                )
+
+            if not key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed application retrieve requires key.",
+                )
+
+            environment_revision = (
+                await self.environments_service.fetch_environment_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    environment_ref=environment_ref,
+                    environment_variant_ref=environment_variant_ref,
+                    environment_revision_ref=environment_revision_ref,
+                )
+            )
+
+            references_by_key = (
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
+                else None
+            )
+            application_references = (
+                references_by_key.get(key) if references_by_key else None
+            )
+
+            if not application_references:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        "Environment revision does not contain application references for the requested key."
+                    ),
+                )
+
+            application_ref = application_references.get("application")
+            application_variant_ref = application_references.get("application_variant")
+            application_revision_ref = application_references.get(
+                "application_revision"
+            )
+
+            if not any(
+                (
+                    application_ref,
+                    application_variant_ref,
+                    application_revision_ref,
+                )
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment reference entry does not contain application refs.",
+                )
+
         cache_key = {
-            "artifact_ref": application_revision_retrieve_request.application_ref,  # type: ignore
-            "variant_ref": application_revision_retrieve_request.application_variant_ref,  # type: ignore
-            "revision_ref": application_revision_retrieve_request.application_revision_ref,  # type: ignore
+            "artifact_ref": application_ref,
+            "variant_ref": application_variant_ref,
+            "revision_ref": application_revision_ref,
         }
 
         application_revision = None
@@ -828,12 +940,14 @@ class ApplicationsRouter:
         # )
 
         if not application_revision:
-            application_revision = await self.applications_service.fetch_application_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                application_ref=application_revision_retrieve_request.application_ref,  # type: ignore
-                application_variant_ref=application_revision_retrieve_request.application_variant_ref,  # type: ignore
-                application_revision_ref=application_revision_retrieve_request.application_revision_ref,  # type: ignore
+            application_revision = (
+                await self.applications_service.fetch_application_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    application_ref=application_ref,
+                    application_variant_ref=application_variant_ref,
+                    application_revision_ref=application_revision_ref,
+                )
             )
 
             log.info(

@@ -1083,6 +1083,17 @@ class EnvironmentsRouter:
 
         # If the environment is guarded, require DEPLOY_ENVIRONMENTS permission
         commit = environment_revision_commit_request.environment_revision_commit
+        if commit.data and commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit, not both.",
+            )
+        if not commit.data and not commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit.",
+            )
+
         if is_ee() and commit.environment_id:
             environment = await self.environments_service.fetch_environment(
                 project_id=UUID(request.state.project_id),

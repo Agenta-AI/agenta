@@ -468,6 +468,7 @@ simple_queries = SimpleQueriesRouter(
 
 applications = ApplicationsRouter(
     applications_service=applications_service,
+    environments_service=environments_service,
 )
 
 simple_applications = SimpleApplicationsRouter(
@@ -480,10 +481,12 @@ folders = FoldersRouter(
 
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
+    environments_service=environments_service,
 )
 
 evaluators = EvaluatorsRouter(
     evaluators_service=evaluators_service,
+    environments_service=environments_service,
 )
 
 simple_evaluators = SimpleEvaluatorsRouter(
