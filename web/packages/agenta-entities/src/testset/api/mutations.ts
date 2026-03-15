@@ -295,14 +295,10 @@ export async function uploadTestsetFile(params: {
         formData.append("testset_name", testsetName)
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/simple/testsets/upload`,
-        formData,
-        {
-            params: {project_id: projectId},
-            headers: {"Content-Type": "multipart/form-data"},
-        },
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/simple/testsets/upload`, formData, {
+        params: {project_id: projectId},
+        headers: {"Content-Type": "multipart/form-data"},
+    })
 
     return response.data
 }
@@ -451,11 +447,9 @@ export async function queryPreviewTestsets(params: {
 }) {
     const {projectId, payload = {}} = params
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/simple/testsets/query`,
-        payload,
-        {params: {project_id: projectId}},
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/simple/testsets/query`, payload, {
+        params: {project_id: projectId},
+    })
 
     return response.data
 }
