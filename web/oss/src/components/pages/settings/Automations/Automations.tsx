@@ -2,7 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {GearSix, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Typography, message} from "antd"
+import {Button, Dropdown, Table, Typography, message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import AutomationDrawer from "@/oss/components/Automations/AutomationDrawer"
@@ -84,7 +84,14 @@ const Automations: React.FC = () => {
         async (webhook: WebhookSubscription) => {
             try {
                 setTestingWebhookId(webhook.id)
-                const response = await testWebhookSubscription(webhook.id)
+                const response = await testWebhookSubscription({
+                    subscription: {
+                        id: webhook.id,
+                        name: webhook.name,
+                        description: webhook.description,
+                        data: webhook.data,
+                    },
+                })
                 handleTestResult(response)
             } catch (error) {
                 console.error(error)
@@ -157,14 +164,6 @@ const Automations: React.FC = () => {
                         </Typography.Text>
                     )
                 },
-            },
-            {
-                title: "Status",
-                key: "status",
-                onHeaderCell: () => ({
-                    style: {minWidth: 120},
-                }),
-                render: () => <Tag color="success">Active</Tag>,
             },
             {
                 title: <GearSix size={16} />,

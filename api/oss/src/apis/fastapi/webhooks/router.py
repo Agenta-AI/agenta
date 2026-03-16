@@ -4,7 +4,6 @@ from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import (
     AGENTA_CACHE_TTL,
     get_cache,
@@ -13,16 +12,14 @@ from oss.src.utils.caching import (
 )
 from oss.src.utils.crypting import decrypt, encrypt
 from oss.src.core.webhooks.service import WebhooksService
-from oss.src.core.webhooks.types import WebhookSubscription
+from oss.src.core.webhooks.types import WebhookSubscription, WebhookSubscriptionEdit
 from oss.src.core.webhooks.exceptions import (
     WebhookAuthorizationSecretRequiredError,
     WebhookSubscriptionNotFoundError,
-    WebhookTestDeliveryTimeoutError,
-    WebhookTestEventPublishFailedError,
 )
 from oss.src.apis.fastapi.webhooks.models import (
     WebhookSubscriptionCreateRequest,
-    WebhookSubscriptionDraftTestRequest,
+    WebhookSubscriptionTestRequest,
     WebhookSubscriptionEditRequest,
     WebhookSubscriptionQueryRequest,
     WebhookSubscriptionResponse,
@@ -37,9 +34,6 @@ from oss.src.apis.fastapi.webhooks.models import (
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
-
-
-log = get_module_logger(__name__)
 
 
 class WebhooksRouter:
@@ -64,13 +58,23 @@ class WebhooksRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
-            "/subscriptions/test-draft",
-            self.test_draft_webhook,
+            "/subscriptions/test",
+            self.test_subscription,
             methods=["POST"],
-            operation_id="test_webhook_draft",
+            operation_id="test_webhook_subscription",
             response_model=WebhookDeliveryResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/subscriptions/test-draft",
+            self.test_draft_webhook,
+            methods=["POST"],
+            operation_id="test_webhook_subscription_draft_compat",
+            response_model=WebhookDeliveryResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+            deprecated=True,
         )
         self.router.add_api_route(
             "/subscriptions/{subscription_id}",
@@ -106,15 +110,15 @@ class WebhooksRouter:
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
-
         self.router.add_api_route(
             "/subscriptions/{subscription_id}/test",
             self.test_webhook,
             methods=["POST"],
-            operation_id="test_webhook",
+            operation_id="test_webhook_subscription_by_id_compat",
             response_model=WebhookDeliveryResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+            deprecated=True,
         )
 
         # --- WEBHOOK DELIVERIES --------------------------------------------- #
@@ -479,12 +483,11 @@ class WebhooksRouter:
 
     # --- WEBHOOK TESTS ------------------------------------------------------ #
 
-    @intercept_exceptions()
-    async def test_draft_webhook(
+    async def _test_subscription_impl(
         self,
-        request: Request,
         *,
-        body: WebhookSubscriptionDraftTestRequest,
+        request: Request,
+        body: WebhookSubscriptionTestRequest,
     ) -> WebhookDeliveryResponse:
         if is_ee():
             has_permission = await check_action_access(
@@ -495,10 +498,39 @@ class WebhooksRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        try:
-            delivery = await self.webhooks_service.test_draft_webhook(
+        if (body.subscription_id is None) == (body.subscription is None):
+            raise HTTPException(
+                status_code=400,
+                detail="Provide exactly one of subscription_id or subscription",
+            )
+
+        subscription = body.subscription
+
+        if subscription is None:
+            assert body.subscription_id is not None
+            existing = await self.webhooks_service.fetch_subscription(
                 project_id=UUID(request.state.project_id),
-                subscription=body.subscription,
+                subscription_id=body.subscription_id,
+            )
+
+            if not existing:
+                raise HTTPException(status_code=404, detail="Webhook subscription not found")
+
+            subscription = WebhookSubscriptionEdit(
+                id=existing.id,
+                name=existing.name,
+                description=existing.description,
+                data=existing.data,
+                secret=existing.secret,
+            )
+
+        assert subscription is not None
+
+        try:
+            delivery = await self.webhooks_service.test_subscription(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                subscription=subscription,
             )
         except WebhookAuthorizationSecretRequiredError as e:
             raise HTTPException(status_code=400, detail=e.message) from e
@@ -511,116 +543,37 @@ class WebhooksRouter:
         )
 
     @intercept_exceptions()
+    async def test_subscription(
+        self,
+        request: Request,
+        *,
+        body: WebhookSubscriptionTestRequest,
+    ) -> WebhookDeliveryResponse:
+        return await self._test_subscription_impl(
+            request=request,
+            body=body,
+        )
+
+    @intercept_exceptions()
+    async def test_draft_webhook(
+        self,
+        request: Request,
+        *,
+        body: WebhookSubscriptionTestRequest,
+    ) -> WebhookDeliveryResponse:
+        return await self._test_subscription_impl(
+            request=request,
+            body=body,
+        )
+
+    @intercept_exceptions()
     async def test_webhook(
         self,
         request: Request,
         *,
         subscription_id: UUID,
     ) -> WebhookDeliveryResponse:
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=str(request.state.user_id),
-                project_id=str(request.state.project_id),
-                permission=Permission.EDIT_WEBHOOKS,
-            )
-            if not has_permission:
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        project_id = UUID(request.state.project_id)
-        user_id = str(request.state.user_id)
-
-        log.info(
-            "[WEBHOOKS API] Test webhook requested",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-            user_id=user_id,
+        return await self._test_subscription_impl(
+            request=request,
+            body=WebhookSubscriptionTestRequest(subscription_id=subscription_id),
         )
-
-        try:
-            delivery = await self.webhooks_service.test_webhook(
-                project_id=project_id,
-                #
-                subscription_id=subscription_id,
-            )
-
-            status_message = delivery.status.message if delivery.status else None
-            status_code = delivery.status.code if delivery.status else None
-
-            log.info(
-                "[WEBHOOKS API] Test webhook completed",
-                project_id=str(project_id),
-                subscription_id=str(subscription_id),
-                delivery_id=str(delivery.id),
-                event_id=str(delivery.event_id),
-                status_message=status_message,
-                status_code=status_code,
-            )
-
-            if delivery.status and delivery.status.message == "success":
-                log.info(
-                    "[WEBHOOKS API] Invalidating webhook caches after successful test",
-                    project_id=str(project_id),
-                    subscription_id=str(subscription_id),
-                    delivery_id=str(delivery.id),
-                )
-                await invalidate_cache(
-                    namespace="webhooks",
-                    project_id=str(project_id),
-                    key=f"subscription:{subscription_id}",
-                )
-                await invalidate_cache(
-                    namespace="webhooks",
-                    project_id=str(project_id),
-                    key="subscriptions",
-                )
-
-            return WebhookDeliveryResponse(
-                count=1 if delivery else 0,
-                delivery=delivery,
-            )
-        except WebhookSubscriptionNotFoundError as e:
-            log.warning(
-                "[WEBHOOKS API] Test webhook failed: subscription not found",
-                project_id=str(project_id),
-                subscription_id=str(subscription_id),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            ) from e
-        except WebhookTestEventPublishFailedError as e:
-            log.error(
-                "[WEBHOOKS API] Test webhook failed while publishing event",
-                project_id=str(project_id),
-                subscription_id=e.subscription_id,
-                event_id=e.event_id,
-                message=e.message,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail={
-                    "code": "WEBHOOK_TEST_EVENT_PUBLISH_FAILED",
-                    "message": e.message,
-                    "event_id": e.event_id,
-                    "subscription_id": e.subscription_id,
-                },
-            ) from e
-        except WebhookTestDeliveryTimeoutError as e:
-            log.error(
-                "[WEBHOOKS API] Test webhook timed out waiting for delivery",
-                project_id=str(project_id),
-                subscription_id=e.subscription_id,
-                event_id=e.event_id,
-                attempts=e.attempts,
-                message=e.message,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail={
-                    "code": "WEBHOOK_TEST_DELIVERY_TIMEOUT",
-                    "message": e.message,
-                    "event_id": e.event_id,
-                    "subscription_id": e.subscription_id,
-                    "attempts": e.attempts,
-                },
-            ) from e

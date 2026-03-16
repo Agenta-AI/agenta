@@ -1,4 +1,5 @@
 from typing import List, Optional, Union
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -24,8 +25,9 @@ class WebhookSubscriptionEditRequest(BaseModel):
     subscription: WebhookSubscriptionEdit
 
 
-class WebhookSubscriptionDraftTestRequest(BaseModel):
-    subscription: Union[WebhookSubscriptionEdit, WebhookSubscriptionCreate]
+class WebhookSubscriptionTestRequest(BaseModel):
+    subscription_id: Optional[UUID] = None
+    subscription: Optional[Union[WebhookSubscriptionEdit, WebhookSubscriptionCreate]] = None
 
 
 class WebhookSubscriptionQueryRequest(BaseModel):

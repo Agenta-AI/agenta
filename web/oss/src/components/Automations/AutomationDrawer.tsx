@@ -12,7 +12,6 @@ import {
 } from "@/oss/services/automations/types"
 import {
     createAutomationAtom,
-    testDraftAutomationAtom,
     testAutomationAtom,
     updateAutomationAtom,
 } from "@/oss/state/automations/atoms"
@@ -41,7 +40,6 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
     const createAutomation = useSetAtom(createAutomationAtom)
-    const testDraftAutomation = useSetAtom(testDraftAutomationAtom)
     const testAutomation = useSetAtom(testAutomationAtom)
     const updateAutomation = useSetAtom(updateAutomationAtom)
 
@@ -161,15 +159,8 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
         try {
             setIsTesting(true)
-
-            if (activeTab === "logs" && initialValues?.id) {
-                const response = await testAutomation(initialValues.id)
-                handleTestResult(response)
-                return
-            }
-
             const {payload} = await buildPayloadFromForm()
-            const response = await testDraftAutomation(payload)
+            const response = await testAutomation(payload)
             handleTestResult(response)
         } catch (error) {
             if ((error as {errorFields?: unknown}).errorFields) return
@@ -178,20 +169,17 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         } finally {
             setIsTesting(false)
         }
-    }, [
-        activeTab,
-        buildPayloadFromForm,
-        initialValues?.id,
-        open,
-        testAutomation,
-        testDraftAutomation,
-    ])
+    }, [buildPayloadFromForm, open, testAutomation])
 
     const handleOk = useCallback(async () => {
         try {
             setIsSubmitting(true)
             const {rawValues, payload} = await buildPayloadFromForm()
             let subscriptionId: string | undefined
+            let testPayload:
+                | WebhookSubscriptionCreateRequest
+                | WebhookSubscriptionEditRequest
+                | undefined
 
             if (isEdit && initialValues?.id) {
                 await updateAutomation({
@@ -199,6 +187,12 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     payload: payload as WebhookSubscriptionEditRequest,
                 })
                 subscriptionId = initialValues.id
+                testPayload = {
+                    subscription: {
+                        ...(payload as WebhookSubscriptionEditRequest).subscription,
+                        id: initialValues.id,
+                    },
+                }
                 message.success("Automation updated successfully")
             } else {
                 const response = await createAutomation(payload as WebhookSubscriptionCreateRequest)
@@ -213,15 +207,26 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     setCreatedWebhookSecret(webhookSecret)
                 }
 
+                if (response.subscription) {
+                    testPayload = {
+                        subscription: {
+                            id: response.subscription.id,
+                            name: response.subscription.name,
+                            description: response.subscription.description,
+                            data: response.subscription.data,
+                        },
+                    }
+                }
+
                 message.success("Automation created successfully")
             }
 
             onSuccess()
             onCancel()
 
-            if (subscriptionId) {
+            if (subscriptionId && testPayload) {
                 try {
-                    const response = await testAutomation(subscriptionId)
+                    const response = await testAutomation(testPayload)
                     handleTestResult(response)
                 } catch (error) {
                     console.error(error)
@@ -247,7 +252,6 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         setCreatedWebhookSecret,
         buildPayloadFromForm,
         createAutomation,
-        testDraftAutomation,
         testAutomation,
         updateAutomation,
         selectedProvider,

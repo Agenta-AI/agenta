@@ -22,39 +22,4 @@ class WebhookSubscriptionNotFoundError(Exception):
         super().__init__(message)
 
 
-class WebhookTestEventPublishFailedError(Exception):
-    def __init__(
-        self,
-        *,
-        subscription_id: str,
-        event_id: str,
-        #
-        message: str = "Failed to publish test event",
-    ):
-        self.subscription_id = subscription_id
-        self.event_id = event_id
 
-        self.message = message
-
-        super().__init__(message)
-
-
-class WebhookTestDeliveryTimeoutError(Exception):
-    def __init__(
-        self,
-        *,
-        subscription_id: str,
-        event_id: str,
-        #
-        message: str = "Timed out waiting for webhook delivery",
-        #
-        attempts: int,
-    ):
-        self.subscription_id = subscription_id
-        self.event_id = event_id
-
-        self.message = message
-
-        self.attempts = attempts
-
-        super().__init__(message)

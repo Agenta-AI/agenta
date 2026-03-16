@@ -20,9 +20,6 @@ WEBHOOK_MAX_RETRIES = 5
 
 WEBHOOK_TIMEOUT = 10.0  # seconds per request
 
-WEBHOOK_TEST_POLL_INTERVAL_MS = 500
-WEBHOOK_TEST_MAX_ATTEMPTS = 20
-
 
 # --- CONTEXT ALLOWLISTS ----------------------------------------------------- #
 
@@ -37,7 +34,6 @@ EVENT_CONTEXT_FIELDS = {
 SUBSCRIPTION_CONTEXT_FIELDS = {
     "id",
     "name",
-    "flags",
     "tags",
     "meta",
     "created_at",
@@ -66,14 +62,6 @@ class WebhookEventType(str, Enum):
 # --- WEBHOOK SUBSCRIPTIONS -------------------------------------------------- #
 
 
-class WebhookSubscriptionFlags(BaseModel):
-    is_valid: bool = False
-
-
-class WebhookSubscriptionQueryFlags(BaseModel):
-    is_valid: Optional[bool] = None
-
-
 class WebhookSubscriptionData(BaseModel):
     url: HttpUrl
     headers: Optional[Dict[str, str]] = None
@@ -84,8 +72,6 @@ class WebhookSubscriptionData(BaseModel):
 
 
 class WebhookSubscription(Identifier, Lifecycle, Header, Metadata):
-    flags: Optional[WebhookSubscriptionFlags] = None
-
     data: WebhookSubscriptionData
 
     secret_id: Optional[UUID] = None
@@ -93,23 +79,19 @@ class WebhookSubscription(Identifier, Lifecycle, Header, Metadata):
 
 
 class WebhookSubscriptionCreate(Header, Metadata):
-    flags: Optional[WebhookSubscriptionFlags] = None
-
     data: WebhookSubscriptionData
 
     secret: Optional[str] = None
 
 
 class WebhookSubscriptionEdit(Identifier, Lifecycle, Header, Metadata):
-    flags: Optional[WebhookSubscriptionFlags] = None
-
     data: WebhookSubscriptionData
 
     secret: Optional[str] = None
 
 
 class WebhookSubscriptionQuery(Header, Metadata):
-    flags: Optional[WebhookSubscriptionQueryFlags] = None
+    pass
 
 
 # --- WEBHOOK DELIVERIES ----------------------------------------------------- #

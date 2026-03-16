@@ -73,15 +73,6 @@ class WebhooksDAOInterface:
     ) -> bool:
         raise NotImplementedError
 
-    async def enable_subscription(
-        self,
-        *,
-        project_id: UUID,
-        #
-        subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        raise NotImplementedError
-
     # --- deliveries ------------------------------------------------------------
 
     async def create_delivery(

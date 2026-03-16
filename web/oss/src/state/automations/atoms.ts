@@ -8,12 +8,11 @@ import {
     deleteWebhookSubscription,
     queryWebhookDeliveries,
     queryWebhookSubscriptions,
-    testWebhookDraft,
     testWebhookSubscription,
     editWebhookSubscription,
 } from "@/oss/services/automations/api"
 import {
-    WebhookSubscriptionDraftTestRequest,
+    WebhookSubscriptionTestRequest,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
 } from "@/oss/services/automations/types"
@@ -98,16 +97,12 @@ export const deleteAutomationAtom = atom(
     },
 )
 
-export const testAutomationAtom = atom(null, async (_get, _set, webhookSubscriptionId: string) => {
-    const res = await testWebhookSubscription(webhookSubscriptionId)
-    await queryClient.invalidateQueries({queryKey: ["automations"]})
-    await queryClient.invalidateQueries({queryKey: ["automation-deliveries"]})
-    return res
-})
-
-export const testDraftAutomationAtom = atom(
+export const testAutomationAtom = atom(
     null,
-    async (_get, _set, payload: WebhookSubscriptionDraftTestRequest) => {
-        return await testWebhookDraft(payload)
+    async (_get, _set, payload: WebhookSubscriptionTestRequest) => {
+        const res = await testWebhookSubscription(payload)
+        await queryClient.invalidateQueries({queryKey: ["automations"]})
+        await queryClient.invalidateQueries({queryKey: ["automation-deliveries"]})
+        return res
     },
 )

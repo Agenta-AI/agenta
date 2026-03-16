@@ -4,7 +4,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {
     WebhookDeliveriesQueryRequest,
     WebhookDeliveriesResponse,
-    WebhookSubscriptionDraftTestRequest,
+    WebhookSubscriptionTestRequest,
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
     WebhookDeliveryResponse,
@@ -43,20 +43,10 @@ const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse
 }
 
 const testWebhookSubscription = async (
-    webhookSubscriptionId: string,
-): Promise<WebhookDeliveryResponse> => {
-    // Backend uses POST /api/webhooks/subscriptions/{subscription_id}/test with no body
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/webhooks/subscriptions/${webhookSubscriptionId}/test`,
-    )
-    return response.data
-}
-
-const testWebhookDraft = async (
-    data: WebhookSubscriptionDraftTestRequest,
+    data: WebhookSubscriptionTestRequest,
 ): Promise<WebhookDeliveryResponse> => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/webhooks/subscriptions/test-draft`,
+        `${getAgentaApiUrl()}/webhooks/subscriptions/test`,
         data,
     )
     return response.data
@@ -74,7 +64,6 @@ export {
     deleteWebhookSubscription,
     queryWebhookDeliveries,
     queryWebhookSubscriptions,
-    testWebhookDraft,
     testWebhookSubscription,
     editWebhookSubscription,
 }

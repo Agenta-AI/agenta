@@ -1,16 +1,12 @@
-import asyncio
 import secrets
 import string
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import List, Optional, Union
 from uuid import UUID
 
 import httpx
 import uuid_utils.compat as uuid
 
-from oss.src.core.events.dtos import Event
-from oss.src.core.events.streaming import publish_event
-from oss.src.core.events.types import EventType, RequestType
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretDTO,
@@ -27,8 +23,6 @@ from oss.src.core.webhooks.delivery import (
     send_webhook_request,
 )
 from oss.src.core.webhooks.types import (
-    WEBHOOK_TEST_MAX_ATTEMPTS,
-    WEBHOOK_TEST_POLL_INTERVAL_MS,
     WebhookDeliveryResponseInfo,
     WebhookEventType,
     WebhookSubscription,
@@ -43,14 +37,9 @@ from oss.src.core.webhooks.interfaces import WebhooksDAOInterface
 from oss.src.core.webhooks.exceptions import (
     WebhookAuthorizationSecretRequiredError,
     WebhookSubscriptionNotFoundError,
-    WebhookTestDeliveryTimeoutError,
-    WebhookTestEventPublishFailedError,
 )
 from oss.src.utils.crypting import encrypt
 from oss.src.utils.logging import get_module_logger
-
-if TYPE_CHECKING:
-    from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
 
 log = get_module_logger(__name__)
 
@@ -61,11 +50,9 @@ class WebhooksService:
         *,
         webhooks_dao: WebhooksDAOInterface,
         vault_service: VaultService,
-        webhooks_worker: Optional["WebhooksWorker"] = None,
     ):
         self.dao = webhooks_dao
         self.vault_service = vault_service
-        self.webhooks_worker = webhooks_worker
 
     def _generate_secret(self) -> str:
         alphabet = string.ascii_letters + string.digits
@@ -125,8 +112,6 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionCreate,
     ) -> WebhookSubscription:
-        subscription.flags = None
-
         auth_mode = subscription.data.auth_mode if subscription.data else None
 
         if auth_mode == "authorization" and not subscription.secret:
@@ -167,18 +152,20 @@ class WebhooksService:
             secret=secret_value,
         )
 
-    async def test_draft_webhook(
+    async def test_subscription(
         self,
         *,
         project_id: UUID,
+        user_id: Optional[UUID] = None,
         #
         subscription: Union[WebhookSubscriptionCreate, WebhookSubscriptionEdit],
     ) -> WebhookDelivery:
         auth_mode = subscription.data.auth_mode if subscription.data else None
         subscription_id = getattr(subscription, "id", None)
         secret_value = subscription.secret
+        existing = None
 
-        if not secret_value and subscription_id is not None:
+        if subscription_id is not None:
             existing = await self.dao.fetch_subscription(
                 project_id=project_id,
                 subscription_id=subscription_id,
@@ -189,7 +176,7 @@ class WebhooksService:
                     subscription_id=str(subscription_id),
                 )
 
-            if existing.secret_id:
+            if not secret_value and existing.secret_id:
                 secret_value = await self._resolve_secret(
                     project_id=project_id,
                     secret_id=existing.secret_id,
@@ -226,6 +213,23 @@ class WebhooksService:
             "id": str(subscription_id) if subscription_id else "draft",
         }
 
+        async def _finalize_delivery(delivery: WebhookDelivery) -> WebhookDelivery:
+            if subscription_id is None:
+                return delivery
+
+            return await self.dao.create_delivery(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                delivery=WebhookDeliveryCreate(
+                    id=delivery.id,
+                    status=delivery.status,
+                    data=delivery.data,
+                    subscription_id=delivery.subscription_id,
+                    event_id=delivery.event_id,
+                ),
+            )
+
         try:
             prepared = prepare_webhook_request(
                 project_id=project_id,
@@ -241,7 +245,7 @@ class WebhooksService:
                 encrypted_secret=encrypt(secret_value),
             )
         except PreparedWebhookRequestError as exc:
-            return WebhookDelivery(
+            return await _finalize_delivery(WebhookDelivery(
                 id=delivery_id,
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -249,7 +253,7 @@ class WebhooksService:
                 event_id=event_id,
                 status=Status(code="400", message="failed"),
                 data=exc.data.model_copy(update={"error": str(exc)}),
-            )
+            ))
 
         try:
             response = await send_webhook_request(
@@ -262,7 +266,7 @@ class WebhooksService:
                 body=response.text[:2000],
             )
 
-            return WebhookDelivery(
+            return await _finalize_delivery(WebhookDelivery(
                 id=delivery_id,
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -273,9 +277,9 @@ class WebhooksService:
                     message="success" if response.is_success else "failed",
                 ),
                 data=prepared.data.model_copy(update={"response": response_info}),
-            )
+            ))
         except httpx.TimeoutException as exc:
-            return WebhookDelivery(
+            return await _finalize_delivery(WebhookDelivery(
                 id=delivery_id,
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -283,9 +287,9 @@ class WebhooksService:
                 event_id=event_id,
                 status=Status(code="0", message="failed"),
                 data=prepared.data.model_copy(update={"error": f"Timeout: {exc}"}),
-            )
+            ))
         except Exception as exc:
-            return WebhookDelivery(
+            return await _finalize_delivery(WebhookDelivery(
                 id=delivery_id,
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -293,7 +297,7 @@ class WebhooksService:
                 event_id=event_id,
                 status=Status(code="0", message="failed"),
                 data=prepared.data.model_copy(update={"error": str(exc)}),
-            )
+            ))
 
     async def fetch_subscription(
         self,
@@ -349,8 +353,6 @@ class WebhooksService:
         #
         subscription: WebhookSubscriptionEdit,
     ) -> Optional[WebhookSubscription]:
-        subscription.flags = None
-
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -485,184 +487,4 @@ class WebhooksService:
             delivery=delivery,
             #
             windowing=windowing,
-        )
-
-    async def test_webhook(
-        self,
-        *,
-        project_id: UUID,
-        #
-        subscription_id: UUID,
-    ) -> WebhookDelivery:
-        """Test delivery by emitting an event and polling for resulting delivery."""
-        log.info(
-            "[WEBHOOKS CORE] Starting webhook test",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-        )
-
-        subscription = await self.dao.fetch_subscription(
-            project_id=project_id,
-            #
-            subscription_id=subscription_id,
-        )
-
-        if subscription is None:
-            log.warning(
-                "[WEBHOOKS CORE] Webhook test aborted: subscription not found",
-                project_id=str(project_id),
-                subscription_id=str(subscription_id),
-            )
-            raise WebhookSubscriptionNotFoundError(
-                subscription_id=str(subscription_id),
-            )
-
-        log.info(
-            "[WEBHOOKS CORE] Subscription loaded for webhook test",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-            subscription_name=subscription.name,
-            subscription_url=str(subscription.data.url),
-            auth_mode=subscription.data.auth_mode or "signature",
-            has_secret=bool(subscription.secret_id),
-            is_valid=subscription.flags.is_valid if subscription.flags else None,
-        )
-
-        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
-        request_id = uuid.uuid7()
-        event_id = uuid.uuid7()
-
-        request_type = RequestType.UNKNOWN
-        event_type = EventType.WEBHOOKS_SUBSCRIPTIONS_TESTED
-
-        timestamp = datetime.now(timezone.utc)
-
-        attributes = dict(
-            subscription_id=str(subscription_id),
-        )
-
-        event = Event(
-            request_id=request_id,
-            event_id=event_id,
-            request_type=request_type,
-            event_type=event_type,
-            timestamp=timestamp,
-            attributes=attributes,
-        )
-        # --- THIS WILL BE IMPROVED LATER ------------------------------------ #
-
-        log.info(
-            "[WEBHOOKS CORE] Publishing webhook test event",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-            request_id=str(request_id),
-            event_id=str(event_id),
-            event_type=event_type.value,
-        )
-
-        published = await publish_event(
-            project_id=project_id,
-            event=event,
-        )
-
-        if not published:
-            log.error(
-                "[WEBHOOKS CORE] Failed to publish webhook test event",
-                project_id=str(project_id),
-                subscription_id=str(subscription_id),
-                event_id=str(event_id),
-            )
-            raise WebhookTestEventPublishFailedError(
-                subscription_id=str(subscription_id),
-                event_id=str(event_id),
-            )
-
-        log.info(
-            "[WEBHOOKS CORE] Webhook test event published; polling for delivery",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-            event_id=str(event_id),
-            max_attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
-            poll_interval_ms=WEBHOOK_TEST_POLL_INTERVAL_MS,
-        )
-
-        for attempt in range(1, WEBHOOK_TEST_MAX_ATTEMPTS + 1):
-            log.debug(
-                "[WEBHOOKS CORE] Polling for webhook test delivery",
-                project_id=str(project_id),
-                subscription_id=str(subscription_id),
-                event_id=str(event_id),
-                attempt=attempt,
-                max_attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
-            )
-
-            deliveries = await self.dao.query_deliveries(
-                project_id=project_id,
-                #
-                delivery=WebhookDeliveryQuery(
-                    subscription_id=subscription_id,
-                    event_id=event_id,
-                ),
-                #
-                windowing=Windowing(
-                    limit=1,
-                    order="descending",
-                ),
-            )
-
-            if deliveries:
-                delivery = deliveries[0]
-                status_message = delivery.status.message if delivery.status else None
-                status_code = delivery.status.code if delivery.status else None
-
-                log.info(
-                    "[WEBHOOKS CORE] Webhook test delivery found",
-                    project_id=str(project_id),
-                    subscription_id=str(subscription_id),
-                    event_id=str(event_id),
-                    delivery_id=str(delivery.id),
-                    status_message=status_message,
-                    status_code=status_code,
-                )
-
-                if delivery.status and delivery.status.message == "success":
-                    enabled_subscription = await self.dao.enable_subscription(
-                        project_id=project_id,
-                        #
-                        subscription_id=subscription_id,
-                    )
-
-                    log.info(
-                        "[WEBHOOKS CORE] Enabled subscription after successful webhook test",
-                        project_id=str(project_id),
-                        subscription_id=str(subscription_id),
-                        delivery_id=str(delivery.id),
-                        updated=enabled_subscription is not None,
-                    )
-
-                return delivery
-
-            if attempt < WEBHOOK_TEST_MAX_ATTEMPTS:
-                log.debug(
-                    "[WEBHOOKS CORE] No webhook test delivery yet; waiting before next poll",
-                    project_id=str(project_id),
-                    subscription_id=str(subscription_id),
-                    event_id=str(event_id),
-                    attempt=attempt,
-                    sleep_ms=WEBHOOK_TEST_POLL_INTERVAL_MS,
-                )
-                await asyncio.sleep(WEBHOOK_TEST_POLL_INTERVAL_MS / 1000)
-
-        log.error(
-            "[WEBHOOKS CORE] Timed out waiting for webhook test delivery",
-            project_id=str(project_id),
-            subscription_id=str(subscription_id),
-            event_id=str(event_id),
-            attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
-        )
-        raise WebhookTestDeliveryTimeoutError(
-            subscription_id=str(subscription_id),
-            event_id=str(event_id),
-            #
-            attempts=WEBHOOK_TEST_MAX_ATTEMPTS,
         )

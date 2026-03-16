@@ -159,38 +159,6 @@ class WebhooksDAO(WebhooksDAOInterface):
 
             return True
 
-    async def enable_subscription(
-        self,
-        *,
-        project_id: UUID,
-        #
-        subscription_id: UUID,
-    ) -> Optional[WebhookSubscription]:
-        async with engine.core_session() as session:
-            stmt = select(WebhookSubscriptionDBE).where(
-                WebhookSubscriptionDBE.project_id == project_id,
-                WebhookSubscriptionDBE.id == subscription_id,
-            )
-
-            result = await session.execute(stmt)
-
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return None
-
-            flags = dict(subscription_dbe.flags or {})
-            flags["is_valid"] = True
-            subscription_dbe.flags = flags
-
-            await session.commit()
-
-            await session.refresh(subscription_dbe)
-
-            return map_subscription_dbe_to_dto(
-                subscription_dbe=subscription_dbe,
-            )
-
     async def query_subscriptions(
         self,
         *,
@@ -217,17 +185,6 @@ class WebhooksDAO(WebhooksDAOInterface):
                             f"%{subscription.description}%"
                         ),
                     )
-
-                if subscription.flags is not None:
-                    subscription_flags = subscription.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-
-                    if subscription_flags:
-                        stmt = stmt.filter(
-                            WebhookSubscriptionDBE.flags.contains(subscription_flags),
-                        )
 
                 if subscription.tags is not None:
                     stmt = stmt.filter(
