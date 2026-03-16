@@ -136,7 +136,7 @@ class EvaluatorRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EvaluatorRevisionCommitRequest(BaseModel):
@@ -151,7 +151,18 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
     environment_variant_ref: Optional[Reference] = None
     environment_revision_ref: Optional[Reference] = None
     key: Optional[str] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class EvaluatorRevisionDeployRequest(BaseModel):
+    evaluator_ref: Optional[Reference] = None
+    evaluator_variant_ref: Optional[Reference] = None
+    evaluator_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    message: Optional[str] = None
 
 
 class EvaluatorRevisionResponse(BaseModel):

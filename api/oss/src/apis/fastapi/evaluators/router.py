@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache
+from oss.src.utils.caching import set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -31,6 +31,10 @@ from oss.src.core.evaluators.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
+from oss.src.core.environments.dtos import (
+    EnvironmentRevisionCommit,
+    EnvironmentRevisionDelta,
+)
 
 from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorCreateRequest,
@@ -52,6 +56,7 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorRevisionQueryRequest,
     EvaluatorRevisionCommitRequest,
     EvaluatorRevisionRetrieveRequest,
+    EvaluatorRevisionDeployRequest,
     EvaluatorRevisionResponse,
     EvaluatorRevisionsResponse,
     EvaluatorRevisionResolveRequest,
@@ -70,6 +75,9 @@ from oss.src.apis.fastapi.evaluators.utils import (
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
     merge_evaluator_variant_query_requests,
+)
+from oss.src.apis.fastapi.environments.utils import (
+    ensure_environment_deploy_allowed,
 )
 
 if is_ee():
@@ -245,6 +253,16 @@ class EvaluatorsRouter:
             self.retrieve_evaluator_revision,
             methods=["POST"],
             operation_id="retrieve_evaluator_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/deploy",
+            self.deploy_evaluator_revision,
+            methods=["POST"],
+            operation_id="deploy_evaluator_revision",
             status_code=status.HTTP_200_OK,
             response_model=EvaluatorRevisionResponse,
             response_model_exclude_none=True,
@@ -795,6 +813,157 @@ class EvaluatorsRouter:
         return evaluator_variant_response
 
     # EVALUATOR REVISIONS ------------------------------------------------------
+
+    @intercept_exceptions()
+    async def deploy_evaluator_revision(
+        self,
+        request: Request,
+        *,
+        evaluator_deploy_request: EvaluatorRevisionDeployRequest,
+    ) -> EvaluatorRevisionResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not any(
+            (
+                evaluator_deploy_request.evaluator_ref,
+                evaluator_deploy_request.evaluator_variant_ref,
+                evaluator_deploy_request.evaluator_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator deploy requires evaluator refs.",
+            )
+
+        if not any(
+            (
+                evaluator_deploy_request.environment_ref,
+                evaluator_deploy_request.environment_variant_ref,
+                evaluator_deploy_request.environment_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator deploy requires environment refs.",
+            )
+
+        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            evaluator_ref=evaluator_deploy_request.evaluator_ref,
+            evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
+        )
+
+        if not evaluator_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Evaluator revision not found.",
+            )
+
+        target_environment_revision = await self.environments_service.fetch_environment_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=evaluator_deploy_request.environment_ref,
+            environment_variant_ref=evaluator_deploy_request.environment_variant_ref,
+            environment_revision_ref=evaluator_deploy_request.environment_revision_ref,
+        )
+
+        if not target_environment_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision not found.",
+            )
+
+        environment_id = (
+            target_environment_revision.environment_id
+            or target_environment_revision.artifact_id
+        )
+        environment_variant_id = (
+            target_environment_revision.environment_variant_id
+            or target_environment_revision.variant_id
+        )
+        evaluator_id = evaluator_revision.evaluator_id or evaluator_revision.artifact_id
+        evaluator_variant_id = (
+            evaluator_revision.evaluator_variant_id or evaluator_revision.variant_id
+        )
+        key = evaluator_deploy_request.key
+
+        if not environment_id or not environment_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Environment revision is missing environment ids.",
+            )
+
+        if not evaluator_id or not evaluator_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator revision is missing evaluator ids.",
+            )
+
+        if key is None:
+            evaluator = await self.evaluators_service.fetch_evaluator(
+                project_id=UUID(request.state.project_id),
+                evaluator_ref=Reference(id=evaluator_id),
+            )
+
+            if not evaluator or not evaluator.slug:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evaluator deploy could not derive key from evaluator slug.",
+                )
+
+            key = f"{evaluator.slug}.revision"
+
+        await ensure_environment_deploy_allowed(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            environment_id=environment_id,
+            environments_service=self.environments_service,
+        )
+
+        await self.environments_service.commit_environment_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_revision_commit=EnvironmentRevisionCommit(
+                environment_id=environment_id,
+                environment_variant_id=environment_variant_id,
+                message=evaluator_deploy_request.message,
+                delta=EnvironmentRevisionDelta(
+                    set={
+                        key: {
+                            "evaluator": Reference(id=evaluator_id),
+                            "evaluator_variant": Reference(id=evaluator_variant_id),
+                            "evaluator_revision": Reference(
+                                id=evaluator_revision.id,
+                                slug=evaluator_revision.slug,
+                                version=evaluator_revision.version,
+                            ),
+                        }
+                    }
+                ),
+            ),
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return EvaluatorRevisionResponse(
+            count=1 if evaluator_revision else 0,
+            evaluator_revision=evaluator_revision,
+        )
 
     @intercept_exceptions()
     async def retrieve_evaluator_revision(

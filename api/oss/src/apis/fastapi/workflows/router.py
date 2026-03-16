@@ -17,6 +17,10 @@ from oss.src.core.workflows.service import (
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
+from oss.src.core.environments.dtos import (
+    EnvironmentRevisionCommit,
+    EnvironmentRevisionDelta,
+)
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.src.core.embeds.dtos import ErrorPolicy
 
@@ -39,6 +43,7 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionQueryRequest,
     WorkflowRevisionCommitRequest,
     WorkflowRevisionRetrieveRequest,
+    WorkflowRevisionDeployRequest,
     WorkflowRevisionsLogRequest,
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
@@ -57,6 +62,9 @@ from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_revision_query_request_from_params,
     parse_workflow_revision_query_request_from_body,
     merge_workflow_revision_query_requests,
+)
+from oss.src.apis.fastapi.environments.utils import (
+    ensure_environment_deploy_allowed,
 )
 
 from agenta.sdk.models.workflows import (
@@ -231,6 +239,16 @@ class WorkflowsRouter:
             self.retrieve_workflow_revision,
             methods=["POST"],
             operation_id="retrieve_workflow_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/deploy",
+            self.deploy_workflow_revision,
+            methods=["POST"],
+            operation_id="deploy_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
             response_model_exclude_none=True,
@@ -1103,6 +1121,157 @@ class WorkflowsRouter:
         )
 
         return workflow_revisions_response
+
+    @intercept_exceptions()
+    async def deploy_workflow_revision(
+        self,
+        request: Request,
+        *,
+        workflow_deploy_request: WorkflowRevisionDeployRequest,
+    ) -> WorkflowRevisionResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not any(
+            (
+                workflow_deploy_request.workflow_ref,
+                workflow_deploy_request.workflow_variant_ref,
+                workflow_deploy_request.workflow_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflow deploy requires workflow refs.",
+            )
+
+        if not any(
+            (
+                workflow_deploy_request.environment_ref,
+                workflow_deploy_request.environment_variant_ref,
+                workflow_deploy_request.environment_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflow deploy requires environment refs.",
+            )
+
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_ref=workflow_deploy_request.workflow_ref,
+            workflow_variant_ref=workflow_deploy_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_deploy_request.workflow_revision_ref,
+        )
+
+        if not workflow_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow revision not found.",
+            )
+
+        target_environment_revision = await self.environments_service.fetch_environment_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=workflow_deploy_request.environment_ref,
+            environment_variant_ref=workflow_deploy_request.environment_variant_ref,
+            environment_revision_ref=workflow_deploy_request.environment_revision_ref,
+        )
+
+        if not target_environment_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision not found.",
+            )
+
+        environment_id = (
+            target_environment_revision.environment_id
+            or target_environment_revision.artifact_id
+        )
+        environment_variant_id = (
+            target_environment_revision.environment_variant_id
+            or target_environment_revision.variant_id
+        )
+        workflow_id = workflow_revision.workflow_id or workflow_revision.artifact_id
+        workflow_variant_id = (
+            workflow_revision.workflow_variant_id or workflow_revision.variant_id
+        )
+        key = workflow_deploy_request.key
+
+        if not environment_id or not environment_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Environment revision is missing environment ids.",
+            )
+
+        if not workflow_id or not workflow_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflow revision is missing workflow ids.",
+            )
+
+        if key is None:
+            workflow = await self.workflows_service.fetch_workflow(
+                project_id=UUID(request.state.project_id),
+                workflow_ref=Reference(id=workflow_id),
+            )
+
+            if not workflow or not workflow.slug:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Workflow deploy could not derive key from workflow slug.",
+                )
+
+            key = f"{workflow.slug}.revision"
+
+        await ensure_environment_deploy_allowed(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            environment_id=environment_id,
+            environments_service=self.environments_service,
+        )
+
+        await self.environments_service.commit_environment_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_revision_commit=EnvironmentRevisionCommit(
+                environment_id=environment_id,
+                environment_variant_id=environment_variant_id,
+                message=workflow_deploy_request.message,
+                delta=EnvironmentRevisionDelta(
+                    set={
+                        key: {
+                            "workflow": Reference(id=workflow_id),
+                            "workflow_variant": Reference(id=workflow_variant_id),
+                            "workflow_revision": Reference(
+                                id=workflow_revision.id,
+                                slug=workflow_revision.slug,
+                                version=workflow_revision.version,
+                            ),
+                        }
+                    }
+                ),
+            ),
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return WorkflowRevisionResponse(
+            count=1 if workflow_revision else 0,
+            workflow_revision=workflow_revision,
+        )
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse(), exclude=[HTTPException])

@@ -65,6 +65,7 @@ from oss.src.apis.fastapi.environments.utils import (
     parse_environment_revision_query_request_from_params,
     parse_environment_revision_query_request_from_body,
     merge_environment_revision_query_requests,
+    ensure_environment_deploy_allowed,
 )
 
 if is_ee():
@@ -1094,25 +1095,12 @@ class EnvironmentsRouter:
                 detail="Provide either data or delta for a commit.",
             )
 
-        if is_ee() and commit.environment_id:
-            environment = await self.environments_service.fetch_environment(
-                project_id=UUID(request.state.project_id),
-                environment_ref=Reference(id=commit.environment_id),
-            )
-            is_guarded = False
-            if environment and environment.flags:
-                flags = environment.flags
-                if isinstance(flags, EnvironmentFlags):
-                    is_guarded = bool(getattr(flags, "is_guarded", False))
-                elif isinstance(flags, dict):
-                    is_guarded = bool(flags.get("is_guarded", False))
-            if is_guarded:
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+        await ensure_environment_deploy_allowed(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            environment_id=commit.environment_id,
+            environments_service=self.environments_service,
+        )
 
         environment_revision = await self.environments_service.commit_environment_revision(
             project_id=UUID(request.state.project_id),

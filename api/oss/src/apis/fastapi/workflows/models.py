@@ -136,7 +136,20 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     environment_revision_ref: Optional[Reference] = None
     key: Optional[str] = None
     #
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class WorkflowRevisionDeployRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
+    #
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
+    message: Optional[str] = None
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
