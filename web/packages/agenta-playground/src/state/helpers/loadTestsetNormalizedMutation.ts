@@ -5,6 +5,7 @@ import {clearAllMessagesAtom} from "../chat/messageReducer"
 import {derivedLoadableIdAtom, isChatModeAtom} from "../execution/selectors"
 
 import {extractAndLoadChatMessagesAtom} from "./extractAndLoadChatMessages"
+import {normalizeTestcaseRowsForLoad} from "./testcaseRowNormalization"
 
 const MESSAGE_FIELD_KEYS = new Set([
     "messages",
@@ -38,22 +39,20 @@ export const loadTestsetNormalizedMutationAtom = atom(
         if (!loadableId) return
 
         const dataset = Array.isArray(testsetData) ? testsetData : []
+        const normalizedRows = normalizeTestcaseRowsForLoad(dataset)
+        const flatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
 
         if (isChatVariant) {
             set(clearAllMessagesAtom, {loadableId})
 
-            const rowData = (dataset[0] || {}) as Record<string, unknown>
+            const rowData = (normalizedRows[0]?.data || {}) as Record<string, unknown>
             const keys = Object.keys(rowData).filter((k) => !MESSAGE_FIELD_KEYS.has(k))
 
             const updateData: Record<string, unknown> = {}
             for (const key of keys) {
                 const raw = rowData[key]
                 if (raw === undefined) continue
-                updateData[key] = Array.isArray(raw)
-                    ? JSON.stringify(raw)
-                    : typeof raw === "string"
-                      ? raw
-                      : String(raw ?? "")
+                updateData[key] = raw
             }
 
             const existingRowIds = get(loadableController.selectors.displayRowIds(loadableId))
@@ -65,19 +64,14 @@ export const loadTestsetNormalizedMutationAtom = atom(
         } else {
             set(loadableController.actions.clearRows, loadableId)
 
-            for (const row of dataset) {
-                const rowData = (row || {}) as Record<string, unknown>
-                const keys = Object.keys(rowData).filter((k) => !MESSAGE_FIELD_KEYS.has(k))
+            for (const row of normalizedRows) {
+                const keys = Object.keys(row.data).filter((k) => !MESSAGE_FIELD_KEYS.has(k))
                 const data: Record<string, unknown> = {}
 
                 for (const key of keys) {
-                    const raw = rowData[key]
+                    const raw = row.data[key]
                     if (raw === undefined) continue
-                    data[key] = Array.isArray(raw)
-                        ? JSON.stringify(raw)
-                        : typeof raw === "string"
-                          ? raw
-                          : String(raw ?? "")
+                    data[key] = raw
                 }
 
                 set(loadableController.actions.addRow, loadableId, data)
@@ -89,7 +83,7 @@ export const loadTestsetNormalizedMutationAtom = atom(
         // Delegate to the shared chat message extraction helper
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
-            testcaseRows: testsetData,
+            testcaseRows: flatRows,
             skipBlankMessage: true,
         })
     },

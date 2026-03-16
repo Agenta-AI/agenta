@@ -105,9 +105,4 @@ export const createTagString = (type: PlaywrightConfig.TestTagType, value: strin
     `${TAG_ARGUMENTS[type].prefix}${value}`
 
 // Re-export types from the types module for backward compatibility
-export type {
-    TestTagType,
-    TestTag,
-    TagArgument,
-    ProjectFeatureConfig,
-} from "./types"
+export type {TestTagType, TestTag, TagArgument, ProjectFeatureConfig} from "./types"
