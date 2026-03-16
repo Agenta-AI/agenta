@@ -2,7 +2,7 @@
 
 ## Current state
 
-Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
+Checkpoints 1, 2, and 3 implemented in code. Checkpoint 3 logs UI redesigned for clarity.
 
 ## Checkpoint 1: Remove gate, auto-ping, restore test button
 
@@ -19,12 +19,24 @@ Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 2.1 Extract HTTP delivery logic | Not started | |
-| 2.2 Add `test_draft` service method | Not started | |
-| 2.3 Add `POST /subscriptions/test-draft` route | Not started | |
-| 2.4 Add `testWebhookDraft` API function | Not started | |
-| 2.5 Add `testDraftAutomationAtom` | Not started | |
-| 2.6 Enable test button for drafts in drawer | Not started | |
+| 2.1 Extract HTTP delivery logic | Completed | Shared request preparation/execution now lives in `core/webhooks/delivery.py`. |
+| 2.2 Add `test_draft` service method | Completed | Supports create drafts and edit drafts with existing secrets. |
+| 2.3 Add `POST /subscriptions/test-draft` route | Completed | Route registered before param routes to avoid UUID path conflicts. |
+| 2.4 Add `testWebhookDraft` API function | Completed | Frontend API client calls the new draft test endpoint. |
+| 2.5 Add `testDraftAutomationAtom` | Completed | Drawer uses a dedicated draft test atom. |
+| 2.6 Enable test button for drafts in drawer | Completed | Test now uses current form values in both create and edit mode. |
+
+## Checkpoint 3: Delivery logs in the drawer
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 3.1 Add frontend delivery query client | Completed | `queryWebhookDeliveries` added to the automations API client. |
+| 3.2 Add delivery query atom family | Completed | Delivery logs are fetched per subscription via `automationDeliveriesAtomFamily`. |
+| 3.3 Build logs tab UI | Completed | Drawer now renders a `Logs` tab for persisted automations. |
+| 3.4 Delivery detail view | Completed | Simplified: removed overview/JSON tabs, now shows raw JSON directly via `SimpleSharedEditor`. |
+| 3.5 Constrain scrolling to the list/detail panes | Completed | Prevented the full drawer tab from growing/scrolling when logs increase; the delivery list now owns list overflow while the JSON editor scrolls internally. |
+| 3.6 Redesign delivery list items | Completed | Replaced opaque button rows with `ListItem`-pattern styling: left-border accent on selection, status dots, design-token colors (`bgColors`, `textColors`, `borderColors` from `@agenta/ui`), keyboard navigation, hover feedback. |
+| 3.7 Widen drawer layout | Completed | Drawer width increased to accommodate config and log inspection. |
 
 ## Decisions log
 
@@ -35,4 +47,8 @@ Checkpoint 1 implemented in code and linted. Checkpoint 2 not started.
 | 2026-03-13 | Save flow triggers test from the drawer | Reuses the existing polling test endpoint and gives immediate user feedback. |
 | 2026-03-13 | Table status stays `Active` in checkpoint 1 | Avoids implying that saved automations are blocked before the log UI exists. |
 | 2026-03-13 | Test-draft bypasses event bus entirely | Direct HTTP call via extracted `execute_webhook_request`. No persisted subscription needed. |
-| 2026-03-13 | Test button always tests form values (Checkpoint 2 target) | Even in edit mode, test-draft will use current form state, not persisted config. Predictable behavior. |
+| 2026-03-13 | Test button always tests form values | In edit mode, draft testing uses the current form state rather than the persisted subscription. |
+| 2026-03-13 | Logs live only on persisted automations | Draft tests are ephemeral, so the drawer exposes logs only after a subscription has been created. |
+| 2026-03-13 | Simplify delivery detail to raw JSON only | Overview tab with separate fields added unnecessary complexity; raw JSON is more useful for debugging. |
+| 2026-03-13 | Use design tokens for list items | Replaced hard-coded `bg-white` / CSS variable approach with `@agenta/ui` tokens for theme consistency. |
+| 2026-03-13 | Deliveries list loads the newest 25 logs | `queryWebhookDeliveries` already supports `Windowing`, but the current drawer uses a simple first page (`limit=25`, `order=descending`) until we add explicit pagination/load-more UX. |

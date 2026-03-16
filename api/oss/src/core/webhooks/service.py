@@ -2,9 +2,10 @@ import asyncio
 import secrets
 import string
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 from uuid import UUID
 
+import httpx
 import uuid_utils.compat as uuid
 
 from oss.src.core.events.dtos import Event
@@ -19,10 +20,17 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Status, Windowing
+from oss.src.core.webhooks.delivery import (
+    PreparedWebhookRequestError,
+    prepare_webhook_request,
+    send_webhook_request,
+)
 from oss.src.core.webhooks.types import (
     WEBHOOK_TEST_MAX_ATTEMPTS,
     WEBHOOK_TEST_POLL_INTERVAL_MS,
+    WebhookDeliveryResponseInfo,
+    WebhookEventType,
     WebhookSubscription,
     WebhookSubscriptionCreate,
     WebhookSubscriptionEdit,
@@ -38,6 +46,7 @@ from oss.src.core.webhooks.exceptions import (
     WebhookTestDeliveryTimeoutError,
     WebhookTestEventPublishFailedError,
 )
+from oss.src.utils.crypting import encrypt
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
@@ -157,6 +166,134 @@ class WebhooksService:
             subscription=result,
             secret=secret_value,
         )
+
+    async def test_draft_webhook(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription: Union[WebhookSubscriptionCreate, WebhookSubscriptionEdit],
+    ) -> WebhookDelivery:
+        auth_mode = subscription.data.auth_mode if subscription.data else None
+        subscription_id = getattr(subscription, "id", None)
+        secret_value = subscription.secret
+
+        if not secret_value and subscription_id is not None:
+            existing = await self.dao.fetch_subscription(
+                project_id=project_id,
+                subscription_id=subscription_id,
+            )
+
+            if existing is None:
+                raise WebhookSubscriptionNotFoundError(
+                    subscription_id=str(subscription_id),
+                )
+
+            if existing.secret_id:
+                secret_value = await self._resolve_secret(
+                    project_id=project_id,
+                    secret_id=existing.secret_id,
+                )
+
+        if auth_mode == "authorization" and not secret_value:
+            raise WebhookAuthorizationSecretRequiredError()
+
+        if not secret_value:
+            secret_value = self._generate_secret()
+
+        timestamp = datetime.now(timezone.utc)
+        event_id = uuid.uuid7()
+        delivery_id = uuid.uuid7()
+        effective_subscription_id = subscription_id or UUID(int=0)
+        event_type = WebhookEventType.WEBHOOKS_SUBSCRIPTIONS_TESTED.value
+
+        event = {
+            "event_id": str(event_id),
+            "event_type": event_type,
+            "timestamp": timestamp.isoformat(),
+            "created_at": timestamp.isoformat(),
+            "attributes": {
+                "subscription_id": str(subscription_id) if subscription_id else "draft",
+            },
+        }
+
+        subscription_context = {
+            **subscription.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"secret"},
+            ),
+            "id": str(subscription_id) if subscription_id else "draft",
+        }
+
+        try:
+            prepared = prepare_webhook_request(
+                project_id=project_id,
+                delivery_id=delivery_id,
+                event_id=event_id,
+                event_type=event_type,
+                url=str(subscription.data.url),
+                headers=subscription.data.headers or {},
+                payload_fields=subscription.data.payload_fields,
+                auth_mode=auth_mode,
+                event=event,
+                subscription=subscription_context,
+                encrypted_secret=encrypt(secret_value),
+            )
+        except PreparedWebhookRequestError as exc:
+            return WebhookDelivery(
+                id=delivery_id,
+                created_at=timestamp,
+                updated_at=timestamp,
+                subscription_id=effective_subscription_id,
+                event_id=event_id,
+                status=Status(code="400", message="failed"),
+                data=exc.data.model_copy(update={"error": str(exc)}),
+            )
+
+        try:
+            response = await send_webhook_request(
+                url=str(subscription.data.url),
+                payload_json=prepared.payload_json,
+                headers=prepared.request_headers,
+            )
+            response_info = WebhookDeliveryResponseInfo(
+                status_code=response.status_code,
+                body=response.text[:2000],
+            )
+
+            return WebhookDelivery(
+                id=delivery_id,
+                created_at=timestamp,
+                updated_at=timestamp,
+                subscription_id=effective_subscription_id,
+                event_id=event_id,
+                status=Status(
+                    code=str(response.status_code),
+                    message="success" if response.is_success else "failed",
+                ),
+                data=prepared.data.model_copy(update={"response": response_info}),
+            )
+        except httpx.TimeoutException as exc:
+            return WebhookDelivery(
+                id=delivery_id,
+                created_at=timestamp,
+                updated_at=timestamp,
+                subscription_id=effective_subscription_id,
+                event_id=event_id,
+                status=Status(code="0", message="failed"),
+                data=prepared.data.model_copy(update={"error": f"Timeout: {exc}"}),
+            )
+        except Exception as exc:
+            return WebhookDelivery(
+                id=delivery_id,
+                created_at=timestamp,
+                updated_at=timestamp,
+                subscription_id=effective_subscription_id,
+                event_id=event_id,
+                status=Status(code="0", message="failed"),
+                data=prepared.data.model_copy(update={"error": str(exc)}),
+            )
 
     async def fetch_subscription(
         self,

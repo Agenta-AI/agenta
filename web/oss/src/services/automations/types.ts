@@ -99,6 +99,26 @@ export interface WebhookSubscriptionEditRequest {
     }
 }
 
+export type WebhookSubscriptionDraftTestRequest =
+    | WebhookSubscriptionCreateRequest
+    | WebhookSubscriptionEditRequest
+
+export interface WebhookDeliveriesQueryRequest {
+    delivery?: {
+        subscription_id?: string
+        event_id?: string
+        status?: {
+            code?: string
+        }
+    }
+    include_archived?: boolean
+    windowing?: {
+        limit?: number
+        order?: "ascending" | "descending"
+        cursor?: string
+    }
+}
+
 // --- RESPONSE SHAPES ------------------------------------------------------- //
 
 export interface WebhookSubscriptionResponse {
@@ -122,6 +142,7 @@ export interface WebhookDeliveryData {
     event_type?: WebhookEventType
     url: string
     headers?: Record<string, string>
+    payload?: Record<string, unknown>
     response?: WebhookDeliveryResponseInfo
     error?: string
 }
