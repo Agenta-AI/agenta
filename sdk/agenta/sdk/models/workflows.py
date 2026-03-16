@@ -1,5 +1,6 @@
 # /agenta/sdk/models/running.py
 
+from enum import Enum
 from typing import Any, Dict, Optional, Union, List
 from uuid import UUID
 from urllib.parse import urlparse
@@ -68,6 +69,12 @@ class WorkflowFlags(BaseModel):
     is_evaluator: bool = False
     is_human: bool = False
     is_chat: bool = False
+
+
+class WorkflowRuntime(str, Enum):
+    PYTHON = "python"
+    TYPESCRIPT = "typescript"
+    JAVASCRIPT = "javascript"
 
 
 class WorkflowServiceInterface(BaseModel):
@@ -147,6 +154,7 @@ class WorkflowServiceInterface(BaseModel):
 
 
 class WorkflowServiceConfiguration(BaseModel):
+    runtime: Optional[WorkflowRuntime] = None
     script: Optional[Data] = None
     parameters: Optional[Data] = None
 
