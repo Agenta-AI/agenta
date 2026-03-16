@@ -42,6 +42,8 @@ import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {fetchTestcase} from "@agenta/entities/testcase"
+import type {Testcase} from "@agenta/entities/testcase"
 import {
     traceEntityAtomFamily,
     traceInputsAtomFamily,
@@ -59,6 +61,7 @@ import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
     OpenQueuePayload,
+    ApplyRouteStatePayload,
     AnnotationProgress,
     AnnotationSessionCallbacks,
     SessionView,
@@ -83,8 +86,8 @@ const activeRunIdAtom = atom<string | null>((get) => {
     return get(simpleQueueMolecule.selectors.runId(queueId))
 })
 
-/** Current scenario index (0-based) */
-const currentScenarioIndexAtom = atom<number>(0)
+/** Requested/focused scenario ID from route or navigation state */
+const focusedScenarioIdAtom = atom<string | null>(null)
 
 /** Full scenario records — derived from simpleQueueMolecule.selectors.scenarios */
 type ScenarioRecord = Record<string, unknown>
@@ -123,8 +126,25 @@ const isActiveAtom = atom<boolean>((get) => get(activeQueueIdAtom) !== null)
 /** The current scenario ID */
 const currentScenarioIdAtom = atom<string | null>((get) => {
     const ids = get(scenarioIdsAtom)
-    const idx = get(currentScenarioIndexAtom)
-    return ids[idx] ?? null
+    if (ids.length === 0) return null
+
+    const focusedScenarioId = get(focusedScenarioIdAtom)
+    if (focusedScenarioId && ids.includes(focusedScenarioId)) {
+        return focusedScenarioId
+    }
+
+    return ids[0] ?? null
+})
+
+/** Current scenario index (0-based) */
+const currentScenarioIndexAtom = atom<number>((get) => {
+    const ids = get(scenarioIdsAtom)
+    const currentScenarioId = get(currentScenarioIdAtom)
+
+    if (!currentScenarioId) return 0
+
+    const index = ids.indexOf(currentScenarioId)
+    return index >= 0 ? index : 0
 })
 
 /** Can navigate to next item? */
@@ -201,7 +221,7 @@ const queueKindAtom = atom<string | null>((get) => {
     return get(simpleQueueMolecule.selectors.kind(queueId))
 })
 
-/** Queue description — derived from simpleQueueMolecule data */
+/** Queue description — derived from simpleQueueMolecule */
 const queueDescriptionAtom = atom<string | null>((get) => {
     const queueId = get(activeQueueIdAtom)
     if (!queueId) return null
@@ -270,6 +290,51 @@ const traceInputKeysAtom = atom<string[]>((get) => {
     if (!inputs) return []
 
     return Object.keys(inputs)
+})
+
+/**
+ * Testcase data — fetched by testcaseId via atomWithQuery.
+ * Used by list view cell renderers and testcase key discovery.
+ */
+const testcaseDataAtomFamily = atomFamily((testcaseId: string) =>
+    atomWithQuery<Testcase | null>((get) => {
+        const projectId = get(projectIdAtom)
+
+        return {
+            queryKey: ["annotation-testcase", projectId, testcaseId],
+            queryFn: async () => {
+                if (!projectId || !testcaseId) return null
+                return fetchTestcase({projectId, testcaseId})
+            },
+            enabled: !!projectId && !!testcaseId,
+            staleTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * Testcase input keys — discovered from the first scenario's testcase data.
+ * Used by the list view to build per-key columns for testcase-based queues.
+ *
+ * Reactively resolves: scenarioIds[0] → testcaseRef → testcaseData → Object.keys(data)
+ */
+const testcaseInputKeysAtom = atom<string[]>((get) => {
+    const kind = get(queueKindAtom)
+    if (kind !== "testcases") return []
+
+    const ids = get(scenarioIdsAtom)
+    if (ids.length === 0) return []
+
+    const firstScenarioId = ids[0]
+    const ref = get(scenarioTestcaseRefAtomFamily(firstScenarioId))
+    if (!ref.testcaseId) return []
+
+    const query = get(testcaseDataAtomFamily(ref.testcaseId))
+    const testcase = query?.data
+    if (!testcase?.data) return []
+
+    return Object.keys(testcase.data)
 })
 
 // ============================================================================
@@ -470,41 +535,87 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
 
         dataColumns = [traceName, traceInputGroup, traceOutput]
     } else {
-        // Testcase-based: discover columns from scenario records
-        const discovered = discoverTestcaseColumns(records)
-        const inputCols = discovered.filter((c) => c.group === "input")
-        const outputCols = discovered.filter((c) => c.group === "output")
-        const expectedCols = discovered.filter((c) => c.group === "expected")
+        // Testcase-based: discover columns from fetched testcase data keys
+        const testcaseKeys = get(testcaseInputKeysAtom)
 
-        dataColumns = [
-            ...inputCols.map(
-                (col): ScenarioListColumnDef => ({
-                    columnType: "testcase-input",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                }),
-            ),
-            ...outputCols.map(
-                (col): ScenarioListColumnDef => ({
-                    columnType: "testcase-output",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                }),
-            ),
-            ...expectedCols.map(
-                (col): ScenarioListColumnDef => ({
-                    columnType: "testcase-expected",
-                    key: col.key,
-                    title: col.title,
-                    width: 200,
-                    dataKey: col.key,
-                }),
-            ),
-        ]
+        if (testcaseKeys.length > 0) {
+            // Categorize keys using the same sets used for scenario records
+            const inputCols: string[] = []
+            const outputCols: string[] = []
+            const expectedCols: string[] = []
+
+            for (const key of testcaseKeys) {
+                if (OUTPUT_KEYS.has(key)) outputCols.push(key)
+                else if (EXPECTED_OUTPUT_KEYS.has(key)) expectedCols.push(key)
+                else inputCols.push(key)
+            }
+
+            dataColumns = [
+                ...inputCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-input",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
+                ...outputCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-output",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
+                ...expectedCols.map(
+                    (key): ScenarioListColumnDef => ({
+                        columnType: "testcase-expected",
+                        key,
+                        title: key,
+                        width: 200,
+                        dataKey: key,
+                    }),
+                ),
+            ]
+        } else {
+            // Fallback: discover from scenario records (works if data is inline)
+            const discovered = discoverTestcaseColumns(records)
+            const inputColsF = discovered.filter((c) => c.group === "input")
+            const outputColsF = discovered.filter((c) => c.group === "output")
+            const expectedColsF = discovered.filter((c) => c.group === "expected")
+
+            dataColumns = [
+                ...inputColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-input",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
+                ...outputColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-output",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
+                ...expectedColsF.map(
+                    (col): ScenarioListColumnDef => ({
+                        columnType: "testcase-expected",
+                        key: col.key,
+                        title: col.title,
+                        width: 200,
+                        dataKey: col.key,
+                    }),
+                ),
+            ]
+        }
     }
 
     // Annotation columns — resolve output keys from evaluator entity data
@@ -547,6 +658,18 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
         const runId = get(activeRunIdAtom)
         if (!runId || !scenarioId) return {traceId: "", spanId: ""}
         return get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+    }),
+)
+
+/**
+ * Testcase ref for a scenario — derived from evaluation run steps.
+ * Resolves testcase_id from the scenario's step results.
+ */
+const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
+    atom((get) => {
+        const runId = get(activeRunIdAtom)
+        if (!runId || !scenarioId) return {testcaseId: ""}
+        return get(evaluationRunMolecule.selectors.scenarioTestcaseRef({runId, scenarioId}))
     }),
 )
 
@@ -1315,7 +1438,7 @@ async function invalidateScenarioAnnotations(scenarioId: string) {
  * Registers a type hint and sets up the session state.
  */
 const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
-    const {queueId, queueType} = payload
+    const {queueId, queueType, initialView, initialScenarioId} = payload
 
     // Register type hint for the queue controller
     registerQueueTypeHint(queueId, queueType)
@@ -1324,9 +1447,9 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
     // activeRunIdAtom is derived from simpleQueueMolecule — no manual set needed
     set(activeQueueIdAtom, queueId)
     set(activeQueueTypeAtom, queueType)
-    set(currentScenarioIndexAtom, 0)
+    set(focusedScenarioIdAtom, initialScenarioId ?? null)
     set(completedScenarioIdsAtom, new Set())
-    set(activeSessionViewAtom, "list")
+    set(activeSessionViewAtom, initialView ?? "list")
 
     // scenarioIdsAtom and scenarioRecordsAtom are now derived from
     // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
@@ -1342,8 +1465,7 @@ const navigateNextAtom = atom(null, (get, set) => {
     const idx = get(currentScenarioIndexAtom)
     const ids = get(scenarioIdsAtom)
     if (idx < ids.length - 1) {
-        set(currentScenarioIndexAtom, idx + 1)
-        _onNavigate?.(ids[idx + 1], idx + 1)
+        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
     }
 })
 
@@ -1354,8 +1476,7 @@ const navigatePrevAtom = atom(null, (get, set) => {
     const idx = get(currentScenarioIndexAtom)
     const ids = get(scenarioIdsAtom)
     if (idx > 0) {
-        set(currentScenarioIndexAtom, idx - 1)
-        _onNavigate?.(ids[idx - 1], idx - 1)
+        setFocusedScenarioId({get, set, scenarioId: ids[idx - 1], notify: true})
     }
 })
 
@@ -1365,8 +1486,7 @@ const navigatePrevAtom = atom(null, (get, set) => {
 const navigateToIndexAtom = atom(null, (get, set, index: number) => {
     const ids = get(scenarioIdsAtom)
     if (index >= 0 && index < ids.length) {
-        set(currentScenarioIndexAtom, index)
-        _onNavigate?.(ids[index], index)
+        setFocusedScenarioId({get, set, scenarioId: ids[index], notify: true})
     }
 })
 
@@ -1393,6 +1513,50 @@ function isScenarioCompleted(
     return record?.status === "success"
 }
 
+function resolveFallbackScenarioId({
+    ids,
+    records,
+    completed,
+    view,
+}: {
+    ids: string[]
+    records: Record<string, unknown>[]
+    completed: Set<string>
+    view: SessionView
+}): string | null {
+    if (ids.length === 0) return null
+
+    if (view === "annotate") {
+        return ids.find((id) => !isScenarioCompleted(id, completed, records)) ?? ids[0] ?? null
+    }
+
+    return ids[0] ?? null
+}
+
+function setFocusedScenarioId({
+    get,
+    set,
+    scenarioId,
+    notify = false,
+}: {
+    get: any
+    set: any
+    scenarioId: string | null
+    notify?: boolean
+}) {
+    const previousScenarioId = get(currentScenarioIdAtom)
+    set(focusedScenarioIdAtom, scenarioId)
+
+    if (!notify || !scenarioId || scenarioId === previousScenarioId) return
+
+    const ids = get(scenarioIdsAtom)
+    const index = ids.indexOf(scenarioId)
+
+    if (index >= 0) {
+        _onNavigate?.(scenarioId, index)
+    }
+}
+
 /**
  * Mark current scenario as completed and advance to the next pending scenario.
  */
@@ -1412,39 +1576,81 @@ const completeAndAdvanceAtom = atom(null, (get, set) => {
     // Look for the next pending scenario after current index
     for (let i = idx + 1; i < ids.length; i++) {
         if (!isScenarioCompleted(ids[i], completed, records)) {
-            set(currentScenarioIndexAtom, i)
-            _onNavigate?.(ids[i], i)
+            setFocusedScenarioId({get, set, scenarioId: ids[i], notify: true})
             return
         }
     }
 
     // If no pending scenario found after current, stay (all remaining are completed)
     if (idx < ids.length - 1) {
-        set(currentScenarioIndexAtom, idx + 1)
-        _onNavigate?.(ids[idx + 1], idx + 1)
+        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
     }
 })
 
 /**
  * Set the active session view ("list" or "annotate").
- * When switching to "annotate", auto-navigate to the first pending scenario.
+ * When switching to "annotate", keep the current focused scenario if valid;
+ * otherwise focus the first pending scenario.
  */
 const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     set(activeSessionViewAtom, view)
 
-    if (view === "annotate") {
-        const ids = get(scenarioIdsAtom)
-        const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-        const completed = get(completedScenarioIdsAtom)
+    if (view !== "annotate") return
 
-        const firstPendingIndex = ids.findIndex(
-            (id) => !isScenarioCompleted(id, completed, records),
-        )
+    const currentScenarioId = get(currentScenarioIdAtom)
+    const ids = get(scenarioIdsAtom)
+    if (currentScenarioId && ids.includes(currentScenarioId)) {
+        set(focusedScenarioIdAtom, currentScenarioId)
+        return
+    }
 
-        if (firstPendingIndex >= 0) {
-            set(currentScenarioIndexAtom, firstPendingIndex)
+    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
+    const completed = get(completedScenarioIdsAtom)
+    const fallbackScenarioId = resolveFallbackScenarioId({ids, records, completed, view})
+
+    if (fallbackScenarioId) {
+        setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId})
+    }
+})
+
+/**
+ * Apply route state from URL parameters.
+ */
+const applyRouteStateAtom = atom(null, (get, set, payload: ApplyRouteStatePayload) => {
+    const nextView = payload.view ?? get(activeSessionViewAtom)
+    set(activeSessionViewAtom, nextView)
+
+    const ids = get(scenarioIdsAtom)
+    const requestedScenarioId =
+        payload.scenarioId === undefined ? get(focusedScenarioIdAtom) : payload.scenarioId
+
+    if (requestedScenarioId) {
+        if (ids.length === 0) {
+            set(focusedScenarioIdAtom, requestedScenarioId)
+            return
+        }
+
+        if (ids.includes(requestedScenarioId)) {
+            setFocusedScenarioId({get, set, scenarioId: requestedScenarioId, notify: true})
+            return
         }
     }
+
+    if (ids.length === 0) {
+        set(focusedScenarioIdAtom, null)
+        return
+    }
+
+    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
+    const completed = get(completedScenarioIdsAtom)
+    const fallbackScenarioId = resolveFallbackScenarioId({
+        ids,
+        records,
+        completed,
+        view: nextView,
+    })
+
+    setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
 })
 
 /**
@@ -1464,7 +1670,7 @@ const closeSessionAtom = atom(null, (get, set) => {
     // clear automatically when activeQueueIdAtom becomes null.
     set(activeQueueIdAtom, null)
     set(activeQueueTypeAtom, null)
-    set(currentScenarioIndexAtom, 0)
+    set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
     set(activeSessionViewAtom, "list")
 
@@ -1534,6 +1740,8 @@ export const annotationSessionController = {
         currentScenarioId: () => currentScenarioIdAtom,
         /** Current scenario index (0-based) */
         currentScenarioIndex: () => currentScenarioIndexAtom,
+        /** Requested/focused scenario ID from route or navigation state */
+        focusedScenarioId: () => focusedScenarioIdAtom,
         /** All scenario IDs */
         scenarioIds: () => scenarioIdsAtom,
         /** Progress (total, completed, remaining, currentIndex) */
@@ -1550,7 +1758,7 @@ export const annotationSessionController = {
         queueName: () => queueNameAtom,
         /** Queue kind (traces / testcases) */
         queueKind: () => queueKindAtom,
-        /** Queue description / instructions */
+        /** Queue description */
         queueDescription: () => queueDescriptionAtom,
         /** Evaluator workflow IDs from evaluation run annotation steps */
         evaluatorIds: () => evaluatorIdsAtom,
@@ -1560,6 +1768,10 @@ export const annotationSessionController = {
         annotationColumnDefs: () => annotationColumnDefsAtom,
         /** Trace input keys discovered from the first scenario's trace data */
         traceInputKeys: () => traceInputKeysAtom,
+        /** Testcase input keys discovered from the first scenario's testcase data */
+        testcaseInputKeys: () => testcaseInputKeysAtom,
+        /** Testcase data query (fetched by testcaseId) */
+        testcaseData: testcaseDataAtomFamily,
         /** Full list of column definitions for the scenario list table */
         listColumnDefs: () => listColumnDefsAtom,
         /** Full scenario records (for cell rendering) */
@@ -1570,6 +1782,8 @@ export const annotationSessionController = {
         activeView: () => activeSessionViewAtom,
         /** Trace ref (traceId, spanId) for a scenario */
         scenarioTraceRef: scenarioTraceRefAtomFamily,
+        /** Testcase ref (testcaseId) for a scenario */
+        scenarioTestcaseRef: scenarioTestcaseRefAtomFamily,
         /** Full trace query state for a scenario */
         scenarioTraceQuery: scenarioTraceQueryAtomFamily,
         /** Root span for a scenario */
@@ -1604,6 +1818,8 @@ export const annotationSessionController = {
         closeSession: closeSessionAtom,
         /** Set the active view ("list" | "annotate") */
         setActiveView: setActiveViewAtom,
+        /** Apply route state ("view" and "scenarioId") */
+        applyRouteState: applyRouteStateAtom,
     },
 
     // ========================================================================
@@ -1616,6 +1832,7 @@ export const annotationSessionController = {
         activeRunId: () => getStore().get(activeRunIdAtom),
         currentScenarioId: () => getStore().get(currentScenarioIdAtom),
         currentScenarioIndex: () => getStore().get(currentScenarioIndexAtom),
+        focusedScenarioId: () => getStore().get(focusedScenarioIdAtom),
         scenarioIds: () => getStore().get(scenarioIdsAtom),
         progress: () => getStore().get(progressAtom),
         hasNext: () => getStore().get(hasNextAtom),
@@ -1628,12 +1845,16 @@ export const annotationSessionController = {
         evaluatorRevisionIds: () => getStore().get(evaluatorRevisionIdsAtom),
         annotationColumnDefs: () => getStore().get(annotationColumnDefsAtom),
         traceInputKeys: () => getStore().get(traceInputKeysAtom),
+        testcaseInputKeys: () => getStore().get(testcaseInputKeysAtom),
+        testcaseData: (testcaseId: string) => getStore().get(testcaseDataAtomFamily(testcaseId)),
         listColumnDefs: () => getStore().get(listColumnDefsAtom),
         scenarioRecords: () => getStore().get(scenarioRecordsAtom),
         scenariosQuery: () => getStore().get(scenariosQueryAtom),
         activeView: () => getStore().get(activeSessionViewAtom),
         scenarioTraceRef: (scenarioId: string) =>
             getStore().get(scenarioTraceRefAtomFamily(scenarioId)),
+        scenarioTestcaseRef: (scenarioId: string) =>
+            getStore().get(scenarioTestcaseRefAtomFamily(scenarioId)),
         scenarioRootSpan: (scenarioId: string) =>
             getStore().get(scenarioRootSpanAtomFamily(scenarioId)),
         scenarioAnnotations: (scenarioId: string) =>
@@ -1658,6 +1879,8 @@ export const annotationSessionController = {
         completeAndAdvance: () => getStore().set(completeAndAdvanceAtom),
         closeSession: () => getStore().set(closeSessionAtom),
         setActiveView: (view: SessionView) => getStore().set(setActiveViewAtom, view),
+        applyRouteState: (payload: ApplyRouteStatePayload) =>
+            getStore().set(applyRouteStateAtom, payload),
     },
 
     // ========================================================================

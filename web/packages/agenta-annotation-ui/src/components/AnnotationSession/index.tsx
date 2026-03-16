@@ -21,16 +21,14 @@
  * - Active view state managed by `annotationSessionController.selectors.activeView()`
  */
 
-import {memo, useCallback, useEffect, useMemo} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Editor} from "@agenta/ui/editor"
-import {Info} from "@phosphor-icons/react"
-import {Button, Popover, Progress, Spin, Tabs, Typography} from "antd"
+import {Spin, Tabs, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import ConfigurationView from "./ConfigurationView"
@@ -43,6 +41,11 @@ import ScenarioListView from "./ScenarioListView"
 
 interface AnnotationSessionProps {
     queueId: string
+    routeState: {
+        view: SessionView
+        scenarioId?: string
+    }
+    onActiveViewChange?: (view: SessionView) => void
 }
 
 // ============================================================================
@@ -66,48 +69,7 @@ const SessionTitle = memo(function SessionTitle({queueName}: {queueName: string}
 })
 
 // ============================================================================
-// INSTRUCTIONS POPOVER
-// ============================================================================
-
-const INSTRUCTIONS_EDITOR_ID = "annotation-session-instructions"
-
-const InstructionsTrigger = memo(function InstructionsTrigger({
-    instructions,
-}: {
-    instructions: string
-}) {
-    return (
-        <Popover
-            trigger="click"
-            placement="bottomRight"
-            destroyOnHidden
-            content={
-                <div
-                    className="overflow-y-auto"
-                    style={{
-                        width: "min(640px, calc(100vw - 32px))",
-                        maxHeight: "min(320px, calc(100vh - 160px))",
-                    }}
-                >
-                    <Editor
-                        id={INSTRUCTIONS_EDITOR_ID}
-                        initialValue={instructions}
-                        disabled
-                        showToolbar={false}
-                        showBorder={false}
-                        enableTokens={false}
-                        showMarkdownToggleButton={false}
-                    />
-                </div>
-            }
-        >
-            <Button type="text" size="small" icon={<Info size={16} />} />
-        </Popover>
-    )
-})
-
-// ============================================================================
-// HEADER RIGHT SECTION (progress + tabs + instructions)
+// HEADER RIGHT SECTION
 // ============================================================================
 
 const SessionHeaderRight = memo(function SessionHeaderRight({
@@ -134,22 +96,24 @@ const SessionHeaderRight = memo(function SessionHeaderRight({
 // MAIN COMPONENT
 // ============================================================================
 
-const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
+const AnnotationSession = ({queueId, routeState, onActiveViewChange}: AnnotationSessionProps) => {
     // Queue data from molecule (auto-fetched by queueId)
     const queueQuery = useAtomValue(simpleQueueMolecule.selectors.query(queueId))
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
+    const initialRouteStateRef = useRef(routeState)
+    initialRouteStateRef.current = routeState
 
     // Session controller actions
     const openQueue = useSetAtom(annotationSessionController.actions.openQueue)
     const closeSession = useSetAtom(annotationSessionController.actions.closeSession)
+    const applyRouteState = useSetAtom(annotationSessionController.actions.applyRouteState)
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const markCompleted = useSetAtom(annotationSessionController.actions.markCompleted)
 
     // Session controller selectors — queue-level
-    const progress = useAtomValue(annotationSessionController.selectors.progress())
     const queueName = useAtomValue(annotationSessionController.selectors.queueName())
-    const queueDescription = useAtomValue(annotationSessionController.selectors.queueDescription())
-    const activeView = useAtomValue(annotationSessionController.selectors.activeView())
+    const controllerActiveView = useAtomValue(annotationSessionController.selectors.activeView())
+    const resolvedActiveView = controllerActiveView
 
     // Scenarios — derived reactively from simpleQueueMolecule via the controller
     const scenarioCount = useAtomValue(annotationSessionController.selectors.scenarioIds()).length
@@ -159,13 +123,26 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
     useEffect(() => {
         if (!queueId) return
 
-        openQueue({queueId, queueType: "simple"})
+        const initialRouteState = initialRouteStateRef.current
+        openQueue({
+            queueId,
+            queueType: "simple",
+            initialView: initialRouteState.view,
+            initialScenarioId: initialRouteState.scenarioId ?? null,
+        })
 
         return () => {
             closeSession()
             annotationFormController.set.clearFormState()
         }
-    }, [queueId])
+    }, [queueId, closeSession, openQueue])
+
+    useEffect(() => {
+        applyRouteState({
+            view: routeState.view,
+            scenarioId: routeState.scenarioId,
+        })
+    }, [applyRouteState, routeState.view, routeState.scenarioId, scenarioCount])
 
     // Callbacks for AnnotationPanel notifications
     const handleSaved = useCallback(() => {
@@ -180,21 +157,29 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
         [markCompleted],
     )
 
-    const handleTabChange = useCallback(
-        (key: string) => {
-            setActiveView(key as SessionView)
+    const handleActiveViewChange = useCallback(
+        (nextView: SessionView) => {
+            setActiveView(nextView)
+            if (nextView !== controllerActiveView) {
+                onActiveViewChange?.(nextView)
+            }
         },
-        [setActiveView],
+        [controllerActiveView, onActiveViewChange, setActiveView],
     )
 
-    const percent = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0
+    const handleTabChange = useCallback(
+        (key: string) => {
+            handleActiveViewChange(key as SessionView)
+        },
+        [handleActiveViewChange],
+    )
+
     // Header title (queue name)
     const headerTitle = useMemo(
         () => (
             <div className="flex flex-col items-start">
                 <div className="flex items-center">
                     <SessionTitle queueName={queueName || "Untitled Queue"} />
-                    {/* {queueDescription && <InstructionsTrigger instructions={queueDescription} />} */}
                 </div>
                 {/* Progress */}
                 {/* <div className="flex items-center gap-2 shrink-0">
@@ -210,13 +195,13 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
                 </div> */}
             </div>
         ),
-        [queueName, queueDescription, progress.completed, progress.total, percent],
+        [queueName],
     )
 
-    // Header right section (instructions + progress + tabs)
+    // Header right section (tabs)
     const headerTabs = useMemo(
-        () => <SessionHeaderRight activeView={activeView} onTabChange={handleTabChange} />,
-        [activeView, handleTabChange],
+        () => <SessionHeaderRight activeView={resolvedActiveView} onTabChange={handleTabChange} />,
+        [resolvedActiveView, handleTabChange],
     )
 
     // Loading state — queue query or scenarios query pending
@@ -248,7 +233,7 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
         >
             {/* Content */}
             <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-                {activeView === "configuration" ? (
+                {resolvedActiveView === "configuration" ? (
                     <ConfigurationView queueId={queueId} />
                 ) : scenarioCount === 0 ? (
                     <div className="flex items-center justify-center flex-1 py-20">
@@ -256,17 +241,19 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
                             No items in this queue yet. Add traces or test cases to get started.
                         </Typography.Text>
                     </div>
-                ) : activeView === "list" ? (
+                ) : resolvedActiveView === "list" ? (
                     <ScenarioListView
                         queueId={queueId}
                         onSaved={handleSaved}
                         onCompleted={handleCompleted}
+                        onViewChange={handleActiveViewChange}
                     />
                 ) : (
                     <FocusView
                         queueId={queueId}
                         onSaved={handleSaved}
                         onCompleted={handleCompleted}
+                        onViewChange={handleActiveViewChange}
                     />
                 )}
             </div>

@@ -450,6 +450,28 @@ const scenarioTraceRefAtomFamily = atomFamily(
         a.runId === b.runId && a.scenarioId === b.scenarioId,
 )
 
+/**
+ * Derived atom: extract testcase_id from the "input" step of a scenario.
+ * The input step (or first step with a testcase_id) provides the testcase reference.
+ */
+const scenarioTestcaseRefAtomFamily = atomFamily(
+    ({runId, scenarioId}: ScenarioStepsKey) =>
+        atom((get) => {
+            const query = get(scenarioStepsQueryAtomFamily({runId, scenarioId}))
+            const steps = query.data ?? []
+
+            // Find the first step with a testcase_id (typically the "input" step)
+            for (const step of steps) {
+                if (step.testcase_id) {
+                    return {testcaseId: step.testcase_id}
+                }
+            }
+            return {testcaseId: ""}
+        }),
+    (a: ScenarioStepsKey, b: ScenarioStepsKey) =>
+        a.runId === b.runId && a.scenarioId === b.scenarioId,
+)
+
 // ============================================================================
 // CACHE INVALIDATION
 // ============================================================================
@@ -508,6 +530,8 @@ export const evaluationRunMolecule = {
         scenarioSteps: scenarioStepsQueryAtomFamily,
         /** Trace/span reference for a scenario (derived from steps) */
         scenarioTraceRef: scenarioTraceRefAtomFamily,
+        /** Testcase reference for a scenario (derived from steps) */
+        scenarioTestcaseRef: scenarioTestcaseRefAtomFamily,
     },
 
     // ========================================================================
@@ -548,6 +572,8 @@ export const evaluationRunMolecule = {
             getStore(options).get(scenarioInvocationStepKeyAtomFamily({runId, scenarioId})),
         scenarioTraceRef: (runId: string, scenarioId: string, options?: StoreOptions) =>
             getStore(options).get(scenarioTraceRefAtomFamily({runId, scenarioId})),
+        scenarioTestcaseRef: (runId: string, scenarioId: string, options?: StoreOptions) =>
+            getStore(options).get(scenarioTestcaseRefAtomFamily({runId, scenarioId})),
     },
 
     // ========================================================================

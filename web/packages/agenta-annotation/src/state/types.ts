@@ -17,6 +17,15 @@ export interface OpenQueuePayload {
     queueType: QueueType
     /** Optional pre-fetched scenario IDs (avoids extra API call) */
     scenarioIds?: string[]
+    /** Optional initial view from route state. */
+    initialView?: SessionView
+    /** Optional initial focused scenario from route state. */
+    initialScenarioId?: string | null
+}
+
+export interface ApplyRouteStatePayload {
+    view?: SessionView
+    scenarioId?: string | null
 }
 
 /**

@@ -11,7 +11,7 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
-import type {AnnotationColumnDef, ScenarioListColumnDef} from "@agenta/annotation"
+import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {
     traceRootSpanAtomFamily,
@@ -19,7 +19,6 @@ import {
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
 import {
-    LastInputMessageCell,
     SmartCellContent,
     MetricCellContent,
     MetricValueDisplay,
@@ -59,6 +58,51 @@ import AnnotationPanel from "./AnnotationPanel"
 import SessionNavigation from "./SessionNavigation"
 
 // ============================================================================
+// TESTCASE CELL RENDERERS
+// ============================================================================
+
+/**
+ * Renders a testcase data field value for a scenario row.
+ * Fetches testcase data via scenarioTestcaseRef → testcaseData.
+ */
+const TestcaseDataCell = memo(function TestcaseDataCell({
+    scenarioId,
+    dataKey,
+    chatPreference,
+}: {
+    scenarioId: string
+    dataKey: string
+    chatPreference?: "input" | "output"
+}) {
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
+    )
+    const testcaseQuery = useAtomValue(
+        annotationSessionController.selectors.testcaseData(testcaseRef.testcaseId || ""),
+    )
+    const testcase = testcaseQuery?.data
+
+    if (!testcaseRef.testcaseId || testcaseQuery?.isPending) {
+        return <Typography.Text type="secondary">...</Typography.Text>
+    }
+
+    const value = testcase?.data?.[dataKey] ?? null
+
+    if (value === null || value === undefined) {
+        return <Typography.Text type="secondary">—</Typography.Text>
+    }
+
+    return (
+        <SmartCellContent
+            value={value}
+            keyPrefix={`tc-${dataKey}-${scenarioId}`}
+            maxLines={3}
+            chatPreference={chatPreference}
+        />
+    )
+})
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -68,6 +112,7 @@ interface ScenarioListViewProps {
     queueId: string
     onSaved: () => void
     onCompleted: (scenarioId: string) => void
+    onViewChange?: (view: SessionView) => void
 }
 
 /** Row shape for the IVT. Extends scenario data with table-required fields. */
@@ -99,17 +144,6 @@ const DEFAULT_STATUS_TAG = {color: "default", label: "Pending"}
 // ============================================================================
 // HELPERS
 // ============================================================================
-
-/**
- * Read a value from the scenario, supporting `meta.xxx` paths.
- */
-function readValue(scenario: ScenarioRecord, columnKey: string): unknown {
-    if (columnKey.startsWith("meta.")) {
-        const meta = scenario.meta as Record<string, unknown> | null | undefined
-        return meta?.[columnKey.slice(5)] ?? null
-    }
-    return scenario[columnKey] ?? null
-}
 
 /**
  * Extract trace_id from scenario record directly.
@@ -478,7 +512,7 @@ function mapDefToColumn(
     actions: {
         setDrawerScenarioId: (id: string) => void
         navigateToIndex: (index: number) => void
-        setActiveView: (view: "list" | "annotate") => void
+        setActiveView: (view: SessionView) => void
     },
     collapsedGroups: Set<string>,
     toggleGroupCollapse: (groupKey: string) => void,
@@ -618,47 +652,33 @@ function mapDefToColumn(
         case "testcase-input":
             return {
                 ...base,
-                render: (_value: unknown, record: ScenarioTableRow) => {
-                    const value = readValue(record.raw, def.dataKey)
-                    return (
-                        <LastInputMessageCell
-                            value={value}
-                            keyPrefix={`tc-input-${def.dataKey}-${record.key}`}
-                            maxLines={3}
-                        />
-                    )
-                },
+                render: (_value: unknown, record: ScenarioTableRow) => (
+                    <TestcaseDataCell
+                        scenarioId={record.scenarioId}
+                        dataKey={def.dataKey}
+                        chatPreference="input"
+                    />
+                ),
             }
 
         case "testcase-output":
             return {
                 ...base,
-                render: (_value: unknown, record: ScenarioTableRow) => {
-                    const value = readValue(record.raw, def.dataKey)
-                    return (
-                        <SmartCellContent
-                            value={value}
-                            keyPrefix={`tc-output-${def.dataKey}-${record.key}`}
-                            maxLines={3}
-                            chatPreference="output"
-                        />
-                    )
-                },
+                render: (_value: unknown, record: ScenarioTableRow) => (
+                    <TestcaseDataCell
+                        scenarioId={record.scenarioId}
+                        dataKey={def.dataKey}
+                        chatPreference="output"
+                    />
+                ),
             }
 
         case "testcase-expected":
             return {
                 ...base,
-                render: (_value: unknown, record: ScenarioTableRow) => {
-                    const value = readValue(record.raw, def.dataKey)
-                    return (
-                        <SmartCellContent
-                            value={value}
-                            keyPrefix={`tc-expected-${def.dataKey}-${record.key}`}
-                            maxLines={3}
-                        />
-                    )
-                },
+                render: (_value: unknown, record: ScenarioTableRow) => (
+                    <TestcaseDataCell scenarioId={record.scenarioId} dataKey={def.dataKey} />
+                ),
             }
 
         case "annotation": {
@@ -814,6 +834,9 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId ?? ""),
     )
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId ?? ""),
+    )
 
     const scenario = useMemo(
         () => scenarios.find((s) => s.id === scenarioId) ?? null,
@@ -867,6 +890,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                             scenario={scenario}
                             queueKind={queueKind || "traces"}
                             traceId={effectiveTraceId}
+                            testcaseId={testcaseRef.testcaseId}
                         />
                     </div>
 
@@ -903,10 +927,22 @@ const ScenarioListView = memo(function ScenarioListView({
     queueId,
     onSaved,
     onCompleted,
+    onViewChange,
 }: ScenarioListViewProps) {
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
     const listColumnDefs = useAtomValue(annotationSessionController.selectors.listColumnDefs())
+    const handleViewChange = useCallback(
+        (view: SessionView) => {
+            if (onViewChange) {
+                onViewChange(view)
+                return
+            }
+
+            setActiveView(view)
+        },
+        [onViewChange, setActiveView],
+    )
 
     // Read scenarios and statuses from controller (derived from simpleQueueMolecule)
     const scenarios = useAtomValue(
@@ -948,7 +984,7 @@ const ScenarioListView = memo(function ScenarioListView({
         const columnActions = {
             setDrawerScenarioId,
             navigateToIndex,
-            setActiveView,
+            setActiveView: handleViewChange,
         }
         return listColumnDefs.map((def) =>
             mapDefToColumn(def, columnActions, collapsedGroups, toggleGroupCollapse),
@@ -957,7 +993,7 @@ const ScenarioListView = memo(function ScenarioListView({
         listColumnDefs,
         setDrawerScenarioId,
         navigateToIndex,
-        setActiveView,
+        handleViewChange,
         collapsedGroups,
         toggleGroupCollapse,
     ])

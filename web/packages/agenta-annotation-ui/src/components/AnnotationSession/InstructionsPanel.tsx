@@ -1,8 +1,8 @@
 /**
- * InstructionsPanel
+ * QueueDescriptionPanel
  *
- * Popover trigger for the queue's description/instructions.
- * Keeping the instructions in an overlay avoids pushing the session layout down.
+ * Popover trigger for the queue description.
+ * Keeping the description in an overlay avoids pushing the session layout down.
  */
 
 import {memo, useState} from "react"
@@ -10,11 +10,13 @@ import {memo, useState} from "react"
 import {CaretDown, Info} from "@phosphor-icons/react"
 import {Popover, Typography} from "antd"
 
-interface InstructionsPanelProps {
-    instructions: string
+interface QueueDescriptionPanelProps {
+    description: string
 }
 
-const InstructionsPanel = memo(function InstructionsPanel({instructions}: InstructionsPanelProps) {
+const QueueDescriptionPanel = memo(function QueueDescriptionPanel({
+    description,
+}: QueueDescriptionPanelProps) {
     const [open, setOpen] = useState(false)
 
     return (
@@ -35,7 +37,7 @@ const InstructionsPanel = memo(function InstructionsPanel({instructions}: Instru
                         }}
                     >
                         <Typography.Text className="block whitespace-pre-wrap text-sm leading-6 text-[var(--ant-color-text)]">
-                            {instructions}
+                            {description}
                         </Typography.Text>
                     </div>
                 }
@@ -47,7 +49,7 @@ const InstructionsPanel = memo(function InstructionsPanel({instructions}: Instru
                 >
                     <Info size={14} className="shrink-0 text-[#758391]" />
                     <Typography.Text type="secondary" className="text-xs font-medium flex-1">
-                        Instructions
+                        Description
                     </Typography.Text>
                     <CaretDown
                         size={12}
@@ -59,4 +61,4 @@ const InstructionsPanel = memo(function InstructionsPanel({instructions}: Instru
     )
 })
 
-export default InstructionsPanel
+export default QueueDescriptionPanel

@@ -1,7 +1,11 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {workspaceMembersAtom} from "@agenta/entities/shared"
-import {createSimpleQueueAtom, type CreateSimpleQueuePayload} from "@agenta/entities/simpleQueue"
+import {
+    createSimpleQueueAtom,
+    simpleQueueMolecule,
+    type CreateSimpleQueuePayload,
+} from "@agenta/entities/simpleQueue"
 import {
     EntityPicker,
     type EntitySelectionResult,
@@ -10,12 +14,15 @@ import {
 } from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, VersionBadge, message} from "@agenta/ui"
-import {SharedEditor} from "@agenta/ui/shared-editor"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Divider, Drawer, Form, Input, InputNumber, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {createQueueDrawerOpenAtom} from "../../state/atoms"
+import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "../../state/atoms"
 
 interface EvaluatorSlot {
     /** Revision ID sent to backend */
@@ -28,7 +35,6 @@ interface FormValues {
     name: string
     kind: "traces" | "testcases"
     description?: string
-    instructions?: string
     repeats: number
     assignments?: string[][]
     batch_size?: number | null
@@ -40,6 +46,10 @@ interface CreateQueueDrawerContentProps {
     onClose: () => void
     onSetSubmitting: (next: boolean) => void
     onRegisterSubmit: (submit: (() => void) | null) => void
+    defaultKind: "traces" | "testcases"
+    selection: {itemType: "traces" | "testcases"; itemIds: string[]} | null
+    onClearSelection: () => void
+    onItemsAdded?: () => void
 }
 
 const INITIAL_FORM_VALUES: Pick<FormValues, "kind" | "repeats"> = {
@@ -93,10 +103,16 @@ function CreateQueueDrawerContent({
     onClose,
     onSetSubmitting,
     onRegisterSubmit,
+    defaultKind,
+    selection,
+    onClearSelection,
+    onItemsAdded,
 }: CreateQueueDrawerContentProps) {
     const projectId = useAtomValue(projectIdAtom)
     const members = useAtomValue(workspaceMembersAtom)
     const createQueue = useSetAtom(createSimpleQueueAtom)
+    const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
+    const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
     const evaluatorAdapter = useEnrichedAnnotationEvaluatorAdapter()
     const [form] = Form.useForm<FormValues>()
     const [evaluatorSlots, setEvaluatorSlots] = useState<EvaluatorSlot[]>(
@@ -113,6 +129,10 @@ function CreateQueueDrawerContent({
             form.setFieldValue("assignments", undefined)
         }
     }, [form, hasHumanEvaluatorSelected])
+
+    useEffect(() => {
+        form.setFieldValue("kind", selection?.itemType ?? defaultKind)
+    }, [defaultKind, form, selection])
 
     const memberOptions = useMemo(
         () =>
@@ -185,6 +205,14 @@ function CreateQueueDrawerContent({
 
             try {
                 const normalizedRepeats = Math.max(values.repeats ?? 1, 1)
+                if (selection && values.kind !== selection.itemType) {
+                    message.error(
+                        `Selected ${selection.itemType === "traces" ? "traces" : "test cases"} can only be added to a ${selection.itemType} queue`,
+                    )
+                    onSetSubmitting(false)
+                    return
+                }
+
                 const evaluatorRevisionIds = evaluatorSlots
                     .map((slot) => slot.revisionId)
                     .filter((id): id is string => Boolean(id))
@@ -196,11 +224,9 @@ function CreateQueueDrawerContent({
                           .filter((row) => row.length > 0)
                     : []
 
-                const descriptionParts = [values.description, values.instructions].filter(Boolean)
-
                 const payload: CreateSimpleQueuePayload = {
                     name: values.name,
-                    description: descriptionParts.join("\n\n") || null,
+                    description: values.description || null,
                     data: {
                         kind: values.kind,
                         evaluators:
@@ -227,6 +253,27 @@ function CreateQueueDrawerContent({
                     onSetSubmitting(false)
                     return
                 }
+
+                if (selection?.itemIds.length) {
+                    const attachResult =
+                        selection.itemType === "traces"
+                            ? await addTraces(result.id, selection.itemIds)
+                            : await addTestcases(result.id, selection.itemIds)
+
+                    if (!attachResult) {
+                        onClearSelection()
+                        onSetSubmitting(false)
+                        onClose()
+                        message.error(
+                            `Queue was created, but failed to add the selected ${selection.itemType === "traces" ? "traces" : "test cases"}`,
+                        )
+                        return
+                    }
+
+                    onItemsAdded?.()
+                }
+
+                onClearSelection()
                 message.success("Annotation queue created")
                 onSetSubmitting(false)
                 onClose()
@@ -238,12 +285,17 @@ function CreateQueueDrawerContent({
             }
         },
         [
+            addTestcases,
+            addTraces,
             createQueue,
             evaluatorSlots,
             hasHumanEvaluatorSelected,
             onClose,
+            onClearSelection,
+            onItemsAdded,
             onSetSubmitting,
             projectId,
+            selection,
         ],
     )
 
@@ -251,7 +303,7 @@ function CreateQueueDrawerContent({
         <Form<FormValues>
             form={form}
             layout="vertical"
-            initialValues={INITIAL_FORM_VALUES}
+            initialValues={{...INITIAL_FORM_VALUES, kind: defaultKind}}
             onFinish={handleFinish}
             disabled={isSubmitting}
             requiredMark={false}
@@ -272,10 +324,30 @@ function CreateQueueDrawerContent({
 
                     <Form.Item
                         className={COMPACT_FORM_ITEM_CLASS}
+                        name="kind"
+                        label={<FieldLabel>Queue type</FieldLabel>}
+                        rules={[{required: true, message: "Type is required"}]}
+                        style={{marginTop: 16}}
+                    >
+                        <Select
+                            options={[
+                                {label: "Traces", value: "traces"},
+                                {label: "Test cases", value: "testcases"},
+                            ]}
+                            disabled={Boolean(selection)}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        className={COMPACT_FORM_ITEM_CLASS}
                         name="description"
                         label={<FieldLabel>Description</FieldLabel>}
+                        style={{marginTop: 16}}
                     >
-                        <Input.TextArea rows={2} placeholder="Enter description" />
+                        <Input.TextArea
+                            rows={2}
+                            placeholder="Enter description or reviewer guidance"
+                        />
                     </Form.Item>
                 </div>
 
@@ -284,23 +356,6 @@ function CreateQueueDrawerContent({
                 {/* ── Annotation details ── */}
                 <div className="flex flex-col gap-4 px-6 py-6">
                     <SectionTitle>Annotation details</SectionTitle>
-
-                    <Form.Item
-                        className={COMPACT_FORM_ITEM_CLASS}
-                        label={<FieldLabel>Instructions</FieldLabel>}
-                    >
-                        <SharedEditor
-                            initialValue=""
-                            placeholder="Enter clear instructions for reviewers performing annotations."
-                            editorType="border"
-                            handleChange={(value) => form.setFieldValue("instructions", value)}
-                            editorProps={{
-                                showToolbar: false,
-                                showMarkdownToggleButton: true,
-                                enableTokens: false,
-                            }}
-                        />
-                    </Form.Item>
 
                     <div className="flex flex-col gap-2">
                         <FieldLabel>Feedback</FieldLabel>
@@ -413,8 +468,14 @@ function CreateQueueDrawerContent({
     )
 }
 
-const CreateQueueDrawer = () => {
+interface CreateQueueDrawerProps {
+    onItemsAdded?: () => void
+}
+
+const CreateQueueDrawer = ({onItemsAdded}: CreateQueueDrawerProps) => {
     const [open, setOpen] = useAtom(createQueueDrawerOpenAtom)
+    const defaultKind = useAtomValue(createQueueDrawerDefaultKindAtom)
+    const [selection, setSelection] = useAtom(createQueueDrawerSelectionAtom)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [shouldRenderContent, setShouldRenderContent] = useState(false)
     const submitRef = useRef<(() => void) | null>(null)
@@ -427,8 +488,9 @@ const CreateQueueDrawer = () => {
 
     const handleClose = useCallback(() => {
         if (isSubmitting) return
+        setSelection(null)
         setOpen(false)
-    }, [isSubmitting, setOpen])
+    }, [isSubmitting, setOpen, setSelection])
 
     const handleAfterOpenChange = useCallback((nextOpen: boolean) => {
         if (!nextOpen) {
@@ -445,6 +507,10 @@ const CreateQueueDrawer = () => {
     const handleSubmit = useCallback(() => {
         submitRef.current?.()
     }, [])
+
+    const handleClearSelection = useCallback(() => {
+        setSelection(null)
+    }, [setSelection])
 
     return (
         <Drawer
@@ -477,6 +543,10 @@ const CreateQueueDrawer = () => {
                     onClose={handleClose}
                     onSetSubmitting={setIsSubmitting}
                     onRegisterSubmit={handleRegisterSubmit}
+                    defaultKind={defaultKind}
+                    selection={selection}
+                    onClearSelection={handleClearSelection}
+                    onItemsAdded={onItemsAdded}
                 />
             ) : null}
         </Drawer>

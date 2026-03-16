@@ -23,6 +23,14 @@ export interface TraceContentRendererProps {
 }
 
 /**
+ * Props for the testcase content renderer slot.
+ * Injected by the host app (OSS/EE) to provide rich testcase rendering.
+ */
+export interface TestcaseContentRendererProps {
+    testcaseId: string
+}
+
+/**
  * Props for the metric popover wrapper slot.
  * Injected by the host app to provide metric detail popovers on hover.
  */
@@ -44,6 +52,8 @@ export interface AnnotationUIContextValue {
     navigation: AnnotationUINavigation
     /** Optional rich trace content renderer injected by host app */
     TraceContentRenderer?: React.ComponentType<TraceContentRendererProps>
+    /** Optional rich testcase content renderer injected by host app */
+    TestcaseContentRenderer?: React.ComponentType<TestcaseContentRendererProps>
     /** Optional metric popover wrapper injected by host app */
     MetricPopoverWrapper?: React.ComponentType<MetricPopoverWrapperProps>
 }
@@ -54,6 +64,8 @@ export interface AnnotationUIProviderProps {
     navigation: AnnotationUINavigation
     /** Optional rich trace content renderer injected by host app */
     TraceContentRenderer?: React.ComponentType<TraceContentRendererProps>
+    /** Optional rich testcase content renderer injected by host app */
+    TestcaseContentRenderer?: React.ComponentType<TestcaseContentRendererProps>
     /** Optional metric popover wrapper injected by host app */
     MetricPopoverWrapper?: React.ComponentType<MetricPopoverWrapperProps>
     children: ReactNode
@@ -62,12 +74,13 @@ export interface AnnotationUIProviderProps {
 export function AnnotationUIProvider({
     navigation,
     TraceContentRenderer,
+    TestcaseContentRenderer,
     MetricPopoverWrapper,
     children,
 }: AnnotationUIProviderProps) {
     const value = useMemo(
-        () => ({navigation, TraceContentRenderer, MetricPopoverWrapper}),
-        [navigation, TraceContentRenderer, MetricPopoverWrapper],
+        () => ({navigation, TraceContentRenderer, TestcaseContentRenderer, MetricPopoverWrapper}),
+        [navigation, TraceContentRenderer, TestcaseContentRenderer, MetricPopoverWrapper],
     )
     return <AnnotationUIContext.Provider value={value}>{children}</AnnotationUIContext.Provider>
 }
@@ -87,6 +100,11 @@ export function useAnnotationNavigation(): AnnotationUINavigation {
 export function useTraceContentRenderer(): React.ComponentType<TraceContentRendererProps> | null {
     const ctx = useContext(AnnotationUIContext)
     return ctx?.TraceContentRenderer ?? null
+}
+
+export function useTestcaseContentRenderer(): React.ComponentType<TestcaseContentRendererProps> | null {
+    const ctx = useContext(AnnotationUIContext)
+    return ctx?.TestcaseContentRenderer ?? null
 }
 
 export function useMetricPopoverWrapper(): React.ComponentType<MetricPopoverWrapperProps> | null {

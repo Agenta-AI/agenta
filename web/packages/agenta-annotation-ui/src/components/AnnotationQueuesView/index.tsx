@@ -16,6 +16,7 @@ import {
 import {ArrowRight, PlusIcon} from "@phosphor-icons/react"
 import {Button, Divider, Input, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
 import {
@@ -120,7 +121,7 @@ const QueuesFiltersContent = ({onClose}: {onClose: () => void}) => {
     }, [draftKind, setKindFilter, onClose])
 
     return (
-        <div className="flex flex-col gap-4 p-4 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[240px]">
+        <div className="flex flex-col gap-4 min-w-[240px]">
             <div className="flex flex-col gap-2">
                 <Typography.Text strong className="text-gray-700">
                     Type
@@ -393,6 +394,7 @@ const AnnotationQueuesView = () => {
                 primaryActions={createButton}
                 tableProps={tableProps}
                 autoHeight
+                store={getDefaultStore()}
             />
             <CreateQueueDrawer />
         </div>

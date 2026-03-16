@@ -242,6 +242,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         onCommit={() => setIsCommitModalOpen(true)}
                         onImportCSV={() => setIsImportModalOpen(true)}
                         isNewTestset={isNewTestset}
+                        selectedRowKeys={selectedRowKeys}
                     />
                 }
             />

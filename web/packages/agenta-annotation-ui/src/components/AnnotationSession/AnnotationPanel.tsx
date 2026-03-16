@@ -116,7 +116,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
     const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
-    // Queue-level info for instructions popover
+    // Queue-level description shown in the helper popover
     const queueDescription = useAtomValue(annotationSessionController.selectors.queueDescription())
     const [errors, setErrors] = useState<string[]>([])
 
@@ -213,7 +213,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                                 }}
                             >
                                 <Editor
-                                    id="annotation-panel-instructions"
+                                    id="annotation-panel-description"
                                     initialValue={queueDescription}
                                     disabled
                                     showToolbar={false}
@@ -274,7 +274,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                 />
             ))}
 
-            {/* Instructions + Form fields */}
+            {/* Queue description helper + form fields */}
             <div className="flex-1 overflow-y-auto">
                 <Collapse
                     activeKey={activeKeys}
