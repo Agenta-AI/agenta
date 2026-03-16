@@ -17,7 +17,7 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {AnnotationMetricField} from "@agenta/annotation"
 import {Editor} from "@agenta/ui/editor"
-import {ArrowSquareOut, Info} from "@phosphor-icons/react"
+import {Info} from "@phosphor-icons/react"
 import {Alert, Button, Collapse, Popover, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -228,7 +228,6 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     </Popover>
                 )}
             </div>
-            <Button type="text" size="small" icon={<ArrowSquareOut size={14} />} />
         </div>
     )
 

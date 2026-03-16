@@ -79,5 +79,6 @@ export interface UpdateAnnotationPayload {
     annotation: {
         data: {outputs?: Record<string, unknown>}
         meta?: {name?: string; description?: string; tags?: string[]}
+        links?: Record<string, {trace_id?: string; span_id?: string}>
     }
 }

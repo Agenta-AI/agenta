@@ -350,13 +350,22 @@ const AnnotationTasksView = () => {
 
     return (
         <div className="flex flex-col h-full min-h-0 grow w-full">
-            <InfiniteVirtualTableFeatureShell<SimpleQueueTaskRow>
-                {...table.shellProps}
-                columns={columns}
-                filters={filtersNode}
-                tableProps={tableProps}
-                autoHeight
-            />
+            {selectedQueueId ? (
+                <InfiniteVirtualTableFeatureShell<SimpleQueueTaskRow>
+                    {...table.shellProps}
+                    columns={columns}
+                    filters={filtersNode}
+                    tableProps={tableProps}
+                    autoHeight
+                />
+            ) : (
+                <>
+                    <div className="shrink-0 px-4 pt-4">{filtersNode}</div>
+                    <div className="flex-1 min-h-0 overflow-auto">
+                        <TasksNoQueueEmptyState />
+                    </div>
+                </>
+            )}
         </div>
     )
 }
