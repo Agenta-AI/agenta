@@ -31,7 +31,15 @@ import {
     createActionsColumn,
     type TableScopeConfig,
 } from "@agenta/ui/table"
-import {ArrowSquareOut, CaretDown, CaretRight, Check, NotePencil, Eye} from "@phosphor-icons/react"
+import {
+    ArrowSquareOut,
+    CaretDown,
+    CaretRight,
+    Check,
+    NotePencil,
+    Eye,
+    CaretDoubleRightIcon,
+} from "@phosphor-icons/react"
 import {Button, Drawer, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -48,6 +56,7 @@ const isDistributionType = (stats: Record<string, unknown> | undefined): boolean
 }
 
 import AnnotationPanel from "./AnnotationPanel"
+import SessionNavigation from "./SessionNavigation"
 
 // ============================================================================
 // TYPES
@@ -835,16 +844,23 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
         <Drawer
             open={open}
             onClose={onClose}
-            title="Annotate Scenario"
+            title={
+                <div className="w-full flex items-center gap-2">
+                    <Typography.Text className="whitespace-nowrap">
+                        Annotate Scenario
+                    </Typography.Text>
+                    {/* <SessionNavigation /> */}
+                </div>
+            }
             extra={drawerExtra}
             destroyOnClose
             styles={{
-                body: {padding: 0, display: "flex", flexDirection: "row"},
+                body: {padding: 24, display: "flex", flexDirection: "row"},
                 wrapper: {width: 1100},
             }}
         >
             {scenarioId && (
-                <div className="flex flex-row h-full w-full">
+                <div className="flex flex-row h-full w-full gap-4">
                     {/* Left panel: Scenario content */}
                     <div className="flex-1 overflow-y-auto">
                         <ScenarioContent
@@ -855,7 +871,7 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0">
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
                         <AnnotationPanel
                             scenarioId={scenarioId}
                             queueId={queueId}

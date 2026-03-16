@@ -112,11 +112,11 @@ const FocusView = memo(function FocusView({queueId, onSaved, onCompleted}: Focus
     }
 
     return (
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
             {/* Top navigation (includes trace info) */}
             <SessionNavigation />
 
-            <div className="flex-1 flex overflow-hidden min-h-0">
+            <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
                 {/* Scenario content */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                     <ScenarioContent
@@ -127,7 +127,7 @@ const FocusView = memo(function FocusView({queueId, onSaved, onCompleted}: Focus
                 </div>
 
                 {/* Annotation panel */}
-                <div className="w-[340px] min-w-[280px]">
+                <div className="w-[340px] min-w-[280px] border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
                     <AnnotationPanel
                         scenarioId={currentScenarioId ?? ""}
                         queueId={queueId}

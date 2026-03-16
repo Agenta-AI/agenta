@@ -18,7 +18,11 @@ import {Button, Divider, Input, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
-import {createQueueDrawerOpenAtom} from "../../state/atoms"
+import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 
 import AssignmentsCell from "./cells/AssignmentsCell"
@@ -35,33 +39,20 @@ const ANNOTATION_QUEUES_DOCS_URL = "https://docs.agenta.ai"
 function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
     return (
         <div className="px-4 py-6">
-            <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center rounded-[24px] border border-zinc-200 bg-[linear-gradient(180deg,rgba(248,250,252,0.96)_0%,rgba(255,255,255,1)_72%)] px-6 py-10 shadow-sm">
-                <div className="flex max-w-xl flex-col items-center text-center">
-                    <Typography.Title
-                        level={2}
-                        className="!mb-3 !text-2xl !font-semibold !leading-tight !tracking-[-0.02em] !text-zinc-900 md:!text-4xl"
-                    >
+            <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center">
+                <div className="flex max-w-xl flex-col items-center text-center gap-3">
+                    <Typography.Text className="text-lg font-semibold">
                         Create your first annotation queue
-                    </Typography.Title>
-                    <Typography.Paragraph className="!mb-6 !max-w-xl !text-sm !leading-6 !text-zinc-600 md:!text-base md:!leading-7">
+                    </Typography.Text>
+                    <Typography.Text>
                         Route trace and test case reviews into a shared queue, assign work, and keep
                         annotation progress visible in one place.
-                    </Typography.Paragraph>
-                    <div className="flex w-full flex-col items-stretch justify-center gap-3 sm:w-auto sm:flex-row">
-                        <Button
-                            type="primary"
-                            icon={<PlusIcon size={16} />}
-                            className="!h-11 !rounded-2xl !px-6 !font-medium"
-                            onClick={onCreate}
-                        >
+                    </Typography.Text>
+                    <div className="flex gap-2 mt-5">
+                        <Button type="primary" icon={<PlusIcon size={16} />} onClick={onCreate}>
                             New Queue
                         </Button>
-                        <Button
-                            className="!h-11 !rounded-2xl !border-zinc-300 !px-6 !font-medium !text-zinc-700 hover:!border-zinc-400 hover:!text-zinc-900"
-                            href={ANNOTATION_QUEUES_DOCS_URL}
-                            target="_blank"
-                            rel="noreferrer"
-                        >
+                        <Button href={ANNOTATION_QUEUES_DOCS_URL} target="_blank" rel="noreferrer">
                             <span className="flex items-center gap-2">
                                 Learn More
                                 <ArrowRight size={16} />
@@ -190,13 +181,17 @@ const AnnotationQueuesView = () => {
     const searchTerm = useAtomValue(simpleQueueSearchTermAtom)
     const kindFilter = useAtomValue(simpleQueueKindFilterAtom)
     const setDrawerOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const setDrawerDefaultKind = useSetAtom(createQueueDrawerDefaultKindAtom)
+    const setDrawerSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setSearchTerm = useSetAtom(simpleQueueSearchTermAtom)
     const normalizedSearchTerm = searchTerm.trim()
     const hasSearchQuery = normalizedSearchTerm.length > 0
 
     const openCreateQueueDrawer = useCallback(() => {
+        setDrawerSelection(null)
+        setDrawerDefaultKind("traces")
         setDrawerOpen(true)
-    }, [setDrawerOpen])
+    }, [setDrawerDefaultKind, setDrawerOpen, setDrawerSelection])
 
     const handleRowClick = useCallback(
         (record: SimpleQueueTableRow) => {

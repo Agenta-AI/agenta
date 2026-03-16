@@ -194,10 +194,10 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
             <div className="flex flex-col items-start">
                 <div className="flex items-center">
                     <SessionTitle queueName={queueName || "Untitled Queue"} />
-                    {queueDescription && <InstructionsTrigger instructions={queueDescription} />}
+                    {/* {queueDescription && <InstructionsTrigger instructions={queueDescription} />} */}
                 </div>
                 {/* Progress */}
-                <div className="flex items-center gap-2 shrink-0">
+                {/* <div className="flex items-center gap-2 shrink-0">
                     <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
                         {progress.completed} / {progress.total} complete
                     </Typography.Text>
@@ -207,7 +207,7 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
                         className="w-24 !mb-0"
                         showInfo={false}
                     />
-                </div>
+                </div> */}
             </div>
         ),
         [queueName, queueDescription, progress.completed, progress.total, percent],
@@ -242,7 +242,7 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
     return (
         <PageLayout
             title={headerTitle}
-            titleLevel={3}
+            titleLevel={4}
             headerTabs={headerTabs}
             className="h-full min-h-0"
         >

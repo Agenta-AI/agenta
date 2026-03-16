@@ -130,8 +130,7 @@ const BooleanBar = memo(function BooleanBar({
                         <div
                             className="w-full h-1 rounded-l-lg"
                             style={{
-                                backgroundColor:
-                                    trueSeg.value > 0 ? TRUE_SEGMENT_COLOR : TRACK_BG,
+                                backgroundColor: trueSeg.value > 0 ? TRUE_SEGMENT_COLOR : TRACK_BG,
                                 minWidth: trueSeg.value > 0 ? 1 : 0,
                             }}
                         />
