@@ -103,9 +103,6 @@ export function EntityPicker<TSelection = EntitySelectionResult>(
         case "tree-select":
             return <TreeSelectVariant {...props} />
 
-        case "cascader":
-            return <CascaderVariant {...props} />
-
         case "popover-cascader":
             return <PopoverCascaderVariant {...props} />
 

@@ -52,7 +52,7 @@ import {
 } from "@agenta/entities/trace"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, type Getter, type Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -1539,8 +1539,8 @@ function setFocusedScenarioId({
     scenarioId,
     notify = false,
 }: {
-    get: any
-    set: any
+    get: Getter
+    set: Setter
     scenarioId: string | null
     notify?: boolean
 }) {

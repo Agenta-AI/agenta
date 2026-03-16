@@ -35,6 +35,16 @@ const kindColorMap: Record<string, string> = {
     testcases: "green",
 }
 
+const queueStatusTagMap: Record<string, {color: string; label: string}> = {
+    pending: {color: "default", label: "Pending"},
+    queued: {color: "processing", label: "Queued"},
+    running: {color: "processing", label: "Running"},
+    success: {color: "success", label: "Completed"},
+    failure: {color: "error", label: "Failed"},
+    errors: {color: "error", label: "Errors"},
+    cancelled: {color: "warning", label: "Cancelled"},
+}
+
 const ANNOTATION_QUEUES_DOCS_URL = "https://docs.agenta.ai"
 
 function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
@@ -256,6 +266,27 @@ const AnnotationQueuesView = () => {
                         return (
                             <div className="h-full flex items-center">
                                 <QueueProgressCell queueId={record.id} />
+                            </div>
+                        )
+                    },
+                },
+                {
+                    type: "text",
+                    key: "status",
+                    title: "Status",
+                    width: 140,
+                    render: (_value, record) => {
+                        if (record.__isSkeleton) return null
+
+                        const statusKey = (record.status ?? "pending").toLowerCase()
+                        const status = queueStatusTagMap[statusKey] ?? {
+                            color: "default",
+                            label: statusKey.charAt(0).toUpperCase() + statusKey.slice(1),
+                        }
+
+                        return (
+                            <div className="h-full flex items-center">
+                                <Tag color={status.color}>{status.label}</Tag>
                             </div>
                         )
                     },

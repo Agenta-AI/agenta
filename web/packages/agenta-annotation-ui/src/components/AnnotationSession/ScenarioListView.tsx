@@ -30,15 +30,7 @@ import {
     createActionsColumn,
     type TableScopeConfig,
 } from "@agenta/ui/table"
-import {
-    ArrowSquareOut,
-    CaretDown,
-    CaretRight,
-    Check,
-    NotePencil,
-    Eye,
-    CaretDoubleRightIcon,
-} from "@phosphor-icons/react"
+import {ArrowSquareOut, CaretDown, CaretRight, Check, NotePencil, Eye} from "@phosphor-icons/react"
 import {Button, Drawer, Tag, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -55,7 +47,6 @@ const isDistributionType = (stats: Record<string, unknown> | undefined): boolean
 }
 
 import AnnotationPanel from "./AnnotationPanel"
-import SessionNavigation from "./SessionNavigation"
 
 // ============================================================================
 // TESTCASE CELL RENDERERS
