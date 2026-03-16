@@ -67,16 +67,6 @@ class WebhooksRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
-            "/subscriptions/test-draft",
-            self.test_draft_webhook,
-            methods=["POST"],
-            operation_id="test_webhook_subscription_draft_compat",
-            response_model=WebhookDeliveryResponse,
-            response_model_exclude_none=True,
-            status_code=status.HTTP_200_OK,
-            deprecated=True,
-        )
-        self.router.add_api_route(
             "/subscriptions/{subscription_id}",
             self.fetch_subscription,
             methods=["GET"],
@@ -109,16 +99,6 @@ class WebhooksRouter:
             response_model=WebhookSubscriptionsResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
-        )
-        self.router.add_api_route(
-            "/subscriptions/{subscription_id}/test",
-            self.test_webhook,
-            methods=["POST"],
-            operation_id="test_webhook_subscription_by_id_compat",
-            response_model=WebhookDeliveryResponse,
-            response_model_exclude_none=True,
-            status_code=status.HTTP_200_OK,
-            deprecated=True,
         )
 
         # --- WEBHOOK DELIVERIES --------------------------------------------- #
@@ -554,28 +534,4 @@ class WebhooksRouter:
         return await self._test_subscription_impl(
             request=request,
             body=body,
-        )
-
-    @intercept_exceptions()
-    async def test_draft_webhook(
-        self,
-        request: Request,
-        *,
-        body: WebhookSubscriptionTestRequest,
-    ) -> WebhookDeliveryResponse:
-        return await self._test_subscription_impl(
-            request=request,
-            body=body,
-        )
-
-    @intercept_exceptions()
-    async def test_webhook(
-        self,
-        request: Request,
-        *,
-        subscription_id: UUID,
-    ) -> WebhookDeliveryResponse:
-        return await self._test_subscription_impl(
-            request=request,
-            body=WebhookSubscriptionTestRequest(subscription_id=subscription_id),
         )
