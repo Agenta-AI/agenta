@@ -20,6 +20,3 @@ class WebhookSubscriptionNotFoundError(Exception):
         message = f"Webhook subscription '{subscription_id}' not found"
 
         super().__init__(message)
-
-
-

@@ -27,7 +27,9 @@ class WebhookSubscriptionEditRequest(BaseModel):
 
 class WebhookSubscriptionTestRequest(BaseModel):
     subscription_id: Optional[UUID] = None
-    subscription: Optional[Union[WebhookSubscriptionEdit, WebhookSubscriptionCreate]] = None
+    subscription: Optional[
+        Union[WebhookSubscriptionEdit, WebhookSubscriptionCreate]
+    ] = None
 
 
 class WebhookSubscriptionQueryRequest(BaseModel):

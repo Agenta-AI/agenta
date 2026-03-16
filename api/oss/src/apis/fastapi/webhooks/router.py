@@ -514,7 +514,9 @@ class WebhooksRouter:
             )
 
             if not existing:
-                raise HTTPException(status_code=404, detail="Webhook subscription not found")
+                raise HTTPException(
+                    status_code=404, detail="Webhook subscription not found"
+                )
 
             subscription = WebhookSubscriptionEdit(
                 id=existing.id,

@@ -245,15 +245,17 @@ class WebhooksService:
                 encrypted_secret=encrypt(secret_value),
             )
         except PreparedWebhookRequestError as exc:
-            return await _finalize_delivery(WebhookDelivery(
-                id=delivery_id,
-                created_at=timestamp,
-                updated_at=timestamp,
-                subscription_id=effective_subscription_id,
-                event_id=event_id,
-                status=Status(code="400", message="failed"),
-                data=exc.data.model_copy(update={"error": str(exc)}),
-            ))
+            return await _finalize_delivery(
+                WebhookDelivery(
+                    id=delivery_id,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    subscription_id=effective_subscription_id,
+                    event_id=event_id,
+                    status=Status(code="400", message="failed"),
+                    data=exc.data.model_copy(update={"error": str(exc)}),
+                )
+            )
 
         try:
             response = await send_webhook_request(
@@ -266,38 +268,44 @@ class WebhooksService:
                 body=response.text[:2000],
             )
 
-            return await _finalize_delivery(WebhookDelivery(
-                id=delivery_id,
-                created_at=timestamp,
-                updated_at=timestamp,
-                subscription_id=effective_subscription_id,
-                event_id=event_id,
-                status=Status(
-                    code=str(response.status_code),
-                    message="success" if response.is_success else "failed",
-                ),
-                data=prepared.data.model_copy(update={"response": response_info}),
-            ))
+            return await _finalize_delivery(
+                WebhookDelivery(
+                    id=delivery_id,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    subscription_id=effective_subscription_id,
+                    event_id=event_id,
+                    status=Status(
+                        code=str(response.status_code),
+                        message="success" if response.is_success else "failed",
+                    ),
+                    data=prepared.data.model_copy(update={"response": response_info}),
+                )
+            )
         except httpx.TimeoutException as exc:
-            return await _finalize_delivery(WebhookDelivery(
-                id=delivery_id,
-                created_at=timestamp,
-                updated_at=timestamp,
-                subscription_id=effective_subscription_id,
-                event_id=event_id,
-                status=Status(code="0", message="failed"),
-                data=prepared.data.model_copy(update={"error": f"Timeout: {exc}"}),
-            ))
+            return await _finalize_delivery(
+                WebhookDelivery(
+                    id=delivery_id,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    subscription_id=effective_subscription_id,
+                    event_id=event_id,
+                    status=Status(code="0", message="failed"),
+                    data=prepared.data.model_copy(update={"error": f"Timeout: {exc}"}),
+                )
+            )
         except Exception as exc:
-            return await _finalize_delivery(WebhookDelivery(
-                id=delivery_id,
-                created_at=timestamp,
-                updated_at=timestamp,
-                subscription_id=effective_subscription_id,
-                event_id=event_id,
-                status=Status(code="0", message="failed"),
-                data=prepared.data.model_copy(update={"error": str(exc)}),
-            ))
+            return await _finalize_delivery(
+                WebhookDelivery(
+                    id=delivery_id,
+                    created_at=timestamp,
+                    updated_at=timestamp,
+                    subscription_id=effective_subscription_id,
+                    event_id=event_id,
+                    status=Status(code="0", message="failed"),
+                    data=prepared.data.model_copy(update={"error": str(exc)}),
+                )
+            )
 
     async def fetch_subscription(
         self,

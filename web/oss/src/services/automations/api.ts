@@ -45,10 +45,7 @@ const queryWebhookSubscriptions = async (): Promise<WebhookSubscriptionsResponse
 const testWebhookSubscription = async (
     data: WebhookSubscriptionTestRequest,
 ): Promise<WebhookDeliveryResponse> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/webhooks/subscriptions/test`,
-        data,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/webhooks/subscriptions/test`, data)
     return response.data
 }
 

@@ -101,7 +101,9 @@ async def test_test_subscription_persists_delivery_for_saved_subscription():
     secret_id = uuid4()
 
     dao = MagicMock()
-    dao.fetch_subscription = AsyncMock(return_value=SimpleNamespace(secret_id=secret_id))
+    dao.fetch_subscription = AsyncMock(
+        return_value=SimpleNamespace(secret_id=secret_id)
+    )
 
     expected_delivery = WebhookDelivery(
         id=uuid4(),
@@ -140,12 +142,15 @@ async def test_test_subscription_persists_delivery_for_saved_subscription():
     )
     response = SimpleNamespace(status_code=200, text="ok", is_success=True)
 
-    with patch(
-        "oss.src.core.webhooks.service.prepare_webhook_request",
-        return_value=prepared,
-    ), patch(
-        "oss.src.core.webhooks.service.send_webhook_request",
-        AsyncMock(return_value=response),
+    with (
+        patch(
+            "oss.src.core.webhooks.service.prepare_webhook_request",
+            return_value=prepared,
+        ),
+        patch(
+            "oss.src.core.webhooks.service.send_webhook_request",
+            AsyncMock(return_value=response),
+        ),
     ):
         result = await service.test_subscription(
             project_id=project_id,
@@ -160,7 +165,9 @@ async def test_test_subscription_persists_delivery_for_saved_subscription():
     assert call_kwargs["user_id"] == user_id
     assert call_kwargs["delivery"].subscription_id == subscription_id
     assert call_kwargs["delivery"].status.code == "200"
-    service._resolve_secret.assert_awaited_once_with(project_id=project_id, secret_id=secret_id)  # type: ignore[attr-defined]
+    service._resolve_secret.assert_awaited_once_with(
+        project_id=project_id, secret_id=secret_id
+    )  # type: ignore[attr-defined]
 
 
 @pytest.mark.anyio
@@ -239,12 +246,15 @@ async def test_test_subscription_does_not_persist_for_new_subscription():
     )
     response = SimpleNamespace(status_code=200, text="ok", is_success=True)
 
-    with patch(
-        "oss.src.core.webhooks.service.prepare_webhook_request",
-        return_value=prepared,
-    ), patch(
-        "oss.src.core.webhooks.service.send_webhook_request",
-        AsyncMock(return_value=response),
+    with (
+        patch(
+            "oss.src.core.webhooks.service.prepare_webhook_request",
+            return_value=prepared,
+        ),
+        patch(
+            "oss.src.core.webhooks.service.send_webhook_request",
+            AsyncMock(return_value=response),
+        ),
     ):
         result = await service.test_subscription(
             project_id=uuid4(),

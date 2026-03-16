@@ -47,7 +47,9 @@ class FakeSubscription:
             "name": self.name,
             "data": {
                 "url": self.data.url,
-                "event_types": [event_type.value for event_type in self.data.event_types]
+                "event_types": [
+                    event_type.value for event_type in self.data.event_types
+                ]
                 if self.data.event_types is not None
                 else None,
             },

@@ -93,7 +93,10 @@ export interface WebhookSubscriptionEditRequest {
 }
 
 export type WebhookSubscriptionTestRequest =
-    | ({subscription_id: string; subscription?: undefined} & Partial<WebhookSubscriptionCreateRequest>)
+    | ({
+          subscription_id: string
+          subscription?: undefined
+      } & Partial<WebhookSubscriptionCreateRequest>)
     | ({subscription_id?: undefined} & WebhookSubscriptionCreateRequest)
     | ({subscription_id?: undefined} & WebhookSubscriptionEditRequest)
 
