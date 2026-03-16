@@ -308,9 +308,13 @@ config = ag.ConfigManager.get_from_registry(
 )
 
 prompt = config["prompt"]
+system_message = ""
 messages = []
 for msg in prompt["messages"]:
-    messages.append({"role": msg["role"], "content": msg["content"]})
+    if msg["role"] == "system":
+        system_message = msg["content"]
+    else:
+        messages.append({"role": msg["role"], "content": msg["content"]})
 
 with open("photo.jpg", "rb") as f:
     image_b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -335,6 +339,7 @@ client = Anthropic()
 response = client.messages.create(
     model=prompt["llm_config"]["model"],
     max_tokens=1024,
+    system=system_message,
     messages=messages,
 )
 
