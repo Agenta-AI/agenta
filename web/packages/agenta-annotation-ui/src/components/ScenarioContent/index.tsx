@@ -54,6 +54,8 @@ const EXCLUDE_KEYS = new Set([
     "key",
     "trace_id",
     "span_id",
+    "testcase_dedup_id",
+    "__dedup_id__",
 ])
 
 /** Keys that represent scenario metadata (shown in a separate section) */
