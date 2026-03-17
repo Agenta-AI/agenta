@@ -134,7 +134,7 @@ The heuristic fallback is fragile: any workflow with a `messages` input is class
 
 ### Three Sources of Truth
 
-**1. SDK — URI-based** (`sdk/agenta/sdk/workflows/utils.py:320-326`):
+**1. SDK — URI-based** (`sdk/agenta/sdk/engines/running/utils.py:320-326`):
 
 ```python
 def is_custom_uri(uri):
@@ -258,7 +258,7 @@ is_runnable ← agenta:* URI                         → true    # platform guar
               no URI                               → false   # legacy, backfill needed
 ```
 
-`is_custom_uri()` already exists in `sdk/agenta/sdk/workflows/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
+`is_custom_uri()` already exists in `sdk/agenta/sdk/engines/running/utils.py:320-326`. The derivation is available — it just isn't used at the DTO/API layer.
 
 ### URI Key Alignment for `user:custom`
 

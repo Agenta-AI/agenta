@@ -27,7 +27,7 @@ Execution order: G16 → G14/G15 → G4 → G11 → G17.
 | File | Role |
 |------|------|
 | `sdk/agenta/sdk/models/workflows.py` | `WorkflowFlags` model definition |
-| `sdk/agenta/sdk/workflows/utils.py` | `is_custom_uri()`, `parse_uri()` |
+| `sdk/agenta/sdk/engines/running/utils.py` | `is_custom_uri()`, `parse_uri()` |
 | `sdk/agenta/sdk/decorators/running.py` | `@workflow`, `@evaluator`, flag injection, `annotate` param |
 | `api/oss/src/core/workflows/dtos.py` | API-side `WorkflowFlags`, `WorkflowQueryFlags` |
 | `api/oss/src/core/evaluators/defaults.py` | Default human evaluator seed (`is_human=True`, `uri=None`) |
@@ -85,7 +85,7 @@ WHERE wr.data->>'uri' IS NULL
 Add computed (read-only) fields to `WorkflowRevisionData` or `WorkflowFlags`:
 
 ```python
-from agenta.sdk.workflows.utils import is_custom_uri, parse_uri
+from agenta.sdk.engines.running.utils import is_custom_uri, parse_uri
 
 class WorkflowFlags(BaseModel):
     is_custom: bool = False
@@ -137,7 +137,7 @@ origin = (
 )
 
 # After
-from agenta.sdk.workflows.utils import is_custom_uri, parse_uri
+from agenta.sdk.engines.running.utils import is_custom_uri, parse_uri
 
 def _derive_annotation_origin(uri: Optional[str], is_runnable: bool) -> AnnotationOrigin:
     if not is_runnable:
