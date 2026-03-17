@@ -1,30 +1,30 @@
 import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {dayjs} from "@agenta/shared/utils"
 import {EntityListItemLabel, VersionBadge} from "@agenta/ui/components/presentational"
 import {Card, Space, Tag, Typography} from "antd"
 
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import {Environment} from "@/oss/lib/Types"
 
 import {useDeploymentCardStyles} from "./styles"
 
 type DeploymentCardProps = {
-    env: Environment
+    env: AppEnvironmentDeployment
     selectedEnv?: string
 } & ComponentProps<typeof Card>
 
 const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
     const classes = useDeploymentCardStyles()
 
-    const hasDeployment = !!env.deployed_app_variant_revision_id
+    const hasDeployment = !!env.deployedRevisionId
 
     const lastModifiedText = useMemo(() => {
-        if (!hasDeployment || !env.updated_at) return "-"
-        const d = dayjs.utc(env.updated_at)
+        if (!hasDeployment || !env.updatedAt) return "-"
+        const d = dayjs.utc(env.updatedAt)
         return d.isValid() ? d.local().format("MMM D, YYYY h:mm A") : "-"
-    }, [hasDeployment, env.updated_at])
+    }, [hasDeployment, env.updatedAt])
 
     return (
         <Card
@@ -40,7 +40,7 @@ const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
                 <Typography.Text>Variant</Typography.Text>
                 {hasDeployment ? (
                     <EntityListItemLabel
-                        label={env.deployed_variant_name || "-"}
+                        label={env.deployedVariantName || "-"}
                         trailing={
                             env.revision != null ? (
                                 <VersionBadge

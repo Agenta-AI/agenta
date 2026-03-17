@@ -1,29 +1,18 @@
 import {ComponentProps, Dispatch, SetStateAction} from "react"
 
+import {EnhancedModal} from "@agenta/ui"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Modal, Space, Typography} from "antd"
-import {createUseStyles} from "react-jss"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import type {DeploymentVariantInfo} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {JSSTheme} from "@/oss/lib/Types"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeLG,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeightLG,
-        textTransform: "capitalize",
-    },
-}))
 
 type DeploymentConfirmationModalProps = {
     note?: string
     setNote?: Dispatch<SetStateAction<string>>
     displayNote?: boolean
-    variant?: EnhancedVariant
+    variant?: DeploymentVariantInfo
     envName: string
     actionType?: "deploy" | "revert"
 } & ComponentProps<typeof Modal>
@@ -34,9 +23,8 @@ const DeploymentConfirmationModalContent = ({
     setNote,
     isDeploy,
     displayNote = true,
-    envName,
     actionType = "deploy",
-}: DeploymentConfirmationModalProps) => {
+}: DeploymentConfirmationModalProps & {isDeploy?: boolean}) => {
     const confirmationText =
         actionType === "deploy"
             ? "Are you sure you want to deploy"
@@ -48,9 +36,8 @@ const DeploymentConfirmationModalContent = ({
 
                 {variant && (
                     <VariantDetailsWithStatus
-                        variantName={variant?.variantName || variant?.name || ""}
-                        revision={variant?.revision}
-                        variant={variant}
+                        variantName={variant.name || ""}
+                        revision={variant.version}
                         className="font-medium"
                     />
                 )}
@@ -75,7 +62,6 @@ const DeploymentConfirmationModal = ({
     actionType = "deploy",
     ...props
 }: DeploymentConfirmationModalProps) => {
-    const classes = useStyles()
     const isDeploy = actionType === "deploy"
     const actionText = isDeploy ? "Deploy" : "Revert"
 
@@ -84,7 +70,7 @@ const DeploymentConfirmationModal = ({
             closeIcon={null}
             title={
                 <div className="flex items-center justify-between">
-                    <Typography.Text className={classes.title}>
+                    <Typography.Text className="text-lg font-medium leading-relaxed capitalize">
                         {actionText} {envName}
                     </Typography.Text>
                     <Button
