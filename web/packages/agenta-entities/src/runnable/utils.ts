@@ -9,7 +9,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {getValueAtPath} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
-import {parseEvaluatorKeyFromUri} from "../evaluator/core"
+import {parseEvaluatorKeyFromUri} from "../workflow/core"
 
 import type {
     RunnableType,
@@ -1185,8 +1185,9 @@ export async function executeRunnable(
     const executionId = crypto.randomUUID()
     const startedAt = new Date().toISOString()
 
-    // Route evaluator execution to the evaluator run endpoint
-    if ((type === "evaluator" || type === "evaluatorRevision") && !data.invocationUrl && data.uri) {
+    // Route built-in evaluator execution to the legacy evaluator run endpoint
+    // when no invocation URL is available but a URI is present
+    if (!data.invocationUrl && data.uri && parseEvaluatorKeyFromUri(data.uri)) {
         return executeEvaluator(data, options, executionId, startedAt)
     }
 

@@ -1,32 +1,17 @@
 /**
  * Runnable Module
  *
- * State management for runnable entities (app revisions, evaluators).
+ * Utilities, types, and integration helpers for runnable entities.
  *
- * ## Bridge API (Recommended for UI)
+ * ## Preferred API: Workflow Molecule
  *
  * ```typescript
- * import { runnableBridge } from '@agenta/entities/runnable'
+ * import { workflowMolecule } from '@agenta/entities/workflow'
  * import { useAtomValue } from 'jotai'
- * import { useMemo } from 'react'
  *
- * // Flattened API (preferred) - memoize atoms for stability
- * const dataAtom = useMemo(() => runnableBridge.data(runnableId), [runnableId])
- * const data = useAtomValue(dataAtom)
- *
- * const inputPortsAtom = useMemo(() => runnableBridge.inputPorts(runnableId), [runnableId])
- * const inputPorts = useAtomValue(inputPortsAtom)
- *
- * const outputPortsAtom = useMemo(() => runnableBridge.outputPorts(runnableId), [runnableId])
- * const outputPorts = useAtomValue(outputPortsAtom)
- *
- * const configAtom = useMemo(() => runnableBridge.config(runnableId), [runnableId])
- * const config = useAtomValue(configAtom)
- *
- * // Evaluator-specific features
- * const evalController = runnableBridge.runnable('evaluatorRevision')
- * const presetsAtom = useMemo(() => evalController.selectors.presets(evaluatorId), [evaluatorId])
- * const presets = useAtomValue(presetsAtom)
+ * const data = useAtomValue(workflowMolecule.selectors.data(revisionId))
+ * const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
+ * const config = useAtomValue(workflowMolecule.selectors.configuration(revisionId))
  * ```
  */
 
@@ -61,7 +46,6 @@ export type {
     RunnableInputPort,
     RunnableOutputPort,
     RunnableData,
-    EvaluatorRevisionData,
     // Path types
     PathInfo,
     ExtendedPathInfo,
@@ -96,27 +80,34 @@ export {
 } from "../loadable"
 
 // ============================================================================
-// BRIDGE (Recommended for UI)
+// INTEGRATION UTILITIES
 // ============================================================================
 
-export {runnableBridge, loadableColumnsFromRunnableAtomFamily, getRunnableRootItems} from "./bridge"
-export {extractInputPortsFromSchema, extractOutputPortsFromSchema, formatKeyAsName} from "./bridge"
+export {loadableColumnsFromRunnableAtomFamily, getRunnableRootItems} from "./bridge"
+
+// Port/schema helpers (standalone utilities)
+export {
+    extractInputPortsFromSchema,
+    extractOutputPortsFromSchema,
+    formatKeyAsName,
+} from "./portHelpers"
+
+// Evaluator config transforms (standalone utilities)
+export {
+    isEvaluatorFlatParams,
+    nestEvaluatorConfiguration,
+    flattenEvaluatorConfiguration,
+    nestEvaluatorSchema,
+} from "./evaluatorTransforms"
+
+// Response normalization
+export {normalizeWorkflowResponse} from "./responseHelpers"
 
 // Re-export loadable bridge for convenience
 export {loadableBridge, createLoadableBridge} from "../loadable"
 
-// Bridge factories for custom configurations
-export {createRunnableBridge} from "../shared"
-
-// Bridge types
-export type {
-    RunnableBridge,
-    RunnableBridgeSelectors,
-    RunnableTypeConfig,
-    CreateRunnableBridgeConfig,
-    RunnablePort,
-    RunnableData as BridgeRunnableData,
-} from "../shared"
+// Standalone types
+export type {RunnablePort} from "../shared"
 
 // ============================================================================
 // UTILITIES
@@ -144,8 +135,8 @@ export type {ExecuteRunnableOptions} from "./utils"
 // DEPLOYMENT
 // ============================================================================
 
-export {publishMutationAtom} from "./deploy"
-export type {PublishPayload, PublishRevisionPayload, PublishVariantPayload} from "./deploy"
+export {publishMutationAtom, publishToEnvironment} from "./deploy"
+export type {PublishPayload} from "./deploy"
 
 // ============================================================================
 // SNAPSHOT ADAPTER
@@ -169,13 +160,10 @@ export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
     EvaluatorSelectors,
-    EvaluatorRevisionSelectors,
-    EvaluatorRevisionActions,
     EntityQueryState,
     SettingsPreset,
     AppRevisionRawData,
     EvaluatorRawData,
-    EvaluatorRevisionRawData,
     AppRevisionListSelectors,
     AppRevisionActions,
     AppRevisionCreateVariantPayload,
