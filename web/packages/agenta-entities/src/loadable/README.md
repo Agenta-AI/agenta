@@ -306,7 +306,7 @@ State synchronization should happen **within atoms**, not in React components:
 ```typescript
 // ❌ ANTI-PATTERN - Component responsible for keeping state in sync
 function PlaygroundContent() {
-    const inputPorts = useAtomValue(runnableBridge.inputPorts(revisionId))
+    const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
     const setColumns = useSetAtom(loadableController.actions.setColumns)
 
     // This couples state correctness to component lifecycle!
