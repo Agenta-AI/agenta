@@ -1,6 +1,7 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Collapse, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {BookOpen} from "@phosphor-icons/react"
+import {Button, Collapse, Form, Input, message, Select, Tabs, Tooltip, Typography} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
@@ -23,22 +24,24 @@ import {
 
 import {AUTOMATION_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {AutomationFieldRenderer} from "./AutomationFieldRenderer"
+import AutomationLogsTab from "./AutomationLogsTab"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
-import {handleTestResult} from "./utils/handleTestResult"
+import {AUTOMATION_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 
 const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
     const [form] = Form.useForm()
     const [open, setOpen] = useAtom(isAutomationDrawerOpenAtom)
     const [initialValues, setEditingWebhook] = useAtom(editingAutomationAtom)
+    const [activeTab, setActiveTab] = useState("configuration")
     const [isTesting, setIsTesting] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const setCreatedWebhookSecret = useSetAtom(createdWebhookSecretAtom)
     const [selectedProvider, setSelectedProvider] = useAtom(selectedProviderAtom)
 
     const createAutomation = useSetAtom(createAutomationAtom)
-    const updateAutomation = useSetAtom(updateAutomationAtom)
     const testAutomation = useSetAtom(testAutomationAtom)
+    const updateAutomation = useSetAtom(updateAutomationAtom)
 
     const isEdit = !!initialValues
 
@@ -49,9 +52,12 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
 
     useEffect(() => {
         if (!open) {
+            setActiveTab("configuration")
             form.resetFields()
             return
         }
+
+        setActiveTab("configuration")
 
         if (initialValues) {
             // Determine provider via heuristic since no meta field is stored.
@@ -123,53 +129,74 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         }
     }, [open, initialValues, form])
 
+    const buildPayloadFromForm = useCallback(async () => {
+        const rawValues = await form.validateFields()
+
+        let headersRecord: Record<string, string> | undefined = undefined
+        if (rawValues.header_list && rawValues.header_list.length > 0) {
+            headersRecord = {}
+            rawValues.header_list.forEach((h: {key: string; value: string}) => {
+                if (h.key && h.value && headersRecord) {
+                    headersRecord[h.key] = h.value
+                }
+            })
+        }
+
+        const processedValues = {
+            ...rawValues,
+            headers: headersRecord,
+            event_types: rawValues.events,
+        }
+
+        return {
+            rawValues,
+            payload: buildSubscription(processedValues, isEdit, initialValues?.id),
+        }
+    }, [form, initialValues?.id, isEdit])
+
     const handleTestConnection = useCallback(async () => {
-        if (!initialValues?.id) return
+        if (!open) return
 
         try {
             setIsTesting(true)
-            const response = await testAutomation(initialValues.id)
+            const {payload} = await buildPayloadFromForm()
+            const response = await testAutomation(payload)
             handleTestResult(response)
         } catch (error) {
+            if ((error as {errorFields?: unknown}).errorFields) return
             console.error(error)
-            message.error("Failed to test connection")
+            message.error(AUTOMATION_TEST_FAILURE_MESSAGE, 10)
         } finally {
             setIsTesting(false)
         }
-    }, [initialValues?.id, testAutomation])
+    }, [buildPayloadFromForm, open, testAutomation])
 
     const handleOk = useCallback(async () => {
         try {
-            const rawValues = await form.validateFields()
             setIsSubmitting(true)
-
-            // Map the Form.List array back to Record<string, string>
-            let headersRecord: Record<string, string> | undefined = undefined
-            if (rawValues.header_list && rawValues.header_list.length > 0) {
-                headersRecord = {}
-                rawValues.header_list.forEach((h: {key: string; value: string}) => {
-                    if (h.key && h.value && headersRecord) {
-                        headersRecord[h.key] = h.value
-                    }
-                })
-            }
-
-            const processedValues = {
-                ...rawValues,
-                headers: headersRecord,
-                event_types: rawValues.events,
-            }
-
-            const payload = buildSubscription(processedValues, isEdit, initialValues?.id)
+            const {rawValues, payload} = await buildPayloadFromForm()
+            let subscriptionId: string | undefined
+            let testPayload:
+                | WebhookSubscriptionCreateRequest
+                | WebhookSubscriptionEditRequest
+                | undefined
 
             if (isEdit && initialValues?.id) {
                 await updateAutomation({
-                    webhookId: initialValues.id,
+                    webhookSubscriptionId: initialValues.id,
                     payload: payload as WebhookSubscriptionEditRequest,
                 })
+                subscriptionId = initialValues.id
+                testPayload = {
+                    subscription: {
+                        ...(payload as WebhookSubscriptionEditRequest).subscription,
+                        id: initialValues.id,
+                    },
+                }
                 message.success("Automation updated successfully")
             } else {
                 const response = await createAutomation(payload as WebhookSubscriptionCreateRequest)
+                subscriptionId = response.subscription?.id
                 const webhookSecret =
                     response.subscription?.secret || response.subscription?.secret_id
 
@@ -180,10 +207,35 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     setCreatedWebhookSecret(webhookSecret)
                 }
 
+                if (response.subscription) {
+                    testPayload = {
+                        subscription: {
+                            id: response.subscription.id,
+                            name: response.subscription.name,
+                            description: response.subscription.description,
+                            data: response.subscription.data,
+                        },
+                    }
+                }
+
                 message.success("Automation created successfully")
             }
+
             onSuccess()
             onCancel()
+
+            if (subscriptionId && testPayload) {
+                try {
+                    const response = await testAutomation(testPayload)
+                    handleTestResult(response)
+                } catch (error) {
+                    console.error(error)
+                    message.warning(
+                        "Automation saved, but the connection test could not complete. You can retry it from the drawer or table.",
+                        10,
+                    )
+                }
+            }
         } catch (error) {
             if ((error as {errorFields?: unknown}).errorFields) return
             console.error(error)
@@ -198,7 +250,9 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         onSuccess,
         onCancel,
         setCreatedWebhookSecret,
+        buildPayloadFromForm,
         createAutomation,
+        testAutomation,
         updateAutomation,
         selectedProvider,
     ])
@@ -222,33 +276,164 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
         [selectedProvider],
     )
 
+    const docsUrl =
+        selectedProvider === "github"
+            ? "https://agenta.ai/docs/prompt-engineering/integrating-prompts/github"
+            : "https://agenta.ai/docs/prompt-engineering/integrating-prompts/webhooks"
+
+    const drawerTabs = useMemo(
+        () => [
+            {
+                key: "configuration",
+                label: "Configuration",
+                children: (
+                    <div className="flex flex-col gap-3">
+                        <div className="mb-4 text-gray-500">
+                            Set up an automation to trigger external services when specific events
+                            occur within Agenta.
+                        </div>
+
+                        <Form
+                            form={form}
+                            layout="vertical"
+                            requiredMark={false}
+                            onValuesChange={(changedValues) => {
+                                if (changedValues.provider) {
+                                    setSelectedProvider(changedValues.provider)
+                                }
+                            }}
+                        >
+                            <div className="flex flex-col gap-3">
+                                <Form.Item
+                                    name="provider"
+                                    label="Webhook Type"
+                                    initialValue="webhook"
+                                    className="!mb-0"
+                                >
+                                    <Select
+                                        disabled={isEdit}
+                                        options={providerOptions}
+                                        placeholder="Select webhook/github"
+                                    />
+                                </Form.Item>
+
+                                <Form.Item
+                                    name="name"
+                                    label="Webhook Name"
+                                    className="!mb-0"
+                                    rules={[{required: true, message: "Please enter a name"}]}
+                                >
+                                    <Input placeholder="Production deploy hook" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    name="events"
+                                    label="Event Types"
+                                    className="!mb-0"
+                                    rules={[
+                                        {
+                                            required: true,
+                                            message: "Please select at least one event",
+                                        },
+                                    ]}
+                                >
+                                    <Select
+                                        mode="multiple"
+                                        placeholder="Select events"
+                                        options={EVENT_OPTIONS}
+                                    />
+                                </Form.Item>
+
+                                {selectedProviderConfig && (
+                                    <>
+                                        <div className="mt-4 mb-2">
+                                            <Typography.Text
+                                                type="secondary"
+                                                className="font-medium"
+                                            >
+                                                {selectedProviderConfig.subtitle}
+                                            </Typography.Text>
+                                        </div>
+                                        <AutomationFieldRenderer
+                                            fields={selectedProviderConfig.fields}
+                                            isEditMode={isEdit}
+                                        />
+                                    </>
+                                )}
+
+                                <Collapse
+                                    className="[&_.ant-collapse-content]:bg-transparent"
+                                    size="small"
+                                >
+                                    <Collapse.Panel
+                                        header="Example Request"
+                                        key="preview"
+                                        forceRender
+                                    >
+                                        <RequestPreview form={form} />
+                                    </Collapse.Panel>
+                                </Collapse>
+                            </div>
+                        </Form>
+                    </div>
+                ),
+            },
+            ...(initialValues?.id
+                ? [
+                      {
+                          key: "logs",
+                          label: "Logs",
+                          children:
+                              activeTab === "logs" ? (
+                                  <AutomationLogsTab subscriptionId={initialValues.id} />
+                              ) : null,
+                      },
+                  ]
+                : []),
+        ],
+        [
+            activeTab,
+            form,
+            initialValues?.id,
+            isEdit,
+            providerOptions,
+            selectedProviderConfig,
+            setSelectedProvider,
+        ],
+    )
+
     return (
         <>
             <EnhancedDrawer
                 title={isEdit ? "Edit Automation" : "Add Automation"}
+                extra={
+                    <Tooltip title="Documentation">
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<BookOpen size={16} />}
+                            href={docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label="Open automation documentation"
+                        />
+                    </Tooltip>
+                }
                 open={open}
                 onClose={onCancel}
-                width={450}
+                width={840}
                 destroyOnHidden
                 footer={
                     <div className="flex items-center justify-between gap-2">
                         <Button onClick={onCancel}>Cancel</Button>
                         <div className="flex items-center gap-2">
-                            <Tooltip
-                                title={
-                                    isEdit
-                                        ? "Test this automation"
-                                        : "You must save the automation before testing it"
-                                }
+                            <Button
+                                onClick={handleTestConnection}
+                                loading={isTesting}
+                                disabled={isSubmitting}
                             >
-                                <Button
-                                    loading={isTesting}
-                                    onClick={handleTestConnection}
-                                    disabled={!isEdit}
-                                >
-                                    Test Connection
-                                </Button>
-                            </Tooltip>
+                                Test Connection
+                            </Button>
                             <Button type="primary" onClick={handleOk} loading={isSubmitting}>
                                 {isEdit ? "Update Automation" : "Create Automation"}
                             </Button>
@@ -256,78 +441,14 @@ const AutomationDrawer = ({onSuccess}: {onSuccess: () => void}) => {
                     </div>
                 }
             >
-                <div className="mb-4 text-gray-500">
-                    Set up an automation to trigger external services when specific events occur
-                    within Agenta.
+                <div className="h-full min-h-0 [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:h-full [&_.ant-tabs-tabpane]:h-full">
+                    <Tabs
+                        activeKey={activeTab}
+                        onChange={setActiveTab}
+                        items={drawerTabs}
+                        className="h-full"
+                    />
                 </div>
-
-                <Form
-                    form={form}
-                    layout="vertical"
-                    requiredMark={false}
-                    onValuesChange={(changedValues) => {
-                        if (changedValues.provider) {
-                            setSelectedProvider(changedValues.provider)
-                        }
-                    }}
-                >
-                    <div className="flex flex-col gap-3">
-                        <Form.Item
-                            name="provider"
-                            label="Destination"
-                            initialValue="webhook"
-                            className="!mb-0"
-                        >
-                            <Select
-                                disabled={isEdit}
-                                options={providerOptions}
-                                placeholder="Select webhook/github"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="name"
-                            label="Name"
-                            className="!mb-0"
-                            rules={[{required: true, message: "Please enter a name"}]}
-                        >
-                            <Input placeholder="Production deploy hook" />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="events"
-                            label="Event types"
-                            className="!mb-0"
-                            rules={[{required: true, message: "Please select at least one event"}]}
-                        >
-                            <Select
-                                mode="multiple"
-                                placeholder="Select events"
-                                options={EVENT_OPTIONS}
-                            />
-                        </Form.Item>
-
-                        {selectedProviderConfig && (
-                            <>
-                                <div className="mt-4 mb-2">
-                                    <Typography.Text type="secondary" className="font-medium">
-                                        {selectedProviderConfig.subtitle}
-                                    </Typography.Text>
-                                </div>
-                                <AutomationFieldRenderer
-                                    fields={selectedProviderConfig.fields}
-                                    isEditMode={isEdit}
-                                />
-                            </>
-                        )}
-
-                        <Collapse className="[&_.ant-collapse-content]:bg-transparent" size="small">
-                            <Collapse.Panel header="Example Request" key="preview" forceRender>
-                                <RequestPreview form={form} />
-                            </Collapse.Panel>
-                        </Collapse>
-                    </div>
-                </Form>
             </EnhancedDrawer>
         </>
     )

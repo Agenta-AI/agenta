@@ -224,9 +224,7 @@ class WebhooksDispatcher:
                     matching = [
                         sub
                         for sub in subscriptions
-                        if sub.flags is not None
-                        and sub.flags.is_valid
-                        and (
+                        if (
                             sub.data.event_types is None
                             or event_type in sub.data.event_types
                         )
