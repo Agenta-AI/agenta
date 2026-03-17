@@ -1,27 +1,27 @@
 import {memo, useCallback} from "react"
 
-import {legacyAppRevisionMolecule} from "@agenta/entities/legacyAppRevision"
-import {publishMutationAtom} from "@agenta/entities/legacyAppRevision"
+import {publishMutationAtom} from "@agenta/entities/runnable/deploy"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {envRevisionsAtom} from "@/oss/components/DeploymentsDashboard/atoms"
+import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
+import {appEnvironmentsAtom} from "@/oss/state/environment/appEnvironmentAtoms"
 
 import {DeploymentDrawerTitleProps} from "../types"
 
 const deployedRevisionIdByEnvAtomFamily = atomFamily((envName: string) =>
     atom<string | null>((get) => {
-        const envs = get(environmentsAtom)
+        const envs = get(appEnvironmentsAtom)
         if (!Array.isArray(envs)) return null
-        const env = envs.find((e: any) => e.name === envName || e.environment_name === envName)
-        return env?.deployed_app_variant_revision_id ?? env?.deployedAppVariantRevisionId ?? null
+        const env = envs.find((e) => e.name === envName)
+        return env?.deployedRevisionId ?? null
     }),
 )
 
@@ -31,14 +31,17 @@ const DeploymentDrawerTitle = ({
     onToggleWidth,
     isExpanded,
 }: DeploymentDrawerTitleProps) => {
-    const selectedVariant = useAtomValue(legacyAppRevisionMolecule.atoms.data(variantId))
+    const selectedVariant = useAtomValue(workflowMolecule.selectors.data(variantId))
     const [envNameParam] = useQueryParam("selectedEnvName")
-    const envRevisions = useAtomValue(envRevisionsAtom)
-    const envName = envNameParam || envRevisions?.name || ""
+    const drawerState = useAtomValue(deploymentsDrawerStateAtom)
+    const envName = envNameParam || drawerState.envName || ""
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const deployedRevisionId = useAtomValue(deployedRevisionIdByEnvAtomFamily(envName ?? ""))
     const canRevert = variantId !== deployedRevisionId
     const openDeploymentConfirmationModal = useSetAtom(openDeploymentConfirmationModalAtom)
+
+    // Environment revision version from drawer state (passed when opening the drawer)
+    const envRevisionVersion = drawerState.envRevisionVersion
 
     const handleRevert = useCallback(() => {
         openDeploymentConfirmationModal({
@@ -47,10 +50,13 @@ const DeploymentDrawerTitle = ({
             variant: selectedVariant,
             onConfirm: async (noteValue) => {
                 await publish({
-                    type: "revision",
+                    revisionId: variantId,
+                    environmentSlug: envName,
+                    applicationId: selectedVariant?.workflow_id || "",
+                    workflowVariantId: selectedVariant?.workflow_variant_id ?? undefined,
+                    variantSlug: selectedVariant?.slug ?? undefined,
+                    revisionVersion: selectedVariant?.version ?? undefined,
                     note: noteValue,
-                    revision_id: variantId,
-                    environment_ref: envName,
                 })
                 onClose()
             },
@@ -73,7 +79,7 @@ const DeploymentDrawerTitle = ({
                     {/*TODO: update this with select variant deployment */}
                     <EnvironmentTagLabel environment={envName || ""} />
                     <Tag bordered={false} className="bg-[#0517290F]">
-                        v{selectedVariant?.revision}
+                        v{envRevisionVersion ?? selectedVariant?.version}
                     </Tag>
                 </div>
             </div>

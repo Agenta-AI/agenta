@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
@@ -140,9 +140,10 @@ const TitleActions = memo(
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "isLoading">) => {
         const [, updateQuery] = useQuery("replace")
-        const entityQuery = useAtomValue(runnableBridge.query(variantId))
+        // Use workflowMolecule directly for entity query state
+        const entityQuery = useAtomValue(workflowMolecule.selectors.query(variantId))
         const entityReady = !entityQuery.isPending && !!entityQuery.data
-        const isDirty = useAtomValue(runnableBridge.isDirty(variantId))
+        const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
 
         return (

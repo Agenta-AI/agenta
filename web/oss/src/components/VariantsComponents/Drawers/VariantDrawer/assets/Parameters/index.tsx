@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -13,9 +13,9 @@ export const NewVariantParametersView = ({
     revisionId: string
     showOriginal?: boolean
 }) => {
-    const config = useAtomValue(runnableBridge.configuration(revisionId))
-    const serverConfig = useAtomValue(runnableBridge.serverConfiguration(revisionId))
-    const update = useSetAtom(runnableBridge.update)
+    const config = useAtomValue(workflowMolecule.selectors.configuration(revisionId))
+    const serverConfig = useAtomValue(workflowMolecule.selectors.serverConfiguration(revisionId))
+    const update = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
     const configJsonString = useMemo(() => {
         const effectiveConfig = showOriginal ? (serverConfig ?? config) : (config ?? serverConfig)

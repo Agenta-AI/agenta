@@ -1,10 +1,9 @@
-import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
+import type {Workflow} from "@agenta/entities/workflow"
 import {DrawerProps} from "antd"
 
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/types"
-
 type DrawerType = "variant" | "deployment"
-type DrawerVariant = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
+type DrawerVariant = Workflow
+
 interface Revert {
     isDisabled?: boolean
     onClick: () => void
@@ -34,7 +33,6 @@ export interface VariantDrawerTitleProps {
 
 export interface VariantDrawerContentProps {
     variantId: string
-    isLoading: boolean
     type: DrawerType
     viewAs: ViewType
     onChangeViewAs: (view: ViewType) => void

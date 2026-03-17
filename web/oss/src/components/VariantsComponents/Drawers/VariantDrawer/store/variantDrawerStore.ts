@@ -1,13 +1,13 @@
-import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
-import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {
+    workflowRevisionsByWorkflowListDataAtomFamily,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {atom, Atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {AgentaConfigPrompt} from "@/oss/lib/shared/variant/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 
-type DrawerVariant = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
+type DrawerVariant = Workflow
 type DrawerType = "variant" | "deployment"
 
 interface Revert {
@@ -85,16 +85,14 @@ export const setVariantDrawerSelectedIdAtom = atom(null, (_get, set, newId: stri
 // Computed atom to get the variants list (either from custom atom or default)
 export const variantDrawerVariantsAtom = atom((get) => {
     const drawerState = get(variantDrawerAtom)
-    // Don't fetch revision data when the drawer is closed — the fallback
-    // reads appRevisionsWithDraftsAtomFamily which triggers fetching ALL
-    // variants and ALL their revisions for the app.
+    // Don't fetch revision data when the drawer is closed
     if (!drawerState.open) return []
     if (drawerState.variantsAtom) {
         return get(drawerState.variantsAtom)
     }
     const rawAppId = get(selectedAppIdAtom)
     const appId = typeof rawAppId === "string" ? rawAppId : null
-    return appId ? get(appRevisionsWithDraftsAtomFamily(appId)) : []
+    return appId ? get(workflowRevisionsByWorkflowListDataAtomFamily(appId)) : []
 })
 
 // Id of the revision to display in the drawer (single-source for Drawer selection)

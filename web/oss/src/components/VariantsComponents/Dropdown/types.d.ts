@@ -1,11 +1,7 @@
-import type {EnhancedObjectConfig} from "@agenta/entities/legacyAppRevision"
-
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import type {Workflow} from "@agenta/entities/workflow"
 
 type VariantDropdownHandler<T> = ((record: T) => void) | undefined
-export interface VariantDropdownProps<
-    T = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>,
-> {
+export interface VariantDropdownProps<T = Workflow> {
     handleOpenDetails: VariantDropdownHandler<T>
     handleOpenInPlayground: VariantDropdownHandler<T>
     handleDeploy: VariantDropdownHandler<T>
