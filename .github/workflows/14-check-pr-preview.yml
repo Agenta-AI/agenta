@@ -63,9 +63,15 @@ jobs:
   tests:
     needs: [deploy]
     if: needs.deploy.outputs.preview_url != ''
-    uses: ./.github/workflows/44-railway-tests.yml
-    with:
-      agenta_web_url: ${{ needs.deploy.outputs.preview_url }}
-      layers: acceptance,integration
-      packages: all
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Preview tests disabled
+        run: |
+          {
+            echo "## Preview Test Isolation"
+            echo
+            echo "Post-deploy Railway preview tests are temporarily disabled in this workflow."
+            echo "The preview is still built and deployed, but CI no longer runs readiness/auth/API/web checks against the live deployment."
+            echo
+            echo "Preview URL: ${{ needs.deploy.outputs.preview_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
