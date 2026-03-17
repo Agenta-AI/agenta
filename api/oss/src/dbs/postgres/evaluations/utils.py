@@ -73,12 +73,13 @@ def query_run_references(
 def _make_run_flags(
     run: Optional[Union[EvaluationRun, EvaluationRunEdit]] = None,
 ) -> Optional[EvaluationRunFlags]:
-    flags = EvaluationRunFlags()
-
-    if not run or not run.data or not run.data.steps:
-        return flags
+    if not run:
+        return EvaluationRunFlags()
 
     flags = run.flags or EvaluationRunFlags()
+
+    if not run.data or not run.data.steps:
+        return flags
 
     flags.has_queries = False
     flags.has_testsets = False

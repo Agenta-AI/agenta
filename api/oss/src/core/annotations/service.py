@@ -34,6 +34,9 @@ from oss.src.core.tracing.utils.traces import (
     first_link,
     parse_simple_trace,
 )
+from oss.src.core.tracing.dtos import (
+    SimpleTraceReferences,
+)
 from oss.src.core.annotations.types import (
     AnnotationOrigin,
     AnnotationKind,
@@ -396,7 +399,7 @@ class AnnotationsService:
             data=annotation_edit.data,
             #
             references=annotation_references,
-            links=annotation.links,
+            links=annotation_edit.links or annotation.links,
         )
 
         if annotation_link is None:
@@ -466,13 +469,7 @@ class AnnotationsService:
         annotation_tags = annotation.tags if annotation else None
         annotation_meta = annotation.meta if annotation else None
 
-        annotation_references = (
-            AnnotationReferences(
-                **annotation.references.model_dump(),
-            )
-            if annotation and annotation.references
-            else None
-        )
+        annotation_references = annotation.references if annotation else None
 
         _annotation_links = annotation.links if annotation else None
 
@@ -734,7 +731,7 @@ class AnnotationsService:
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
         #
-        references: Optional[AnnotationReferences] = None,
+        references: Optional[SimpleTraceReferences] = None,
         links: Optional[AnnotationLinks] = None,
         #
         annotation_links: Optional[List[Link]] = None,
@@ -746,7 +743,9 @@ class AnnotationsService:
             flags=flags.model_dump(mode="json", exclude_none=True) if flags else None,
             tags=tags,
             meta=meta,
-            references=references.model_dump(mode="json") if references else None,
+            references=references.model_dump(mode="json", exclude_none=True)
+            if references
+            else None,
             links=links,
             trace_links=annotation_links,
             windowing=windowing,
