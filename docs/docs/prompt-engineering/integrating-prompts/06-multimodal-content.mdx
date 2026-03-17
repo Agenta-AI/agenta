@@ -1,0 +1,447 @@
+---
+title: "Sending Images and PDFs"
+sidebar_position: 6
+sidebar_label: "Images and PDFs"
+description: "How to send images and PDF documents when invoking your LLM application through Agenta."
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+This page explains how to integrate multimodal content (images and PDFs) into applications you build with Agenta. Whether you use Agenta as an LLM gateway or as a prompt management system, you can send images and documents alongside text in your chat applications. This is useful for processing invoices, analyzing screenshots, extracting data from reports, or any workflow that combines text with visual content.
+
+To learn how to test multimodal content interactively before integrating, see [Images and PDFs in the Playground](/prompt-engineering/playground/multimodal-content).
+
+:::info
+Multimodal content is supported only for **chat** applications. Completion-mode applications do not accept attachments.
+:::
+
+## How multimodal content fits in
+
+In Agenta, images and documents are part of the **messages** array, not the prompt template. Your prompt template (system message, input variables) remains text-only. The multimodal content is provided at invocation time, as part of the conversation messages.
+
+This means the prompt configuration you fetch or deploy does not change when you add multimodal support. You design your prompt as usual in the playground. Then, at invocation time, you include images or PDFs in the user messages you send alongside that prompt.
+
+## Using Agenta as an LLM gateway
+
+When you invoke your application through Agenta's gateway endpoint, you send multimodal messages in the `messages` array of the request body. Agenta forwards them to the LLM provider through [LiteLLM](https://docs.litellm.ai/), which handles provider-specific format differences automatically. You use a single, consistent message format regardless of the underlying model.
+
+### Message content format
+
+A standard text message has a string as its `content`:
+
+```json
+{"role": "user", "content": "Describe this document."}
+```
+
+A multimodal message replaces that string with an array of content parts:
+
+```json
+{
+  "role": "user",
+  "content": [
+    {"type": "text", "text": "Describe this document."},
+    {"type": "image_url", "image_url": {"url": "https://example.com/photo.jpg", "detail": "auto"}},
+    {"type": "file", "file": {"file_data": "data:application/pdf;base64,JVBERi0xLjQ...", "filename": "report.pdf", "format": "application/pdf"}}
+  ]
+}
+```
+
+There are three content part types.
+
+#### Text
+
+```json
+{"type": "text", "text": "Your text here"}
+```
+
+#### Image
+
+```json
+{
+  "type": "image_url",
+  "image_url": {
+    "url": "...",
+    "detail": "auto"
+  }
+}
+```
+
+The `url` field accepts two formats:
+
+| Source | Format | Example |
+|--------|--------|---------|
+| Base64 inline | `data:image/{type};base64,{data}` | `data:image/png;base64,iVBORw0KGgo...` |
+| HTTP URL | `https://...` | `https://example.com/photo.jpg` |
+
+Supported image formats: JPEG, PNG, WebP, GIF.
+
+The `detail` field is optional and controls image resolution. Accepted values are `auto` (default), `low`, and `high`. Lower detail uses fewer tokens; higher detail gives the model more visual information.
+
+#### File (PDF)
+
+```json
+{
+  "type": "file",
+  "file": {
+    "file_data": "data:application/pdf;base64,JVBERi0xLjQ...",
+    "filename": "report.pdf",
+    "format": "application/pdf"
+  }
+}
+```
+
+You can provide file content in two ways:
+
+| Source | Field | Example |
+|--------|-------|---------|
+| Base64 inline | `file_data` | `data:application/pdf;base64,JVBERi0xLjQ...` |
+| URL reference | `file_id` | `https://example.com/document.pdf` |
+
+When using `file_data`, also provide `filename` and `format` (the MIME type). When using `file_id` with a URL, these fields are optional.
+
+### Example: sending an image
+
+```bash
+curl -X POST "https://cloud.agenta.ai/services/chat/run" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "environment": "production",
+    "app": "my-chat-app",
+    "inputs": {},
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "What is in this image?"},
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+              "detail": "auto"
+            }
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+### Example: sending both image and PDF
+
+```bash
+curl -X POST "https://cloud.agenta.ai/services/chat/run" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "environment": "production",
+    "app": "my-chat-app",
+    "inputs": {},
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "Summarize this document and describe the attached image."},
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "https://example.com/photo.jpg",
+              "detail": "high"
+            }
+          },
+          {
+            "type": "file",
+            "file": {
+              "file_data": "data:application/pdf;base64,JVBERi0xLjQK...",
+              "filename": "invoice.pdf",
+              "format": "application/pdf"
+            }
+          }
+        ]
+      }
+    ]
+  }'
+```
+
+### Python example
+
+```python
+import os
+import base64
+import requests
+
+# Read and encode a local image
+with open("photo.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+# Read and encode a local PDF
+with open("report.pdf", "rb") as f:
+    pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+response = requests.post(
+    "https://cloud.agenta.ai/services/chat/run",
+    headers={
+        "Content-Type": "application/json",
+        "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
+    },
+    json={
+        "environment": "production",
+        "app": "my-chat-app",
+        "inputs": {},
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Analyze this image and PDF."},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{image_b64}",
+                            "detail": "auto",
+                        },
+                    },
+                    {
+                        "type": "file",
+                        "file": {
+                            "file_data": f"data:application/pdf;base64,{pdf_b64}",
+                            "filename": "report.pdf",
+                            "format": "application/pdf",
+                        },
+                    },
+                ],
+            }
+        ],
+    },
+)
+
+print(response.json())
+```
+
+The response follows the same format as any other gateway call:
+
+```json
+{
+    "version": "3.0",
+    "data": "The image shows a bar chart comparing...",
+    "content_type": "text/plain",
+    "tree_id": "0ef1d6b7-84c3-4b8a-705b-ae5974e51954"
+}
+```
+
+## Using Agenta as a prompt management system
+
+When you use Agenta for prompt management (fetching the prompt and calling the LLM yourself), images and documents require no special handling on the Agenta side. You fetch your prompt template as usual. Then you construct the multimodal messages according to the format your LLM provider expects and call the provider directly.
+
+The message format for multimodal content varies by provider. Each provider has its own structure for images and documents. The examples below show the general pattern for each. Please check the linked provider documentation for the most up-to-date details, as these formats may change.
+
+### Example with OpenAI
+
+OpenAI uses the `image_url` content type for images. It accepts both inline base64 and HTTP URLs. For PDFs, OpenAI uses the `file` content type.
+
+For full details, see the [OpenAI vision guide](https://platform.openai.com/docs/guides/images) and [PDF files guide](https://platform.openai.com/docs/guides/pdf-files).
+
+```python
+import agenta as ag
+import base64
+from openai import OpenAI
+
+ag.init()
+
+# Fetch the prompt configuration from Agenta
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-chat-app",
+    environment_slug="production",
+)
+
+# Build the system messages from the template
+prompt = config["prompt"]
+messages = []
+for msg in prompt["messages"]:
+    messages.append({"role": msg["role"], "content": msg["content"]})
+
+# Encode a local image
+with open("photo.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+# Add a multimodal user message
+messages.append({
+    "role": "user",
+    "content": [
+        {"type": "text", "text": "What do you see in this image?"},
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{image_b64}",
+                "detail": "auto",
+            },
+        },
+    ],
+})
+
+# Call OpenAI directly
+client = OpenAI()
+response = client.chat.completions.create(
+    model=prompt["llm_config"]["model"],
+    messages=messages,
+)
+
+print(response.choices[0].message.content)
+```
+
+### Example with Anthropic
+
+Anthropic uses the `image` content type with a `source` object for images, and the `document` content type for PDFs. The format is different from OpenAI's.
+
+For full details, see the Anthropic [vision guide](https://docs.anthropic.com/en/docs/build-with-claude/vision) and [PDF support guide](https://docs.anthropic.com/en/docs/build-with-claude/pdf-support).
+
+```python
+import agenta as ag
+import base64
+from anthropic import Anthropic
+
+ag.init()
+
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-chat-app",
+    environment_slug="production",
+)
+
+prompt = config["prompt"]
+system_message = ""
+messages = []
+for msg in prompt["messages"]:
+    if msg["role"] == "system":
+        system_message = msg["content"]
+    else:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+
+with open("photo.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+# Anthropic uses a different format for images
+messages.append({
+    "role": "user",
+    "content": [
+        {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": image_b64,
+            },
+        },
+        {"type": "text", "text": "What do you see in this image?"},
+    ],
+})
+
+client = Anthropic()
+response = client.messages.create(
+    model=prompt["llm_config"]["model"],
+    max_tokens=1024,
+    system=system_message,
+    messages=messages,
+)
+
+print(response.content[0].text)
+```
+
+### Example with Google Gemini
+
+Gemini uses `inline_data` for base64 content and `file_data` for files uploaded through its File API.
+
+For full details, see the [Gemini vision documentation](https://ai.google.dev/gemini-api/docs/vision).
+
+```python
+import agenta as ag
+import base64
+from google import genai
+
+ag.init()
+
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-chat-app",
+    environment_slug="production",
+)
+
+with open("photo.jpg", "rb") as f:
+    image_bytes = f.read()
+
+# Gemini uses its own content format
+client = genai.Client()
+response = client.models.generate_content(
+    model=config["prompt"]["llm_config"]["model"],
+    contents=[
+        {
+            "parts": [
+                {"text": "What do you see in this image?"},
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64encode(image_bytes).decode("utf-8"),
+                    }
+                },
+            ]
+        }
+    ],
+)
+
+print(response.text)
+```
+
+### Using LiteLLM as a unified interface
+
+If you want a single message format across all providers, you can use [LiteLLM](https://docs.litellm.ai/) as your LLM client. LiteLLM accepts the OpenAI format and translates it to the appropriate provider format automatically. This is the same library that Agenta's gateway uses internally.
+
+```python
+import agenta as ag
+import base64
+from litellm import completion
+
+ag.init()
+
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-chat-app",
+    environment_slug="production",
+)
+
+prompt = config["prompt"]
+messages = []
+for msg in prompt["messages"]:
+    messages.append({"role": msg["role"], "content": msg["content"]})
+
+with open("photo.jpg", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+messages.append({
+    "role": "user",
+    "content": [
+        {"type": "text", "text": "Describe this image."},
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{image_b64}",
+            },
+        },
+    ],
+})
+
+# LiteLLM translates the OpenAI format to any provider
+response = completion(
+    model=prompt["llm_config"]["model"],
+    messages=messages,
+)
+
+print(response.choices[0].message.content)
+```
+
+:::tip
+If you work with multiple providers and don't want to maintain separate message formats, LiteLLM is the simplest path. It matches the format that Agenta's gateway expects.
+:::
+
+## Current limitations
+
+- Multimodal content is supported in **chat** applications only, not completion applications.
+- Images and documents are part of **messages**, not the prompt template. You cannot embed an image directly in a system prompt.
+- Not all models support vision or PDF processing. Check your provider's documentation for model compatibility.
+- Large base64 payloads increase request size. For production use with large files, consider using provider-specific file upload APIs and referencing files by ID.
