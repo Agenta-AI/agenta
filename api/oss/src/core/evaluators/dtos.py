@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.shared.dtos import (
@@ -298,6 +298,29 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
 
 class SimpleEvaluatorQuery(Header, Metadata):
     flags: Optional[SimpleEvaluatorQueryFlags] = None
+
+
+# CATALOG ----------------------------------------------------------------------
+
+
+class EvaluatorCatalogPreset(BaseModel):
+    key: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    archived: Optional[bool] = None
+    recommended: Optional[bool] = None
+    categories: Optional[List[str]] = None
+    data: Optional[Dict[str, Any]] = None
+
+
+class EvaluatorCatalogTemplate(BaseModel):
+    key: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    archived: Optional[bool] = None
+    recommended: Optional[bool] = None
+    categories: Optional[List[str]] = None
+    data: Optional[Dict[str, Any]] = None
 
 
 # ------------------------------------------------------------------------------

@@ -34,6 +34,10 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
+from oss.src.core.evaluators.dtos import (
+    EvaluatorCatalogPreset,
+    EvaluatorCatalogTemplate,
+)
 
 
 # EVALUATORS -------------------------------------------------------------------
@@ -248,3 +252,26 @@ class EvaluatorTemplate(BaseModel):
 class EvaluatorTemplatesResponse(BaseModel):
     count: int = 0
     templates: List[EvaluatorTemplate] = []
+
+
+# EVALUATORS CATALOG -----------------------------------------------------------
+
+
+class EvaluatorCatalogTemplateResponse(BaseModel):
+    count: int = 0
+    template: Optional[EvaluatorCatalogTemplate] = None
+
+
+class EvaluatorCatalogTemplatesResponse(BaseModel):
+    count: int = 0
+    templates: List[EvaluatorCatalogTemplate] = []
+
+
+class EvaluatorCatalogPresetResponse(BaseModel):
+    count: int = 0
+    preset: Optional[EvaluatorCatalogPreset] = None
+
+
+class EvaluatorCatalogPresetsResponse(BaseModel):
+    count: int = 0
+    presets: List[EvaluatorCatalogPreset] = []
