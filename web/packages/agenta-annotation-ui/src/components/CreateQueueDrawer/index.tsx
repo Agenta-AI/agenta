@@ -310,7 +310,7 @@ function CreateQueueDrawerContent({
         >
             <ModalContent className="flex flex-col">
                 {/* ── Basic details ── */}
-                <div className="flex flex-col gap-4 px-6 py-6">
+                <div className="flex flex-col gap-4 px-6 py-3">
                     <SectionTitle>Basic details</SectionTitle>
 
                     <Form.Item
@@ -327,7 +327,6 @@ function CreateQueueDrawerContent({
                         name="kind"
                         label={<FieldLabel>Queue type</FieldLabel>}
                         rules={[{required: true, message: "Type is required"}]}
-                        style={{marginTop: 16}}
                     >
                         <Select
                             options={[
@@ -342,7 +341,6 @@ function CreateQueueDrawerContent({
                         className={COMPACT_FORM_ITEM_CLASS}
                         name="description"
                         label={<FieldLabel>Description</FieldLabel>}
-                        style={{marginTop: 16}}
                     >
                         <Input.TextArea
                             rows={2}
@@ -354,7 +352,7 @@ function CreateQueueDrawerContent({
                 <Divider className="!m-0" />
 
                 {/* ── Annotation details ── */}
-                <div className="flex flex-col gap-4 px-6 py-6">
+                <div className="flex flex-col gap-4 px-6 py-3">
                     <SectionTitle>Annotation details</SectionTitle>
 
                     <div className="flex flex-col gap-2">
@@ -406,7 +404,7 @@ function CreateQueueDrawerContent({
                 <Divider className="!m-0" />
 
                 {/* ── Collaborator settings ── */}
-                <div className="flex flex-col gap-4 px-6 py-6">
+                <div className="flex flex-col gap-4 px-6 py-4">
                     <SectionTitle>Collaborator settings</SectionTitle>
 
                     <Form.Item
