@@ -23,7 +23,7 @@ export interface TestsetSyncRow {
     testcaseId: string
     testsetId: string
     rowId: string
-    evaluatorSlugs: string[]
+    evaluatorColumnKeys: string[]
     data: Record<string, unknown>
 }
 
@@ -45,6 +45,7 @@ export interface TestsetSyncPreview {
 
 export interface TestsetSyncEvaluator {
     slug: string
+    name?: string | null
     workflowId?: string | null
 }
 
@@ -226,7 +227,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
         }
 
         const annotations = params.annotationsByTestcaseId.get(completed.testcaseId) ?? []
-        const selected: {slug: string; outputs: Record<string, unknown>}[] = []
+        const selected: {columnKey: string; outputs: Record<string, unknown>}[] = []
         let hasConflict = false
 
         for (const evaluator of params.evaluators) {
@@ -247,8 +248,8 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
                     evaluatorSlug: evaluator.slug,
                     message:
                         selection.conflictCode === "duplicate_queue_annotations"
-                            ? `Multiple queue-scoped annotations were found for evaluator "${evaluator.slug}".`
-                            : `Multiple legacy annotations were found for evaluator "${evaluator.slug}".`,
+                            ? `Multiple queue-scoped annotations were found for evaluator "${evaluator.name ?? evaluator.slug}".`
+                            : `Multiple legacy annotations were found for evaluator "${evaluator.name ?? evaluator.slug}".`,
                 })
                 continue
             }
@@ -266,18 +267,21 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
             if (Object.keys(outputs).length === 0) continue
 
-            selected.push({slug: resolvedSlug, outputs})
+            selected.push({
+                columnKey: evaluator.name?.trim() || resolvedSlug,
+                outputs,
+            })
         }
 
         if (hasConflict || selected.length === 0) {
             continue
         }
 
-        const evaluatorSlugs = selected.map((entry) => entry.slug)
+        const evaluatorColumnKeys = selected.map((entry) => entry.columnKey)
         const data: Record<string, unknown> = {...(testcase.data ?? {})}
 
         for (const entry of selected) {
-            data[entry.slug] = entry.outputs
+            data[entry.columnKey] = entry.outputs
         }
 
         rows.push({
@@ -285,7 +289,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
             testcaseId: completed.testcaseId,
             testsetId,
             rowId: testcase.id,
-            evaluatorSlugs,
+            evaluatorColumnKeys,
             data,
         })
     }
@@ -310,7 +314,7 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
 
         target.rowCount += 1
         target.rows.push(row)
-        row.evaluatorSlugs.forEach((slug) => target.columns.add(slug))
+        row.evaluatorColumnKeys.forEach((columnKey) => target.columns.add(columnKey))
         targetsByTestsetId.set(row.testsetId, target)
     }
 

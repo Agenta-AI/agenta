@@ -264,7 +264,7 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
 })
 
-/** Evaluator slug/workflow pairs for queue-scoped testcase sync. */
+/** Evaluator metadata for queue-scoped testcase sync. */
 const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
@@ -277,6 +277,7 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
         const evaluatorEntity = workflowId
             ? get(evaluatorMolecule.selectors.data(workflowId))
             : null
+        const name = evaluatorEntity?.name?.trim() || null
         const slug =
             step.references?.evaluator?.slug ??
             evaluatorEntity?.slug ??
@@ -289,6 +290,7 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
 
         byKey.set(key, {
             slug: slug ?? key ?? "",
+            name,
             workflowId,
         })
     }
