@@ -1,5 +1,17 @@
 from agenta.sdk.models.workflows import WorkflowServiceConfiguration
 
+# --- NEW URI
+trace_v0_configuration = WorkflowServiceConfiguration()
+hook_v0_configuration = WorkflowServiceConfiguration()
+code_v0_configuration = WorkflowServiceConfiguration()
+match_v0_configuration = WorkflowServiceConfiguration()
+prompt_v0_configuration = WorkflowServiceConfiguration()
+agent_v0_configuration = WorkflowServiceConfiguration()
+
+# --- OLD URI
+chat_v0_configuration = WorkflowServiceConfiguration()
+completion_v0_configuration = WorkflowServiceConfiguration()
+
 
 echo_v0_configuration = WorkflowServiceConfiguration()
 auto_exact_match_v0_configuration = WorkflowServiceConfiguration()
@@ -19,6 +31,3 @@ auto_json_diff_v0_configuration = WorkflowServiceConfiguration()
 auto_levenshtein_distance_v0_configuration = WorkflowServiceConfiguration()
 auto_similarity_match_v0_configuration = WorkflowServiceConfiguration()
 auto_semantic_similarity_v0_configuration = WorkflowServiceConfiguration()
-hook_v0_configuration = WorkflowServiceConfiguration()
-completion_v0_configuration = WorkflowServiceConfiguration()
-chat_v0_configuration = WorkflowServiceConfiguration()

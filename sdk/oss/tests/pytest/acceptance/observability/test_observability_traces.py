@@ -14,10 +14,42 @@ Environment variables:
     AGENTA_HOST: Optional, defaults to https://cloud.agenta.ai
 """
 
+import time
+
 import pytest
 from uuid import uuid4
 
 import agenta as ag
+
+
+def _poll_fetch_trace(
+    fetch_fn, trace_id, max_retries=15, initial_delay=0.5, max_delay=8.0
+):
+    """Poll fetch_trace until traces is not None or retries exhausted."""
+    delay = initial_delay
+    for attempt in range(max_retries):
+        fetched = fetch_fn(trace_id)
+        if fetched.traces is not None:
+            return fetched
+        if attempt < max_retries - 1:
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+    return fetched
+
+
+async def _async_poll_fetch_trace(
+    fetch_fn, trace_id, max_retries=15, initial_delay=0.5, max_delay=8.0
+):
+    """Async poll fetch_trace until traces is not None or retries exhausted."""
+    delay = initial_delay
+    for attempt in range(max_retries):
+        fetched = await fetch_fn(trace_id)
+        if fetched.traces is not None:
+            return fetched
+        if attempt < max_retries - 1:
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+    return fetched
 
 
 pytestmark = [pytest.mark.acceptance]
@@ -55,7 +87,7 @@ def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
         assert isinstance(trace_id, str) and trace_id
         assert isinstance(span_id, str) and span_id
 
-        fetched = ag.api.observability.fetch_trace(trace_id)
+        fetched = _poll_fetch_trace(ag.api.observability.fetch_trace, trace_id)
         assert fetched.traces is not None
         tree = (fetched.traces or {}).get(trace_id)
         if tree is None and fetched.traces:
@@ -83,7 +115,39 @@ def test_observability_trace_lifecycle(agenta_init, otlp_flat_span_factory):
         )
         assert edited.links is not None and len(edited.links) >= 1
 
-        refetched = ag.api.observability.fetch_trace(trace_id)
+        def _get_updated_span(fetch_fn, tid, sid):
+            """Poll until the edited span shows sdk_it_phase=edit."""
+            delay = 0.5
+            for attempt in range(15):
+                fetched = fetch_fn(tid)
+                if fetched.traces:
+                    tree = (fetched.traces or {}).get(tid) or (
+                        next(iter(fetched.traces.values())) if fetched.traces else None
+                    )
+                    if tree and tree.spans:
+                        spans_map = tree.spans or {}
+                        s = spans_map.get("sdk-it-span") or next(
+                            (
+                                v
+                                for v in spans_map.values()
+                                if getattr(v, "span_id", None) == sid
+                            ),
+                            None,
+                        )
+                        if (
+                            s
+                            and s.attributes
+                            and s.attributes.get("sdk_it_phase") == "edit"
+                        ):
+                            return fetched
+                if attempt < 14:
+                    time.sleep(delay)
+                    delay = min(delay * 2, 8.0)
+            return fetched
+
+        refetched = _get_updated_span(
+            ag.api.observability.fetch_trace, trace_id, span_id
+        )
         assert refetched.traces is not None
         tree2 = (refetched.traces or {}).get(trace_id)
         if tree2 is None and refetched.traces:
@@ -146,7 +210,9 @@ class TestObservabilityAsync:
             assert isinstance(span_id, str) and span_id
 
             # Fetch trace using async API
-            fetched = await ag.async_api.observability.fetch_trace(trace_id)
+            fetched = await _async_poll_fetch_trace(
+                ag.async_api.observability.fetch_trace, trace_id
+            )
             assert fetched.traces is not None
 
             tree = (fetched.traces or {}).get(trace_id)

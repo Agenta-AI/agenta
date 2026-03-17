@@ -31,8 +31,11 @@ from agenta.sdk.models.shared import Data
 from agenta.sdk.workflows.sandbox import execute_code_safely
 from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.workflows.errors import (
+    AgentV0Error,
+    CodeV0Error,
     CustomCodeServerV0Error,
     ErrorStatus,
+    HookV0Error,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -41,10 +44,12 @@ from agenta.sdk.workflows.errors import (
     InvalidSecretsV0Error,
     JSONDiffV0Error,
     LevenshteinDistanceV0Error,
+    MatchV0Error,
     MissingConfigurationParameterV0Error,
     MissingInputV0Error,
     PromptCompletionV0Error,
     PromptFormattingV0Error,
+    PromptV0Error,
     RegexPatternV0Error,
     SemanticSimilarityV0Error,
     SyntacticSimilarityV0Error,
@@ -58,6 +63,8 @@ _WEBHOOK_RESPONSE_MAX_BYTES = 1 * 1024 * 1024.0  # 1 MB
 _WEBHOOK_ALLOW_INSECURE = (
     os.getenv("AGENTA_WEBHOOK_ALLOW_INSECURE") or "true"
 ).lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+
+# --- HELPERS
 
 
 def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
@@ -135,9 +142,6 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     return dot / (norm1 * norm2)
 
 
-# ========= Scheme detection =========
-
-
 def detect_scheme(expr: str) -> str:
     """Return 'json-path', 'json-pointer', or 'dot-notation' based on the placeholder prefix."""
     if expr.startswith("$"):
@@ -145,9 +149,6 @@ def detect_scheme(expr: str) -> str:
     if expr.startswith("/"):
         return "json-pointer"
     return "dot-notation"
-
-
-# ========= Resolvers =========
 
 
 def resolve_dot_notation(expr: str, data: dict) -> object:
@@ -232,9 +233,6 @@ def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
             log.debug("Failed to resolve JSON selector %r: %s", value, exc)
             return None
     return value
-
-
-# ========= Placeholder & coercion helpers =========
 
 
 def extract_placeholders(template: str) -> Iterable[str]:
@@ -429,12 +427,1153 @@ def _compare_jsons(
         return 0.0
 
 
+def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:
+    """Resolve a reference that may be a JSONPath/Pointer selector or a literal value.
+
+    Per design spec: if the string starts with '$' (JSONPath) or '/' (JSON Pointer),
+    resolve it from the request context. Otherwise treat as a literal.
+    """
+    if not isinstance(reference, str):
+        return reference
+    if reference.startswith("$.") or reference == "$" or reference.startswith("$["):
+        try:
+            return resolve_json_path(reference, request)
+        except Exception:
+            return reference  # fall back to literal on resolution failure
+    if reference.startswith("/"):
+        try:
+            return resolve_json_pointer(reference, request)
+        except Exception:
+            return reference
+    return reference
+
+
+def _make_match_result(
+    key: str,
+    path: str,
+    success: bool,
+    score: float,
+    error: bool = False,
+    status: str = "ok",
+    message: Optional[str] = None,
+    children: Optional[List[Any]] = None,
+) -> Dict[str, Any]:
+    result: Dict[str, Any] = {
+        "key": key,
+        "path": path,
+        "success": success,
+        "score": score,
+        "error": error,
+        "status": status,
+    }
+    if message is not None:
+        result["message"] = message
+    if children is not None:
+        result["children"] = children
+    return result
+
+
+def _execute_match_valid(actual: Any, kind: str) -> Tuple[bool, float]:
+    """mode=valid: check that the value at path conforms to kind."""
+    if kind == "text":
+        success = isinstance(actual, str)
+    elif kind == "json":
+        if isinstance(actual, (dict, list)):
+            success = True
+        elif isinstance(actual, str):
+            try:
+                json.loads(actual)
+                success = True
+            except json.JSONDecodeError:
+                success = False
+        else:
+            success = False
+    else:
+        success = False
+    return success, 1.0 if success else 0.0
+
+
+def _coerce_to_str(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    return str(value) if value is not None else ""
+
+
+def _execute_match_exact(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=exact: direct equality comparison."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str == ref_str
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_starts_with(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=starts_with: prefix check."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str.startswith(ref_str)
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_ends_with(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=ends_with: suffix check."""
+    actual_str = _coerce_to_str(actual)
+    ref_str = _coerce_to_str(reference)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+    success = actual_str.endswith(ref_str)
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_contains(
+    actual: Any,
+    reference: Any,
+    references: Optional[List[Any]],
+    match_mode: str,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=contains: substring check, single or multi-value."""
+    actual_str = _coerce_to_str(actual)
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+
+    if references:
+        checks = []
+        for ref in references:
+            ref_str = _coerce_to_str(ref)
+            if not case_sensitive:
+                ref_str = ref_str.lower()
+            checks.append(ref_str in actual_str)
+        success = any(checks) if match_mode == "any" else all(checks)
+    else:
+        ref_str = _coerce_to_str(reference)
+        if not case_sensitive:
+            ref_str = ref_str.lower()
+        success = ref_str in actual_str
+
+    return success, 1.0 if success else 0.0
+
+
+def _execute_match_regex(
+    actual: Any,
+    reference: Any,
+    case_sensitive: bool,
+) -> Tuple[bool, float]:
+    """mode=regex: apply the reference as a regex pattern against the actual value."""
+    # Coerce actual to string
+    if isinstance(actual, str):
+        actual_str = actual
+    elif isinstance(actual, (dict, list)):
+        actual_str = json.dumps(actual, sort_keys=True)
+    else:
+        actual_str = str(actual) if actual is not None else ""
+
+    # Reference is the regex pattern (after resolution)
+    if not isinstance(reference, str):
+        pattern_str = str(reference) if reference is not None else ""
+    else:
+        pattern_str = reference
+
+    flags = 0 if case_sensitive else re.IGNORECASE
+    try:
+        pattern = re.compile(pattern_str, flags=flags)
+    except re.error as e:
+        raise RegexPatternV0Error(pattern=pattern_str) from e
+
+    matched = bool(pattern.search(actual_str))
+    return matched, 1.0 if matched else 0.0
+
+
+def _execute_match_similarity_sync(
+    actual: Any,
+    reference: Any,
+    distance: str,
+    case_sensitive: bool,
+) -> float:
+    """mode=similarity for jaccard and levenshtein distances (synchronous)."""
+    actual_str = (
+        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
+    )
+    ref_str = (
+        reference
+        if isinstance(reference, str)
+        else json.dumps(reference, sort_keys=True)
+    )
+
+    if not case_sensitive:
+        actual_str = actual_str.lower()
+        ref_str = ref_str.lower()
+
+    if distance == "jaccard":
+        # Design note: named "jaccard" but uses SequenceMatcher for legacy parity
+        matcher = SequenceMatcher(None, actual_str, ref_str)
+        return float(matcher.ratio())
+
+    elif distance == "levenshtein":
+        if len(ref_str) == 0:
+            dist = len(actual_str)
+        else:
+            prev_row = list(range(len(ref_str) + 1))
+            for i, c1 in enumerate(actual_str):
+                curr_row = [i + 1]
+                for j, c2 in enumerate(ref_str):
+                    insert = prev_row[j + 1] + 1
+                    delete = curr_row[j] + 1
+                    substitute = prev_row[j] + (c1 != c2)
+                    curr_row.append(min(insert, delete, substitute))
+                prev_row = curr_row
+            dist = prev_row[-1]
+        max_len = max(len(actual_str), len(ref_str))
+        return 1.0 if max_len == 0 else 1.0 - (dist / max_len)
+
+    else:
+        raise MatchV0Error(
+            message=f"Unknown distance metric: {distance!r}. Expected 'jaccard', 'levenshtein', or 'cosine'."
+        )
+
+
+async def _execute_match_similarity_cosine(
+    actual: Any,
+    reference: Any,
+    embedding_model: str,
+) -> float:
+    """mode=similarity with distance=cosine (async, requires OpenAI)."""
+    actual_str = (
+        actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
+    )
+    ref_str = (
+        reference
+        if isinstance(reference, str)
+        else json.dumps(reference, sort_keys=True)
+    )
+
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
+
+    openai_api_key = None
+    if isinstance(secrets, list):
+        for secret in secrets:
+            if secret.get("kind") == "provider_key":
+                secret_data = secret.get("data", {})
+                if secret_data.get("kind") == "openai":
+                    provider_data = secret_data.get("provider", {})
+                    openai_api_key = provider_data.get("key") or openai_api_key
+
+    AsyncOpenAI, OpenAIError = _load_openai()
+    try:
+        openai = AsyncOpenAI(api_key=openai_api_key)
+    except OpenAIError as e:
+        raise OpenAIError("OpenAIException - " + e.args[0])
+
+    output_embedding = await _compute_embedding(openai, embedding_model, actual_str)
+    reference_embedding = await _compute_embedding(openai, embedding_model, ref_str)
+    return float(_compute_similarity(output_embedding, reference_embedding))
+
+
+def _execute_match_overlap(
+    actual: Any,
+    reference: Any,
+    use_schema_only: bool,
+    include_unexpected_keys: bool,
+    case_sensitive: bool,
+) -> float:
+    """mode=overlap: scored comparison over flattened JSON fields."""
+    # Parse JSON strings if needed
+    if isinstance(actual, str):
+        try:
+            actual = json.loads(actual)
+        except json.JSONDecodeError:
+            return 0.0
+    if isinstance(reference, str):
+        try:
+            reference = json.loads(reference)
+        except json.JSONDecodeError:
+            return 0.0
+
+    if not isinstance(actual, (dict, list)) or not isinstance(reference, (dict, list)):
+        return 0.0
+
+    settings = {
+        "compare_schema_only": use_schema_only,
+        "predict_keys": include_unexpected_keys,
+        "case_insensitive_keys": not case_sensitive,
+    }
+    return _compare_jsons(
+        ground_truth=reference,
+        app_output=actual,
+        settings_values=settings,
+    )
+
+
+def _aggregate_child_results(
+    child_matchers: List[Dict],
+    child_results: List[Dict],
+    aggregate: str,
+    threshold: float,
+) -> Tuple[bool, float]:
+    """Aggregate child matcher results according to aggregate strategy."""
+    if not child_results:
+        return True, 1.0
+
+    successes = [r["success"] for r in child_results]
+    scores = [r["score"] for r in child_results]
+
+    if aggregate == "all":
+        agg_success = all(successes)
+        agg_score = sum(scores) / len(scores)
+    elif aggregate == "any":
+        agg_success = any(successes)
+        agg_score = sum(scores) / len(scores)
+    elif aggregate == "weighted":
+        weights = [float(m.get("weight", 1.0)) for m in child_matchers]
+        total_weight = sum(weights) if sum(weights) > 0 else 1.0
+        agg_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+        agg_success = agg_score >= threshold
+    else:
+        agg_success = all(successes)
+        agg_score = sum(scores) / len(scores)
+
+    return agg_success, agg_score
+
+
+async def _execute_match_node(
+    matcher: Dict[str, Any],
+    request: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Execute a single matcher node, recursing into children when present."""
+    key = str(matcher.get("key", ""))
+    path = str(matcher.get("path", ""))
+    kind = str(matcher.get("kind", "text"))
+    mode = str(matcher.get("mode", "valid"))
+    case_sensitive = matcher.get("case_sensitive", True) is True
+    threshold = float(matcher.get("threshold", 0.5))
+
+    # Execute child matchers depth-first
+    child_matchers: List[Dict] = matcher.get("matchers") or []
+    children: List[Dict[str, Any]] = []
+    for child in child_matchers:
+        child_result = await _execute_match_node(child, request)
+        children.append(child_result)
+
+    # Resolve the actual value at path
+    try:
+        actual = resolve_any(path, request)
+    except Exception as e:
+        return _make_match_result(
+            key,
+            path,
+            False,
+            0.0,
+            error=True,
+            status="error",
+            message=f"Path resolution failed for '{path}': {e}",
+            children=children or None,
+        )
+
+    # If node has children, aggregate and return (own mode provides context only)
+    if children:
+        aggregate = str(matcher.get("aggregate", "all"))
+        agg_success, agg_score = _aggregate_child_results(
+            child_matchers, children, aggregate, threshold
+        )
+        return _make_match_result(key, path, agg_success, agg_score, children=children)
+
+    # No children: execute own mode
+    reference_expr = matcher.get("reference")
+    reference: Any = None
+    if reference_expr is not None:
+        reference = _resolve_reference_value(reference_expr, request)
+
+    # Resolve multi-value references list
+    references_exprs: Optional[List] = matcher.get("references")
+    references: Optional[List[Any]] = None
+    if references_exprs is not None:
+        references = [_resolve_reference_value(r, request) for r in references_exprs]
+
+    match_mode = str(matcher.get("match", "all"))
+
+    try:
+        if mode == "valid":
+            success, score = _execute_match_valid(actual, kind)
+
+        elif mode == "exact":
+            success, score = _execute_match_exact(actual, reference, case_sensitive)
+
+        elif mode == "starts_with":
+            success, score = _execute_match_starts_with(
+                actual, reference, case_sensitive
+            )
+
+        elif mode == "ends_with":
+            success, score = _execute_match_ends_with(actual, reference, case_sensitive)
+
+        elif mode == "contains":
+            success, score = _execute_match_contains(
+                actual, reference, references, match_mode, case_sensitive
+            )
+
+        elif mode == "regex":
+            success, score = _execute_match_regex(actual, reference, case_sensitive)
+
+        elif mode == "similarity":
+            distance = str(matcher.get("distance", "jaccard"))
+            if distance == "cosine":
+                embedding_model = str(
+                    matcher.get("embedding_model", "text-embedding-3-small")
+                )
+                score = await _execute_match_similarity_cosine(
+                    actual, reference, embedding_model
+                )
+            else:
+                score = _execute_match_similarity_sync(
+                    actual, reference, distance, case_sensitive
+                )
+            success = score >= threshold
+
+        elif mode == "overlap":
+            use_schema_only = matcher.get("use_schema_only", False) is True
+            include_unexpected_keys = (
+                matcher.get("include_unexpected_keys", False) is True
+            )
+            score = _execute_match_overlap(
+                actual,
+                reference,
+                use_schema_only,
+                include_unexpected_keys,
+                case_sensitive,
+            )
+            success = score >= threshold
+
+        else:
+            raise MatchV0Error(
+                message=f"Unknown mode: {mode!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'overlap'."
+            )
+
+        return _make_match_result(key, path, success, score)
+
+    except ErrorStatus as e:
+        return _make_match_result(
+            key,
+            path,
+            False,
+            0.0,
+            error=True,
+            status="error",
+            message=e.message,
+        )
+    except Exception as e:
+        return _make_match_result(
+            key,
+            path,
+            False,
+            0.0,
+            error=True,
+            status="error",
+            message=str(e),
+        )
+
+
+def _apply_responses_bridge_if_needed(
+    formatted_prompt: PromptTemplate, provider_settings: Dict
+) -> Dict:
+    """
+    Checks if web_search_preview tool is present and applies responses bridge if needed.
+
+    If a web_search_preview, code_execution, or mcp tool is detected, this function
+    modifies the provider_settings to use the responses bridge by prepending
+    'openai/responses/' to the model name.
+
+    Args:
+        formatted_prompt: The formatted prompt template containing LLM config and tools
+        provider_settings: The provider settings dictionary that may be modified
+
+    Returns:
+        The provider_settings dictionary, potentially modified to use responses bridge
+    """
+    tools = formatted_prompt.llm_config.tools
+    if tools:
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") in [
+                "web_search_preview",
+                "code_execution",
+                "mcp",
+            ]:
+                model_val = provider_settings.get("model")
+                if model_val and "/" not in model_val:
+                    provider_settings["model"] = f"openai/responses/{model_val}"
+    return provider_settings
+
+
+def _get_nested_value(obj: Any, path: str) -> Any:
+    """
+    Get value from nested object using resolve_any() with graceful None on failure.
+
+    Supports multiple path formats:
+        - Dot notation: "user.address.city", "items.0.name"
+        - JSON Path: "$.user.address.city", "$.items[0].name"
+        - JSON Pointer: "/user/address/city", "/items/0/name"
+
+    Args:
+        obj: The object to traverse (dict or list)
+        path: Path expression in any supported format
+
+    Returns:
+        The value at the path, or None if path doesn't exist or resolution fails
+    """
+    if obj is None:
+        return None
+
+    try:
+        return resolve_any(path, obj)
+    except (KeyError, IndexError, ValueError, TypeError, ImportError):
+        return None
+
+
+class SinglePromptConfig(BaseModel):
+    prompt: PromptTemplate = Field(
+        default=PromptTemplate(
+            system_prompt="You are an expert in geography",
+            user_prompt="What is the capital of {{country}}?",
+        )
+    )
+
+
+# --- NEW URI
+
+
+@instrument()
+async def trace_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Interface-only handler for agenta:custom:trace:v0.
+
+    Unified handler for invocation/annotation workflows where the response
+    (app output or human annotation) arrives via external links rather than
+    a direct return value.
+
+    This URI exists as a schema/interface registry entry only.
+    It cannot be invoked directly — raise an error if called.
+    """
+    raise HookV0Error(
+        message="agenta:custom:trace:v0 is interface-only and cannot be invoked directly.",
+    )
+
+
+@instrument(ignore_inputs=["parameters"])
+async def hook_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Webhook-based handler for CUSTOM app types and evaluators.
+
+    Forwards the full workflow request to an external webhook URL and returns
+    the response.  The webhook URL is read from the workflow interface (``url``
+    field in revision data), not from ``parameters``.
+
+    Complies with the canonical Workflow Request shape so it can serve as
+    both an app handler (inputs → webhook → outputs) and an evaluator handler
+    (inputs + outputs + trace → webhook → evaluation result).
+
+    Args:
+        request:    Raw request object (unused, available for introspection).
+        revision:   Revision data (unused, available for introspection).
+        inputs:     Inputs forwarded to the webhook.
+        parameters: Configuration parameters forwarded to the webhook.
+        outputs:    App outputs forwarded to the webhook (evaluator use-case).
+        trace:      Trace data forwarded to the webhook (evaluator use-case).
+        testcase:   Testcase data forwarded to the webhook (evaluator use-case).
+
+    Returns:
+        The JSON-decoded (or raw text) response from the webhook.
+    """
+    from agenta.sdk.contexts.running import RunningContext
+
+    ctx = RunningContext.get()
+    webhook_url = ctx.interface.url if ctx.interface else None
+
+    if not webhook_url:
+        raise MissingConfigurationParameterV0Error(path="url")
+
+    webhook_url = str(webhook_url)
+    try:
+        _validate_webhook_url(webhook_url)
+    except ValueError as exc:
+        raise InvalidConfigurationParameterV0Error(
+            path="url",
+            expected="http/https URL",
+            got=webhook_url,
+        ) from exc
+
+    json_payload: Dict[str, Any] = {
+        "inputs": inputs or {},
+        "parameters": parameters or {},
+    }
+    if outputs is not None:
+        json_payload["outputs"] = outputs
+    if trace is not None:
+        json_payload["trace"] = trace
+    if testcase is not None:
+        json_payload["testcase"] = testcase
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                url=webhook_url,
+                json=json_payload,
+                timeout=httpx.Timeout(30.0, connect=5.0),
+            )
+        except Exception as e:
+            raise WebhookClientV0Error(
+                message=str(e),
+            ) from e
+
+        if response.status_code != 200:
+            try:
+                message = response.json()
+            except Exception:
+                message = response.text
+            raise WebhookServerV0Error(
+                code=response.status_code,
+                message=message,
+            )
+
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        response_bytes = response.content
+        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
+            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
+
+        try:
+            return json.loads(response_bytes)
+        except Exception:
+            return response_bytes.decode("utf-8")
+
+
+@instrument()
+async def code_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    #
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    #
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Code evaluator using the canonical evaluate(inputs, outputs, trace) interface.
+
+    Executes ``parameters["code"]`` as ``evaluate(inputs, outputs, trace)``
+    and normalises the return value to a typed evaluation result.
+
+    Parameters:
+        code:      Python (or JS/TS) source containing an ``evaluate`` function.
+        runtime:   Execution runtime — ``"python"`` (default), ``"javascript"``,
+                   or ``"typescript"``.
+        threshold: Score threshold for success when the code returns a number.
+                   Defaults to 0.5.
+
+    Returns:
+        ``{"score": float, "success": bool}``  when code returns a number.
+        ``{"success": bool}``                  when code returns a bool.
+        The raw dict / str                     when code returns one of those.
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "code" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="code")
+
+    code = str(parameters["code"])
+    runtime = str(parameters.get("runtime") or "python")
+
+    if runtime not in ["python", "javascript", "typescript"]:
+        raise InvalidConfigurationParameterV0Error(
+            path="runtime",
+            expected=["python", "javascript", "typescript"],
+            got=runtime,
+        )
+
+    threshold = float(parameters.get("threshold") or 0.5)
+
+    if outputs is not None and not isinstance(outputs, (str, dict)):
+        raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
+
+    try:
+        _result = execute_code_safely(
+            app_params={},
+            inputs=inputs or {},
+            output=outputs,
+            correct_answer=None,
+            code=code,
+            runtime=runtime,
+            templates=EVALUATOR_TEMPLATES.get("v1", {}),
+            version="2",
+            trace=trace,
+        )
+    except ErrorStatus:
+        raise
+    except Exception as e:
+        raise CodeV0Error(
+            message=str(e),
+            stacktrace=traceback.format_exc(),
+        ) from e
+
+    if isinstance(_result, bool):
+        return {"success": _result}
+
+    if isinstance(_result, (int, float)):
+        score = float(_result)
+        return {"score": score, "success": score >= threshold}
+
+    if isinstance(_result, (dict, str)):
+        return _result
+
+    raise InvalidOutputsV0Error(
+        expected=["dict", "str", "int", "float", "bool"], got=_result
+    )
+
+
+@instrument()
+async def match_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Match evaluator with recursive matcher tree (agenta:builtin:match:v0).
+
+    Consolidates the following legacy builtin evaluators:
+    - auto_exact_match     → kind="text", mode="regex", anchored+escaped reference
+    - auto_regex_test      → kind="text", mode="regex"
+    - auto_starts_with     → kind="text", mode="regex", reference="^PREFIX"
+    - auto_ends_with       → kind="text", mode="regex", reference="SUFFIX$"
+    - auto_contains        → kind="text", mode="regex", reference="SUBSTRING"
+    - auto_contains_any    → kind="text", mode="regex", reference="(OPT1|OPT2|...)"
+    - auto_contains_all    → kind="text", mode="regex", reference="(?=.*S1)(?=.*S2).*"
+    - auto_similarity_match    → kind="text", mode="similarity", distance="jaccard"
+    - auto_semantic_similarity → kind="text", mode="similarity", distance="cosine"
+    - auto_levenshtein_distance → kind="text", mode="similarity", distance="levenshtein"
+    - field_match_test     → kind="text", mode="regex", path="$.outputs.FIELD"
+    - json_multi_field_match → kind="json", mode="overlap" + child matchers
+    - auto_contains_json   → kind="json", mode="valid"
+    - auto_json_diff       → kind="json", mode="overlap"
+
+    Parameters:
+        parameters: {"matchers": [...]}  — recursive matcher tree
+        inputs:     testcase inputs (accessible as $.inputs.*)
+        outputs:    workflow outputs (accessible as $.outputs or $.outputs.*)
+        trace:      trace data (accessible as $.trace.*)
+
+    Returns:
+        {"results": [...]}  — recursive result tree mirroring the matcher tree
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "matchers" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="matchers")
+
+    matchers = parameters["matchers"]
+    if not isinstance(matchers, list):
+        raise InvalidConfigurationParameterV0Error(
+            path="matchers", expected="list", got=matchers
+        )
+
+    # Build request context for path resolution
+    request: Dict[str, Any] = {}
+    if inputs is not None:
+        request["inputs"] = inputs
+    if outputs is not None:
+        request["outputs"] = outputs
+    if trace is not None:
+        request["trace"] = trace
+
+    results = []
+    for matcher in matchers:
+        result = await _execute_match_node(matcher, request)
+        results.append(result)
+
+    return {"results": results}
+
+
+@instrument()
+async def prompt_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Prompt-based evaluator: formats a message-list template with evaluation context
+    and calls an LLM.  Fuses the concerns of ``completion_v0``, ``chat_v0``, and
+    ``auto_ai_critique_v0`` into a single, context-aware evaluator handler.
+
+    Template context (all available as ``{{name}}`` placeholders):
+        - ``inputs`` / ``{{field_name}}``:  testcase input dict + individual keys
+        - ``outputs``:                      app output
+        - ``trace``:                        trace data
+        - ``prediction``:                   alias for ``outputs``
+
+    Parameters:
+        prompt_template:  List of ``{"role": str, "content": str}`` messages.
+        model:            LiteLLM model string (default ``"gpt-3.5-turbo"``).
+        template_format:  ``"curly"`` (default), ``"fstring"``, or ``"jinja2"``.
+        threshold:        Score threshold when the LLM returns a number (default 0.5).
+        response_type:    ``"text"`` (default), ``"json_object"``, or ``"json_schema"``.
+        json_schema:      Schema dict required when ``response_type="json_schema"``.
+
+    Returns:
+        ``{"score": float, "success": bool}``  when LLM returns a number.
+        ``{"success": bool}``                  when LLM returns a boolean.
+        The raw dict                           when LLM returns structured JSON.
+        ``{"message": str}``                   when LLM returns plain text.
+    """
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "prompt_template" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="prompt_template")
+
+    prompt_template = parameters["prompt_template"]
+    if not isinstance(prompt_template, list):
+        raise InvalidConfigurationParameterV0Error(
+            path="prompt_template", expected="list", got=prompt_template
+        )
+
+    model = str(parameters.get("model") or "gpt-3.5-turbo")
+    template_format = str(parameters.get("template_format") or "curly")
+    threshold = float(parameters.get("threshold") or 0.5)
+    response_type = str(parameters.get("response_type") or "text")
+
+    if response_type not in ["text", "json_object", "json_schema"]:
+        raise InvalidConfigurationParameterV0Error(
+            path="response_type",
+            expected=["text", "json_object", "json_schema"],
+            got=response_type,
+        )
+
+    json_schema = parameters.get("json_schema") or None
+    if response_type == "json_schema" and not isinstance(json_schema, dict):
+        raise InvalidConfigurationParameterV0Error(
+            path="json_schema", expected="dict", got=json_schema
+        )
+
+    response_format: dict = {"type": response_type}
+    if response_type == "json_schema":
+        response_format["json_schema"] = json_schema
+
+    # Build template context from the full evaluation request
+    context: Dict[str, Any] = {}
+
+    if inputs is not None:
+        if not isinstance(inputs, dict):
+            raise InvalidInputsV0Error(expected="dict", got=inputs)
+        context.update(inputs)  # individual keys: {{question}}, {{correct_answer}}, ...
+        context["inputs"] = inputs  # structured access: {{inputs}}
+
+    if outputs is not None:
+        context["outputs"] = outputs
+        context["prediction"] = outputs
+
+    if trace is not None:
+        context["trace"] = trace
+
+    if testcase is not None:
+        context["testcase"] = testcase
+
+    # Format prompt template
+    try:
+        formatted_messages = [
+            {
+                "role": msg["role"],
+                "content": _format_with_template(
+                    content=msg["content"],
+                    format=template_format,
+                    kwargs=context,
+                ),
+            }
+            for msg in prompt_template
+        ]
+    except Exception as e:
+        raise PromptFormattingV0Error(
+            message=str(e),
+            stacktrace=traceback.format_exc(),
+        ) from e
+
+    # Retrieve API keys and call the LLM
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
+    if secrets is None or not isinstance(secrets, list):
+        raise InvalidSecretsV0Error(expected="list", got=secrets)
+
+    openai_api_key = None
+    anthropic_api_key = None
+    openrouter_api_key = None
+    cohere_api_key = None
+    azure_api_key = None
+    groq_api_key = None
+
+    for secret in secrets:
+        if secret.get("kind") == "provider_key":
+            secret_data = secret.get("data", {})
+            provider_key = secret_data.get("provider", {}).get("key")
+            kind = secret_data.get("kind")
+            if kind == "openai":
+                openai_api_key = provider_key or openai_api_key
+            elif kind == "anthropic":
+                anthropic_api_key = provider_key or anthropic_api_key
+            elif kind == "openrouter":
+                openrouter_api_key = provider_key or openrouter_api_key
+            elif kind == "cohere":
+                cohere_api_key = provider_key or cohere_api_key
+            elif kind == "azure":
+                azure_api_key = provider_key or azure_api_key
+            elif kind == "groq":
+                groq_api_key = provider_key or groq_api_key
+
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for prompt evaluation.")
+
+    litellm.openai_key = openai_api_key
+    litellm.anthropic_key = anthropic_api_key
+    litellm.openrouter_key = openrouter_api_key
+    litellm.cohere_key = cohere_api_key
+    litellm.azure_key = azure_api_key
+    litellm.groq_key = groq_api_key
+
+    try:
+        response = await litellm.acompletion(
+            model=model,
+            messages=formatted_messages,
+            temperature=0.01,
+            response_format=response_format,
+        )
+        raw: str = response.choices[0].message.content.strip()  # type: ignore
+
+    except litellm.AuthenticationError as e:  # type: ignore
+        e.message = e.message.replace(
+            "litellm.AuthenticationError: AuthenticationError: ", ""
+        )
+        raise e
+    except Exception as e:
+        raise PromptV0Error(
+            message=str(e),
+            stacktrace=traceback.format_exc(),
+        ) from e
+
+    # Normalise the LLM output to a typed evaluation result
+    try:
+        parsed: Any = json.loads(raw)
+    except Exception:
+        parsed = raw
+
+    if isinstance(parsed, bool):
+        return {"success": parsed}
+
+    if isinstance(parsed, (int, float)):
+        score = float(parsed)
+        return {"score": score, "success": score >= threshold}
+
+    if isinstance(parsed, dict):
+        return parsed
+
+    return {"message": str(parsed)}
+
+
+@instrument()
+async def agent_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Stub handler for agenta:builtin:agent:v0.
+
+    The canonical agent URI exists so it can be registered, surfaced in the
+    interface/configuration registries, and exposed as a service endpoint.
+    The runtime implementation is intentionally deferred.
+    """
+    raise AgentV0Error(
+        message="agenta:builtin:agent:v0 exists but is not implemented yet.",
+    )
+
+
+# --- OLD URI
+
+
+@instrument(ignore_inputs=["parameters"])
+async def chat_v0(
+    parameters: Data,
+    inputs: Optional[Dict[str, str]] = None,
+    messages: Optional[List[Message]] = None,
+):
+    params: Dict[str, Any] = {**(parameters or {})}
+
+    config = SinglePromptConfig(**params)
+    if config.prompt.input_keys is not None:
+        required_keys = set(config.prompt.input_keys)
+        provided_keys = set(inputs.keys()) if inputs is not None else set()
+
+        if required_keys != provided_keys:
+            raise InvalidInputsV0Error(
+                expected=sorted(required_keys),
+                got=sorted(provided_keys),
+            )
+
+    if inputs is not None:
+        formatted_prompt = config.prompt.format(**inputs)
+    else:
+        formatted_prompt = config.prompt
+    openai_kwargs = formatted_prompt.to_openai_kwargs()
+
+    if messages is not None:
+        openai_kwargs["messages"].extend(messages)
+
+    await SecretsManager.ensure_secrets_in_workflow()
+
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        config.prompt.llm_config.model
+    )
+
+    if not provider_settings:
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
+    with mockllm.user_aws_credentials_from(provider_settings):
+        response = await mockllm.acompletion(
+            **{
+                k: v for k, v in openai_kwargs.items() if k != "model"
+            },  # we should use the model_name from provider_settings
+            **provider_settings,
+        )
+
+    return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
+
+
+@instrument(ignore_inputs=["parameters"])
+async def completion_v0(
+    parameters: Data,
+    inputs: Dict[str, str],
+) -> Any:
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    if "prompt" not in parameters:
+        raise MissingConfigurationParameterV0Error(path="prompt")
+
+    params: Dict[str, Any] = {**(parameters or {})}
+
+    config = SinglePromptConfig(**params)
+    if config.prompt.input_keys is not None:
+        required_keys = set(config.prompt.input_keys)
+        provided_keys = set(inputs.keys())
+
+        if required_keys != provided_keys:
+            raise InvalidInputsV0Error(
+                expected=sorted(required_keys),
+                got=sorted(provided_keys),
+            )
+
+    await SecretsManager.ensure_secrets_in_workflow()
+
+    provider_settings = SecretsManager.get_provider_settings_from_workflow(
+        config.prompt.llm_config.model
+    )
+
+    if not provider_settings:
+        model = getattr(
+            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
+        )
+        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
+
+    formatted_prompt = config.prompt.format(**inputs)
+
+    provider_settings = _apply_responses_bridge_if_needed(
+        formatted_prompt, provider_settings
+    )
+
+    with mockllm.user_aws_credentials_from(provider_settings):
+        response = await mockllm.acompletion(
+            **{
+                k: v
+                for k, v in formatted_prompt.to_openai_kwargs().items()
+                if k != "model"
+            },
+            **provider_settings,
+        )
+
+    message = response.choices[0].message  # type: ignore
+
+    if message.content is not None:
+        return message.content
+    if hasattr(message, "refusal") and message.refusal is not None:  # type: ignore
+        return message.refusal  # type: ignore
+    if hasattr(message, "parsed") and message.parsed is not None:  # type: ignore
+        return message.parsed  # type: ignore
+    if hasattr(message, "tool_calls") and message.tool_calls is not None:
+        return [tool_call.dict() for tool_call in message.tool_calls]
+
+
 @instrument()
 def echo_v0(aloha: Any):
     return {"got": aloha}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_exact_match_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -479,7 +1618,7 @@ def auto_exact_match_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_regex_test_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -536,7 +1675,7 @@ def auto_regex_test_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def field_match_test_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -601,32 +1740,7 @@ def field_match_test_v0(
     return {"success": success}
 
 
-def _get_nested_value(obj: Any, path: str) -> Any:
-    """
-    Get value from nested object using resolve_any() with graceful None on failure.
-
-    Supports multiple path formats:
-        - Dot notation: "user.address.city", "items.0.name"
-        - JSON Path: "$.user.address.city", "$.items[0].name"
-        - JSON Pointer: "/user/address/city", "/items/0/name"
-
-    Args:
-        obj: The object to traverse (dict or list)
-        path: Path expression in any supported format
-
-    Returns:
-        The value at the path, or None if path doesn't exist or resolution fails
-    """
-    if obj is None:
-        return None
-
-    try:
-        return resolve_any(path, obj)
-    except (KeyError, IndexError, ValueError, TypeError, ImportError):
-        return None
-
-
-@instrument(annotate=True)
+@instrument()
 def json_multi_field_match_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -743,7 +1857,7 @@ def json_multi_field_match_v0(
     return results
 
 
-@instrument(annotate=True)
+@instrument()
 async def auto_webhook_test_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -867,7 +1981,7 @@ async def auto_webhook_test_v0(
     raise InvalidOutputsV0Error(expected=["dict", "str"], got=_outputs)
 
 
-@instrument(annotate=True)
+@instrument()
 async def auto_custom_code_run_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -1004,7 +2118,7 @@ async def auto_custom_code_run_v0(
     raise InvalidOutputsV0Error(expected=["dict", "str"], got=_outputs)
 
 
-@instrument(annotate=True)
+@instrument()
 async def auto_ai_critique_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -1254,7 +2368,7 @@ async def auto_ai_critique_v0(
     raise InvalidOutputsV0Error(expected=["dict", "str", "int", "float"], got=_outputs)
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_starts_with_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -1303,7 +2417,7 @@ def auto_starts_with_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_ends_with_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -1352,7 +2466,7 @@ def auto_ends_with_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_contains_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -1401,7 +2515,7 @@ def auto_contains_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_contains_any_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -1459,7 +2573,7 @@ def auto_contains_any_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_contains_all_v0(
     parameters: Optional[Data] = None,
     outputs: Optional[Union[Data, str]] = None,
@@ -1517,7 +2631,7 @@ def auto_contains_all_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_contains_json_v0(
     outputs: Optional[Union[Data, str]] = None,
 ) -> Any:
@@ -1558,7 +2672,7 @@ def auto_contains_json_v0(
     return {"success": success}
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_json_diff_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -1648,7 +2762,7 @@ def auto_json_diff_v0(
     )
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_levenshtein_distance_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -1755,7 +2869,7 @@ def auto_levenshtein_distance_v0(
     )
 
 
-@instrument(annotate=True)
+@instrument()
 def auto_similarity_match_v0(
     parameters: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -1847,7 +2961,7 @@ def auto_similarity_match_v0(
     )
 
 
-@instrument(annotate=True)
+@instrument()
 async def auto_semantic_similarity_v0(
     *,
     parameters: Optional[Data] = None,
@@ -1965,240 +3079,3 @@ async def auto_semantic_similarity_v0(
     raise SemanticSimilarityV0Error(
         message=f"semantic-similarity error: got ({type(_outputs)}) {_outputs}, expected (int, float)."
     )
-
-
-class SinglePromptConfig(BaseModel):
-    prompt: PromptTemplate = Field(
-        default=PromptTemplate(
-            system_prompt="You are an expert in geography",
-            user_prompt="What is the capital of {{country}}?",
-        )
-    )
-
-
-def _apply_responses_bridge_if_needed(
-    formatted_prompt: PromptTemplate, provider_settings: Dict
-) -> Dict:
-    """
-    Checks if web_search_preview tool is present and applies responses bridge if needed.
-
-    If a web_search_preview, code_execution, or mcp tool is detected, this function
-    modifies the provider_settings to use the responses bridge by prepending
-    'openai/responses/' to the model name.
-
-    Args:
-        formatted_prompt: The formatted prompt template containing LLM config and tools
-        provider_settings: The provider settings dictionary that may be modified
-
-    Returns:
-        The provider_settings dictionary, potentially modified to use responses bridge
-    """
-    tools = formatted_prompt.llm_config.tools
-    if tools:
-        for tool in tools:
-            if isinstance(tool, dict) and tool.get("type") in [
-                "web_search_preview",
-                "code_execution",
-                "mcp",
-            ]:
-                model_val = provider_settings.get("model")
-                if model_val and "/" not in model_val:
-                    provider_settings["model"] = f"openai/responses/{model_val}"
-    return provider_settings
-
-
-@instrument(ignore_inputs=["parameters"])
-async def completion_v0(
-    parameters: Data,
-    inputs: Dict[str, str],
-) -> Any:
-    if parameters is None or not isinstance(parameters, dict):
-        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
-
-    if "prompt" not in parameters:
-        raise MissingConfigurationParameterV0Error(path="prompt")
-
-    params: Dict[str, Any] = {**(parameters or {})}
-
-    config = SinglePromptConfig(**params)
-    if config.prompt.input_keys is not None:
-        required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys())
-
-        if required_keys != provided_keys:
-            raise InvalidInputsV0Error(
-                expected=sorted(required_keys),
-                got=sorted(provided_keys),
-            )
-
-    await SecretsManager.ensure_secrets_in_workflow()
-
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
-
-    formatted_prompt = config.prompt.format(**inputs)
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v
-                for k, v in formatted_prompt.to_openai_kwargs().items()
-                if k != "model"
-            },
-            **provider_settings,
-        )
-
-    message = response.choices[0].message  # type: ignore
-
-    if message.content is not None:
-        return message.content
-    if hasattr(message, "refusal") and message.refusal is not None:  # type: ignore
-        return message.refusal  # type: ignore
-    if hasattr(message, "parsed") and message.parsed is not None:  # type: ignore
-        return message.parsed  # type: ignore
-    if hasattr(message, "tool_calls") and message.tool_calls is not None:
-        return [tool_call.dict() for tool_call in message.tool_calls]
-
-
-@instrument(ignore_inputs=["parameters"])
-async def chat_v0(
-    parameters: Data,
-    inputs: Optional[Dict[str, str]] = None,
-    messages: Optional[List[Message]] = None,
-):
-    params: Dict[str, Any] = {**(parameters or {})}
-
-    config = SinglePromptConfig(**params)
-    if config.prompt.input_keys is not None:
-        required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys()) if inputs is not None else set()
-
-        if required_keys != provided_keys:
-            raise InvalidInputsV0Error(
-                expected=sorted(required_keys),
-                got=sorted(provided_keys),
-            )
-
-    if inputs is not None:
-        formatted_prompt = config.prompt.format(**inputs)
-    else:
-        formatted_prompt = config.prompt
-    openai_kwargs = formatted_prompt.to_openai_kwargs()
-
-    if messages is not None:
-        openai_kwargs["messages"].extend(messages)
-
-    await SecretsManager.ensure_secrets_in_workflow()
-
-    provider_settings = SecretsManager.get_provider_settings_from_workflow(
-        config.prompt.llm_config.model
-    )
-
-    if not provider_settings:
-        model = getattr(
-            getattr(getattr(config, "prompt", None), "llm_config", None), "model", None
-        )
-        raise InvalidSecretsV0Error(expected="dict", got=provider_settings, model=model)
-
-    provider_settings = _apply_responses_bridge_if_needed(
-        formatted_prompt, provider_settings
-    )
-
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
-
-    return response.choices[0].message.model_dump(exclude_none=True)  # type: ignore
-
-
-@instrument(ignore_inputs=["parameters"])
-async def hook_v0(
-    parameters: Optional[Data] = None,
-    inputs: Optional[Data] = None,
-) -> Any:
-    """
-    Webhook-based application handler for CUSTOM app types.
-
-    Forwards the request to an external webhook URL and returns the response.
-    The webhook URL is read from the workflow interface (``url`` field in
-    revision data), not from ``parameters``.
-
-    Args:
-        parameters: Configuration parameters forwarded to the webhook.
-        inputs: Inputs to forward to the webhook.
-
-    Returns:
-        The response from the webhook.
-    """
-    from agenta.sdk.contexts.running import RunningContext
-
-    ctx = RunningContext.get()
-    webhook_url = ctx.interface.url if ctx.interface else None
-
-    if not webhook_url:
-        raise MissingConfigurationParameterV0Error(path="url")
-
-    webhook_url = str(webhook_url)
-    try:
-        _validate_webhook_url(webhook_url)
-    except ValueError as exc:
-        raise InvalidConfigurationParameterV0Error(
-            path="url",
-            expected="http/https URL",
-            got=webhook_url,
-        ) from exc
-
-    json_payload = {
-        "inputs": inputs or {},
-        "parameters": parameters or {},
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.post(
-                url=webhook_url,
-                json=json_payload,
-                timeout=httpx.Timeout(30.0, connect=5.0),
-            )
-        except Exception as e:
-            raise WebhookClientV0Error(
-                message=str(e),
-            ) from e
-
-        if response.status_code != 200:
-            try:
-                message = response.json()
-            except Exception:
-                message = response.text
-            raise WebhookServerV0Error(
-                code=response.status_code,
-                message=message,
-            )
-
-        content_length = response.headers.get("content-length")
-        if content_length and int(content_length) > _WEBHOOK_RESPONSE_MAX_BYTES:
-            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
-
-        response_bytes = response.content
-        if len(response_bytes) > _WEBHOOK_RESPONSE_MAX_BYTES:
-            raise WebhookClientV0Error(message="Webhook response exceeded size limit.")
-
-        try:
-            return json.loads(response_bytes)
-        except Exception:
-            return response_bytes.decode("utf-8")

@@ -1,5 +1,137 @@
 from agenta.sdk.models.workflows import WorkflowServiceInterface
 
+
+# --- NEW URI
+
+trace_v0_interface = WorkflowServiceInterface(
+    uri="agenta:custom:trace:v0",
+    schemas=None,
+)
+
+hook_v0_interface = WorkflowServiceInterface(
+    uri="agenta:custom:hook:v0",
+    schemas=None,
+)
+
+code_v0_interface = WorkflowServiceInterface(
+    uri="agenta:custom:code:v0",
+    schemas=None,
+)
+
+match_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:match:v0",
+    schemas=dict(  # type: ignore
+        outputs={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "title": "Match Outputs",
+            "description": "Recursive result tree mirroring the matcher tree.",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/result"},
+                }
+            },
+            "required": ["results"],
+            "$defs": {
+                "result": {
+                    "type": "object",
+                    "properties": {
+                        "key": {
+                            "type": "string",
+                            "description": "Matcher key copied onto the result node.",
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Matcher path copied onto the result node.",
+                        },
+                        "success": {"type": "boolean"},
+                        "score": {"type": "number"},
+                        "error": {"type": "boolean"},
+                        "status": {"type": "string"},
+                        "message": {"type": "string"},
+                        "children": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/result"},
+                        },
+                    },
+                    "required": ["key", "success", "score", "error", "status"],
+                    "additionalProperties": False,
+                }
+            },
+            "additionalProperties": False,
+        }
+    ),
+)
+
+prompt_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:prompt:v0",
+    schemas=dict(  # type: ignore
+        outputs={
+            "type": "object",
+            "title": "Prompt Evaluator Outputs",
+            "description": "Result returned by the LLM-based prompt evaluator.",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "title": "Score",
+                    "description": "Numeric evaluation score assigned by the LLM.",
+                },
+                "success": {
+                    "type": "boolean",
+                    "title": "Success",
+                    "description": "True if score meets or exceeds the threshold, or LLM returned True.",
+                },
+                "message": {
+                    "type": "string",
+                    "title": "Message",
+                    "description": "Raw LLM text output when not a number or boolean.",
+                },
+            },
+            "additionalProperties": True,
+        },
+    ),
+)
+
+agent_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:agent:v0",
+    schemas=None,
+)
+
+# --- OLD URI
+
+chat_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:chat:v0",
+    schemas=dict(  # type: ignore
+        outputs={
+            "type": "object",
+            "title": "Chat App Outputs",
+            "description": "Final chat message returned by the workflow.",
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "description": "Role of the message sender.",
+                },
+                "content": {"type": "string", "description": "Content of the message."},
+            },
+            "required": ["role", "content"],
+            "additionalProperties": True,  # allows OpenAI-style message fields like tool_calls
+        },
+    ),
+)
+
+completion_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:completion:v0",
+    schemas=dict(  # type: ignore
+        outputs={
+            "type": ["string", "object", "array"],
+            "title": "Completion App Outputs",
+            "description": "Generated response, which may be text or structured data.",
+        },
+    ),
+)
+
+
 echo_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:echo:v0",
     schemas=dict(  # type: ignore
@@ -391,42 +523,6 @@ auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
             },
             "required": ["score", "success"],
             "additionalProperties": False,
-        },
-    ),
-)
-
-hook_v0_interface = WorkflowServiceInterface(
-    uri="agenta:builtin:hook:v0",
-    schemas=None,
-)
-
-completion_v0_interface = WorkflowServiceInterface(
-    uri="agenta:builtin:completion:v0",
-    schemas=dict(  # type: ignore
-        outputs={
-            "type": ["string", "object", "array"],
-            "title": "Completion App Outputs",
-            "description": "Generated response, which may be text or structured data.",
-        },
-    ),
-)
-
-chat_v0_interface = WorkflowServiceInterface(
-    uri="agenta:builtin:chat:v0",
-    schemas=dict(  # type: ignore
-        outputs={
-            "type": "object",
-            "title": "Chat App Outputs",
-            "description": "Final chat message returned by the workflow.",
-            "properties": {
-                "role": {
-                    "type": "string",
-                    "description": "Role of the message sender.",
-                },
-                "content": {"type": "string", "description": "Content of the message."},
-            },
-            "required": ["role", "content"],
-            "additionalProperties": True,  # allows OpenAI-style message fields like tool_calls
         },
     ),
 )

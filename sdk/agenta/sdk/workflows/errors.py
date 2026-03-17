@@ -299,3 +299,68 @@ class PromptCompletionV0Error(ErrorStatus):
             message=message,
             stacktrace=stacktrace,
         )
+
+
+class HookV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:hook-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
+class MatchV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:match-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
+class CodeV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:code-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
+class PromptV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:prompt-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
+class AgentV0Error(ErrorStatus):
+    code: int = 501
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:agent-not-implemented"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )

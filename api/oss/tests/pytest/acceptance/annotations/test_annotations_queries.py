@@ -2,6 +2,8 @@ from uuid import uuid4
 
 import pytest
 
+from utils.polling import wait_for_response
+
 
 @pytest.fixture(scope="class")
 def mock_data(authed_api):
@@ -52,9 +54,11 @@ def mock_data(authed_api):
         "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
         f"/simple/traces/{trace_1_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200
@@ -101,9 +105,11 @@ def mock_data(authed_api):
         "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
         f"/simple/traces/{trace_2_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200
@@ -152,9 +158,11 @@ def mock_data(authed_api):
         "span_id": response.json()["trace"]["span_id"],
     }
 
-    response = authed_api(
+    response = wait_for_response(
+        authed_api,
         "GET",
         f"/simple/traces/{trace_3_link['trace_id']}",
+        condition_fn=lambda r: r.json().get("count", 0) == 1,
     )
 
     assert response.status_code == 200

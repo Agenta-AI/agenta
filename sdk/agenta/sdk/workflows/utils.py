@@ -5,6 +5,16 @@ from typing import Optional, Tuple, Callable
 from agenta.sdk.models.workflows import WorkflowServiceInterface
 
 from agenta.sdk.workflows.handlers import (
+    # --- NEW URI
+    trace_v0,
+    hook_v0,
+    code_v0,
+    match_v0,
+    prompt_v0,
+    agent_v0,
+    # --- OLD URI
+    chat_v0,
+    completion_v0,
     echo_v0,
     auto_exact_match_v0,
     auto_regex_test_v0,
@@ -23,12 +33,19 @@ from agenta.sdk.workflows.handlers import (
     auto_levenshtein_distance_v0,
     auto_similarity_match_v0,
     auto_semantic_similarity_v0,
-    hook_v0,
-    completion_v0,
-    chat_v0,
 )
 
 from agenta.sdk.workflows.interfaces import (
+    # --- NEW URI
+    trace_v0_interface,
+    hook_v0_interface,
+    code_v0_interface,
+    match_v0_interface,
+    prompt_v0_interface,
+    agent_v0_interface,
+    # --- OLD URI
+    chat_v0_interface,
+    completion_v0_interface,
     echo_v0_interface,
     auto_exact_match_v0_interface,
     auto_regex_test_v0_interface,
@@ -47,13 +64,20 @@ from agenta.sdk.workflows.interfaces import (
     auto_levenshtein_distance_v0_interface,
     auto_similarity_match_v0_interface,
     auto_semantic_similarity_v0_interface,
-    hook_v0_interface,
-    completion_v0_interface,
-    chat_v0_interface,
 )
 
 
 from agenta.sdk.workflows.configurations import (
+    # --- NEW URI
+    trace_v0_configuration,
+    hook_v0_configuration,
+    code_v0_configuration,
+    match_v0_configuration,
+    prompt_v0_configuration,
+    agent_v0_configuration,
+    # --- OLD URI
+    chat_v0_configuration,
+    completion_v0_configuration,
     echo_v0_configuration,
     auto_exact_match_v0_configuration,
     auto_regex_test_v0_configuration,
@@ -72,14 +96,24 @@ from agenta.sdk.workflows.configurations import (
     auto_levenshtein_distance_v0_configuration,
     auto_similarity_match_v0_configuration,
     auto_semantic_similarity_v0_configuration,
-    hook_v0_configuration,
-    completion_v0_configuration,
-    chat_v0_configuration,
 )
 
 INTERFACE_REGISTRY: dict = dict(
     agenta=dict(
+        custom=dict(
+            # --- NEW URI
+            trace=dict(v0=trace_v0_interface),
+            hook=dict(v0=hook_v0_interface),
+            code=dict(v0=code_v0_interface),
+        ),
         builtin=dict(
+            # --- NEW URI
+            match=dict(v0=match_v0_interface),
+            prompt=dict(v0=prompt_v0_interface),
+            agent=dict(v0=agent_v0_interface),
+            # --- OLD URI
+            chat=dict(v0=chat_v0_interface),
+            completion=dict(v0=completion_v0_interface),
             echo=dict(v0=echo_v0_interface),
             auto_exact_match=dict(v0=auto_exact_match_v0_interface),
             auto_regex_test=dict(v0=auto_regex_test_v0_interface),
@@ -98,16 +132,26 @@ INTERFACE_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0_interface),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_interface),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_interface),
-            hook=dict(v0=hook_v0_interface),
-            completion=dict(v0=completion_v0_interface),
-            chat=dict(v0=chat_v0_interface),
         ),
     ),
 )
 
 CONFIGURATION_REGISTRY: dict = dict(
     agenta=dict(
+        custom=dict(
+            # --- NEW URI
+            trace=dict(v0=trace_v0_configuration),
+            hook=dict(v0=hook_v0_configuration),
+            code=dict(v0=code_v0_configuration),
+        ),
         builtin=dict(
+            # --- NEW URI
+            match=dict(v0=match_v0_configuration),
+            prompt=dict(v0=prompt_v0_configuration),
+            agent=dict(v0=agent_v0_configuration),
+            # --- OLD URI
+            chat=dict(v0=chat_v0_configuration),
+            completion=dict(v0=completion_v0_configuration),
             echo=dict(v0=echo_v0_configuration),
             auto_exact_match=dict(v0=auto_exact_match_v0_configuration),
             auto_regex_test=dict(v0=auto_regex_test_v0_configuration),
@@ -128,9 +172,6 @@ CONFIGURATION_REGISTRY: dict = dict(
             ),
             auto_similarity_match=dict(v0=auto_similarity_match_v0_configuration),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_configuration),
-            hook=dict(v0=hook_v0_configuration),
-            completion=dict(v0=completion_v0_configuration),
-            chat=dict(v0=chat_v0_configuration),
         ),
     ),
 )
@@ -165,7 +206,20 @@ CONFIGURATION_REGISTRY: dict = dict(
 #   If no URI is provided, register_handler() generates: "user:custom:{module}.{name}:latest"
 HANDLER_REGISTRY: dict = dict(
     agenta=dict(
+        custom=dict(
+            # --- NEW URI
+            trace=dict(v0=trace_v0),
+            hook=dict(v0=hook_v0),
+            code=dict(v0=code_v0),
+        ),
         builtin=dict(
+            # --- NEW URI
+            match=dict(v0=match_v0),
+            prompt=dict(v0=prompt_v0),
+            agent=dict(v0=agent_v0),
+            # --- OLD URI
+            chat=dict(v0=chat_v0),
+            completion=dict(v0=completion_v0),
             echo=dict(v0=echo_v0),
             auto_exact_match=dict(v0=auto_exact_match_v0),
             auto_regex_test=dict(v0=auto_regex_test_v0),
@@ -184,9 +238,6 @@ HANDLER_REGISTRY: dict = dict(
             auto_levenshtein_distance=dict(v0=auto_levenshtein_distance_v0),
             auto_similarity_match=dict(v0=auto_similarity_match_v0),
             auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0),
-            hook=dict(v0=hook_v0),
-            completion=dict(v0=completion_v0),
-            chat=dict(v0=chat_v0),
         ),
     ),
 )

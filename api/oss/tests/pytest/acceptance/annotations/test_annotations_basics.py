@@ -1,5 +1,7 @@
 from uuid import uuid4
 
+from utils.polling import wait_for_response
+
 
 class TestAnnotationsBasics:
     def test_create_annotations(self, authed_api):
@@ -91,9 +93,11 @@ class TestAnnotationsBasics:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        response = authed_api(
+        response = wait_for_response(
+            authed_api,
             "GET",
             f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
         )
         # ----------------------------------------------------------------------
 
@@ -146,6 +150,14 @@ class TestAnnotationsBasics:
         response = response.json()
         assert response["count"] == 1
         trace_id = response["trace"]["trace_id"]
+
+        # Wait for trace to be indexed before editing
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -220,6 +232,14 @@ class TestAnnotationsBasics:
         response = response.json()
         assert response["count"] == 1
         trace_id = response["trace"]["trace_id"]
+
+        # Wait for trace to be indexed before deleting
+        wait_for_response(
+            authed_api,
+            "GET",
+            f"/simple/traces/{trace_id}",
+            condition_fn=lambda r: r.json().get("count", 0) == 1,
+        )
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------

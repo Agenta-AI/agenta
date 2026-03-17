@@ -1101,15 +1101,24 @@ class SimpleTracesService:
         _links = None
 
         if trace_query:
-            _flags = (
-                self._flags(
-                    trace_query.origin or SimpleTraceOrigin.CUSTOM,
-                    trace_query.kind or SimpleTraceKind.ADHOC,
-                    trace_query.channel or SimpleTraceChannel.API,
-                )
-                if (trace_query.origin or trace_query.kind or trace_query.channel)
-                else None
-            )
+            # Build flags only for explicitly specified fields.
+            # Using defaults (e.g. origin=CUSTOM when unset) would add spurious
+            # positive flag conditions that exclude non-default traces.
+            _flag_dict: dict = {}
+            if trace_query.origin == SimpleTraceOrigin.HUMAN:
+                _flag_dict["is_human"] = True
+            elif trace_query.origin == SimpleTraceOrigin.CUSTOM:
+                _flag_dict["is_custom"] = True
+            # AUTO → no positive flag; IS_NOT conditions added below
+            if trace_query.kind == SimpleTraceKind.EVAL:
+                _flag_dict["is_evaluation"] = True
+            # ADHOC → no positive flag; IS_NOT condition added below
+            if trace_query.channel == SimpleTraceChannel.SDK:
+                _flag_dict["is_sdk"] = True
+            elif trace_query.channel == SimpleTraceChannel.WEB:
+                _flag_dict["is_web"] = True
+            # API → no positive flag; IS_NOT conditions added below
+            _flags = _flag_dict if _flag_dict else None
             _tags = trace_query.tags
             _meta = trace_query.meta
             _references = (
@@ -1152,6 +1161,55 @@ class SimpleTracesService:
         # Replace the single type condition with the OR filter
         conditions = list(base_query.filtering.conditions)
         conditions[0] = type_filter
+
+        # Add explicit IS_NOT conditions for "default" flag values.
+        # The flag system uses absence to represent defaults (auto/adhoc/api),
+        # so querying by those values requires excluding non-matching flags.
+        if trace_query:
+            if trace_query.origin == SimpleTraceOrigin.AUTO:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_human",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_custom",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+            if trace_query.kind == SimpleTraceKind.ADHOC:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_evaluation",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+            if trace_query.channel == SimpleTraceChannel.API:
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_sdk",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+                conditions.append(
+                    Condition(
+                        field="attributes",
+                        key="ag.flags.is_web",
+                        value=True,
+                        operator=ComparisonOperator.IS_NOT,
+                    )
+                )
+
         base_query.filtering.conditions = conditions
 
         traces = await self.tracing_service.query_traces(
