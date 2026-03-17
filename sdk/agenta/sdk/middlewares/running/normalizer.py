@@ -15,7 +15,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 )
-from agenta.sdk.workflows.errors import ErrorStatus
+from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 

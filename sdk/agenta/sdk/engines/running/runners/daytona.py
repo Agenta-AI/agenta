@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Generator, Union, Optional, TYPE_CHECKING
 
 import agenta as ag
-from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.utils.lazy import _load_daytona
 

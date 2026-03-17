@@ -15,7 +15,8 @@ from agenta.sdk.contexts.tracing import (
     TracingContext,
     tracing_context_manager,
 )
-from agenta.sdk.tracing.conventions import parse_span_kind
+from agenta.sdk.engines.tracing.conventions import parse_span_kind
+from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry import context as otel_context
@@ -288,8 +289,6 @@ class instrument:  # pylint: disable=invalid-name
             return traceparent
 
     def _set_link(self, span):
-        from agenta.sdk.tracing.spans import CustomSpan
-
         if not isinstance(span, CustomSpan):
             span = CustomSpan(span)
 
@@ -357,8 +356,6 @@ class instrument:  # pylint: disable=invalid-name
         *args,
         **kwargs,
     ):
-        from agenta.sdk.tracing.spans import CustomSpan
-
         if not isinstance(span, CustomSpan):
             span = CustomSpan(span)
 
@@ -402,8 +399,6 @@ class instrument:  # pylint: disable=invalid-name
         span,
         result,
     ):
-        from agenta.sdk.tracing.spans import CustomSpan
-
         if not isinstance(span, CustomSpan):
             span = CustomSpan(span)
 

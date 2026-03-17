@@ -3,7 +3,7 @@ from opentelemetry.trace import SpanKind
 
 import agenta as ag
 
-from agenta.sdk.tracing.spans import CustomSpan
+from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)

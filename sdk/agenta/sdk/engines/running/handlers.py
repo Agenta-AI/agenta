@@ -24,13 +24,13 @@ from agenta.sdk.utils.lazy import (
 )
 
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.types import PromptTemplate, Message
+from agenta.sdk.utils.types import PromptTemplate, Message
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
-from agenta.sdk.workflows.sandbox import execute_code_safely
-from agenta.sdk.workflows.templates import EVALUATOR_TEMPLATES
-from agenta.sdk.workflows.errors import (
+from agenta.sdk.engines.running.sandbox import execute_code_safely
+from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
+from agenta.sdk.engines.running.errors import (
     AgentV0Error,
     CodeV0Error,
     CustomCodeServerV0Error,

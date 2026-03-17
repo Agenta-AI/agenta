@@ -1,15 +1,15 @@
 import os
 from typing import TYPE_CHECKING
 
-from agenta.sdk.workflows.runners.base import CodeRunner
-from agenta.sdk.workflows.runners.local import LocalRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.local import LocalRunner
 
 if TYPE_CHECKING:
-    from agenta.sdk.workflows.runners.daytona import DaytonaRunner
+    from agenta.sdk.engines.running.runners.daytona import DaytonaRunner
 
 
 def _get_daytona_runner() -> "DaytonaRunner":
-    from agenta.sdk.workflows.runners.daytona import DaytonaRunner
+    from agenta.sdk.engines.running.runners.daytona import DaytonaRunner
 
     return DaytonaRunner()
 

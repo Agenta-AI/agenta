@@ -1,6 +1,6 @@
 from typing import Any, Dict, Union, Optional
 
-from agenta.sdk.workflows.runners.base import CodeRunner
+from agenta.sdk.engines.running.runners.base import CodeRunner
 
 
 class LocalRunner(CodeRunner):

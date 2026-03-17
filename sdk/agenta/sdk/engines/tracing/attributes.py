@@ -6,7 +6,7 @@ PrimitivesSequence = Sequence[Primitive]
 Attribute = Union[Primitive, PrimitivesSequence]
 
 
-def _marshal(
+def _marshall(
     unmarshalled: Dict[str, Any],
     *,
     parent_key: Optional[str] = "",
@@ -59,7 +59,7 @@ def _marshal(
             dict_key = child_key
 
             marshalled.update(
-                _marshal(
+                _marshall(
                     value,
                     parent_key=dict_key,
                     depth=depth + 1,
@@ -76,7 +76,7 @@ def _marshal(
 
                     if isinstance(item, (dict, list)):
                         marshalled.update(
-                            _marshal(
+                            _marshall(
                                 item,
                                 parent_key=list_key,
                                 depth=depth + 1,
@@ -177,7 +177,7 @@ def serialize(
         k: v
         for k, v in {
             _encode_key(namespace, key): _encode_value(value)
-            for key, value in _marshal(attributes, max_depth=max_depth).items()
+            for key, value in _marshall(attributes, max_depth=max_depth).items()
         }.items()
         if v is not None
     }

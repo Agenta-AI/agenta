@@ -12,10 +12,10 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceConfiguration,
 )
 from agenta.sdk.contexts.running import RunningContext
-from agenta.sdk.workflows.utils import (
+from agenta.sdk.engines.running.utils import (
     retrieve_handler,
 )
-from agenta.sdk.workflows.errors import InvalidInterfaceURIV0Error
+from agenta.sdk.engines.running.errors import InvalidInterfaceURIV0Error
 
 
 log = get_module_logger(__name__)

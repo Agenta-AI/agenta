@@ -10,7 +10,7 @@ import agenta as ag  # noqa: E402
 ag.init()
 
 from agenta.sdk.decorators import application, evaluator  # noqa: E402
-from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.engines.running import builtin  # noqa: E402
 from agenta.sdk.evaluations import aevaluate  # noqa: E402
 
 

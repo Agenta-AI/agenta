@@ -10,7 +10,7 @@ from copy import deepcopy
 from json import dumps
 import re
 
-from agenta.sdk.types import resolve_any
+from agenta.sdk.utils.types import resolve_any
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.embeds.dtos import (
     ObjectEmbed,

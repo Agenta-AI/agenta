@@ -1,7 +1,7 @@
 from typing import Optional, Dict
 
 from agenta.sdk.decorators.running import workflow, Workflow, application, evaluator
-from agenta.sdk.workflows.handlers import SinglePromptConfig
+from agenta.sdk.engines.running.handlers import SinglePromptConfig
 
 
 def echo(

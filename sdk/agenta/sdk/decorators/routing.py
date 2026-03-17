@@ -23,11 +23,10 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
-from agenta.sdk.middleware.vault import VaultMiddleware
 from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.decorators.running import auto_workflow, Workflow
-from agenta.sdk.workflows.errors import ErrorStatus
+from agenta.sdk.engines.running.errors import ErrorStatus
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +58,6 @@ def create_app(**kwargs: Any) -> FastAPI:
     app = FastAPI(**kwargs)
 
     app.add_middleware(CORSMiddleware)
-    app.add_middleware(VaultMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(OTelMiddleware)
 
@@ -489,14 +487,11 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")
-            secrets = (
-                req.state.vault.get("secrets") if hasattr(req.state, "vault") else None
-            )
 
             try:
                 response = await wf.invoke(
                     request=request,
-                    secrets=secrets,
+                    secrets=None,
                     credentials=credentials,
                 )
 

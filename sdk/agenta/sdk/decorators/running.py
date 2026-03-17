@@ -32,7 +32,7 @@ from agenta.sdk.middlewares.running.vault import (
     VaultMiddleware,
 )
 from agenta.sdk.decorators.tracing import auto_instrument
-from agenta.sdk.workflows.utils import (
+from agenta.sdk.engines.running.utils import (
     register_handler,
     retrieve_handler,
     retrieve_interface,

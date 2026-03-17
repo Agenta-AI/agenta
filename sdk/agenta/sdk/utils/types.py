@@ -8,7 +8,7 @@ from pydantic import Field, model_validator, AliasChoices
 from starlette.responses import StreamingResponse
 
 
-from agenta.sdk.assets import supported_llm_models, model_metadata
+from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
 
 

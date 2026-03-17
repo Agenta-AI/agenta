@@ -1,6 +1,6 @@
 from typing import Union, Text, Dict, Any, Optional
 
-from agenta.sdk.workflows.runners import get_runner
+from agenta.sdk.engines.running.runners import get_runner
 
 # Cache for the runner instance
 _runner = None

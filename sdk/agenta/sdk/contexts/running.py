@@ -1,6 +1,6 @@
 from typing import Optional, Callable  # Callable used for handler field
 from contextvars import Token, ContextVar
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 
 from pydantic import BaseModel
 
@@ -45,6 +45,29 @@ class RunningContext(BaseModel):
 
 
 running_context: ContextVar[RunningContext] = ContextVar("running_context")
+
+workflow_mode_enabled_context: ContextVar[bool] = ContextVar(
+    "ag.workflow_context_enabled",
+    default=False,
+)
+
+
+@contextmanager
+def workflow_mode_enabled():
+    token = workflow_mode_enabled_context.set(True)
+    try:
+        yield
+    finally:
+        workflow_mode_enabled_context.reset(token)
+
+
+@asynccontextmanager
+async def async_workflow_mode_enabled():
+    token = workflow_mode_enabled_context.set(True)
+    try:
+        yield
+    finally:
+        workflow_mode_enabled_context.reset(token)
 
 
 @contextmanager
