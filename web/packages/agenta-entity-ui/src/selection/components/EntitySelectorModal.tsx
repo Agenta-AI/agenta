@@ -90,8 +90,8 @@ export interface EntitySelectorModalProps {
  * const handleClick = async () => {
  *   const selection = await openSelector({
  *     title: 'Add to Playground',
- *     allowedTypes: ['appRevision', 'evaluatorRevision'],
- *     adapters: [appRevisionAdapter, evaluatorRevisionAdapter],
+ *     allowedTypes: ['appRevision', 'evaluator'],
+ *     adapters: [appRevisionAdapter, evaluatorAdapter],
  *   })
  *
  *   if (selection) {
@@ -206,14 +206,9 @@ function formatEntityTypeLabel(type: SelectableEntityType): string {
         app: "App",
         variant: "Variant",
         appRevision: "App Revision",
-        ossVariant: "Variant",
-        legacyAppRevision: "App Revision",
         evaluator: "Evaluator",
-        legacyEvaluator: "Evaluator",
         evaluatorVariant: "Evaluator Variant",
         evaluatorRevision: "Evaluator Revision",
-        playgroundVariant: "Variant",
-        playgroundRevision: "Revision",
         workflow: "Workflow",
         workflowVariant: "Workflow Variant",
         workflowRevision: "Workflow Revision",

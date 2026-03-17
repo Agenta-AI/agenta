@@ -2,12 +2,11 @@
  * PlaygroundConfigSection
  *
  * Schema-driven configuration renderer for playground entities.
- * Uses runnableBridge as the default data source, supporting all entity types
- * (legacyAppRevision, workflow, evaluator) through the unified bridge.
+ * Uses workflowMolecule as the default data source.
  *
  * Data wiring:
- * - Reads from runnableBridge (data, query, parametersSchema) by default
- * - Writes via runnableBridge.update (flat parameters) by default
+ * - Reads from workflowMolecule (configuration, query, parametersSchema) by default
+ * - Writes via workflowMolecule.actions.updateConfiguration by default
  * - Supports custom moleculeAdapter for specialized behavior
  * - Schema drives control selection via getSchemaAtPath
  * - Model config popover injected via fieldHeader slot
@@ -19,8 +18,8 @@ import {
     type EntitySchema,
     type EntitySchemaProperty,
     getSchemaAtPath as getSchemaAtPathUtil,
-} from "@agenta/entities"
-import {runnableBridge} from "@agenta/entities/runnable"
+} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
@@ -72,7 +71,7 @@ function isEntitySchema(value: unknown): value is PathSchema {
 
 /**
  * Adapter interface for the data source that PlaygroundConfigSection reads from.
- * Defaults to runnableBridge (entity-type-agnostic) when not provided.
+ * Defaults to workflowMolecule when not provided.
  */
 export interface ConfigSectionMoleculeAdapter {
     atoms: {
@@ -132,43 +131,40 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
 }
 
 // ============================================================================
-// DEFAULT ADAPTER (runnableBridge — entity-type-agnostic)
+// DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
 
 /**
- * Build adapter backed by runnableBridge.
- * Works for all entity types (legacyAppRevision, workflow, evaluator, etc.)
- * via the unified bridge API.
+ * Build adapter backed by workflowMolecule.
  *
  * Data mapping:
- * - RunnableData.configuration → adapter's `parameters` (for UI display)
- * - runnableBridge.update(id, flatParams) → adapter's reducers.update
- * - runnableBridge.parametersSchema(id) → adapter's agConfigSchema
+ * - workflowMolecule.selectors.configuration(id) → adapter's `parameters` (for UI display)
+ * - workflowMolecule.actions.updateConfiguration → adapter's reducers.update
+ * - workflowMolecule.selectors.parametersSchema(id) → adapter's agConfigSchema
  */
-function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
+function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
         atoms: {
             data: memoAtom((id: string) =>
                 atom((get) => {
-                    const d = get(runnableBridge.data(id))
-                    if (!d) return null
-                    const params = (d.configuration ?? {}) as Record<string, unknown>
-                    return {parameters: params}
+                    const config = get(workflowMolecule.selectors.configuration(id))
+                    if (!config) return null
+                    return {parameters: config as Record<string, unknown>}
                 }),
             ),
             serverData: memoAtom((id: string) =>
                 atom((get) => {
-                    const d = get(runnableBridge.serverData(id))
-                    if (!d) return null
-                    return {parameters: (d.configuration ?? {}) as Record<string, unknown>}
+                    const config = get(workflowMolecule.selectors.serverConfiguration(id))
+                    if (!config) return null
+                    return {parameters: config as Record<string, unknown>}
                 }),
             ),
-            draft: (id: string) => runnableBridge.draft(id),
-            isDirty: (id: string) => runnableBridge.isDirty(id),
+            draft: (id: string) => workflowMolecule.atoms.draft(id),
+            isDirty: (id: string) => workflowMolecule.selectors.isDirty(id),
             schemaQuery: memoAtom((id: string) =>
                 atom((get) => {
-                    const q = get(runnableBridge.query(id))
-                    const rawSchema = get(runnableBridge.parametersSchema(id))
+                    const q = get(workflowMolecule.selectors.query(id))
+                    const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
                     const schema = isEntitySchema(rawSchema) ? rawSchema : null
                     return {
                         isPending: q.isPending,
@@ -180,19 +176,18 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
             ),
             agConfigSchema: memoAtom((id: string) =>
                 atom((get) => {
-                    const schema = get(runnableBridge.parametersSchema(id))
+                    const schema = get(workflowMolecule.selectors.parametersSchema(id))
                     return isEntitySchema(schema) ? schema : null
                 }),
             ),
         },
         reducers: {
-            // runnableBridge.update takes (id, flatParams) and wraps internally
-            update: runnableBridge.update as WritableAtom<
+            update: workflowMolecule.actions.updateConfiguration as WritableAtom<
                 unknown,
                 [id: string, changes: Record<string, unknown>],
                 void
             >,
-            discard: runnableBridge.discard,
+            discard: workflowMolecule.actions.discard,
         },
         drillIn: {
             getRootData: (data: unknown) => {
@@ -238,28 +233,28 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
 }
 
 /** Wrap schemaAtPath to work with the adapter's (id, path) → atom interface */
-const bridgeSchemaAtPathCache = new Map<string, Atom<unknown>>()
-function bridgeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
+const moleculeSchemaAtPathCache = new Map<string, Atom<unknown>>()
+function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
     const key = `${params.id}:${params.path.join(".")}`
-    let cached = bridgeSchemaAtPathCache.get(key)
+    let cached = moleculeSchemaAtPathCache.get(key)
     if (!cached) {
         cached = atom((get) => {
-            const schema = get(runnableBridge.parametersSchema(params.id))
+            const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
 
             return getSchemaAtPathUtil(schema, params.path) ?? null
         })
-        bridgeSchemaAtPathCache.set(key, cached)
+        moleculeSchemaAtPathCache.set(key, cached)
     }
     return cached
 }
 
 function buildDefaultAdapter(): ConfigSectionMoleculeAdapter {
-    const base = buildRunnableBridgeAdapter()
+    const base = buildWorkflowMoleculeAdapter()
     return {
         ...base,
         selectors: {
-            schemaAtPath: bridgeSchemaAtPath,
+            schemaAtPath: moleculeSchemaAtPath,
         },
     }
 }
@@ -282,7 +277,7 @@ export interface PlaygroundConfigSectionProps {
     disabled?: boolean
     useServerData?: boolean
     className?: string
-    /** Optional molecule adapter — defaults to runnableBridge */
+    /** Optional molecule adapter — defaults to workflowMolecule */
     moleculeAdapter?: ConfigSectionMoleculeAdapter
     /** Called when the user clicks "Refine prompt with AI" on a prompt section header */
     onRefinePrompt?: (promptKey: string) => void
