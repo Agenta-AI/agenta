@@ -1,8 +1,8 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import {Typography} from "antd"
-import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -20,12 +20,13 @@ import {
 } from "@/oss/lib/onboarding"
 import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
-import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
+import {createAppWithTemplate, ServiceType} from "@/oss/services/app-selector/api"
 import useTemplates from "@/oss/services/app-selector/hooks/useTemplates"
 import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
+import {getProjectValues} from "@/oss/state/project"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
@@ -69,7 +70,6 @@ const AppManagement: React.FC = () => {
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [newApp, setNewApp] = useState("")
-    const [searchTerm, setSearchTerm] = useState("")
     const {apps, error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
@@ -84,7 +84,7 @@ const AppManagement: React.FC = () => {
 
         // attempt to create and start the template, notify user of the progress
         const apiKeys = secrets
-        await createAndStartTemplate({
+        await createAppWithTemplate({
             appName: newApp,
             templateKey: template_id! as ServiceType,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
@@ -122,7 +122,9 @@ const AppManagement: React.FC = () => {
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
-            await deleteApp(statusData.appId).catch(console.error)
+            const {projectId} = getProjectValues()
+            await archiveWorkflow(projectId, statusData.appId).catch(console.error)
+            invalidateWorkflowsListCache()
             mutate()
         }
         handleTemplateCardClick(templateKey as ServiceType)
@@ -130,7 +132,7 @@ const AppManagement: React.FC = () => {
 
     const onTimeoutRetry = async () => {
         if (!statusData.appId) return
-        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
+        setStatusData((prev) => ({...prev, status: "configuring_app", details: undefined}))
         try {
             await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
@@ -146,22 +148,12 @@ const AppManagement: React.FC = () => {
 
     const appNameExist = useMemo(
         () =>
-            apps.some((app: GenericObject) => app.app_name.toLowerCase() === newApp.toLowerCase()),
+            apps.some(
+                (app: GenericObject) =>
+                    ((app?.name ?? app?.slug) || "").toLowerCase() === newApp.toLowerCase(),
+            ),
         [apps, newApp],
     )
-
-    const filteredApps = useMemo(() => {
-        let filtered = apps.sort(
-            (a, b) => dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
-        )
-
-        if (searchTerm) {
-            filtered = apps.filter((app) =>
-                app.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-        return filtered
-    }, [apps, searchTerm])
 
     return (
         <>
@@ -185,11 +177,8 @@ const AppManagement: React.FC = () => {
 
                         <ApplicationManagementSection
                             selectedOrg={selectedOrg}
-                            apps={apps}
                             setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
                             setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                            filteredApps={filteredApps}
-                            setSearchTerm={setSearchTerm}
                         />
 
                         <HelpAndSupportSection />
