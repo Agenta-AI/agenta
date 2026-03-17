@@ -1,4 +1,4 @@
-name: "08 - railway preview: cleanup"
+name: "45 - railway cleanup"
 
 on:
   pull_request:
