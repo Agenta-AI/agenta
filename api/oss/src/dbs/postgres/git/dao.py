@@ -576,6 +576,23 @@ class GitDAO(GitDAOInterface):
             variant_dbe.deleted_at = now
             variant_dbe.deleted_by_id = user_id
 
+            # Cascade soft-delete to all child revisions so they no longer
+            # appear in revision queries that filter on deleted_at.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=now,
+                    deleted_by_id=user_id,
+                )
+            )
+
             await session.commit()
 
             await session.refresh(variant_dbe)
@@ -617,6 +634,22 @@ class GitDAO(GitDAOInterface):
             variant_dbe.deleted_at = None
             variant_dbe.updated_by_id = user_id
             variant_dbe.deleted_by_id = None
+
+            # Cascade unarchive to all child revisions that were soft-deleted.
+            await session.execute(
+                update(self.RevisionDBE)
+                .where(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.variant_id == variant_id,  # type: ignore
+                    self.RevisionDBE.deleted_at.isnot(None),  # type: ignore
+                )
+                .values(
+                    updated_at=now,
+                    updated_by_id=user_id,
+                    deleted_at=None,
+                    deleted_by_id=None,
+                )
+            )
 
             await session.commit()
 
