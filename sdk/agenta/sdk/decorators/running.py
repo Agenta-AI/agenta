@@ -1,6 +1,7 @@
 # /agenta/sdk/decorators/running.py
 
 from typing import Any, Callable, Optional, Protocol, Union, Dict, cast
+import httpx
 from functools import update_wrapper, wraps
 from inspect import signature
 from uuid import UUID
@@ -743,3 +744,23 @@ async def inspect_evaluator(
         #
         **kwargs,
     )
+
+
+async def get_openapi(
+    *,
+    url: str,
+    path: str = "/",
+) -> dict:
+    """Fetch the per-route openapi.json for a workflow, application, or evaluator."""
+    base = url.rstrip("/")
+    route_base = path.rstrip("/")
+    endpoint = f"{base}{route_base}/openapi.json"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(endpoint)
+        response.raise_for_status()
+        return response.json()
+
+
+get_workflow_openapi = get_openapi
+get_application_openapi = get_openapi
+get_evaluator_openapi = get_openapi
