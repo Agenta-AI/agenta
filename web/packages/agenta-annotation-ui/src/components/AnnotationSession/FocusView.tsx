@@ -31,19 +31,31 @@ interface FocusViewProps {
     queueId: string
     onSaved: () => void
     onCompleted: (scenarioId: string) => void
+    onViewChange?: (view: SessionView) => void
 }
 
 // ============================================================================
 // ALL CAUGHT UP EMPTY STATE
 // ============================================================================
 
-const AllCaughtUp = memo(function AllCaughtUp() {
+const AllCaughtUp = memo(function AllCaughtUp({
+    onViewChange,
+}: {
+    onViewChange?: (view: SessionView) => void
+}) {
     const navigation = useAnnotationNavigation()
+    const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
+    const isTraces = queueKind === "traces"
 
     const handleViewPrevious = useCallback(() => {
+        if (onViewChange) {
+            onViewChange("list")
+            return
+        }
+
         setActiveView("list" as SessionView)
-    }, [setActiveView])
+    }, [onViewChange, setActiveView])
 
     const handleGoToObservability = useCallback(() => {
         navigation.navigateToObservability?.()
@@ -62,7 +74,7 @@ const AllCaughtUp = memo(function AllCaughtUp() {
                 <Typography.Text type="secondary" className="text-sm">
                     All runs in this queue have been annotated.
                     <br />
-                    Add more from Tracing.
+                    {isTraces ? "Add more from Tracing." : "Add more from Test Sets."}
                 </Typography.Text>
             </div>
 
@@ -70,7 +82,7 @@ const AllCaughtUp = memo(function AllCaughtUp() {
                 <Button size="small" onClick={handleViewPrevious}>
                     View previous annotations
                 </Button>
-                {navigation.navigateToObservability && (
+                {isTraces && navigation.navigateToObservability && (
                     <Button size="small" type="primary" onClick={handleGoToObservability}>
                         Go to observability
                     </Button>
@@ -84,13 +96,21 @@ const AllCaughtUp = memo(function AllCaughtUp() {
 // MAIN COMPONENT
 // ============================================================================
 
-const FocusView = memo(function FocusView({queueId, onSaved, onCompleted}: FocusViewProps) {
+const FocusView = memo(function FocusView({
+    queueId,
+    onSaved,
+    onCompleted,
+    onViewChange,
+}: FocusViewProps) {
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
+    )
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(currentScenarioId ?? ""),
     )
     const progress = useAtomValue(annotationSessionController.selectors.progress())
 
@@ -108,26 +128,27 @@ const FocusView = memo(function FocusView({queueId, onSaved, onCompleted}: Focus
 
     // All scenarios completed — show empty state
     if (progress.remaining === 0) {
-        return <AllCaughtUp />
+        return <AllCaughtUp onViewChange={onViewChange} />
     }
 
     return (
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
             {/* Top navigation (includes trace info) */}
             <SessionNavigation />
 
-            <div className="flex-1 flex overflow-hidden min-h-0">
+            <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
                 {/* Scenario content */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                     <ScenarioContent
                         scenario={currentScenario}
                         queueKind={queueKind || "traces"}
                         traceId={traceRef.traceId}
+                        testcaseId={testcaseRef.testcaseId}
                     />
                 </div>
 
                 {/* Annotation panel */}
-                <div className="w-[340px] min-w-[280px]">
+                <div className="w-[340px] min-w-[280px] border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
                     <AnnotationPanel
                         scenarioId={currentScenarioId ?? ""}
                         queueId={queueId}

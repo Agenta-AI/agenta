@@ -21,7 +21,10 @@ import {
 import {Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {useTraceContentRenderer} from "../../context/AnnotationUIContext"
+import {
+    useTestcaseContentRenderer,
+    useTraceContentRenderer,
+} from "../../context/AnnotationUIContext"
 
 // ============================================================================
 // TYPES
@@ -31,6 +34,7 @@ interface ScenarioContentProps {
     scenario: Record<string, unknown> | null
     queueKind: string
     traceId?: string
+    testcaseId?: string
 }
 
 // ============================================================================
@@ -305,20 +309,35 @@ const TraceScenarioContent = memo(function TraceScenarioContent({traceId}: {trac
 // ============================================================================
 
 /**
- * Displays test case data from the scenario record itself.
- * Shows inputs, expected output, other columns.
+ * Displays test case data.
+ * When a TestcaseContentRenderer is injected via context and testcaseId is available,
+ * delegates to the rich renderer (drill-in view with format switching).
+ * Otherwise falls back to basic DataSection rendering from the scenario record.
  */
 const TestcaseScenarioContent = memo(function TestcaseScenarioContent({
     scenario,
+    testcaseId,
 }: {
     scenario: Record<string, unknown>
+    testcaseId?: string
 }) {
+    const TestcaseContentRenderer = useTestcaseContentRenderer()
+
     const {inputs, outputs, expectedOutputs, metaEntries, tags} = useMemo(
         () => categorizeEntries(scenario),
         [scenario],
     )
 
     const hasData = inputs.length > 0 || outputs.length > 0 || expectedOutputs.length > 0
+
+    // Rich rendering if host injected a renderer and we have a testcaseId
+    if (TestcaseContentRenderer && testcaseId) {
+        return (
+            <div className="flex flex-col h-full overflow-y-auto">
+                <TestcaseContentRenderer testcaseId={testcaseId} />
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-4 h-full overflow-y-auto p-4">
@@ -355,6 +374,7 @@ const ScenarioContent = memo(function ScenarioContent({
     scenario,
     queueKind,
     traceId,
+    testcaseId,
 }: ScenarioContentProps) {
     if (!scenario) {
         return (
@@ -371,8 +391,8 @@ const ScenarioContent = memo(function ScenarioContent({
         return <TraceScenarioContent traceId={traceId} />
     }
 
-    // For test cases (or traces without trace ID), display scenario record data
-    return <TestcaseScenarioContent scenario={scenario} />
+    // For test cases, fetch testcase data by ID and display
+    return <TestcaseScenarioContent scenario={scenario} testcaseId={testcaseId} />
 })
 
 export default ScenarioContent

@@ -58,7 +58,7 @@ function CollapsibleSection({
     return (
         <div className="flex flex-col">
             <div
-                className="flex items-center justify-between py-1 px-3 h-10 cursor-pointer"
+                className="flex items-center justify-between py-1 px-3 h-10 cursor-pointer bg-[#05172905] rounded-t-lg"
                 style={{borderBottom: "1px solid #EAEFF5"}}
                 role="button"
                 tabIndex={0}

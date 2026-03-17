@@ -1,5 +1,12 @@
 import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
+import {ListChecks} from "@phosphor-icons/react"
 import {Button, Space, Tooltip} from "antd"
+import dynamic from "next/dynamic"
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui").then((m) => m.AddToQueuePopover),
+    {ssr: false},
+)
 
 /**
  * Props for TestcaseActions component
@@ -14,6 +21,8 @@ export interface TestcaseActionsProps {
     onImportCSV: () => void
     /** Whether this is a new testset (disables discard since there's no server state) */
     isNewTestset?: boolean
+    /** Selected row keys (testcase IDs) for bulk actions */
+    selectedRowKeys?: React.Key[]
 }
 
 /**
@@ -39,7 +48,10 @@ export function TestcaseActions(props: TestcaseActionsProps) {
         onCommit,
         onImportCSV,
         isNewTestset = false,
+        selectedRowKeys = [],
     } = props
+
+    const selectedIds = selectedRowKeys.map(String)
 
     return (
         <Space>
@@ -48,6 +60,20 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                     Discard
                 </Button>
             )}
+            <AddToQueuePopover
+                itemType="testcases"
+                itemIds={selectedIds}
+                disabled={selectedIds.length === 0 || mode === "view"}
+            >
+                <Tooltip title="Add selected testcases to annotation queue">
+                    <Button
+                        icon={<ListChecks size={14} />}
+                        disabled={selectedIds.length === 0 || mode === "view"}
+                    >
+                        Add to queue
+                    </Button>
+                </Tooltip>
+            </AddToQueuePopover>
             <Tooltip title="Import CSV/JSON file as new revision">
                 <Button
                     onClick={onImportCSV}

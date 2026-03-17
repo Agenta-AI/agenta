@@ -12,11 +12,11 @@
  * - Integration with existing syntax highlighting
  * - Line-by-line diff state management
  * - Real-time diff computation
- * - Inline diff with word-level granularity
+ * - Inline diff with character-level prefix/suffix matching
  * - Long line truncation with character count indicators
  *
  * ## Architecture:
- * - `registerDiffHighlightBehavior()` — registers the INITIAL_CONTENT_COMMAND handler
+ * - `registerDiffHighlightBehavior()` — registers diff building and transforms
  *   and CodeBlockNode transform for diff annotation
  * - `DiffHighlightExtension` — Lexical extension wrapper (used by the extension system)
  * - `DiffHighlightPlugin` — Legacy React component wrapper (backward compatibility)
@@ -34,15 +34,11 @@ import {
     $createTextNode,
     $getRoot,
     $hasUpdateTag,
-    COMMAND_PRIORITY_CRITICAL,
     defineExtension,
+    TextNode,
     type LexicalEditor,
 } from "lexical"
 
-import {
-    INITIAL_CONTENT_COMMAND,
-    InitialContentPayload,
-} from "../../../commands/InitialContentCommand"
 import {computeDiff} from "../../../utils/diffUtils"
 import {$createCodeBlockNode} from "../nodes/CodeBlockNode"
 import {CodeBlockNode} from "../nodes/CodeBlockNode"
@@ -55,8 +51,8 @@ import {$getAllCodeLines, $wrapLinesInSegments} from "../utils/segmentUtils"
 interface InlineDiffSegment {
     text: string
     changed: boolean
-    /** Fine-grained segment type for unified diff and truncation styling */
-    segmentType?: "removed" | "added" | "truncated"
+    /** Fine-grained segment type for unified diff styling */
+    segmentType?: "removed" | "added"
 }
 
 interface InlineDiffPair {
@@ -178,11 +174,6 @@ function buildInlineDiffPair(removedLine: string, addedLine: string): InlineDiff
 
     // Only apply inline diff for mostly-similar lines; otherwise line-level diff is clearer.
     if (overlapRatio < 0.3) {
-        // For long strings with scattered changes, try word-level diff
-        // which can identify multiple separate change regions
-        if (removedLine.length > 100 || addedLine.length > 100) {
-            return buildWordLevelInlineDiff(removedLine, addedLine)
-        }
         return null
     }
 
@@ -214,242 +205,10 @@ function buildInlineDiffPair(removedLine: string, addedLine: string): InlineDiff
     }
 }
 
-// ─── Word-level inline diff ──────────────────────────────────────────────────
-
-/** Maximum DP cells for word-level inline diff (prevents freeze on huge strings) */
-const INLINE_DIFF_MAX_CELLS = 2_000_000
-
-/**
- * Tokenize a string into word/whitespace tokens for word-level diff.
- * Lossless: `tokens.join('') === text`.
- */
-function tokenizeForInlineDiff(text: string): string[] {
-    return text.match(/\S+|\s+/g) || []
-}
-
-/**
- * Word-level inline diff for long strings with multiple scattered changes.
- * Uses LCS on word tokens to find all matching/changed regions.
- */
-function buildWordLevelInlineDiff(removedLine: string, addedLine: string): InlineDiffPair | null {
-    const removedTokens = tokenizeForInlineDiff(removedLine)
-    const addedTokens = tokenizeForInlineDiff(addedLine)
-
-    const rLen = removedTokens.length
-    const aLen = addedTokens.length
-
-    // Safety cap — too many tokens would freeze the browser
-    if (rLen * aLen > INLINE_DIFF_MAX_CELLS) return null
-
-    // Skip matching prefix tokens
-    let tokenPrefix = 0
-    const maxTokenPrefix = Math.min(rLen, aLen)
-    while (
-        tokenPrefix < maxTokenPrefix &&
-        removedTokens[tokenPrefix] === addedTokens[tokenPrefix]
-    ) {
-        tokenPrefix++
-    }
-
-    // Skip matching suffix tokens
-    let tokenSuffix = 0
-    const maxTokenSuffix = Math.min(rLen - tokenPrefix, aLen - tokenPrefix)
-    while (
-        tokenSuffix < maxTokenSuffix &&
-        removedTokens[rLen - 1 - tokenSuffix] === addedTokens[aLen - 1 - tokenSuffix]
-    ) {
-        tokenSuffix++
-    }
-
-    const rMiddle = removedTokens.slice(tokenPrefix, rLen - tokenSuffix)
-    const aMiddle = addedTokens.slice(tokenPrefix, aLen - tokenSuffix)
-
-    // If no middle difference, lines are identical (shouldn't happen but guard)
-    if (rMiddle.length === 0 && aMiddle.length === 0) return null
-
-    // Check DP size for the middle portion only
-    if (rMiddle.length * aMiddle.length > INLINE_DIFF_MAX_CELLS) return null
-
-    // Compute LCS on middle tokens using DP
-    const rMLen = rMiddle.length
-    const aMLen = aMiddle.length
-    const dp = new Uint16Array((rMLen + 1) * (aMLen + 1))
-    const stride = aMLen + 1
-
-    for (let i = 1; i <= rMLen; i++) {
-        for (let j = 1; j <= aMLen; j++) {
-            if (rMiddle[i - 1] === aMiddle[j - 1]) {
-                dp[i * stride + j] = dp[(i - 1) * stride + (j - 1)] + 1
-            } else {
-                dp[i * stride + j] = Math.max(dp[(i - 1) * stride + j], dp[i * stride + (j - 1)])
-            }
-        }
-    }
-
-    // Backtrack to find matched token indices in both sequences
-    const rMatched = new Uint8Array(rMLen)
-    const aMatched = new Uint8Array(aMLen)
-    let ri = rMLen,
-        ai = aMLen
-    while (ri > 0 && ai > 0) {
-        if (rMiddle[ri - 1] === aMiddle[ai - 1]) {
-            rMatched[ri - 1] = 1
-            aMatched[ai - 1] = 1
-            ri--
-            ai--
-        } else if (dp[(ri - 1) * stride + ai] >= dp[ri * stride + (ai - 1)]) {
-            ri--
-        } else {
-            ai--
-        }
-    }
-
-    // Build segments for a token array given matched flags
-    const buildSegments = (
-        prefixTokens: string[],
-        middleTokens: string[],
-        suffixTokens: string[],
-        matched: Uint8Array,
-    ): InlineDiffSegment[] => {
-        const segments: InlineDiffSegment[] = []
-        let currentText = ""
-        let currentChanged = false
-
-        // Prefix tokens are all unchanged
-        const prefixText = prefixTokens.join("")
-        if (prefixText) {
-            currentText = prefixText
-            currentChanged = false
-        }
-
-        // Middle tokens — use matched flags
-        for (let i = 0; i < middleTokens.length; i++) {
-            const isChanged = !matched[i]
-            if (i === 0 && !currentText) {
-                currentText = middleTokens[i]
-                currentChanged = isChanged
-            } else if (isChanged === currentChanged) {
-                currentText += middleTokens[i]
-            } else {
-                if (currentText) segments.push({text: currentText, changed: currentChanged})
-                currentText = middleTokens[i]
-                currentChanged = isChanged
-            }
-        }
-
-        // Suffix tokens are all unchanged
-        const suffixText = suffixTokens.join("")
-        if (suffixText) {
-            if (!currentChanged && currentText) {
-                currentText += suffixText
-            } else {
-                if (currentText) segments.push({text: currentText, changed: currentChanged})
-                currentText = suffixText
-                currentChanged = false
-            }
-        }
-
-        if (currentText) segments.push({text: currentText, changed: currentChanged})
-        return segments
-    }
-
-    const prefixTokenArr = removedTokens.slice(0, tokenPrefix)
-    const rSuffixTokenArr = removedTokens.slice(rLen - tokenSuffix)
-    const aSuffixTokenArr = addedTokens.slice(aLen - tokenSuffix)
-
-    const removedSegments = buildSegments(prefixTokenArr, rMiddle, rSuffixTokenArr, rMatched)
-    const addedSegments = buildSegments(prefixTokenArr, aMiddle, aSuffixTokenArr, aMatched)
-
-    // Check overlap ratio from the word-level diff
-    const rUnchangedChars = removedSegments
-        .filter((s) => !s.changed)
-        .reduce((sum, s) => sum + s.text.length, 0)
-    const wordOverlapRatio = rUnchangedChars / Math.max(removedLine.length, addedLine.length)
-    if (wordOverlapRatio < 0.3) return null
-
-    // Build unified segments by walking both token sequences with LCS alignment
-    const unified = buildUnifiedFromLCS(
-        prefixTokenArr,
-        rMiddle,
-        aMiddle,
-        rSuffixTokenArr,
-        rMatched,
-        aMatched,
-    )
-
-    return {removed: removedSegments, added: addedSegments, unified}
-}
-
-/**
- * Build unified (single-line) segments from LCS alignment of two token sequences.
- * Interleaves removed (strikethrough) and added (highlight) tokens between unchanged regions.
- */
-function buildUnifiedFromLCS(
-    prefixTokens: string[],
-    rMiddle: string[],
-    aMiddle: string[],
-    suffixTokens: string[],
-    rMatched: Uint8Array,
-    aMatched: Uint8Array,
-): InlineDiffSegment[] {
-    const raw: InlineDiffSegment[] = []
-
-    // Prefix is unchanged
-    const prefixText = prefixTokens.join("")
-    if (prefixText) raw.push({text: prefixText, changed: false})
-
-    // Walk both middle sequences in sync using LCS matching
-    let ri = 0,
-        ai = 0
-    while (ri < rMiddle.length || ai < aMiddle.length) {
-        // Collect unmatched removed tokens
-        let removedText = ""
-        while (ri < rMiddle.length && !rMatched[ri]) {
-            removedText += rMiddle[ri]
-            ri++
-        }
-        if (removedText) raw.push({text: removedText, changed: true, segmentType: "removed"})
-
-        // Collect unmatched added tokens
-        let addedText = ""
-        while (ai < aMiddle.length && !aMatched[ai]) {
-            addedText += aMiddle[ai]
-            ai++
-        }
-        if (addedText) raw.push({text: addedText, changed: true, segmentType: "added"})
-
-        // Emit matched token (same in both)
-        if (ri < rMiddle.length && rMatched[ri] && ai < aMiddle.length && aMatched[ai]) {
-            raw.push({text: rMiddle[ri], changed: false})
-            ri++
-            ai++
-        }
-    }
-
-    // Suffix is unchanged
-    const suffixText = suffixTokens.join("")
-    if (suffixText) raw.push({text: suffixText, changed: false})
-
-    // Merge consecutive segments of the same type
-    const merged: InlineDiffSegment[] = []
-    for (const seg of raw) {
-        const prev = merged.length > 0 ? merged[merged.length - 1] : null
-        if (prev && prev.changed === seg.changed && prev.segmentType === seg.segmentType) {
-            prev.text += seg.text
-        } else {
-            merged.push({...seg})
-        }
-    }
-
-    return merged
-}
-
 // ─── Truncation utilities ────────────────────────────────────────────────────
 
-/** Maximum line length before truncation kicks in for diff views */
+/** Maximum visible characters for truncated diff lines */
 const DIFF_LINE_TRUNCATE_THRESHOLD = 200
-/** How many characters of context to keep around a changed segment */
-const DIFF_CONTEXT_CHARS = 60
 
 /**
  * Format a character count for display in truncation indicators.
@@ -461,113 +220,96 @@ function formatTruncatedCount(count: number): string {
     return `${count}`
 }
 
-/**
- * Build a truncation indicator segment with distinct styling.
- */
-function $truncationSegment(hiddenCount: number): InlineDiffSegment {
-    return {
-        text: ` … [${formatTruncatedCount(hiddenCount)} chars] … `,
-        changed: false,
-        segmentType: "truncated",
-    }
-}
-
-/**
- * Truncate a long plain-text line into segments with styled truncation indicators.
- * Returns null if no truncation needed (caller should use plain text).
- */
-function $truncateDiffLineToSegments(content: string): InlineDiffSegment[] | null {
-    if (content.length <= DIFF_LINE_TRUNCATE_THRESHOLD) return null
-
-    // Find the JSON string value boundary (first quote after a colon)
-    // so we truncate the value, not the key
-    const colonQuoteMatch = content.match(/^(\s*"[^"]*"\s*:\s*")/)
-    if (colonQuoteMatch) {
-        const keyPrefix = colonQuoteMatch[1]
-        const valueContent = content.slice(keyPrefix.length)
-        const keepChars = Math.max(40, DIFF_LINE_TRUNCATE_THRESHOLD - keyPrefix.length)
-        if (valueContent.length > keepChars) {
-            return [
-                {text: keyPrefix + valueContent.slice(0, keepChars), changed: false},
-                $truncationSegment(valueContent.length - keepChars),
-            ]
-        }
-    }
-
-    // Fallback: truncate from the end
-    return [
-        {text: content.slice(0, DIFF_LINE_TRUNCATE_THRESHOLD), changed: false},
-        $truncationSegment(content.length - DIFF_LINE_TRUNCATE_THRESHOLD),
-    ]
-}
-
-/**
- * Truncate long unchanged segments in inline diff.
- * Produces separate styled truncation indicator segments.
- */
-function $truncateInlineDiffSegments(segments: InlineDiffSegment[]): InlineDiffSegment[] {
-    // Only truncate if total text length exceeds threshold
-    const totalLength = segments.reduce((sum, s) => sum + s.text.length, 0)
-    if (totalLength <= DIFF_LINE_TRUNCATE_THRESHOLD) return segments
-
-    const result: InlineDiffSegment[] = []
-
-    for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i]
-
-        // Never truncate changed segments or short segments
-        if (segment.changed || segment.text.length <= DIFF_CONTEXT_CHARS * 2) {
-            result.push(segment)
-            continue
-        }
-
-        // This is a long unchanged segment — split into content + truncation indicator
-        const isFirst = i === 0
-        const isLast = i === segments.length - 1
-        const hasChangedNeighborBefore = i > 0 && segments[i - 1].changed
-        const hasChangedNeighborAfter = i < segments.length - 1 && segments[i + 1].changed
-
-        if (isFirst && !isLast) {
-            // Leading unchanged: keep small head + tail near the change
-            const hiddenCount = segment.text.length - DIFF_CONTEXT_CHARS - 20
-            result.push({text: segment.text.slice(0, 20), changed: false})
-            result.push($truncationSegment(hiddenCount))
-            result.push({text: segment.text.slice(-DIFF_CONTEXT_CHARS), changed: false})
-        } else if (isLast && !isFirst) {
-            // Trailing unchanged: keep head near the change
-            const hiddenCount = segment.text.length - DIFF_CONTEXT_CHARS
-            result.push({text: segment.text.slice(0, DIFF_CONTEXT_CHARS), changed: false})
-            result.push($truncationSegment(hiddenCount))
-        } else if (hasChangedNeighborBefore || hasChangedNeighborAfter) {
-            // Middle segment between two changes: keep both ends
-            const hiddenCount = segment.text.length - DIFF_CONTEXT_CHARS * 2
-            if (hiddenCount > 20) {
-                result.push({text: segment.text.slice(0, DIFF_CONTEXT_CHARS), changed: false})
-                result.push($truncationSegment(hiddenCount))
-                result.push({text: segment.text.slice(-DIFF_CONTEXT_CHARS), changed: false})
-            } else {
-                result.push(segment)
-            }
-        } else {
-            // Standalone long unchanged segment
-            const hiddenCount = segment.text.length - DIFF_CONTEXT_CHARS
-            result.push({text: segment.text.slice(0, DIFF_CONTEXT_CHARS), changed: false})
-            result.push($truncationSegment(hiddenCount))
-        }
-    }
-
-    return result
-}
-
-// ─── Segment styling ─────────────────────────────────────────────────────────
-
 /** Inline style constants for diff segment types */
 const DIFF_SEGMENT_STYLES = {
     removed:
         "background-color: rgba(220, 38, 38, 0.3); text-decoration: line-through; text-decoration-color: rgba(220, 38, 38, 0.6); border-radius: 2px; padding: 0 1px;",
     added: "background-color: rgba(22, 163, 74, 0.3); border-radius: 2px; padding: 0 1px;",
-    truncated: "opacity: 0.45; font-style: italic; color: #888; letter-spacing: 0.02em;",
 } as const
+
+/**
+ * Truncate a plain-text line (no inline diff segments).
+ */
+function $truncatePlainLine(content: string): string | null {
+    if (content.length <= DIFF_LINE_TRUNCATE_THRESHOLD) return null
+
+    const colonQuoteMatch = content.match(/^(\s*"[^"]*"\s*:\s*"?)/)
+    if (colonQuoteMatch) {
+        const keyPrefix = colonQuoteMatch[1]
+        const valueContent = content.slice(keyPrefix.length)
+        const keepChars = Math.max(40, DIFF_LINE_TRUNCATE_THRESHOLD - keyPrefix.length)
+        if (valueContent.length > keepChars) {
+            return (
+                keyPrefix +
+                valueContent.slice(0, keepChars) +
+                ` … [${formatTruncatedCount(valueContent.length - keepChars)} chars]`
+            )
+        }
+    }
+
+    return (
+        content.slice(0, DIFF_LINE_TRUNCATE_THRESHOLD) +
+        ` … [${formatTruncatedCount(content.length - DIFF_LINE_TRUNCATE_THRESHOLD)} chars]`
+    )
+}
+
+/**
+ * Truncate inline diff segments in-place without changing segment count.
+ * Each segment's text is shortened individually so the number of TextNodes
+ * stays the same — adding nodes triggers a Lexical DOM reconciliation freeze.
+ *
+ * Strategy:
+ * - Changed segments are kept fully visible (they're the point of the diff).
+ * - Unchanged segments are truncated to keep total line length reasonable,
+ *   preserving JSON key prefixes when the segment starts with one.
+ */
+function $truncateSegmentsInPlace(segments: InlineDiffSegment[]): InlineDiffSegment[] {
+    const totalLength = segments.reduce((sum, s) => sum + s.text.length, 0)
+    if (totalLength <= DIFF_LINE_TRUNCATE_THRESHOLD) return segments
+
+    // Budget: total chars we can show for unchanged segments
+    const changedLength = segments.reduce((sum, s) => (s.changed ? sum + s.text.length : sum), 0)
+    const unchangedBudget = Math.max(80, DIFF_LINE_TRUNCATE_THRESHOLD - changedLength)
+    const unchangedSegments = segments.filter((s) => !s.changed)
+    const unchangedTotal = unchangedSegments.reduce((sum, s) => sum + s.text.length, 0)
+
+    if (unchangedTotal <= unchangedBudget) return segments
+
+    return segments.map((segment) => {
+        if (segment.changed) return segment
+
+        // Proportional share of the budget for this unchanged segment
+        const share = Math.max(
+            40,
+            Math.floor((segment.text.length / unchangedTotal) * unchangedBudget),
+        )
+        if (segment.text.length <= share) return segment
+
+        // Preserve JSON key prefix (e.g. `  "key": "`) in the first unchanged segment
+        const colonQuoteMatch = segment.text.match(/^(\s*"[^"]*"\s*:\s*"?)/)
+        if (colonQuoteMatch) {
+            const keyPrefix = colonQuoteMatch[1]
+            const valueContent = segment.text.slice(keyPrefix.length)
+            const keepChars = Math.max(20, share - keyPrefix.length)
+            if (valueContent.length > keepChars) {
+                return {
+                    ...segment,
+                    text:
+                        keyPrefix +
+                        valueContent.slice(0, keepChars) +
+                        ` … [${formatTruncatedCount(valueContent.length - keepChars)} chars]`,
+                }
+            }
+        }
+
+        return {
+            ...segment,
+            text:
+                segment.text.slice(0, share) +
+                ` … [${formatTruncatedCount(segment.text.length - share)} chars]`,
+        }
+    })
+}
 
 function $setLineContentWithInlineDiff(
     lineNode: CodeLineNode,
@@ -577,43 +319,31 @@ function $setLineContentWithInlineDiff(
 ) {
     lineNode.clear()
 
+    // No segments — plain text with optional truncation (single TextNode)
     if (!segments || segments.length === 0) {
-        // Try to produce styled truncation segments for plain text
-        const truncatedSegs = $truncateDiffLineToSegments(fullContent)
-        if (truncatedSegs) {
-            truncatedSegs.forEach((seg) => {
-                const node = $createTextNode(seg.text)
-                if (seg.segmentType === "truncated") {
-                    node.setStyle(DIFF_SEGMENT_STYLES.truncated)
-                }
-                lineNode.append(node)
-            })
-        } else {
-            lineNode.append($createTextNode(fullContent))
-        }
+        const displayText = $truncatePlainLine(fullContent) ?? fullContent
+        lineNode.append($createTextNode(displayText).setMode("token"))
         return
     }
 
-    const truncatedSegments = $truncateInlineDiffSegments(segments)
+    // Truncate unchanged segments in-place (same segment count, shorter text)
+    const displaySegments = $truncateSegmentsInPlace(segments)
 
-    truncatedSegments.forEach((segment) => {
-        const node = $createTextNode(segment.text)
+    for (const segment of displaySegments) {
+        const node = $createTextNode(segment.text).setMode("token")
 
-        if (segment.segmentType === "truncated") {
-            node.setStyle(DIFF_SEGMENT_STYLES.truncated)
-        } else if (segment.segmentType === "removed") {
+        if (segment.segmentType === "removed") {
             node.setStyle(DIFF_SEGMENT_STYLES.removed)
         } else if (segment.segmentType === "added") {
             node.setStyle(DIFF_SEGMENT_STYLES.added)
         } else if (segment.changed) {
-            // Legacy path: use line-level diffType for color
             const changedBg =
                 diffType === "added" ? DIFF_SEGMENT_STYLES.added : DIFF_SEGMENT_STYLES.removed
             node.setStyle(changedBg)
         }
 
         lineNode.append(node)
-    })
+    }
 }
 
 // ─── Diff content detection ──────────────────────────────────────────────────
@@ -644,6 +374,12 @@ function isDiffContent(blockText: string): boolean {
     return isDiff
 }
 
+// ─── Diff-built tracking ─────────────────────────────────────────────────────
+// Tracks which editors have completed their initial diff DOM build.
+// Uses a WeakMap keyed on editor instance so the flag survives React Strict Mode
+// double-mounts (where closures are discarded and recreated).
+const diffBuiltEditors = new WeakSet<LexicalEditor>()
+
 // ─── Behavior registration ───────────────────────────────────────────────────
 
 export function registerDiffHighlightBehavior(
@@ -657,298 +393,279 @@ export function registerDiffHighlightBehavior(
         showFoldedLineCount = true,
     }: DiffHighlightPluginProps = {},
 ): () => void {
-    const removeCommandListener = editor.registerCommand(
-        INITIAL_CONTENT_COMMAND,
-        (payload: InitialContentPayload) => {
-            if (payload.isDiffRequest && payload.originalContent && payload.modifiedContent) {
-                payload.preventDefault()
-                editor.update(() => {
-                    $addUpdateTag("diff-initial-content")
-                    try {
-                        let originalData: unknown, modifiedData: unknown
+    // Reset the diff-built flag for this editor on (re-)registration.
+    diffBuiltEditors.delete(editor)
 
-                        if (payload.language === "yaml") {
-                            originalData = yaml.load(payload.originalContent!)
-                            modifiedData = yaml.load(payload.modifiedContent!)
-                        } else {
-                            originalData = JSON5.parse(payload.originalContent!)
-                            modifiedData = JSON5.parse(payload.modifiedContent!)
-                        }
+    // Build the diff content tree inside an editor.update() with
+    // skipTransforms: true. Skipping transforms is critical — Lexical's
+    // $applyAllTransforms iterates all dirty nodes after each update,
+    // and with many appended nodes this causes the browser to freeze.
+    const buildDiffContent = () => {
+        editor.update(
+            () => {
+                $addUpdateTag("diff-initial-content")
+                $addUpdateTag("agenta:initial-content")
 
-                        const diffContent = computeDiff(originalData, modifiedData, {
-                            language: payload.language,
-                            enableFolding,
-                            foldThreshold,
-                            showFoldedLineCount,
-                        })
+                try {
+                    let originalData: unknown, modifiedData: unknown
 
-                        const hasChanges =
-                            diffContent.includes("|added|") || diffContent.includes("|removed|")
+                    if (language === "yaml") {
+                        originalData = yaml.load(originalContent!)
+                        modifiedData = yaml.load(modifiedContent!)
+                    } else {
+                        originalData = JSON5.parse(originalContent!)
+                        modifiedData = JSON5.parse(modifiedContent!)
+                    }
 
-                        if (!hasChanges && diffContent.trim()) {
-                            const root = $getRoot()
-                            root.clear()
-                            return
-                        }
+                    const diffContent = computeDiff(originalData, modifiedData, {
+                        language,
+                        enableFolding,
+                        foldThreshold,
+                        showFoldedLineCount,
+                    })
 
+                    const hasChanges =
+                        diffContent.includes("|added|") || diffContent.includes("|removed|")
+
+                    if (!hasChanges && diffContent.trim()) {
                         const root = $getRoot()
                         root.clear()
+                        return
+                    }
 
-                        const codeBlock = $createCodeBlockNode(payload.language)
-                        const rawLines = diffContent.split("\n")
+                    const root = $getRoot()
+                    root.clear()
 
-                        // Pre-parse all lines to extract diff metadata
-                        const parsedLines = rawLines.map((line) => parseDiffLine(line))
+                    const codeBlock = $createCodeBlockNode(language)
+                    const rawLines = diffContent.split("\n")
 
-                        // Pre-compute inline diff pairs for removed→added sequences.
-                        // Stores unified segments (single-line view) keyed by the
-                        // removed line index, and marks the added line index for skipping.
-                        const unifiedByRemovedIndex = new Map<
-                            number,
-                            {
-                                unified: InlineDiffSegment[]
-                                addedLineNumber?: number
-                            }
-                        >()
-                        const skipIndices = new Set<number>()
+                    // Pre-parse all lines to extract diff metadata
+                    const parsedLines = rawLines.map((line) => parseDiffLine(line))
 
-                        for (let i = 0; i < parsedLines.length - 1; i++) {
-                            const current = parsedLines[i]
-                            const next = parsedLines[i + 1]
-                            if (!current || !next) continue
-                            if (
-                                current.diffType === "removed" &&
-                                next.diffType === "added" &&
-                                typeof current.content === "string" &&
-                                typeof next.content === "string"
-                            ) {
-                                const inlinePair = buildInlineDiffPair(
-                                    current.content,
-                                    next.content,
-                                )
-                                if (inlinePair && inlinePair.unified.length > 0) {
-                                    unifiedByRemovedIndex.set(i, {
-                                        unified: inlinePair.unified,
-                                        addedLineNumber: next.newLineNumber,
-                                    })
-                                    skipIndices.add(i + 1) // skip the added line
-                                }
+                    // Pre-compute inline diff pairs for removed→added sequences.
+                    const unifiedByRemovedIndex = new Map<
+                        number,
+                        {
+                            unified: InlineDiffSegment[]
+                            addedLineNumber?: number
+                        }
+                    >()
+                    const skipIndices = new Set<number>()
+
+                    for (let i = 0; i < parsedLines.length - 1; i++) {
+                        const current = parsedLines[i]
+                        const next = parsedLines[i + 1]
+                        if (!current || !next) continue
+                        if (
+                            current.diffType === "removed" &&
+                            next.diffType === "added" &&
+                            typeof current.content === "string" &&
+                            typeof next.content === "string"
+                        ) {
+                            const inlinePair = buildInlineDiffPair(current.content, next.content)
+                            if (inlinePair && inlinePair.unified.length > 0) {
+                                unifiedByRemovedIndex.set(i, {
+                                    unified: inlinePair.unified,
+                                    addedLineNumber: next.newLineNumber,
+                                })
+                                skipIndices.add(i + 1) // skip the added line
                             }
                         }
+                    }
 
-                        // Create line nodes with all diff properties set upfront
-                        // to avoid the node transform cascade
-                        const lineNodes: CodeLineNode[] = []
-                        rawLines.forEach((lineContent, index) => {
-                            if (lineContent.trim() || index < rawLines.length - 1) {
-                                // Skip added lines that have been merged into a unified modified line
-                                if (skipIndices.has(index)) return
+                    // Create line nodes with all diff properties set upfront
+                    // to avoid the node transform cascade
+                    const lineNodes: CodeLineNode[] = []
+                    rawLines.forEach((lineContent, index) => {
+                        if (lineContent.trim() || index < rawLines.length - 1) {
+                            // Skip added lines that have been merged into a unified modified line
+                            if (skipIndices.has(index)) return
 
-                                const parsed = parsedLines[index]
-                                const lineNode = $createCodeLineNode()
+                            const parsed = parsedLines[index]
+                            const lineNode = $createCodeLineNode()
 
-                                // Check if this removed line should become a unified modified line
-                                const unifiedEntry = unifiedByRemovedIndex.get(index)
+                            // Check if this removed line should become a unified modified line
+                            const unifiedEntry = unifiedByRemovedIndex.get(index)
 
-                                if (unifiedEntry && parsed) {
-                                    // Create a single "modified" line with interleaved segments
-                                    lineNode.setDiffType("modified")
-                                    lineNode.setOldLineNumber(parsed.oldLineNumber)
-                                    lineNode.setNewLineNumber(unifiedEntry.addedLineNumber)
-                                    $setLineContentWithInlineDiff(
-                                        lineNode,
-                                        parsed.content,
-                                        "modified",
-                                        unifiedEntry.unified,
-                                    )
-                                } else if (parsed) {
-                                    // Regular diff line (context, standalone removed/added, etc.)
-                                    lineNode.setDiffType(parsed.diffType)
-                                    lineNode.setOldLineNumber(parsed.oldLineNumber)
-                                    lineNode.setNewLineNumber(parsed.newLineNumber)
-                                    $setLineContentWithInlineDiff(
-                                        lineNode,
-                                        parsed.content,
-                                        parsed.diffType,
-                                    )
-                                } else {
-                                    lineNode.append($createTextNode(lineContent))
-                                }
-
-                                lineNodes.push(lineNode)
+                            if (unifiedEntry && parsed) {
+                                // Create a single "modified" line with interleaved segments
+                                lineNode.setDiffType("modified")
+                                lineNode.setOldLineNumber(parsed.oldLineNumber)
+                                lineNode.setNewLineNumber(unifiedEntry.addedLineNumber)
+                                $setLineContentWithInlineDiff(
+                                    lineNode,
+                                    parsed.content,
+                                    "modified",
+                                    unifiedEntry.unified,
+                                )
+                            } else if (parsed) {
+                                // Regular diff line (context, standalone removed/added, etc.)
+                                lineNode.setDiffType(parsed.diffType)
+                                lineNode.setOldLineNumber(parsed.oldLineNumber)
+                                lineNode.setNewLineNumber(parsed.newLineNumber)
+                                $setLineContentWithInlineDiff(
+                                    lineNode,
+                                    parsed.content,
+                                    parsed.diffType,
+                                )
+                            } else {
+                                lineNode.append($createTextNode(lineContent).setMode("token"))
                             }
-                        })
 
-                        // Wrap in segments for efficient virtualization
-                        $wrapLinesInSegments(lineNodes).forEach((node) => {
-                            codeBlock.append(node)
-                        })
+                            lineNodes.push(lineNode)
+                        }
+                    })
 
-                        root.append(codeBlock)
-                    } catch (parseError) {
-                        // Silently fail - the editor will show empty content
-                    }
-                })
+                    diffBuiltEditors.add(editor)
 
-                return true
-            }
-            // In diff mode, block ALL initial-content commands to prevent
-            // other handlers from overwriting the diff-styled content.
-            if (originalContent && modifiedContent) {
-                return true
-            }
-            return false
-        },
-        COMMAND_PRIORITY_CRITICAL,
-    )
+                    // Wrap lines in segments for virtualization, then append to tree
+                    $wrapLinesInSegments(lineNodes).forEach((node) => {
+                        codeBlock.append(node)
+                    })
 
-    const removeTransform = editor.registerNodeTransform(
-        CodeBlockNode,
-        (codeBlockNode: CodeBlockNode) => {
-            if ($hasUpdateTag("agenta:bulk-clear")) {
-                return
-            }
-
-            // Skip re-processing during the diff initial content update.
-            // The INITIAL_CONTENT_COMMAND handler already set diff types
-            // on all line nodes; re-parsing here would strip them because
-            // the content is already cleaned (no pipe-delimited format).
-            if ($hasUpdateTag("diff-initial-content")) {
-                return
-            }
-
-            const codeLines = $getAllCodeLines(codeBlockNode)
-
-            // Quick check: if lines already have diff properties set (from initial creation),
-            // verify a small sample to see if they're already correct and skip the full scan.
-            // This avoids the expensive re-parse of all 5k+ lines on the initial transform pass.
-            if (codeLines.length > 100) {
-                let alreadyAnnotated = 0
-                const sampleSize = Math.min(10, codeLines.length)
-                for (let i = 0; i < sampleSize; i++) {
-                    if (codeLines[i].getDiffType() !== null) {
-                        alreadyAnnotated++
-                    }
+                    root.append(codeBlock)
+                } catch (parseError) {
+                    console.error("DiffHighlight: error building diff content:", parseError)
                 }
-                // If most sampled lines already have diff types, the initial creation
-                // already set everything — skip the full transform
-                if (alreadyAnnotated >= sampleSize * 0.8) {
-                    return
-                }
-            }
+            },
+            {skipTransforms: true, discrete: true},
+        )
+    }
 
-            const blockText = codeBlockNode.getTextContent()
+    const isDiffMode = Boolean(originalContent && modifiedContent)
 
-            if (!isDiffContent(blockText)) {
-                codeLines.forEach((line: CodeLineNode) => {
-                    if (line.getDiffType() !== null) {
-                        line.setDiffType(null)
-                    }
-                })
-                return
-            }
+    // No-op transforms for TextNode and CodeLineNode prevent
+    // $normalizeTextNode from creating an infinite cycle when diff
+    // content contains backtick characters.
+    const removeTextTransform = editor.registerNodeTransform(TextNode, () => {})
+    const removeLineTransform = editor.registerNodeTransform(CodeLineNode, () => {})
 
-            const parsedLines = codeLines.map((lineNode) =>
-                parseDiffLine(lineNode.getTextContent()),
-            )
+    // The CodeBlockNode transform is only needed for interactive editors
+    // where diff-formatted text might be pasted in. In diff mode,
+    // buildDiffContent() already handled everything above.
+    const removeTransform = isDiffMode
+        ? () => {}
+        : editor.registerNodeTransform(CodeBlockNode, (codeBlockNode: CodeBlockNode) => {
+              if ($hasUpdateTag("agenta:bulk-clear")) {
+                  return
+              }
 
-            const inlineDiffByIndex = new Map<number, InlineDiffSegment[]>()
-            for (let i = 0; i < parsedLines.length - 1; i++) {
-                const current = parsedLines[i]
-                const next = parsedLines[i + 1]
-                if (!current || !next) continue
+              // Skip re-processing during the diff initial content update.
+              // buildDiffContent() already set diff types on all line nodes;
+              // re-parsing here would strip them because the content is
+              // already cleaned (no pipe-delimited format).
+              if ($hasUpdateTag("diff-initial-content")) {
+                  return
+              }
 
-                const isReplacementPair =
-                    current.diffType === "removed" &&
-                    next.diffType === "added" &&
-                    typeof current.content === "string" &&
-                    typeof next.content === "string"
+              if (diffBuiltEditors.has(editor)) {
+                  return
+              }
+              const codeLines = $getAllCodeLines(codeBlockNode)
 
-                if (!isReplacementPair) continue
+              // Quick check: if lines already have diff properties set (from initial creation),
+              // verify a small sample to see if they're already correct and skip the full scan.
+              // This avoids the expensive re-parse of all 5k+ lines on the initial transform pass.
+              if (codeLines.length > 100) {
+                  let alreadyAnnotated = 0
+                  const sampleSize = Math.min(10, codeLines.length)
+                  for (let i = 0; i < sampleSize; i++) {
+                      if (codeLines[i].getDiffType() !== null) {
+                          alreadyAnnotated++
+                      }
+                  }
+                  // If most sampled lines already have diff types, the initial creation
+                  // already set everything — skip the full transform
+                  if (alreadyAnnotated >= sampleSize * 0.8) {
+                      return
+                  }
+              }
 
-                const inlinePair = buildInlineDiffPair(current.content, next.content)
-                if (!inlinePair) continue
+              const blockText = codeBlockNode.getTextContent()
 
-                if (inlinePair.removed.length > 0) {
-                    inlineDiffByIndex.set(i, inlinePair.removed)
-                }
-                if (inlinePair.added.length > 0) {
-                    inlineDiffByIndex.set(i + 1, inlinePair.added)
-                }
-            }
+              if (!isDiffContent(blockText)) {
+                  codeLines.forEach((line: CodeLineNode) => {
+                      if (line.getDiffType() !== null) {
+                          line.setDiffType(null)
+                      }
+                  })
+                  return
+              }
 
-            codeLines.forEach((lineNode: CodeLineNode, index: number) => {
-                const parsed = parsedLines[index]
+              const parsedLines = codeLines.map((lineNode) =>
+                  parseDiffLine(lineNode.getTextContent()),
+              )
 
-                if (parsed) {
-                    const currentDiffType = lineNode.getDiffType()
-                    const currentOldLineNumber = lineNode.getOldLineNumber()
-                    const currentNewLineNumber = lineNode.getNewLineNumber()
-                    const currentContent = lineNode.getTextContent()
+              const inlineDiffByIndex = new Map<number, InlineDiffSegment[]>()
+              for (let i = 0; i < parsedLines.length - 1; i++) {
+                  const current = parsedLines[i]
+                  const next = parsedLines[i + 1]
+                  if (!current || !next) continue
 
-                    if (parsed.diffType !== currentDiffType) {
-                        lineNode.setDiffType(parsed.diffType)
-                    }
+                  const isReplacementPair =
+                      current.diffType === "removed" &&
+                      next.diffType === "added" &&
+                      typeof current.content === "string" &&
+                      typeof next.content === "string"
 
-                    if (parsed.oldLineNumber !== currentOldLineNumber) {
-                        lineNode.setOldLineNumber(parsed.oldLineNumber)
-                    }
+                  if (!isReplacementPair) continue
 
-                    if (parsed.newLineNumber !== currentNewLineNumber) {
-                        lineNode.setNewLineNumber(parsed.newLineNumber)
-                    }
+                  const inlinePair = buildInlineDiffPair(current.content, next.content)
+                  if (!inlinePair) continue
 
-                    const cleanContent = parsed.content
-                    if (cleanContent !== currentContent) {
-                        $setLineContentWithInlineDiff(
-                            lineNode,
-                            cleanContent,
-                            parsed.diffType,
-                            inlineDiffByIndex.get(index),
-                        )
-                    }
-                }
-            })
-        },
-    )
+                  if (inlinePair.removed.length > 0) {
+                      inlineDiffByIndex.set(i, inlinePair.removed)
+                  }
+                  if (inlinePair.added.length > 0) {
+                      inlineDiffByIndex.set(i + 1, inlinePair.added)
+                  }
+              }
 
-    let removeRootListener: (() => void) | null = null
+              codeLines.forEach((lineNode: CodeLineNode, index: number) => {
+                  const parsed = parsedLines[index]
 
-    if (originalContent && modifiedContent) {
-        const payload: InitialContentPayload = {
-            content: "test",
-            language,
-            preventDefault: () => {},
-            isDefaultPrevented: () => false,
-            originalContent,
-            modifiedContent,
-            isDiffRequest: true,
-        }
+                  if (parsed) {
+                      const currentDiffType = lineNode.getDiffType()
+                      const currentOldLineNumber = lineNode.getOldLineNumber()
+                      const currentNewLineNumber = lineNode.getNewLineNumber()
+                      const currentContent = lineNode.getTextContent()
 
-        // Check if root element is already available
-        const existingRoot = editor.getRootElement()
-        if (existingRoot) {
-            editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
-        } else {
-            // Defer dispatch until the editor has a root DOM element.
-            // The extension's register callback runs during editor creation
-            // (inside useMemo), before ContentEditable mounts. Without a root
-            // element, Lexical processes state changes but skips DOM reconciliation.
-            // By waiting for the root, we ensure createDOM() is called on diff nodes.
-            let dispatched = false
-            removeRootListener = editor.registerRootListener((rootElement) => {
-                if (rootElement && !dispatched) {
-                    dispatched = true
-                    editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
-                }
-            })
-        }
+                      if (parsed.diffType !== currentDiffType) {
+                          lineNode.setDiffType(parsed.diffType)
+                      }
+
+                      if (parsed.oldLineNumber !== currentOldLineNumber) {
+                          lineNode.setOldLineNumber(parsed.oldLineNumber)
+                      }
+
+                      if (parsed.newLineNumber !== currentNewLineNumber) {
+                          lineNode.setNewLineNumber(parsed.newLineNumber)
+                      }
+
+                      const cleanContent = parsed.content
+                      if (cleanContent !== currentContent) {
+                          $setLineContentWithInlineDiff(
+                              lineNode,
+                              cleanContent,
+                              parsed.diffType,
+                              inlineDiffByIndex.get(index),
+                          )
+                      }
+                  }
+              })
+          })
+
+    // Build diff content. Uses skipTransforms to avoid Lexical's
+    // $applyAllTransforms loop which freezes with many dirty nodes.
+    if (isDiffMode) {
+        buildDiffContent()
     }
 
     return () => {
-        removeCommandListener()
+        diffBuiltEditors.delete(editor)
         removeTransform()
-        removeRootListener?.()
+        removeTextTransform()
+        removeLineTransform()
     }
 }
 

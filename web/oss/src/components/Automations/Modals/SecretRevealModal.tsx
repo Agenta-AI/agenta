@@ -27,9 +27,8 @@ const SecretRevealModal: React.FC = () => {
         >
             <ModalContent className="my-3 flex flex-col gap-3">
                 <Typography.Text>
-                    Please save this secret key in a secure location. You will need it to
-                    cryptographically verify that incoming webhook requests are genuinely from
-                    Agenta.
+                    Please save this secret key in a secure location. You will need it to verify
+                    that incoming webhook requests are from Agenta.
                 </Typography.Text>
 
                 <div className="flex items-center justify-between overflow-hidden rounded-md border border-slate-200 bg-slate-50 py-1 pl-3 pr-1 dark:border-slate-700">

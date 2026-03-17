@@ -116,9 +116,8 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
     const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
-    // Queue-level info for instructions popover
+    // Queue-level description shown in the helper popover
     const queueDescription = useAtomValue(annotationSessionController.selectors.queueDescription())
-
     const [errors, setErrors] = useState<string[]>([])
 
     // Reset errors when scenario changes
@@ -170,7 +169,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     label: (
                         <div className="flex items-center justify-between w-full">
                             <Typography.Text
-                                className="capitalize truncate max-w-[50%] text-start"
+                                className="truncate max-w-[50%] text-start"
                                 title={evaluator.name ?? slug}
                             >
                                 {evaluator.name ?? slug}
@@ -197,8 +196,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
     }, [evaluators, metrics, isSubmitting, isCompleted, handleFieldChange])
 
     const panelHeader = (
-        <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[var(--ant-color-border-secondary)]">
+        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ant-color-border-secondary)]">
             <div className="flex items-center gap-1">
+                <Typography.Text className="font-medium">Annotations</Typography.Text>
                 {queueDescription && (
                     <Popover
                         trigger="click"
@@ -208,12 +208,12 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             <div
                                 className="overflow-y-auto"
                                 style={{
-                                    width: "min(480px, calc(100vw - 400px))",
+                                    width: "min(480px, calc(100vw - 250px))",
                                     maxHeight: "min(320px, calc(100vh - 160px))",
                                 }}
                             >
                                 <Editor
-                                    id="annotation-panel-instructions"
+                                    id="annotation-panel-description"
                                     initialValue={queueDescription}
                                     disabled
                                     showToolbar={false}
@@ -224,10 +224,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             </div>
                         }
                     >
-                        <Button type="text" size="small" icon={<Info size={16} />} />
+                        <Button type="text" size="small" icon={<Info size={14} />} />
                     </Popover>
                 )}
-                <Typography.Text strong>Annotations</Typography.Text>
             </div>
             <Button type="text" size="small" icon={<ArrowSquareOut size={14} />} />
         </div>
@@ -275,19 +274,19 @@ const AnnotationPanel = memo(function AnnotationPanel({
                 />
             ))}
 
-            {/* Instructions + Form fields */}
+            {/* Queue description helper + form fields */}
             <div className="flex-1 overflow-y-auto">
                 <Collapse
                     activeKey={activeKeys}
                     onChange={handleCollapseChange}
                     items={collapseItems}
-                    className="rounded-none !bg-white [&_.ant-collapse-item]:!bg-white [&_.ant-collapse-header]:!bg-white [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1 [&_.ant-collapse-header-text]:w-[95%]"
+                    className="rounded-none [&_.ant-collapse-item]:!bg-white [&_.ant-collapse-header]:!bg-[#05172905] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
                     bordered={false}
                 />
             </div>
 
             {/* Annotate button */}
-            <div className="px-4 py-3">
+            <div className="px-3 py-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
                 <Button
                     type="primary"
                     block

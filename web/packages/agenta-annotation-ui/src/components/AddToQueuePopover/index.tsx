@@ -11,7 +11,11 @@ import {MagnifyingGlass, PlusIcon} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {createQueueDrawerOpenAtom} from "../../state/atoms"
+import {
+    createQueueDrawerOpenAtom,
+    createQueueDrawerDefaultKindAtom,
+    createQueueDrawerSelectionAtom,
+} from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 
 const statusColorMap: Record<string, string> = {
@@ -29,22 +33,27 @@ interface AddToQueuePopoverProps {
     itemIds: string[]
     children: React.ReactNode
     disabled?: boolean
+    onItemsAdded?: () => void
 }
 
 const QueueListContent = ({
     itemType,
     itemIds,
     onClose,
+    onItemsAdded,
 }: {
     itemType: "traces" | "testcases"
     itemIds: string[]
     onClose: () => void
+    onItemsAdded?: () => void
 }) => {
     const allQueues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
     const setDrawerOpen = useSetAtom(createQueueDrawerOpenAtom)
+    const setDefaultKind = useSetAtom(createQueueDrawerDefaultKindAtom)
+    const setDrawerSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const [search, setSearch] = useState("")
     const [submittingId, setSubmittingId] = useState<string | null>(null)
 
@@ -71,6 +80,7 @@ const QueueListContent = ({
                     message.success(
                         `Added ${itemIds.length} ${itemType === "traces" ? "trace" : "test case"}${itemIds.length > 1 ? "s" : ""} to "${queue.name || "Untitled"}"`,
                     )
+                    onItemsAdded?.()
                     onClose()
                 }
             } catch (error) {
@@ -81,7 +91,7 @@ const QueueListContent = ({
                 setSubmittingId(null)
             }
         },
-        [itemIds, itemType, addTraces, addTestcases, onClose],
+        [itemIds, itemType, addTraces, addTestcases, onClose, onItemsAdded],
     )
 
     return (
@@ -146,6 +156,11 @@ const QueueListContent = ({
                     icon={<PlusIcon size={14} />}
                     size="small"
                     onClick={() => {
+                        setDefaultKind(itemType)
+                        setDrawerSelection({
+                            itemType,
+                            itemIds,
+                        })
                         setDrawerOpen(true)
                         onClose()
                     }}
@@ -154,12 +169,18 @@ const QueueListContent = ({
                     Create new queue
                 </Button>
             </div>
-            <CreateQueueDrawer />
+            <CreateQueueDrawer onItemsAdded={onItemsAdded} />
         </div>
     )
 }
 
-const AddToQueuePopover = ({itemType, itemIds, children, disabled}: AddToQueuePopoverProps) => {
+const AddToQueuePopover = ({
+    itemType,
+    itemIds,
+    children,
+    disabled,
+    onItemsAdded,
+}: AddToQueuePopoverProps) => {
     const [open, setOpen] = useState(false)
 
     const handleClose = useCallback(() => setOpen(false), [])
@@ -171,12 +192,17 @@ const AddToQueuePopover = ({itemType, itemIds, children, disabled}: AddToQueuePo
                 if (disabled && nextOpen) return
                 setOpen(nextOpen)
             }}
-            trigger={[]}
+            trigger="click"
             placement="bottomRight"
             arrow={false}
             content={
                 open ? (
-                    <QueueListContent itemType={itemType} itemIds={itemIds} onClose={handleClose} />
+                    <QueueListContent
+                        itemType={itemType}
+                        itemIds={itemIds}
+                        onClose={handleClose}
+                        onItemsAdded={onItemsAdded}
+                    />
                 ) : null
             }
             overlayInnerStyle={{padding: 0}}

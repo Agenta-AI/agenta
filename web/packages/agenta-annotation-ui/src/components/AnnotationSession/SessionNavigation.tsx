@@ -63,62 +63,63 @@ const SessionNavigation = () => {
     )
 
     return (
-        <div className="flex items-center gap-3 px-4 py-2 border-0 border-b border-solid border-[var(--ant-color-border-secondary)] shrink-0">
-            <Button
-                type="text"
-                size="small"
-                icon={<CaretLeft size={16} />}
-                onClick={() => navigatePrev()}
-                disabled={!hasPrev}
-            />
-            <Button
-                type="text"
-                size="small"
-                icon={<CaretRight size={16} />}
-                onClick={() => navigateNext()}
-                disabled={!hasNext}
-            />
-
-            <Select
-                value={currentIndex}
-                onChange={handleSelect}
-                options={options}
-                size="small"
-                className="min-w-[140px]"
-                popupMatchSelectWidth={false}
-            />
-
-            <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
-                {progress.remaining} of {progress.total} remaining
-            </Typography.Text>
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Trace info */}
-            {isTrace && rootSpan?.span_name && (
-                <div className="flex items-center gap-2">
-                    <Typography.Text className="text-xs font-medium">
-                        {rootSpan.span_name}
-                    </Typography.Text>
-                    {rootSpan.span_type && (
-                        <Typography.Text type="secondary" className="text-xs">
-                            {rootSpan.span_type}
-                        </Typography.Text>
-                    )}
-                </div>
-            )}
-
-            {isTrace && navigation.openTraceDetail && (
+        <div className="w-full flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3">
                 <Button
-                    size="small"
                     type="text"
-                    icon={<ArrowSquareOut size={14} />}
-                    onClick={handleViewTrace}
-                >
-                    View Full Trace
-                </Button>
-            )}
+                    size="small"
+                    icon={<CaretLeft size={16} />}
+                    onClick={() => navigatePrev()}
+                    disabled={!hasPrev}
+                />
+                <Button
+                    type="text"
+                    size="small"
+                    icon={<CaretRight size={16} />}
+                    onClick={() => navigateNext()}
+                    disabled={!hasNext}
+                />
+
+                <Select
+                    value={currentIndex}
+                    onChange={handleSelect}
+                    options={options}
+                    size="small"
+                    className="min-w-[140px]"
+                    popupMatchSelectWidth={false}
+                />
+
+                <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
+                    {progress.remaining} of {progress.total} remaining
+                </Typography.Text>
+            </div>
+
+            <div className="flex items-center gap-3">
+                {/* Trace info */}
+                {isTrace && rootSpan?.span_name && (
+                    <div className="flex items-center gap-2">
+                        <Typography.Text className="text-xs font-medium">
+                            {rootSpan.span_name}
+                        </Typography.Text>
+                        {rootSpan.span_type && (
+                            <Typography.Text type="secondary" className="text-xs">
+                                {rootSpan.span_type}
+                            </Typography.Text>
+                        )}
+                    </div>
+                )}
+
+                {isTrace && navigation.openTraceDetail && (
+                    <Button
+                        size="small"
+                        type="text"
+                        icon={<ArrowSquareOut size={14} />}
+                        onClick={handleViewTrace}
+                    >
+                        View Full Trace
+                    </Button>
+                )}
+            </div>
         </div>
     )
 }

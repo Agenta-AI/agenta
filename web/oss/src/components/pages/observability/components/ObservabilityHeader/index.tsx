@@ -422,6 +422,10 @@ const ObservabilityHeader = ({
         })
     }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
 
+    const handleQueueItemsAdded = useCallback(() => {
+        setSelectedRowKeys([])
+    }, [setSelectedRowKeys])
+
     return (
         <>
             <section
@@ -501,6 +505,7 @@ const ObservabilityHeader = ({
                                     itemType="traces"
                                     itemIds={selectedTraceIds}
                                     disabled={traces.length === 0 || selectedTraceIds.length === 0}
+                                    onItemsAdded={handleQueueItemsAdded}
                                 >
                                     <EnhancedButton
                                         aria-label="Add selected traces to annotation queue"
@@ -586,6 +591,7 @@ const ObservabilityHeader = ({
                                 itemType="traces"
                                 itemIds={selectedTraceIds}
                                 disabled={traces.length === 0 || selectedTraceIds.length === 0}
+                                onItemsAdded={handleQueueItemsAdded}
                             >
                                 <Button icon={<ListChecks size={14} />}>Add to queue</Button>
                             </AddToQueuePopover>

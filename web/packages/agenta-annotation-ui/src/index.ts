@@ -21,10 +21,12 @@ export {
     useAnnotationUI,
     useAnnotationNavigation,
     useTraceContentRenderer,
+    useTestcaseContentRenderer,
     type AnnotationUIProviderProps,
     type AnnotationUINavigation,
     type AnnotationUIContextValue,
     type TraceContentRendererProps,
+    type TestcaseContentRendererProps,
 } from "./context"
 
 export {createQueueDrawerOpenAtom} from "./state"

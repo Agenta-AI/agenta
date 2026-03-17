@@ -75,6 +75,7 @@ import {
     newTestcaseDataHashAtom,
 } from "../execution/selectors"
 import {extractAndLoadChatMessagesAtom} from "../helpers/extractAndLoadChatMessages"
+import {normalizeTestcaseRowsForLoad} from "../helpers/testcaseRowNormalization"
 import type {EntitySelection, PlaygroundNode, RunnableType} from "../types"
 
 import {getRunnableTypeResolver} from "./urlSnapshotController"
@@ -428,29 +429,46 @@ const resetAllAtom = atom(null, (_get, set) => {
  * Disconnect from testset and reset to local mode
  *
  * This compound action:
- * 1. Calls loadable disconnect (clears connectedSourceId, testcase IDs)
- * 2. Regenerates a local testset name from the primary node's label
- * 3. Creates an initial empty row for testcases
+ * 1. Snapshots current rows when `preserveRows` is true (must happen before disconnect)
+ * 2. Calls loadable disconnect (clears connectedSourceId, testcase IDs)
+ * 3. Regenerates a local testset name from the primary node's label
+ * 4. Re-populates with snapshotted rows or creates an initial empty row
  *
- * This ensures the playground returns to the same state as initial setup.
+ * When `preserveRows` is false (default), the playground returns to the same
+ * state as initial setup. When true (e.g. after "Save & disconnect"), the
+ * committed data stays visible as local rows.
  */
-const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) => {
-    const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
-    if (!rootNode) return
+const disconnectAndResetToLocalAtom = atom(
+    null,
+    (get, set, loadableId: string, options?: {preserveRows?: boolean}) => {
+        const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
+        if (!rootNode) return
 
-    // 1. Call loadable disconnect action
-    set(loadableController.actions.disconnect, loadableId)
+        // 1. Snapshot current rows before disconnect wipes testcase IDs
+        const rowsSnapshot = options?.preserveRows
+            ? get(loadableController.selectors.rows(loadableId))
+            : null
 
-    // 2. Generate and set local testset name
-    const localTestsetName = generateLocalTestsetName(rootNode.label)
-    set(connectedTestsetAtom, {
-        id: null, // null id indicates it's a local (unsaved) testset
-        name: localTestsetName,
-    })
+        // 2. Call loadable disconnect action
+        set(loadableController.actions.disconnect, loadableId)
 
-    // 3. Create an initial empty row via loadableController (uses testcaseMolecule)
-    set(loadableController.actions.addRow, loadableId, {})
-})
+        // 3. Generate and set local testset name
+        const localTestsetName = generateLocalTestsetName(rootNode.label)
+        set(connectedTestsetAtom, {
+            id: null, // null id indicates it's a local (unsaved) testset
+            name: localTestsetName,
+        })
+
+        // 4. Re-populate with snapshotted rows or create an initial empty row
+        if (rowsSnapshot && rowsSnapshot.length > 0) {
+            for (const row of rowsSnapshot) {
+                set(loadableController.actions.addRow, loadableId, row.data ?? {})
+            }
+        } else {
+            set(loadableController.actions.addRow, loadableId, {})
+        }
+    },
+)
 
 // ============================================================================
 // WP1: TESTSET CONNECTION COMPOUND ACTIONS
@@ -470,18 +488,21 @@ const disconnectAndResetToLocalAtom = atom(null, (get, set, loadableId: string) 
 const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayload) => {
     const {loadableId, revisionId, testcases, testsetName, testsetId, revisionVersion} = payload
 
-    // Generate display name from testset name and version
+    // Generate a fallback display name from the available selection info
     const displayName = testsetName
         ? revisionVersion != null
-            ? `${testsetName} v${revisionVersion}`
+            ? `${testsetName} (v${revisionVersion})`
             : testsetName
         : undefined
 
-    // Ensure testcases have IDs
-    const testcasesWithIds = testcases.map((tc, index) => {
-        const id = tc.id ?? `testcase-${Date.now()}-${index}`
-        return {id, ...tc}
+    const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
+
+    // Ensure testcases have IDs and store them in nested testcase formatat
+    const testcasesWithIds = normalizedRows.map((row, index) => {
+        const id = row.id ?? `testcase-${Date.now()}-${index}`
+        return {id, data: row.data}
     })
+    const flatRows = testcasesWithIds.map(({id, data}) => ({id, ...data}))
 
     // Connect to source via loadable controller
     set(
@@ -506,7 +527,7 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
-            testcaseRows: testcasesWithIds as Record<string, unknown>[],
+            testcaseRows: flatRows,
             skipBlankMessage: true,
         })
     }
@@ -523,9 +544,11 @@ const connectToTestsetAtom = atom(null, (get, set, payload: ConnectToTestsetPayl
  */
 const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayload) => {
     const {loadableId, testcases} = payload
+    const normalizedRows = normalizeTestcaseRowsForLoad(testcases)
+    const flatRows = normalizedRows.map(({id, data}) => (id ? {id, ...data} : {...data}))
 
     // Import rows via loadable controller (stays in local mode)
-    set(loadableController.actions.importRows, loadableId, testcases)
+    set(loadableController.actions.importRows, loadableId, flatRows)
 
     // Extract chat messages from imported testcase rows if in chat mode.
     // Same reasoning as connectToTestsetAtom — the entity layer stores `messages`
@@ -534,7 +557,7 @@ const importTestcasesAtom = atom(null, (get, set, payload: ImportTestcasesPayloa
     if (isChat) {
         set(extractAndLoadChatMessagesAtom, {
             loadableId,
-            testcaseRows: testcases,
+            testcaseRows: flatRows,
             skipBlankMessage: true,
         })
     }

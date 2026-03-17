@@ -18,7 +18,12 @@ import {
     pendingDeletedColumnsAtom,
 } from "./columnState"
 import {currentRevisionIdAtom} from "./queries"
-import {flattenTestcase, testcaseSchema, type FlattenedTestcase} from "./schema"
+import {
+    flattenTestcase,
+    normalizeToFlattenedTestcase,
+    testcaseSchema,
+    type FlattenedTestcase,
+} from "./schema"
 
 // ============================================================================
 // TESTCASE IDS ATOM
@@ -431,7 +436,7 @@ const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTe
     // Read from testcase query atoms (server state)
     entityAtomFamily: (id: string) => {
         const queryAtom = testcaseQueryAtomFamily(id)
-        return atom((get) => get(queryAtom).data ?? null)
+        return atom((get) => normalizeToFlattenedTestcase(get(queryAtom).data) ?? null)
     },
 
     // Entire testcase is draftable
@@ -445,7 +450,7 @@ const testcaseDraftState = createEntityDraftState<FlattenedTestcase, FlattenedTe
         const draft = get(testcaseDraftAtomFamily(id))
         // Use query atom directly (single source of truth for server data)
         const queryState = get(testcaseQueryAtomFamily(id))
-        const serverState = queryState.data ?? null
+        const serverState = normalizeToFlattenedTestcase(queryState.data) ?? null
 
         // Check if pending column changes affect this entity (even without draft)
         if (!draft && serverState) {
@@ -609,7 +614,7 @@ export const testcaseEntityAtomFamily = atomFamily((testcaseId: string) =>
 
         // Fall back to server data from query
         const query = get(testcaseQueryAtomFamily(testcaseId))
-        const data = query.data ?? null
+        const data = normalizeToFlattenedTestcase(query.data) ?? null
 
         // Apply pending column changes to server data
         if (data) {

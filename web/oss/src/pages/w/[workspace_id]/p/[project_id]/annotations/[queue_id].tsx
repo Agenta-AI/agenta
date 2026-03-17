@@ -1,5 +1,7 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
+import {registerAnnotationCallbacks} from "@agenta/annotation"
+import type {SessionView} from "@agenta/annotation"
 import {
     AnnotationUIProvider,
     type AnnotationUINavigation,
@@ -9,10 +11,16 @@ import AnnotationSession from "@agenta/annotation-ui/session"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import AnnotationTestcaseContent from "@/oss/components/Annotations/AnnotationTestcaseContent"
 import AnnotationTraceContent from "@/oss/components/Annotations/AnnotationTraceContent"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
+
+const isSessionView = (value: string | undefined): value is SessionView => {
+    return value === "list" || value === "annotate" || value === "configuration"
+}
 
 const AnnotationMetricPopover = ({children, ...props}: MetricPopoverWrapperProps) => (
     <MetricDetailsPreviewPopover
@@ -36,6 +44,22 @@ const AnnotationSessionPage = () => {
     const {projectURL} = useURL()
     const queueId = router.query.queue_id as string | undefined
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const [viewParam, setViewParam] = useQueryParam("view", "list", "replace")
+    const [scenarioIdParam, setScenarioIdParam] = useQueryParam("scenarioId", undefined, "replace")
+    const activeView = isSessionView(viewParam) ? viewParam : "list"
+    const activeScenarioId = Array.isArray(scenarioIdParam) ? scenarioIdParam[0] : scenarioIdParam
+    const handleActiveViewChange = useCallback(
+        (view: SessionView) => {
+            setViewParam(view)
+        },
+        [setViewParam],
+    )
+    const handleScenarioChange = useCallback(
+        (scenarioId: string) => {
+            setScenarioIdParam(scenarioId)
+        },
+        [setScenarioIdParam],
+    )
 
     const handleOpenTraceDetail = useCallback(
         (traceId: string, spanId?: string) => {
@@ -56,15 +80,33 @@ const AnnotationSessionPage = () => {
         [router, projectURL, handleOpenTraceDetail],
     )
 
+    useEffect(() => {
+        registerAnnotationCallbacks({
+            onNavigate: handleScenarioChange,
+        })
+
+        return () => {
+            registerAnnotationCallbacks({})
+        }
+    }, [handleScenarioChange])
+
     if (!queueId) return null
 
     return (
         <AnnotationUIProvider
             navigation={navigation}
             TraceContentRenderer={AnnotationTraceContent}
+            TestcaseContentRenderer={AnnotationTestcaseContent}
             MetricPopoverWrapper={AnnotationMetricPopover}
         >
-            <AnnotationSession queueId={queueId} />
+            <AnnotationSession
+                queueId={queueId}
+                routeState={{
+                    view: activeView,
+                    scenarioId: activeScenarioId,
+                }}
+                onActiveViewChange={handleActiveViewChange}
+            />
         </AnnotationUIProvider>
     )
 }

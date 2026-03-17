@@ -37,6 +37,18 @@ import {displayedEntityIdsAtom} from "./displayedEntities"
 import {createExecutionItemHandle, type ExecutionItemLifecycleSnapshot} from "./executionItems"
 import type {RunStatus} from "./types"
 
+const toDisplayString = (value: unknown): string => {
+    if (value === undefined || value === null) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
 // ============================================================================
 // CONTEXT SELECTORS (derived from playground state)
 // ============================================================================
@@ -212,7 +224,7 @@ export const rowVariableValueAtomFamily = atomFamily(
             if (!variableId) return ""
             const row = get(rowDataWithContextAtomFamily(rowId))
             const value = row?.data?.[variableId]
-            return typeof value === "string" ? value : String(value ?? "")
+            return toDisplayString(value)
         }),
 )
 
@@ -250,7 +262,7 @@ export const testcaseCellValueAtomFamily = atomFamily(
         atom((get) => {
             if (!testcaseId || !column) return ""
             const value = get(testcaseMolecule.atoms.cell({id: testcaseId, column}))
-            return value !== undefined && value !== null ? String(value) : ""
+            return toDisplayString(value)
         }),
     (a, b) => a.testcaseId === b.testcaseId && a.column === b.column,
 )
