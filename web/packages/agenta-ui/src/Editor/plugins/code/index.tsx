@@ -40,11 +40,11 @@ import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
 import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {$createLongTextNode, isLongTextString, parseLongTextString} from "./nodes/LongTextNode"
+import type {CodeLanguage} from "./types"
 import {$getEditorCodeAsString} from "./utils/editorCodeUtils"
 import {showEditorLoadingOverlay} from "./utils/loadingOverlay"
 import {$wrapLinesInSegments, $getAllCodeLines, $getLineCount} from "./utils/segmentUtils"
 import {tokenizeCodeLine} from "./utils/tokenizer"
-import type {CodeLanguage} from "./types"
 
 export {PropertyClickPlugin}
 
