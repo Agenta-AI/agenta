@@ -44,8 +44,8 @@ import {
     queryEvaluationResults,
     type EvaluationResult,
 } from "@agenta/entities/evaluationRun"
-import {evaluatorQueryAtomFamily, type Evaluator} from "@agenta/entities/evaluator"
 import {invalidateScenarioProgressCache} from "@agenta/entities/simpleQueue"
+import {workflowQueryAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
@@ -73,7 +73,7 @@ const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string",
  * Extract the outputs schema from an evaluator entity.
  * Handles both new (`data.schemas.outputs`) and legacy (`data.service.format.properties.outputs`) paths.
  */
-export function getOutputsSchema(evaluator: Evaluator): {
+export function getOutputsSchema(evaluator: Workflow): {
     properties?: Record<string, unknown>
     required?: string[]
 } {
@@ -625,7 +625,7 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
  * Accepts a Jotai `get` function for reactive reads — this creates proper
  * subscriptions so derived atoms re-evaluate when evaluator data arrives.
  *
- * NOTE: Uses workflow IDs resolved via `evaluatorQueryAtomFamily` (same path as
+ * NOTE: Uses workflow IDs resolved via `workflowQueryAtomFamily` (same path as
  * the queues table EvaluatorNamesCell). This fetches the latest revision by
  * workflow ID, which contains the output schemas needed for form fields.
  */
@@ -633,15 +633,15 @@ function computeBaseline(
     get: Getter,
     evaluatorWorkflowIds: string[],
     annotations: Annotation[],
-): {baseline: AnnotationMetrics; evaluators: Evaluator[]} {
+): {baseline: AnnotationMetrics; evaluators: Workflow[]} {
     // Resolve evaluators reactively by workflow ID — creates subscriptions
     // Uses the same atom family as the queues table (proven working path)
-    const evaluators: Evaluator[] = []
+    const evaluators: Workflow[] = []
     const evaluatorMap = new Map<string, Evaluator>()
 
     for (const workflowId of evaluatorWorkflowIds) {
         if (!workflowId) continue
-        const query = get(evaluatorQueryAtomFamily(workflowId))
+        const query = get(workflowQueryAtomFamily(workflowId))
         const evalData = query.data ?? null
         if (evalData) {
             evaluators.push(evalData)
@@ -691,7 +691,7 @@ function computeBaseline(
 /**
  * Evaluator workflow IDs — derived from session controller.
  * Uses the same resolution path as the queues table (evaluatorIds = workflow/artifact IDs).
- * These are resolved via evaluatorMolecule / evaluatorQueryAtomFamily which fetches
+ * These are resolved via evaluatorMolecule / workflowQueryAtomFamily which fetches
  * the latest revision by workflow ID.
  */
 const evaluatorIdsAtom = atom<string[]>((get) =>
@@ -901,13 +901,13 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             annotationSessionController.get.scenarioAnnotations(scenarioId) ?? []
 
         // Build evaluator slug → evaluator map (evalIds are workflow IDs).
-        // IMPORTANT: evaluatorQueryAtomFamily returns revision data where `evaluator.id`
+        // IMPORTANT: workflowQueryAtomFamily returns revision data where `evaluator.id`
         // is the REVISION ID, not the workflow/artifact ID. The backend expects the
         // workflow ID in annotation references. Track both mappings.
         const evaluatorMap = new Map<string, Evaluator>()
         const workflowIdBySlug = new Map<string, string>()
         for (const workflowId of evalIds) {
-            const query = get(evaluatorQueryAtomFamily(workflowId))
+            const query = get(workflowQueryAtomFamily(workflowId))
             const evalData = query.data ?? null
             if (evalData) {
                 if (evalData.slug) {

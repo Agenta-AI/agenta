@@ -12,12 +12,12 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {annotationSessionController} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef} from "@agenta/annotation"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {
     LastInputMessageCell,
     SmartCellContent,
@@ -246,8 +246,8 @@ const AnnotationColumnHeader = memo(function AnnotationColumnHeader({
 }: {
     def: AnnotationColumnDef
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     return (
@@ -272,8 +272,8 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     isCollapsed: boolean
     onToggle: () => void
 }) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(def.evaluatorId ?? ""))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(def.evaluatorId ?? ""))
+    const name = useAtomValue(workflowMolecule.selectors.name(def.evaluatorId ?? ""))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(def.evaluatorId ?? ""))
     const displayName = name || slug || def.evaluatorSlug || def.columnName || def.stepKey
 
     const handleClick = useCallback(

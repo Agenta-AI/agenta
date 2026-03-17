@@ -1,7 +1,7 @@
 import {memo} from "react"
 
 import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Skeleton, Tag, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -72,16 +72,16 @@ const EvaluatorNamesList = memo(function EvaluatorNamesList({
 
 /** Single evaluator name tag — subscribes to evaluator entity for its name */
 const EvaluatorNameTag = memo(function EvaluatorNameTag({evaluatorId}: {evaluatorId: string}) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(evaluatorId))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(evaluatorId))
+    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorId))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorId))
 
     return <Tag>{name || slug || evaluatorId.slice(0, 8)}</Tag>
 })
 
 /** Single evaluator name span (for tooltip) */
 const EvaluatorNameSpan = memo(function EvaluatorNameSpan({evaluatorId}: {evaluatorId: string}) {
-    const name = useAtomValue(evaluatorMolecule.selectors.name(evaluatorId))
-    const slug = useAtomValue(evaluatorMolecule.selectors.slug(evaluatorId))
+    const name = useAtomValue(workflowMolecule.selectors.name(evaluatorId))
+    const slug = useAtomValue(workflowMolecule.selectors.slug(evaluatorId))
 
     return <span>{name || slug || evaluatorId.slice(0, 8)}</span>
 })

@@ -38,7 +38,6 @@
 import type {Annotation} from "@agenta/entities/annotation"
 import {queryAnnotations, queryAnnotationsByInvocationLink} from "@agenta/entities/annotation"
 import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
-import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
@@ -48,6 +47,7 @@ import {
     traceRootSpanAtomFamily,
     type TraceSpan,
 } from "@agenta/entities/trace"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {axios} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -511,7 +511,7 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
     const annotationColumns: ScenarioListColumnDef[] = annotationDefs.map((def) => {
         let outputKeys: string[] = []
         if (def.evaluatorId) {
-            const evaluator = get(evaluatorMolecule.selectors.data(def.evaluatorId))
+            const evaluator = get(workflowMolecule.selectors.data(def.evaluatorId))
             outputKeys = resolveOutputKeys(evaluator?.data as Record<string, unknown> | null)
         }
         const subColumnCount = outputKeys.length > 1 ? outputKeys.length : 1

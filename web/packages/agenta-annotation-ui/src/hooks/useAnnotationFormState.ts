@@ -7,7 +7,7 @@
  * All form state logic (schema resolution, baseline computation, edit tracking)
  * lives in `@agenta/annotation` — this hook just provides React bindings.
  *
- * Evaluator IDs are derived from the session controller automatically —
+ * Workflow IDs are derived from the session controller automatically —
  * no manual injection needed.
  *
  * @packageDocumentation
@@ -18,7 +18,7 @@ import {useCallback, useEffect} from "react"
 import {annotationFormController} from "@agenta/annotation"
 import type {AnnotationMetrics} from "@agenta/annotation"
 import type {Annotation} from "@agenta/entities/annotation"
-import type {Evaluator} from "@agenta/entities/evaluator"
+import type {Workflow} from "@agenta/entities/workflow"
 import {useAtomValue, useSetAtom} from "jotai"
 
 export type {AnnotationMetricField, AnnotationMetrics} from "@agenta/annotation"
@@ -42,7 +42,7 @@ interface UseAnnotationFormStateResult {
     /** Merged metrics (baseline + edits) */
     metrics: AnnotationMetrics
     /** Resolved evaluator entities */
-    evaluators: Evaluator[]
+    evaluators: Workflow[]
     /** Whether there are unsaved changes */
     hasPendingChanges: boolean
     /** Update a single metric field */
@@ -61,7 +61,7 @@ interface UseAnnotationFormStateResult {
  * Sets scenario context into the controller on mount/change,
  * then reads derived state (metrics, pending changes, evaluators) via selectors.
  *
- * Evaluator IDs are derived from `annotationSessionController.selectors.evaluatorIds()`
+ * Workflow IDs are derived from `annotationSessionController.selectors.evaluatorIds()`
  * inside the form controller — no UI injection needed.
  */
 export function useAnnotationFormState({

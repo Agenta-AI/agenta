@@ -240,12 +240,7 @@ const AnnotationSession = ({queueId}: AnnotationSessionProps) => {
     }
 
     return (
-        <PageLayout
-            title={headerTitle}
-            titleLevel={3}
-            headerTabs={headerTabs}
-            className="h-full min-h-0"
-        >
+        <PageLayout title={headerTitle} headerTabs={headerTabs} className="h-full min-h-0">
             {/* Content */}
             <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {activeView === "configuration" ? (
