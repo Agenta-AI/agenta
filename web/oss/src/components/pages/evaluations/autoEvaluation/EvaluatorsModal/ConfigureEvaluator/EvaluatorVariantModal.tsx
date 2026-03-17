@@ -10,12 +10,8 @@ import {
     type SetStateAction,
 } from "react"
 
-import {
-    legacyAppRevisionMolecule,
-    appRevisionsWithDraftsAtomFamily,
-    variantsListWithDraftsAtomFamily,
-    type RevisionListItemWithDrafts,
-} from "@agenta/entities/legacyAppRevision"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {Play} from "@phosphor-icons/react"
 import {Button, Input, Modal, Tabs, Tag, Tooltip, Typography} from "antd"
@@ -24,19 +20,18 @@ import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import VariantsTable from "@/oss/components/VariantsComponents/Table"
+import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
+import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
+import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
+import type {JSSTheme, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
 import {revision} from "@/oss/state/entities/testset"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
 import SelectAppSection from "../../../NewEvaluation/Components/SelectAppSection"
 import type {NewEvaluationAppOption} from "../../../NewEvaluation/types"
-
-import {buildVariantFromRevision} from "./variantUtils"
 
 type EvaluatorVariantModalProps = {
     variants: Variant[] | null
@@ -114,42 +109,7 @@ const NoResultsFound = dynamic(
     },
 )
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const toUnixMs = (value: unknown): number => {
-    if (typeof value !== "string" || !value) return 0
-    const ts = new Date(value).getTime()
-    return Number.isFinite(ts) ? ts : 0
-}
-
-const normalizeRevisionForTable = (
-    revision: RevisionListItemWithDrafts,
-): EnhancedVariant & {author?: string} => {
-    const author = (revision as any)?.author
-    const modifiedBy =
-        (revision as any)?.modifiedBy ??
-        (typeof author === "string" && author.trim().length > 0 ? author : "")
-    const modifiedById =
-        (revision as any)?.modifiedById ??
-        (typeof modifiedBy === "string" && UUID_REGEX.test(modifiedBy.trim()) ? modifiedBy : "")
-    const createdAtTimestamp = Number(
-        (revision as any)?.createdAtTimestamp || toUnixMs((revision as any)?.createdAt),
-    )
-    const updatedAtTimestamp = Number(
-        (revision as any)?.updatedAtTimestamp ||
-            toUnixMs((revision as any)?.updatedAt) ||
-            createdAtTimestamp,
-    )
-
-    return {
-        ...(revision as any),
-        variantName: (revision as any)?.variantName ?? "",
-        modifiedBy,
-        modifiedById,
-        createdAtTimestamp,
-        updatedAtTimestamp,
-    } as EnhancedVariant & {author?: string}
-}
+const EMPTY_ACTIONS = {}
 
 const EvaluatorVariantModal = ({
     variants: _variants,
@@ -175,10 +135,14 @@ const EvaluatorVariantModal = ({
 
     const appOptions: NewEvaluationAppOption[] = useMemo(() => {
         const options =
-            (availableApps as ListAppsItem[]).map((app) => ({
-                label: app.app_name,
-                value: app.app_id,
-                type: app.app_type ?? null,
+            availableApps.map((app: any) => ({
+                label: app.name ?? app.slug ?? "",
+                value: app.id,
+                type: app.flags?.is_custom
+                    ? "custom"
+                    : app.flags?.is_chat
+                      ? "chat"
+                      : ("completion" as string | null),
                 createdAt: app.created_at ?? null,
                 updatedAt: app.updated_at ?? null,
             })) ?? []
@@ -208,7 +172,6 @@ const EvaluatorVariantModal = ({
     }, [appOptions, appSearchTerm])
 
     // Use revision controller to get normalized testcase columns
-    // This fetches the revision with testcases included and derives column names
     const testcaseColumnsAtom = useMemo(
         () =>
             selectedRevisionId
@@ -218,129 +181,34 @@ const EvaluatorVariantModal = ({
     )
     const normalizedTestsetColumns = useAtomValue(testcaseColumnsAtom)
 
-    const appVariantRevisions = useAtomValue(
-        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
-    ) as RevisionListItemWithDrafts[]
-    const variantsWithDraftsState = useAtomValue(
-        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
-    )
-    const variantsLoading = variantsWithDraftsState.isPending
+    // IVT table for variant selection
+    const table = useTableManager<RegistryRevisionRow>({
+        datasetStore: registryPaginatedStore.store as never,
+        scopeId: "evaluator-variant-selector",
+        pageSize: 50,
+        searchDeps: [searchTerm],
+        rowClassName: "variant-table-row",
+    })
 
-    const variantCreatedAtById = useMemo(() => {
-        const map = new Map<string, number>()
-        ;(variantsWithDraftsState.data ?? []).forEach((variant: any) => {
-            if (!variant?.id || variant?.isLocalDraftGroup) return
-            const ts = Number(variant.createdAtTimestamp ?? variant.updatedAtTimestamp ?? 0)
-            if (ts > 0) {
-                map.set(String(variant.id), ts)
-            }
-        })
-        return map
-    }, [variantsWithDraftsState.data])
+    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS), [])
 
-    const variantUpdatedAtById = useMemo(() => {
-        const map = new Map<string, number>()
-        ;(variantsWithDraftsState.data ?? []).forEach((variant: any) => {
-            if (!variant?.id || variant?.isLocalDraftGroup) return
-            const ts = Number(variant.updatedAtTimestamp ?? variant.createdAtTimestamp ?? 0)
-            if (ts > 0) {
-                map.set(String(variant.id), ts)
-            }
-        })
-        return map
-    }, [variantsWithDraftsState.data])
-
-    const normalizedAppVariantRevisions = useMemo(
-        () => (appVariantRevisions ?? []).map((revision) => normalizeRevisionForTable(revision)),
-        [appVariantRevisions],
-    )
-    const serverAppVariantRevisions = useMemo(
-        () =>
-            normalizedAppVariantRevisions.filter(
-                (revision: any) => !revision?.isLocalDraft && Number(revision?.revision ?? 0) > 0,
-            ),
-        [normalizedAppVariantRevisions],
-    )
-
-    const {latestRevisions, revisionToVariantMap, revisionById, variantById} = useMemo(() => {
-        if (!serverAppVariantRevisions?.length) {
-            return {
-                latestRevisions: [] as EnhancedVariant[],
-                revisionToVariantMap: new Map<string, Variant>(),
-                revisionById: new Map<string, EnhancedVariant>(),
-                variantById: new Map<string, Variant>(),
-            }
+    const onSelectVariant = useCallback((keys: React.Key[]) => {
+        const selectedId = keys[0] as string | undefined
+        if (selectedId) {
+            setSelectedRowKeys([selectedId])
+        } else {
+            setSelectedRowKeys([])
         }
+    }, [])
 
-        const grouped = new Map<string, EnhancedVariant[]>()
-        const revisionLookup = new Map<string, EnhancedVariant>()
-        serverAppVariantRevisions.forEach((rev) => {
-            if (!rev?.variantId) return
-            const key = rev.variantId
-            const existing = grouped.get(key) ?? []
-            existing.push(rev)
-            grouped.set(key, existing)
-            if (rev.id) {
-                revisionLookup.set(String(rev.id), rev)
-            }
-        })
-
-        const revisionToVariant = new Map<string, Variant>()
-        const variantMap = new Map<string, Variant>()
-        const latest: EnhancedVariant[] = []
-
-        grouped.forEach((revisions, variantId) => {
-            const sorted = [...revisions].sort(
-                (a, b) => (b.createdAtTimestamp ?? 0) - (a.createdAtTimestamp ?? 0),
-            )
-            const baseRevision = sorted[0] ?? revisions[0]
-            if (!baseRevision) return
-
-            const baseVariant = buildVariantFromRevision(baseRevision, selectedAppId)
-            baseVariant.revisions = sorted
-
-            variantMap.set(variantId, baseVariant)
-            sorted.forEach((rev) => {
-                if (rev.id) {
-                    revisionToVariant.set(String(rev.id), baseVariant)
-                }
-            })
-
-            const variantCreatedAtTimestamp = variantCreatedAtById.get(variantId) ?? 0
-            const variantUpdatedAtTimestamp = variantUpdatedAtById.get(variantId) ?? 0
-            const latestRevisionCreatedAtTimestamp = Number(sorted[0]?.createdAtTimestamp ?? 0)
-            latest.push({
-                ...baseRevision,
-                // Variant table semantics:
-                // - createdAt = variant artifact creation
-                // - updatedAt = latest revision creation
-                createdAtTimestamp:
-                    variantCreatedAtTimestamp || Number(baseRevision.createdAtTimestamp ?? 0),
-                updatedAtTimestamp:
-                    latestRevisionCreatedAtTimestamp ||
-                    variantUpdatedAtTimestamp ||
-                    Number(baseRevision.updatedAtTimestamp ?? 0) ||
-                    Number(baseRevision.createdAtTimestamp ?? 0),
-            })
-        })
-
-        latest.sort((a, b) => (b.createdAtTimestamp ?? 0) - (a.createdAtTimestamp ?? 0))
-
-        return {
-            latestRevisions: latest,
-            revisionToVariantMap: revisionToVariant,
-            revisionById: revisionLookup,
-            variantById: variantMap,
-        }
-    }, [serverAppVariantRevisions, selectedAppId, variantCreatedAtById, variantUpdatedAtById])
-
-    useEffect(() => {
-        if (!selectedRowKeys.length) return
-        const filteredKeys = selectedRowKeys.filter((key) => revisionToVariantMap.has(String(key)))
-        if (filteredKeys.length !== selectedRowKeys.length) {
-            setSelectedRowKeys(filteredKeys)
-        }
-    }, [revisionToVariantMap, selectedRowKeys])
+    const rowSelection = useMemo(
+        () => ({
+            type: "radio" as const,
+            selectedRowKeys: selectedRowKeys as React.Key[],
+            onChange: (keys: React.Key[]) => onSelectVariant(keys),
+        }),
+        [selectedRowKeys, onSelectVariant],
+    )
 
     useEffect(() => {
         if (!props.open) {
@@ -361,31 +229,32 @@ const EvaluatorVariantModal = ({
         }
     }, [props.open, isAppScoped, appIdFromRoute, selectedVariant?.appId])
 
-    useEffect(() => {
-        if (!props.open) return
-        if (!selectedVariant?.variantId) return
-        const variant = variantById.get(selectedVariant.variantId)
-        if (!variant?.revisions?.length) return
-        const latestRevisionId = variant.revisions[0]?.id
-        if (!latestRevisionId) return
-        setSelectedRowKeys((prev) => (prev.length ? prev : [String(latestRevisionId)]))
-    }, [props.open, variantById, selectedVariant?.variantId])
-
     const loadVariant = useCallback(() => {
-        const [selectedRevisionId] = selectedRowKeys
-        if (!selectedRevisionId) return
+        const [selectedRevId] = selectedRowKeys
+        if (!selectedRevId) return
 
-        const baseVariant = revisionToVariantMap.get(String(selectedRevisionId))
-        if (!baseVariant) return
+        // Read workflow data from molecule
+        const workflowData = workflowMolecule.get.data(selectedRevId)
+        if (!workflowData) return
 
-        const variantToSet = {
-            ...baseVariant,
-            revisions: baseVariant.revisions ? [...baseVariant.revisions] : [],
-        }
+        // Build a variant object from the workflow data for the evaluator debug section
+        const variantToSet: Variant = {
+            id: workflowData.id,
+            variantId: workflowData.workflow_variant_id || workflowData.id,
+            variantName: workflowData.name || "",
+            appId: workflowData.workflow_id || selectedAppId,
+            uri: (workflowData.data?.url as string) || (workflowData.data?.uri as string) || "",
+            revision: workflowData.version ?? 0,
+            parameters: workflowData.data?.parameters || {},
+            isCustom: workflowData.flags?.is_custom ?? false,
+            baseId: workflowData.workflow_variant_id || "",
+            baseName: workflowData.slug || "",
+            configName: workflowData.name || "",
+        } as any
 
         setSelectedVariant(variantToSet)
         props.onCancel?.({} as any)
-    }, [selectedRowKeys, revisionToVariantMap, setSelectedVariant, props])
+    }, [selectedRowKeys, selectedAppId, setSelectedVariant, props])
 
     const handlePanelChange = useCallback((key: string) => {
         setActivePanel(key)
@@ -404,45 +273,24 @@ const EvaluatorVariantModal = ({
 
     const appSelectionComplete = Boolean(selectedAppId)
 
-    const filteredRevisions = useMemo(() => {
-        if (!searchTerm) return latestRevisions
-        return latestRevisions.filter((item) =>
-            (item.variantName || "").toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, latestRevisions])
-
     useEffect(() => {
-        setRowDiagnostics((prev) => {
-            if (!prev || Object.keys(prev).length === 0) return prev
-            const allowed = new Set(
-                (filteredRevisions || []).map((revision) => String(revision.id)),
-            )
-            let changed = false
-            const next: Record<string, VariantDiagnostics> = {}
-            Object.entries(prev).forEach(([key, meta]) => {
-                if (allowed.has(key)) {
-                    next[key] = meta
-                } else {
-                    changed = true
-                }
-            })
-            return changed ? next : prev
-        })
-    }, [filteredRevisions])
+        setRowDiagnostics({})
+    }, [selectedAppId])
 
+    // Build selected revision tag label from workflow molecule
     const selectedRevisionTags = useMemo(() => {
         if (!selectedRowKeys.length) return []
         return selectedRowKeys
             .map((key) => {
-                const revision = revisionById.get(String(key))
-                if (!revision) return null
+                const data = workflowMolecule.get.data(key)
+                if (!data) return null
                 return {
-                    revisionId: String(key),
-                    label: `${revision.variantName} - v${revision.revision}`,
+                    revisionId: key,
+                    label: `${data.name || "-"} - v${data.version ?? 0}`,
                 }
             })
             .filter(Boolean) as {revisionId: string; label: string}[]
-    }, [selectedRowKeys, revisionById])
+    }, [selectedRowKeys])
 
     const selectedVariantDiagnostics = useMemo(() => {
         const [activeRevisionId] = selectedRowKeys
@@ -466,7 +314,6 @@ const EvaluatorVariantModal = ({
                         icon={<Play />}
                         iconPlacement="end"
                         disabled={!selectedRowKeys.length}
-                        loading={variantsLoading}
                         onClick={loadVariant}
                     >
                         Load variant
@@ -497,21 +344,25 @@ const EvaluatorVariantModal = ({
         node,
         onMetaChange,
     }: {
-        record: EnhancedVariant
+        record: RegistryRevisionRow
         node: ReactNode
         onMetaChange: (id: string, meta: VariantDiagnostics) => void
     }) => {
-        const revisionId = record?.id ? String(record.id) : ""
-        const inputPorts = useAtomValue(
-            useMemo(
-                () => legacyAppRevisionMolecule.atoms.inputPorts(revisionId || ""),
-                [revisionId],
-            ),
-        ) as any[]
-        const variables = useMemo(
-            () => (inputPorts || []).map((p: any) => p.key) as string[],
-            [inputPorts],
+        const revisionId = record?.revisionId || ""
+        const inputSchemaAtom = useMemo(
+            () =>
+                revisionId
+                    ? workflowMolecule.selectors.inputSchema(revisionId)
+                    : atom<Record<string, unknown> | null>(null),
+            [revisionId],
         )
+        const inputSchema = useAtomValue(inputSchemaAtom)
+        const variables = useMemo(() => {
+            if (!inputSchema || typeof inputSchema !== "object") return []
+            const properties = (inputSchema as Record<string, unknown>).properties
+            if (!properties || typeof properties !== "object") return []
+            return Object.keys(properties as Record<string, unknown>).filter((k) => k.length > 0)
+        }, [inputSchema])
 
         const expectedVariables = useMemo(
             () =>
@@ -582,51 +433,36 @@ const EvaluatorVariantModal = ({
             </div>
 
             {appSelectionComplete ? (
-                <VariantsTable
-                    variants={filteredRevisions as any}
-                    rowSelection={{
-                        selectedRowKeys,
-                        onChange: (value) => {
-                            setSelectedRowKeys(value.map((id) => id.toString()))
-                        },
-                        renderCell: (_: any, record: any, __: number, originNode: ReactNode) => (
-                            <SelectionCell
-                                record={record as EnhancedVariant}
-                                node={originNode}
-                                onMetaChange={handleRowDiagnostics}
-                            />
-                        ),
-                        type: "radio",
-                    }}
-                    isLoading={variantsLoading}
-                    onRowClick={() => {}}
-                    rowKey={"id"}
-                    showStableName
-                    showUpdatedOn
-                    showActionsDropdown={false}
-                    rowClassName={(record) =>
-                        clsx(
-                            rowDiagnostics[String((record as EnhancedVariant).id)]?.hasWarning &&
-                                "opacity-70",
-                        )
-                    }
-                    onRow={(record) => {
-                        const revision = record as EnhancedVariant
-                        const diag = rowDiagnostics[String(revision.id)]
-                        return {
-                            className: "variant-table-row",
-                            style: diag?.hasWarning
-                                ? {cursor: "pointer", opacity: 0.7}
-                                : {cursor: "pointer"},
-                            title: diag?.message,
-                            onClick: () => {
-                                if (revision.id) {
-                                    setSelectedRowKeys([String(revision.id)])
-                                }
-                            },
-                        }
-                    }}
-                />
+                <div className="h-[455px]">
+                    <InfiniteVirtualTableFeatureShell<RegistryRevisionRow>
+                        {...table.shellProps}
+                        columns={columns}
+                        rowSelection={{
+                            ...rowSelection,
+                            renderCell: (
+                                _: any,
+                                record: any,
+                                __: number,
+                                originNode: ReactNode,
+                            ) => (
+                                <SelectionCell
+                                    record={record as RegistryRevisionRow}
+                                    node={originNode}
+                                    onMetaChange={handleRowDiagnostics}
+                                />
+                            ),
+                        }}
+                        autoHeight
+                        locale={{
+                            emptyText: (
+                                <NoResultsFound
+                                    className="!py-10"
+                                    description="No available variants found to display"
+                                />
+                            ),
+                        }}
+                    />
+                </div>
             ) : (
                 <Typography.Text type="secondary">
                     Select an application first to load this section.

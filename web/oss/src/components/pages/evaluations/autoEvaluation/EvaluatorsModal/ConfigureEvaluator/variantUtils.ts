@@ -1,35 +1,39 @@
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import type {Workflow} from "@agenta/entities/workflow"
+
 import type {Variant} from "@/oss/lib/Types"
 
-export const buildVariantFromRevision = (
-    revision: EnhancedVariant,
-    fallbackAppId?: string,
-): Variant => {
+const toUnixMs = (value: string | null | undefined): number => {
+    if (!value) return 0
+    const ts = new Date(value).getTime()
+    return Number.isFinite(ts) ? ts : 0
+}
+
+export const buildVariantFromRevision = (revision: Workflow, fallbackAppId?: string): Variant => {
     return {
-        id: revision.variantId,
-        name: revision.variantName,
-        variantName: revision.variantName,
-        templateVariantName: (revision as any)?.templateVariantName ?? null,
+        id: revision.workflow_variant_id ?? revision.id,
+        name: revision.name ?? "",
+        variantName: revision.name ?? "",
+        templateVariantName: null,
         persistent: true,
-        previousVariantName: (revision as any)?.previousVariantName ?? null,
-        variantId: revision.variantId,
-        appId: revision.appId ?? fallbackAppId ?? "",
-        appName: revision.appName ?? "",
-        baseId: revision.baseId ?? "",
-        baseName: revision.baseName ?? "",
-        configName: revision.configName ?? "",
-        uri: revision.uri ?? "",
-        parameters: revision.parameters ?? {},
-        modifiedBy: revision.modifiedBy ?? revision.createdBy ?? "",
-        modifiedById: revision.modifiedById ?? "",
-        createdAt: revision.createdAt ?? "",
-        createdAtTimestamp: revision.createdAtTimestamp ?? 0,
-        updatedAt: revision.updatedAt ?? revision.createdAt ?? "",
-        updatedAtTimestamp: revision.updatedAtTimestamp ?? revision.createdAtTimestamp ?? 0,
-        isLatestRevision: revision.isLatestRevision ?? false,
-        commitMessage: revision.commitMessage ?? null,
-        deployedIn: revision.deployedIn ?? [],
-        projectId: (revision as any)?.projectId ?? "",
+        previousVariantName: null,
+        variantId: revision.workflow_variant_id ?? revision.id,
+        appId: revision.workflow_id ?? fallbackAppId ?? "",
+        appName: "",
+        baseId: "",
+        baseName: "",
+        configName: "",
+        uri: revision.data?.uri ?? "",
+        parameters: revision.data?.parameters ?? {},
+        modifiedBy: revision.updated_by_id ?? revision.created_by_id ?? "",
+        modifiedById: revision.updated_by_id ?? "",
+        createdAt: revision.created_at ?? "",
+        createdAtTimestamp: toUnixMs(revision.created_at),
+        updatedAt: revision.updated_at ?? revision.created_at ?? "",
+        updatedAtTimestamp: toUnixMs(revision.updated_at) || toUnixMs(revision.created_at),
+        isLatestRevision: false,
+        commitMessage: revision.message ?? null,
+        deployedIn: [],
+        projectId: "",
         revisions: [],
     } as Variant
 }

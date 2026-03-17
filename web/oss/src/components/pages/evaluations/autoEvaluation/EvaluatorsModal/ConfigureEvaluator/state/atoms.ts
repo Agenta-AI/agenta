@@ -14,12 +14,12 @@
  * @see /AGENTS.md for state management guidelines
  */
 
+import {stringStorage} from "@agenta/shared/state"
 import type {FormInstance} from "antd"
 import {atom} from "jotai"
 import {atomWithReset, atomWithStorage, RESET} from "jotai/utils"
 
 import type {Evaluator, SimpleEvaluator, Variant} from "@/oss/lib/Types"
-import {stringStorage} from "@/oss/state/utils/stringStorage"
 
 // ================================================================
 // TYPES

@@ -1,22 +1,16 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {
-    variantsListAtomFamily,
-    variantsListQueryStateAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
+import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {Input} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
+import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
+import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 
 import type {SelectVariantSectionProps} from "../types"
 
-const VariantsTable = dynamic(() => import("@/oss/components/VariantsComponents/Table"), {
-    ssr: false,
-})
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
     {
@@ -24,36 +18,26 @@ const NoResultsFound = dynamic(
     },
 )
 
+const EMPTY_ACTIONS = {}
+
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
     evaluationType,
-    variants: propsVariants,
-    isVariantLoading: propsVariantLoading,
 }: SelectVariantSectionProps) => {
-    const appId = useAtomValue(selectedAppIdAtom) || ""
-    const fallbackVariants = useAtomValue(
-        useMemo(() => variantsListAtomFamily(appId), [appId]),
-    ) as unknown as EnhancedVariant[]
-    const fallbackLoading = useAtomValue(
-        useMemo(() => variantsListQueryStateAtomFamily(appId), [appId]),
-    ).isPending
-    const variants = useMemo(
-        () => propsVariants || fallbackVariants,
-        [propsVariants, fallbackVariants],
-    )
-    const isVariantLoading = propsVariantLoading ?? fallbackLoading
-
     const [searchTerm, setSearchTerm] = useState("")
 
-    const filteredVariant = useMemo(() => {
-        if (!searchTerm) return variants
-        return variants?.filter((item: EnhancedVariant) =>
-            item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, variants])
+    const table = useTableManager<RegistryRevisionRow>({
+        datasetStore: registryPaginatedStore.store as never,
+        scopeId: "evaluation-variant-selector",
+        pageSize: 50,
+        searchDeps: [searchTerm],
+        rowClassName: "variant-table-row",
+    })
+
+    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS), [])
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
@@ -72,29 +56,14 @@ const SelectVariantSection = ({
         [evaluationType, handlePanelChange, setSelectedVariantRevisionIds],
     )
 
-    const onRowClick = useCallback(
-        (record: EnhancedVariant) => {
-            const _record = record as EnhancedVariant & {
-                children: EnhancedVariant[]
-            }
-            if (evaluationType === "auto") {
-                const nextSelected = selectedVariantRevisionIds.includes(_record.id)
-                    ? selectedVariantRevisionIds.filter((id) => id !== _record.id)
-                    : [...selectedVariantRevisionIds, _record.id]
-                setSelectedVariantRevisionIds(nextSelected)
-                return
-            }
-            onSelectVariant([_record.id])
-        },
-        [
-            evaluationType,
-            onSelectVariant,
-            selectedVariantRevisionIds,
-            setSelectedVariantRevisionIds,
-        ],
+    const rowSelection = useMemo(
+        () => ({
+            type: (evaluationType === "auto" ? "checkbox" : "radio") as "checkbox" | "radio",
+            selectedRowKeys: selectedVariantRevisionIds as React.Key[],
+            onChange: (keys: React.Key[]) => onSelectVariant(keys),
+        }),
+        [selectedVariantRevisionIds, onSelectVariant, evaluationType],
     )
-
-    const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
 
     return (
         <div className={clsx(className)}>
@@ -106,39 +75,22 @@ const SelectVariantSection = ({
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
-            <VariantsTable
-                showStableName
-                rowSelection={{
-                    type: evaluationType === "auto" ? "checkbox" : "radio",
-                    selectedRowKeys: selectedVariantRevisionIds,
-                    onChange: (selectedRowKeys) => {
-                        onSelectVariant(selectedRowKeys)
-                    },
-                }}
-                onRow={(record) => {
-                    return {
-                        style: {cursor: "pointer"},
-                        onClick: () => {
-                            onRowClick(record as EnhancedVariant)
-                        },
-                    }
-                }}
-                showActionsDropdown={false}
-                scroll={{x: "max-content", y: 455}}
-                isLoading={isVariantLoading}
-                variants={variantsNonNull}
-                onRowClick={() => {}}
-                className="ph-no-capture"
-                rowKey={"id"}
-                locale={{
-                    emptyText: (
-                        <NoResultsFound
-                            className="!py-10"
-                            description="No available variants found to display"
-                        />
-                    ),
-                }}
-            />
+            <div className="h-[455px]">
+                <InfiniteVirtualTableFeatureShell<RegistryRevisionRow>
+                    {...table.shellProps}
+                    columns={columns}
+                    rowSelection={rowSelection}
+                    autoHeight
+                    locale={{
+                        emptyText: (
+                            <NoResultsFound
+                                className="!py-10"
+                                description="No available variants found to display"
+                            />
+                        ),
+                    }}
+                />
+            </div>
         </div>
     )
 }

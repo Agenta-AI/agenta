@@ -8,23 +8,27 @@
  * - playgroundFormRefAtom: Form instance for reading settings
  *
  * Data fetching:
- * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
- * - Apps: fetched internally via useAppsData()
- *
- * Data fetching:
- * - Variants: fetched internally via appRevisionsWithDraftsAtomFamily()
+ * - Variants: fetched internally via workflowRevisionsByWorkflowListDataAtomFamily()
  * - Apps: fetched internally via useAppsData()
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {transformToRequestBody} from "@agenta/entities/shared/execution"
 import {
-    legacyAppRevisionMolecule,
-    legacyAppRevisionSchemaQueryAtomFamily,
     extractAllEndpointSchemas,
     extractInputKeysFromSchema,
-    transformToRequestBody,
-} from "@agenta/entities/legacyAppRevision"
-import {appRevisionsWithDraftsAtomFamily} from "@agenta/entities/legacyAppRevision"
+} from "@agenta/entities/shared/openapi"
+import {
+    workflowMolecule,
+    workflowRevisionsByWorkflowListDataAtomFamily,
+} from "@agenta/entities/workflow"
+import {
+    appOpenApiSchemaAtomFamily,
+    appRoutePathAtomFamily,
+    requestPayloadAtomFamily,
+} from "@agenta/entities/workflow"
+import {uuidToSpanId, uuidToTraceId} from "@agenta/shared/utils"
+import {safeJson5Parse} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {
@@ -46,14 +50,8 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {buildEvaluatorUri, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
-import {
-    extractChatMessages,
-    getStringOrJson,
-    safeParse,
-    safeJson5Parse,
-} from "@/oss/lib/helpers/utils"
+import {extractChatMessages, getStringOrJson, safeParse} from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
-import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
@@ -326,20 +324,23 @@ const DebugSection = () => {
         if (_selectedVariant?.appId) return _selectedVariant.appId
         if (appId) return appId
         // Check persisted last used app
-        if (lastAppId && availableApps?.some((a: any) => a.app_id === lastAppId)) {
+        if (lastAppId && availableApps?.some((a: any) => a.id === lastAppId)) {
             return lastAppId
         }
         const firstApp = availableApps?.[0]
-        return firstApp?.app_id ?? ""
+        return firstApp?.id ?? ""
     }, [_selectedVariant?.appId, appId, availableApps, lastAppId])
 
     const allRevisions = useAtomValue(
-        useMemo(() => appRevisionsWithDraftsAtomFamily(defaultAppId || ""), [defaultAppId]),
+        useMemo(
+            () => workflowRevisionsByWorkflowListDataAtomFamily(defaultAppId || ""),
+            [defaultAppId],
+        ),
     )
 
     const defaultRevisionMap = useMemo(() => {
-        return allRevisions.reduce<Record<string, typeof allRevisions>>((acc, revision) => {
-            const key = revision.variantId
+        return (allRevisions ?? []).reduce<Record<string, typeof allRevisions>>((acc, revision) => {
+            const key = (revision as any).workflow_variant_id || (revision as any).variant_id || ""
             if (!acc[key]) acc[key] = []
             acc[key].push(revision)
             return acc
@@ -375,7 +376,7 @@ const DebugSection = () => {
     // Resolve current application object for display
     const selectedApp = useMemo(() => {
         const id = _selectedVariant?.appId || defaultAppId
-        return availableApps.find((a: any) => a.app_id === id)
+        return availableApps.find((a: any) => a.id === id)
     }, [_selectedVariant?.appId, defaultAppId, availableApps])
 
     // Initialize from persisted state (remember last app/variant) with fallbacks
@@ -415,74 +416,56 @@ const DebugSection = () => {
         if (v.variantId) setLastVariantId(v.variantId)
     }, [_selectedVariant, setLastAppId, setLastVariantId])
 
-    // Seed molecule with revision data so stable prompt/transform atoms work correctly
-    // This ensures the molecule has URI and parameters for schema-based prompts derivation
-    useEffect(() => {
-        if (!selectedVariant?.id) return
-        if (!selectedVariant?.uri) return
-
-        // Check if molecule already has data
-        const currentData = legacyAppRevisionMolecule.get.serverData(selectedVariant.id)
-        if (currentData?.uri) return
-
-        // Seed molecule with revision data
-        legacyAppRevisionMolecule.set.serverData(selectedVariant.id, {
-            id: selectedVariant.id,
-            variantId: (selectedVariant as any).variantId,
-            variantName: (selectedVariant as any).variantName,
-            appId: (selectedVariant as any).appId,
-            uri: selectedVariant.uri,
-            revision: (selectedVariant as any).revision,
-            parameters: selectedVariant.parameters,
-            baseId: (selectedVariant as any).baseId,
-            baseName: (selectedVariant as any).baseName,
-            configName: (selectedVariant as any).configName,
-            commitMessage: (selectedVariant as any).commitMessage,
-            createdAt: (selectedVariant as any).createdAt,
-            updatedAt: (selectedVariant as any).updatedAt,
-            modifiedById: (selectedVariant as any).modifiedById,
-        })
-    }, [selectedVariant?.id, selectedVariant?.uri, selectedVariant?.parameters])
+    // No manual molecule seeding needed — workflowMolecule auto-fetches by ID
 
     // App context for custom/chat flags
     const appContext = useAtomValue(currentAppContextAtom)
     const isCustomFlag = appContext?.appType === "custom"
 
-    // Per-revision schema (replaces app-wide appSchemaAtom / appUriInfoAtom)
-    const revisionSchemaQuery = useAtomValue(
+    // Per-revision schema from workflow molecule
+    const revisionSchema = useAtomValue(
         useMemo(
             () =>
                 selectedVariant?.id
-                    ? legacyAppRevisionSchemaQueryAtomFamily(selectedVariant.id)
-                    : atom({data: null, isPending: false, isError: false, error: null}),
+                    ? appOpenApiSchemaAtomFamily(selectedVariant.id)
+                    : (atom(null) as any),
             [selectedVariant?.id],
         ),
     ) as any
-    const revisionSchema = revisionSchemaQuery?.data?.openApiSchema ?? null
-    const revisionRoutePath = revisionSchemaQuery?.data?.routePath ?? ""
-
-    // Stable variables derived from molecule inputPorts (spec + saved parameters; no live edits)
-    const inputPorts = useAtomValue(
+    const revisionRoutePath = useAtomValue(
         useMemo(
             () =>
                 selectedVariant?.id
-                    ? legacyAppRevisionMolecule.atoms.inputPorts(selectedVariant.id)
-                    : (atom([]) as any),
+                    ? appRoutePathAtomFamily(selectedVariant.id)
+                    : (atom("") as any),
             [selectedVariant?.id],
         ),
-    ) as any[]
-    const stableVarNames = useMemo(
-        () => (inputPorts || []).map((p: any) => p.key) as string[],
-        [inputPorts],
+    ) as string
+
+    // Stable variables derived from workflow input schema
+    const inputSchema = useAtomValue(
+        useMemo(
+            () =>
+                selectedVariant?.id
+                    ? workflowMolecule.selectors.inputSchema(selectedVariant.id)
+                    : atom<Record<string, unknown> | null>(null),
+            [selectedVariant?.id],
+        ),
     )
+    const stableVarNames = useMemo(() => {
+        if (!inputSchema || typeof inputSchema !== "object") return []
+        const properties = (inputSchema as Record<string, unknown>).properties
+        if (!properties || typeof properties !== "object") return []
+        return Object.keys(properties as Record<string, unknown>).filter((k) => k.length > 0)
+    }, [inputSchema])
 
     // Read raw entity data for variant parameters
     const variantEntityData = useAtomValue(
         useMemo(
             () =>
-                (selectedVariant?.id
-                    ? (legacyAppRevisionMolecule.atoms.data(selectedVariant?.id) as any)
-                    : (atom(null) as any)) as any,
+                selectedVariant?.id
+                    ? workflowMolecule.selectors.data(selectedVariant.id)
+                    : (atom(null) as any),
             [selectedVariant?.id],
         ),
     ) as any
@@ -490,9 +473,9 @@ const DebugSection = () => {
     const revisionRequestPayload = useAtomValue(
         useMemo(
             () =>
-                (selectedVariant?.id
-                    ? (legacyAppRevisionMolecule.atoms.requestPayload(selectedVariant?.id) as any)
-                    : (atom(null) as any)) as any,
+                selectedVariant?.id
+                    ? requestPayloadAtomFamily(selectedVariant.id)
+                    : (atom(null) as any),
             [selectedVariant?.id],
         ),
     ) as any
@@ -744,8 +727,9 @@ const DebugSection = () => {
             // Per-revision schema (always matches the selected variant)
             const safeSpec: any | undefined = revisionSchema || undefined
             const safeRoutePath: string = revisionRoutePath || ""
-            const safeUriObject = revisionSchemaQuery?.data?.runtimePrefix
-                ? {runtimePrefix: revisionSchemaQuery.data.runtimePrefix, routePath: safeRoutePath}
+            const variantUrl = variantEntityData?.data?.url || selectedVariant?.uri || ""
+            const safeUriObject = variantUrl
+                ? {runtimePrefix: variantUrl, routePath: safeRoutePath}
                 : undefined
 
             if (selectedVariant?.parameters) {
@@ -810,7 +794,8 @@ const DebugSection = () => {
                     .map((name) => ({name, input: false}))
 
                 // Build raw ag_config from variant parameters
-                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const variantParams =
+                    variantEntityData?.data?.parameters || selectedVariant?.parameters
                 const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
                     ? (revisionRequestPayload.ag_config as Record<string, unknown>)
                     : undefined
@@ -946,7 +931,8 @@ const DebugSection = () => {
                 const payloadAgConfig = isPlainObject(revisionRequestPayload?.ag_config)
                     ? (revisionRequestPayload.ag_config as Record<string, unknown>)
                     : undefined
-                const variantParams = variantEntityData?.parameters || selectedVariant?.parameters
+                const variantParams =
+                    variantEntityData?.data?.parameters || selectedVariant?.parameters
                 const variantAgConfig = isPlainObject((variantParams as any)?.ag_config)
                     ? ((variantParams as any).ag_config as Record<string, unknown>)
                     : isPlainObject(variantParams)
@@ -1176,7 +1162,7 @@ const DebugSection = () => {
     )
 
     // Helper to print "App / Variant" nicely
-    const appName = selectedApp?.name || selectedApp?.app_name || "app"
+    const appName = selectedApp?.name || selectedApp?.slug || "app"
     const variantName = selectedVariant?.variantName || "variant"
 
     // Guard: if no evaluator selected, show nothing (shouldn't happen in normal flow)

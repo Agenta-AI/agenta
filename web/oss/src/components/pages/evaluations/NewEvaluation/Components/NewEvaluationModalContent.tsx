@@ -1,5 +1,6 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
@@ -70,8 +71,6 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     preview,
     evaluationType,
     testsets,
-    variants,
-    variantsLoading,
     evaluators,
     evaluatorConfigs,
     advanceSettings,
@@ -113,8 +112,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     )
 
     const selectedVariants = useMemo(
-        () => variants?.filter((v) => selectedVariantRevisionIds.includes(v.id)) || [],
-        [variants, selectedVariantRevisionIds],
+        () => selectedVariantRevisionIds.map((id) => workflowMolecule.get.data(id)).filter(Boolean),
+        [selectedVariantRevisionIds],
     )
 
     const selectedEvalConfig = useMemo(() => {
@@ -189,7 +188,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                     )
                                 }}
                             >
-                                {`${v.variantName} - v${v.revision}`}
+                                {`${v.name || "-"} - v${v.version ?? 0}`}
                             </Tag>
                         ))}
                     </TabLabel>
@@ -200,8 +199,6 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
                         evaluationType={evaluationType}
-                        variants={variants}
-                        isVariantLoading={variantsLoading}
                         className="pt-2"
                     />
                 ) : (
@@ -328,7 +325,6 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         preview,
         evaluationType,
         testsets,
-        variants,
         evaluators,
         evaluatorConfigs,
         advanceSettings,

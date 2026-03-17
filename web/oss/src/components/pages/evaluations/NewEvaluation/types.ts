@@ -1,9 +1,9 @@
 import type {Dispatch, HTMLProps, SetStateAction} from "react"
 
+import type {Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
 
 export interface NewEvaluationAppOption {
@@ -51,8 +51,6 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setEvaluationName: Dispatch<SetStateAction<string>>
     isOpen?: boolean
     testsets: testset[]
-    variants?: EnhancedVariant[]
-    variantsLoading?: boolean
     evaluators: Evaluator[] | EvaluatorDto<"response">[]
     evaluatorConfigs: SimpleEvaluator[]
     advanceSettings: LLMRunRateLimitWithCorrectAnswer
@@ -69,8 +67,6 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
-    isVariantLoading?: boolean
-    variants?: EnhancedVariant[]
     selectedVariantRevisionIds: string[]
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
@@ -91,7 +87,7 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
     preview?: boolean
     selectedVariantRevisionIds: string[]
     /** Selected variant objects - used to extract input variables for testset compatibility checks */
-    selectedVariants?: EnhancedVariant[]
+    selectedVariants?: Workflow[]
     allowAutoAdvance?: boolean
 }
 

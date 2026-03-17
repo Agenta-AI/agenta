@@ -1,10 +1,7 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {
-    appRevisionsWithDraftsAtomFamily,
-    variantsListWithDraftsAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
 import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -65,9 +62,13 @@ const NewEvaluationModalInner = ({
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
     const appOptions = useMemo(() => {
         const options = availableApps.map((app) => ({
-            label: app.app_name,
-            value: app.app_id,
-            type: app.app_type ?? null,
+            label: app.name ?? app.slug ?? "",
+            value: app.id,
+            type: app.flags?.is_custom
+                ? "custom"
+                : app.flags?.is_chat
+                  ? "chat"
+                  : ("completion" as string | null),
             createdAt: app.created_at ?? null,
             updatedAt: app.updated_at ?? null,
         }))
@@ -204,16 +205,16 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const appVariantRevisions = useAtomValue(
-        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    const workflowRevisions = useAtomValue(
+        useMemo(
+            () => workflowRevisionsByWorkflowListDataAtomFamily(selectedAppId || ""),
+            [selectedAppId],
+        ),
     )
-    const variantsLoading = useAtomValue(
-        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
-    ).isPending
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
-        return appVariantRevisions || []
-    }, [appVariantRevisions, selectedAppId])
+        return workflowRevisions || []
+    }, [workflowRevisions, selectedAppId])
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
@@ -271,7 +272,7 @@ const NewEvaluationModalInner = ({
         }
         const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
         if (!variant) return ""
-        return `${variant.variantName}-v${variant.revision}-${selectedTestsetName}`
+        return `${variant.name || "-"}-v${variant.version ?? 0}-${selectedTestsetName}`
     }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
@@ -469,7 +470,7 @@ const NewEvaluationModalInner = ({
                     return
                 }
 
-                const data = await createPreviewEvaluationRun(structuredClone(selectionData))
+                const data = await createPreviewEvaluationRun(structuredClone(selectionData) as any)
 
                 const runId = data.run.runs[0].id
                 const scope = isAppScoped ? "app" : "project"
@@ -597,13 +598,9 @@ const NewEvaluationModalInner = ({
             evaluationName={evaluationName}
             setEvaluationName={setEvaluationName}
             preview={preview}
-            isLoading={
-                loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading || variantsLoading
-            }
+            isLoading={loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading}
             isOpen={true} // Always true since this component only renders when modal is open
             testsets={selectedAppId ? testsets || [] : []}
-            variants={filteredVariants}
-            variantsLoading={variantsLoading}
             evaluators={evaluators}
             evaluatorConfigs={evaluatorConfigs}
             advanceSettings={advanceSettings}
