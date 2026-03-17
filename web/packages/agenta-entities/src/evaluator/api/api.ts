@@ -680,7 +680,11 @@ export async function fetchEvaluatorsBatch(
             if (evaluator) {
                 // Key by workflow_id so callers can look up by the workflow ID they passed in
                 const key = evaluator.workflow_id ?? evaluator.id
-                results.set(key, evaluator)
+                const existing = results.get(key)
+                // Keep the revision with the highest version (latest)
+                if (!existing || (evaluator.version ?? 0) > (existing.version ?? 0)) {
+                    results.set(key, evaluator)
+                }
             }
         } catch (e) {
             console.error("[fetchEvaluatorsBatch] Failed to parse evaluator:", e, raw)
