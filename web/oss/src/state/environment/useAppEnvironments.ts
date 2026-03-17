@@ -1,34 +1,32 @@
 import {useEffect} from "react"
 
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import type {Environment} from "@/oss/lib/Types"
 import {
-    environmentsAtom as _environmentsAtom,
-    environmentsLoadableAtom,
-} from "@/oss/state/environment/atoms/fetcher"
+    appEnvironmentsAtom as _appEnvironmentsAtom,
+    appEnvironmentsLoadableAtom,
+} from "./appEnvironmentAtoms"
 
-interface UseEnvironmentOptions {
-    // kept for backward-compatibility, currently unused
+interface UseAppEnvironmentOptions {
     appId?: string
-    onSuccess?: (data: Environment[]) => void
+    onSuccess?: (data: AppEnvironmentDeployment[]) => void
 }
 
-const DEFAULT_ENVIRONMENTS: Environment[] = []
+const DEFAULT_ENVIRONMENTS: AppEnvironmentDeployment[] = []
 
-export const environmentsAtom = selectAtom(
-    _environmentsAtom,
+const environmentsSafeAtom = selectAtom(
+    _appEnvironmentsAtom,
     (envs) => envs ?? DEFAULT_ENVIRONMENTS,
     deepEqual,
 )
 
-export const useEnvironments = (options: UseEnvironmentOptions = {}) => {
+export const useAppEnvironments = (options: UseAppEnvironmentOptions = {}) => {
     const {onSuccess} = options
-    // atom selectors already scope to current app / project, so we can ignore appId here
-    const environments = useAtomValue(environmentsAtom)
-    const loadable = useAtomValue(environmentsLoadableAtom)
+    const environments = useAtomValue(environmentsSafeAtom)
+    const loadable = useAtomValue(appEnvironmentsLoadableAtom)
 
     const isEnvironmentsLoading = Boolean(
         loadable.isPending || loadable.isLoading || loadable.isFetching,
