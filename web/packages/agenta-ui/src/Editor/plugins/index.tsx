@@ -154,7 +154,7 @@ const EditorPlugins = ({
                     ) : (
                         <CodeEditorPlugin
                             initialValue={value !== undefined ? value : initialValue}
-                            language={language === "yaml" ? "yaml" : "json"}
+                            language={language ?? "json"}
                             onPropertyClick={onPropertyClick}
                             disableLongText={disableLongText}
                         />
