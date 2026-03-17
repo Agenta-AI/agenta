@@ -327,6 +327,16 @@ class GitDAO(GitDAOInterface):
                         self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
                     )
 
+            if "folder_id" in artifact_query.model_fields_set:
+                if artifact_query.folder_id is None:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id.is_(None)  # type: ignore
+                    )
+                else:
+                    stmt = stmt.filter(
+                        self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
+                    )
+
             if artifact_query.flags:
                 stmt = stmt.filter(
                     self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
