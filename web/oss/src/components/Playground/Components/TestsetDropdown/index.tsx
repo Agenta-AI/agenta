@@ -64,7 +64,7 @@ const TestsetDrawer = dynamic(
 
 const COMMIT_MODES: CommitModeOption[] = [
     {id: "commit", label: "Commit changes"},
-    {id: "save-new", label: "Save as new testset"},
+    {id: "save-new", label: "Save as new test set"},
 ]
 
 // ============================================================================
@@ -90,10 +90,10 @@ function SyncModeContent({mode, onModeChange, newTestsetName, onNameChange}: Syn
     return (
         <div className="flex flex-col gap-1 pt-1">
             <Typography.Text className="text-xs text-[var(--ant-color-text-secondary)]">
-                Testset name
+                Test set name
             </Typography.Text>
             <Input
-                placeholder="Enter testset name"
+                placeholder="Enter test set name"
                 value={newTestsetName}
                 onChange={(e) => onNameChange(e.target.value)}
                 autoFocus
@@ -159,7 +159,7 @@ export function TestsetDropdown() {
     const isConnected = mode === "connected"
     const revisionId = connectedSource?.id ?? null
     const testsetName = connectedSource?.name ?? null
-    const buttonLabel = isConnected && testsetName ? testsetName : "Testset"
+    const buttonLabel = isConnected && testsetName ? testsetName : "Test set"
 
     // ── Add-to-testset: reactive success check ─────────────────────────────
     // Tracks whether there are any successful run results (with a trace) to add
@@ -433,7 +433,7 @@ export function TestsetDropdown() {
             if (submitMode === "save-new") {
                 const trimmedName = newTestsetName.trim()
                 if (!trimmedName) {
-                    return {success: false, error: "Testset name is required"}
+                    return {success: false, error: "Test set name is required"}
                 }
                 setLoadableName(loadableId, trimmedName)
                 const result = await saveAsNewTestset(loadableId)
@@ -479,14 +479,14 @@ export function TestsetDropdown() {
                 {
                     key: "connect",
                     icon: <LinkIcon size={14} />,
-                    label: "Connect testset",
+                    label: "Connect test set",
                     onClick: () => setSelectionModalMode("load"),
                 },
                 {type: "divider"},
                 {
                     key: "add-to-testset",
                     icon: <Plus size={14} />,
-                    label: "Add to testset",
+                    label: "Add to test set",
                     disabled: !hasSuccessfulResults,
                     onClick: handleAddToTestset,
                 },
@@ -511,13 +511,13 @@ export function TestsetDropdown() {
             {
                 key: "change",
                 icon: <ArrowsLeftRightIcon size={14} />,
-                label: "Change testset",
+                label: "Change test set",
                 onClick: handleChangeTestset,
             },
             {
                 key: "add-to-testset",
                 icon: <Plus size={14} />,
-                label: "Add to testset",
+                label: "Add to test set",
                 disabled: !hasSuccessfulResults,
                 onClick: handleAddToTestset,
             },
@@ -594,7 +594,7 @@ export function TestsetDropdown() {
                         ? {
                               type: "revision",
                               id: revisionId,
-                              name: testsetName ?? "Testset",
+                              name: testsetName ?? "Test set",
                               metadata: {loadableId},
                           }
                         : undefined
@@ -605,7 +605,7 @@ export function TestsetDropdown() {
                 renderModeContent={renderSyncModeContent}
                 canSubmit={canSyncSubmit}
                 submitLabel={syncSubmitLabel}
-                successMessage="Testset updated successfully"
+                successMessage="Test set updated successfully"
             />
 
             {/* Disconnect with unsaved changes modal */}

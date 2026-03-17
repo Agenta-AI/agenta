@@ -1,6 +1,11 @@
 import {memo, useMemo} from "react"
 
-import {executionController, executionItemController} from "@agenta/playground"
+import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {
+    executionController,
+    executionItemController,
+    playgroundController,
+} from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
 import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
@@ -71,10 +76,23 @@ const ExecutionHeader = ({
         executionItemController.selectors.allRowsCollapsed,
     )
 
+    // Detect connected evaluators for dynamic tooltip
+    const nodes = useAtomValue(
+        useMemo(() => playgroundController.selectors.nodes(), []),
+    ) as PlaygroundNode[]
+    const hasEvaluators = useMemo(
+        () => nodes.some((n) => n.depth > 0 && n.entityType === "workflow"),
+        [nodes],
+    )
+
     const runTests = () => runAll(entityId ? {entityId} : undefined)
     const canRun = !isChatMode || !isComparisonView || canRunAllChat
 
     useRunAllShortcut({isRunning, canRun, onRun: runTests})
+
+    const runAllTooltip = hasEvaluators
+        ? "Run the prompt and evaluators on all test cases."
+        : "Run the prompt on all test cases."
 
     const showCollapseToggle = !isComparisonView
     // const showRunOptions = !isComparisonView && entityId
@@ -140,7 +158,7 @@ const ExecutionHeader = ({
 
                 {!isRunning ? (
                     <div className="flex">
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                        <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
                             <RunButton
                                 isRunAll
                                 type="primary"
