@@ -3,12 +3,12 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 import agenta as ag
-from agenta.sdk.workflows.handlers import chat_v0
+from agenta.sdk.engines.running.handlers import chat_v0
 from agenta.sdk.types import Message, PromptTemplate
 
 
 # Create isolated chat app with its own OpenAPI schema
-chat_app, chat_route = ag.create_app()
+chat_app = ag.create_app()
 
 
 class ChatConfig(BaseModel):
@@ -19,7 +19,7 @@ class ChatConfig(BaseModel):
     )
 
 
-@chat_route("/", config_schema=ChatConfig, flags={"is_chat": True})
+@ag.route("/", app=chat_app, flags={"is_chat": True})
 async def chat(
     inputs: Optional[Dict[str, str]] = None,
     messages: Optional[List[Message]] = None,

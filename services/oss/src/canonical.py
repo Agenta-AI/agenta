@@ -1,10 +1,9 @@
 from typing import Any, Awaitable, Callable, Optional, Union
 
 import agenta as ag
-from pydantic import BaseModel
 
 from agenta.sdk.models.shared import Data
-from agenta.sdk.workflows.handlers import (
+from agenta.sdk.engines.running.handlers import (
     agent_v0,
     code_v0,
     hook_v0,
@@ -17,14 +16,10 @@ from agenta.sdk.workflows.handlers import (
 CanonicalHandler = Callable[..., Awaitable[Any]]
 
 
-class CanonicalServiceConfig(BaseModel):
-    pass
-
-
 def _create_canonical_service(handler: CanonicalHandler):
-    service_app, service_route = ag.create_app()
+    service_app = ag.create_app()
 
-    @service_route("/", config_schema=CanonicalServiceConfig)
+    @ag.route("/", app=service_app)
     async def workflow_service(
         revision: Optional[Data] = None,
         inputs: Optional[Data] = None,

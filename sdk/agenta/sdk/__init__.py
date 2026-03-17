@@ -1,3 +1,4 @@
+import sys
 from typing import Optional, Callable, Any
 
 from .utils.preinit import PreInitObject  # always the first import!  # noqa: F401
@@ -12,7 +13,6 @@ __all__ = [
     "app",
     # Initialization
     "init",
-    "config",
     # Types
     "DictInput",
     "MultipleChoice",
@@ -46,9 +46,11 @@ __all__ = [
     "types",
 ]
 
-import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.backend.types as client_types  # noqa: E402, F401
+import agenta.sdk.utils.types as types  # noqa: E402, F401
+import agenta.sdk.utils.assets as assets  # noqa: E402, F401
 
-from .utils.types import (
+from .utils.types import (  # noqa: E402
     DictInput,
     MultipleChoice,
     FloatParam,
@@ -83,9 +85,11 @@ from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
 from .managers import testsets as testsets
 
+sys.modules.setdefault("agenta.sdk.types", types)
+sys.modules.setdefault("agenta.sdk.assets", assets)
+
 DEFAULT_AGENTA_SINGLETON_INSTANCE: AgentaSingleton = AgentaSingleton()
 
-types = client_types
 
 api = None
 async_api = None
