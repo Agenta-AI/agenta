@@ -57,7 +57,6 @@ export {
     urlSnapshotController,
     setRunnableTypeResolver,
     getRunnableTypeResolver,
-    setRunnableBridge,
 } from "./state"
 
 // Displayed entities & initialization (consumed by OSS layout/URL sync)

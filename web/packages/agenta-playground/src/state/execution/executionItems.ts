@@ -1,16 +1,13 @@
+import {loadableController, type RequestPayloadData} from "@agenta/entities/runnable"
 import {
     stripAgentaMetadataDeep,
     stripEnhancedWrappers,
     transformToRequestBody,
-    type OpenAPISpec,
     type TransformMessage,
     type TransformVariantInput,
-} from "@agenta/entities/legacyAppRevision"
-import {
-    loadableController,
-    runnableBridge,
-    type RequestPayloadData,
-} from "@agenta/entities/runnable"
+} from "@agenta/entities/shared/execution"
+import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
 import {atom, type Getter, type Setter} from "jotai"
@@ -502,28 +499,26 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
             dispatchWorkerRun,
         } = runParams
 
-        // When entityType is provided, use type-scoped selectors to avoid
-        // cross-contamination from the shared workflow_revisions DB table.
-        // Without scoping, legacyAppRevision can match evaluator IDs and
-        // return the wrong invocation URL (/test instead of /evaluators/{key}/run).
-        const bridge = params.entityType
-            ? runnableBridge.forType(params.entityType)
-            : runnableBridge
-
         const mode: ExecutionMode =
-            get(bridge.executionMode(params.entityId)) === "chat" ? "chat" : "completion"
+            get(workflowMolecule.selectors.executionMode(params.entityId)) === "chat"
+                ? "chat"
+                : "completion"
         const normalizedRepetitions = resolveRequestedRepetitions(get, repetitions)
         const effectiveRunId =
             runId ?? (!forceNewRunId && params.runId ? params.runId : undefined) ?? generateId()
 
         const requestPayload = get(
-            bridge.requestPayload(params.entityId),
+            workflowMolecule.selectors.requestPayload(params.entityId),
         ) as RequestPayloadData | null
-        const invocationUrl = get(bridge.invocationUrl(params.entityId)) as string | null
-        const runnableData = get(bridge.data(params.entityId)) as TransformVariantInput | null
-        const entityData = runnableData ?? null
+        const invocationUrl = get(workflowMolecule.selectors.invocationUrl(params.entityId)) as
+            | string
+            | null
+        const configuration = get(workflowMolecule.selectors.configuration(params.entityId))
+        const entityData = configuration
+            ? ({parameters: configuration} as TransformVariantInput)
+            : null
 
-        const inputPorts = (get(bridge.inputPorts(params.entityId)) ?? []) as {
+        const inputPorts = (get(workflowMolecule.selectors.inputPorts(params.entityId)) ?? []) as {
             key?: unknown
         }[]
         const variablesFromInputPorts = Array.from(
@@ -633,8 +628,8 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
         const agConfigFallbacks: AgConfigFallbackCandidate[] = [
             {source: "requestPayload.ag_config", value: requestPayload?.ag_config},
             {
-                source: "runnableBridge.configuration",
-                value: get(bridge.configuration(params.entityId)) as unknown,
+                source: "workflowMolecule.configuration",
+                value: get(workflowMolecule.selectors.configuration(params.entityId)) as unknown,
             },
             {
                 source: "entityData.parameters",

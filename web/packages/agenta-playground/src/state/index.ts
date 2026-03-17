@@ -50,7 +50,6 @@ export type {
     EntitySelectorConfig,
     // Entity types
     EntityType,
-    EvaluatorRevisionData,
     ExecutionMetrics,
     ExecutionResult,
     // Execution types
@@ -345,8 +344,6 @@ export {
     urlSnapshotController,
 } from "./controllers"
 
-export {getRunnableBridge, resetRunnableBridge, setRunnableBridge} from "./controllers"
-
 export type {
     BuildEncodedSnapshotResult,
     CreateSnapshotResult,
@@ -379,9 +376,6 @@ export type {
     EntityQueryState,
     EntityRevisionSelectors,
     EvaluatorRawData,
-    EvaluatorRevisionActions,
-    EvaluatorRevisionRawData,
-    EvaluatorRevisionSelectors,
     EvaluatorSelectors,
     PlaygroundEntityProviders,
     SettingsPreset,

@@ -341,8 +341,7 @@ export const triggerExecutionAtom = atom(
                 session: {
                     id: sessionId,
                     runnableId: rootEntityId,
-                    runnableType: (effectiveRootNode.entityType ||
-                        "legacyAppRevision") as RunnableType,
+                    runnableType: (effectiveRootNode.entityType || "workflow") as RunnableType,
                     mode,
                 },
                 data: testcaseData,
