@@ -285,6 +285,7 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
 
         if (!slug && !workflowId) continue
         const key = workflowId ?? slug
+        if (!key) continue
 
         byKey.set(key, {
             slug: slug ?? key ?? "",

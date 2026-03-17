@@ -52,7 +52,7 @@ import {
     invalidateSimpleQueuesListCache,
     simpleQueuePaginatedStore,
 } from "@agenta/entities/simpleQueue"
-import {fetchPreviewTrace} from "@agenta/entities/trace"
+import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
@@ -648,8 +648,8 @@ async function resolveTraceLinkSpanId({
         const traceEntry = traceResponse?.traces?.[traceKey] ?? traceResponse?.traces?.[traceId]
         const rawSpans = traceEntry?.spans ? Object.values(traceEntry.spans) : []
         const spans = rawSpans.filter(
-            (span): span is {span_id?: string; parent_id?: string | null} =>
-                !!span && typeof span === "object" && !Array.isArray(span),
+            (span): span is TraceSpan =>
+                !!span && typeof span === "object" && !Array.isArray(span) && "trace_id" in span,
         )
 
         const rootSpan = spans.find((span) => !span.parent_id) ?? spans[0]
