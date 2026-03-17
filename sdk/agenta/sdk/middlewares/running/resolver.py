@@ -282,10 +282,9 @@ class ResolverMiddleware:
         if not request.data:
             request.data = WorkflowServiceRequestData()
 
-        request.data.parameters = (
-            request.data.parameters or configuration.parameters
-            if configuration
-            else None
-        )
+        if configuration:
+            request.data.parameters = request.data.parameters or (
+                configuration.parameters if configuration else None
+            )
 
         return await call_next(request)

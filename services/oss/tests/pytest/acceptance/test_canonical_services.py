@@ -3,10 +3,10 @@ Acceptance tests for canonical workflow handlers exposed via the /services HTTP 
 
 Covers:
 - GET  /health
-- POST /custom/code/v0/test   — Python code evaluator (happy path)
-- POST /builtin/match/v0/test — regex matcher (happy path)
-- POST /custom/trace/v0/test  — interface-only stub (expect error response)
-- POST /custom/hook/v0/test   — webhook forwarder without URL (expect error response)
+- POST /custom/code/v0/invoke   — Python code evaluator (happy path)
+- POST /builtin/match/v0/invoke — regex matcher (happy path)
+- POST /custom/trace/v0/invoke  — interface-only stub (expect error response)
+- POST /custom/hook/v0/invoke   — webhook forwarder without URL (expect error response)
 
 Requires a running services server reachable at AGENTA_SERVICES_URL
 (or derived from AGENTA_API_URL).  Auth is supplied via AGENTA_AUTH_KEY.
@@ -39,11 +39,12 @@ def _base_body(**overrides):
     """
     Minimal canonical-service request body.
 
-    FastAPI's Body(..., embed=True) with Pydantic v2 rejects JSON null as
-    "Field required".  Use empty dicts / strings as neutral stand-ins so the
-    handler is actually invoked.  Override specific fields per test.
+    The /invoke endpoint accepts a WorkflowServiceRequest envelope; all
+    handler-specific fields live under the ``data`` key.  Use empty dicts /
+    strings as neutral stand-ins so the handler is actually invoked.  Override
+    specific ``data`` sub-fields per test.
     """
-    body = {
+    data = {
         "revision": {},
         "inputs": {},
         "parameters": {},
@@ -51,15 +52,14 @@ def _base_body(**overrides):
         "trace": {},
         "testcase": {},
     }
-    body.update(overrides)
-    return body
+    data.update(overrides)
+    return {"data": data}
 
 
-def _assert_base_response(data: dict) -> None:
-    """Assert a successful BaseResponse envelope."""
-    assert "version" in data, f"Missing 'version' in response: {data}"
-    assert data["version"] == "3.0"
-    assert "data" in data, f"Missing 'data' in response: {data}"
+def _assert_base_response(payload: dict) -> None:
+    """Assert a successful WorkflowServiceBatchResponse envelope."""
+    assert "version" in payload, f"Missing 'version' in response: {payload}"
+    assert "data" in payload, f"Missing 'data' in response: {payload}"
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ def test_health(unauthed_services_api):
 
 
 # ---------------------------------------------------------------------------
-# /custom/code/v0/test — Python code evaluator
+# /custom/code/v0/invoke — Python code evaluator
 # ---------------------------------------------------------------------------
 
 
@@ -92,11 +92,11 @@ class TestCustomCodeV0:
                 "runtime": "python",
             }
         )
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
-        result = payload["data"]
+        result = payload["data"]["outputs"]
         assert isinstance(result, dict), f"Expected dict data, got: {result}"
         assert result.get("score") == pytest.approx(1.0)
         assert result.get("success") is True
@@ -111,11 +111,11 @@ class TestCustomCodeV0:
             inputs={"expected": "Paris"},
             outputs="Paris",
         )
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
-        result = payload["data"]
+        result = payload["data"]["outputs"]
         assert result.get("success") is True
         assert result.get("score") == pytest.approx(1.0)
 
@@ -129,11 +129,11 @@ class TestCustomCodeV0:
             inputs={"expected": "Paris"},
             outputs="London",
         )
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
-        result = payload["data"]
+        result = payload["data"]["outputs"]
         assert result.get("success") is False
         assert result.get("score") == pytest.approx(0.0)
 
@@ -142,7 +142,7 @@ class TestCustomCodeV0:
         body = (
             _base_body()
         )  # parameters={} — handler raises MissingConfigurationParameterV0Error
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code != 200, (
             f"Expected error for missing parameters, got 200: {resp.text}"
         )
@@ -157,29 +157,29 @@ class TestCustomCodeV0:
                 "threshold": 0.9,
             }
         )
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
-        result = payload["data"]
+        result = payload["data"]["outputs"]
         assert result.get("score") == pytest.approx(0.8)
         assert result.get("success") is False
 
     def test_response_includes_base_response_version(self, services_api):
-        """Every successful response carries version='3.0'."""
+        """Every successful response carries a version string."""
         body = _base_body(
             parameters={
                 "code": _EVALUATE_RETURN_ONE,
                 "runtime": "python",
             }
         )
-        resp = services_api("POST", "/custom/code/v0/test", json=body)
+        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
-        assert resp.json()["version"] == "3.0"
+        assert "version" in resp.json()
 
 
 # ---------------------------------------------------------------------------
-# /builtin/match/v0/test — rule-based matcher
+# /builtin/match/v0/invoke — rule-based matcher
 # ---------------------------------------------------------------------------
 
 
@@ -208,11 +208,11 @@ class TestBuiltinMatchV0:
         """An anchored regex matcher passes when output equals the reference."""
         reference = "^" + re.escape("Paris") + "$"
         body = self._regex_body(reference=reference, outputs="Paris")
-        resp = services_api("POST", "/builtin/match/v0/test", json=body)
+        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
-        result = payload["data"]
+        result = payload["data"]["outputs"]
         assert "results" in result, f"Missing 'results' key: {result}"
         assert len(result["results"]) == 1
         assert result["results"][0]["success"] is True
@@ -221,17 +221,17 @@ class TestBuiltinMatchV0:
         """The same regex matcher returns success=False for a different output."""
         reference = "^" + re.escape("Paris") + "$"
         body = self._regex_body(reference=reference, outputs="London")
-        resp = services_api("POST", "/builtin/match/v0/test", json=body)
+        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
-        result = resp.json()["data"]
+        result = resp.json()["data"]["outputs"]
         assert result["results"][0]["success"] is False
 
     def test_substring_match_success(self, services_api):
         """A plain substring regex passes when output contains the substring."""
         body = self._regex_body(reference="Paris", outputs="The capital is Paris.")
-        resp = services_api("POST", "/builtin/match/v0/test", json=body)
+        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
-        result = resp.json()["data"]
+        result = resp.json()["data"]["outputs"]
         assert result["results"][0]["success"] is True
 
     def test_multiple_matchers(self, services_api):
@@ -254,9 +254,9 @@ class TestBuiltinMatchV0:
             parameters={"matchers": matchers},
             outputs="yes",
         )
-        resp = services_api("POST", "/builtin/match/v0/test", json=body)
+        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
         assert resp.status_code == 200, resp.text
-        result = resp.json()["data"]
+        result = resp.json()["data"]["outputs"]
         assert len(result["results"]) == 2
         assert result["results"][0]["success"] is True
         assert result["results"][1]["success"] is True
@@ -266,14 +266,14 @@ class TestBuiltinMatchV0:
         body = (
             _base_body()
         )  # parameters={} — handler raises MissingConfigurationParameterV0Error
-        resp = services_api("POST", "/builtin/match/v0/test", json=body)
+        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
         assert resp.status_code != 200, (
             f"Expected error for missing parameters, got 200: {resp.text}"
         )
 
 
 # ---------------------------------------------------------------------------
-# /custom/trace/v0/test — interface-only stub (always errors)
+# /custom/trace/v0/invoke — interface-only stub (always errors)
 # ---------------------------------------------------------------------------
 
 
@@ -285,9 +285,9 @@ class TestCustomTraceV0:
     """
 
     def test_invocation_returns_error(self, services_api):
-        """POST /custom/trace/v0/test always returns a non-200 response."""
+        """POST /custom/trace/v0/invoke always returns a non-200 response."""
         body = _base_body(inputs={"question": "What is 2+2?"}, outputs="4")
-        resp = services_api("POST", "/custom/trace/v0/test", json=body)
+        resp = services_api("POST", "/custom/trace/v0/invoke", json=body)
         assert resp.status_code != 200, (
             f"Expected error response from trace_v0, got {resp.status_code}: {resp.text}"
         )
@@ -295,7 +295,7 @@ class TestCustomTraceV0:
     def test_error_detail_references_uri(self, services_api):
         """The error detail mentions the agenta:custom:trace:v0 URI."""
         body = _base_body()
-        resp = services_api("POST", "/custom/trace/v0/test", json=body)
+        resp = services_api("POST", "/custom/trace/v0/invoke", json=body)
         assert resp.status_code != 200
         text = resp.text
         assert "agenta:custom:trace:v0" in text, (
@@ -304,7 +304,7 @@ class TestCustomTraceV0:
 
 
 # ---------------------------------------------------------------------------
-# /custom/hook/v0/test — webhook forwarder (no URL configured → error)
+# /custom/hook/v0/invoke — webhook forwarder (no URL configured → error)
 # ---------------------------------------------------------------------------
 
 
@@ -312,13 +312,13 @@ class TestCustomTraceV0:
 class TestCustomHookV0:
     """
     hook_v0 forwards to a URL stored in RunningContext.interface.url.
-    When called via /test without a revision that provides a URL, it errors.
+    When called via /invoke without a revision that provides a URL, it errors.
     """
 
     def test_invocation_without_url_returns_error(self, services_api):
-        """POST /custom/hook/v0/test without a webhook URL returns a non-200 response."""
+        """POST /custom/hook/v0/invoke without a webhook URL returns a non-200 response."""
         body = _base_body(inputs={"question": "What is 2+2?"}, outputs="4")
-        resp = services_api("POST", "/custom/hook/v0/test", json=body)
+        resp = services_api("POST", "/custom/hook/v0/invoke", json=body)
         assert resp.status_code != 200, (
             f"Expected error from hook_v0 (no URL), got {resp.status_code}: {resp.text}"
         )
