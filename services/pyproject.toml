@@ -16,15 +16,15 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.86.5"
+agenta = ">=0.94.4"
 
 # Server
-uvicorn = "^0.41"
+uvicorn = "^0.42"
 gunicorn = "^25"
 
 # Traces, Metrics, Logs
 structlog = "^25"
-newrelic = "^11"
+newrelic = "^12"
 
 # LiteLLM providers
 boto3 = "^1"
