@@ -61,22 +61,21 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 title: "Models",
                 icon: <Sparkle size={16} className="mt-0.5" />,
             },
-            {
-                key: "automations",
-                title: "Automations",
-                icon: <Link size={16} className="mt-0.5" />,
-                divider: !canShowTools,
-            },
             ...(canShowTools
                 ? [
                       {
                           key: "tools",
                           title: "Tools",
                           icon: <Wrench size={16} className="mt-0.5" />,
-                          divider: true,
                       },
                   ]
                 : []),
+            {
+                key: "automations",
+                title: "Automations",
+                icon: <Link size={16} className="mt-0.5" />,
+                divider: true,
+            },
             {
                 key: "workspace",
                 title: "Members",
