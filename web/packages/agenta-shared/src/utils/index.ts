@@ -169,3 +169,12 @@ export {
     randomAlphanumeric,
 } from "./connectionSlug"
 export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+
+// Polling utilities
+export {shortPoll} from "./shortPoll"
+
+// URI utilities
+export {removeTrailingSlash} from "./uriUtils"
+
+// Trace ID conversion utilities (UUID ↔ OpenTelemetry)
+export {uuidToSpanId, uuidToTraceId} from "./traceIds"
