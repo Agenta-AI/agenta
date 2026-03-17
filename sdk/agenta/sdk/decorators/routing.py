@@ -582,7 +582,29 @@ class route:
         # Isolated path: create a sub-app per route and mount it.
         # Each sub-app gets its own middleware stack, /invoke, /inspect, and
         # an auto-generated /openapi.json enriched with workflow schemas.
+        #
+        # Special case: when path="/", FastAPI's built-in /openapi.json route
+        # on mount_root would intercept before the Mount reaches the sub-app,
+        # producing paths:{}.  Register routes directly on mount_root instead.
         # ------------------------------------------------------------------
+        if self.path == "/":
+            self.mount_root.add_api_route(
+                "/invoke",
+                invoke_endpoint,
+                methods=["POST"],
+                responses=invoke_responses,
+            )
+            self.mount_root.add_api_route(
+                "/inspect",
+                inspect_endpoint,
+                methods=["GET"],
+                response_model=WorkflowServiceRequest,
+            )
+
+            _attach_openapi_schema(self.mount_root, _workflow_name, _schemas)
+
+            return foo
+
         sub_app = create_app()
 
         sub_app.add_api_route(

@@ -50,7 +50,7 @@ def test_build_evaluator_data_uri_uses_evaluator_key():
 def test_build_evaluator_data_score_and_success_outputs():
     # auto_levenshtein_distance is in _SCORE_AND_SUCCESS_EVALUATORS
     data = _data("auto_levenshtein_distance")
-    outputs = data.schemas["outputs"]
+    outputs = data.schemas.outputs
     assert "score" in outputs["properties"]
     assert "success" in outputs["properties"]
 
@@ -58,7 +58,7 @@ def test_build_evaluator_data_score_and_success_outputs():
 def test_build_evaluator_data_success_only_outputs():
     # auto_exact_match is NOT in _SCORE_AND_SUCCESS_EVALUATORS
     data = _data("auto_exact_match")
-    outputs = data.schemas["outputs"]
+    outputs = data.schemas.outputs
     assert "success" in outputs["properties"]
     assert "score" not in outputs["properties"]
     assert "success" in outputs["required"]
@@ -76,13 +76,13 @@ def test_build_evaluator_data_ai_critique_with_json_schema():
         "required": ["relevance"],
     }
     data = _data("auto_ai_critique", json_schema={"schema": custom_schema})
-    assert data.schemas["outputs"] == custom_schema
+    assert data.schemas.outputs == custom_schema
 
 
 def test_build_evaluator_data_ai_critique_fallback_when_no_json_schema():
     # Falls back to default success-only output schema when json_schema missing
     data = _data("auto_ai_critique")
-    outputs = data.schemas["outputs"]
+    outputs = data.schemas.outputs
     assert "success" in outputs["properties"]
 
 
@@ -93,7 +93,7 @@ def test_build_evaluator_data_ai_critique_fallback_when_no_json_schema():
 
 def test_build_evaluator_data_json_multi_field_match_basic():
     data = _data("json_multi_field_match", fields=["accuracy", "fluency"])
-    outputs = data.schemas["outputs"]
+    outputs = data.schemas.outputs
     assert "aggregate_score" in outputs["properties"]
     assert "accuracy" in outputs["properties"]
     assert "fluency" in outputs["properties"]
@@ -102,7 +102,7 @@ def test_build_evaluator_data_json_multi_field_match_basic():
 
 def test_build_evaluator_data_json_multi_field_match_no_fields():
     data = _data("json_multi_field_match")
-    outputs = data.schemas["outputs"]
+    outputs = data.schemas.outputs
     assert "aggregate_score" in outputs["properties"]
 
 
@@ -160,21 +160,21 @@ def test_build_evaluator_data_parameters_none_when_empty_settings():
 def test_build_evaluator_data_ai_critique_has_parameters_schema():
     # auto_ai_critique has a non-empty settings_template in the registry
     data = _data("auto_ai_critique")
-    assert data.schemas.get("parameters") is not None
-    assert isinstance(data.schemas["parameters"], dict)
-    assert len(data.schemas["parameters"]) > 0
+    assert data.schemas.parameters is not None
+    assert isinstance(data.schemas.parameters, dict)
+    assert len(data.schemas.parameters) > 0
 
 
 def test_build_evaluator_data_exact_match_no_parameters_schema():
-    # auto_exact_match has an empty settings_template ({})
-    data = _data("auto_exact_match")
-    assert data.schemas.get("parameters") is None
+    # auto_contains_json has an empty settings_template ({})
+    data = _data("auto_contains_json")
+    assert data.schemas.parameters is None
 
 
 def test_build_evaluator_data_parameters_schema_contains_known_key():
     # auto_ai_critique settings_template has at least a "model" field
     data = _data("auto_ai_critique")
-    assert "model" in data.schemas["parameters"]
+    assert "model" in data.schemas.parameters
 
 
 # ---------------------------------------------------------------------------
