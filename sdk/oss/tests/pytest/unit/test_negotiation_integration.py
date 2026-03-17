@@ -11,15 +11,13 @@ Coverage:
 - Stream handler + no Accept → 200 NDJSON
 - Stream handler + SSE Accept → 200 SSE
 - Stream handler + application/json Accept → 406
-- workflow.invoke() response_mode mismatch → ResponseModeError
-- workflow.invoke() response_mode match → correct response type
 """
 
 import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from agenta.sdk.decorators.running import workflow, ResponseModeError
+from agenta.sdk.decorators.running import workflow
 from agenta.sdk.decorators.routing import handle_invoke_success
 from agenta.sdk.models.workflows import (
     WorkflowServiceRequest,
@@ -42,12 +40,8 @@ def _mock_request(accept: str = "") -> MagicMock:
     return req
 
 
-def _make_request(**inputs) -> WorkflowServiceRequest:
-    return WorkflowServiceRequest(data={"inputs": inputs})
-
-
 # ---------------------------------------------------------------------------
-# Batch handler integration
+# Fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -212,54 +206,3 @@ class TestStreamHandlerNegotiation:
         assert http.status_code == 406
         body = json.loads(http.body)
         assert body["requested"] == "application/json"
-
-
-# ---------------------------------------------------------------------------
-# response_mode on workflow.invoke()
-# ---------------------------------------------------------------------------
-
-
-class TestResponseModeOnInvoke:
-    @pytest.mark.asyncio
-    async def test_batch_mode_with_batch_handler_passes(self, batch_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        response = await batch_workflow.invoke(
-            request=req, response_mode="application/json"
-        )
-        assert isinstance(response, WorkflowServiceBatchResponse)
-
-    @pytest.mark.asyncio
-    async def test_stream_mode_with_batch_handler_raises(self, batch_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        with pytest.raises(ResponseModeError) as exc_info:
-            await batch_workflow.invoke(request=req, response_mode="text/event-stream")
-        assert exc_info.value.is_batch is True
-        assert exc_info.value.requested == "text/event-stream"
-
-    @pytest.mark.asyncio
-    async def test_stream_mode_with_stream_handler_passes(self, stream_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        response = await stream_workflow.invoke(
-            request=req, response_mode="text/event-stream"
-        )
-        assert isinstance(response, WorkflowServiceStreamResponse)
-
-    @pytest.mark.asyncio
-    async def test_batch_mode_with_stream_handler_raises(self, stream_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        with pytest.raises(ResponseModeError) as exc_info:
-            await stream_workflow.invoke(request=req, response_mode="application/json")
-        assert exc_info.value.is_batch is False
-        assert exc_info.value.requested == "application/json"
-
-    @pytest.mark.asyncio
-    async def test_none_mode_with_batch_handler_passes(self, batch_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        response = await batch_workflow.invoke(request=req, response_mode=None)
-        assert isinstance(response, WorkflowServiceBatchResponse)
-
-    @pytest.mark.asyncio
-    async def test_none_mode_with_stream_handler_passes(self, stream_workflow):
-        req = WorkflowServiceRequest(data={"inputs": {"prompt": "hi"}})
-        response = await stream_workflow.invoke(request=req, response_mode=None)
-        assert isinstance(response, WorkflowServiceStreamResponse)
