@@ -242,7 +242,7 @@ export function SearchablePopoverList<T>({
                                         label={label}
                                         labelNode={labelNode}
                                         isSelectable={false}
-                                        isSelected={false}
+                                        isSelected={isSelected}
                                         className={itemClassName}
                                     />
                                 </div>

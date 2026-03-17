@@ -6,16 +6,10 @@ import {
     simpleQueueMolecule,
     type CreateSimpleQueuePayload,
 } from "@agenta/entities/simpleQueue"
-import {
-    EntityPicker,
-    type EntitySelectionResult,
-    useEnrichedAnnotationEvaluatorAdapter,
-    type WorkflowRevisionSelectionResult,
-} from "@agenta/entity-ui/selection"
+import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
-import {ModalContent, ModalFooter, VersionBadge, message} from "@agenta/ui"
-import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button, Divider, Drawer, Form, Input, InputNumber, Select, Typography} from "antd"
+import {ModalContent, ModalFooter, message} from "@agenta/ui"
+import {Divider, Drawer, Form, Input, InputNumber, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -24,11 +18,19 @@ import {
     createQueueDrawerSelectionAtom,
 } from "../../state/atoms"
 
-interface EvaluatorSlot {
-    /** Revision ID sent to backend */
-    revisionId: string | undefined
-    label: string | undefined
-    isHuman: boolean
+import {EntityEvaluatorSelector} from "./EntityEvaluatorSelector"
+import SelectedEvaluatorCard, {type SelectedEvaluatorCardData} from "./SelectedEvaluatorCard"
+
+interface SelectedEvaluator extends SelectedEvaluatorCardData {
+    evaluatorId: string
+    revisionId: string
+}
+
+type AnnotationEvaluatorSelection = WorkflowRevisionSelectionResult & {
+    metadata: WorkflowRevisionSelectionResult["metadata"] & {
+        workflowId?: string
+        isHuman?: boolean
+    }
 }
 
 interface FormValues {
@@ -58,18 +60,6 @@ const INITIAL_FORM_VALUES: Pick<FormValues, "kind" | "repeats"> = {
 }
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"
-
-function createInitialEvaluatorSlots(): EvaluatorSlot[] {
-    return [{revisionId: undefined, label: undefined, isHuman: false}]
-}
-
-function isHumanEvaluatorSelection(selection: EntitySelectionResult): boolean {
-    const metadata = selection.metadata as
-        | {isHuman?: boolean; flags?: {is_human?: boolean} | null}
-        | undefined
-
-    return Boolean(metadata?.isHuman ?? metadata?.flags?.is_human)
-}
 
 function SectionTitle({children}: {children: React.ReactNode}) {
     return (
@@ -113,16 +103,16 @@ function CreateQueueDrawerContent({
     const createQueue = useSetAtom(createSimpleQueueAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
-    const evaluatorAdapter = useEnrichedAnnotationEvaluatorAdapter()
     const [form] = Form.useForm<FormValues>()
-    const [evaluatorSlots, setEvaluatorSlots] = useState<EvaluatorSlot[]>(
-        createInitialEvaluatorSlots,
-    )
+    const [selectedEvaluators, setSelectedEvaluators] = useState<SelectedEvaluator[]>([])
 
     const repeats = Math.max(Form.useWatch("repeats", form) ?? INITIAL_FORM_VALUES.repeats, 1)
-    const hasHumanEvaluatorSelected = evaluatorSlots.some(
-        (slot) => Boolean(slot.revisionId) && slot.isHuman,
+    const hasHumanEvaluatorSelected = selectedEvaluators.some((evaluator) => evaluator.isHuman)
+    const selectedRevisionIds = useMemo(
+        () => new Set(selectedEvaluators.map((evaluator) => evaluator.revisionId)),
+        [selectedEvaluators],
     )
+    const latestSelectedEvaluator = selectedEvaluators[selectedEvaluators.length - 1] ?? null
 
     useEffect(() => {
         if (!hasHumanEvaluatorSelected) {
@@ -158,40 +148,31 @@ function CreateQueueDrawerContent({
         }
     }, [onRegisterSubmit, requestSubmit])
 
-    const handleEvaluatorSelect = useCallback((index: number, selection: EntitySelectionResult) => {
-        setEvaluatorSlots((prev) => {
-            const next = [...prev]
-            next[index] = {
-                revisionId: selection.id,
-                label: selection.label,
-                isHuman: isHumanEvaluatorSelection(selection),
+    const handleEvaluatorSelect = useCallback((selection: WorkflowRevisionSelectionResult) => {
+        const {id, metadata} = selection as AnnotationEvaluatorSelection
+
+        setSelectedEvaluators((prev) => {
+            if (prev.some((evaluator) => evaluator.revisionId === id)) {
+                return prev
             }
-            return next
+
+            return [
+                ...prev,
+                {
+                    evaluatorId: metadata.workflowId || "",
+                    revisionId: id,
+                    evaluatorName: metadata.workflowName || "Evaluator",
+                    version: metadata.revision ?? 0,
+                    isHuman: Boolean(metadata.isHuman),
+                },
+            ]
         })
     }, [])
 
-    const evaluatorDisplayRender = useCallback((labels: string[]) => {
-        if (labels.length === 0) return ""
-        const revisionLabel = labels[labels.length - 1]
-        const parentLabels = labels.slice(0, -1)
-        const versionMatch = /^v(\d+)/.exec(revisionLabel)
-        if (versionMatch) {
-            return (
-                <span className="inline-flex items-center gap-1.5">
-                    {parentLabels.length > 0 ? <span>{parentLabels.join(" / ")}</span> : null}
-                    <VersionBadge version={Number(versionMatch[1])} variant="chip" size="small" />
-                </span>
-            )
-        }
-        return labels.join(" / ")
-    }, [])
-
-    const handleAddEvaluator = useCallback(() => {
-        setEvaluatorSlots((prev) => [...prev, ...createInitialEvaluatorSlots()])
-    }, [])
-
-    const handleRemoveEvaluator = useCallback((index: number) => {
-        setEvaluatorSlots((prev) => prev.filter((_, slotIndex) => slotIndex !== index))
+    const handleRemoveEvaluator = useCallback((revisionId: string) => {
+        setSelectedEvaluators((prev) =>
+            prev.filter((evaluator) => evaluator.revisionId !== revisionId),
+        )
     }, [])
 
     const handleFinish = useCallback(
@@ -213,9 +194,9 @@ function CreateQueueDrawerContent({
                     return
                 }
 
-                const evaluatorRevisionIds = evaluatorSlots
-                    .map((slot) => slot.revisionId)
-                    .filter((id): id is string => Boolean(id))
+                const evaluatorRevisionIds = selectedEvaluators.map(
+                    (evaluator) => evaluator.revisionId,
+                )
 
                 const nonEmptyAssignments = hasHumanEvaluatorSelected
                     ? (values.assignments ?? [])
@@ -288,13 +269,13 @@ function CreateQueueDrawerContent({
             addTestcases,
             addTraces,
             createQueue,
-            evaluatorSlots,
             hasHumanEvaluatorSelected,
             onClose,
             onClearSelection,
             onItemsAdded,
             onSetSubmitting,
             projectId,
+            selectedEvaluators,
             selection,
         ],
     )
@@ -357,46 +338,24 @@ function CreateQueueDrawerContent({
 
                     <div className="flex flex-col gap-2">
                         <FieldLabel>Feedback</FieldLabel>
-                        <div className="flex flex-col gap-2">
-                            {evaluatorSlots.map((slot, index) => (
-                                <div key={index} className="flex items-center gap-1.5">
-                                    <div className="min-w-0 flex-1">
-                                        <EntityPicker<WorkflowRevisionSelectionResult>
-                                            variant="cascader"
-                                            adapter={evaluatorAdapter}
-                                            onSelect={(selection) =>
-                                                handleEvaluatorSelect(index, selection)
-                                            }
-                                            size="middle"
-                                            placeholder={slot.label ?? "Select evaluator..."}
-                                            instanceId={`queue-evaluator-${index}`}
-                                            className="!w-full"
-                                            displayRender={evaluatorDisplayRender}
-                                        />
-                                    </div>
-                                    {evaluatorSlots.length > 1 ? (
-                                        <Button
-                                            type="text"
-                                            size="small"
-                                            icon={<MinusCircle size={16} />}
-                                            onClick={() => handleRemoveEvaluator(index)}
-                                            disabled={isSubmitting}
-                                            className="!flex !h-8 !w-8 !items-center !justify-center !p-0"
-                                        />
-                                    ) : null}
-                                </div>
-                            ))}
-                        </div>
-                        <div>
-                            <Button
-                                type="dashed"
-                                size="small"
-                                icon={<Plus size={14} />}
-                                onClick={handleAddEvaluator}
+                        <div className="flex flex-col gap-3">
+                            <EntityEvaluatorSelector
+                                onSelect={handleEvaluatorSelect}
+                                instanceId="queue-evaluator"
                                 disabled={isSubmitting}
-                            >
-                                Add annotation
-                            </Button>
+                                disabledRevisionIds={selectedRevisionIds}
+                                selectedEvaluatorId={latestSelectedEvaluator?.evaluatorId ?? null}
+                                selectedRevisionId={latestSelectedEvaluator?.revisionId ?? null}
+                                openVersionOnHover
+                            />
+                            {selectedEvaluators.map((evaluator) => (
+                                <SelectedEvaluatorCard
+                                    key={evaluator.revisionId}
+                                    evaluator={evaluator}
+                                    onRemove={handleRemoveEvaluator}
+                                    disabled={isSubmitting}
+                                />
+                            ))}
                         </div>
                     </div>
                 </div>

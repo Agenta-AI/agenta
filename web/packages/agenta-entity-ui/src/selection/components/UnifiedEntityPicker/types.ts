@@ -554,6 +554,16 @@ export interface PopoverCascaderVariantProps<
     variant: "popover-cascader"
 
     /**
+     * Currently selected parent entity ID (for highlighting)
+     */
+    selectedParentId?: string | null
+
+    /**
+     * Currently selected child entity ID (for highlighting)
+     */
+    selectedChildId?: string | null
+
+    /**
      * Trigger button size
      * @default "small"
      */
@@ -569,6 +579,12 @@ export interface PopoverCascaderVariantProps<
      * Icon rendered inside the trigger button (before the text)
      */
     icon?: ReactNode
+
+    /**
+     * Whether to render the dropdown chevron on the trigger button.
+     * @default true
+     */
+    showDropdownIcon?: boolean
 
     /**
      * Popover placement
@@ -617,6 +633,12 @@ export interface PopoverCascaderVariantProps<
      * @default "Already connected"
      */
     disabledChildTooltip?: string
+
+    /**
+     * Opens the child panel when hovering a parent item.
+     * @default false
+     */
+    openChildOnHover?: boolean
 }
 
 // ============================================================================
