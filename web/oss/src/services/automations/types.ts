@@ -42,10 +42,6 @@ export interface GitHubFormValues extends AutomationFormValuesBase<"github"> {
 
 export type AutomationFormValues = WebhookFormValues | GitHubFormValues
 
-export interface WebhookSubscriptionFlags {
-    is_valid?: boolean
-}
-
 /** Full subscription as returned by the backend */
 export interface WebhookSubscription {
     id: string
@@ -54,7 +50,6 @@ export interface WebhookSubscription {
     description?: string
     created_at: string
     updated_at: string
-    flags?: WebhookSubscriptionFlags
     data: WebhookSubscriptionData
     secret?: string
     secret_id?: string
@@ -67,7 +62,6 @@ export interface WebhookSubscriptionCreateRequest {
     subscription: {
         name?: string
         description?: string
-        flags?: Pick<WebhookSubscriptionFlags, "is_valid">
         secret?: string
         data: {
             url: string
@@ -87,7 +81,6 @@ export interface WebhookSubscriptionEditRequest {
         id: string
         name?: string
         description?: string
-        flags?: Pick<WebhookSubscriptionFlags, "is_valid">
         secret?: string
         data: {
             url: string
@@ -96,6 +89,30 @@ export interface WebhookSubscriptionEditRequest {
             payload_fields?: Record<string, unknown>
             auth_mode?: "signature" | "authorization"
         }
+    }
+}
+
+export type WebhookSubscriptionTestRequest =
+    | ({
+          subscription_id: string
+          subscription?: undefined
+      } & Partial<WebhookSubscriptionCreateRequest>)
+    | ({subscription_id?: undefined} & WebhookSubscriptionCreateRequest)
+    | ({subscription_id?: undefined} & WebhookSubscriptionEditRequest)
+
+export interface WebhookDeliveriesQueryRequest {
+    delivery?: {
+        subscription_id?: string
+        event_id?: string
+        status?: {
+            code?: string
+        }
+    }
+    include_archived?: boolean
+    windowing?: {
+        limit?: number
+        order?: "ascending" | "descending"
+        cursor?: string
     }
 }
 
@@ -122,6 +139,7 @@ export interface WebhookDeliveryData {
     event_type?: WebhookEventType
     url: string
     headers?: Record<string, string>
+    payload?: Record<string, unknown>
     response?: WebhookDeliveryResponseInfo
     error?: string
 }

@@ -1,3 +1,4 @@
+import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 
 import {testcase} from "@/oss/state/entities/testcase"
@@ -322,24 +323,6 @@ export const updateAllLocalEntitiesAtom = atom(
 
             // First, mark all non-system columns for removal by setting to undefined
             if (currentEntity) {
-                const SYSTEM_FIELDS = new Set([
-                    "id",
-                    "key",
-                    "testset_id",
-                    "set_id",
-                    "created_at",
-                    "updated_at",
-                    "deleted_at",
-                    "created_by_id",
-                    "updated_by_id",
-                    "deleted_by_id",
-                    "flags",
-                    "tags",
-                    "meta",
-                    "__isSkeleton",
-                    "__isNew",
-                    "testcase_dedup_id",
-                ])
                 Object.keys(currentEntity).forEach((key) => {
                     if (!SYSTEM_FIELDS.has(key)) {
                         updates[key] = undefined // Mark for deletion
