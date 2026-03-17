@@ -1,4 +1,4 @@
-name: "07 - railway preview: deploy"
+name: "43 - railway deploy"
 
 on:
   workflow_call:
@@ -11,10 +11,33 @@ on:
         description: "PR number"
         required: true
         type: string
+    secrets:
+      RAILWAY_TOKEN:
+        required: true
+      AGENTA_TEST_OSS_POSTGRES_PASSWORD:
+        required: true
+      AGENTA_TEST_OSS_AUTH_KEY:
+        required: true
+      AGENTA_TEST_OSS_CRYPT_KEY:
+        required: true
+      AGENTA_TEST_OSS_POSTHOG_API_KEY:
+        required: false
+      AGENTA_TEST_OSS_SENDGRID_API_KEY:
+        required: false
+      AGENTA_TEST_OSS_COMPOSIO_API_KEY:
+        required: false
+      AGENTA_TEST_OSS_DAYTONA_API_KEY:
+        required: false
     outputs:
       preview_url:
         description: "The URL of the deployed preview environment"
         value: ${{ jobs.deploy.outputs.preview_url }}
+      project_name:
+        description: "Railway project name"
+        value: ${{ jobs.deploy.outputs.project_name }}
+      environment_name:
+        description: "Railway environment name"
+        value: ${{ jobs.deploy.outputs.environment_name }}
   workflow_dispatch:
     inputs:
       image_tag:
@@ -42,6 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       preview_url: ${{ steps.deploy.outputs.preview_url }}
+      project_name: ${{ steps.deploy.outputs.project_name }}
+      environment_name: ${{ steps.deploy.outputs.environment_name }}
+      railway_logs_url: ${{ steps.deploy.outputs.railway_logs_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +87,13 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
           IMAGE_TAG: ${{ inputs.image_tag }}
+          POSTGRES_PASSWORD: ${{ secrets.AGENTA_TEST_OSS_POSTGRES_PASSWORD }}
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+          AGENTA_CRYPT_KEY: ${{ secrets.AGENTA_TEST_OSS_CRYPT_KEY }}
+          POSTHOG_API_KEY: ${{ secrets.AGENTA_TEST_OSS_POSTHOG_API_KEY }}
+          SENDGRID_API_KEY: ${{ secrets.AGENTA_TEST_OSS_SENDGRID_API_KEY }}
+          COMPOSIO_API_KEY: ${{ secrets.AGENTA_TEST_OSS_COMPOSIO_API_KEY }}
+          DAYTONA_API_KEY: ${{ secrets.AGENTA_TEST_OSS_DAYTONA_API_KEY }}
           RAILWAY_POST_BOOTSTRAP_SLEEP: "2"
           RAILWAY_INFRA_SETTLE_SECONDS: "20"
           RAILWAY_APP_SETTLE_SECONDS: "0"
@@ -76,6 +109,8 @@ jobs:
           chmod +x hosting/railway/oss/scripts/*.sh
           # shellcheck source=/dev/null
           source hosting/railway/oss/scripts/lib.sh
+          # shellcheck source=/dev/null
+          source hosting/railway/oss/scripts/preview-resolve-env.sh
 
           log_file="$(mktemp)"
           cleanup() {
@@ -83,8 +118,11 @@ jobs:
           }
           trap cleanup EXIT
 
+          project="$RAILWAY_PROJECT_NAME"
+          environment_name="$RAILWAY_ENVIRONMENT_NAME"
+
           set +e
-          hosting/railway/oss/scripts/preview-create-or-update.sh 2>&1 | tee "$log_file"
+          hosting/railway/oss/scripts/deploy-from-images.sh 2>&1 | tee "$log_file"
           deploy_status=${PIPESTATUS[0]}
           set -e
 
@@ -93,69 +131,45 @@ jobs:
             deploy_failed=true
           fi
 
-          # Extract preview URL from output
-          url="$(grep -oP 'Preview URL: \K.*' "$log_file" || true)"
-          url="${url%%$'\n'*}"
-          url="${url//$'\r'/}"
-
-          # Extract project name from output
-          project="$(grep -oP "Preview deploy completed for '\K[^']*" "$log_file" || true)"
-          if [ -z "$project" ]; then
-            project="$(grep -oP "Bootstrap completed for project '\K[^']*" "$log_file" || true)"
-          fi
-          project="${project%%$'\n'*}"
-          project="${project//$'\r'/}"
-
-          environment_name="$(grep -oP "Preview deploy completed for '[^']+' \(\K[^)]*" "$log_file" || true)"
-          if [ -z "$environment_name" ]; then
-            environment_name="$(grep -oP "Bootstrap completed for project '[^']*' environment '\K[^']*" "$log_file" || true)"
-          fi
-          environment_name="${environment_name%%$'\n'*}"
-          environment_name="${environment_name//$'\r'/}"
-          if [ -z "$environment_name" ]; then
-            environment_name="production"
-          fi
-
           railway_logs_url="$(grep -oP 'Build Logs:\s*\Khttps://railway\.com\S+' "$log_file" | head -n 1 || true)"
           railway_logs_url="${railway_logs_url%%$'\n'*}"
           railway_logs_url="${railway_logs_url%%&}"
 
-          if [ -n "$project" ]; then
+          url=""
+
+          set +e
+          railway_call link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
+          status_json="$(railway_call status --json 2>/dev/null)"
+          domain="$(railway_call variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
+          set -e
+
+          if [ -n "$domain" ]; then
+            url="https://${domain}/w"
+          fi
+
+          project_id="$(printf "%s" "$status_json" | jq -r '.project.id // .projectId // empty' 2>/dev/null || true)"
+          environment_id="$(printf "%s" "$status_json" | jq -r '.environment.id // .environmentId // empty' 2>/dev/null || true)"
+
+          if [ -z "$project_id" ] || [ -z "$environment_id" ]; then
             set +e
-            railway_call link --project "$project" --environment "$environment_name" --json >/dev/null 2>&1
-            status_json="$(railway_call status --json 2>/dev/null)"
-
-            if [ -z "$url" ]; then
-              domain="$(railway_call variable list -k --service gateway --environment "$environment_name" 2>/dev/null | grep '^RAILWAY_PUBLIC_DOMAIN=' | cut -d= -f2- || true)"
-              if [ -n "$domain" ]; then
-                url="https://${domain}/w"
-              fi
-            fi
-
-            project_id="$(printf "%s" "$status_json" | jq -r '.project.id // .projectId // empty' 2>/dev/null || true)"
-            environment_id="$(printf "%s" "$status_json" | jq -r '.environment.id // .environmentId // empty' 2>/dev/null || true)"
-
-            if [ -z "$project_id" ] || [ -z "$environment_id" ]; then
-              projects_json="$(railway_call list --json 2>/dev/null)"
-              project_id="$(printf "%s" "$projects_json" | jq -r --arg name "$project" '.[] | select(.name == $name) | .id' 2>/dev/null | head -n 1)"
-
-              environment_json="$(railway_call environment "$environment_name" --json 2>/dev/null)"
-              environment_id="$(printf "%s" "$environment_json" | jq -r '.id // .environment.id // .environmentId // empty' 2>/dev/null | head -n 1)"
-            fi
+            projects_json="$(railway_call project list --json 2>/dev/null)"
+            project_id="$(printf "%s" "$projects_json" | jq -r --arg name "$project" '.[] | select(.name == $name) | .id' 2>/dev/null | head -n 1)"
+            environment_json="$(railway_call environment "$environment_name" --json 2>/dev/null)"
+            environment_id="$(printf "%s" "$environment_json" | jq -r '.id // .environment.id // .environmentId // empty' 2>/dev/null | head -n 1)"
             set -e
+          fi
 
-            if [ "$project_id" = "null" ]; then
-              project_id=""
-            fi
-            if [ "$environment_id" = "null" ]; then
-              environment_id=""
-            fi
+          if [ "$project_id" = "null" ]; then
+            project_id=""
+          fi
+          if [ "$environment_id" = "null" ]; then
+            environment_id=""
+          fi
 
-            if [ -n "$project_id" ] && [ -n "$environment_id" ]; then
-              railway_logs_url="https://railway.com/project/${project_id}/logs?environmentId=${environment_id}"
-            elif [ -n "$project_id" ]; then
-              railway_logs_url="https://railway.com/project/${project_id}/logs"
-            fi
+          if [ -n "$project_id" ] && [ -n "$environment_id" ]; then
+            railway_logs_url="https://railway.com/project/${project_id}/logs?environmentId=${environment_id}"
+          elif [ -n "$project_id" ]; then
+            railway_logs_url="https://railway.com/project/${project_id}/logs"
           fi
 
           echo "preview_url=${url}" >> "$GITHUB_OUTPUT"
@@ -167,7 +181,6 @@ jobs:
           cleanup
 
           if [ "$deploy_failed" = "true" ]; then
-            echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
             exit 1
           fi
 
@@ -200,7 +213,6 @@ jobs:
               `_Updated at ${new Date().toISOString()}_`,
             ].filter(Boolean).join('\n');
 
-            // Find existing comment from this bot
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -275,19 +287,3 @@ jobs:
                 body,
               });
             }
-
-      - name: Summary
-        if: always()
-        run: |
-          echo "### Railway Preview Deploy" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **PR:** #${{ inputs.pr_number }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Image tag:** \`${{ inputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "${{ steps.deploy.outputs.preview_url }}" ]; then
-            echo "- **Preview URL:** ${{ steps.deploy.outputs.preview_url }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -n "${{ steps.deploy.outputs.railway_logs_url }}" ]; then
-            echo "- **Railway logs:** ${{ steps.deploy.outputs.railway_logs_url }}" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "- **Workflow logs:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Project:** \`${{ steps.deploy.outputs.project_name }}\`" >> "$GITHUB_STEP_SUMMARY"

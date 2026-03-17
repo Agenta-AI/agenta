@@ -110,7 +110,9 @@ class AuthConfig(BaseModel):
     boxy_saml_url: str | None = os.getenv("BOXY_SAML_URL")
 
     # TEST: ENFORCE CHALLENGE
-    # # turnstile_site_key: str | None = "3x00000000000000000000FF"
+    # turnstile_site_key: str | None = "3x00000000000000000000FF"
+    # TEST: BYPASS CHALLENGE
+    # turnstile_site_key: str | None = "1x00000000000000000000AA"
     turnstile_site_key: str | None = os.getenv("CLOUDFLARE_TURNSTILE_SITE_KEY")
     # TEST: ACCEPT CHALLENGE
     # # turnstile_secret_key: str | None = "1x0000000000000000000000000000000AA"
