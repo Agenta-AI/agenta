@@ -26,6 +26,8 @@ const tsEslintConfig = tseslint.config(
     tseslint.configs.stylistic,
 )
 
+const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
+
 const config = [
     ...compat.extends("next/core-web-vitals"),
     ...compat.extends("plugin:@lexical/recommended"),
@@ -135,10 +137,23 @@ const config = [
                     ],
                 },
             ],
-            "prettier/prettier": "error",
+            ...(includePrettierRule
+                ? {
+                      "prettier/prettier": [
+                          "error",
+                          {
+                              printWidth: 100,
+                              tabWidth: 4,
+                              useTabs: false,
+                              semi: false,
+                              bracketSpacing: false,
+                          },
+                      ],
+                  }
+                : {}),
         },
     },
-    eslintPluginPrettier,
+    ...(includePrettierRule ? [eslintPluginPrettier] : []),
 ]
 
 export default config

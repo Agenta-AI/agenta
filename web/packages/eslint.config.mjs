@@ -28,6 +28,8 @@ const tsEslintConfig = tseslint.config(
     tseslint.configs.stylistic,
 )
 
+const includePrettierRule = process.env.DISABLE_PRETTIER !== "true"
+
 const config = [
     ...compat.extends("plugin:@lexical/recommended"),
     ...tsEslintConfig,
@@ -98,10 +100,23 @@ const config = [
                     ],
                 },
             ],
-            "prettier/prettier": "error",
+            ...(includePrettierRule
+                ? {
+                      "prettier/prettier": [
+                          "error",
+                          {
+                              printWidth: 100,
+                              tabWidth: 4,
+                              useTabs: false,
+                              semi: false,
+                              bracketSpacing: false,
+                          },
+                      ],
+                  }
+                : {}),
         },
     },
-    eslintPluginPrettier,
+    ...(includePrettierRule ? [eslintPluginPrettier] : []),
     {
         ignores: ["**/dist/**", "**/node_modules/**", "**/*.d.ts"],
     },

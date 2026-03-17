@@ -1,0 +1,90 @@
+name: "41 - railway setup"
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Optional image tag to associate with created services"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      RAILWAY_TOKEN:
+        required: true
+    outputs:
+      project_name:
+        description: "Railway project name"
+        value: ${{ jobs.setup.outputs.project_name }}
+      environment_name:
+        description: "Railway environment name"
+        value: ${{ jobs.setup.outputs.environment_name }}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Optional image tag to associate with created services"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-preview-setup-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+env:
+  RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      project_name: ${{ steps.setup.outputs.project_name }}
+      environment_name: ${{ steps.setup.outputs.environment_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: |
+          npm install -g @railway/cli@latest
+          railway --version
+
+      - name: Install jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      - name: Setup preview environment
+        id: setup
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/*.sh
+          # shellcheck source=/dev/null
+          source hosting/railway/oss/scripts/preview-resolve-env.sh
+          hosting/railway/oss/scripts/bootstrap.sh
+          echo "project_name=${RAILWAY_PROJECT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "environment_name=${RAILWAY_ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Railway Preview Setup"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${{ inputs.pr_number }}\` |"
+            echo "| Project | \`${{ steps.setup.outputs.project_name }}\` |"
+            echo "| Environment | \`${{ steps.setup.outputs.environment_name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

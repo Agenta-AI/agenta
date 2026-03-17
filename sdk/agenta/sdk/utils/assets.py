@@ -52,7 +52,6 @@ supported_llm_models = {
         "gemini/gemini-2.0-flash",
         "gemini/gemini-2.0-flash-001",
         "gemini/gemini-2.0-flash-lite",
-        "gemini/gemini-1.5-flash",
     ],
     "groq": [
         "groq/meta-llama/llama-4-maverick-17b-128e-instruct",

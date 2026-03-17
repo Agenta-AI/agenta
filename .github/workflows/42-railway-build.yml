@@ -1,53 +1,71 @@
-name: "06 - railway preview: build images"
+name: "42 - railway build"
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'api/**'
-      - 'web/**'
-      - 'services/**'
-      - 'sdk/**'
-      - 'hosting/railway/**'
-      - '.github/workflows/06-railway-preview-build.yml'
-      - '.github/workflows/07-railway-preview-deploy.yml'
+  workflow_call:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
+        required: false
+        type: string
+        default: ""
+    outputs:
+      image_tag:
+        description: "Image tag produced by the build"
+        value: ${{ jobs.prepare.outputs.image_tag }}
+      pr_number:
+        description: "PR number"
+        value: ${{ jobs.prepare.outputs.pr_number }}
   workflow_dispatch:
     inputs:
       pr_number:
-        description: "PR number (for manual runs)"
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
         required: false
         type: string
+        default: ""
 
 permissions:
   contents: read
   packages: write
-  pull-requests: write
 
 concurrency:
-  group: railway-preview-build-${{ github.event.pull_request.number || github.ref_name }}
+  group: railway-preview-build-${{ inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       pr_number: ${{ steps.meta.outputs.pr_number }}
       cache_scope: ${{ steps.meta.outputs.cache_scope }}
+      build_images: ${{ steps.meta.outputs.build_images }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Determine build metadata
         id: meta
         run: |
-          PR="${{ github.event.pull_request.number || inputs.pr_number }}"
+          PR="${{ inputs.pr_number }}"
+          INPUT_TAG="${{ inputs.image_tag }}"
           SHA="$(git rev-parse --short HEAD)"
 
-          if [ -n "$PR" ]; then
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+            BUILD_IMAGES=false
+          elif [ -n "$PR" ]; then
             TAG="pr-${PR}-${SHA}"
+            BUILD_IMAGES=true
           else
             TAG="manual-${SHA}"
+            BUILD_IMAGES=true
           fi
 
           if [ -n "$PR" ]; then
@@ -64,26 +82,25 @@ jobs:
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
           echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
-          echo "Image tag: ${TAG}"
-          echo "Cache scope: ${CACHE_SCOPE}"
+          echo "build_images=${BUILD_IMAGES}" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
-          TAG="${{ steps.meta.outputs.image_tag }}"
-          echo "### Railway Preview Images" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Image | Tag |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-------|-----|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-api | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-web | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| agenta-services | \`${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Cache scope: \`${{ steps.meta.outputs.cache_scope }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Shared cache: \`buildcache-shared\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Railway Preview Build"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${{ steps.meta.outputs.pr_number }}\` |"
+            echo "| Image tag | \`${{ steps.meta.outputs.image_tag }}\` |"
+            echo "| Build images | \`${{ steps.meta.outputs.build_images }}\` |"
+            echo "| Cache scope | \`${{ steps.meta.outputs.cache_scope }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   build-and-push:
+    name: build (${{ matrix.image_name }})
     needs: prepare
-    if: needs.prepare.outputs.image_tag != ''
+    if: needs.prepare.outputs.build_images == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -167,20 +184,3 @@ jobs:
       - name: Summary
         run: |
           echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-
-  deploy:
-    needs: [prepare, build-and-push]
-    if: needs.prepare.outputs.pr_number != '' && needs.build-and-push.result == 'success'
-    uses: ./.github/workflows/07-railway-preview-deploy.yml
-    with:
-      image_tag: ${{ needs.prepare.outputs.image_tag }}
-      pr_number: ${{ needs.prepare.outputs.pr_number }}
-    secrets: inherit
-
-  playwright:
-    needs: [deploy]
-    if: needs.deploy.outputs.preview_url != ''
-    uses: ./.github/workflows/10-playwright-oss-tests.yml
-    with:
-      web_url: ${{ needs.deploy.outputs.preview_url }}
-    secrets: inherit
