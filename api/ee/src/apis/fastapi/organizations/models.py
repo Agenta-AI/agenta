@@ -1,5 +1,6 @@
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +26,7 @@ class OrganizationDomainVerify(BaseModel):
 class OrganizationDomainResponse(BaseModel):
     """Response model for a domain."""
 
-    id: str
+    id: UUID
     slug: str
 
     name: Optional[str]
@@ -38,7 +39,7 @@ class OrganizationDomainResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
-    organization_id: str
+    organization_id: UUID
 
     class Config:
         from_attributes = True
@@ -76,7 +77,7 @@ class OrganizationProviderUpdate(BaseModel):
 class OrganizationProviderResponse(BaseModel):
     """Response model for an SSO provider."""
 
-    id: str
+    id: UUID
     slug: str
 
     name: Optional[str]
@@ -89,7 +90,7 @@ class OrganizationProviderResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
-    organization_id: str
+    organization_id: UUID
 
     class Config:
         from_attributes = True

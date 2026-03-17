@@ -1636,6 +1636,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/test-webhook-subscription",
+          label: "Test Subscription",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/fetch-webhook-subscription",
           label: "Fetch Subscription",
           className: "api-method get",
@@ -1674,12 +1680,6 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/query-webhook-deliveries",
           label: "Query Deliveries",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/test-webhook",
-          label: "Test Webhook",
           className: "api-method post",
         },
       ],

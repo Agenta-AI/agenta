@@ -45,6 +45,7 @@
  * ```
  */
 
+import {SYSTEM_FIELDS} from "@agenta/entities/testcase"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -92,25 +93,6 @@ import {invalidateRevisionsListCache} from "./store"
 // ============================================================================
 // SYSTEM FIELDS (excluded from column derivation)
 // ============================================================================
-
-const SYSTEM_FIELDS = new Set([
-    "id",
-    "key",
-    "testset_id",
-    "set_id",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "created_by_id",
-    "updated_by_id",
-    "deleted_by_id",
-    "flags",
-    "tags",
-    "meta",
-    "__isSkeleton",
-    "testcase_dedup_id",
-    "__dedup_id__",
-])
 
 // ============================================================================
 // REVISION WITH TESTCASES QUERY

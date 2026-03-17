@@ -155,7 +155,9 @@ const getEnvNameMap = (): Record<string, any> => ({
     DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
     ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
     GROQ_API_KEY: SecretDTOProvider.GROQ,
-    MISTRAL_API_KEY: SecretDTOProvider.MISTRALAI,
+    MISTRAL_API_KEY: SecretDTOProvider.MISTRAL,
+    // Backward-compatible mapping for legacy Mistral provider name
+    MISTRALAI_API_KEY: SecretDTOProvider.MISTRAL,
     ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
     PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
     TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
@@ -174,6 +176,13 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
     const updateMutation = get(updateVaultSecretMutationAtom)
 
     try {
+        const providerKind = envNameMap[provider.name as string]
+        if (!providerKind) {
+            throw new Error(
+                `[vault] Unknown provider name "${provider.name}" when creating standard secret`,
+            )
+        }
+
         // Match the original working payload structure exactly
         const payload = {
             header: {
@@ -183,7 +192,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
             secret: {
                 kind: SecretDTOKind.PROVIDER_KEY,
                 data: {
-                    kind: envNameMap[provider.name as string],
+                    kind: providerKind,
                     provider: {
                         key: provider.key,
                     },
