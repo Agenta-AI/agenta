@@ -1,6 +1,6 @@
 import {WorkerInfo} from "@playwright/test"
 
-import {getTestmailClient} from "../../../../utils/testmail"
+import {generateRuntimeTestEmail} from "../../../../utils/testmail"
 import {UserState} from "../types"
 
 /**
@@ -14,17 +14,19 @@ import {UserState} from "../types"
  *
  * @example
  * const userState = createInitialUserState(project);
- * // Returns {
- * //   email: "abc123@namespace.testmail.app",
+ * // Returns either {
+ * //   email: "my-branch-1700000000000.test.agenta@test.agenta.ai",
+ * //   isAuthenticated: false,
+ * //   requiresAuth: true
+ * // }
+ * // or, when TESTMAIL_NAMESPACE is set: {
+ * //   email: "namespace.my-branch-1700000000000.test.agenta@inbox.testmail.app",
  * //   isAuthenticated: false,
  * //   requiresAuth: true
  * // }
  */
 export function createInitialUserState(project: Partial<WorkerInfo["project"]>): UserState {
-    const testmail = getTestmailClient()
-
-    // Create email with structured tag
-    const email = testmail.generateTestEmail({
+    const email = generateRuntimeTestEmail({
         scope: project.name,
         branch: process.env.BRANCH_NAME,
     })

@@ -11,9 +11,23 @@ SKIP_UNSETS="${CONFIGURE_SKIP_UNSETS:-false}"
 
 POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
 REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
-AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-0000000000000000000000000000000000000000000000000000000000000000}"
-AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-1111111111111111111111111111111111111111111111111111111111111111}"
+AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
+AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
+
+resolve_postgres_password() {
+    if [ -n "$POSTGRES_PASSWORD" ]; then
+        return 0
+    fi
+
+    local existing_password
+    existing_password="$(railway_call variable list -k --service "$POSTGRES_REF_NS" --environment "$ENV_NAME" | grep '^POSTGRES_PASSWORD=' | cut -d= -f2- || true)"
+    if [ -n "$existing_password" ]; then
+        POSTGRES_PASSWORD="$existing_password"
+    else
+        POSTGRES_PASSWORD="$(openssl rand -hex 24)"
+    fi
+}
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -80,8 +94,7 @@ main() {
     require_cmd railway
     require_railway_auth
 
-    if [ "$AGENTA_AUTH_KEY" = "0000000000000000000000000000000000000000000000000000000000000000" ] || \
-       [ "$AGENTA_CRYPT_KEY" = "1111111111111111111111111111111111111111111111111111111111111111" ]; then
+    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ]; then
         printf "WARNING: Using default placeholder auth/crypt keys. Set AGENTA_AUTH_KEY and AGENTA_CRYPT_KEY for production deployments.\n" >&2
     fi
 
@@ -100,16 +113,6 @@ main() {
     pg_host_ref="\${{${POSTGRES_REF_NS}.RAILWAY_PRIVATE_DOMAIN}}"
     local pg_port_ref
     pg_port_ref="\${{${POSTGRES_REF_NS}.PGPORT}}"
-
-    if [ -z "$POSTGRES_PASSWORD" ]; then
-        local existing_postgres_password
-        existing_postgres_password="$(railway_call variable list -k --service "$POSTGRES_REF_NS" --environment "$ENV_NAME" | grep '^POSTGRES_PASSWORD=' | cut -d= -f2- || true)"
-        if [ -n "$existing_postgres_password" ]; then
-            POSTGRES_PASSWORD="$existing_postgres_password"
-        else
-            POSTGRES_PASSWORD="$(openssl rand -hex 24)"
-        fi
-    fi
 
     local pg_async_core
     pg_async_core="postgresql+asyncpg://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_core"
@@ -155,6 +158,9 @@ main() {
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
 
     unset_vars services AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL
+
+    set_optional_vars services \
+        "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}"
 
     set_vars worker-evaluations \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
@@ -234,6 +240,8 @@ main() {
             RAILWAY_RUN_UID=0 \
             RAILWAY_RUN_GID=0
     fi
+
+    resolve_postgres_password
 
     set_vars "$POSTGRES_REF_NS" \
         PGDATA=/var/lib/postgresql/data/pgdata \

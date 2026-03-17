@@ -29,14 +29,14 @@ pnpm -C web/tests test:acceptance -- \
 
 Auth behavior in global setup:
 
-- `AGENTA_TEST_AUTH_MODE=auto` (default): detect flow from UI.
-- `AGENTA_TEST_AUTH_MODE=password`: enforce password flow.
-- `AGENTA_TEST_AUTH_MODE=otp`: enforce OTP flow (requires Testmail envs).
+- The runner follows the auth flow rendered by the frontend.
+- If the frontend renders password auth, OSS owner email/password must be available.
+- If the frontend renders OTP auth, Testmail envs must be available.
 
 Safety behavior in teardown:
 
 - Destructive cleanup is disabled by default.
-- Enable only when needed with `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
+- Enable only when needed with `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN=true`.
 
 ---
 
@@ -58,7 +58,7 @@ Safety behavior in teardown:
 - `TESTMAIL_API_KEY` – Required only for OTP auth mode
 - `TESTMAIL_NAMESPACE` – Required only for OTP auth mode
 - `AGENTA_TEST_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
-- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and local part must start with `TESTMAIL_NAMESPACE`. If not provided, a valid testmail address will be auto-generated.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, it is always used as the owner login email. If not provided, a runtime email is generated and will use Testmail when `TESTMAIL_NAMESPACE` is configured.
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
 All required secrets are injected automatically in CI via the reusable workflow.
@@ -151,7 +151,7 @@ You can filter tests using these flags:
 
 **Notes:**
 - If you use `--license oss`, you **must** set `AGENTA_TEST_OSS_OWNER_PASSWORD`.
-- `AGENTA_TEST_OSS_OWNER_EMAIL` is optional for OSS, but if provided, must be a valid testmail address for your namespace.
+- `AGENTA_TEST_OSS_OWNER_EMAIL` is optional for OSS. If provided, it is used as-is for the owner login flow.
 - `--feature` can only be used with license `ee`.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
 
@@ -289,7 +289,7 @@ The framework handles authentication automatically with several improvements:
 
 1. Email Generation
    - One email per worker process
-   - Format: `namespace.tag@inbox.testmail.app`
+   - Format: `namespace.identifier.test.agenta@inbox.testmail.app`
    - Tag includes environment, worker ID, and timestamp
 
 2. Login Process
