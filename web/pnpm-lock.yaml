@@ -774,6 +774,9 @@ importers:
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
       '@ant-design/icons':
         specifier: '>=5.0.0'
         version: 6.1.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
