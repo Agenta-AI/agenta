@@ -51,7 +51,7 @@ const QueueListContent = ({
     const isLoading = listQuery.isPending
 
     const filteredQueues = useMemo(() => {
-        const byKind = allQueues.filter((q) => q.data?.kind === itemType)
+        const byKind = allQueues.filter((q) => q.data?.kind === itemType && q.status !== "success")
         if (!search.trim()) return byKind
         const term = search.trim().toLowerCase()
         return byKind.filter((q) => (q.name || "").toLowerCase().includes(term))
