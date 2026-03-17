@@ -21,6 +21,39 @@ except ImportError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
 
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+ORANGE = "\033[38;5;214m"
+RED = "\033[31m"
+RESET = "\033[0m"
+
+
+def version_tuple(v: str) -> tuple[int, ...]:
+    parts = []
+    for p in v.split(".")[:3]:
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+def colorize(line: str, locked: str, latest: str) -> str:
+    if not locked or not latest:
+        return line
+    lv = version_tuple(locked)
+    rv = version_tuple(latest)
+    if lv == rv:
+        color = GREEN
+    elif lv[0] != rv[0]:
+        color = RED
+    elif lv[1] != rv[1]:
+        color = ORANGE
+    else:
+        color = YELLOW
+    return f"{color}{line}{RESET}"
+
+
 ROOT = Path(__file__).resolve().parent
 PYPROJECT = ROOT / "pyproject.toml"
 LOCKFILE = ROOT / "poetry.lock"
@@ -129,7 +162,8 @@ def main() -> None:
         if not locked_version:
             locked_version = current
 
-        print(f"{name:{col1}} {constraint:{col2}} {locked_version:12} {latest:12}")
+        line = f"{name:{col1}} {constraint:{col2}} {locked_version:12} {latest:12}"
+        print(colorize(line, locked_version, latest))
 
 
 if __name__ == "__main__":
