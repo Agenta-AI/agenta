@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -7,7 +8,6 @@ import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {traceSpan} from "@/oss/state/entities/trace"
 import {
     spanDataInputsAtomFamily,
     spanDataInternalsAtomFamily,
@@ -183,8 +183,8 @@ const getMessageContent = (message: RoleMessage): unknown => {
 
 const OverviewTabItem = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     // Use trace drill-in API for data access while preserving existing UI rendering.
-    const entityWithDrillIn = traceSpan as typeof traceSpan & {
-        drillIn: NonNullable<typeof traceSpan.drillIn>
+    const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
+        drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
     }
     const metaConfig = useAtomValue(spanMetaConfigurationAtomFamily(activeTrace))
     const inputsFromSelectors = useAtomValue(spanDataInputsAtomFamily(activeTrace))

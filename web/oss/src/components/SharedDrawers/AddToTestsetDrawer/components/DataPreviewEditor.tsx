@@ -1,9 +1,9 @@
 import {useCallback, useMemo} from "react"
 
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {Typography} from "antd"
 
 import {EntityDualViewEditor} from "@/oss/components/DrillInView"
-import {traceSpan} from "@/oss/state/entities/trace"
 
 import {TestsetTraceData} from "../assets/types"
 
@@ -71,10 +71,10 @@ export function DataPreviewEditor({
         [setRowDataPreview, setUpdatedTraceData],
     )
 
-    // Type assertion needed because traceSpan.drillIn is optional in the general type,
+    // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type,
     // but we know it's configured for the trace entity.
-    const entityWithDrillIn = traceSpan as typeof traceSpan & {
-        drillIn: NonNullable<typeof traceSpan.drillIn>
+    const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
+        drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
     }
 
     return (

@@ -1,8 +1,8 @@
 import {memo, ReactNode, useMemo} from "react"
 
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {Button, Popover, Typography} from "antd"
 
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator} from "@/oss/lib/Types"
@@ -101,7 +101,7 @@ const EvaluatorDetailsPopover = ({
                     </div>
                     <div className="flex items-center justify-between gap-3">
                         <Typography.Text type="secondary">Created by</Typography.Text>
-                        <UserAvatarTag modifiedBy={createdBy} />
+                        <UserAuthorLabel name={createdBy} showAvatar />
                     </div>
                 </div>
                 {target ? (

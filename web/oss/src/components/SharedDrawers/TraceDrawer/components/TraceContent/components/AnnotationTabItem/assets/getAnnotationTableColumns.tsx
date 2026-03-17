@@ -1,3 +1,4 @@
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {TreeStructure} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {Table} from "antd"
@@ -5,7 +6,6 @@ import {ColumnsType} from "antd/es/table"
 import {getDefaultStore} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import {setTraceDrawerTraceAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -147,7 +147,7 @@ export const getAnnotationTableColumns = (
             render: (_, record) => {
                 return (
                     <div className="flex items-center justify-start">
-                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
+                        <UserAuthorLabel name={record.createdBy || ""} showAvatar />
                     </div>
                 )
             },

@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Popover, Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
-import UserAvatarTag from "@/oss/components/CustomUIs/UserAvatarTag"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
@@ -241,8 +241,9 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
                                                             className="flex flex-col gap-2"
                                                             key={i}
                                                         >
-                                                            <UserAvatarTag
-                                                                modifiedBy={annotation.user || ""}
+                                                            <UserAuthorLabel
+                                                                name={annotation.user || ""}
+                                                                showAvatar
                                                             />
                                                             <Typography.Text
                                                                 type="secondary"

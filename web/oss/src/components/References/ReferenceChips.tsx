@@ -1,11 +1,12 @@
 import {memo, useMemo} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
-import {previewTestsetReferenceAtomFamily, variantConfigAtomFamily} from "./atoms/entityReferences"
+import {previewTestsetReferenceAtomFamily} from "./atoms/entityReferences"
 
 type ChipTone = "variant" | "testset"
 
@@ -62,30 +63,34 @@ const ReferenceChip = ({
 export const VariantReferenceChip = memo(
     ({
         revisionId,
-        projectId,
+        projectId: _projectId,
     }: {
         revisionId: string | null | undefined
         projectId: string | null
     }) => {
-        const queryAtom = useMemo(
-            () => variantConfigAtomFamily({projectId, revisionId}),
-            [projectId, revisionId],
+        const dataAtom = useMemo(
+            () => workflowMolecule.selectors.data(revisionId ?? ""),
+            [revisionId],
         )
+        const queryAtom = useMemo(
+            () => workflowMolecule.selectors.query(revisionId ?? ""),
+            [revisionId],
+        )
+        const data = useAtomValue(dataAtom)
         const query = useAtomValue(queryAtom)
 
         if (!revisionId) {
             return null
         }
 
-        const label =
-            query.data?.variantName ?? query.data?.revisionId ?? revisionId ?? "Unknown variant"
+        const label = data?.slug ?? revisionId ?? "Unknown variant"
 
         return (
             <ReferenceChip
                 label={label}
                 copyValue={revisionId}
                 tone="variant"
-                loading={query.isPending || query.isFetching}
+                loading={query.isPending}
             />
         )
     },
