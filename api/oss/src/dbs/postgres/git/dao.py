@@ -1151,6 +1151,8 @@ class GitDAO(GitDAOInterface):
         variant_refs: Optional[List[Reference]] = None,
         revision_refs: Optional[List[Reference]] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -1267,6 +1269,54 @@ class GitDAO(GitDAOInterface):
             result = await session.execute(stmt)
 
             revision_dbes = result.scalars().all()
+
+            # Filter by application_refs if provided
+            # This filters revisions where the specified app's deployment CHANGED
+            # compared to the previous revision (or is the first deployment)
+            if application_refs:
+                app_ids = {str(ref.id) for ref in application_refs if ref.id}
+                if app_ids:
+                    filtered_dbes = []
+                    prev_app_revision_ids: dict[str, str | None] = {
+                        app_id: None for app_id in app_ids
+                    }
+
+                    # Revisions are ordered descending (newest first)
+                    # We need to process in ascending order to detect changes
+                    for dbe in reversed(revision_dbes):
+                        if not dbe.data or not isinstance(dbe.data, dict):
+                            continue
+
+                        refs = dbe.data.get("references")
+                        if not refs or not isinstance(refs, dict):
+                            continue
+
+                        # Check each app we're filtering for
+                        for app_id in app_ids:
+                            current_revision_id: str | None = None
+
+                            # Find this app's revision in the current environment revision
+                            for ref_data in refs.values():
+                                if not isinstance(ref_data, dict):
+                                    continue
+                                app_ref = ref_data.get("application")
+                                if app_ref and str(app_ref.get("id")) == app_id:
+                                    app_revision = ref_data.get("application_revision")
+                                    if app_revision:
+                                        current_revision_id = str(
+                                            app_revision.get("id")
+                                        )
+                                    break
+
+                            # If this app's deployment changed, include this revision
+                            if current_revision_id != prev_app_revision_ids[app_id]:
+                                if dbe not in filtered_dbes:
+                                    filtered_dbes.append(dbe)
+                                prev_app_revision_ids[app_id] = current_revision_id
+
+                    # Reverse back to descending order (newest first)
+                    filtered_dbes.reverse()
+                    revision_dbes = filtered_dbes
 
             revisions = [
                 map_dbe_to_dto(
