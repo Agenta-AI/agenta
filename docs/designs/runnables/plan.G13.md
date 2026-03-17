@@ -244,25 +244,14 @@ No API change needed.
 
 ### S6. Frontend — per-route OpenAPI fetch
 
-**Context:** `revision.data.url` is for webhooks only and is not the SDK service URL. The service URL for a running workflow comes from the API's service routing (for builtins: resolved from URI; for custom SDK containers: from the container's service address, not `revision.data.url`).
+The caller always knows the route path because that is how they reached the workflow in the first place:
 
-**What the frontend needs:** `{serviceUrl}/{routePath}/openapi.json`
+- **Builtins / single-route services**: service URL points directly to the root (`/`) → `{serviceUrl}/openapi.json`
+- **Multi-route services**: the caller is working within a specific variant/revision whose route is already known (e.g. it was invoked via `/summarize/invoke`) → `{serviceUrl}/summarize/openapi.json`
 
-- `serviceUrl`: the runtime URL of the service — already resolved and available wherever the current `openapi.json` fetch happens
-- `routePath`: the path segment the workflow is registered at (e.g. `"/summarize"`, `"/"`)
+There is no case where a caller has the service URL but the route path is opaque. Appending `/{routePath}/openapi.json` is a trivial composition on the caller side — no new fields, no discovery mechanism needed.
 
-**Where `routePath` must come from:** it needs to be exposed in the revision data or inspect response. It is NOT currently stored. Two options:
-1. Derive from the URI: `agenta:builtin:completion:v0` → route path is `/` (single-route service); custom multi-route services would need the path encoded in the URI or stored explicitly
-2. Store it explicitly: add a `path` field to the workflow revision data (alongside `url`, `uri`, `headers`)
-
-**Decision required:** option 2 (explicit `path` field) is cleaner. Add `path` to the revision schema, populated at decoration time. The frontend then composes `{serviceUrl}{revision.data.path}/openapi.json`.
-
-**File changes:**
-
-- `sdk/agenta/sdk/models/workflows.py`: add `path: Optional[str] = None` to `WorkflowServiceInterface` or the revision data DTO
-- API revision schema: expose the route path in revision query/get responses
-- `web/packages/agenta-entities/src/workflow/api/api.ts`: use `revision.data.path` to compose the openapi.json URL
-- `web/packages/agenta-entities/src/workflow/state/store.ts`: pass route path through the schema query atom
+No code changes required.
 
 ### S7. Validate middleware fires per-request on sub-apps
 
@@ -301,14 +290,9 @@ Also test:
 
 | File | Change |
 |------|--------|
-| `sdk/agenta/sdk/decorators/routing.py` | Core: sub-app mounting, reserved path validation, `router=` deprecation warning, mount ordering for `"/"` |
-| `sdk/agenta/sdk/decorators/running.py` | Add `workflow._build_inspect_template()` synchronous schema extraction helper |
-| `sdk/agenta/sdk/models/workflows.py` | Add `path` field to interface/revision data DTO |
-| `sdk/agenta/sdk/__init__.py` | Optional: expose `get_workflow_openapi(path)` helper |
-| API revision schema / DTO | Expose `path` in revision query/get responses |
-| `web/packages/agenta-entities/src/workflow/api/api.ts` | Fetch from `{serviceUrl}{revision.data.path}/openapi.json` |
-| `web/packages/agenta-entities/src/workflow/state/store.ts` | Pass route path to OpenAPI query atom |
-| SDK tests | Multi-route isolation, reserved paths, schema content, root route |
+| `sdk/agenta/sdk/decorators/routing.py` | Core: sub-app mounting, reserved path validation, `router=` deprecation warning, openapi enrichment, mount ordering for `"/"` |
+| `sdk/agenta/sdk/decorators/running.py` | Expose `__agenta_workflow__` on the wrapper so `routing.py` can read interface schemas at decoration time |
+| `sdk/tests/pytest/unit/test_routing.py` | New: 26 unit tests — path validation, route isolation, openapi schemas, root ordering, router= deprecation |
 
 ---
 
