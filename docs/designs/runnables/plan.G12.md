@@ -8,65 +8,38 @@
 
 ## Goal
 
-Expose `invoke` and `inspect` endpoints on the applications and evaluators routers, parallel to what already exists on the workflows router. The domain routers (`/applications/`, `/evaluators/`) are filtered projections over the workflow execution layer and must surface the same execution/discovery surface.
+Expose `inspect` endpoints on the applications and evaluators routers, parallel to what already exists on the workflows router. **`/invoke` is intentionally omitted** — the workflows invoke is a full proxy (API in the hot path for every LLM call), and supporting it on applications/evaluators would require either the same proxy overhead or an SDK change to accept auth via query param to support 307 redirects. Neither is desirable now.
 
 Additionally:
 - **G12a**: Add canonical workflow catalog endpoints; make evaluator catalog a filtered workflow catalog view.
-- **G12b**: Remove the legacy `service` / `configuration` fields from `WorkflowRevisionData` once all code paths and tests are migrated to normalized fields.
+- **G12b**: Stop writing legacy `service` / `configuration` fields everywhere; normalize them to proper fields on read so consumers always see clean data. Removal of the fields from DTOs follows once a DB migration clears stored legacy data.
 
 ---
 
-## G12 — Applications and Evaluators Invoke/Inspect
+## G12 — Applications and Evaluators Inspect
 
 ### Current State
 
 | Router | Invoke | Inspect |
 |--------|--------|---------|
 | `WorkflowsRouter` | `POST /invoke` ✅ | `POST /inspect` ✅ |
-| `ApplicationsRouter` | ❌ missing | ❌ missing |
-| `EvaluatorsRouter` | ❌ missing | ❌ missing |
+| `ApplicationsRouter` | not added | ❌ missing |
+| `EvaluatorsRouter` | not added | ❌ missing |
 
-The SDK already has `invoke_application`, `inspect_application`, `invoke_evaluator`, `inspect_evaluator` in `sdk/agenta/sdk/decorators/running.py` (lines 607–762). They are wired to nothing on the API side.
-
-`WorkflowsService.invoke_workflow` (lines 757–789) does:
-1. Resolve project context → sign a secret token → delegate to `_invoke_workflow(request, credentials)`.
-2. `inspect_workflow` delegates directly to `_inspect_workflow(request)` with no credentials needed.
-
-Applications and evaluators services have no invoke/inspect methods today.
+The SDK has `inspect_application` and `inspect_evaluator` in `sdk/agenta/sdk/decorators/running.py` (lines 639–762). They are wired to nothing on the API side.
 
 ---
 
-### S1. Add `invoke_application` / `inspect_application` to `ApplicationsService`
+### S1. Add `inspect_application` to `ApplicationsService`
 
 **File:** `api/oss/src/core/applications/service.py`
 
-Add a section "application services" (mirror the "workflow services" section in `WorkflowsService`):
+Add a section "application services":
 
 ```python
 from agenta.sdk.decorators.running import (
-    invoke_application as _invoke_application,
     inspect_application as _inspect_application,
 )
-
-async def invoke_application(
-    self,
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    #
-    request: WorkflowServiceRequest,
-    #
-    **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-    project = await get_project_by_id(project_id=str(project_id))
-    secret_token = await sign_secret_token(
-        user_id=str(user_id),
-        project_id=str(project_id),
-        workspace_id=str(project.workspace_id),
-        organization_id=str(project.organization_id),
-    )
-    credentials = f"Secret {secret_token}"
-    return await _invoke_application(request=request, credentials=credentials, **kwargs)
 
 async def inspect_application(
     self,
@@ -79,47 +52,40 @@ async def inspect_application(
     return await _inspect_application(request=request)
 ```
 
-Imports to add (same pattern as `WorkflowsService`):
-- `get_project_by_id` — already imported in applications service via the existing `resolve_application_revision` dependencies
-- `sign_secret_token` — already imported in workflows service; add same import here
-
 ---
 
-### S2. Add `invoke_evaluator` / `inspect_evaluator` to `EvaluatorsService`
+### S2. Add `inspect_evaluator` to `EvaluatorsService`
 
 **File:** `api/oss/src/core/evaluators/service.py`
 
-Identical pattern as S1, using:
-
 ```python
 from agenta.sdk.decorators.running import (
-    invoke_evaluator as _invoke_evaluator,
     inspect_evaluator as _inspect_evaluator,
 )
+
+async def inspect_evaluator(
+    self,
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    request: WorkflowServiceRequest,
+) -> WorkflowServiceRequest:
+    return await _inspect_evaluator(request=request)
 ```
 
-Replace the `# TODO: Implement ?` comment at line 844 with the service methods section.
+Replace the `# TODO: Implement ?` comment at line 844.
 
 ---
 
-### S3. Register invoke/inspect routes in `ApplicationsRouter`
+### S3. Register `/inspect` route in `ApplicationsRouter`
 
 **File:** `api/oss/src/apis/fastapi/applications/router.py`
 
-Add to `__init__` route registration (in the "APPLICATION SERVICES" section, after CRUD routes):
+Route registration in `__init__`:
 
 ```python
 # APPLICATION SERVICES ------------------------------------------------
-
-self.router.add_api_route(
-    "/invoke",
-    self.invoke_application,
-    methods=["POST"],
-    operation_id="invoke_application",
-    status_code=status.HTTP_200_OK,
-    response_model=Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse],
-    response_model_exclude_none=True,
-)
 
 self.router.add_api_route(
     "/inspect",
@@ -132,26 +98,9 @@ self.router.add_api_route(
 )
 ```
 
-Add handler methods (mirror `WorkflowsRouter.invoke_workflow` / `inspect_workflow`):
+Handler:
 
 ```python
-async def invoke_application(
-    self,
-    request: Request,
-    *,
-    workflow_service_request: WorkflowServiceRequest,
-):
-    # EE permission check: RUN_WORKFLOWS (same permission as workflows)
-    try:
-        response = await self.applications_service.invoke_application(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            request=workflow_service_request,
-        )
-        return await handle_invoke_success(request, response)
-    except Exception as exception:
-        return await handle_invoke_failure(exception)
-
 @intercept_exceptions()
 @suppress_exceptions(default=WorkflowServiceRequest(), exclude=[HTTPException])
 async def inspect_application(
@@ -172,43 +121,33 @@ async def inspect_application(
         return await handle_inspect_failure(exception)
 ```
 
-Imports to add to the router:
-- `handle_invoke_success`, `handle_invoke_failure`, `handle_inspect_success`, `handle_inspect_failure` — from `api/oss/src/apis/fastapi/workflows/router.py` (or extract to shared utils)
-- `WorkflowServiceRequest`, `WorkflowServiceBatchResponse`, `WorkflowServiceStreamResponse` — already in scope if they're imported via `workflows` models
-
-**Note on shared utils:** `handle_invoke_success/failure` and `handle_inspect_success/failure` are currently defined in the workflows router. Before importing them cross-router, extract them to `api/oss/src/apis/fastapi/shared/utils.py` or a new `api/oss/src/apis/fastapi/workflows/utils.py` (if not already there). This prevents circular imports.
+`handle_inspect_success` / `handle_inspect_failure` currently live in `workflows/router.py`. Extract them to `api/oss/src/apis/fastapi/shared/utils.py` before importing from a second router (avoids circular imports).
 
 ---
 
-### S4. Register invoke/inspect routes in `EvaluatorsRouter`
+### S4. Register `/inspect` route in `EvaluatorsRouter`
 
 **File:** `api/oss/src/apis/fastapi/evaluators/router.py`
 
-Same pattern as S3, using `self.evaluators_service.invoke_evaluator` and `inspect_evaluator`. Operation IDs: `invoke_evaluator`, `inspect_evaluator`.
+Same pattern as S3. Operation ID: `inspect_evaluator`.
 
 ---
 
-### S5. Consider simple routers
+### S5. Simple routers
 
-The `SimpleApplicationsService` and `SimpleEvaluatorsService` are CRUD-only, simplified interfaces — they do not need invoke/inspect. The `/simple/applications/` and `/simple/evaluators/` routes are intentionally stripped-down and should remain CRUD-only.
-
-Decision: **no invoke/inspect on simple routers**.
+The `SimpleApplicationsService` and `SimpleEvaluatorsService` are CRUD-only. **No inspect on simple routers.**
 
 ---
 
 ### S6. Tests — G12
 
 **New acceptance test files:**
+- `api/oss/tests/pytest/acceptance/applications/test_application_inspect.py`
+- `api/oss/tests/pytest/acceptance/evaluators/test_evaluator_inspect.py`
 
-- `api/oss/tests/pytest/acceptance/applications/test_application_invoke.py`
-- `api/oss/tests/pytest/acceptance/evaluators/test_evaluator_invoke.py`
-
-Each file should test:
-1. `POST /applications/invoke` with a builtin workflow application — returns expected response shape
-2. `POST /applications/inspect` — returns `WorkflowServiceRequest` with populated interface/schemas
-3. Same for evaluators
-
-Pattern to follow: `api/oss/tests/pytest/acceptance/workflows/test_workflow_invocations.py` (if it exists) or adapt from evaluator basics tests.
+Each file tests:
+1. `POST /applications/inspect` → returns `WorkflowServiceRequest` with populated interface/schemas
+2. Same for evaluators
 
 ---
 
@@ -224,15 +163,13 @@ Pattern to follow: `api/oss/tests/pytest/acceptance/workflows/test_workflow_invo
 | Workflows | None | ❌ Missing |
 | Applications | None | ❌ Missing |
 
-The evaluator catalog is backed by a static Python registry (`api/oss/src/resources/evaluators/evaluators.py`) and returns `EvaluatorCatalogTemplate` / `EvaluatorCatalogPreset` DTOs. The catalog surface is evaluator-specific: there is no equivalent for predefined workflows or predefined applications.
-
-The gap analysis action requires making the workflow catalog canonical and the evaluator/application catalogs filtered projections over it.
+The evaluator catalog is backed by `api/oss/src/resources/evaluators/evaluators.py` and converts entries via `_registry_entry_to_catalog_template` / `_registry_preset_to_catalog_preset` helpers in the evaluators router. The catalog surface is evaluator-specific.
 
 ---
 
-### S7. Define workflow catalog DTOs
+### S10. Define workflow catalog DTOs
 
-**File:** `api/oss/src/apis/fastapi/workflows/models.py` (or a new `catalog.py`)
+**File:** `api/oss/src/apis/fastapi/workflows/models.py`
 
 ```python
 class WorkflowCatalogTemplateData(BaseModel):
@@ -247,7 +184,7 @@ class WorkflowCatalogTemplate(BaseModel):
     description: Optional[str] = None
     archived: Optional[bool] = False
     categories: List[str] = []
-    flags: Optional[dict] = None       # workflow flags (is_evaluator, etc.)
+    flags: Optional[dict] = None       # e.g. {"is_evaluator": True}
     data: WorkflowCatalogTemplateData
 
 class WorkflowCatalogPresetData(BaseModel):
@@ -272,171 +209,177 @@ class WorkflowCatalogPresetsResponse(BaseModel):
     presets: List[WorkflowCatalogPreset]
 ```
 
-**Compatibility note:** `EvaluatorCatalogTemplate` / `EvaluatorCatalogPreset` (currently in `evaluators/models.py`) should be aliases over the workflow catalog DTOs (or be replaced by them). The evaluator catalog adds only `categories` filtering (by `is_evaluator` flag). Do not break existing evaluator catalog endpoint shapes.
+`EvaluatorCatalogTemplate` / `EvaluatorCatalogPreset` become type aliases over these (or unchanged for now to avoid breaking the existing evaluator catalog endpoints).
 
 ---
 
-### S8. Add workflow catalog resource registry
+### S11. Add workflow catalog resource registry
 
 **File:** `api/oss/src/resources/workflows/workflows.py` (new)
 
-Structure mirrors `api/oss/src/resources/evaluators/evaluators.py`. Each entry is a dict:
+Structure mirrors `evaluators.py`. Each entry is a dict with `key`, `name`, `categories`, `flags`, `uri`, `schemas` (inputs/parameters/outputs), `presets`, `archived`.
 
-```python
-workflows = [
-    {
-        "name": "Completion",
-        "key": "completion",
-        "categories": ["builtin"],
-        "flags": {"is_evaluator": False},
-        "uri": "agenta:builtin:completion:v0",
-        "schemas": {
-            "inputs": { ... },
-            "parameters": { ... },
-            "outputs": { ... },
-        },
-        "presets": [
-            {
-                "key": "default",
-                "name": "Default",
-                "parameters": { ... },
-            }
-        ],
-        "archived": False,
-    },
-    # ...
-]
-```
-
-Evaluator entries already in `evaluators.py` gain a `"flags": {"is_evaluator": True}` field and stay in the evaluator resource file. The workflow resource file contains non-evaluator predefined workflows.
-
-**Alternative (preferred for symmetry):** merge all predefined runnables into one resource file with a `flags` field. The evaluator catalog endpoint filters by `flags.is_evaluator == True`. This is the canonical single-source-of-truth.
+Predefined workflow entries: builtin workflows like `completion`, `chat`, `agent` get entries here. Evaluator entries stay in `evaluators.py` and gain `"flags": {"is_evaluator": True}` for catalog filtering.
 
 ---
 
-### S9. Add workflow catalog router endpoints
+### S12. Add workflow catalog router endpoints
 
 **File:** `api/oss/src/apis/fastapi/workflows/router.py`
 
-```python
-# WORKFLOW CATALOG ------------------------------------------------
-
-self.router.add_api_route(
-    "/catalog/templates",
-    self.list_workflow_catalog_templates,
-    methods=["GET"],
-    operation_id="list_workflow_catalog_templates",
-    response_model=WorkflowCatalogTemplatesResponse,
-    response_model_exclude_none=True,
-)
-self.router.add_api_route(
-    "/catalog/templates/{template_key}",
-    self.fetch_workflow_catalog_template,
-    methods=["GET"],
-    operation_id="fetch_workflow_catalog_template",
-    response_model=WorkflowCatalogTemplate,
-    response_model_exclude_none=True,
-)
-self.router.add_api_route(
-    "/catalog/templates/{template_key}/presets",
-    self.list_workflow_catalog_presets,
-    methods=["GET"],
-    operation_id="list_workflow_catalog_presets",
-    response_model=WorkflowCatalogPresetsResponse,
-    response_model_exclude_none=True,
-)
-self.router.add_api_route(
-    "/catalog/templates/{template_key}/presets/{preset_key}",
-    self.fetch_workflow_catalog_preset,
-    methods=["GET"],
-    operation_id="fetch_workflow_catalog_preset",
-    response_model=WorkflowCatalogPreset,
-    response_model_exclude_none=True,
-)
-```
-
-Handlers read from the workflow resource registry and apply conversion helpers (same pattern as the evaluator catalog helpers `_registry_entry_to_catalog_template` / `_registry_preset_to_catalog_preset` in `evaluators/router.py`).
+Add `/catalog/templates`, `/catalog/templates/{key}`, `/catalog/templates/{key}/presets`, `/catalog/templates/{key}/presets/{preset_key}` routes. Handlers read from the workflow resource registry using conversion helpers (same pattern as evaluator catalog helpers).
 
 ---
 
-### S10. Redirect evaluator catalog to workflow catalog (filtered view)
+### S13. Redirect evaluator catalog to workflow catalog (filtered view)
 
 **File:** `api/oss/src/apis/fastapi/evaluators/router.py`
 
-`list_evaluator_catalog_templates` currently reads from `evaluators.py` registry directly. After S8, it should read from the workflow catalog registry filtered by `flags.is_evaluator == True`. The response shape (`EvaluatorCatalogTemplate`) stays unchanged — just the data source changes.
-
-This step completes the "evaluator catalog as filtered workflow catalog view" described in G12a.
+`list_evaluator_catalog_templates` currently reads directly from the evaluators registry. After S11, it filters from the workflow catalog registry by `flags.is_evaluator == True`. The existing response shapes stay unchanged.
 
 ---
 
-### S11. Application catalog (same filtered view)
-
-**File:** `api/oss/src/apis/fastapi/applications/router.py`
-
-Add the same catalog routes as S9 but filtered by `flags.is_evaluator == False` (or a `flags.is_application` marker). This gives applications a symmetric catalog surface.
-
-For now: **defer S11 unless there are predefined application templates to expose**. The evaluator catalog is the immediately high-value surface. Application catalog can be added in a follow-on when predefined application templates exist.
-
----
-
-### S12. First-class input and parameter schemas for evaluators
+### S14. First-class input and parameter schemas for evaluators
 
 **File:** `api/oss/src/resources/evaluators/evaluators.py`
 
-For each evaluator entry, add `schemas.inputs` as the shared predefined evaluator input contract (currently implicit):
-
-```python
-"schemas": {
-    "inputs": {
-        "type": "object",
-        "properties": {
-            "prediction": {"type": "string"},
-            "ground_truth": {"type": "string"},
-            # ... shared evaluator inputs
-        },
-        "required": ["prediction"]
-    },
-    "parameters": { ... },   # derived from settings_template (not settings_template itself)
-    "outputs": { ... },      # already partially in outputs_schema
-},
-```
-
-`settings_template` remains as UI convenience metadata. The canonical schema contract comes from `schemas.parameters`. These can coexist during migration.
+Add `schemas.inputs` as the shared predefined evaluator input contract and `schemas.parameters` derived from `settings_template` for each entry. `settings_template` stays as UI convenience metadata only.
 
 ---
 
-## G12b — Remove Legacy `service` / `configuration` Fields
+## G12b — Eliminate `service` / `configuration` Field Writes; Normalize on Read
 
-### Current State
+### Problem Summary
 
-`WorkflowRevisionData` in `api/oss/src/core/workflows/dtos.py` (lines 190–193) extends the SDK model with two backward-compatibility fields:
+**Writers** (must be fixed — stop writing legacy fields):
 
-```python
-service: Optional[dict] = None       # legacy, e.g. {"agenta": "v0.1.0", "format": {...}}
-configuration: Optional[dict] = None # legacy, e.g. {"parameters": {...}}
-```
+| File | Location | What it writes |
+|------|----------|---------------|
+| `api/oss/src/core/evaluators/utils.py` | `build_evaluator_data()` lines 130–141 | `service=build_legacy_service(...)` + `configuration=settings_values` |
 
-These are **only referenced in acceptance tests**, not in any production code path. Acceptance tests that still use them:
+**Readers / fallbacks** (must be replaced with normalized field reads):
 
-| Test file | Field used | Assertion line |
-|-----------|-----------|----------------|
-| `acceptance/evaluators/test_evaluators_basics.py` | `data.service.format` | 67, 142, 255 |
-| `acceptance/workflows/test_workflow_revisions_basics.py` | `data.configuration` | 473, 486 |
+| File | Location | What it reads |
+|------|----------|--------------|
+| `api/oss/src/core/evaluators/service.py` | `_normalize_simple_evaluator_data()` lines 922–929 | Falls back to `extract_outputs_schema_from_service(service)` when `schemas` is absent |
+
+**Defined / inherited** (DTO cleanup — deferred until DB migration):
+
+| File | What to keep for now |
+|------|---------------------|
+| `api/oss/src/core/workflows/dtos.py` | Keep `service` + `configuration` fields + rename `validate_legacy_fields` → `normalize_legacy_fields` that POPULATES normalized fields from legacy on read |
+| `api/oss/src/core/evaluators/dtos.py` | Inherits automatically |
+
+**Tests asserting on legacy fields** (must be migrated):
+
+| File | Lines | Legacy field |
+|------|-------|-------------|
+| `acceptance/evaluators/test_evaluators_basics.py` | 67, 142, 255 | `data.service.format` |
+| `acceptance/workflows/test_workflow_revisions_basics.py` | 473, 486 | `data.configuration` |
 
 ---
 
-### S13. Migrate acceptance tests off legacy fields
+### S15. Stop writing legacy fields in `build_evaluator_data()`
 
-**Files:**
-- `api/oss/tests/pytest/acceptance/evaluators/test_evaluators_basics.py`
-- `api/oss/tests/pytest/acceptance/workflows/test_workflow_revisions_basics.py`
+**File:** `api/oss/src/core/evaluators/utils.py`
 
-Replace `data.service` payloads with normalized `data.schemas` + `data.uri` payloads. Replace `data.configuration` payloads with `data.parameters` (or `data.schemas.parameters`) payloads.
-
-Example migration for evaluator test:
+Remove `service` and `configuration` from the returned `SimpleEvaluatorData`. The normalized fields (`uri`, `url`, `schemas`, `script`, `parameters`) are already populated correctly:
 
 ```python
-# Before (legacy)
+# Remove these lines:
+service = build_legacy_service(schemas["outputs"])   # line 130 — DELETE
+
+return SimpleEvaluatorData(
+    version=_DATA_VERSION,
+    uri=uri,
+    url=url,
+    headers=None,
+    schemas=schemas,
+    script=script,
+    parameters=settings_values if settings_values else None,
+    # service=service,           ← REMOVE
+    # configuration=settings_values if settings_values else None,  ← REMOVE
+)
+```
+
+`build_legacy_service()` becomes unused — remove it too.
+
+This fixes:
+- All NEW evaluator creates (via `SimpleEvaluatorsService.create`)
+- Data migration helpers (`databases/postgres/migrations/core/data_migrations/evaluators.py` in both OSS and EE — they call `build_evaluator_data()` too)
+- `db_manager.py` legacy seeding code
+
+---
+
+### S16. Change `validate_legacy_fields` → `normalize_legacy_fields` (on-read migration)
+
+**File:** `api/oss/src/core/workflows/dtos.py`
+
+Rename the validator and change its behaviour: instead of only validating, it should **populate the normalized fields** from legacy data when those fields are absent. This handles OLD persisted revisions that were stored with `service`/`configuration` before this fix.
+
+```python
+@model_validator(mode="after")
+def normalize_legacy_fields(self) -> "WorkflowRevisionData":
+    """
+    On-read migration: populate normalized fields from legacy data when missing.
+    Handles persisted revisions that pre-date the normalized schema.
+    """
+    # service.format → schemas.outputs
+    if self.service and not (self.schemas and self.schemas.get("outputs")):
+        outputs_schema = _extract_outputs_from_service(self.service)
+        if outputs_schema:
+            existing = self.schemas or {}
+            self.schemas = {**existing, "outputs": outputs_schema}
+
+    # service.url → self.url
+    if self.service and not self.url:
+        service_url = self.service.get("url")
+        if service_url and self._is_valid_http_url(service_url):
+            self.url = service_url
+
+    # configuration → parameters
+    if self.configuration and not self.parameters:
+        self.parameters = self.configuration
+
+    return self
+```
+
+Where `_extract_outputs_from_service` is the extraction logic from the current `extract_outputs_schema_from_service()` in `evaluators/utils.py` (inline or shared).
+
+This ensures that any consumer reading a `WorkflowRevisionData` always sees proper `schemas.outputs` and `parameters` regardless of whether the stored data was written with legacy or normalized fields.
+
+---
+
+### S17. Remove `extract_outputs_schema_from_service` fallback in `_normalize_simple_evaluator_data`
+
+**File:** `api/oss/src/core/evaluators/service.py` lines 922–929
+
+The fallback at line 922–929 reads `service` to extract `schemas.outputs`. After S16, `normalize_legacy_fields` handles this on-read in the DTO layer, so the service-level fallback is redundant. Remove it:
+
+```python
+# REMOVE these lines (922–929):
+if "schemas" not in normalized_data_dict:
+    outputs_schema = extract_outputs_schema_from_service(
+        simple_evaluator_data.service
+    )
+    if outputs_schema:
+        normalized_data_dict["schemas"] = {
+            "outputs": outputs_schema,
+        }
+```
+
+After this, `extract_outputs_schema_from_service` is unused — remove it from `evaluators/utils.py` and from the import in `evaluators/service.py`.
+
+---
+
+### S18. Migrate acceptance tests off legacy fields
+
+**File:** `api/oss/tests/pytest/acceptance/evaluators/test_evaluators_basics.py`
+
+Replace `data.service` payloads with normalized fields:
+
+```python
+# Before
 "data": {
     "service": {
         "agenta": "v0.1.0",
@@ -445,51 +388,62 @@ Example migration for evaluator test:
 }
 assert response["evaluator"]["data"]["service"]["format"] == _format
 
-# After (normalized)
+# After
 "data": {
     "uri": "agenta:custom:my-evaluator:v0",
-    "schemas": {
-        "outputs": _format,  # the format schema moves here
-    }
+    "schemas": {"outputs": _format},
 }
 assert response["evaluator"]["data"]["schemas"]["outputs"] == _format
 ```
 
-Example migration for workflow revision test:
+**File:** `api/oss/tests/pytest/acceptance/workflows/test_workflow_revisions_basics.py`
 
 ```python
-# Before (legacy)
+# Before
 "data": {"configuration": configuration}
 assert response["workflow_revision"]["data"]["configuration"] == configuration
 
-# After (normalized)
-"data": {"parameters": configuration}  # or data.schemas.parameters depending on shape
+# After
+"data": {"parameters": configuration}
 assert response["workflow_revision"]["data"]["parameters"] == configuration
 ```
 
 ---
 
-### S14. Remove legacy fields from the API DTO
+### S19. Remove legacy fields from DTOs (deferred — after DB migration)
 
-**File:** `api/oss/src/core/workflows/dtos.py`
+Once a DB migration has been written and run to rewrite all stored `service`/`configuration` fields to normalized fields, remove from `api/oss/src/core/workflows/dtos.py`:
 
-Once all tests pass without asserting on `data.service` / `data.configuration`:
+```python
+# Remove:
+service: Optional[dict] = None
+configuration: Optional[dict] = None
+# Remove the normalize_legacy_fields validator entirely
+```
 
-1. Remove `service: Optional[dict] = None` from `WorkflowRevisionData`
-2. Remove `configuration: Optional[dict] = None` from `WorkflowRevisionData`
-3. Remove `validate_legacy_fields` validator (the mode="after" validator for these fields)
-4. Remove the comment block explaining the legacy format
-
-The SDK's `WorkflowRevisionData` in `sdk/agenta/sdk/models/workflows.py` never had these fields — no change needed there.
+**This step is not in scope for this plan.** The DB migration is a separate task. Steps S15–S18 leave the fields in place but stop writing them and ensure on-read normalization handles the existing stored data.
 
 ---
 
-### S15. Check generated client types
+## Order of Execution
 
-After S14, regenerate client types (if the API has an auto-generated client from OpenAPI):
+**1. G12b first** — low-risk, self-contained, unblocks clean revision data for everything else:
+   - S15: stop writing legacy fields in `build_evaluator_data()`
+   - S16: `normalize_legacy_fields` on-read migration in `WorkflowRevisionData`
+   - S17: remove redundant `extract_outputs_schema_from_service` fallback in service
+   - S18: migrate acceptance tests
 
-- Verify `WorkflowRevisionData` in generated types no longer includes `service` or `configuration`
-- Check `api/oss/tests/` for any remaining `data.service` / `data.configuration` assertions (there should be none after S13)
+**2. G12 (inspect only)** — add service methods and router endpoints:
+   - S1–S2: service methods
+   - S3–S4: router routes
+   - S6: tests
+
+**3. G12a** — catalog surface (most complex, deliver in sub-steps):
+   - S10: DTOs
+   - S11: workflow registry
+   - S12: workflow catalog endpoints
+   - S13: redirect evaluator catalog to workflow registry
+   - S14: first-class schemas in evaluator registry
 
 ---
 
@@ -499,13 +453,13 @@ After S14, regenerate client types (if the API has an auto-generated client from
 
 | File | Change |
 |------|--------|
-| `api/oss/src/core/applications/service.py` | Add `invoke_application`, `inspect_application` methods |
-| `api/oss/src/core/evaluators/service.py` | Add `invoke_evaluator`, `inspect_evaluator` methods |
-| `api/oss/src/apis/fastapi/applications/router.py` | Add `/invoke`, `/inspect` routes + handlers |
-| `api/oss/src/apis/fastapi/evaluators/router.py` | Add `/invoke`, `/inspect` routes + handlers |
-| `api/oss/src/apis/fastapi/shared/utils.py` (or `workflows/utils.py`) | Extract `handle_invoke_success/failure`, `handle_inspect_success/failure` shared helpers |
-| `api/oss/tests/pytest/acceptance/applications/test_application_invoke.py` | New: invoke/inspect acceptance tests |
-| `api/oss/tests/pytest/acceptance/evaluators/test_evaluator_invoke.py` | New: invoke/inspect acceptance tests |
+| `api/oss/src/core/applications/service.py` | Add `inspect_application` |
+| `api/oss/src/core/evaluators/service.py` | Add `inspect_evaluator` |
+| `api/oss/src/apis/fastapi/applications/router.py` | Add `/inspect` route + handler |
+| `api/oss/src/apis/fastapi/evaluators/router.py` | Add `/inspect` route + handler |
+| `api/oss/src/apis/fastapi/shared/utils.py` | Extract `handle_inspect_success/failure` from workflows router |
+| `api/oss/tests/pytest/acceptance/applications/test_application_inspect.py` | New |
+| `api/oss/tests/pytest/acceptance/evaluators/test_evaluator_inspect.py` | New |
 
 ### G12a
 
@@ -513,37 +467,27 @@ After S14, regenerate client types (if the API has an auto-generated client from
 |------|--------|
 | `api/oss/src/apis/fastapi/workflows/models.py` | Add `WorkflowCatalogTemplate`, `WorkflowCatalogPreset`, response wrappers |
 | `api/oss/src/resources/workflows/workflows.py` | New: predefined workflow registry |
-| `api/oss/src/apis/fastapi/workflows/router.py` | Add `/catalog/templates`, `/catalog/templates/{key}`, `/catalog/templates/{key}/presets`, preset `{preset_key}` routes |
-| `api/oss/src/apis/fastapi/evaluators/router.py` | Redirect catalog handlers to read from workflow registry (filtered by evaluator flag) |
-| `api/oss/src/resources/evaluators/evaluators.py` | Add `schemas.inputs` and `schemas.parameters` as first-class fields to each entry |
+| `api/oss/src/apis/fastapi/workflows/router.py` | Add `/catalog/templates*` routes |
+| `api/oss/src/apis/fastapi/evaluators/router.py` | Redirect catalog handlers to workflow registry (filtered by `is_evaluator`) |
+| `api/oss/src/resources/evaluators/evaluators.py` | Add `schemas.inputs`, `schemas.parameters`, `flags.is_evaluator` to entries |
 
 ### G12b
 
 | File | Change |
 |------|--------|
-| `api/oss/tests/pytest/acceptance/evaluators/test_evaluators_basics.py` | Migrate `data.service` assertions to normalized fields |
-| `api/oss/tests/pytest/acceptance/workflows/test_workflow_revisions_basics.py` | Migrate `data.configuration` assertions to normalized fields |
-| `api/oss/src/core/workflows/dtos.py` | Remove `service`, `configuration` fields and legacy validator |
-
----
-
-## Order of Execution
-
-1. **G12b first** — remove legacy fields from tests and DTOs. This is low-risk and unblocks clean revision data.
-2. **G12 (invoke/inspect)** — add service methods and router endpoints. Straightforward, well-bounded, directly enables application/evaluator execution.
-3. **G12a** — catalog surface. Most complex; involves defining new resource registries and refactoring the evaluator catalog source. Deliver in sub-steps:
-   - S7: define DTOs
-   - S8: create workflow registry resource file
-   - S9: add workflow catalog endpoints
-   - S10: redirect evaluator catalog to workflow registry
-   - S12: add first-class schemas to evaluator entries
+| `api/oss/src/core/evaluators/utils.py` | Remove `build_legacy_service()`, remove `service`/`configuration` from `build_evaluator_data()`, remove `extract_outputs_schema_from_service()` |
+| `api/oss/src/core/workflows/dtos.py` | Rename `validate_legacy_fields` → `normalize_legacy_fields`; populate normalized fields on read |
+| `api/oss/src/core/evaluators/service.py` | Remove `extract_outputs_schema_from_service` fallback in `_normalize_simple_evaluator_data` |
+| `api/oss/tests/pytest/acceptance/evaluators/test_evaluators_basics.py` | Migrate `data.service` → `data.schemas` |
+| `api/oss/tests/pytest/acceptance/workflows/test_workflow_revisions_basics.py` | Migrate `data.configuration` → `data.parameters` |
 
 ---
 
 ## Constraints and Compatibility
 
-- **Existing evaluator catalog endpoints** (`/preview/evaluators/catalog/*`) must not break. Response shapes stay the same; only the backing registry source changes.
-- **`settings_template`** stays as UI convenience metadata — it is not removed in this plan.
+- **`/invoke` not added**: applications and evaluators do not expose an invoke endpoint. The workflows invoke proxy is intentionally not replicated; invoke goes directly to the service URL.
+- **Existing evaluator catalog endpoints** (`/preview/evaluators/catalog/*`) must not break. Response shapes stay the same; only the backing registry source changes (G12a step S13).
+- **`settings_template`** stays as UI convenience metadata — not removed in this plan.
 - **Simple routers** (`/simple/applications/`, `/simple/evaluators/`) are not touched — CRUD only.
-- **Legacy `GET /templates` evaluator endpoint** (`/simple/evaluators/templates`) stays mounted for backward compatibility until explicitly deprecated.
-- **G12b removals** must be gated on all tests passing without the legacy fields.
+- **Legacy `service`/`configuration` fields in DTOs** stay in place until a DB migration is written — they are just never written by new code (S15) and are normalized away on read (S16).
+- **Data migration scripts** that call `build_evaluator_data()` automatically benefit from S15 — they will write clean data going forward.
