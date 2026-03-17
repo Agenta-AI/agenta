@@ -333,6 +333,7 @@ class SimpleTraceEdit(BaseModel):
     meta: Optional[Meta] = None
 
     data: Data
+    references: Optional[SimpleTraceReferences] = None
     links: Optional[SimpleTraceLinks] = None
 
 

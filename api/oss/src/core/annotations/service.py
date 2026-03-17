@@ -381,10 +381,6 @@ class AnnotationsService:
             is_evaluation=annotation.kind == AnnotationKind.EVAL,
         )
 
-        annotation_references = AnnotationReferences(
-            **annotation.references.model_dump(),
-        )
-
         annotation_link = await self._edit_annotation(
             organization_id=organization_id,
             project_id=project_id,
@@ -398,8 +394,8 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation_references,
-            links=annotation_edit.links or annotation.links,
+            references=annotation_edit.references,
+            links=annotation_edit.links,
         )
 
         if annotation_link is None:
@@ -743,9 +739,7 @@ class AnnotationsService:
             flags=flags.model_dump(mode="json", exclude_none=True) if flags else None,
             tags=tags,
             meta=meta,
-            references=references.model_dump(mode="json", exclude_none=True)
-            if references
-            else None,
+            references=references.model_dump(mode="json") if references else None,
             links=links,
             trace_links=annotation_links,
             windowing=windowing,

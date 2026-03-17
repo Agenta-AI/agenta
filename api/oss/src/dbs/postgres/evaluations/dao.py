@@ -73,22 +73,6 @@ from oss.src.dbs.postgres.evaluations.dbes import (
 log = get_module_logger(__name__)
 
 
-def _merge_run_flags(
-    *,
-    persisted_flags: Optional[dict],
-    incoming_flags: Optional[EvaluationRunFlags],
-) -> EvaluationRunFlags:
-    merged_flags = EvaluationRunFlags(**(persisted_flags or {}))
-
-    if incoming_flags is None:
-        return merged_flags
-
-    for field, value in incoming_flags.model_dump(exclude_none=True).items():
-        setattr(merged_flags, field, value)
-
-    return merged_flags
-
-
 class EvaluationsDAO(EvaluationsDAOInterface):
     def __init__(self):
         pass
@@ -310,10 +294,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             run_references = edit_run_references(run)
 
-            run.flags = _merge_run_flags(
-                persisted_flags=run_dbe.flags,
-                incoming_flags=run.flags,
-            )
             run.flags = edit_run_flags(run)
 
             run_dbe = edit_dbe_from_dto(
@@ -384,10 +364,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 run_references = edit_run_references(run)
 
-                run.flags = _merge_run_flags(
-                    persisted_flags=run_dbe.flags,
-                    incoming_flags=run.flags,
-                )
                 run.flags = edit_run_flags(run)
 
                 run_dbe = edit_dbe_from_dto(
