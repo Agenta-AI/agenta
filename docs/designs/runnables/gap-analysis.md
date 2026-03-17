@@ -655,6 +655,25 @@ See [taxonomy.md](./taxonomy.md) for full details.
 
 ---
 
+## G18. Web Consumers Still Targeting Legacy Serving Endpoints
+
+**What:** The frontend and web packages still call `/test`, `/run`, `/generate`, and `/generate_deployed` — the legacy SDK serving endpoints. The new system exposes `{path}/invoke` per route, but the web layer has not migrated.
+
+**Why it matters:** As long as web consumers hit legacy endpoints, the legacy serving system (`serving.py`, `@ag.entrypoint`) cannot be removed. This is the primary blocker for checkpoint 2.
+
+**Current state:**
+- `web/packages/agenta-entities/src/legacyAppRevision/state/runnableSetup.ts` — maps `direct` mode to `/test` and `deployed` mode to `/run`; the resolved URL flows into all playground execution
+- `web/oss/src/services/app-selector/api/index.ts` — probes `["/test", "/run", "/generate", "/generate_deployed", "/"]` to extract default parameters from the shared OpenAPI spec
+- `web/packages/agenta-entities/src/legacyEvaluator/state/runnableSetup.ts` — same endpoint pattern as `legacyAppRevision`
+
+**Action:**
+- [ ] Switch playground invocation URL from `/test`/`/run` to `{routePath}/invoke`
+- [ ] Resolve `direct` vs `deployed` mode distinction from the revision `url` field rather than the endpoint suffix
+- [ ] Update app-selector schema extraction to probe `/invoke` first; long-term replace path-probe with an inspect-based call
+- [ ] Verify `legacyEvaluator` runnableSetup follows the same migration
+
+---
+
 ## Gap Themes
 
 The gaps cluster into three cross-cutting themes. Many individual gaps are facets of the same underlying problem.
