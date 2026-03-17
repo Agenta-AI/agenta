@@ -12,7 +12,7 @@ import {
 
 import {createLogger} from "@agenta/shared/utils"
 import {$isCodeNode} from "@lexical/code"
-import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
+import {$convertFromMarkdownString} from "@lexical/markdown"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
 import {mergeRegister} from "@lexical/utils"
@@ -54,7 +54,10 @@ import {ValidationExtension} from "./plugins/code/extensions/validationReact"
 import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
 import {$getLineCount} from "./plugins/code/utils/segmentUtils"
-import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
+import {
+    $convertToMarkdownStringCustom,
+    PLAYGROUND_TRANSFORMERS,
+} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 import {
     TokenBehaviorExtension,
@@ -261,7 +264,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 textContent = firstChild.getTextContent()
                             } else {
                                 textContent = $convertToMarkdownStringCustom(
-                                    TRANSFORMERS,
+                                    PLAYGROUND_TRANSFORMERS,
                                     undefined,
                                     true,
                                 )
@@ -435,7 +438,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                         if (hydrateWithRemoteContent) {
                             $convertFromMarkdownString(
                                 hydrateWithRemoteContent,
-                                TRANSFORMERS,
+                                PLAYGROUND_TRANSFORMERS,
                                 undefined,
                                 true,
                             )
@@ -622,7 +625,11 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
                     currentContent = firstChild.getTextContent()
                 } else {
-                    currentContent = $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
+                    currentContent = $convertToMarkdownStringCustom(
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
                 }
             })
             // Skip if content already matches (no change needed)

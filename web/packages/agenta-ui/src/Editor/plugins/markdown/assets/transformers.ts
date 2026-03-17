@@ -28,6 +28,11 @@ import {
 } from "@lexical/table"
 import {$isParagraphNode, $isTextNode, ElementNode, LexicalNode} from "lexical"
 
+// Stores the original markdown divider patterns (e.g. ":---", "---:", ":---:")
+// keyed by table node key so we can reproduce them exactly on export.
+// Uses node key (string) instead of node identity because Lexical clones nodes on mutation.
+const tableDividerMap = new Map<string, string[]>()
+
 export function $convertToMarkdownStringCustom(
     transformers: Transformer[],
     node?: ElementNode,
@@ -106,7 +111,10 @@ export const TABLE: ElementTransformer = {
 
             output.push(`| ${rowOutput.join(" | ")} |`)
             if (isHeaderRow) {
-                output.push(`| ${rowOutput.map((_) => "---").join(" | ")} |`)
+                const storedDividers = tableDividerMap.get(node.getKey())
+                output.push(
+                    `| ${rowOutput.map((_, i) => storedDividers?.[i] ?? "---").join(" | ")} |`,
+                )
             }
         }
 
@@ -120,6 +128,14 @@ export const TABLE: ElementTransformer = {
             if (!table || !$isTableNode(table)) {
                 return
             }
+
+            // Preserve the original divider patterns (e.g. ":---", "---:", ":---:")
+            const dividerCells = match[0]
+                .trim()
+                .replace(/^\||\|$/g, "")
+                .split("|")
+                .map((s) => s.trim())
+            tableDividerMap.set(table.getKey(), dividerCells)
 
             const rows = table.getChildren()
             const lastRow = rows[rows.length - 1]

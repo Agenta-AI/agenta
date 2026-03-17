@@ -223,6 +223,18 @@ export {
 export {FormattedDate, type FormattedDateProps} from "./FormattedDate"
 
 // ============================================================================
+// AVATAR COMPONENTS
+// ============================================================================
+
+export {
+    InitialsAvatar,
+    getColorPairFromStr,
+    getInitials,
+    type InitialsAvatarProps,
+    type ColorPair,
+} from "./avatar"
+
+// ============================================================================
 // BUTTON COMPONENTS
 // ============================================================================
 

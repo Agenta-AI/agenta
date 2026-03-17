@@ -30,6 +30,7 @@ import {markdownViewAtom} from "../../state/assets/atoms"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
+import TableCellResizerPlugin from "./TableCellResizerPlugin"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -300,6 +301,7 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             <ClickableLinkPlugin />
             <HorizontalRulePlugin />
             <TablePlugin />
+            <TableCellResizerPlugin />
             <LexicalLinkPlugin />
         </>
     )

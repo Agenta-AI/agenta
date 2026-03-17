@@ -106,6 +106,11 @@ export const createInfiniteTableStore = <
 ): InfiniteTableStore<TableRow, ApiRow> => {
     const skeletonRowsCache = new Map<string, TableRow[]>()
 
+    // In-flight deduplication: prevent concurrent identical fetches.
+    // TanStack Query should handle this but experimental_prefetchInRender
+    // + React StrictMode can cause duplicate queryFn invocations.
+    const inflight = new Map<string, Promise<InfiniteTableFetchResult<ApiRow>>>()
+
     const makeCacheKey = ({scopeId, offset, limit, cursor, windowing}: TableRowAtomKey) =>
         `${options.key}:${scopeId ?? "scope"}:${offset}:${limit}:${cursor ?? "start"}:$${
             windowing?.next ?? ""
@@ -177,15 +182,25 @@ export const createInfiniteTableStore = <
                     placeholderData: (previousData: InfiniteTableFetchResult<ApiRow> | undefined) =>
                         previousData,
                     queryFn: async () => {
-                        return options.fetchPage({
-                            scopeId: params.scopeId,
-                            cursor: params.cursor,
-                            limit: params.limit,
-                            offset: params.offset,
-                            windowing: params.windowing ?? null,
-                            meta,
-                            get,
-                        })
+                        const fetchKey = `${makeCacheKey(params)}:${metaKey}`
+                        const existing = inflight.get(fetchKey)
+                        if (existing) return existing
+
+                        const promise = options
+                            .fetchPage({
+                                scopeId: params.scopeId,
+                                cursor: params.cursor,
+                                limit: params.limit,
+                                offset: params.offset,
+                                windowing: params.windowing ?? null,
+                                meta,
+                                get,
+                            })
+                            .finally(() => {
+                                inflight.delete(fetchKey)
+                            })
+                        inflight.set(fetchKey, promise)
+                        return promise
                     },
                 }
             }),
@@ -215,7 +230,29 @@ export const createInfiniteTableStore = <
                     return []
                 }
 
-                return skeletonRows.slice(0, apiRows.length).map((skeleton, index) => {
+                // When API returns more rows than pre-allocated skeletons
+                // (e.g., non-paginated endpoints returning all data),
+                // create additional skeleton rows on the fly.
+                let effectiveSkeletons = skeletonRows
+                if (apiRows.length > skeletonRows.length) {
+                    const extra = Array.from(
+                        {length: apiRows.length - skeletonRows.length},
+                        (_, index) =>
+                            options.createSkeletonRow({
+                                scopeId: key.scopeId,
+                                offset: key.offset,
+                                index: skeletonRows.length + index,
+                                windowing: key.windowing ?? null,
+                                rowKey: createRandomId(),
+                            }),
+                    )
+                    effectiveSkeletons = [...skeletonRows, ...extra]
+                    // Update cache so subsequent reads don't re-create
+                    const cacheKey = makeCacheKey(key)
+                    skeletonRowsCache.set(cacheKey, effectiveSkeletons)
+                }
+
+                return effectiveSkeletons.slice(0, apiRows.length).map((skeleton, index) => {
                     const apiRow = apiRows[index]
                     return options.mergeRow({skeleton, apiRow})
                 })
