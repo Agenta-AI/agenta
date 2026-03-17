@@ -32,7 +32,7 @@ const TruncatedTooltipTag = ({
             <Tag
                 {...tagProps}
                 variant="filled"
-                className={clsx("self-start w-fit bg-[#0517290F]", tagProps?.className)}
+                className={clsx("w-fit bg-[#0517290F]", tagProps?.className)}
             >
                 {children}
             </Tag>

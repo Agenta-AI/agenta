@@ -4,6 +4,7 @@
  * without needing to use hooks in each cell.
  */
 
+import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
@@ -13,7 +14,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {runInvocation} from "@/oss/services/evaluations/invocations/api"
-import {fetchVariantConfig} from "@/oss/services/variantConfigs/api"
 import {getProjectValues} from "@/oss/state/project"
 
 import {
@@ -176,34 +176,29 @@ export const triggerRunInvocationAtom = atom(
                 return {success: false, error: "Project ID not available"}
             }
 
-            console.log("[runInvocationAction] Fetching variant config...", {
+            console.log("[runInvocationAction] Fetching workflow revision...", {
                 projectId,
-                appId,
                 revisionId,
             })
 
-            const variantConfig = await fetchVariantConfig({
-                projectId,
-                application: {id: appId},
-                variant: {id: revisionId},
-            })
+            const workflow = await fetchWorkflowRevisionById(revisionId, projectId)
 
-            console.log("[runInvocationAction] Variant config:", variantConfig)
+            console.log("[runInvocationAction] Workflow revision:", workflow)
 
-            if (!variantConfig) {
+            if (!workflow) {
                 message.error("Failed to fetch variant configuration")
                 return {success: false, error: "Variant config not available"}
             }
 
-            const appUrl = variantConfig.url
+            const appUrl = workflow.data?.url
             if (!appUrl) {
-                console.error("[runInvocationAction] App URL not in variant config:", variantConfig)
+                console.error("[runInvocationAction] App URL not in workflow data:", workflow)
                 message.error("App URL not available in variant config")
                 return {success: false, error: "App URL not available"}
             }
 
-            // Get stable parameters from variant config
-            const stableParams = variantConfig.params ?? {}
+            // Get stable parameters from workflow revision data
+            const stableParams = (workflow.data?.parameters as Record<string, any>) ?? {}
             console.log("[runInvocationAction] Stable params from config:", stableParams)
 
             // Get input data from the scenario's input step

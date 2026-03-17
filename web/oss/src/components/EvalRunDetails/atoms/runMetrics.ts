@@ -1,3 +1,4 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, Atom} from "jotai"
 import {atomFamily, loadable} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -6,7 +7,6 @@ import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atom
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {deriveEvaluationKind} from "@/oss/lib/evaluations/utils/evaluationKind"
 import {BasicStats, canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import {previewEvalTypeAtom} from "../state/evalType"
 

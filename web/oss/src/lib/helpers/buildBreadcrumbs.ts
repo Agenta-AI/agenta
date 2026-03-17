@@ -1,12 +1,13 @@
+import type {Workflow} from "@agenta/entities/workflow"
+
 import {BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb/types"
 import {isUuid} from "@/oss/lib/helpers/utils"
-import {ListAppsItem} from "@/oss/lib/Types"
 
 const IGNORE_PATHS = new Set(["testsets", "evaluations", "settings", "configure", "results"])
 
 export interface BreadcrumbContext {
     uriPath: string
-    apps: ListAppsItem[]
+    apps: Workflow[]
     workspaceId: string | null
     workspaceName: string
     projectId: string | null
@@ -63,10 +64,10 @@ export const buildBreadcrumbSegments = ({
         const slicedSegments = segments.slice(appSlugIndex + 2)
 
         if (appId) {
-            const app = apps.find((appItem) => appItem.app_id === appId)
+            const app = apps.find((appItem) => appItem.id === appId)
 
             items["app"] = {
-                label: app?.app_name ?? "App",
+                label: app?.name ?? app?.slug ?? "App",
                 href: `${baseAppsPath}/${appId}/overview`,
             }
         }

@@ -1,3 +1,4 @@
+import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -6,7 +7,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import type {IStepResponse} from "@/oss/lib/evaluations"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {getProjectValues} from "@/oss/state/project"
-import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 import type {ScenarioStepsBatchResult} from "./types"

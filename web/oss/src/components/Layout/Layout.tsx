@@ -23,7 +23,6 @@ import {
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
 
-import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
@@ -57,6 +56,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isEvaluator = pathname.includes("/evaluators/configure")
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
+    const isRegistry = pathname.includes("/variants")
 
     return {
         isAuthRoute:
@@ -68,7 +68,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
         isPlayground: pathname.includes("/playground"),
         isHumanEval,
         isEvaluator,
-        isFullHeight: isHumanEval || isEvaluator || isTestsets || isAnnotations,
+        isFullHeight: isHumanEval || isEvaluator || isTestsets || isAnnotations || isRegistry,
     }
 })
 
@@ -139,8 +139,6 @@ const AppWithVariants = memo(
         )
         const [isDemoReturnModalOpen, setDemoReturnModalOpen] = useState(false)
         const navigate = useSetAtom(requestNavigationAtom)
-        // const profileLoading = useAtomValue(profilePendingAtom)
-        // const {changeSelectedOrg} = useOrgData()
 
         useEffect(() => {
             if (project?.is_demo) return
@@ -188,11 +186,7 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div
-                className={clsx([
-                    {"flex flex-col grow min-h-0": isFullHeight},
-                ])}
-            >
+            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
@@ -237,22 +231,18 @@ const AppWithVariants = memo(
                         >
                             <BreadcrumbContainer
                                 appTheme={appTheme}
-                                appName={currentApp?.app_name || ""}
+                                appName={currentApp?.name ?? currentApp?.slug ?? ""}
                             />
                             {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
-                                <OldAppDeprecationBanner>
+                                <>
                                     <CustomWorkflowBanner />
                                     <Content
-                                        className={clsx(
-                                            "flex gap-4 flex-col w-full",
-                                            // "h-[calc(100%-30px)]",
-                                            {
-                                                "pb-0 mb-8": !isFullHeight,
-                                                "flex flex-col min-h-0 grow": isFullHeight,
-                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                    isPlayground || isAnnotations,
-                                            },
-                                        )}
+                                        className={clsx("flex gap-4 flex-col w-full", {
+                                            "pb-0 mb-8": !isFullHeight,
+                                            "flex flex-col min-h-0 grow": isFullHeight,
+                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                isPlayground || isAnnotations,
+                                        })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
                                             <ConfigProvider
@@ -277,7 +267,7 @@ const AppWithVariants = memo(
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
-                                </OldAppDeprecationBanner>
+                                </>
                             ) : (
                                 <Content
                                     className={clsx("flex gap-4", "h-[calc(100%-30px)]", {

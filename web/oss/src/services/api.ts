@@ -1,28 +1,28 @@
-import {probeEndpointPath} from "@agenta/entities/legacyAppRevision"
+import {probeEndpointPath} from "@agenta/entities/shared/openapi"
+import {
+    queryWorkflowVariants,
+    fetchWorkflowRevisionById,
+    resolveBuiltinAppServiceUrl,
+} from "@agenta/entities/workflow"
+import {shortPoll} from "@agenta/shared/utils"
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
 } from "@/oss/lib/helpers/openapi_parser"
-import {shortPoll} from "@/oss/lib/helpers/utils"
-import {
-    Variant,
-    Parameter,
-    ChatMessage,
-    KeyValuePair,
-    FuncResponse,
-    BaseResponse,
-    User,
-} from "@/oss/lib/Types"
+import {Parameter, ChatMessage, KeyValuePair, FuncResponse, BaseResponse} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-import {uriFixer} from "../lib/shared/variant"
-import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
+const constructPlaygroundTestUrl = (
+    uri: {routePath?: string; runtimePrefix?: string},
+    endpoint = "/test",
+    withPrefix = true,
+) => {
+    return `${withPrefix ? uri.runtimePrefix || "" : ""}${uri.routePath ? `/${uri.routePath}` : ""}${endpoint}`
+}
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -36,47 +36,6 @@ import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
  */
 
 export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
-
-export async function fetchVariants(appId: string, ignoreAxiosError = false): Promise<Variant[]> {
-    const {projectId} = getProjectValues()
-
-    if (!projectId) {
-        return []
-    }
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/apps/${appId}/variants?project_id=${projectId}`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
-
-    if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        return response.data.map((variant: Record<string, any>) => {
-            return {
-                variantName: variant.variant_name,
-                templateVariantName: variant.previous_variant_name,
-                persistent: true,
-                parameters: variant.parameters,
-                previousVariantName: variant.previous_variant_name || null,
-                variantId: variant.variant_id,
-                baseId: variant.base_id,
-                baseName: variant.base_name,
-                configName: variant.config_name,
-                revision: variant.revision,
-                updatedAt: formatDay({date: variant.updated_at}),
-                updatedAtTimestamp: dayjs(variant.updated_at, "YYYY/MM/DD H:mm:ssAZ").valueOf(),
-                modifiedById: variant.modified_by_id,
-                createdAt: formatDay({date: variant.created_at}),
-                createdAtTimestamp: dayjs(variant.created_at, "YYYY/MM/DD H:mm:ssAZ").valueOf(),
-                uri: uriFixer(variant.uri),
-                appId: variant.app_id,
-            } as Variant
-        })
-    }
-
-    return []
-}
 
 /**
  * Get the JWT from SuperTokens
@@ -400,17 +359,6 @@ export const fetchProfile = async (ignoreAxiosError = false) => {
     } as any)
 }
 
-export const fetchSingleProfile = async (
-    userId: string,
-    ignoreAxiosError = false,
-): Promise<User> => {
-    const {data} = await axios.get(`${getAgentaApiUrl()}/profile?user_id=${userId}`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-
-    return data
-}
-
 export const fetchData = async (url: string): Promise<any> => {
     const response = await fetch(url)
     return response.json()
@@ -418,35 +366,50 @@ export const fetchData = async (url: string): Promise<any> => {
 
 export const waitForAppToStart = async ({
     appId,
-    variant,
+    variantId,
     timeout = 20000,
     interval = 2000,
 }: {
     appId: string
-    variant?: Variant
+    variantId?: string
     timeout?: number
     interval?: number
 }): Promise<{
     stopper: () => void
     promise: Promise<void>
 }> => {
-    const _variant = variant || (await fetchVariants(appId, true))[0]
-    if (_variant) {
-        const {stopper, promise} = shortPoll(
-            () =>
-                fetchVariantParametersFromOpenAPI(
-                    appId,
-                    _variant.variantId,
-                    _variant.baseId,
-                    true,
-                ).then(() => stopper()),
-            {delayMs: interval, timeoutMs: timeout},
-        )
+    const {projectId} = getProjectValues()
+    if (!projectId) {
+        return {stopper: () => {}, promise: Promise.reject(new Error("Project not found"))}
+    }
 
-        return {stopper, promise}
-    } else {
+    // Resolve variant ID if not provided
+    let resolvedVariantId = variantId
+    if (!resolvedVariantId) {
+        const result = await queryWorkflowVariants(appId, projectId)
+        resolvedVariantId = result.workflow_variants[0]?.id
+    }
+    if (!resolvedVariantId) {
         return {stopper: () => {}, promise: Promise.reject(new Error("Variant not found"))}
     }
+
+    // Fetch full revision data to resolve the service URL
+    const revision = await fetchWorkflowRevisionById(resolvedVariantId, projectId)
+    const serviceUrl = resolveBuiltinAppServiceUrl(revision) ?? revision.data?.url
+    if (!serviceUrl) {
+        return {stopper: () => {}, promise: Promise.reject(new Error("Service URL not found"))}
+    }
+
+    // Poll until the service responds on /openapi.json
+    const {stopper, promise} = shortPoll(
+        async () => {
+            const result = await probeEndpointPath(serviceUrl, {endpoint: "/openapi.json"})
+            if (result) stopper()
+        },
+        {delayMs: interval, timeoutMs: timeout},
+    )
+
+    return {stopper, promise}
 }
 
 // Re-export profile mutations for backward compatibility with older imports

@@ -102,15 +102,6 @@ export interface PreviewTestset {
 
 export type TestsetCreationMode = "create" | "clone" | "rename"
 
-export interface ListAppsItem {
-    app_id: string
-    app_name: string
-    app_type?: string
-    created_at?: string
-    updated_at: string
-    folder_id?: string | null
-}
-
 export type APP_TYPE = "completion" | "chat" | "custom"
 
 export interface AppVariant {

@@ -228,8 +228,13 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     const tableExport = useTableExport<T>()
     const columnsRef = useRef<ColumnsType<T> | null>(null)
 
-    // Auto-reset pagination when search dependencies change
+    // Auto-reset pagination when search dependencies change (skip initial mount)
+    const searchDepsInitialized = useRef(false)
     useEffect(() => {
+        if (!searchDepsInitialized.current) {
+            searchDepsInitialized.current = true
+            return
+        }
         if (searchDeps.length > 0) {
             resetPages()
         }

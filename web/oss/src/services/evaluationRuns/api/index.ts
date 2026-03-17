@@ -1,15 +1,18 @@
+import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
 import {
     extractAllEndpointSchemas,
     extractInputKeysFromSchema,
-    legacyAppRevisionMolecule,
-    legacyAppRevisionSchemaQueryAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
-import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
+} from "@agenta/entities/shared/openapi"
+import type {Workflow} from "@agenta/entities/workflow"
+import {
+    workflowMolecule,
+    appOpenApiSchemaAtomFamily,
+    appRoutePathAtomFamily,
+} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
 import {slugify} from "@/oss/lib/utils/slugify"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 
@@ -60,14 +63,12 @@ const extractColumnsFromTestset = (testset?: Testset): string[] => {
  * Resolve a server revision ID for invocation references.
  * Local drafts use non-UUID IDs, so we fall back to their source revision.
  */
-const resolveInvocationRevisionId = (
-    revision: EnhancedVariant & {sourceRevisionId?: string | null},
-): string | undefined => {
+const resolveInvocationRevisionId = (revision: Workflow): string | undefined => {
     if (isValidUUID(revision.id)) return revision.id
 
-    const sourceRevisionId =
-        revision.sourceRevisionId ??
-        (isLocalDraftId(revision.id) ? extractSourceIdFromDraft(revision.id) : null)
+    const sourceRevisionId = isLocalDraftId(revision.id)
+        ? extractSourceIdFromDraft(revision.id)
+        : null
 
     if (sourceRevisionId && isValidUUID(sourceRevisionId)) {
         return sourceRevisionId
@@ -113,25 +114,20 @@ const buildInputStep = (testset?: Testset) => {
  * Constructs the invocation step for a given revision.
  * Only includes reference keys if their IDs are defined.
  */
-const buildInvocationStep = (revision: EnhancedVariant, inputKey: string) => {
-    const invocationKey = slugify(
-        (revision as any).name ?? (revision as any).variantName ?? "invocation",
-        revision.id,
-    )
+const buildInvocationStep = (revision: Workflow, inputKey: string) => {
+    const invocationKey = slugify(revision.name ?? "invocation", revision.id)
     const references: Record<string, {id: string}> = {}
 
-    // Use the appId from the revision itself, not from global state which may have stale values
-    const appId = revision.appId
-    if (isValidUUID(appId)) {
+    const appId = revision.workflow_id
+    if (appId && isValidUUID(appId)) {
         references.application = {id: appId}
     }
 
-    if (revision.variantId !== undefined && isValidUUID(revision.variantId)) {
-        references.application_variant = {id: revision.variantId}
+    const variantId = revision.workflow_variant_id
+    if (variantId && isValidUUID(variantId)) {
+        references.application_variant = {id: variantId}
     }
-    const invocationRevisionId = resolveInvocationRevisionId(
-        revision as EnhancedVariant & {sourceRevisionId?: string | null},
-    )
+    const invocationRevisionId = resolveInvocationRevisionId(revision)
     if (invocationRevisionId) {
         references.application_revision = {id: invocationRevisionId}
     }
@@ -178,14 +174,14 @@ const buildAnnotationStepsFromEvaluators = (
  * Constructs the array of mappings for extracting data from steps.
  * Uses the revision's inputParams to generate "input" mappings automatically.
  *
- * @param revision - The EnhancedVariant object containing inputParams.
+ * @param revision - The Workflow revision object.
  * @param correctAnswerColumn - The property name in the input step for ground truth.
  * @param evaluators - Optional list of evaluators to generate evaluator mappings.
  * @param testset - The testset object to conditionally add mappings based on variantId and revisionId.
  * @returns An array of mapping objects.
  */
 const buildMappings = (
-    revision: EnhancedVariant,
+    revision: Workflow,
     correctAnswerColumn: string,
     evaluators: EvaluatorDto[] | undefined,
     testset?: Testset,
@@ -193,13 +189,7 @@ const buildMappings = (
     const testsetKey = testset
         ? slugify(testset.name ?? (testset as any).slug ?? "testset", testset.id)
         : "input"
-    const invocationKey = slugify(
-        (revision as any).name ??
-            (revision as any).variantName ??
-            ((revision as any)._parentVariant as any)?.variantName ??
-            "invocation",
-        revision.id,
-    )
+    const invocationKey = slugify(revision.name ?? "invocation", revision.id)
     const mappings: {
         column: {kind: "testset" | "invocation" | "evaluator"; name: string}
         step: {key: string; path: string}
@@ -214,9 +204,8 @@ const buildMappings = (
         const store = getDefaultStore()
         const appContext = store.get(currentAppContextAtom)
         const isCustom = appContext?.appType === "custom"
-        const schemaQuery = store.get(legacyAppRevisionSchemaQueryAtomFamily(revision.id)) as any
-        const spec = schemaQuery?.data?.openApiSchema ?? null
-        const routePath = schemaQuery?.data?.routePath || ""
+        const spec = store.get(appOpenApiSchemaAtomFamily(revision.id))
+        const routePath = store.get(appRoutePathAtomFamily(revision.id)) || ""
 
         let variableNames: string[] = []
         if (isCustom) {
@@ -224,8 +213,9 @@ const buildMappings = (
             variableNames = spec ? extractInputKeysFromSchema(spec as any, routePath) : []
         } else {
             // Non-custom: use stable variables from saved parameters (ignore live prompt edits)
-            const inputPorts = store.get(legacyAppRevisionMolecule.atoms.inputPorts(revision.id))
-            variableNames = (inputPorts || []).map((p: any) => p.key)
+            const inputSchema = store.get(workflowMolecule.selectors.inputSchema(revision.id))
+            const props = (inputSchema as any)?.properties
+            variableNames = props && typeof props === "object" ? Object.keys(props) : []
         }
 
         // Only add schema-derived columns if they actually exist in the testset
@@ -325,7 +315,7 @@ const buildMappings = (
  *
  * @param name - Base name used in each run
  * @param testset - The testset being used in this evaluation (must include variantId & revisionId).
- * @param revisions - List of enhanced variant revisions; one run will be generated per revision.
+ * @param revisions - List of workflow revisions; one run will be generated per revision.
  * @param evaluators - List of available evaluators used in annotation.
  * @param correctAnswerColumn - The property name in the input step that holds the ground truth value.
  * @param meta - Optional metadata object to attach to each run.
@@ -347,11 +337,7 @@ export const createEvaluationRunConfig = ({
     // Create one run configuration per revision
     const runs = revisions.map((revision) => {
         const invocationKey =
-            invocationKeysCache[revision.id] ??
-            slugify(
-                (revision as any).name ?? (revision as any).variantName ?? "invocation",
-                revision.id,
-            )
+            invocationKeysCache[revision.id] ?? slugify(revision.name ?? "invocation", revision.id)
 
         invocationKeysCache[revision.id] = invocationKey
 
@@ -363,7 +349,7 @@ export const createEvaluationRunConfig = ({
         // Build mappings for this revision, passing testset as well
         const mappings = buildMappings(revision, correctAnswerColumn, evaluators, testset)
         return {
-            key: `evaluation-${revision.variantId}`,
+            key: `evaluation-${revision.workflow_variant_id ?? revision.id}`,
             name: `${name}`,
             description: "auto-generated evaluation run",
             meta, // Include the passed-in meta object

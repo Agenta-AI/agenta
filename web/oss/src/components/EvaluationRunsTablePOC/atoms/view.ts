@@ -1,15 +1,13 @@
 import type {Key} from "react"
 
+import {workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage, loadable, selectAtom} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithStorage, loadable, selectAtom} from "jotai/utils"
 
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {getUniquePartOfId} from "@/oss/lib/helpers/utils"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
-import type {Variant} from "@/oss/lib/Types"
-import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {appsQueryAtom} from "@/oss/state/app"
 import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
 import {queriesQueryAtomFamily} from "@/oss/state/queries"
@@ -642,9 +640,9 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
     const appOptions =
         Array.isArray(appsQuery?.data) && appsQuery.data.length
             ? appsQuery.data
-                  .map((app) => ({
-                      value: app.app_id,
-                      label: app.app_name ?? app.app_id,
+                  .map((app: any) => ({
+                      value: app.id,
+                      label: app.name ?? app.slug ?? app.id,
                   }))
                   .sort((a, b) => a.label.localeCompare(b.label))
             : []
@@ -659,23 +657,6 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
         appsLoading,
     }
 })
-
-const appVariantsQueryAtomFamily = atomFamily(
-    (appId: string) =>
-        atomWithQuery<Variant[]>((get) => ({
-            queryKey: ["evaluation-runs", "app-variants", appId],
-            enabled: Boolean(appId),
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            staleTime: 60_000,
-            gcTime: 5 * 60_000,
-            queryFn: async () => {
-                if (!appId) return []
-                return fetchAppVariants(appId, false)
-            },
-        })),
-    (a, b) => a === b,
-)
 
 export const evaluationRunsVariantOptionsAtom = atom((get) => {
     const draftFilters = get(filtersDraftStateAtom)
@@ -704,22 +685,21 @@ export const evaluationRunsVariantOptionsAtom = atom((get) => {
         }
     }
 
-    const loadables = selectedApps.map((appId) => get(loadable(appVariantsQueryAtomFamily(appId))))
+    const loadables = selectedApps.map((appId) =>
+        get(loadable(workflowVariantsQueryAtomFamily(appId))),
+    )
     const isLoading = loadables.some((result) => result.state === "loading")
 
     const variants = loadables.flatMap((result) =>
-        result.state === "hasData" && Array.isArray(result.data?.data) ? result.data.data : [],
+        result.state === "hasData" ? (result.data?.workflow_variants ?? []) : [],
     )
 
     const seen = new Set<string>()
     const options = variants
         .map((variant) => {
-            const id = variant.variantId || (variant as any).id || null
+            const id = variant.id
             if (!id) return null
-            const label =
-                (variant.variantName && variant.variantName.trim()) ||
-                (variant.name && (variant.name as string).trim()) ||
-                null
+            const label = variant.name?.trim() || null
             return {value: id, label: formatVariantLabel(id, label)}
         })
         .filter((option): option is {value: string; label: string} => {

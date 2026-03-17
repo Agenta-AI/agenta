@@ -21,14 +21,15 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     const {appMenuItems, appKeyMap} = useMemo(() => {
         const keyMap: Record<string, string> = {}
         const items: MenuProps["items"] = (apps ?? []).map((app) => {
-            const key = `app:${app.app_id}`
-            keyMap[key] = app.app_id
+            const key = `app:${app.id}`
+            const label = app.name ?? app.slug ?? app.id
+            keyMap[key] = app.id
             return {
                 key,
                 label: (
                     <div className="w-full max-w-[400px]">
-                        <span className="truncate block" title={app.app_name}>
-                            {app.app_name}
+                        <span className="truncate block" title={label}>
+                            {label}
                         </span>
                     </div>
                 ),
@@ -38,7 +39,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
         return {appMenuItems: items, appKeyMap: keyMap}
     }, [apps])
 
-    const selectedAppId = currentApp?.app_id || recentlyVisitedAppId
+    const selectedAppId = currentApp?.id || recentlyVisitedAppId
     const selectedKey = selectedAppId ? [`app:${selectedAppId}`] : undefined
 
     const handleMenuClick: MenuProps["onClick"] = useCallback(
@@ -53,7 +54,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     )
 
     const appLabel =
-        (selectedAppId && apps?.find((app) => app.app_id === selectedAppId)?.app_name) ||
+        (selectedAppId && (apps?.find((app) => app.id === selectedAppId)?.name ?? "")) ||
         "Select app"
 
     return (

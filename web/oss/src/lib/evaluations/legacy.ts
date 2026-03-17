@@ -1,6 +1,6 @@
-import {formatCurrency, formatLatency} from "@agenta/oss/src/lib/helpers/formatters"
 import {isDemo} from "@agenta/oss/src/lib/helpers/utils"
 import {GenericObject, TypedValue, _Evaluation} from "@agenta/oss/src/lib/Types"
+import {formatCurrency, formatLatency} from "@agenta/shared/utils"
 import dayjs from "dayjs"
 import capitalize from "lodash/capitalize"
 import round from "lodash/round"

@@ -1,3 +1,4 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -7,7 +8,6 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import {createEntityDraftState, normalizeValueForComparison} from "../shared/createEntityDraftState"
 

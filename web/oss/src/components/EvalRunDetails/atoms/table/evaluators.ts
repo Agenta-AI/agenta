@@ -1,9 +1,9 @@
+import {createBatchFetcher} from "@agenta/shared/utils"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import {effectiveProjectIdAtom} from "../run"
 

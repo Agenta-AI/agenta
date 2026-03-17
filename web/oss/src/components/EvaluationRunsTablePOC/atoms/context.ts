@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {loadable, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 
 import {appsQueryAtom} from "@/oss/state/app"
 import {appIdentifiersAtom, routeLayerAtom} from "@/oss/state/appState"
@@ -47,17 +47,12 @@ export const evaluationRunsTableOverridesAtom = atom<EvaluationRunsTableOverride
     defaultEvaluationRunsTableOverrides,
 )
 
-const loadableAppsQueryAtom = loadable(appsQueryAtom)
-
 const availableAppIdsAtom = atom<string[]>((get) => {
-    const result = get(loadableAppsQueryAtom)
-    if (result.state === "hasData") {
-        const list = Array.isArray(result.data) ? result.data : []
-        return list
-            .map((item: any) => item?.app_id || item?.appId)
-            .filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
-    }
-    return []
+    const {data} = get(appsQueryAtom)
+    const list = Array.isArray(data) ? data : []
+    return list
+        .map((item: any) => item?.id)
+        .filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
 })
 
 export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((get) => {

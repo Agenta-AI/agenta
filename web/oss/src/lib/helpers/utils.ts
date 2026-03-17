@@ -1,4 +1,4 @@
-import {tryParsePartialJson} from "@agenta/ui"
+import {dataUriToObjectUrl, isBase64, isUrl, safeJson5Parse} from "@agenta/shared/utils"
 import {notification} from "antd"
 import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
@@ -112,17 +112,8 @@ export const safeParse = (str: string, fallback: any = "") => {
     }
 }
 
-/**
- * Parses a string using JSON5, falling back to tryParsePartialJson if parsing fails.
- * Returns the parsed object or null if parsing fails.
- */
-export function safeJson5Parse(input: string): any | null {
-    try {
-        return JSON5.parse(input)
-    } catch {
-        return tryParsePartialJson(input)
-    }
-}
+// Re-export from @agenta/shared/utils for backward compatibility
+export {dataUriToObjectUrl, isBase64, isUrl, safeJson5Parse}
 
 export const extractChatMessages = (testcase: any) => {
     if (testcase.messages)
@@ -247,30 +238,7 @@ export async function batchExecute(
     return results
 }
 
-export const shortPoll = (
-    func: Function,
-    {delayMs, timeoutMs = 2000}: {delayMs: number; timeoutMs?: number},
-) => {
-    const startTime = Date.now()
-    let shouldContinue = true
-
-    const executor = async () => {
-        while (shouldContinue && Date.now() - startTime < timeoutMs) {
-            await func()
-            await delay(delayMs)
-        }
-        if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
-    }
-
-    const promise = executor()
-
-    return {
-        stopper: () => {
-            shouldContinue = false
-        },
-        promise,
-    }
-}
+// shortPoll was moved to @agenta/shared/utils — import from there instead
 
 export function pickRandom<T>(arr: T[], len: number) {
     const result: T[] = []
@@ -460,38 +428,11 @@ export const convertToStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value)
 }
 
-// Helper function to convert base64 data to object URL
 export interface FileAttachment {
     filename: string
     data: string
     format?: string
     size?: number | string
-}
-
-export const dataUriToObjectUrl = (dataUri: string): string => {
-    const match = dataUri.match(/^data:(.*?);base64,(.*)$/)
-    if (!match) return dataUri
-    try {
-        const mimeType = match[1] || "application/pdf"
-        const base64 = match[2]
-        const byteCharacters = atob(base64)
-        const byteNumbers = new Array(byteCharacters.length)
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i)
-        }
-        const byteArray = new Uint8Array(byteNumbers)
-        const blob = new Blob([byteArray], {type: mimeType})
-        return URL.createObjectURL(blob)
-    } catch (error) {
-        console.error("Unable to create preview URL from data URI", error)
-        return dataUri
-    }
-}
-
-// Helper function to check if a string is a base64
-export const isBase64 = (value: string): boolean => {
-    const match = value.match(/^data:(.*?);base64,(.*)$/)
-    return Boolean(match)
 }
 
 export const sanitizeDataWithBlobUrls = <T = any>(
@@ -680,12 +621,4 @@ export const sanitizeDataWithBlobUrls = <T = any>(
     }
 
     return {data: walk(input), blobUrls, fileAttachments, imageAttachments}
-}
-
-export const isUrl = (value: string): boolean => {
-    const match =
-        value.match(/^blob:http?:\/\//) ||
-        value.match(/^https?:\/\//) ||
-        value.match(/^blob:https?:\/\//)
-    return Boolean(match)
 }

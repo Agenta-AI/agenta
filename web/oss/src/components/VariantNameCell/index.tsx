@@ -1,11 +1,11 @@
-import {memo, useCallback} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {
-    legacyAppRevisionMolecule,
-    latestServerRevisionIdAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
-import {runnableBridge} from "@agenta/entities/runnable"
+    workflowLatestRevisionIdAtomFamily,
+    workflowMolecule,
+    workflowVariantsListDataAtomFamily,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -13,19 +13,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
 
-type Rev = {
-    id: string
-    variantId: string
-    appId?: string
-    revision?: number
-    revisionNumber?: number
-} | null
-
 interface VariantNameCellProps {
     revisionId?: string
     showBadges?: boolean
     showStable?: boolean
-    revision?: Rev
     revisionName?: string | null
     hideDiscard?: boolean
 }
@@ -33,29 +24,28 @@ interface VariantNameCellProps {
 const VariantNameCell = memo(
     ({
         revisionId,
-        revision,
         revisionName,
         showBadges = false,
         showStable = false,
         hideDiscard = false,
     }: VariantNameCellProps) => {
-        const currentRevisionId = revisionId || (revision?.id ?? "")
-        const resolvedRevision = useAtomValue(
-            legacyAppRevisionMolecule.atoms.data(currentRevisionId),
-        ) as Rev
-
-        const rev = resolvedRevision ?? revision
-
-        const appId = rev?.appId ?? revision?.appId ?? ""
-        const latestRevisionId = useAtomValue(latestServerRevisionIdAtomFamily(appId))
-        const isLatestRevision = !!latestRevisionId && currentRevisionId === latestRevisionId
-        const deployedInFromStore = useAtomValue(
-            environmentMolecule.atoms.revisionDeployment((rev && rev.id) || ""),
+        const currentRevisionId = revisionId || ""
+        const workflowData = useAtomValue(
+            useMemo(() => workflowMolecule.selectors.data(currentRevisionId), [currentRevisionId]),
         )
 
-        const _isDirty = useAtomValue(runnableBridge.isDirty(currentRevisionId))
+        const workflowId = workflowData?.workflow_id || ""
+        const variants = useAtomValue(workflowVariantsListDataAtomFamily(workflowId))
+        const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(workflowId))
+        const isLatestRevision = !!latestRevisionId && currentRevisionId === latestRevisionId
+
+        const deployedIn = useAtomValue(
+            environmentMolecule.atoms.revisionDeployment(currentRevisionId),
+        )
+
+        const _isDirty = useAtomValue(workflowMolecule.selectors.isDirty(currentRevisionId))
         const isDirty = showStable ? false : _isDirty
-        const discard = useSetAtom(runnableBridge.discard)
+        const discard = useSetAtom(workflowMolecule.actions.discard)
 
         const handleDiscardDraft = useCallback(() => {
             if (!currentRevisionId) return
@@ -68,7 +58,7 @@ const VariantNameCell = memo(
             }
         }, [currentRevisionId, discard])
 
-        if (!rev) {
+        if (!workflowData) {
             return (
                 <Tag color="default" variant="filled" className="-ml-1">
                     No deployment
@@ -76,16 +66,12 @@ const VariantNameCell = memo(
             )
         }
 
-        const resolvedName = revisionName || (rev as any)?.variantName || "-"
-
-        const deployedIn =
-            deployedInFromStore && deployedInFromStore.length > 0
-                ? deployedInFromStore
-                : ((rev as any)?.deployedIn as {name: string}[]) || []
+        const variantEntity = variants.find((v) => v.id === workflowData.workflow_variant_id)
+        const resolvedName = variantEntity?.name || revisionName || workflowData.name || "-"
 
         const variantMin: VariantStatusInfo = {
-            id: rev.id,
-            deployedIn,
+            id: currentRevisionId,
+            deployedIn: deployedIn?.length ? deployedIn : [],
             isLatestRevision,
         }
 
@@ -93,7 +79,7 @@ const VariantNameCell = memo(
             <VariantDetailsWithStatus
                 variant={variantMin}
                 variantName={resolvedName}
-                revision={rev.revision ?? rev.revisionNumber}
+                revision={workflowData.version}
                 showBadges={showBadges}
                 showRevisionAsTag
                 hasChanges={isDirty}

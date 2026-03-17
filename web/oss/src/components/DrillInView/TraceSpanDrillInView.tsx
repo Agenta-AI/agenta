@@ -9,6 +9,7 @@ import {
     useState,
 } from "react"
 
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {
     Editor as EditorWrapper,
     EditorProvider,
@@ -44,7 +45,6 @@ import dynamic from "next/dynamic"
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
-import {traceSpan} from "@/oss/state/entities/trace"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
@@ -600,7 +600,7 @@ export const TraceSpanDrillInView = memo(
         allowSpanCollapse = true,
         spanDataOverride,
     }: TraceSpanDrillInViewProps) => {
-        const spanEntityData = useAtomValue(traceSpan.selectors.data(spanId))
+        const spanEntityData = useAtomValue(traceSpanMolecule.selectors.data(spanId))
         const spanData = spanDataOverride !== undefined ? spanDataOverride : spanEntityData
         const textViewerId = useId().replace(/:/g, "")
 
@@ -928,10 +928,10 @@ export const TraceSpanDrillInView = memo(
             )
         }
 
-        // Type assertion needed because traceSpan.drillIn is optional in the general type
+        // Type assertion needed because traceSpanMolecule.drillIn is optional in the general type
         // but we know it's configured for the trace entity
-        const entityWithDrillIn = traceSpan as typeof traceSpan & {
-            drillIn: NonNullable<typeof traceSpan.drillIn>
+        const entityWithDrillIn = traceSpan as typeof traceSpanMolecule & {
+            drillIn: NonNullable<typeof traceSpanMoleculeMolecule.drillIn>
         }
 
         return (
