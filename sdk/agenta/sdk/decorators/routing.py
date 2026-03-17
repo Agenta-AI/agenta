@@ -61,6 +61,10 @@ def create_app(**kwargs: Any) -> FastAPI:
     app.add_middleware(AuthMiddleware)
     app.add_middleware(OTelMiddleware)
 
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
     return app
 
 
