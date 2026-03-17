@@ -1,27 +1,98 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
+import {
+    environmentMolecule,
+    fetchEnvironmentRevisionsList,
+    type EnvironmentRevision,
+} from "@agenta/entities/environment"
+import {useUserDisplayName} from "@agenta/entities/shared/user"
+import {projectIdAtom} from "@agenta/shared/state"
 import {Button, Card, Divider, Space, Typography, notification} from "antd"
 import dayjs from "dayjs"
-import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
+import {useAtomValue, useSetAtom} from "jotai"
 import debounce from "lodash/debounce"
 import {createUseStyles} from "react-jss"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {Environment, JSSTheme} from "@/oss/lib/Types"
-import {
-    createRevertDeploymentRevision,
-    fetchAllDeploymentRevisions,
-} from "@/oss/services/deploymentVersioning/api"
+import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
+import type {JSSTheme} from "@/oss/lib/Types"
 
 dayjs.extend(relativeTime)
-dayjs.extend(duration)
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+interface AppReference {
+    application?: {id?: string; slug?: string}
+    application_variant?: {id?: string; slug?: string}
+    application_revision?: {id?: string; slug?: string; version?: string}
+}
+
+interface RevisionItem {
+    id: string
+    version: number | null
+    created_at: string | null
+    message: string | null
+    author: string | null
+    created_by_id: string | null
+    appRevisionId: string | null
+    variantSlug: string | null
+    appDeploymentIndex: number
+    _envRevision: EnvironmentRevision
+}
 
 interface DeploymentHistoryProps {
-    selectedEnvironment: Environment
+    environmentSlug: string
+    appId: string
 }
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function getAppRevisionId(rev: EnvironmentRevision, appId: string): string | null {
+    if (!rev.data?.references) return null
+    const refs = rev.data.references as Record<string, AppReference>
+    for (const ref of Object.values(refs)) {
+        if (ref?.application?.id === appId) {
+            return ref.application_revision?.id ?? null
+        }
+    }
+    return null
+}
+
+function extractAppRef(
+    data: EnvironmentRevision["data"],
+    appId: string,
+): {appRevisionId: string | null; variantSlug: string | null} {
+    if (!data?.references) return {appRevisionId: null, variantSlug: null}
+    const refs = data.references as Record<string, AppReference>
+    for (const ref of Object.values(refs)) {
+        if (ref?.application?.id === appId) {
+            return {
+                appRevisionId: ref.application_revision?.id ?? null,
+                variantSlug: ref.application_variant?.slug ?? null,
+            }
+        }
+    }
+    return {appRevisionId: null, variantSlug: null}
+}
+
+// ============================================================================
+// AUTHOR DISPLAY
+// ============================================================================
+
+const AuthorDisplay = ({authorId}: {authorId: string | null}) => {
+    const name = useUserDisplayName(authorId ?? undefined)
+    return <Typography.Text>{name ?? "-"}</Typography.Text>
+}
+
+// ============================================================================
+// STYLES
+// ============================================================================
 
 const {Text} = Typography
 
@@ -47,9 +118,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         margin: "20px 0",
         borderRadius: 10,
         cursor: "pointer",
-    },
-    promptHistoryCard: {
-        margin: "30px",
     },
     promptHistoryInfo: {
         flex: 0.8,
@@ -95,249 +163,262 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironment}) => {
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
+const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, appId}) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
-    const [activeItem, setActiveItem] = useState(0)
+    const projectId = useAtomValue(projectIdAtom)
+
+    const entityEnv = useAtomValue(
+        useMemo(() => environmentMolecule.atoms.bySlug(environmentSlug), [environmentSlug]),
+    )
+    const environmentId = entityEnv?.id ?? ""
+    const environmentVariantId = entityEnv?.variant_id ?? ""
+
+    const appDeployment = useAtomValue(
+        useMemo(
+            () =>
+                environmentMolecule.atoms.appDeploymentInEnvironment(`${environmentSlug}:${appId}`),
+            [environmentSlug, appId],
+        ),
+    )
+    const currentAppRevisionId = appDeployment?.applicationRevision?.id ?? null
+
+    const [items, setItems] = useState<RevisionItem[]>([])
+    const [activeIndex, setActiveIndex] = useState(0)
     const [isLoading, setIsLoading] = useState(false)
-    const [isReverting, setIsReverted] = useState(false)
-    const [showDeployment, setShowDeployment] = useState<DeploymentRevisionConfig>()
-    const [deploymentRevisionId, setDeploymentRevisionId] = useState("")
-    const [deploymentRevisions, setDeploymentRevisions] = useState<DeploymentRevisions>()
-    const [showDeploymentLoading, setShowDeploymentLoading] = useState(false)
-    const {current} = useRef<{id: string; revision: string | undefined}>({
-        id: "",
-        revision: "",
-    })
+    const [isReverting, setIsReverting] = useState(false)
 
-    useEffect(() => {
-        current.revision = deploymentRevisions?.revisions[activeItem].deployed_app_variant_revision
-    }, [activeItem])
+    const revert = useSetAtom(environmentMolecule.actions.revert)
 
-    const fetchData = async () => {
+    const selectedItem = items[activeIndex] ?? null
+    const isCurrentDeployment = selectedItem?.appRevisionId === currentAppRevisionId
+
+    // ========================================================================
+    // FETCH REVISIONS
+    // ========================================================================
+
+    const fetchData = useCallback(async () => {
+        if (!projectId || !environmentId || !appId) return
+
         setIsLoading(true)
         try {
-            const data = await fetchAllDeploymentRevisions(
-                selectedEnvironment?.app_id,
-                selectedEnvironment?.name,
-            )
-            setDeploymentRevisions(data)
-            current.id = data.deployed_app_variant_revision_id || ""
-        } catch (error) {
-            setIsLoading(false)
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const handleRevert = useCallback(async (deploymentRevisionId: string) => {
-        setIsReverted(true)
-        try {
-            const response = await createRevertDeploymentRevision(deploymentRevisionId)
-            notification.success({
-                message: "Environment Revision",
-                description: response?.data,
-                duration: 3,
+            const response = await fetchEnvironmentRevisionsList({
+                projectId,
+                environmentId,
+                applicationId: appId,
             })
-            await fetchData()
-        } catch (err) {
-            console.error(err)
+
+            // Filter and dedup
+            const withAppRef = response.environment_revisions
+                .filter((r) => (r.version ?? 0) > 0)
+                .filter((r) => {
+                    if (!r.data?.references) return false
+                    const refs = r.data.references as Record<string, AppReference>
+                    return Object.values(refs).some((ref) => ref?.application?.id === appId)
+                })
+
+            const deduped: typeof withAppRef = []
+            for (let i = 0; i < withAppRef.length; i++) {
+                const current = getAppRevisionId(withAppRef[i], appId)
+                const older =
+                    i + 1 < withAppRef.length ? getAppRevisionId(withAppRef[i + 1], appId) : null
+                if (current !== older) {
+                    deduped.push(withAppRef[i])
+                }
+            }
+
+            const total = deduped.length
+            const rows: RevisionItem[] = deduped.map((r, i) => {
+                const {appRevisionId, variantSlug} = extractAppRef(r.data, appId)
+                return {
+                    id: r.id,
+                    version: r.version ?? null,
+                    created_at: r.created_at ?? null,
+                    message: r.message ?? null,
+                    author: r.author ?? null,
+                    created_by_id: r.created_by_id ?? null,
+                    appRevisionId,
+                    variantSlug,
+                    appDeploymentIndex: total - i,
+                    _envRevision: r,
+                }
+            })
+
+            setItems(rows)
+            if (rows.length > 0) {
+                setActiveIndex(0)
+            }
+        } catch (error) {
+            console.error("Failed to fetch deployment revisions:", error)
         } finally {
-            setIsReverted(false)
+            setIsLoading(false)
         }
-    }, [])
+    }, [projectId, environmentId, appId])
 
     useEffect(() => {
         fetchData()
-    }, [selectedEnvironment.app_id, selectedEnvironment.name])
+    }, [fetchData])
 
-    useEffect(() => {
-        const fetch = async () => {
-            try {
-                setShowDeploymentLoading(true)
-                if (deploymentRevisions && deploymentRevisions.revisions.length) {
-                    setActiveItem(deploymentRevisions.revisions.length - 1)
+    // ========================================================================
+    // REVERT
+    // ========================================================================
 
-                    const mod = await import("@/oss/services/deploymentVersioning/api")
-                    const fetchAllDeploymentRevisionConfig = mod?.fetchAllDeploymentRevisionConfig
-                    if (!mod || !fetchAllDeploymentRevisionConfig) return
-
-                    const revisionConfig = await fetchAllDeploymentRevisionConfig(
-                        deploymentRevisions.revisions[deploymentRevisions.revisions.length - 1].id,
-                    )
-                    setShowDeployment(revisionConfig)
-                }
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setShowDeploymentLoading(false)
-            }
+    const handleRevert = useCallback(async () => {
+        const item = selectedItem
+        if (
+            !projectId ||
+            !environmentId ||
+            !environmentVariantId ||
+            !item ||
+            item.version == null
+        ) {
+            return
         }
 
-        fetch()
-    }, [deploymentRevisions])
-
-    const handleShowDeployments = async (revision: number, index: number) => {
-        const findRevision = deploymentRevisions?.revisions.find(
-            (deploymentRevision) => deploymentRevision.revision === revision,
-        )
-
-        if (!findRevision) return
-
-        setActiveItem(index)
-        setDeploymentRevisionId(findRevision.id)
-
+        setIsReverting(true)
         try {
-            setShowDeploymentLoading(true)
-            const mod = await import("@/oss/services/deploymentVersioning/api")
-            const fetchAllDeploymentRevisionConfig = mod?.fetchAllDeploymentRevisionConfig
-            if (!mod || !fetchAllDeploymentRevisionConfig) return
+            const result = await revert({
+                projectId,
+                environmentId,
+                environmentVariantId,
+                targetRevisionVersion: item.version,
+                message: `Reverted to deployment v${item.appDeploymentIndex}`,
+            })
 
-            const revisionConfig = await fetchAllDeploymentRevisionConfig(findRevision.id)
-
-            setShowDeployment(revisionConfig)
-        } catch (error) {
-            console.error(error)
+            if (result?.success) {
+                notification.success({
+                    message: "Environment Revision",
+                    description: "Environment successfully reverted",
+                    duration: 3,
+                })
+                await fetchData()
+            } else {
+                notification.error({
+                    message: "Revert Failed",
+                    description: "Failed to revert deployment",
+                    duration: 3,
+                })
+            }
+        } catch (err) {
+            console.error(err)
         } finally {
-            setShowDeploymentLoading(false)
+            setIsReverting(false)
         }
-    }
+    }, [projectId, environmentId, environmentVariantId, selectedItem, revert, fetchData])
 
-    const debouncedHandleShowDeployments = debounce(handleShowDeployments, 300)
+    // ========================================================================
+    // HANDLERS
+    // ========================================================================
+
+    const handleSelectItem = useMemo(
+        () =>
+            debounce((index: number) => {
+                setActiveIndex(index)
+            }, 300),
+        [],
+    )
+
+    // ========================================================================
+    // RENDER
+    // ========================================================================
 
     return (
         <>
             {isLoading ? (
                 <ResultComponent status="info" title="Loading..." spinner={true} />
-            ) : deploymentRevisions?.revisions?.length ? (
+            ) : items.length > 0 ? (
                 <div className={classes.container}>
                     <div className={classes.historyItemsContainer}>
-                        {deploymentRevisions?.revisions
-                            ?.map((item, index) => (
-                                <div
-                                    key={item.revision}
-                                    style={{
-                                        backgroundColor:
-                                            activeItem === index
-                                                ? appTheme === "dark"
-                                                    ? "#4AA081"
-                                                    : "#F3F8F6"
-                                                : appTheme === "dark"
-                                                  ? "#1f1f1f"
-                                                  : "#fff",
-                                        border:
-                                            activeItem === index
-                                                ? "1px solid #4aa081"
-                                                : `1px solid ${
-                                                      appTheme === "dark"
-                                                          ? "transparent"
-                                                          : "#f0f0f0"
-                                                  }`,
-                                    }}
-                                    className={classes.historyItems}
-                                    onClick={() =>
-                                        debouncedHandleShowDeployments(item.revision, index)
-                                    }
-                                >
-                                    <Space style={{justifyContent: "space-between"}}>
-                                        <Text className={classes.historyItemsTitle}>
-                                            <b>Revision</b> <span>v{index + 1}</span>
-                                        </Text>
-                                        <Text className={classes.historyItemsTitle}>
-                                            <span style={{fontSize: 12}}>
-                                                {dayjs(item.created_at).fromNow()}
-                                            </span>
-                                        </Text>
-                                    </Space>
+                        {items.map((item, index) => (
+                            <div
+                                key={item.id}
+                                style={{
+                                    backgroundColor:
+                                        activeIndex === index
+                                            ? appTheme === "dark"
+                                                ? "#4AA081"
+                                                : "#F3F8F6"
+                                            : appTheme === "dark"
+                                              ? "#1f1f1f"
+                                              : "#fff",
+                                    border:
+                                        activeIndex === index
+                                            ? "1px solid #4aa081"
+                                            : `1px solid ${
+                                                  appTheme === "dark" ? "transparent" : "#f0f0f0"
+                                              }`,
+                                }}
+                                className={classes.historyItems}
+                                onClick={() => handleSelectItem(index)}
+                            >
+                                <Space style={{justifyContent: "space-between"}}>
+                                    <Text className={classes.historyItemsTitle}>
+                                        <b>Deployment</b> <span>v{item.appDeploymentIndex}</span>
+                                    </Text>
+                                    <Text className={classes.historyItemsTitle}>
+                                        <span style={{fontSize: 12}}>
+                                            {item.created_at
+                                                ? dayjs(item.created_at).fromNow()
+                                                : "-"}
+                                        </span>
+                                    </Text>
+                                </Space>
 
-                                    {deploymentRevisions.deployed_app_variant_revision_id ===
-                                        item.deployed_app_variant_revision && (
-                                        <Text
-                                            style={{
-                                                fontStyle: "italic",
-                                                fontSize: 12,
-                                                color: appTheme === "dark" ? "#fff" : "#4AA081",
-                                            }}
-                                        >
-                                            In production...
-                                        </Text>
-                                    )}
+                                {item.appRevisionId === currentAppRevisionId && (
+                                    <Text
+                                        style={{
+                                            fontStyle: "italic",
+                                            fontSize: 12,
+                                            color: appTheme === "dark" ? "#fff" : "#4AA081",
+                                        }}
+                                    >
+                                        Current deployment
+                                    </Text>
+                                )}
 
-                                    <Divider className={classes.divider} />
+                                <Divider className={classes.divider} />
 
-                                    <Space orientation="vertical">
-                                        <div>
-                                            <Text strong>Modified By: </Text>
-                                            <Text>{item.modified_by}</Text>
-                                        </div>
-                                    </Space>
-                                </div>
-                            ))
-                            .reverse()}
+                                <Space>
+                                    <div>
+                                        <Text strong>Modified By: </Text>
+                                        <AuthorDisplay
+                                            authorId={item.created_by_id ?? item.author}
+                                        />
+                                    </div>
+                                </Space>
+                            </div>
+                        ))}
                     </div>
 
                     <div className={classes.promptHistoryInfo}>
                         <div className={classes.promptHistoryInfoHeader}>
                             <h1>Information</h1>
 
-                            {deploymentRevisions.revisions.length > 1 && (
-                                <Button
-                                    type="primary"
-                                    loading={isReverting}
-                                    onClick={() => handleRevert(deploymentRevisionId)}
-                                    disabled={current.id === current.revision}
-                                >
+                            {items.length > 1 && !isCurrentDeployment && (
+                                <Button type="primary" loading={isReverting} onClick={handleRevert}>
                                     Revert
                                 </Button>
                             )}
                         </div>
 
-                        {showDeploymentLoading ? (
-                            <div className={classes.loadingContainer}>
-                                <ResultComponent spinner={true} title="" status={"info"} />
-                            </div>
+                        {selectedItem?.appRevisionId ? (
+                            <Card title="Configuration" style={{margin: 30}}>
+                                <NewVariantParametersView
+                                    revisionId={selectedItem.appRevisionId}
+                                    showOriginal
+                                />
+                            </Card>
                         ) : (
-                            <>
-                                {showDeployment?.parameters &&
-                                Object.keys(showDeployment?.parameters).length ? (
-                                    <Card
-                                        title="Model Parameters"
-                                        className={classes.promptHistoryCard}
-                                    >
-                                        <Space orientation="vertical">
-                                            <>
-                                                {Object.entries(showDeployment.parameters).map(
-                                                    ([key, value], index) => {
-                                                        return (
-                                                            <>
-                                                                <div key={index}>
-                                                                    <Typography.Text
-                                                                        style={{fontWeight: "bold"}}
-                                                                    >
-                                                                        {key}:{" "}
-                                                                    </Typography.Text>
-                                                                    {Array.isArray(value)
-                                                                        ? JSON.stringify(value)
-                                                                        : typeof value === "boolean"
-                                                                          ? `${value}`
-                                                                          : value}
-                                                                </div>
-                                                            </>
-                                                        )
-                                                    },
-                                                )}
-                                            </>
-                                        </Space>
-                                    </Card>
-                                ) : (
-                                    <div className={classes.noParams}>No parameters to display</div>
-                                )}
-                            </>
+                            <div className={classes.noParams}>No parameters to display</div>
                         )}
                     </div>
                 </div>
             ) : (
-                <div className={classes.emptyContainer}>You have no saved prompts</div>
+                <div className={classes.emptyContainer}>No deployment history available</div>
             )}
         </>
     )
