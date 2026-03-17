@@ -989,22 +989,15 @@ class EvaluationsService:
                     log.warning("Evaluator revision not found")
                     continue
 
-                outputs_schema = None
-                service_format = None
-
-                if evaluator_revision.data:
-                    if evaluator_revision.data.schemas:
-                        outputs_schema = evaluator_revision.data.schemas.outputs
-                    if evaluator_revision.data.service:
-                        service_format = evaluator_revision.data.service.get("format")
+                outputs_schema = (
+                    evaluator_revision.data.schemas.outputs
+                    if evaluator_revision.data and evaluator_revision.data.schemas
+                    else None
+                )
 
                 if outputs_schema:
                     metrics_keys = get_metrics_keys_from_schema(
                         schema=outputs_schema,
-                    )
-                elif service_format:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=service_format,
                     )
                 else:
                     trace_ids = steps_trace_ids.get(step.key)

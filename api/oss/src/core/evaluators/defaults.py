@@ -20,7 +20,6 @@ from oss.src.core.evaluators.service import (
     EvaluatorsService,
     SimpleEvaluatorsService,
 )
-from oss.src.core.evaluators.utils import build_legacy_service
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowArtifactDBE,
@@ -153,14 +152,6 @@ async def create_default_human_evaluator(
                         "required": ["approved"],
                     }
                 },
-                service=build_legacy_service(
-                    {
-                        "type": "object",
-                        "$schema": "http://json-schema.org/schema#",
-                        "properties": {"approved": {"type": "boolean"}},
-                        "required": ["approved"],
-                    }
-                ),
             ),
         )
 

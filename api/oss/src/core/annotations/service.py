@@ -49,7 +49,6 @@ from oss.src.core.annotations.types import (
 )
 
 from oss.src.core.annotations.utils import validate_data_against_schema
-from oss.src.core.evaluators.utils import build_legacy_service
 
 
 log = get_module_logger(__name__)
@@ -106,7 +105,6 @@ class AnnotationsService:
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),
-                service=build_legacy_service(evaluator_outputs_schema),
             )
 
             simple_evaluator_create = SimpleEvaluatorCreate(
@@ -147,11 +145,9 @@ class AnnotationsService:
 
         validate_data_against_schema(
             annotation_create.data,
-            (
-                evaluator_revision.data.service.get("format", {})
-                if evaluator_revision.data.service
-                else {}
-            ),
+            (evaluator_revision.data.schemas.outputs or {})
+            if evaluator_revision.data.schemas
+            else {},
         )
 
         annotation_create.references.evaluator = Reference(
@@ -331,7 +327,6 @@ class AnnotationsService:
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),
-                service=build_legacy_service(evaluator_outputs_schema),
             )
 
             simple_evaluator_create = SimpleEvaluatorCreate(
@@ -365,11 +360,9 @@ class AnnotationsService:
 
         validate_data_against_schema(
             annotation_edit.data,
-            (
-                evaluator_revision.data.service.get("format", {})
-                if evaluator_revision.data.service
-                else {}
-            ),
+            (evaluator_revision.data.schemas.outputs or {})
+            if evaluator_revision.data.schemas
+            else {},
         )
 
         if evaluator_revision:
