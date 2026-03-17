@@ -1,23 +1,21 @@
 /**
  * Entity helpers for playground components.
  *
- * Provides entity operations (discard, update) via the runnableBridge
- * unified API. Routes to the correct molecule based on entity type hints.
+ * Provides entity operations (discard, update) via the workflowMolecule API.
  */
 
-import {runnableBridge} from "@agenta/entities/runnable"
-import {getDefaultStore} from "jotai/vanilla"
+import {workflowMolecule} from "@agenta/entities/workflow"
 
 /**
  * Discard the entity draft for the given ID.
  */
 export function discardEntityDraft(entityId: string) {
-    getDefaultStore().set(runnableBridge.discard, entityId)
+    workflowMolecule.set.discard(entityId)
 }
 
 /**
  * Update the entity draft for the given ID.
  */
 export function updateEntityDraft(entityId: string, updates: Record<string, unknown>) {
-    getDefaultStore().set(runnableBridge.update, entityId, updates)
+    workflowMolecule.set.updateConfiguration(entityId, updates)
 }

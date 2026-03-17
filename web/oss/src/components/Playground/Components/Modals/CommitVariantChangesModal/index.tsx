@@ -1,13 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {publishMutationAtom, runnableBridge} from "@agenta/entities/runnable"
+import {publishMutationAtom} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {Checkbox, Input, Select, Typography} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
+import {
+    registryPaginatedStore,
+    clearRegistryVariantNameCache,
+} from "@/oss/components/VariantsComponents/store/registryStore"
 import {isVariantNameInputValid} from "@/oss/lib/helpers/utils"
 import {selectedAppIdAtom} from "@/oss/state/app"
 
@@ -22,8 +27,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 }) => {
     const {onCancel, open} = props
 
-    // Use runnableBridge for entity-type-aware data access
-    const runnableData = useAtomValue(runnableBridge.data(variantId || ""))
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
 
     const appId = useAtomValue(selectedAppIdAtom)
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
@@ -81,16 +85,29 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 }
 
                 if (shouldDeploy && selectedEnvironment) {
+                    // Use the new revision's workflow data for references
+                    const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
                     await publish({
-                        type: "revision",
-                        revision_id: result.newRevisionId,
-                        environment_ref: selectedEnvironment,
-                        application_id: appId || undefined,
+                        revisionId: result.newRevisionId,
+                        environmentSlug: selectedEnvironment,
+                        applicationId:
+                            newRevisionData?.workflow_id ||
+                            runnableData?.workflow_id ||
+                            appId ||
+                            "",
+                        workflowVariantId:
+                            newRevisionData?.workflow_variant_id ??
+                            runnableData?.workflow_variant_id ??
+                            undefined,
+                        variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                        revisionVersion: newRevisionData?.version ?? undefined,
                         note,
                     })
                     message.success(`Published ${variantName} to ${selectedEnvironment}`)
                 }
 
+                clearRegistryVariantNameCache()
+                getDefaultStore().set(registryPaginatedStore.actions.refresh)
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
                 return {success: true, newRevisionId: result.newRevisionId}
             }
@@ -109,17 +126,26 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }
 
             if (shouldDeploy && selectedEnvironment) {
+                const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
                 await publish({
-                    type: "revision",
-                    revision_id: result.newRevisionId,
-                    environment_ref: selectedEnvironment,
-                    application_id: appId || undefined,
+                    revisionId: result.newRevisionId,
+                    environmentSlug: selectedEnvironment,
+                    applicationId:
+                        newRevisionData?.workflow_id || runnableData?.workflow_id || appId || "",
+                    workflowVariantId:
+                        newRevisionData?.workflow_variant_id ??
+                        runnableData?.workflow_variant_id ??
+                        undefined,
+                    variantSlug: newRevisionData?.slug ?? runnableData?.slug ?? undefined,
+                    revisionVersion: newRevisionData?.version ?? undefined,
                     note,
                 })
                 message.success(`Published ${variantName} to ${selectedEnvironment}`)
             }
 
-            onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug})
+            clearRegistryVariantNameCache()
+            getDefaultStore().set(registryPaginatedStore.actions.refresh)
+            onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug ?? undefined})
             return {success: true, newRevisionId: result.newRevisionId}
         },
         [

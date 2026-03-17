@@ -1,9 +1,8 @@
 import React, {useCallback, useMemo} from "react"
 
-import {getEvaluatorColor} from "@agenta/entities/evaluator"
-import type {EvaluatorColor} from "@agenta/entities/evaluator"
-import {runnableBridge} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
+import {getEvaluatorColor, workflowMolecule} from "@agenta/entities/workflow"
+import type {EvaluatorColor} from "@agenta/entities/workflow"
 import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
@@ -96,23 +95,18 @@ const EvaluatorTag: React.FC<{
     onDisconnect: (nodeId: string) => void
 }> = ({node, onDisconnect}) => {
     const runnableData = useAtomValue(
-        useMemo(() => runnableBridge.data(node.entityId), [node.entityId]),
-    ) as {
-        name?: string | null
-        slug?: string | null
-        uri?: string | null
-        version?: number | null
-    } | null
+        useMemo(() => workflowMolecule.selectors.data(node.entityId), [node.entityId]),
+    )
 
     const color: EvaluatorColor | undefined = useMemo(() => {
-        if (!runnableData?.uri) return undefined
-        return getEvaluatorColor(runnableData.uri) ?? undefined
+        if (!runnableData?.data?.uri) return undefined
+        return getEvaluatorColor(runnableData.data.uri) ?? undefined
     }, [runnableData])
 
     const label = useMemo(() => {
         const fetchedName = runnableData?.name?.trim()
         const name = fetchedName || runnableData?.slug?.trim() || "Evaluator"
-        const version = runnableData?.version
+        const version = runnableData?.version ?? null
         return version != null ? `${name} v${version}` : name
     }, [runnableData])
 
@@ -218,7 +212,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
 
     const {openModal} = useCustomWorkflowConfig({
         afterConfigSave: handleUpdate,
-        configureWorkflow: true,
     })
 
     const onAddVariant = useCallback((value: any) => {
@@ -258,7 +251,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                 {...divProps}
             >
                 <div className="flex shrink-0 items-center gap-2">
-                    {currentApp?.app_type === "custom" ? (
+                    {currentApp?.flags?.is_custom ? (
                         <Dropdown
                             trigger={["click"]}
                             styles={{

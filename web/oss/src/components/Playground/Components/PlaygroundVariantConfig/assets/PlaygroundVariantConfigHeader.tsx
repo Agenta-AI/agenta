@@ -1,7 +1,6 @@
 import {useCallback, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import {useEnrichedEvaluatorBrowseAdapter as useEvaluatorBrowseAdapter} from "@agenta/entity-ui/selection"
@@ -50,9 +49,8 @@ const PlaygroundVariantConfigHeader = ({
     // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
-    // Use runnableBridge for entity-type-aware data access
-    const runnableData = useAtomValue(runnableBridge.data(variantId || ""))
-    const isDirty = useAtomValue(runnableBridge.isDirty(variantId || ""))
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
 
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments

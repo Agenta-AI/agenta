@@ -1,6 +1,6 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -20,7 +20,7 @@ const CommitVariantChangesButton = ({
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const hasChanges = useAtomValue(runnableBridge.isDirty(variantId || ""))
+    const hasChanges = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
     const disabled = !variantId || !hasChanges
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
     const handleSuccess = useCallback(

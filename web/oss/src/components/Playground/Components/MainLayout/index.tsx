@@ -86,7 +86,7 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({
             title: "Add to Playground",
-            allowedTypes: ["legacyAppRevision"],
+            allowedTypes: ["workflow"],
         })
         if (selection) {
             // Add the selected entity to the playground

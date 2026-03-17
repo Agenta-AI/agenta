@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {MoreOutlined} from "@ant-design/icons"
@@ -19,7 +19,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
 }) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
     const removeVariantFromSelection = useSetAtom(playgroundController.actions.removeEntity)
-    const isDirty = useAtomValue(runnableBridge.isDirty(variantId || ""))
+    const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
 
     const closePanelDisabled = useMemo(() => {
         return selectedVariants.length === 1 && selectedVariants.includes(variantId)

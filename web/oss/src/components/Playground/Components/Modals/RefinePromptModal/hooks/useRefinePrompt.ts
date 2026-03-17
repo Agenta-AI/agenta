@@ -13,7 +13,7 @@
 
 import {useCallback, useMemo, useRef} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -122,8 +122,11 @@ export function useRefinePrompt({
     revisionId,
     promptKey,
 }: UseRefinePromptParams): UseRefinePromptReturn {
-    const dataAtom = useMemo(() => runnableBridge.data(revisionId), [revisionId])
-    const runnableData = useAtomValue(dataAtom)
+    const configurationAtom = useMemo(
+        () => workflowMolecule.selectors.configuration(revisionId),
+        [revisionId],
+    )
+    const configuration = useAtomValue(configurationAtom)
 
     // Setters (stable references from Jotai)
     const setOriginalSnapshot = useSetAtom(originalPromptSnapshotAtomFamily(promptKey))
@@ -138,14 +141,14 @@ export function useRefinePrompt({
     // Use refs for values only read inside callbacks to keep refine stable
     const workingPromptRef = useRef<PromptTemplate | null>(null)
     const originalSnapshotRef = useRef<PromptTemplate | null>(null)
-    const runnableDataRef = useRef(runnableData)
+    const configurationRef = useRef(configuration)
 
     // Sync refs on each render
     const workingPrompt = useAtomValue(workingPromptAtomFamily(promptKey))
     const originalSnapshot = useAtomValue(originalPromptSnapshotAtomFamily(promptKey))
     workingPromptRef.current = workingPrompt
     originalSnapshotRef.current = originalSnapshot
-    runnableDataRef.current = runnableData
+    configurationRef.current = configuration
 
     const refine = useCallback(
         async (guidelines: string) => {
@@ -158,10 +161,10 @@ export function useRefinePrompt({
                 // Use working prompt if we have one, else extract from entity data
                 let promptToRefine = workingPromptRef.current
                 if (!promptToRefine) {
-                    const configuration = runnableDataRef.current?.configuration as
+                    const currentConfig = configurationRef.current as
                         | Record<string, unknown>
                         | undefined
-                    const promptValue = configuration?.[promptKey]
+                    const promptValue = currentConfig?.[promptKey]
                     promptToRefine = extractPromptTemplate(promptValue)
                 }
 

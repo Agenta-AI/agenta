@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {executionItemController, playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
@@ -34,7 +34,7 @@ export interface UseTestsetInputsAnalysisResult {
 /**
  * High-level hook that can operate in two modes:
  * 1) Controlled mode: receive explicit schema/vars via overrides (no atom reads)
- * 2) Atom-backed mode: reads input ports from runnableBridge for the primary entity
+ * 2) Atom-backed mode: reads input ports from workflowMolecule for the primary entity
  */
 export function useTestsetInputsAnalysis(
     params: UseTestsetInputsAnalysisParams,
@@ -56,7 +56,7 @@ export function useTestsetInputsAnalysis(
     const schemaInputKeysFromAtoms = useAtomValue(executionItemController.selectors.schemaInputKeys)
     const schemaInputKeys = schemaInputKeysOverride ?? schemaInputKeysFromAtoms
 
-    // Resolve schema meta from the primary entity's input ports (via runnableBridge)
+    // Resolve schema meta from the primary entity's input ports (via workflowMolecule)
     const requestSchemaMetaFromAtom = useAtomValue(
         useMemo(
             () =>
@@ -70,7 +70,7 @@ export function useTestsetInputsAnalysis(
                         inputKeys: [] as string[],
                     }
                     if (!primaryId) return meta
-                    const ports = get(runnableBridge.inputPorts(primaryId))
+                    const ports = get(workflowMolecule.selectors.inputPorts(primaryId))
                     meta.inputKeys = ports.map((p) => p.key)
                     meta.required = ports.filter((p) => p.required).map((p) => p.key)
                     return meta

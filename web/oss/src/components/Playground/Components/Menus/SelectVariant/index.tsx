@@ -10,7 +10,6 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {
     workflowMolecule,
@@ -59,8 +58,12 @@ const SelectVariant = ({
                   : null,
         [value],
     )
-    const selectedRevisionData = useAtomValue(runnableBridge.data(singleSelectedValue || ""))
-    const selectedRevisionQuery = useAtomValue(runnableBridge.query(singleSelectedValue || ""))
+    const selectedRevisionData = useAtomValue(
+        workflowMolecule.selectors.data(singleSelectedValue || ""),
+    )
+    const selectedRevisionQuery = useAtomValue(
+        workflowMolecule.selectors.query(singleSelectedValue || ""),
+    )
     const hasSelectedDisplayName = useMemo(() => {
         if (!singleSelectedValue) return false
         if (isLocalDraftId(singleSelectedValue)) return true
@@ -177,7 +180,7 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            const localDraftId = runnableBridge.createLocalDraft(revisionId)
+            const localDraftId = workflowMolecule.createLocalDraft?.(revisionId) ?? null
             if (localDraftId) {
                 setSelectedVariants((prev) =>
                     prev.includes(localDraftId) ? prev : [...prev, localDraftId],
@@ -272,7 +275,7 @@ const SelectVariant = ({
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
 
         if (lastRevisionId) {
-            const localDraftId = runnableBridge.createLocalDraft(lastRevisionId)
+            const localDraftId = workflowMolecule.createLocalDraft?.(lastRevisionId) ?? null
 
             if (localDraftId) {
                 setSelectedVariants((prev) =>
@@ -299,7 +302,7 @@ const SelectVariant = ({
     )
 
     // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
-    // runnableBridge.data() normalizes away hierarchy IDs, so we read the molecule directly
+    // Read the raw workflow entity data (includes workflow_id, workflow_variant_id)
     // Must be called before any early returns to keep hook order stable.
     const rawWorkflowEntity = useAtomValue(
         workflowMolecule.selectors.data(singleSelectedValue || ""),

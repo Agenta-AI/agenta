@@ -2,10 +2,9 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {parseEvaluatorKeyFromUri} from "@agenta/entities/evaluator"
-import {runnableBridge} from "@agenta/entities/runnable"
+import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
 import {PlaygroundConfigSection, type EvaluatorPresetConfig} from "@agenta/entity-ui"
-import {hasPendingHydrationAtomFamily, playgroundController} from "@agenta/playground"
+import {hasPendingHydrationAtomFamily} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -13,7 +12,6 @@ import dynamic from "next/dynamic"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 
-import BaseRunnableConfigSection from "./assets/BaseRunnableConfigSection"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -21,10 +19,7 @@ const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
- *
- * Routes to entity-type specific config sections:
- * - legacyAppRevision / workflow: PlaygroundConfigSection (schema-driven)
- * - baseRunnable: BaseRunnableConfigSection (read-only key-value display)
+ * All entity types (including ephemeral workflows from traces) go through PlaygroundConfigSection.
  */
 
 const PlaygroundVariantConfig: React.FC<
@@ -34,9 +29,6 @@ const PlaygroundVariantConfig: React.FC<
         revisionOverride?: number | string | null
     }
 > = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const entityType = nodes.find((n) => n.entityId === variantId)?.entityType
-
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
@@ -45,9 +37,9 @@ const PlaygroundVariantConfig: React.FC<
     const [refineModalOpen, setRefineModalOpen] = useState(false)
     const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
 
-    // Get runnable data for evaluator detection
-    const runnableData = useAtomValue(runnableBridge.data(variantId))
-    const dispatchUpdate = useSetAtom(runnableBridge.update)
+    // Get workflow data for evaluator detection
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
+    const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
     // Fetch evaluator definitions (with presets) - this populates evaluatorsAtom
     useFetchEvaluatorsData()
@@ -55,7 +47,7 @@ const PlaygroundVariantConfig: React.FC<
 
     // Determine if this is an evaluator workflow and get its presets
     const evaluatorInfo = useMemo(() => {
-        const uri = runnableData?.uri as string | undefined
+        const uri = runnableData?.data?.uri as string | undefined
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
 
         const evaluatorKey = parseEvaluatorKeyFromUri(uri)
@@ -69,7 +61,7 @@ const PlaygroundVariantConfig: React.FC<
             label: evaluatorDef.name,
             presets: (evaluatorDef.settings_presets ?? []) as EvaluatorPresetConfig[],
         }
-    }, [runnableData?.uri, evaluatorDefinitions])
+    }, [runnableData?.data?.uri, evaluatorDefinitions])
 
     // Handle loading a preset - apply preset values to the configuration
     const handleLoadPreset = useCallback(
@@ -90,14 +82,6 @@ const PlaygroundVariantConfig: React.FC<
         setRefineModalOpen(false)
         setRefinePromptKey(null)
     }, [])
-
-    if (entityType === "baseRunnable") {
-        return (
-            <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
-                <BaseRunnableConfigSection entityId={variantId} />
-            </div>
-        )
-    }
 
     return (
         <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
