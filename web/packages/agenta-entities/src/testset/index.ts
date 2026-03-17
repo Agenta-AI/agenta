@@ -148,21 +148,21 @@ export {
  * Atom for fetching the latest revision of a testset.
  * Used by entity adapters for display and selection.
  */
-export {latestRevisionForTestsetAtomFamily} from "./state"
+export {latestRevisionForTestsetAtomFamily, testsetQueryAtomFamily} from "./state/store"
 
 /**
  * Save mutation atom for committing testset changes.
  * Used by entity adapters for the commit modal.
  */
-export {saveTestsetAtom} from "./state"
+export {saveTestsetAtom} from "./state/mutations"
 
-export type {SaveTestsetParams, SaveTestsetResult} from "./state"
+export type {SaveTestsetParams, SaveTestsetResult} from "./state/mutations"
 
 // ============================================================================
 // SELECTION CONFIG
 // ============================================================================
 
-export {testsetSelectionConfig, type TestsetSelectionConfig} from "./state"
+export {testsetSelectionConfig, type TestsetSelectionConfig} from "./state/selectionConfig"
 
 // ============================================================================
 // ENTITY RELATIONS

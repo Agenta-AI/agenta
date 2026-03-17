@@ -92,11 +92,13 @@ export async function fetchEnvironmentDetail({
 export async function fetchEnvironmentRevisionsList({
     projectId,
     environmentId,
+    applicationId,
 }: EnvironmentRevisionListParams): Promise<EnvironmentRevisionsResponse> {
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/environments/revisions/query`,
         {
             environment_refs: [{id: environmentId}],
+            ...(applicationId ? {application_refs: [{id: applicationId}]} : {}),
             windowing: {limit: 100, order: "descending"},
         },
         {params: {project_id: projectId}},
