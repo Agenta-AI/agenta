@@ -32,6 +32,8 @@ interface FocusViewProps {
     onSaved: () => void
     onCompleted: (scenarioId: string) => void
     onViewChange?: (view: SessionView) => void
+    onSyncToTestset?: () => void
+    isSyncing?: boolean
 }
 
 // ============================================================================
@@ -40,13 +42,18 @@ interface FocusViewProps {
 
 const AllCaughtUp = memo(function AllCaughtUp({
     onViewChange,
+    onSyncToTestset,
+    isSyncing,
 }: {
     onViewChange?: (view: SessionView) => void
+    onSyncToTestset?: () => void
+    isSyncing?: boolean
 }) {
     const navigation = useAnnotationNavigation()
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const isTraces = queueKind === "traces"
+    const isTestcases = queueKind === "testcases"
 
     const handleViewPrevious = useCallback(() => {
         if (onViewChange) {
@@ -60,6 +67,40 @@ const AllCaughtUp = memo(function AllCaughtUp({
     const handleGoToObservability = useCallback(() => {
         navigation.navigateToObservability?.()
     }, [navigation])
+
+    // For testcase queues: show direct sync action after all scenarios are annotated
+    if (isTestcases && onSyncToTestset) {
+        return (
+            <div className="flex flex-col flex-1 items-center justify-center gap-4 min-h-0">
+                <div className="flex items-center justify-center size-20 rounded-full bg-[var(--ant-color-fill-quaternary)]">
+                    <Check size={32} className="text-[var(--ant-color-text-secondary)]" />
+                </div>
+
+                <div className="flex flex-col items-center gap-2 text-center">
+                    <Typography.Text strong className="!text-base">
+                        All scenarios annotated
+                    </Typography.Text>
+                    <Typography.Text type="secondary" className="text-sm">
+                        Save your annotations back to the testset as a new version.
+                    </Typography.Text>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Button size="small" onClick={handleViewPrevious}>
+                        View previous annotations
+                    </Button>
+                    <Button
+                        size="small"
+                        type="primary"
+                        loading={isSyncing}
+                        onClick={onSyncToTestset}
+                    >
+                        Save to Testset
+                    </Button>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col flex-1 items-center justify-center gap-4 min-h-0">
@@ -101,6 +142,8 @@ const FocusView = memo(function FocusView({
     onSaved,
     onCompleted,
     onViewChange,
+    onSyncToTestset,
+    isSyncing,
 }: FocusViewProps) {
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
@@ -126,9 +169,15 @@ const FocusView = memo(function FocusView({
 
     if (scenarios.length === 0) return null
 
-    // All scenarios completed — show empty state
+    // All scenarios completed — show sync prompt (testcases) or empty state
     if (progress.remaining === 0) {
-        return <AllCaughtUp onViewChange={onViewChange} />
+        return (
+            <AllCaughtUp
+                onViewChange={onViewChange}
+                onSyncToTestset={onSyncToTestset}
+                isSyncing={isSyncing}
+            />
+        )
     }
 
     return (

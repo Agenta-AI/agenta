@@ -53,6 +53,62 @@ function getStore(options?: StoreOptions) {
     return options?.store ?? getDefaultStore()
 }
 
+const SCENARIO_REFRESH_WINDOW_MS = 15_000
+const SCENARIO_REFETCH_INTERVAL_MS = 1_500
+
+const TERMINAL_SCENARIO_STATUSES = new Set([
+    "success",
+    "error",
+    "failure",
+    "failed",
+    "errors",
+    "cancelled",
+])
+
+function deriveQueueStatusFromScenarios(
+    scenarios: {status?: string | null}[],
+    fallbackStatus: EvaluationStatus | null,
+): EvaluationStatus | null {
+    if (scenarios.length === 0) return fallbackStatus
+
+    const statuses = scenarios.map((scenario) => scenario.status?.toLowerCase() ?? "")
+
+    const allTerminal = statuses.every((status) => TERMINAL_SCENARIO_STATUSES.has(status))
+    if (allTerminal) {
+        const hasErrors = statuses.some((status) =>
+            ["error", "failure", "failed", "errors"].includes(status),
+        )
+        if (hasErrors) return "errors"
+
+        const allCancelled = statuses.every((status) => status === "cancelled")
+        if (allCancelled) return "cancelled"
+
+        return "success"
+    }
+
+    if (statuses.some((status) => status === "running")) {
+        return "running"
+    }
+
+    if (statuses.some((status) => status === "queued")) {
+        return "queued"
+    }
+
+    if (
+        statuses.some((status) =>
+            ["success", "error", "failure", "failed", "errors", "cancelled"].includes(status),
+        )
+    ) {
+        return "running"
+    }
+
+    if (statuses.every((status) => status === "pending" || status === "")) {
+        return "pending"
+    }
+
+    return fallbackStatus
+}
+
 // ============================================================================
 // LIST QUERY
 // ============================================================================
@@ -89,20 +145,35 @@ export const simpleQueuesListDataAtom = atom<SimpleQueue[]>((get) => {
 
 /**
  * Query atom family for fetching a single simple queue by ID.
+ *
+ * IMPORTANT: `atomWithQuery` in jotai-tanstack-query v0.11.0 does NOT
+ * re-evaluate its getter when Jotai atom dependencies change after the
+ * initial subscription. So we cannot rely on reactive `get(projectIdAtom)`.
+ * Instead, `queryFn` reads `projectIdAtom` imperatively from the default
+ * store at fetch time, and throws when it's not yet available so that
+ * TanStack Query's `retry` mechanism re-attempts once projectId is set.
  */
 export const simpleQueueQueryAtomFamily = atomFamily((queueId: string) =>
-    atomWithQuery((get) => {
-        const projectId = get(projectIdAtom)
-        return {
-            queryKey: ["simpleQueue", queueId, projectId],
-            queryFn: async (): Promise<SimpleQueue | null> => {
-                if (!projectId || !queueId) return null
-                return fetchSimpleQueue({id: queueId, projectId})
-            },
-            enabled: get(sessionAtom) && !!projectId && !!queueId,
-            staleTime: 30_000,
-        }
-    }),
+    atomWithQuery(() => ({
+        queryKey: ["simpleQueue", queueId],
+        queryFn: async (): Promise<SimpleQueue | null> => {
+            const projectId = getStore().get(projectIdAtom)
+            if (!queueId) return null
+            if (!projectId) {
+                throw new Error("projectId not yet available")
+            }
+            return fetchSimpleQueue({id: queueId, projectId})
+        },
+        enabled: !!queueId,
+        retry: (failureCount: number, error: Error) => {
+            if (error?.message === "projectId not yet available" && failureCount < 5) {
+                return true
+            }
+            return false
+        },
+        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+        staleTime: 30_000,
+    })),
 )
 
 // ============================================================================
@@ -175,6 +246,15 @@ export const discardSimpleQueueDraftAtom = atom(null, (_get, set, queueId: strin
 })
 
 /**
+ * Per-queue refresh window for scenario polling after async mutations.
+ *
+ * Adding traces/testcases returns before the background worker finishes
+ * creating scenarios. This keeps the scenarios query polling briefly so the
+ * queue page can pick up the newly created rows without a manual refresh.
+ */
+const scenarioRefreshUntilAtomFamily = atomFamily((_queueId: string) => atom<number>(0))
+
+/**
  * Create a new simple queue on the server.
  * Invalidates list + paginated store on success.
  *
@@ -209,7 +289,9 @@ export const addTracesToQueueAtom = atom(
 
         const result = await addSimpleQueueTraces(projectId, queueId, traceIds)
         if (result.queue_id) {
+            set(scenarioRefreshUntilAtomFamily(queueId), Date.now() + SCENARIO_REFRESH_WINDOW_MS)
             invalidateSimpleQueueCache(queueId)
+            invalidateScenarioProgressCache(queueId)
             invalidateSimpleQueuesListCache()
             set(simpleQueuePaginatedStore.refreshAtom)
         }
@@ -231,7 +313,9 @@ export const addTestcasesToQueueAtom = atom(
 
         const result = await addSimpleQueueTestcases(projectId, queueId, testcaseIds)
         if (result.queue_id) {
+            set(scenarioRefreshUntilAtomFamily(queueId), Date.now() + SCENARIO_REFRESH_WINDOW_MS)
             invalidateSimpleQueueCache(queueId)
+            invalidateScenarioProgressCache(queueId)
             invalidateSimpleQueuesListCache()
             set(simpleQueuePaginatedStore.refreshAtom)
         }
@@ -302,16 +386,6 @@ const kindAtomFamily = atomFamily((queueId: string) =>
 )
 
 /**
- * Queue status selector.
- */
-const statusAtomFamily = atomFamily((queueId: string) =>
-    atom<EvaluationStatus | null>((get) => {
-        const entity = get(simpleQueueEntityAtomFamily(queueId))
-        return (entity?.status as EvaluationStatus | null) ?? null
-    }),
-)
-
-/**
  * Queue name selector.
  */
 const nameAtomFamily = atomFamily((queueId: string) =>
@@ -353,7 +427,10 @@ const scenarioProgressQueryAtomFamily = atomFamily((queueId: string) =>
         queryKey: ["simpleQueue", "scenarioProgress", queueId],
         queryFn: async (): Promise<EvaluationScenario[]> => {
             const projectId = getStore().get(projectIdAtom)
-            if (!projectId || !queueId) return []
+            if (!queueId) return []
+            if (!projectId) {
+                throw new Error("projectId not yet available")
+            }
             const response = await querySimpleQueueScenarios({
                 queueId,
                 projectId,
@@ -361,7 +438,12 @@ const scenarioProgressQueryAtomFamily = atomFamily((queueId: string) =>
             return response.scenarios
         },
         enabled: !!queueId,
-        staleTime: 60_000,
+        staleTime:
+            getStore().get(scenarioRefreshUntilAtomFamily(queueId)) > Date.now() ? 0 : 60_000,
+        refetchInterval: () =>
+            getStore().get(scenarioRefreshUntilAtomFamily(queueId)) > Date.now()
+                ? SCENARIO_REFETCH_INTERVAL_MS
+                : false,
         retry: (failureCount: number, error: Error) => {
             if (error?.message === "projectId not yet available" && failureCount < 5) {
                 return true
@@ -421,6 +503,26 @@ const scenariosAtomFamily = atomFamily((queueId: string) =>
  * Scenarios query state for loading/error indicators.
  */
 const scenariosQueryAtomFamily = scenarioProgressQueryAtomFamily
+
+/**
+ * Queue status selector derived from scenario state.
+ *
+ * Falls back to the persisted queue status while the scenario query is still
+ * loading or if it errors, but does not rely on imperative queue status syncs.
+ */
+const statusAtomFamily = atomFamily((queueId: string) =>
+    atom<EvaluationStatus | null>((get) => {
+        const entity = get(simpleQueueEntityAtomFamily(queueId))
+        const fallbackStatus = (entity?.status as EvaluationStatus | null) ?? null
+        const query = get(scenarioProgressQueryAtomFamily(queueId))
+
+        if (query.isPending || query.isError) {
+            return fallbackStatus
+        }
+
+        return deriveQueueStatusFromScenarios(query.data ?? [], fallbackStatus)
+    }),
+)
 
 /**
  * Invalidate a queue's scenario progress cache.

@@ -173,6 +173,7 @@ export interface ScenarioContext {
     annotations: Annotation[]
     traceId: string
     spanId: string
+    testcaseId?: string
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 } from "@agenta/entities/simpleQueue"
 import {message} from "@agenta/ui/app-message"
 import {MagnifyingGlass, PlusIcon} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Skeleton, Tag, Typography} from "antd"
+import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -17,16 +17,7 @@ import {
     createQueueDrawerSelectionAtom,
 } from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
-
-const statusColorMap: Record<string, string> = {
-    pending: "default",
-    queued: "processing",
-    running: "processing",
-    success: "success",
-    failure: "error",
-    errors: "error",
-    cancelled: "warning",
-}
+import QueueStatusTag from "../QueueStatusTag"
 
 interface AddToQueuePopoverProps {
     itemType: "traces" | "testcases"
@@ -137,14 +128,11 @@ const QueueListContent = ({
                             >
                                 {queue.name || "Untitled"}
                             </Typography.Text>
-                            {queue.status && (
-                                <Tag
-                                    color={statusColorMap[queue.status] ?? "default"}
-                                    className="!mr-0 text-xs"
-                                >
-                                    {queue.status.charAt(0).toUpperCase() + queue.status.slice(1)}
-                                </Tag>
-                            )}
+                            <QueueStatusTag
+                                queueId={queue.id}
+                                fallbackStatus={queue.status ?? null}
+                                className="!mr-0 text-xs"
+                            />
                         </button>
                     ))
                 )}

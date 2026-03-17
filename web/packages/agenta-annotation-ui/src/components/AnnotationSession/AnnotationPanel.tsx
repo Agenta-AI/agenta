@@ -103,12 +103,16 @@ const AnnotationPanel = memo(function AnnotationPanel({
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(scenarioId),
     )
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
+    )
 
     const {metrics, evaluators, updateMetric} = useAnnotationFormState({
         scenarioId,
         annotations,
         traceId: traceRef.traceId,
         spanId: traceRef.spanId,
+        testcaseId: testcaseRef.testcaseId,
     })
 
     const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
@@ -261,15 +265,15 @@ const AnnotationPanel = memo(function AnnotationPanel({
             {panelHeader}
 
             {/* Errors */}
-            {errors.map((err, idx) => (
+            {errors.map((err) => (
                 <Alert
-                    key={idx}
+                    key={err}
                     showIcon
                     closable
                     message={err}
                     type="warning"
                     className="!rounded-none"
-                    onClose={() => setErrors((prev) => prev.filter((_, i) => i !== idx))}
+                    onClose={() => setErrors((prev) => prev.filter((e) => e !== err))}
                 />
             ))}
 

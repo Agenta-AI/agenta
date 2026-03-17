@@ -42,8 +42,13 @@ import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {fetchTestcase} from "@agenta/entities/testcase"
+import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
+import {
+    fetchLatestRevisionsBatch,
+    fetchRevisionWithTestcases,
+    patchRevision,
+} from "@agenta/entities/testset"
 import {
     traceEntityAtomFamily,
     traceInputsAtomFamily,
@@ -57,6 +62,14 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {
+    buildTestsetSyncOperations,
+    buildTestsetSyncPreview,
+    remapTargetRowsToBaseRevision,
+    selectQueueScopedAnnotation,
+    type CompletedScenarioRef,
+    type TestsetSyncEvaluator,
+} from "../testsetSync"
 import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
@@ -251,6 +264,37 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
 })
 
+/** Evaluator slug/workflow pairs for queue-scoped testcase sync. */
+const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
+    const runId = get(activeRunIdAtom)
+    if (!runId) return []
+
+    const byKey = new Map<string, TestsetSyncEvaluator>()
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+
+    for (const step of annotationSteps) {
+        const workflowId = step.references?.evaluator?.id ?? null
+        const evaluatorEntity = workflowId
+            ? get(evaluatorMolecule.selectors.data(workflowId))
+            : null
+        const slug =
+            step.references?.evaluator?.slug ??
+            evaluatorEntity?.slug ??
+            step.references?.evaluator_revision?.slug ??
+            workflowId
+
+        if (!slug && !workflowId) continue
+        const key = workflowId ?? slug
+
+        byKey.set(key, {
+            slug: slug ?? key ?? "",
+            workflowId,
+        })
+    }
+
+    return Array.from(byKey.values()).filter((evaluator) => Boolean(evaluator.slug))
+})
+
 /**
  * Annotation column definitions — delegates to the molecule's convenience selector.
  * Each entry represents a table column driven by an evaluation run mapping.
@@ -334,12 +378,15 @@ const testcaseInputKeysAtom = atom<string[]>((get) => {
     const testcase = query?.data
     if (!testcase?.data) return []
 
-    return Object.keys(testcase.data)
+    return Object.keys(testcase.data).filter((key) => !TESTCASE_SYSTEM_KEYS.has(key))
 })
 
 // ============================================================================
 // COLUMN DISCOVERY HELPERS (for testcase-based queues)
 // ============================================================================
+
+/** System keys to exclude from testcase data columns (internal fields not for display) */
+const TESTCASE_SYSTEM_KEYS = new Set(["testcase_dedup_id", "__dedup_id__"])
 
 /** Keys to exclude from display in testcase columns */
 const EXCLUDE_KEYS = new Set([
@@ -808,17 +855,49 @@ const scenarioAnnotationsByLinkQueryAtomFamily = atomFamily(
 )
 
 /**
+ * Testcase-based annotation query — finds annotations by testcase reference.
+ * This is the fallback for testcase-based queues where no trace_id exists.
+ */
+const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
+    ({scenarioId, testcaseId}: {scenarioId: string; testcaseId: string}) =>
+        atomWithQuery(() => ({
+            queryKey: ["scenarioAnnotationsByTestcase", scenarioId, testcaseId],
+            queryFn: async (): Promise<Annotation[]> => {
+                const projectId = getStore().get(projectIdAtom)
+                if (!projectId || !testcaseId) return []
+                const response = await queryAnnotations({
+                    projectId,
+                    annotation: {
+                        references: {
+                            testcase: {id: testcaseId},
+                        },
+                    },
+                })
+                return response.annotations ?? []
+            },
+            enabled: !!testcaseId,
+            retry: (failureCount: number, error: Error) => {
+                if (error?.message === "projectId not yet available" && failureCount < 5) {
+                    return true
+                }
+                return false
+            },
+            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+            staleTime: 30_000,
+        })),
+    (a: {scenarioId: string; testcaseId: string}, b: {scenarioId: string; testcaseId: string}) =>
+        a.scenarioId === b.scenarioId && a.testcaseId === b.testcaseId,
+)
+
+/**
  * Resolved annotations for a scenario.
  *
- * Uses two resolution paths:
+ * Uses three resolution paths:
  * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results
  * 2. **Link-based** (fallback): Query annotations whose `links` reference the invocation trace
+ * 3. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues)
  *
- * The link-based path is a TRUE FALLBACK — it only fires when step-based returns empty.
- * This avoids redundant API calls and UI flicker from dual queries resolving at different times.
- *
- * The link-based fallback ensures annotations are found even when step result
- * upserts fail (they run as non-blocking post-submit operations).
+ * The fallback paths only fire when previous paths return empty.
  */
 const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
@@ -844,6 +923,18 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
                 }),
             )
             return linkQuery.data ?? []
+        }
+
+        // Path 3: Testcase-based resolution (for testcase queues without trace_id)
+        const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
+        if (testcaseRef.testcaseId) {
+            const testcaseQuery = get(
+                scenarioAnnotationsByTestcaseQueryAtomFamily({
+                    scenarioId,
+                    testcaseId: testcaseRef.testcaseId,
+                }),
+            )
+            return testcaseQuery.data ?? []
         }
 
         return []
@@ -1235,6 +1326,25 @@ const scenarioAnnotationByEvaluatorAtomFamily = atomFamily(
         atom<Annotation | null>((get) => {
             const annotations = get(scenarioAnnotationsAtomFamily(key.scenarioId))
             if (!annotations?.length) return null
+
+            if (get(queueKindAtom) === "testcases") {
+                const queueId = get(activeQueueIdAtom)
+                const evaluatorSlug =
+                    key.evaluatorSlug ??
+                    get(testsetSyncEvaluatorsAtom).find(
+                        (evaluator) => evaluator.workflowId === key.evaluatorId,
+                    )?.slug
+                if (!queueId || !evaluatorSlug) return null
+
+                const selection = selectQueueScopedAnnotation({
+                    annotations,
+                    queueId,
+                    evaluatorSlug,
+                    evaluatorWorkflowId: key.evaluatorId,
+                })
+
+                return selection.annotation
+            }
 
             return (
                 annotations.find((ann) => {
@@ -1695,6 +1805,184 @@ let _onAnnotationSubmitted: ((scenarioId: string) => void) | null = null
 let _onSessionClosed: (() => void) | null = null
 let _onNavigate: ((scenarioId: string, index: number) => void) | null = null
 
+async function fetchBaseRevisionRows(params: {projectId: string; revisionId: string}) {
+    const revision = await fetchRevisionWithTestcases({
+        id: params.revisionId,
+        projectId: params.projectId,
+    })
+
+    const rawRows = revision?.data?.testcases ?? []
+
+    return rawRows as {
+        id?: string | null
+        data?: Record<string, unknown> | null
+    }[]
+}
+
+// ============================================================================
+// SYNC TO TESTSET
+// ============================================================================
+
+/**
+ * Whether the session can sync annotated data back to the source testset.
+ * True when queue kind is "testcases" and at least one scenario is completed.
+ */
+const canSyncToTestsetAtom = atom<boolean>((get) => {
+    const queueKind = get(queueKindAtom)
+    if (queueKind !== "testcases") return false
+    const ids = get(scenarioIdsAtom)
+    const completed = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+    return ids.some((id) => isScenarioCompleted(id, completed, records))
+})
+
+async function buildTestsetSyncPreviewForSession(get: Getter) {
+    const projectId = getStore().get(projectIdAtom)
+    if (!projectId) throw new Error("No project ID")
+
+    const queueId = get(activeQueueIdAtom)
+    if (!queueId) throw new Error("No active queue")
+
+    if (get(queueKindAtom) !== "testcases") {
+        throw new Error("Testset sync is only available for testcase queues")
+    }
+
+    const scenarioIds = get(scenarioIdsAtom)
+    const completedIds = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+
+    const completedScenarios: CompletedScenarioRef[] = scenarioIds
+        .filter((id) => isScenarioCompleted(id, completedIds, records))
+        .map((scenarioId) => ({
+            scenarioId,
+            testcaseId: get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId,
+        }))
+        .filter((entry) => entry.testcaseId)
+
+    if (completedScenarios.length === 0) {
+        throw new Error("No completed testcase scenarios")
+    }
+
+    const testcaseIds = Array.from(new Set(completedScenarios.map((entry) => entry.testcaseId)))
+    const testcases = await fetchTestcasesBatch({projectId, testcaseIds})
+
+    const testsetIds = Array.from(
+        new Set(
+            Array.from(testcases.values())
+                .map((testcase) => testcase.testset_id ?? testcase.set_id ?? null)
+                .filter(Boolean),
+        ),
+    ) as string[]
+
+    const [latestRevisionMap, annotationsByTestcaseId] = await Promise.all([
+        fetchLatestRevisionsBatch(projectId, testsetIds),
+        (async () => {
+            const entries = await Promise.all(
+                testcaseIds.map(async (testcaseId) => {
+                    const response = await queryAnnotations({
+                        projectId,
+                        annotation: {
+                            references: {
+                                testcase: {id: testcaseId},
+                            },
+                        },
+                    })
+                    return [testcaseId, response.annotations ?? []] as const
+                }),
+            )
+            return new Map(entries)
+        })(),
+    ])
+
+    const latestRevisionIdsByTestsetId = new Map<string, string>()
+    latestRevisionMap.forEach((revision, testsetId) => {
+        latestRevisionIdsByTestsetId.set(testsetId, revision.id)
+    })
+
+    return buildTestsetSyncPreview({
+        queueId,
+        completedScenarios,
+        testcasesById: testcases,
+        annotationsByTestcaseId,
+        evaluators: get(testsetSyncEvaluatorsAtom),
+        latestRevisionIdsByTestsetId,
+    })
+}
+
+const syncToTestsetsAtom = atom(null, async (get, set) => {
+    const projectId = getStore().get(projectIdAtom)
+    if (!projectId) throw new Error("No project ID")
+
+    const queueName = get(queueNameAtom) ?? "Annotation queue results"
+    const preview = await buildTestsetSyncPreviewForSession(get)
+
+    if (preview.hasBlockingConflicts) {
+        throw new Error("No exportable testcase annotations available for sync")
+    }
+
+    const preparedTargets = await Promise.all(
+        preview.targets.map(async (target) => {
+            const baseRows = await fetchBaseRevisionRows({
+                revisionId: target.baseRevisionId,
+                projectId,
+            })
+
+            return remapTargetRowsToBaseRevision({
+                target,
+                baseRows,
+            })
+        }),
+    )
+
+    const syncTargets = preparedTargets
+        .map((entry) => entry.target)
+        .filter((target) => target.rows.length > 0)
+    const remapDroppedRows = preparedTargets.reduce((sum, entry) => sum + entry.droppedRowCount, 0)
+
+    const results = await Promise.allSettled(
+        syncTargets.map(async (target) => {
+            await patchRevision({
+                projectId,
+                testsetId: target.testsetId,
+                baseRevisionId: target.baseRevisionId,
+                operations: buildTestsetSyncOperations(target),
+                message: `${queueName}: synced annotations`,
+            })
+
+            return target
+        }),
+    )
+
+    const successfulTargets = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+    )
+    const failedTargets = results.flatMap((result, index) =>
+        result.status === "rejected"
+            ? [
+                  {
+                      testsetId: syncTargets[index]?.testsetId ?? "",
+                      rowCount: syncTargets[index]?.rowCount ?? 0,
+                      reason: result.reason,
+                  },
+              ]
+            : [],
+    )
+
+    if (successfulTargets.length === 0) {
+        throw new Error("Failed to sync annotations to testsets")
+    }
+
+    return {
+        targets: successfulTargets,
+        revisionsCreated: successfulTargets.length,
+        rowsExported: successfulTargets.reduce((sum, target) => sum + target.rowCount, 0),
+        skippedRows: preview.skippedRows + remapDroppedRows,
+        rowsFailed: failedTargets.reduce((sum, target) => sum + target.rowCount, 0),
+        conflicts: preview.conflicts,
+        failedTargets,
+    }
+})
+
 /**
  * Register callbacks for annotation session side-effects.
  * Used by platform-specific code (OSS/EE) to react to session events.
@@ -1796,6 +2084,8 @@ export const annotationSessionController = {
         scenarioAnnotationByEvaluator: scenarioAnnotationByEvaluatorAtomFamily,
         /** Full metric resolution (value + stats + annotation) for an evaluator in a scenario */
         scenarioMetricForEvaluator: scenarioMetricForEvaluatorAtomFamily,
+        /** Whether the session can sync to testset (testcase queue + ≥1 completed) */
+        canSyncToTestset: () => canSyncToTestsetAtom,
     },
 
     // ========================================================================
@@ -1820,6 +2110,10 @@ export const annotationSessionController = {
         setActiveView: setActiveViewAtom,
         /** Apply route state ("view" and "scenarioId") */
         applyRouteState: applyRouteStateAtom,
+        /** Sync testcase annotations back into one or more testsets */
+        syncToTestsets: syncToTestsetsAtom,
+        /** Sync annotated data back to source testset as new revision */
+        syncToTestset: syncToTestsetsAtom,
     },
 
     // ========================================================================
@@ -1865,6 +2159,7 @@ export const annotationSessionController = {
             getStore().get(scenarioAnnotationByEvaluatorAtomFamily(key)),
         scenarioMetricForEvaluator: (key: ScenarioEvaluatorKey) =>
             getStore().get(scenarioMetricForEvaluatorAtomFamily(key)),
+        canSyncToTestset: () => getStore().get(canSyncToTestsetAtom),
     },
 
     // ========================================================================
@@ -1881,6 +2176,8 @@ export const annotationSessionController = {
         setActiveView: (view: SessionView) => getStore().set(setActiveViewAtom, view),
         applyRouteState: (payload: ApplyRouteStatePayload) =>
             getStore().set(applyRouteStateAtom, payload),
+        syncToTestsets: () => getStore().set(syncToTestsetsAtom),
+        syncToTestset: () => getStore().set(syncToTestsetsAtom),
     },
 
     // ========================================================================
