@@ -1,95 +1,42 @@
+import {useMemo} from "react"
+
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {Typography} from "antd"
-import {createUseStyles} from "react-jss"
+import {useAtomValue} from "jotai"
 
 import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
-import {filterVariantParameters} from "@/oss/lib/helpers/utils"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {JSSTheme, Variant} from "@/oss/lib/Types"
-import {DeploymentRevisionConfig} from "@/oss/lib/Types"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-        fontWeight: theme.fontWeightMedium,
-    },
-    subTitle: {
-        fontSize: theme.fontSize,
-        lineHeight: theme.lineHeight,
-        fontWeight: theme.fontWeightMedium,
-    },
-    resultTag: {
-        minWidth: 150,
-        display: "flex",
-        borderRadius: theme.borderRadiusSM,
-        border: `1px solid ${theme.colorBorder}`,
-        textAlign: "center",
-        "& > div:nth-child(1)": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
-            lineHeight: theme.lineHeight,
-            flex: 1,
-            minWidth: 50,
-            borderRight: `1px solid ${theme.colorBorder}`,
-            padding: "0 7px",
-        },
-        "& > div:nth-child(2)": {
-            padding: "0 7px",
-        },
-    },
-    promptTextField: {
-        padding: theme.paddingXS,
-        backgroundColor: theme.colorBgContainerDisabled,
-        borderRadius: theme.borderRadius,
-    },
-    noParams: {
-        color: theme.colorTextDescription,
-        fontWeight: theme.fontWeightMedium,
-        textAlign: "center",
-        marginTop: 48,
-    },
-}))
 
 interface HistoryConfigProps {
-    depRevisionConfig: DeploymentRevisionConfig
-    variant: Variant
+    /** The workflow/app revision ID to display configuration for */
+    revisionId: string
+    /** If true, show the server (original) config in read-only mode */
+    showOriginal?: boolean
 }
 
-const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfigProps) => {
-    const classes = useStyles()
+const HistoryConfig = ({revisionId, showOriginal}: HistoryConfigProps) => {
+    const config = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.configuration(revisionId), [revisionId]),
+    )
+
+    const hasParams = config && Object.keys(config).length > 0
 
     return (
         <div className="flex flex-col gap-4 grow h-full">
-            <Typography.Text className={classes.title}>Configuration</Typography.Text>
+            <Typography.Text className="text-base font-medium">Configuration</Typography.Text>
 
-            {Object.keys(depRevisionConfig.parameters).length ? (
+            {hasParams ? (
                 <div className="flex flex-col gap-6 grow">
                     <div className="flex flex-col gap-2 grow">
-                        {propsVariant ? (
-                            <NewVariantParametersView
-                                selectedVariant={propsVariant as unknown as EnhancedVariant}
-                            />
-                        ) : null}
+                        <NewVariantParametersView
+                            revisionId={revisionId}
+                            showOriginal={showOriginal}
+                        />
                     </div>
-
-                    {depRevisionConfig.parameters &&
-                        Object.entries(
-                            filterVariantParameters({
-                                record: depRevisionConfig.parameters,
-                                key: "prompt",
-                            }),
-                        ).map(([key, value], index) => (
-                            <div className="flex flex-col gap-2" key={index}>
-                                <Typography.Text className={classes.subTitle}>
-                                    {key}
-                                </Typography.Text>
-                                <div className={classes.promptTextField}>
-                                    {JSON.stringify(value)}
-                                </div>
-                            </div>
-                        ))}
                 </div>
             ) : (
-                <Typography.Text className={classes.noParams}>No Parameters</Typography.Text>
+                <Typography.Text type="secondary" className="font-medium text-center mt-12">
+                    No Parameters
+                </Typography.Text>
             )}
         </div>
     )

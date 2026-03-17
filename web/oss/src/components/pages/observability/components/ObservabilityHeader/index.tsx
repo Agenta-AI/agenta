@@ -303,8 +303,8 @@ const ObservabilityHeader = ({
             if (!traces.length) return
 
             const {currentApp} = getAppValues()
-            const appId = currentApp?.app_id || ""
-            const filename = `${currentApp?.app_name || ""}_observability.csv`
+            const appId = currentApp?.id || ""
+            const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
 
             const {
                 params,

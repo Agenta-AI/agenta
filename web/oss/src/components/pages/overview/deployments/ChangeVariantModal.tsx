@@ -1,5 +1,7 @@
 import {SetStateAction, useMemo, useState} from "react"
 
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
+import type {Workflow} from "@agenta/entities/workflow"
 import {CaretRight} from "@phosphor-icons/react"
 import {Input, Modal, Table, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
@@ -7,16 +9,15 @@ import {createUseStyles} from "react-jss"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {Environment, JSSTheme} from "@/oss/lib/Types"
+import type {JSSTheme} from "@/oss/lib/Types"
 
 import DeploymentModal from "./DeploymentModal"
 
 const {Search} = Input
 
 type ChangeVariantModalProps = {
-    variants: EnhancedVariant[]
-    selectedEnvironment: Environment
+    variants: Workflow[]
+    selectedEnvironment: AppEnvironmentDeployment
     setOpenChangeVariantModal: (value: SetStateAction<boolean>) => void
     loadEnvironments: () => Promise<void>
 } & React.ComponentProps<typeof Modal>
@@ -49,12 +50,12 @@ const ChangeVariantModal = ({
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState<string>("")
     const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState(false)
-    const [selectedVariant, setSelectedVariant] = useState<EnhancedVariant>()
+    const [selectedVariant, setSelectedVariant] = useState<Workflow>()
 
     const filtered = useMemo(() => {
         if (!searchTerm) return variants
         return variants.filter((item) =>
-            item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
+            (item.name ?? "").toLowerCase().includes(searchTerm.toLowerCase()),
         )
     }, [searchTerm, variants])
 
@@ -84,14 +85,14 @@ const ChangeVariantModal = ({
                             columns={[
                                 {
                                     title: "Variants",
-                                    dataIndex: "variantName",
-                                    key: "variantName",
+                                    dataIndex: "name",
+                                    key: "name",
                                     render: (_, record) => {
                                         return (
                                             <div className="flex items-center justify-between">
                                                 <VariantDetailsWithStatus
-                                                    variantName={record.variantName}
-                                                    revision={record.revision}
+                                                    variantName={record.name ?? undefined}
+                                                    revision={record.version}
                                                     variant={record}
                                                 />
 
