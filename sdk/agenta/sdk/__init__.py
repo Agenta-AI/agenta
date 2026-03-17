@@ -88,6 +88,21 @@ from .managers import testsets as testsets
 sys.modules.setdefault("agenta.sdk.types", types)
 sys.modules.setdefault("agenta.sdk.assets", assets)
 
+# Compat shims: agenta.sdk.workflows.* → agenta.sdk.engines.running.*
+import agenta.sdk.engines.running as _running  # noqa: E402
+import agenta.sdk.engines.running.errors as _running_errors  # noqa: E402
+import agenta.sdk.engines.running.handlers as _running_handlers  # noqa: E402
+import agenta.sdk.engines.running.utils as _running_utils  # noqa: E402
+import agenta.sdk.engines.running.runners as _running_runners  # noqa: E402
+import agenta.sdk.engines.running.runners.daytona as _running_runners_daytona  # noqa: E402
+
+sys.modules.setdefault("agenta.sdk.workflows", _running)
+sys.modules.setdefault("agenta.sdk.workflows.errors", _running_errors)
+sys.modules.setdefault("agenta.sdk.workflows.handlers", _running_handlers)
+sys.modules.setdefault("agenta.sdk.workflows.utils", _running_utils)
+sys.modules.setdefault("agenta.sdk.workflows.runners", _running_runners)
+sys.modules.setdefault("agenta.sdk.workflows.runners.daytona", _running_runners_daytona)
+
 DEFAULT_AGENTA_SINGLETON_INSTANCE: AgentaSingleton = AgentaSingleton()
 
 
