@@ -1,4 +1,14 @@
+import type {ReactNode} from "react"
+
 import type {ButtonProps} from "antd"
+
+export interface AddActionsDropdownAction {
+    key: string
+    label: string
+    icon?: ReactNode
+    disabled?: boolean
+    onSelect: () => void
+}
 
 export interface AddActionsDropdownProps {
     size?: ButtonProps["size"]
@@ -11,6 +21,7 @@ export interface AddActionsDropdownProps {
         disabled?: boolean
         onSelect: () => void
     }
+    additionalActions?: AddActionsDropdownAction[]
     queueAction?: {
         itemType: "traces" | "testcases"
         itemIds: string[]

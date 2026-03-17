@@ -89,7 +89,11 @@ const QueueListContent = ({
     )
 
     return (
-        <div className="flex flex-col w-[300px]">
+        <div
+            className="flex flex-col w-[300px]"
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+        >
             <div className="px-2 py-1 border-0 border-b border-solid border-gray-200">
                 <Input
                     variant="borderless"
@@ -123,7 +127,10 @@ const QueueListContent = ({
                             type="button"
                             disabled={submittingId !== null}
                             className="w-full flex items-center gap-2 px-3 py-1.5 text-left bg-transparent border-0 cursor-pointer hover:bg-gray-50 disabled:opacity-50 disabled:cursor-wait"
-                            onClick={() => handleSelect(queue)}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                void handleSelect(queue)
+                            }}
                         >
                             <Typography.Text
                                 className="truncate flex-1"
@@ -146,7 +153,8 @@ const QueueListContent = ({
                     type="dashed"
                     icon={<PlusIcon size={14} />}
                     size="small"
-                    onClick={() => {
+                    onClick={(event) => {
+                        event.stopPropagation()
                         setDefaultKind(itemType)
                         setDrawerSelection({
                             itemType,

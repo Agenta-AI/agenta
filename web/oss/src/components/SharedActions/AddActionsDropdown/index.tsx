@@ -20,6 +20,7 @@ const AddActionsDropdown = ({
     buttonType = "default",
     dataTour,
     testsetAction,
+    additionalActions,
     queueAction,
 }: AddActionsDropdownProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -30,9 +31,12 @@ const AddActionsDropdown = ({
         () =>
             [
                 testsetAction ? {disabled: testsetAction.disabled ?? false} : null,
+                ...(additionalActions ?? []).map((action) => ({
+                    disabled: action.disabled ?? false,
+                })),
                 queueAction ? {disabled: queueAction.disabled ?? false} : null,
             ].filter(Boolean),
-        [queueAction, testsetAction],
+        [additionalActions, queueAction, testsetAction],
     )
 
     const isButtonDisabled =
@@ -65,13 +69,19 @@ const AddActionsDropdown = ({
                 return
             }
 
+            const selectedAction = additionalActions?.find((action) => action.key === key)
+            if (selectedAction) {
+                selectedAction.onSelect()
+                return
+            }
+
             if (key === "queue" && queueAction && !(queueAction.disabled ?? false)) {
                 requestAnimationFrame(() => {
                     setQueuePopoverOpen(true)
                 })
             }
         },
-        [queueAction, testsetAction],
+        [additionalActions, queueAction, testsetAction],
     )
 
     const menuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
@@ -86,6 +96,15 @@ const AddActionsDropdown = ({
             })
         }
 
+        additionalActions?.forEach((action) => {
+            items.push({
+                key: action.key,
+                label: action.label,
+                icon: action.icon,
+                disabled: action.disabled ?? false,
+            })
+        })
+
         if (queueAction) {
             items.push({
                 key: "queue",
@@ -96,7 +115,7 @@ const AddActionsDropdown = ({
         }
 
         return items
-    }, [queueAction, testsetAction])
+    }, [additionalActions, queueAction, testsetAction])
 
     if (actions.length === 0) return null
 

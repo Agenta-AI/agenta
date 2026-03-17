@@ -1,12 +1,7 @@
 import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
-import {ListChecks} from "@phosphor-icons/react"
 import {Button, Space, Tooltip} from "antd"
-import dynamic from "next/dynamic"
 
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui").then((m) => m.AddToQueuePopover),
-    {ssr: false},
-)
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 
 /**
  * Props for TestcaseActions component
@@ -51,7 +46,7 @@ export function TestcaseActions(props: TestcaseActionsProps) {
         selectedRowKeys = [],
     } = props
 
-    const selectedIds = selectedRowKeys.map(String)
+    const selectedIds = selectedRowKeys.map(String).filter((id) => !id.startsWith("new-"))
 
     return (
         <Space>
@@ -60,20 +55,6 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                     Discard
                 </Button>
             )}
-            <AddToQueuePopover
-                itemType="testcases"
-                itemIds={selectedIds}
-                disabled={selectedIds.length === 0 || mode === "view"}
-            >
-                <Tooltip title="Add selected testcases to annotation queue">
-                    <Button
-                        icon={<ListChecks size={14} />}
-                        disabled={selectedIds.length === 0 || mode === "view"}
-                    >
-                        Add to queue
-                    </Button>
-                </Tooltip>
-            </AddToQueuePopover>
             <Tooltip title="Import CSV/JSON file as new revision">
                 <Button
                     onClick={onImportCSV}
@@ -83,9 +64,24 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                     Import
                 </Button>
             </Tooltip>
-            <Button onClick={onAddTestcase} icon={<PlusOutlined />} disabled={mode === "view"}>
-                Row
-            </Button>
+            <AddActionsDropdown
+                size="middle"
+                disabled={mode === "view"}
+                additionalActions={[
+                    {
+                        key: "row",
+                        label: "Add row",
+                        icon: <PlusOutlined />,
+                        disabled: mode === "view",
+                        onSelect: onAddTestcase,
+                    },
+                ]}
+                queueAction={{
+                    itemType: "testcases",
+                    itemIds: selectedIds,
+                    disabled: selectedIds.length === 0 || mode === "view",
+                }}
+            />
             <Button
                 type="primary"
                 onClick={onCommit}
