@@ -9,6 +9,7 @@ export {
     queryWorkflowVariants,
     // Query / List (Revisions)
     queryWorkflowRevisionsByWorkflow,
+    type WorkflowRevisionWindowing,
     queryWorkflowRevisions,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
@@ -44,3 +45,18 @@ export {
     fetchWorkflowsBatch,
     fetchWorkflowRevisionsByIdsBatch,
 } from "./api"
+
+// Create from template (legacy endpoint orchestration)
+export {
+    createAppFromTemplate,
+    AppServiceType,
+    type CreateAppFromTemplateParams,
+    type CreateAppFromTemplateResult,
+} from "./createFromTemplate"
+
+// Templates (evaluator-type workflow templates)
+export {
+    fetchEvaluatorTemplates,
+    type EvaluatorTemplate,
+    type EvaluatorTemplatesResponse,
+} from "./templates"

@@ -17,6 +17,7 @@ import {
 import {computeShallowDiff, applyShallowPatch} from "../runnable/snapshotDiff"
 import {isLocalDraftId} from "../shared"
 
+import type {Workflow} from "./core"
 import {
     workflowDraftAtomFamily,
     updateWorkflowDraftAtom,
@@ -24,6 +25,7 @@ import {
     workflowServerDataSelectorFamily,
     workflowEntityAtomFamily,
     createLocalDraftFromWorkflowRevision,
+    createEphemeralWorkflow,
 } from "./state/store"
 
 // ============================================================================
@@ -47,11 +49,63 @@ const workflowPatchSchema = z.object({
  * Provides snapshot operations (build/apply patch, draft detection) for
  * the workflow entity type.
  */
+/**
+ * Check if a workflow entity is ephemeral (is_base flag).
+ */
+function isEphemeralWorkflow(entityId: string): boolean {
+    const store = getDefaultStore()
+    const entity = store.get(workflowEntityAtomFamily(entityId)) as Workflow | null
+    return entity?.flags?.is_base ?? false
+}
+
 export const workflowSnapshotAdapter: RunnableSnapshotAdapter = {
     type: "workflow",
 
+    /**
+     * For ephemeral workflows (is_base), serialize the full entity inline.
+     * For regular workflows, this returns null (handled via draft/commit path).
+     */
+    serializeEntity(entityId: string): Record<string, unknown> | null {
+        if (!isEphemeralWorkflow(entityId)) return null
+
+        const store = getDefaultStore()
+        const entity = store.get(workflowEntityAtomFamily(entityId)) as Workflow | null
+        if (!entity) return null
+
+        const meta = entity.meta as Record<string, unknown> | null | undefined
+        return {
+            label: entity.name ?? "Restored Entity",
+            inputs: (meta?.inputs as Record<string, unknown>) ?? {},
+            outputs: meta?.outputs ?? {},
+            parameters: entity.data?.parameters ?? {},
+            ...(meta?.sourceRef ? {sourceRef: meta.sourceRef} : {}),
+        }
+    },
+
+    /**
+     * Restore an ephemeral workflow from serialized snapshot data.
+     */
+    restoreEntity(data: Record<string, unknown>): string | null {
+        const {id: entityId} = createEphemeralWorkflow({
+            label: (data.label as string) ?? "Restored Entity",
+            inputs: (data.inputs as Record<string, unknown>) ?? {},
+            outputs: data.outputs ?? {},
+            parameters: (data.parameters as Record<string, unknown>) ?? {},
+            sourceRef: data.sourceRef as
+                | {type: "application" | "evaluator"; id: string; slug?: string}
+                | undefined,
+        })
+        return entityId
+    },
+
     buildDraftPatch(revisionId: string): BuildDraftPatchResult {
         const store = getDefaultStore()
+
+        // Ephemeral workflows have no draft system — report no draft
+        // (they're handled via serializeEntity/restoreEntity instead)
+        if (isEphemeralWorkflow(revisionId)) {
+            return {hasDraft: false, patch: null, sourceRevisionId: revisionId}
+        }
 
         // For local drafts, edits may be baked into the clone (no draft atom).
         // Use the full entity data as the effective current state.

@@ -17,10 +17,11 @@ export {workflowMolecule, type WorkflowMolecule} from "./molecule"
 export {
     // Project ID
     workflowProjectIdAtom,
-    // List query
-    workflowsListQueryAtom,
-    workflowsListDataAtom,
-    nonArchivedWorkflowsAtom,
+    // App workflows list query (non-evaluator)
+    appWorkflowsListQueryAtom,
+    appWorkflowsListDataAtom,
+    nonArchivedAppWorkflowsAtom,
+    appWorkflowsListQueryStateAtom,
     // Variant/Revision list queries (for 3-level hierarchy)
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
@@ -43,14 +44,24 @@ export {
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
-    workflowsListQueryStateAtom,
     // Local drafts
     workflowLocalServerDataAtomFamily,
     workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
+    // Ephemeral workflows (from trace data)
+    createEphemeralWorkflow,
+    type CreateEphemeralWorkflowParams,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
+    workflowLatestRevisionQueryAtomFamily,
 } from "./store"
+
+// Union atoms (app + evaluator combined)
+export {
+    workflowsListDataAtom,
+    nonArchivedWorkflowsAtom,
+    workflowsListQueryStateAtom,
+} from "./allWorkflows"
 
 // ============================================================================
 // SELECTION CONFIG
@@ -80,6 +91,11 @@ export {
     configurationAtomFamily,
     workflowUriAtomFamily,
     requestPayloadAtomFamily,
+    // Schema selectors
+    appRoutePathAtomFamily,
+    appOpenApiSchemaAtomFamily,
+    // Helpers
+    resolveBuiltinAppServiceUrl,
 } from "./runnableSetup"
 
 // ============================================================================
@@ -112,3 +128,23 @@ export {
     registerWorkflowArchiveCallbacks,
     clearWorkflowArchiveCallbacks,
 } from "./commit"
+
+// ============================================================================
+// EVALUATOR UTILITIES (for evaluator-type workflows)
+// ============================================================================
+
+export {
+    // Evaluator-filtered list queries
+    evaluatorsListQueryAtom,
+    evaluatorsListDataAtom,
+    nonArchivedEvaluatorsAtom,
+    // Templates
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    // Key map
+    evaluatorKeyMapAtom,
+    // Selection config
+    evaluatorSelectionConfig,
+    type EvaluatorSelectionConfig,
+} from "./evaluatorUtils"

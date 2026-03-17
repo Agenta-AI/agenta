@@ -81,6 +81,11 @@ export {
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Evaluator-specific utilities (for evaluator-type workflows)
+    getEvaluatorColor,
+    type EvaluatorColor,
+    parseEvaluatorKeyFromUri,
+    buildEvaluatorUri,
 } from "./core"
 
 // Flag query type
@@ -116,11 +121,17 @@ export {
     // Create
     createWorkflow,
     type CreateWorkflowPayload,
+    // Create from template (legacy endpoint orchestration)
+    createAppFromTemplate,
+    AppServiceType,
+    type CreateAppFromTemplateParams,
+    type CreateAppFromTemplateResult,
     // Update
     updateWorkflow,
     type UpdateWorkflowPayload,
     // Archive / Unarchive
     archiveWorkflow,
+    archiveWorkflowVariant,
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,
@@ -133,10 +144,15 @@ export {
 export {
     // Project ID
     workflowProjectIdAtom,
-    // List query
-    workflowsListQueryAtom,
+    // App workflows list query (non-evaluator)
+    appWorkflowsListQueryAtom,
+    appWorkflowsListDataAtom,
+    nonArchivedAppWorkflowsAtom,
+    appWorkflowsListQueryStateAtom,
+    // Union atoms (app + evaluator combined)
     workflowsListDataAtom,
     nonArchivedWorkflowsAtom,
+    workflowsListQueryStateAtom,
     // Variant/Revision list queries
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
@@ -159,13 +175,16 @@ export {
     // ListQueryState wrappers (for selection adapters and relations)
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
-    workflowsListQueryStateAtom,
     // Local drafts
     workflowLocalServerDataAtomFamily,
     workflowServerDataSelectorFamily,
     createLocalDraftFromWorkflowRevision,
+    // Ephemeral workflows (from trace data)
+    createEphemeralWorkflow,
+    type CreateEphemeralWorkflowParams,
     // Latest revision (derived from already-fetched data)
     workflowLatestRevisionIdAtomFamily,
+    workflowLatestRevisionQueryAtomFamily,
     // Commit / Archive
     commitWorkflowRevisionAtom,
     commitWorkflowRevision,
@@ -201,6 +220,36 @@ export {
 } from "./state"
 
 // ============================================================================
+// EVALUATOR UTILITIES (for evaluator-type workflows)
+// ============================================================================
+
+export {
+    // Evaluator-filtered list queries
+    evaluatorsListQueryAtom,
+    evaluatorsListDataAtom,
+    nonArchivedEvaluatorsAtom,
+    // Templates
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    // Key map
+    evaluatorKeyMapAtom,
+    // Selection config
+    evaluatorSelectionConfig,
+    type EvaluatorSelectionConfig,
+} from "./state"
+
+// ============================================================================
+// TEMPLATES API
+// ============================================================================
+
+export {
+    fetchEvaluatorTemplates,
+    type EvaluatorTemplate,
+    type EvaluatorTemplatesResponse,
+} from "./api"
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 
@@ -216,7 +265,18 @@ export {
 // RUNNABLE EXTENSION
 // ============================================================================
 
-export {workflowRunnableExtension, runnableAtoms, runnableGet} from "./state"
+export {
+    workflowRunnableExtension,
+    runnableAtoms,
+    runnableGet,
+    // Schema selectors
+    appRoutePathAtomFamily,
+    appOpenApiSchemaAtomFamily,
+    // Request payload
+    requestPayloadAtomFamily,
+    // Helpers
+    resolveBuiltinAppServiceUrl,
+} from "./state"
 
 // ============================================================================
 // SNAPSHOT ADAPTER

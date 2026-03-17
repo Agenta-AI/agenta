@@ -33,16 +33,28 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
-import type {StoreOptions} from "../../shared"
+import {
+    nestEvaluatorConfiguration,
+    flattenEvaluatorConfiguration,
+    nestEvaluatorSchema,
+} from "../../runnable/evaluatorTransforms"
+import {extractInputPortsFromSchema, extractOutputPortsFromSchema} from "../../runnable/portHelpers"
+import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
+import {extractVariablesFromConfig} from "../../runnable/utils"
+import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {Workflow} from "../core"
 import {parseWorkflowKeyFromUri} from "../core/schema"
 
+import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
+import {
+    executionModeAtomFamily as runnableExecutionModeAtomFamily,
+    invocationUrlAtomFamily as runnableInvocationUrlAtomFamily,
+    requestPayloadAtomFamily as runnableRequestPayloadAtomFamily,
+} from "./runnableSetup"
 import {
     workflowProjectIdAtom,
-    workflowsListQueryAtom,
-    workflowsListDataAtom,
-    nonArchivedWorkflowsAtom,
+    appWorkflowsListQueryAtom,
     workflowQueryAtomFamily,
     workflowInspectAtomFamily,
     workflowAppSchemaAtomFamily,
@@ -51,6 +63,7 @@ import {
     workflowEntityAtomFamily,
     workflowLocalServerDataAtomFamily,
     workflowIsDirtyAtomFamily,
+    workflowServerDataSelectorFamily,
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
@@ -223,6 +236,16 @@ const isHumanAtomFamily = atomFamily((workflowId: string) =>
     }),
 )
 
+/**
+ * Is base/ephemeral workflow (created from trace data, local-only).
+ */
+const isBaseAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => {
+        const flags = get(flagsAtomFamily(workflowId))
+        return flags?.is_base ?? false
+    }),
+)
+
 // ============================================================================
 // IDENTITY SELECTORS
 // ============================================================================
@@ -245,6 +268,192 @@ const slugAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowEntityAtomFamily(workflowId))
         return entity?.slug ?? null
     }),
+)
+
+// ============================================================================
+// RUNNABLE SELECTORS (absorbed from bridge + runnableSetup)
+// ============================================================================
+
+/**
+ * Configuration selector with evaluator nesting applied.
+ *
+ * For evaluator workflows, transforms flat backend params to nested prompt structure.
+ * For app workflows, returns data.parameters as-is.
+ */
+const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        const flatParams = entity?.data?.parameters ?? entity?.data?.configuration ?? null
+        if (!flatParams) return null
+
+        const isEvaluator = !!entity?.flags?.is_evaluator
+        if (isEvaluator) {
+            return nestEvaluatorConfiguration(flatParams as Record<string, unknown>)
+        }
+        return flatParams as Record<string, unknown>
+    }),
+)
+
+/**
+ * Parameters schema selector with evaluator nesting applied.
+ *
+ * For evaluator workflows, transforms flat schema to nested prompt structure.
+ * For app workflows, returns data.schemas.parameters as-is.
+ */
+const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        const flatSchema =
+            (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+        if (!flatSchema) return null
+
+        const isEvaluator = !!entity?.flags?.is_evaluator
+        if (isEvaluator) {
+            return nestEvaluatorSchema(flatSchema) as Record<string, unknown>
+        }
+        return flatSchema
+    }),
+)
+
+/**
+ * Input ports selector.
+ * Derives ports from schema, prompt template variables, or ephemeral trace metadata.
+ */
+const inputPortsAtomFamily = atomFamily((workflowId: string) =>
+    atom<RunnablePort[]>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity) return []
+
+        // Ephemeral workflow: derive from template variables, then trace inputs
+        if (entity.flags?.is_base) {
+            const params = entity.data?.parameters ?? entity.data?.configuration
+            if (params) {
+                const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+                if (vars.length > 0) {
+                    return vars.map((key) => ({key, name: key, type: "string", required: true}))
+                }
+            }
+            // Fallback: derive from trace inputs stored in meta
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const inputs = meta?.inputs as Record<string, unknown> | undefined
+            if (inputs) {
+                const isChat = entity.flags?.is_chat ?? false
+                const inputKeys = Object.keys(inputs).filter(
+                    (key) => !(isChat && key === "messages"),
+                )
+                return inputKeys.map((key) => ({key, name: key, type: "string", required: false}))
+            }
+            return []
+        }
+
+        const schemaPorts = extractInputPortsFromSchema(entity.data?.schemas?.inputs)
+        if (schemaPorts.length > 0) return schemaPorts
+
+        // Fallback: derive input variables from prompt templates in parameters
+        const params = entity.data?.parameters ?? entity.data?.configuration
+        if (params) {
+            const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+            if (vars.length > 0) {
+                return vars.map((key) => ({key, name: key, type: "string", required: true}))
+            }
+        }
+        return []
+    }),
+)
+
+/**
+ * Output ports selector.
+ * Derives ports from schema with evaluator-specific defaults.
+ * For ephemeral workflows, derives from trace outputs in meta.
+ */
+const outputPortsAtomFamily = atomFamily((workflowId: string) =>
+    atom<RunnablePort[]>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+
+        // Ephemeral workflow: derive from trace outputs stored in meta
+        if (entity?.flags?.is_base) {
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const outputs = meta?.outputs
+            if (outputs && typeof outputs === "object") {
+                return Object.keys(outputs as Record<string, unknown>).map((key) => ({
+                    key,
+                    name: key,
+                    type: "string",
+                }))
+            }
+            return [{key: "output", name: "Output", type: "string"}]
+        }
+
+        const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
+        if (schemaOutputs.length > 0) return schemaOutputs
+
+        // Evaluator-type workflows default to score/number
+        if (entity?.flags?.is_evaluator) {
+            return [{key: "score", name: "Score", type: "number"}]
+        }
+        return [{key: "output", name: "Output", type: "string"}]
+    }),
+)
+
+/**
+ * IO schemas selector. Returns `{inputSchema, outputSchema}` tuple.
+ */
+const ioSchemasAtomFamily = atomFamily((workflowId: string) =>
+    atom<{inputSchema?: unknown; outputSchema?: unknown}>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity?.data?.schemas) return {}
+        return {
+            inputSchema: entity.data.schemas.inputs ?? undefined,
+            outputSchema: entity.data.schemas.outputs ?? undefined,
+        }
+    }),
+)
+
+/**
+ * Server data selector (pre-draft entity data for commit diff baselines).
+ */
+const serverDataAtomFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => {
+        return get(workflowServerDataSelectorFamily(workflowId)) as Workflow | null
+    }),
+)
+
+/**
+ * Server configuration selector (flat params from server, before draft overlay).
+ * Used as baseline for evaluator config flattening.
+ */
+const serverConfigurationAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const serverData = get(workflowServerDataSelectorFamily(workflowId))
+        return (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+    }),
+)
+
+/**
+ * Update configuration action.
+ * Wraps parameters as `{data: {parameters}}` and applies evaluator flattening.
+ *
+ * Use this instead of `actions.update` when writing configuration changes from the UI,
+ * as it handles the evaluator flat/nested conversion automatically.
+ */
+const updateConfigurationAtom = atom(
+    null,
+    (get, set, workflowId: string, params: Record<string, unknown>) => {
+        // For evaluator workflows, flatten nested config back to flat format
+        // IMPORTANT: Use pure server data, NOT merged entity data
+        const serverData = get(workflowServerDataSelectorFamily(workflowId))
+        const isEvaluator = serverData?.flags?.is_evaluator ?? false
+        const finalParams = isEvaluator
+            ? flattenEvaluatorConfiguration(
+                  params,
+                  (serverData?.data?.parameters as Record<string, unknown> | null) ?? null,
+              )
+            : params
+
+        set(updateWorkflowDraftAtom, workflowId, {
+            data: {parameters: finalParams},
+        } as Partial<Workflow>)
+    },
 )
 
 // ============================================================================
@@ -271,7 +480,7 @@ export const workflowMolecule = {
         uri: uriAtomFamily,
         /** Workflow key parsed from URI (e.g., "auto_exact_match") */
         workflowKey: workflowKeyAtomFamily,
-        /** Configuration parameters */
+        /** Raw parameters from entity data */
         parameters: parametersAtomFamily,
         /** JSON schemas (parameters, inputs, outputs) */
         schemas: schemasAtomFamily,
@@ -289,10 +498,35 @@ export const workflowMolecule = {
         isCustom: isCustomAtomFamily,
         /** Is human workflow */
         isHuman: isHumanAtomFamily,
+        /** Is base/ephemeral workflow (from trace data) */
+        isBase: isBaseAtomFamily,
         /** Workflow name */
         name: nameAtomFamily,
         /** Workflow slug */
         slug: slugAtomFamily,
+
+        // -- Runnable selectors (absorbed from bridge) --
+
+        /** Configuration with evaluator nesting applied */
+        configuration: configurationSelectorAtomFamily,
+        /** Parameters schema with evaluator nesting applied */
+        parametersSchema: parametersSchemaAtomFamily,
+        /** Input ports derived from schema/params/meta */
+        inputPorts: inputPortsAtomFamily,
+        /** Output ports derived from schema/flags/meta */
+        outputPorts: outputPortsAtomFamily,
+        /** IO schemas as {inputSchema, outputSchema} tuple */
+        ioSchemas: ioSchemasAtomFamily,
+        /** Server data before draft overlay (for commit diffs) */
+        serverData: serverDataAtomFamily,
+        /** Server configuration (flat params from server) */
+        serverConfiguration: serverConfigurationAtomFamily,
+        /** Execution mode: "chat" | "completion" from flags */
+        executionMode: runnableExecutionModeAtomFamily,
+        /** Resolved invocation URL */
+        invocationUrl: runnableInvocationUrlAtomFamily,
+        /** Pre-built request payload for execution */
+        requestPayload: runnableRequestPayloadAtomFamily,
     },
 
     // ========================================================================
@@ -301,8 +535,8 @@ export const workflowMolecule = {
     atoms: {
         /** Project ID atom */
         projectId: workflowProjectIdAtom,
-        /** List query atom */
-        listQuery: workflowsListQueryAtom,
+        /** App workflows list query atom */
+        listQuery: appWorkflowsListQueryAtom,
         /** List data atom */
         listData: workflowsListDataAtom,
         /** Non-archived workflows */
@@ -331,6 +565,8 @@ export const workflowMolecule = {
         update: updateWorkflowDraftAtom,
         /** Discard workflow draft */
         discard: discardWorkflowDraftAtom,
+        /** Update configuration with evaluator flat/nested conversion */
+        updateConfiguration: updateConfigurationAtom,
     },
 
     // ========================================================================
@@ -351,6 +587,18 @@ export const workflowMolecule = {
             getStore(options).get(flagsAtomFamily(workflowId)),
         name: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(nameAtomFamily(workflowId)),
+        configuration: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(configurationSelectorAtomFamily(workflowId)),
+        inputPorts: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(inputPortsAtomFamily(workflowId)),
+        outputPorts: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(outputPortsAtomFamily(workflowId)),
+        executionMode: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableExecutionModeAtomFamily(workflowId)),
+        invocationUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableInvocationUrlAtomFamily(workflowId)),
+        serverData: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(serverDataAtomFamily(workflowId)),
     },
 
     // ========================================================================
@@ -363,6 +611,11 @@ export const workflowMolecule = {
             getStore(options).set(updateWorkflowDraftAtom, workflowId, updates),
         discard: (workflowId: string, options?: StoreOptions) =>
             getStore(options).set(discardWorkflowDraftAtom, workflowId),
+        updateConfiguration: (
+            workflowId: string,
+            params: Record<string, unknown>,
+            options?: StoreOptions,
+        ) => getStore(options).set(updateConfigurationAtom, workflowId, params),
     },
 
     // ========================================================================
@@ -372,6 +625,13 @@ export const workflowMolecule = {
         invalidateList: invalidateWorkflowsListCache,
         invalidateDetail: invalidateWorkflowCache,
     },
+
+    // ========================================================================
+    // STATIC UTILITIES
+    // ========================================================================
+
+    /** Normalize workflow execution response (v3 vs legacy format) */
+    normalizeResponse: normalizeWorkflowResponse,
 }
 
 export type WorkflowMolecule = typeof workflowMolecule

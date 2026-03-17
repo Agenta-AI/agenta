@@ -32,8 +32,8 @@ import type {ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
 import type {Workflow, WorkflowVariant} from "./core"
+import {workflowsListQueryStateAtom} from "./state/allWorkflows"
 import {
-    workflowsListQueryAtom,
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
@@ -44,26 +44,11 @@ import {
 // ============================================================================
 
 /**
- * Wraps the workflows query to provide a ListQueryState for the root level.
- * This is a static atom (no parent ID) since workflows are at the root.
- *
+ * All workflows (app + evaluator) as ListQueryState for the root level.
  * Filters out archived workflows for selection UI.
+ * Delegates to the union atom from allWorkflows.ts.
  */
-export const workflowsListAtom = atom<ListQueryState<Workflow>>((get) => {
-    const query = get(workflowsListQueryAtom)
-
-    const data = (query.data?.workflows ?? []).filter((w) => !w.deleted_at)
-    const isPending = query.isPending ?? false
-    const isError = query.isError ?? false
-    const error = query.error ?? null
-
-    return {
-        data,
-        isPending,
-        isError,
-        error,
-    }
-})
+export const workflowsListAtom = workflowsListQueryStateAtom
 
 // ============================================================================
 // WORKFLOW → REVISION RELATION (2-Level, skips Variant)

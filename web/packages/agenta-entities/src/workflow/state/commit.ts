@@ -4,8 +4,7 @@
  * Provides commit/archive actions for workflow entities with callback
  * registration for playground-specific orchestration.
  *
- * Unlike legacyAppRevision, the workflow API returns new revision IDs
- * directly — no polling needed.
+ * The workflow API returns new revision IDs directly — no polling needed.
  *
  * @example
  * ```typescript

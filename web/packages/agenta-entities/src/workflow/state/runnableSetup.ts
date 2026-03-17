@@ -169,7 +169,14 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
             const parsed = parseRevisionUri(effectiveAppUrl)
             if (!parsed) return `${effectiveAppUrl}/test`
 
-            const prefix = parsed.runtimePrefix.replace(/\/$/, "")
+            // If the stored URL points to a different origin than the current API
+            // (e.g., stale "http://localhost:8000" from local dev), replace it with
+            // the current API origin so the snippet shows the correct host.
+            const apiUrl = getAgentaApiUrl()
+            const currentOrigin = apiUrl ? apiUrl.replace(/\/api\/?$/, "") : null
+            const storedOrigin = parsed.runtimePrefix.replace(/\/$/, "")
+            const prefix =
+                currentOrigin && currentOrigin !== storedOrigin ? currentOrigin : storedOrigin
             const cleanRoutePath = (routePath || parsed.routePath || "")
                 .replace(/^\//, "")
                 .replace(/\/$/, "")
@@ -280,6 +287,69 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         if (!entity?.data) return null
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
+        const isBase = entity.flags?.is_base ?? false
+
+        // ── Ephemeral (base) workflows: build payload from trace data ──
+        if (isBase) {
+            const isChat = entity.flags?.is_chat ?? false
+            const params = entity.data.parameters as Record<string, unknown>
+            const runtimePrefix = isChat ? "services/chat" : "services/completion"
+
+            // Extract variables from parameters (input_keys from prompt configs)
+            const variables: string[] = []
+            for (const value of Object.values(params)) {
+                if (value && typeof value === "object") {
+                    const nested = value as Record<string, unknown>
+                    if (Array.isArray(nested.input_keys)) {
+                        for (const k of nested.input_keys) {
+                            if (typeof k === "string" && !variables.includes(k)) {
+                                variables.push(k)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: use trace input keys from meta
+            if (variables.length === 0) {
+                const meta = entity.meta as Record<string, unknown> | null | undefined
+                const inputs = meta?.inputs as Record<string, unknown> | undefined
+                if (inputs) {
+                    for (const key of Object.keys(inputs)) {
+                        if (isChat && key === "messages") continue
+                        variables.push(key)
+                    }
+                }
+            }
+
+            // Build references from meta.sourceRef for trace attribution
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const sourceRef = meta?.sourceRef as
+                | {type?: string; id?: string; slug?: string}
+                | undefined
+            const references: Record<string, {id?: string; slug?: string}> = {}
+            if (sourceRef?.id) {
+                const refType = sourceRef.type ?? "application"
+                references[refType] = {
+                    id: sourceRef.id,
+                    ...(sourceRef.slug ? {slug: sourceRef.slug} : {}),
+                }
+            }
+
+            return {
+                ag_config: params,
+                isChat,
+                appType: isChat ? "chat" : "completion",
+                invocationUrl: null,
+                runtimePrefix,
+                variables,
+                spec: null,
+                routePath: undefined,
+                isCustom: false,
+                appId: sourceRef?.id ?? null,
+                references: Object.keys(references).length > 0 ? references : undefined,
+            } satisfies RequestPayloadData
+        }
 
         // ── Evaluator workflows: use __rawBody format ──
         if (isEvaluator) {

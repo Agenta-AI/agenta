@@ -65,6 +65,8 @@ export const workflowFlagsSchema = z
         is_evaluator: z.boolean().optional().default(false),
         is_human: z.boolean().optional().default(false),
         is_chat: z.boolean().optional().default(false),
+        /** Local-only ephemeral entity created from trace data (not persisted on backend) */
+        is_base: z.boolean().optional().default(false),
     })
     .nullable()
     .optional()
@@ -160,9 +162,16 @@ export const workflowSchema = z
         // Revision data (present on revision responses, absent on workflow list)
         data: workflowDataSchema.nullable().optional(),
 
+        // Folder scope (from artifact-level FolderScope mixin)
+        folder_id: z.string().nullable().optional(),
+
         // Workflow hierarchy IDs (from revision responses)
         workflow_id: z.string().nullable().optional(),
         workflow_variant_id: z.string().nullable().optional(),
+
+        // Commit fields
+        /** Commit message (from CommitDBA on revision responses) */
+        message: z.string().nullable().optional(),
 
         // Alias IDs (backward compat)
         variant_id: z.string().nullable().optional(),
@@ -191,7 +200,13 @@ export const workflowSchemas = createEntitySchemaSet({
     localDefaults: {
         slug: null,
         description: null,
-        flags: {is_custom: false, is_evaluator: false, is_human: false, is_chat: false},
+        flags: {
+            is_custom: false,
+            is_evaluator: false,
+            is_human: false,
+            is_chat: false,
+            is_base: false,
+        },
         tags: null,
         meta: null,
         data: null,
@@ -285,12 +300,25 @@ export const workflowRevisionResponseSchema = z.object({
 export type WorkflowRevisionResponse = z.infer<typeof workflowRevisionResponseSchema>
 
 /**
+ * Windowing metadata returned by paginated query endpoints.
+ */
+export const windowingResponseSchema = z
+    .object({
+        next: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional()
+
+export type WindowingResponse = z.infer<typeof windowingResponseSchema>
+
+/**
  * Multiple workflow revisions response wrapper.
  * Matches backend `WorkflowRevisionsResponse`.
  */
 export const workflowRevisionsResponseSchema = z.object({
     count: z.number().optional().default(0),
     workflow_revisions: z.array(workflowSchema).default([]),
+    windowing: windowingResponseSchema,
 })
 
 export type WorkflowRevisionsResponse = z.infer<typeof workflowRevisionsResponseSchema>
@@ -327,6 +355,87 @@ export function buildWorkflowUri(
 ): string {
     return `${provider}:${kind}:${key}:${version}`
 }
+
+// ============================================================================
+// EVALUATOR COLOR UTILITIES
+// ============================================================================
+
+/**
+ * Ant Design preset color names used for evaluator coloring.
+ */
+const PRESET_COLOR_NAMES = [
+    "blue",
+    "purple",
+    "cyan",
+    "green",
+    "magenta",
+    "pink",
+    "red",
+    "orange",
+    "yellow",
+    "volcano",
+    "geekblue",
+    "lime",
+    "gold",
+] as const
+
+type PresetColorName = (typeof PRESET_COLOR_NAMES)[number]
+
+const PRESET_COLOR_MAP: Record<PresetColorName, EvaluatorColor> = {
+    blue: {name: "blue", bg: "#e6f4ff", text: "#1677ff", border: "#91caff"},
+    purple: {name: "purple", bg: "#f9f0ff", text: "#722ed1", border: "#d3adf7"},
+    cyan: {name: "cyan", bg: "#e6fffb", text: "#13c2c2", border: "#87e8de"},
+    green: {name: "green", bg: "#f6ffed", text: "#52c41a", border: "#b7eb8f"},
+    magenta: {name: "magenta", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
+    pink: {name: "pink", bg: "#fff0f6", text: "#eb2f96", border: "#ffadd2"},
+    red: {name: "red", bg: "#fff2f0", text: "#f5222d", border: "#ffccc7"},
+    orange: {name: "orange", bg: "#fff7e6", text: "#fa8c16", border: "#ffd591"},
+    yellow: {name: "yellow", bg: "#feffe6", text: "#fadb14", border: "#fffb8f"},
+    volcano: {name: "volcano", bg: "#fff2e8", text: "#fa541c", border: "#ffbb96"},
+    geekblue: {name: "geekblue", bg: "#f0f5ff", text: "#2f54eb", border: "#adc6ff"},
+    lime: {name: "lime", bg: "#fcffe6", text: "#a0d911", border: "#eaff8f"},
+    gold: {name: "gold", bg: "#fffbe6", text: "#faad14", border: "#ffe58f"},
+}
+
+export interface EvaluatorColor {
+    name: string
+    bg: string
+    text: string
+    border: string
+}
+
+function hashToRange(text: string, min: number, max: number): number {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+        hash += text.charCodeAt(i)
+    }
+    const range = max - min + 1
+    return min + (((hash % range) + range) % range)
+}
+
+/**
+ * Derive a deterministic color for an evaluator workflow from its URI or key.
+ * Only meaningful for evaluator-type workflows (`flags.is_evaluator === true`).
+ * Returns `null` for empty input.
+ */
+export function getEvaluatorColor(uriOrKey: string | null | undefined): EvaluatorColor | null {
+    if (!uriOrKey) return null
+    const key = uriOrKey.includes(":") ? parseWorkflowKeyFromUri(uriOrKey) : uriOrKey
+    if (!key) return null
+    const index = hashToRange(key, 0, PRESET_COLOR_NAMES.length - 1)
+    const colorName = PRESET_COLOR_NAMES[index]
+    return PRESET_COLOR_MAP[colorName]
+}
+
+/**
+ * @deprecated Use `parseWorkflowKeyFromUri` instead.
+ */
+export const parseEvaluatorKeyFromUri = parseWorkflowKeyFromUri
+
+/**
+ * @deprecated Use `buildWorkflowUri` instead.
+ */
+export const buildEvaluatorUri = buildWorkflowUri
 
 // ============================================================================
 // SLUG UTILITIES

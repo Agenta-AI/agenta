@@ -36,10 +36,18 @@ export {
     type WorkflowRevisionResponse,
     workflowRevisionsResponseSchema,
     type WorkflowRevisionsResponse,
+    // Windowing
+    windowingResponseSchema,
+    type WindowingResponse,
     // URI utilities
     parseWorkflowKeyFromUri,
     buildWorkflowUri,
     generateSlug,
+    // Evaluator-specific utilities (for evaluator-type workflows)
+    getEvaluatorColor,
+    type EvaluatorColor,
+    parseEvaluatorKeyFromUri,
+    buildEvaluatorUri,
 } from "./schema"
 
 // Flag query type (for filtering)

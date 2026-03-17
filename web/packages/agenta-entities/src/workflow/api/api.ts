@@ -17,8 +17,8 @@
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {dereferenceSchema} from "@agenta/shared/utils"
 
-import {extractAllEndpointSchemas, type OpenAPISpec} from "../../legacyAppRevision/api/schemaUtils"
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
+import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
 import {
     workflowSchema,
     workflowResponseSchema,
@@ -63,6 +63,8 @@ const selectMostRecentWorkflowRevision = (
 
     for (const workflow of workflows) {
         if (!workflow) continue
+        // Skip v0 revisions (auto-created initial revisions with no useful data)
+        if ((workflow.version ?? 0) === 0) continue
         const score = getWorkflowRecencyScore(workflow)
         if (!latest || score > latestScore) {
             latest = workflow
@@ -88,17 +90,32 @@ const selectMostRecentWorkflowRevision = (
 export async function queryWorkflows({
     projectId,
     flags,
+    folderId,
     includeArchived = false,
+    windowing,
 }: WorkflowListParams): Promise<WorkflowsResponse> {
     if (!projectId) {
         return {count: 0, workflows: []}
     }
 
+    // Build the workflow query object.
+    // folder_id is only included when folderId is explicitly provided (not undefined).
+    // null → root-level items (IS NULL), string → items in that folder.
+    const hasFolderFilter = folderId !== undefined
+    const hasWorkflowQuery = flags || hasFolderFilter
+    const workflowQuery = hasWorkflowQuery
+        ? {
+              ...(flags ? {flags} : {}),
+              ...(hasFolderFilter ? {folder_id: folderId} : {}),
+          }
+        : undefined
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/query`,
         {
-            workflow: flags ? {flags} : undefined,
+            workflow: workflowQuery,
             include_archived: includeArchived,
+            windowing: windowing ?? undefined,
         },
         {params: {project_id: projectId}},
     )
@@ -162,6 +179,15 @@ export async function queryWorkflowVariants(
 // ============================================================================
 
 /**
+ * Windowing parameters for paginated revision queries.
+ */
+export interface WorkflowRevisionWindowing {
+    next?: string | null
+    limit?: number
+    order?: string
+}
+
+/**
  * Query workflow revisions directly by workflow ID.
  * Skips the variant level — used for the 2-level selection hierarchy.
  *
@@ -170,12 +196,14 @@ export async function queryWorkflowVariants(
  * @param workflowId - The workflow ID
  * @param projectId - Project ID
  * @param flags - Optional query flags for filtering
+ * @param windowing - Optional windowing params for pagination
  * @returns Revisions response with workflow_revisions array
  */
 export async function queryWorkflowRevisionsByWorkflow(
     workflowId: string,
     projectId: string,
     flags?: WorkflowQueryFlags,
+    windowing?: WorkflowRevisionWindowing,
 ): Promise<WorkflowRevisionsResponse> {
     if (!projectId || !workflowId) {
         return {count: 0, workflow_revisions: []}
@@ -186,6 +214,7 @@ export async function queryWorkflowRevisionsByWorkflow(
         {
             workflow_refs: [{id: workflowId}],
             workflow_revision: flags ? {flags} : undefined,
+            ...(windowing ? {windowing} : {}),
         },
         {params: {project_id: projectId}},
     )
@@ -949,6 +978,9 @@ export async function fetchWorkflowsBatch(
         `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
+            // When fetching for a single workflow, limit to 1 (latest) to reduce payload.
+            // With multiple workflows the global limit would cut across all, so skip it.
+            ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
         },
         {params: {project_id: projectId}},
     )

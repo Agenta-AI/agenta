@@ -19,13 +19,10 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
-import {
-    completionServiceSchemaAtom,
-    chatServiceSchemaAtom,
-} from "../../legacyAppRevision/state/serviceSchemaAtoms"
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import {completionServiceSchemaAtom, chatServiceSchemaAtom} from "../../shared/openapi"
 import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import {
     fetchWorkflowRevisionsByIdsBatch,
@@ -95,6 +92,8 @@ const pickMostRecentWorkflowRevision = (
 
     for (const revision of revisions) {
         if (!revision) continue
+        // Skip v0 revisions (auto-created initial revisions with no useful data)
+        if ((revision.version ?? 0) === 0) continue
         const score = workflowRecencyScore(revision)
         if (!latest || score > latestScore) {
             latest = revision
@@ -339,17 +338,17 @@ export const workflowProjectIdAtom = projectIdAtom
 // ============================================================================
 
 /**
- * Query atom for the workflows list.
- * By default, fetches ALL workflows (no flag filter).
+ * Query atom for app (non-evaluator) workflows.
+ * Fetches workflows with `is_evaluator: false`.
  * Automatically fetches when projectId is set.
  */
-export const workflowsListQueryAtom = atomWithQuery((get) => {
+export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
-        queryKey: ["workflows", "list", projectId],
+        queryKey: ["workflows", "apps", "list", projectId],
         queryFn: async (): Promise<WorkflowsResponse> => {
             if (!projectId) return {count: 0, workflows: []}
-            return queryWorkflows({projectId})
+            return queryWorkflows({projectId, flags: {is_evaluator: false}})
         },
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
@@ -357,18 +356,18 @@ export const workflowsListQueryAtom = atomWithQuery((get) => {
 })
 
 /**
- * Derived atom for the workflows list data (convenience).
+ * Derived atom for app (non-evaluator) workflows list data.
  */
-export const workflowsListDataAtom = atom<Workflow[]>((get) => {
-    const query = get(workflowsListQueryAtom)
+export const appWorkflowsListDataAtom = atom<Workflow[]>((get) => {
+    const query = get(appWorkflowsListQueryAtom)
     return query.data?.workflows ?? []
 })
 
 /**
- * Derived atom for non-archived workflows.
+ * Derived atom for non-archived app workflows.
  */
-export const nonArchivedWorkflowsAtom = atom<Workflow[]>((get) => {
-    const workflows = get(workflowsListDataAtom)
+export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
+    const workflows = get(appWorkflowsListDataAtom)
     return workflows.filter((w) => !w.deleted_at)
 })
 
@@ -555,11 +554,11 @@ export const workflowRevisionsListQueryStateAtomFamily = atomFamily((variantId: 
 )
 
 /**
- * ListQueryState wrapper for workflows list (root level).
+ * ListQueryState wrapper for app workflows list (root level).
  * Filters out archived workflows.
  */
-export const workflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
-    const query = get(workflowsListQueryAtom)
+export const appWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
+    const query = get(appWorkflowsListQueryAtom)
     const data = (query.data?.workflows ?? []).filter((w) => !w.deleted_at)
     return {
         data,
@@ -578,7 +577,7 @@ export const workflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) 
  * Uses cache-aware batch fetching by workflow ID, avoiding N+1 calls when
  * multiple latest revisions are requested concurrently.
  */
-const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: string) =>
+export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
         const projectId = get(workflowProjectIdAtom)
         const queryClient = get(queryClientAtom)
@@ -1277,16 +1276,99 @@ export function createLocalDraftFromWorkflowRevision(
 }
 
 // ============================================================================
+// EPHEMERAL WORKFLOWS (from trace data — local-only, flags.is_base)
+// ============================================================================
+
+/**
+ * Parameters for creating an ephemeral workflow from trace data.
+ */
+export interface CreateEphemeralWorkflowParams {
+    label: string
+    inputs: Record<string, unknown>
+    outputs: unknown
+    parameters: Record<string, unknown>
+    sourceRef?: {type: "application" | "evaluator"; id: string; slug?: string}
+}
+
+/**
+ * Detect if a trace entity uses chat mode by checking the inputs structure.
+ * Chat mode: inputs contain a `messages` array with role/content objects.
+ */
+function detectIsChatFromInputs(inputs: Record<string, unknown>): boolean {
+    if (!("messages" in inputs) || !Array.isArray(inputs.messages)) return false
+    const msgs = inputs.messages as unknown[]
+    return msgs.some(
+        (m) =>
+            m &&
+            typeof m === "object" &&
+            ("role" in (m as Record<string, unknown>) ||
+                "content" in (m as Record<string, unknown>)),
+    )
+}
+
+/**
+ * Create a local-only ephemeral workflow entity from trace data.
+ *
+ * This replaces `createBaseRunnable()`. The entity is stored via
+ * `workflowLocalServerDataAtomFamily` so it's immediately available
+ * via `workflowEntityAtomFamily(id)` without any server queries.
+ *
+ * @returns Object with `id` (local ID) and `data` (the Workflow entity).
+ */
+export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): {
+    id: string
+    data: Workflow
+} {
+    const store = getDefaultStore()
+    const id = generateLocalId("local")
+
+    const isChat = detectIsChatFromInputs(params.inputs)
+
+    const workflow: Workflow = {
+        id,
+        name: params.label,
+        slug: null,
+        version: null,
+        flags: {
+            is_custom: false,
+            is_evaluator: false,
+            is_human: false,
+            is_chat: isChat,
+            is_base: true,
+        },
+        data: {
+            parameters: params.parameters,
+            schemas: {
+                inputs: null,
+                outputs: null,
+                parameters: null,
+            },
+        },
+        // Store trace I/O in meta for port derivation and snapshot serialization
+        meta: {
+            __ephemeral: true,
+            inputs: params.inputs,
+            outputs: params.outputs,
+            ...(params.sourceRef ? {sourceRef: params.sourceRef} : {}),
+        },
+    } as Workflow
+
+    store.set(workflowLocalServerDataAtomFamily(id), workflow)
+
+    return {id, data: workflow}
+}
+
+// ============================================================================
 // CACHE INVALIDATION
 // ============================================================================
 
 /**
- * Invalidate the workflows list cache.
- * Call after create/update/archive operations.
+ * Invalidate the app workflows list cache.
+ * Call after create/update/archive operations on app workflows.
  */
 export function invalidateWorkflowsListCache(options?: StoreOptions) {
     const store = getStore(options)
-    const queryAtom = workflowsListQueryAtom
+    const queryAtom = appWorkflowsListQueryAtom
     const current = store.get(queryAtom)
     if (current?.refetch) {
         current.refetch()
