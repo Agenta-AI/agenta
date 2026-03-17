@@ -1,4 +1,4 @@
-from typing import Optional, Union, Callable
+from typing import Optional, Callable  # Callable used for handler field
 from contextvars import Token, ContextVar
 from contextlib import contextmanager
 
@@ -15,9 +15,6 @@ class RunningContext(BaseModel):
     tags: Optional[dict] = None
     meta: Optional[dict] = None
 
-    aggregate: Optional[Union[bool, Callable]] = None  # stream to batch
-    annotate: Optional[bool] = None  # annotation vs invocation
-
     interface: Optional[WorkflowServiceInterface] = None
     configuration: Optional[WorkflowServiceConfiguration] = None
     parameters: Optional[dict] = None
@@ -25,6 +22,7 @@ class RunningContext(BaseModel):
 
     credentials: Optional[str] = None
     secrets: Optional[list] = None
+
     local_secrets: Optional[list] = None
     vault_secrets: Optional[list] = None
 

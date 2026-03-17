@@ -127,7 +127,7 @@ class workflow:
             ]
         ] = None,
         # -------------------------------------------------------------------- #
-        script: Optional[dict] = None,
+        script: Optional[str] = None,
         parameters: Optional[dict] = None,
         #
         configuration: Optional[
@@ -136,9 +136,6 @@ class workflow:
                 Dict[str, Any],
             ]
         ] = None,
-        # -------------------------------------------------------------------- #
-        aggregate: Optional[Union[bool, Callable]] = None,  # stream to batch
-        annotate: Optional[bool] = None,  # annotation vs invocation
         # -------------------------------------------------------------------- #
         **kwargs,
     ):
@@ -169,9 +166,6 @@ class workflow:
         self.parameters = parameters
         #
         self.configuration = configuration
-        # -------------------------------------------------------------------- #
-        self.aggregate = aggregate
-        self.annotate = annotate
         # -------------------------------------------------------------------- #
         self.kwargs = kwargs
         # -------------------------------------------------------------------- #
@@ -297,6 +291,7 @@ class workflow:
         wrapper.invoke = self.invoke  # type: ignore[attr-defined]
         wrapper.inspect = self.inspect  # type: ignore[attr-defined]
         wrapper.is_workflow = True  # type: ignore[attr-defined]
+        wrapper.__agenta_workflow__ = self  # type: ignore[attr-defined]
 
         if self.handler is None:
             raise ValueError("handler must be set before extending")
@@ -332,9 +327,6 @@ class workflow:
 
             tracing_ctx.credentials = credentials
 
-            tracing_ctx.aggregate = self.aggregate
-            tracing_ctx.annotate = self.annotate
-
             tracing_ctx.flags = _flags
             tracing_ctx.tags = _tags
             tracing_ctx.meta = _meta
@@ -352,9 +344,6 @@ class workflow:
                 running_ctx.schemas = self.schemas
                 running_ctx.configuration = self.configuration
                 running_ctx.parameters = self.parameters
-
-                running_ctx.aggregate = self.aggregate
-                running_ctx.annotate = self.annotate
 
                 async def terminal(req: WorkflowServiceRequest):
                     return None
@@ -388,9 +377,6 @@ class workflow:
 
             tracing_ctx.credentials = credentials
 
-            tracing_ctx.aggregate = self.aggregate
-            tracing_ctx.annotate = self.annotate
-
             tracing_ctx.references = self.references
             tracing_ctx.links = self.links
 
@@ -403,9 +389,6 @@ class workflow:
                 running_ctx.schemas = self.schemas
                 running_ctx.configuration = self.configuration
                 running_ctx.parameters = self.parameters
-
-                running_ctx.aggregate = self.aggregate
-                running_ctx.annotate = self.annotate
 
                 if self.default_request is None:
                     interface = await resolve_interface(

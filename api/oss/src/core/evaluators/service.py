@@ -52,7 +52,6 @@ from oss.src.core.evaluators.dtos import (
 )
 from oss.src.core.evaluators.utils import (
     build_evaluator_data,
-    extract_outputs_schema_from_service,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -839,10 +838,6 @@ class EvaluatorsService:
 
         return (revision, resolution_info)
 
-    # evaluator services -------------------------------------------------------
-
-    # TODO: Implement ?
-
     # --------------------------------------------------------------------------
 
 
@@ -918,15 +913,6 @@ class SimpleEvaluatorsService:
                 exclude_none=True,
                 exclude_unset=True,
             )
-
-        if "schemas" not in normalized_data_dict:
-            outputs_schema = extract_outputs_schema_from_service(
-                simple_evaluator_data.service
-            )
-            if outputs_schema:
-                normalized_data_dict["schemas"] = {
-                    "outputs": outputs_schema,
-                }
 
         if "version" not in normalized_data_dict and simple_evaluator_data.version:
             normalized_data_dict["version"] = simple_evaluator_data.version

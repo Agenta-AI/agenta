@@ -31,7 +31,8 @@
  *   └── schemas: JsonSchemas { parameters, inputs, outputs }
  *
  * WorkflowServiceConfiguration:
- *   ├── script: dict (for custom code evaluators)
+ *   ├── script: str (source code for custom code evaluators)
+ *   ├── runtime: str (execution runtime, e.g. "python")
  *   └── parameters: dict (evaluator settings/config values)
  *
  * Legacy fields (backward compat):
@@ -110,8 +111,10 @@ export const evaluatorDataSchema = z.object({
     schemas: jsonSchemasSchema,
 
     // WorkflowServiceConfiguration fields
-    /** Script content for custom code evaluators */
-    script: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Script source code for custom code evaluators */
+    script: z.string().nullable().optional(),
+    /** Execution runtime for custom code evaluators (e.g. "python", "javascript", "typescript") */
+    runtime: z.string().nullable().optional(),
     /** Evaluator configuration parameters (equivalent to legacy settings_values) */
     parameters: z.record(z.string(), z.unknown()).nullable().optional(),
 

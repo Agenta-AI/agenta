@@ -49,8 +49,6 @@ class instrument:  # pylint: disable=invalid-name
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
-        aggregate: Optional[Union[bool, Callable]] = None,  # stream to batch
-        annotate: Optional[bool] = None,  # annotation vs invocation
         # DEPRECATING
         kind: str = "task",
         spankind: Optional[str] = "TASK",
@@ -63,8 +61,6 @@ class instrument:  # pylint: disable=invalid-name
         self.redact = redact
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
-        self.aggregate = aggregate
-        self.annotate = annotate
 
     def __call__(self, handler: Callable[..., Any]):
         is_coroutine_function = iscoroutinefunction(handler)
@@ -116,9 +112,7 @@ class instrument:  # pylint: disable=invalid-name
                                         yield chunk
 
                                 finally:
-                                    if self.aggregate and callable(self.aggregate):
-                                        result = self.aggregate(_result)
-                                    elif all(isinstance(r, str) for r in _result):
+                                    if all(isinstance(r, str) for r in _result):
                                         result = "".join(_result)
                                     elif all(isinstance(r, bytes) for r in _result):
                                         result = b"".join(_result)
@@ -184,9 +178,7 @@ class instrument:  # pylint: disable=invalid-name
                                         yield chunk
 
                                 finally:
-                                    if self.aggregate and callable(self.aggregate):
-                                        result = self.aggregate(_result)
-                                    elif all(isinstance(r, str) for r in _result):
+                                    if all(isinstance(r, str) for r in _result):
                                         result = "".join(_result)
                                     elif all(isinstance(r, bytes) for r in _result):
                                         result = b"".join(_result)

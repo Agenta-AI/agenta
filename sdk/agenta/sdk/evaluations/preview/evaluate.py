@@ -762,8 +762,6 @@ async def aevaluate(
 
                     evaluator_response = await invoke_evaluator(
                         request=evaluator_request,
-                        #
-                        annotate=True,
                     )
 
                     if (

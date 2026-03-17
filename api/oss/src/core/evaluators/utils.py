@@ -1,7 +1,7 @@
-from copy import deepcopy
 from typing import Any, Optional
 
 from oss.src.core.evaluators.dtos import SimpleEvaluatorData
+from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
 
 # Evaluator keys that produce both score and success outputs
@@ -18,43 +18,12 @@ _SCORE_AND_SUCCESS_EVALUATORS = (
 _DATA_VERSION = "2025.07.14"
 
 
-def build_legacy_service(outputs_schema: dict[str, Any]) -> dict[str, Any]:
-    """Build the legacy service payload from an outputs schema."""
-    return {
-        "agenta": "0.1.0",
-        "format": {
-            "type": "object",
-            "$schema": "http://json-schema.org/schema#",
-            "required": ["outputs"],
-            "properties": {
-                "outputs": outputs_schema,
-            },
-        },
-    }
-
-
-def extract_outputs_schema_from_service(
-    service: Optional[dict[str, Any]],
-) -> Optional[dict[str, Any]]:
-    """Extract outputs schema from legacy service.format payloads."""
-    if not isinstance(service, dict):
-        return None
-
-    format_schema = service.get("format")
-    if not isinstance(format_schema, dict):
-        return None
-
-    properties = format_schema.get("properties")
-    if isinstance(properties, dict):
-        outputs_schema = properties.get("outputs")
-        if isinstance(outputs_schema, dict):
-            return deepcopy(outputs_schema)
-
-        output_schema = properties.get("output")
-        if isinstance(output_schema, dict):
-            return deepcopy(output_schema)
-
-    return deepcopy(format_schema)
+def _get_settings_template(evaluator_key: str) -> Optional[dict]:
+    for entry in get_all_evaluators():
+        if entry.get("key") == evaluator_key:
+            template = entry.get("settings_template")
+            return template if template else None
+    return None
 
 
 def build_evaluator_data(
@@ -64,7 +33,7 @@ def build_evaluator_data(
 ) -> SimpleEvaluatorData:
     """Build complete SimpleEvaluatorData from an evaluator key and settings.
 
-    Computes all required fields (uri, schemas, service, script, etc.)
+    Computes all required fields (uri, schemas, script, etc.)
     based on the evaluator type.
     """
     settings_values = settings_values or {}
@@ -77,7 +46,7 @@ def build_evaluator_data(
         else None
     )
 
-    outputs_schema = None
+    outputs_schema: Optional[dict[str, Any]] = None
 
     if evaluator_key == "auto_ai_critique":
         json_schema = settings_values.get("json_schema", None)
@@ -116,18 +85,19 @@ def build_evaluator_data(
             "additionalProperties": False,
         }
 
-    schemas = {"outputs": outputs_schema}
+    settings_template = _get_settings_template(evaluator_key)
+
+    schemas: dict[str, Any] = {"outputs": outputs_schema}
+    if settings_template:
+        schemas["parameters"] = settings_template
 
     script = (
-        {
-            "content": settings_values.get("code", None),
-            "runtime": "python",
-        }
+        settings_values.get("code", None)
         if evaluator_key == "auto_custom_code_run"
         else None
     )
 
-    service = build_legacy_service(schemas["outputs"])
+    runtime = "python" if evaluator_key == "auto_custom_code_run" else None
 
     return SimpleEvaluatorData(
         version=_DATA_VERSION,
@@ -136,7 +106,6 @@ def build_evaluator_data(
         headers=None,
         schemas=schemas,
         script=script,
+        runtime=runtime,
         parameters=settings_values if settings_values else None,
-        service=service,
-        configuration=settings_values if settings_values else None,
     )

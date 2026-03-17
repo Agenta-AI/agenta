@@ -91,8 +91,10 @@ export const legacyEvaluatorDataSchema = z.object({
     schemas: jsonSchemasSchema,
 
     // WorkflowServiceConfiguration fields
-    /** Script content for custom code evaluators */
-    script: z.record(z.string(), z.unknown()).nullable().optional(),
+    /** Script source code for custom code evaluators */
+    script: z.string().nullable().optional(),
+    /** Execution runtime for custom code evaluators (e.g. "python", "javascript", "typescript") */
+    runtime: z.string().nullable().optional(),
     /** Evaluator configuration parameters (equivalent to legacy settings_values) */
     parameters: z.record(z.string(), z.unknown()).nullable().optional(),
 

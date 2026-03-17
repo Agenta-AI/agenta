@@ -1,22 +1,10 @@
 from typing import Optional, Dict, Any, Union  # noqa: F401
 from uuid import UUID, uuid4  # noqa: F401
-from urllib.parse import urlparse
 
 from pydantic import (
     BaseModel,
     Field,
-    model_validator,
-    ValidationError,
 )
-
-from jsonschema import (
-    Draft202012Validator,
-    Draft201909Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-)
-from jsonschema.exceptions import SchemaError
 
 from oss.src.core.git.dtos import (
     Artifact,
@@ -65,9 +53,9 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceStreamResponse,  # noqa: F401
     #
     JsonSchemas,  # noqa: F401
-    WorkflowServiceInterface as SDKWorkflowServiceInterface,
-    WorkflowServiceConfiguration as SDKWorkflowServiceConfiguration,
-    WorkflowRevisionData as SDKWorkflowRevisionData,
+    WorkflowServiceInterface,  # noqa: F401
+    WorkflowServiceConfiguration,  # noqa: F401
+    WorkflowRevisionData,
 )
 
 # aliases ----------------------------------------------------------------------
@@ -168,102 +156,6 @@ class WorkflowVariantQuery(VariantQuery):
 
 
 # workflow revisions -----------------------------------------------------------
-
-# Re-export SDK types for use in API
-WorkflowServiceInterface = SDKWorkflowServiceInterface
-WorkflowServiceConfiguration = SDKWorkflowServiceConfiguration
-
-
-class WorkflowRevisionData(SDKWorkflowRevisionData):
-    """
-    Extends SDK's WorkflowRevisionData with legacy field support for migration.
-
-    SDK format (new):
-        - version: str
-        - uri: Optional[str]
-        - url: Optional[str]
-        - headers: Optional[Dict[str, Union[str, Reference]]]
-        - schemas: Optional[JsonSchemas]  # with parameters/inputs/outputs
-        - script: Optional[Data]
-        - parameters: Optional[Data]
-
-    Legacy format (old, from config_parameters):
-        - service: dict with {agenta, url, format, ...}
-        - configuration: dict with parameters
-    """
-
-    # LEGACY FIELDS (for backward compatibility during migration)
-    service: Optional[dict] = None  # url, schema, kind, etc
-    configuration: Optional[dict] = None  # parameters, variables, etc
-
-    @model_validator(mode="after")
-    def validate_legacy_fields(self) -> "WorkflowRevisionData":
-        """Validate legacy service fields if present."""
-        errors = []
-
-        if self.service and self.service.get("agenta") and self.service.get("format"):
-            _format = self.service.get("format")
-
-            try:
-                validator_class = self._get_validator_class_from_schema(_format)
-                validator_class.check_schema(_format)
-            except SchemaError as e:
-                errors.append(
-                    {
-                        "loc": ("format",),
-                        "msg": f"Invalid JSON Schema: {e.message}",
-                        "type": "value_error",
-                        "ctx": {"error": str(e)},
-                        "input": _format,
-                    }
-                )
-
-        if self.service and self.service.get("agenta") and self.service.get("url"):
-            url = self.service.get("url")
-
-            if not self._is_valid_http_url(url):
-                errors.append(
-                    {
-                        "loc": ("url",),
-                        "msg": "Invalid HTTP(S) URL",
-                        "type": "value_error.url",
-                        "ctx": {"error": "Invalid URL format"},
-                        "input": url,
-                    }
-                )
-
-        if errors:
-            raise ValidationError.from_exception_data(
-                self.__class__.__name__,
-                errors,
-            )
-
-        return self
-
-    @staticmethod
-    def _get_validator_class_from_schema(schema: dict):
-        """Detect JSON Schema draft from $schema or fallback to 2020-12."""
-        schema_uri = schema.get(
-            "$schema", "https://json-schema.org/draft/2020-12/schema"
-        )
-
-        if "2020-12" in schema_uri:
-            return Draft202012Validator
-        elif "2019-09" in schema_uri:
-            return Draft201909Validator
-        elif "draft-07" in schema_uri:
-            return Draft7Validator
-        elif "draft-06" in schema_uri:
-            return Draft6Validator
-        elif "draft-04" in schema_uri:
-            return Draft4Validator
-        else:
-            return Draft202012Validator
-
-    @staticmethod
-    def _is_valid_http_url(url: str) -> bool:
-        parsed = urlparse(url)
-        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
 class WorkflowRevision(

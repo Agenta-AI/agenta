@@ -155,6 +155,12 @@ echo_v0_interface = WorkflowServiceInterface(
 auto_exact_match_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_exact_match:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Exact Match Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer').",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Exact Match Outputs",
@@ -195,6 +201,12 @@ auto_regex_test_v0_interface = WorkflowServiceInterface(
 field_match_test_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:field_match_test:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Field Match Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer').",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Field Match Outputs",
@@ -215,6 +227,12 @@ field_match_test_v0_interface = WorkflowServiceInterface(
 json_multi_field_match_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:json_multi_field_match:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "JSON Multi-Field Match Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') containing the expected JSON object.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "JSON Multi-Field Match Outputs",
@@ -235,6 +253,12 @@ json_multi_field_match_v0_interface = WorkflowServiceInterface(
 auto_webhook_test_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_webhook_test:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Webhook Test Inputs",
+            "description": "Testcase row data forwarded to the webhook. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer').",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Webhook Test Outputs",
@@ -260,6 +284,12 @@ auto_webhook_test_v0_interface = WorkflowServiceInterface(
 auto_custom_code_run_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_custom_code_run:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Custom Code Evaluation Inputs",
+            "description": "Testcase row data passed to the custom evaluation code. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer').",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Custom Code Evaluation Outputs",
@@ -285,6 +315,12 @@ auto_custom_code_run_v0_interface = WorkflowServiceInterface(
 auto_ai_critique_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_ai_critique:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "AI Critique Inputs",
+            "description": "Testcase row data. May include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') and any other fields referenced in the prompt template.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "AI Critique Outputs",
@@ -430,6 +466,12 @@ auto_contains_json_v0_interface = WorkflowServiceInterface(
 auto_json_diff_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_json_diff:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "JSON Diff Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') containing the expected JSON object.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "JSON Diff Outputs",
@@ -455,6 +497,12 @@ auto_json_diff_v0_interface = WorkflowServiceInterface(
 auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_levenshtein_distance:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Levenshtein Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') containing the expected string.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Levenshtein Outputs",
@@ -480,6 +528,12 @@ auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
 auto_similarity_match_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_similarity_match:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Similarity Match Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') containing the expected string.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Similarity Match Outputs",
@@ -505,6 +559,12 @@ auto_similarity_match_v0_interface = WorkflowServiceInterface(
 auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:auto_semantic_similarity:v0",
     schemas=dict(  # type: ignore
+        inputs={
+            "type": "object",
+            "title": "Semantic Similarity Inputs",
+            "description": "Testcase row data. Must include the key referenced by the 'correct_answer_key' parameter (default: 'correct_answer') containing the reference string for embedding comparison.",
+            "additionalProperties": True,
+        },
         outputs={
             "type": "object",
             "title": "Semantic Similarity Outputs",
