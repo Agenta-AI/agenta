@@ -25,6 +25,9 @@ interface AddToQueuePopoverProps {
     children: React.ReactNode
     disabled?: boolean
     onItemsAdded?: () => void
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    toggleOnTriggerClick?: boolean
 }
 
 const QueueListContent = ({
@@ -168,10 +171,25 @@ const AddToQueuePopover = ({
     children,
     disabled,
     onItemsAdded,
+    open: controlledOpen,
+    onOpenChange,
+    toggleOnTriggerClick = true,
 }: AddToQueuePopoverProps) => {
-    const [open, setOpen] = useState(false)
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+    const isControlled = controlledOpen !== undefined
+    const open = controlledOpen ?? uncontrolledOpen
 
-    const handleClose = useCallback(() => setOpen(false), [])
+    const setOpen = useCallback(
+        (nextOpen: boolean) => {
+            if (!isControlled) {
+                setUncontrolledOpen(nextOpen)
+            }
+            onOpenChange?.(nextOpen)
+        },
+        [isControlled, onOpenChange],
+    )
+
+    const handleClose = useCallback(() => setOpen(false), [setOpen])
 
     return (
         <Popover
@@ -204,7 +222,9 @@ const AddToQueuePopover = ({
                         : "inline-flex cursor-pointer"
                 }
                 onClick={() => {
-                    if (!disabled) setOpen((prev) => !prev)
+                    if (!disabled && toggleOnTriggerClick) {
+                        setOpen(!open)
+                    }
                 }}
             >
                 {children}
