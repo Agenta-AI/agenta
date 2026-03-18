@@ -3,14 +3,12 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
+import {evaluatorTemplatesDataAtom} from "@agenta/entities/workflow"
 import {PlaygroundConfigSection, type EvaluatorPresetConfig} from "@agenta/entity-ui"
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-
-import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
@@ -41,9 +39,8 @@ const PlaygroundVariantConfig: React.FC<
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
     const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
-    // Fetch evaluator definitions (with presets) - this populates evaluatorsAtom
-    useFetchEvaluatorsData()
-    const evaluatorDefinitions = useAtomValue(evaluatorsAtom)
+    // Read evaluator template definitions (workflow-based)
+    const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
 
     // Determine if this is an evaluator workflow and get its presets
     const evaluatorInfo = useMemo(() => {

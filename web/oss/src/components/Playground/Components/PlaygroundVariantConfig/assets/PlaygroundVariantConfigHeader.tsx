@@ -3,7 +3,10 @@ import {useCallback, useMemo} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
-import {useEnrichedEvaluatorBrowseAdapter as useEvaluatorBrowseAdapter} from "@agenta/entity-ui/selection"
+import {
+    createWorkflowRevisionAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
@@ -43,8 +46,26 @@ const PlaygroundVariantConfigHeader = ({
     const appId = useAtomValue(routerAppIdAtom)
     const isProjectScoped = !appId
 
-    // Custom browse adapter with colored evaluator tags and human evaluator filtering
-    const evaluatorBrowseAdapter = useEvaluatorBrowseAdapter()
+    // Determine entity type from flags to pick the right browse adapter
+    const entityData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isEvaluatorEntity = Boolean(
+        (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
+    )
+
+    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
+    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()
+    const appOnlyAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                skipVariantLevel: true,
+                excludeRevisionZero: true,
+                flags: {is_evaluator: false, is_human: false},
+            }),
+        [],
+    )
+
+    // Select the appropriate browse adapter based on entity type
+    const browseAdapter = isEvaluatorEntity ? evaluatorOnlyAdapter : appOnlyAdapter
 
     // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
@@ -130,7 +151,7 @@ const PlaygroundVariantConfigHeader = ({
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
-                        customBrowseAdapter={isProjectScoped ? evaluatorBrowseAdapter : undefined}
+                        customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />

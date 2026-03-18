@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
@@ -9,6 +9,10 @@ import {Checkbox, Input, Select, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
+import {
+    evaluatorsPaginatedStore,
+    clearEvaluatorWorkflowNameCache,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {
     registryPaginatedStore,
     clearRegistryVariantNameCache,
@@ -28,10 +32,12 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const {onCancel, open} = props
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
 
     const appId = useAtomValue(selectedAppIdAtom)
     const commitRevision = useSetAtom(playgroundController.actions.commitRevision)
     const createVariant = useSetAtom(playgroundController.actions.createVariant)
+    const createFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
     const [newVariantName, setNewVariantName] = useState("")
@@ -60,7 +66,39 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     }, [onCancel])
 
     const handleSubmit = useCallback(
-        async ({message: commitMessage, mode}: {message: string; mode?: string}) => {
+        async ({
+            message: commitMessage,
+            mode,
+            entityName: editedName,
+        }: {
+            message: string
+            mode?: string
+            entityName?: string
+        }) => {
+            // Ephemeral entities: create a new workflow via the entities package reducer
+            if (isEphemeral) {
+                const result = await createFromEphemeral({
+                    revisionId: variantId,
+                    commitMessage,
+                    name: editedName,
+                })
+
+                if (!result.success) {
+                    return {
+                        success: false,
+                        error:
+                            "error" in result ? result.error.message : "Failed to create workflow",
+                    }
+                }
+
+                clearRegistryVariantNameCache()
+                clearEvaluatorWorkflowNameCache()
+                getDefaultStore().set(registryPaginatedStore.actions.refresh)
+                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+                onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
+                return {success: true, newRevisionId: result.newRevisionId}
+            }
+
             const selectedMode = mode === "variant" ? "variant" : "version"
             const note = commitMessage
 
@@ -107,7 +145,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 }
 
                 clearRegistryVariantNameCache()
+                clearEvaluatorWorkflowNameCache()
                 getDefaultStore().set(registryPaginatedStore.actions.refresh)
+                getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
                 return {success: true, newRevisionId: result.newRevisionId}
             }
@@ -144,11 +184,15 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }
 
             clearRegistryVariantNameCache()
+            clearEvaluatorWorkflowNameCache()
             getDefaultStore().set(registryPaginatedStore.actions.refresh)
+            getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
             onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug ?? undefined})
             return {success: true, newRevisionId: result.newRevisionId}
         },
         [
+            isEphemeral,
+            createFromEphemeral,
             createVariant,
             variantId,
             variantName,
@@ -170,6 +214,25 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         ],
         [],
     )
+
+    // For ephemeral entities, render a simplified "Create" modal with editable name
+    if (isEphemeral) {
+        return (
+            <EntityCommitModal
+                open={open}
+                onClose={handleClose}
+                entity={{
+                    type: "variant",
+                    id: variantId,
+                    name: variantName,
+                }}
+                onSubmit={handleSubmit}
+                actionLabel="Create"
+                entityNameEditable
+                successMessage="Evaluator created successfully"
+            />
+        )
+    }
 
     return (
         <EntityCommitModal
