@@ -1,14 +1,10 @@
 import {useMemo, useState} from "react"
 
+import {Anthropic, Gemini, Mistral, OpenAi, Together} from "@agenta/ui"
 import type {ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 
-import Anthropic from "@/oss/components/LLMIcons/assets/Anthropic"
-import Gemini from "@/oss/components/LLMIcons/assets/Gemini"
-import Mistral from "@/oss/components/LLMIcons/assets/Mistral"
-import OpenAi from "@/oss/components/LLMIcons/assets/OpenAi"
-import Together from "@/oss/components/LLMIcons/assets/Together"
 import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {capitalize} from "@/oss/lib/helpers/utils"

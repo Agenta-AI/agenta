@@ -53,7 +53,7 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
 
     const isHumanEval =
         pathname.includes("/evaluations") || selectedEvaluation === "human_annotation"
-    const isEvaluator = pathname.includes("/evaluators/configure")
+    const isEvaluator = pathname.includes("/evaluators")
     const isTestsets = pathname.includes("/testsets") || pathname.includes("/prompts")
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")

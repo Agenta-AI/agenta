@@ -91,6 +91,11 @@ const CustomWorkflowModalMount = dynamic(
     {ssr: false},
 )
 
+const EvaluatorDrawersWrapper = dynamic(
+    () => import("@/oss/components/Evaluators/Drawers/EvaluatorDrawersWrapper"),
+    {ssr: false},
+)
+
 const OnboardingWidget = dynamic(
     () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
     {ssr: false},
@@ -205,6 +210,7 @@ const AppGlobalWrappers = () => {
             <DeploymentConfirmationModalWrapper />
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
+            <EvaluatorDrawersWrapper />
             <OnboardingWidget />
         </EntityModalsProvider>
     )
