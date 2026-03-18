@@ -1,15 +1,13 @@
 import type {Key} from "react"
 
-import {workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
+import {evaluatorsListQueryAtom, workflowVariantsQueryAtomFamily} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomWithStorage, loadable, selectAtom} from "jotai/utils"
 
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {getUniquePartOfId} from "@/oss/lib/helpers/utils"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
 import {appsQueryAtom} from "@/oss/state/app"
-import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
 import {queriesQueryAtomFamily} from "@/oss/state/queries"
 
 import {fromFilteringPayload} from "../../pages/evaluations/onlineEvaluation/assets/helpers"
@@ -579,22 +577,11 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
             return self.findIndex((candidate) => candidate?.value === option.value) === index
         })
 
-    const evaluatorQueries =
-        isActive && context.projectId
-            ? get(
-                  evaluatorsQueryAtomFamily({
-                      projectId: context.projectId,
-                      preview: true,
-                      queriesKey: JSON.stringify(
-                          context.evaluationKind === "human" ? {is_human: true} : null,
-                      ),
-                  }),
-              )
-            : null
+    const evaluatorQueries = isActive ? get(evaluatorsListQueryAtom) : null
 
     const evaluatorData =
-        isActive && Array.isArray(evaluatorQueries?.data)
-            ? (evaluatorQueries?.data as EvaluatorPreviewDto[])
+        isActive && evaluatorQueries?.data
+            ? (((evaluatorQueries.data as any)?.workflows as any[]) ?? [])
             : []
     const evaluatorLoading = Boolean(
         isActive &&
