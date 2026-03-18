@@ -10,16 +10,6 @@ import {
 } from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
-// Re-export evaluator config functions from the canonical source
-// This maintains backward compatibility for existing imports
-export {
-    fetchAllEvaluatorConfigs,
-    createEvaluatorConfig,
-    updateEvaluatorConfig,
-    deleteEvaluatorConfig,
-    type CreateEvaluatorConfigData,
-} from "@/oss/services/evaluators"
-
 //Prefix convention:
 //  - fetch: GET single entity from server
 //  - fetchAll: GET all entities from server
@@ -186,12 +176,12 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
               : undefined
     const name = "name" in evaluation ? evaluation.name : "Evaluation" // Default name for legacy variant
 
-    // Use simple evaluations endpoint which auto-starts execution
+    // Use simple evaluations endpoint with jit=false — frontend provides all revision IDs directly
     return await axios.post(`/preview/simple/evaluations/?project_id=${projectId}`, {
         evaluation: {
             name,
             data: {
-                // Simple evaluations API expects Target = Dict[UUID, Origin] for auto-evaluations
+                // All steps use revision IDs directly (no JIT resolution needed)
                 testset_steps: evaluation.testset_revision_id
                     ? {[evaluation.testset_revision_id]: "auto"}
                     : undefined,
@@ -211,7 +201,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
                 is_closed: false,
             },
         },
-        jit: true,
+        jit: false,
     })
 }
 
