@@ -187,6 +187,7 @@ export function createRegistryColumns(
                                 userId={record.createdById}
                                 showPrefix={false}
                                 showAvatar
+                                showYouLabel
                             />
                         </Typography.Text>
                     </div>

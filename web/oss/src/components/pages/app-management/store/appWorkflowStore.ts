@@ -77,12 +77,7 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
 >({
     entityName: "appWorkflow",
     metaAtom: appWorkflowMetaAtom,
-    fetchPage: async ({
-        meta,
-        limit,
-        cursor,
-        windowing,
-    }): Promise<InfiniteTableFetchResult<Workflow>> => {
+    fetchPage: async ({meta, limit, cursor}): Promise<InfiniteTableFetchResult<Workflow>> => {
         if (!meta.projectId) {
             return {
                 rows: [],
@@ -109,19 +104,13 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
             )
         }
 
-        const lastRow = workflows[workflows.length - 1]
-        const hasMore = workflows.length === limit
-        const nextCursor = hasMore && lastRow ? lastRow.id : null
-
         return {
             rows: workflows,
             totalCount: null,
-            hasMore,
-            nextCursor,
+            hasMore: !!response.windowing?.next,
+            nextCursor: response.windowing?.next ?? null,
             nextOffset: null,
-            nextWindowing: nextCursor
-                ? {next: nextCursor, order: "descending", limit, stop: null}
-                : null,
+            nextWindowing: null,
         }
     },
     rowConfig: {
@@ -138,7 +127,7 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
     }),
     isEnabled: (meta) => Boolean(meta?.projectId),
     listCountsConfig: {
-        totalCountMode: "total",
+        totalCountMode: "unknown",
     },
 })
 

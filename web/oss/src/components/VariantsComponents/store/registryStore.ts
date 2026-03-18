@@ -17,6 +17,17 @@ import {routerAppIdAtom} from "@/oss/state/app/selectors/app"
 import {registrySearchTermAtom} from "./registryFilterAtoms"
 
 // ============================================================================
+// WORKFLOW ID OVERRIDE
+// ============================================================================
+
+/**
+ * Override atom for the workflow ID used by the registry store.
+ * When set, takes precedence over `routerAppIdAtom`.
+ * Used by the new evaluation modal on project-level pages where no app is in the URL.
+ */
+export const registryWorkflowIdOverrideAtom = atom<string | null>(null)
+
+// ============================================================================
 // TABLE ROW TYPE
 // ============================================================================
 
@@ -103,7 +114,7 @@ interface RegistryQueryMeta {
 
 const registryPaginatedMetaAtom = atom<RegistryQueryMeta>((get) => ({
     projectId: get(projectIdAtom),
-    workflowId: get(routerAppIdAtom),
+    workflowId: get(registryWorkflowIdOverrideAtom) || get(routerAppIdAtom),
     searchTerm: get(registrySearchTermAtom) || undefined,
 }))
 
