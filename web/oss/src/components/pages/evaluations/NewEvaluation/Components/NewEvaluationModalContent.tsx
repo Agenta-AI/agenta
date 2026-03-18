@@ -1,30 +1,24 @@
 import {type FC, memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
+import {message} from "@agenta/ui/app-message"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {openEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/EvaluatorDrawer/store/evaluatorDrawerStore"
+import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
 import useFocusInput from "@/oss/hooks/useFocusInput"
-import useURL from "@/oss/hooks/useURL"
 import type {Evaluator} from "@/oss/lib/Types"
 
-import {openEvaluatorDrawerAtom} from "../../autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
 
-import {openHumanEvaluatorDrawerAtom} from "./CreateHumanEvaluatorDrawer/state"
-
 const SelectAppSection = dynamic(() => import("./SelectAppSection"), {ssr: false})
-
-const CreateEvaluatorDrawer = dynamic(() => import("./CreateEvaluatorDrawer"), {ssr: false})
-
-const CreateHumanEvaluatorDrawer = dynamic(() => import("./CreateHumanEvaluatorDrawer"), {
-    ssr: false,
-})
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -42,13 +36,6 @@ const SelectVariantSection = dynamic(() => import("./SelectVariantSection"), {
 const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
     ssr: false,
 })
-
-const NoResultsFound = dynamic(
-    () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
-    {
-        ssr: false,
-    },
-)
 
 const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onSuccess,
@@ -86,29 +73,39 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 }) => {
     const classes = useStyles()
     const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
-    const {redirectUrl} = useURL()
     const appSelectionComplete = Boolean(selectedAppId)
-    const hasAppOptions = appOptions.length > 0
 
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
-    const openHumanEvaluatorDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
-
-    const handleCreateApp = useCallback(() => {
-        redirectUrl()
-    }, [redirectUrl])
+    const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
 
     // Handler for opening the human evaluator creation drawer (preview mode)
     const handleCreateHumanEvaluator = useCallback(() => {
-        openHumanEvaluatorDrawer()
-    }, [openHumanEvaluatorDrawer])
+        openHumanDrawer({mode: "create", onSuccess: onEvaluatorCreated})
+    }, [openHumanDrawer, onEvaluatorCreated])
 
-    // Handler for opening the evaluator creation drawer
+    // Handler for opening the evaluator creation drawer with embedded playground
     const handleSelectTemplate = useCallback(
-        (evaluator: Evaluator) => {
-            openEvaluatorDrawer({evaluator, mode: "create"})
+        async (evaluator: Evaluator) => {
+            const templateKey = evaluator.key
+            if (!templateKey) {
+                message.error("Unable to open evaluator template")
+                return
+            }
+
+            const localId = await createEvaluatorFromTemplate(templateKey)
+            if (!localId) {
+                message.error("Unable to create evaluator from template")
+                return
+            }
+
+            openEvaluatorDrawer({
+                entityId: localId,
+                mode: "create",
+                onEvaluatorCreated,
+            })
             onSelectTemplate?.(evaluator)
         },
-        [openEvaluatorDrawer, onSelectTemplate],
+        [openEvaluatorDrawer, onSelectTemplate, onEvaluatorCreated],
     )
 
     const selectedVariants = useMemo(
@@ -116,10 +113,10 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         [selectedVariantRevisionIds],
     )
 
-    const selectedEvalConfig = useMemo(() => {
-        const source = preview ? (evaluators as any[]) : (evaluatorConfigs as any[])
-        return source.filter((cfg) => selectedEvalConfigs.includes(cfg.id))
-    }, [preview, evaluators, evaluatorConfigs, selectedEvalConfigs])
+    const selectedEvalConfig = useMemo(
+        () => selectedEvalConfigs.map((id) => workflowMolecule.get.data(id)).filter(Boolean),
+        [selectedEvalConfigs],
+    )
 
     const items = useMemo(() => {
         const requireAppMessage = (
@@ -148,29 +145,16 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: (
                     <div className="flex flex-col gap-2">
-                        {hasAppOptions ? (
-                            <>
-                                <SelectAppSection
-                                    apps={appOptions}
-                                    selectedAppId={selectedAppId}
-                                    onSelectApp={onSelectApp}
-                                    disabled={appSelectionDisabled}
-                                />
-                                {!appSelectionComplete && !appSelectionDisabled ? (
-                                    <Typography.Text type="secondary">
-                                        Please select an application to continue configuring the
-                                        evaluation.
-                                    </Typography.Text>
-                                ) : null}
-                            </>
-                        ) : (
-                            <NoResultsFound
-                                title="No applications found"
-                                description="You need at least one application to configure an evaluation. Head to App Management to create one."
-                                primaryActionLabel="Create an app"
-                                onPrimaryAction={handleCreateApp}
-                            />
-                        )}
+                        <SelectAppSection
+                            selectedAppId={selectedAppId}
+                            onSelectApp={onSelectApp}
+                            disabled={appSelectionDisabled}
+                        />
+                        {!appSelectionComplete && !appSelectionDisabled ? (
+                            <Typography.Text type="secondary">
+                                Please select an application to continue configuring the evaluation.
+                            </Typography.Text>
+                        ) : null}
                     </div>
                 ),
             },
@@ -254,19 +238,18 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 key: "evaluatorPanel",
                 label: (
                     <TabLabel tabTitle="Evaluators" completed={selectedEvalConfig.length > 0}>
-                        {selectedEvalConfig.map((cfg: any) => {
+                        {selectedEvalConfig.map((cfg) => {
                             return (
                                 <Tag
                                     key={cfg.id}
                                     closeIcon={<CloseCircleOutlined />}
-                                    color={cfg.color}
                                     onClose={() => {
                                         setSelectedEvalConfigs(
                                             selectedEvalConfigs.filter((id) => id !== cfg.id),
                                         )
                                     }}
                                 >
-                                    {cfg.name}
+                                    {`${cfg.name || "-"} - v${cfg.version ?? 0}`}
                                 </Tag>
                             )
                         })}
@@ -274,12 +257,9 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: appSelectionComplete ? (
                     <SelectEvaluatorSection
-                        handlePanelChange={handlePanelChange}
                         selectedEvalConfigs={selectedEvalConfigs}
                         setSelectedEvalConfigs={setSelectedEvalConfigs}
                         preview={preview}
-                        evaluators={evaluators as any}
-                        evaluatorConfigs={evaluatorConfigs}
                         selectedAppId={selectedAppId}
                         onSelectTemplate={handleSelectTemplate}
                         onCreateHumanEvaluator={handleCreateHumanEvaluator}
@@ -333,50 +313,40 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         selectedAppId,
         onSelectApp,
         appSelectionDisabled,
-        hasAppOptions,
-        handleCreateApp,
         handleSelectTemplate,
         handleCreateHumanEvaluator,
         allowTestsetAutoAdvance,
     ])
 
     return (
-        <>
-            <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
-                <div className="flex flex-col gap-2">
-                    <Typography.Text className="font-medium">Evaluation name</Typography.Text>
-                    <Input
-                        ref={inputRef}
-                        placeholder="Enter a name"
-                        value={evaluationName}
-                        onChange={(e) => {
-                            setEvaluationName(e.target.value)
-                        }}
-                        data-tour="evaluation-name-input"
-                    />
-                </div>
-
-                <Tabs
-                    activeKey={activePanel || "appPanel"}
-                    onChange={handlePanelChange as any}
-                    items={items}
-                    tabPlacement="left"
-                    className={clsx([
-                        classes.tabsContainer,
-                        "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
-                        "[&_.ant-tabs-nav]:!w-[240px]",
-                        "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",
-                        "[&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!max-h-full [&_.ant-tabs-tabpane]:!w-full",
-                    ])}
+        <div className="flex flex-col w-full gap-4 h-full max-h-full overflow-hidden [&_.ant-tabs]:!flex [&_.ant-tabs]:!w-full [&_.ant-tabs]:!grow [&_.ant-tabs]:!min-h-0">
+            <div className="flex flex-col gap-2">
+                <Typography.Text className="font-medium">Evaluation name</Typography.Text>
+                <Input
+                    ref={inputRef}
+                    placeholder="Enter a name"
+                    value={evaluationName}
+                    onChange={(e) => {
+                        setEvaluationName(e.target.value)
+                    }}
+                    data-tour="evaluation-name-input"
                 />
             </div>
 
-            {/* Inline evaluator creation drawer (automatic evaluators) */}
-            <CreateEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
-
-            {/* Inline human evaluator creation drawer (preview/human mode) */}
-            <CreateHumanEvaluatorDrawer onEvaluatorCreated={onEvaluatorCreated} />
-        </>
+            <Tabs
+                activeKey={activePanel || "appPanel"}
+                onChange={handlePanelChange as any}
+                items={items}
+                tabPlacement="left"
+                className={clsx([
+                    classes.tabsContainer,
+                    "[&_.ant-tabs-tab]:!p-2 [&_.ant-tabs-tab]:!mt-1",
+                    "[&_.ant-tabs-nav]:!w-[240px]",
+                    "[&_.ant-tabs-content]:!h-full [&_.ant-tabs-content]:!w-full",
+                    "[&_.ant-tabs-tabpane]:!h-full [&_.ant-tabs-tabpane]:!max-h-full [&_.ant-tabs-tabpane]:!w-full",
+                ])}
+            />
+        </div>
     )
 }
 

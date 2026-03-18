@@ -1,5 +1,6 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {evaluatorTemplatesDataAtom, evaluatorTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
@@ -13,9 +14,7 @@ import {
     filterEvaluatorsByTag,
     getEvaluatorTagClassName,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import type {Evaluator} from "@/oss/lib/Types"
-import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
 
 interface EvaluatorTemplateDropdownProps {
     /** Callback when an evaluator template is selected */
@@ -38,10 +37,10 @@ const EvaluatorTemplateDropdown = ({
     trigger,
     className,
 }: EvaluatorTemplateDropdownProps) => {
-    const {isLoadingEvaluators} = useFetchEvaluatorsData()
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
     const [open, setOpen] = useState(false)
-    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
+    const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom) as unknown as Evaluator[]
+    const {isPending: isLoadingEvaluators} = useAtomValue(evaluatorTemplatesQueryAtom)
 
     const tabItems = useMemo(() => {
         return buildEvaluatorTabItems(nonArchivedEvaluators)

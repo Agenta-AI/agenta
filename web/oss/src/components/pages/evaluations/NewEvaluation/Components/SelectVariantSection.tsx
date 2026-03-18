@@ -11,6 +11,8 @@ import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/a
 
 import type {SelectVariantSectionProps} from "../types"
 
+import {useGroupedTreeSelection} from "./hooks/useGroupedTreeSelection"
+
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
     {
@@ -19,6 +21,9 @@ const NoResultsFound = dynamic(
 )
 
 const EMPTY_ACTIONS = {}
+
+const getVariantGroupKey = (row: RegistryRevisionRow) => row.variantId
+const getVariantSelectableId = (row: RegistryRevisionRow) => row.revisionId
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
@@ -37,15 +42,36 @@ const SelectVariantSection = ({
         rowClassName: "variant-table-row",
     })
 
-    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS), [])
+    const paginationRows = table.shellProps.pagination?.rows ?? []
+
+    const {
+        groupedDataSource,
+        treeExpandable,
+        resolveSelectableId,
+        toDisplayKeys,
+        expandedRowKeys,
+        handleExpand,
+    } = useGroupedTreeSelection({
+        rows: paginationRows,
+        getGroupKey: getVariantGroupKey,
+        getSelectableId: getVariantSelectableId,
+        groupKeyPrefix: "variant-group-",
+    })
+
+    const columns = useMemo(
+        () => createRegistryColumns(EMPTY_ACTIONS, {expandedRowKeys, handleExpand}),
+        [expandedRowKeys, handleExpand],
+    )
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
+            const revisionIds = (selectedRowKeys as string[]).map(resolveSelectableId)
+
             if (evaluationType === "auto") {
-                setSelectedVariantRevisionIds(selectedRowKeys as string[])
+                setSelectedVariantRevisionIds(revisionIds)
                 return
             }
-            const selectedId = selectedRowKeys[0] as string | undefined
+            const selectedId = revisionIds[0]
             if (selectedId) {
                 setSelectedVariantRevisionIds([selectedId])
                 handlePanelChange("testsetPanel")
@@ -53,16 +79,21 @@ const SelectVariantSection = ({
                 setSelectedVariantRevisionIds([])
             }
         },
-        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds],
+        [evaluationType, handlePanelChange, setSelectedVariantRevisionIds, resolveSelectableId],
+    )
+
+    const displaySelectedKeys = useMemo(
+        () => toDisplayKeys(selectedVariantRevisionIds),
+        [selectedVariantRevisionIds, toDisplayKeys],
     )
 
     const rowSelection = useMemo(
         () => ({
             type: (evaluationType === "auto" ? "checkbox" : "radio") as "checkbox" | "radio",
-            selectedRowKeys: selectedVariantRevisionIds as React.Key[],
+            selectedRowKeys: displaySelectedKeys,
             onChange: (keys: React.Key[]) => onSelectVariant(keys),
         }),
-        [selectedVariantRevisionIds, onSelectVariant, evaluationType],
+        [displaySelectedKeys, onSelectVariant, evaluationType],
     )
 
     return (
@@ -80,7 +111,13 @@ const SelectVariantSection = ({
                     {...table.shellProps}
                     columns={columns}
                     rowSelection={rowSelection}
+                    enableExport={false}
                     autoHeight
+                    dataSource={groupedDataSource}
+                    tableProps={{
+                        ...table.shellProps.tableProps,
+                        expandable: treeExpandable,
+                    }}
                     locale={{
                         emptyText: (
                             <NoResultsFound

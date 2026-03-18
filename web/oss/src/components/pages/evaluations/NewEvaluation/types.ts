@@ -92,11 +92,8 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
-    evaluatorConfigs: SimpleEvaluator[]
-    evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
-    handlePanelChange: (key: string | string[]) => void
     preview?: boolean
     selectedAppId?: string
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
