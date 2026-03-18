@@ -1,10 +1,8 @@
 import {dataUriToObjectUrl, isBase64, isUrl, safeJson5Parse} from "@agenta/shared/utils"
 import {notification} from "antd"
-import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
 import JSON5 from "json5"
 import Router from "next/router"
-import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
@@ -13,43 +11,10 @@ import {waitForValidURL} from "@/oss/state/url"
 
 import {GenericObject} from "../Types"
 
-import {getErrorMessage} from "./errorHandler"
 import {isEE} from "./isEE"
-
-if (typeof window !== "undefined") {
-    // @ts-ignore
-    if (!window.Cypress) {
-        dayjs.extend(utc)
-    }
-}
 
 export const isDemo = () => {
     return isEE()
-}
-
-export const renameVariables = (name: string) => {
-    if (name === "inputs") {
-        return "Prompt Variables"
-    } else {
-        return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ")
-    }
-}
-
-export const renameVariablesCapitalizeAll = (name: string) => {
-    const words = name.split("_")
-    for (let i = 0; i < words.length; i++) {
-        words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1)
-    }
-    return words.join(" ")
-}
-
-export const apiKeyObject = (apiKeys: LlmProvider[]) => {
-    if (!apiKeys) return {}
-
-    return apiKeys.reduce((acc: GenericObject, {key, name}: GenericObject) => {
-        if (key) acc[name] = key
-        return acc
-    }, {})
 }
 
 export const capitalize = (s: string) => {
@@ -160,98 +125,6 @@ const formatMessages = (messages: any) => {
         : []
 }
 
-export function promisifyFunction(fn: Function, ...args: any[]) {
-    return async () => {
-        return fn(...args)
-    }
-}
-
-export const withRetry = (
-    fn: Function,
-    options?: Parameters<typeof promiseRetry>[0] & {logErrors?: boolean},
-) => {
-    const {logErrors = true, ...config} = options || {}
-    const func = promisifyFunction(fn)
-
-    return promiseRetry(
-        (retry, attempt) =>
-            func().catch((e) => {
-                if (logErrors) {
-                    console.error("Error: ", getErrorMessage(e))
-                    console.error("Retry attempt: ", attempt)
-                }
-                retry(e)
-            }),
-        {
-            retries: 3,
-            ...config,
-        },
-    )
-}
-
-export async function batchExecute(
-    functions: Function[],
-    options?: {
-        batchSize?: number
-        supressErrors?: boolean
-        batchDelayMs?: number
-        logErrors?: boolean
-        allowRetry?: boolean
-        retryConfig?: Parameters<typeof promiseRetry>[0]
-    },
-) {
-    const {
-        batchSize = 10,
-        supressErrors = false,
-        batchDelayMs = 2000,
-        logErrors = true,
-        allowRetry = true,
-        retryConfig,
-    } = options || {}
-
-    functions = functions.map((f) => async () => {
-        try {
-            return await (allowRetry ? withRetry(f, {logErrors, ...(retryConfig || {})}) : f())
-        } catch (e) {
-            if (supressErrors) {
-                if (logErrors) console.error("Ignored error:", getErrorMessage(e))
-                return {__error: e}
-            }
-            throw e
-        }
-    })
-
-    if (!batchSize || !Number.isInteger(batchSize) || batchSize <= 0)
-        return Promise.all(functions.map((f) => f()))
-
-    let position = 0
-    let results: any[] = []
-
-    while (position < functions.length) {
-        const batch = functions.slice(position, position + batchSize)
-        results = [...results, ...(await Promise.all(batch.map((f) => f())))]
-        position += batchSize
-        if (batchDelayMs) {
-            await delay(batchDelayMs)
-        }
-    }
-    return results
-}
-
-// shortPoll was moved to @agenta/shared/utils — import from there instead
-
-export function pickRandom<T>(arr: T[], len: number) {
-    const result: T[] = []
-    const length = arr.length
-
-    for (let i = 0; i < len; i++) {
-        const randomIndex = Math.floor(Math.random() * length)
-        result.push(arr[randomIndex])
-    }
-
-    return result
-}
-
 export function durationToStr(ms: number) {
     const duration = dayjs.duration(ms, "milliseconds")
     const days = Math.floor(duration.asDays())
@@ -263,14 +136,6 @@ export function durationToStr(ms: number) {
     if (hours > 0) return `${hours}h ${mins}m`
     if (mins > 0) return `${mins}m ${secs}s`
     return `${secs}s`
-}
-
-type DayjsDate = Parameters<typeof dayjs>[0]
-export function getDurationStr(date1: DayjsDate, date2: DayjsDate) {
-    const d1 = dayjs(date1)
-    const d2 = dayjs(date2)
-
-    return durationToStr(d2.diff(d1, "milliseconds"))
 }
 
 export const generateOrRetrieveDistinctId = (): string => {
@@ -338,53 +203,9 @@ export const getYamlOrJson = (format: "JSON" | "YAML", data: any) => {
     }
 }
 
-export const filterVariantParameters = ({
-    record,
-    key,
-    include = true,
-}: {
-    record: Record<string, any>
-    key: string
-    include?: boolean
-}) => {
-    return Object.keys(record).reduce(
-        (acc, curr) => {
-            const condition = curr.includes(key)
-            if ((record.hasOwnProperty(curr) && include && condition) || (!include && !condition)) {
-                acc[curr] = record[curr]
-            }
-            return acc
-        },
-        {} as Record<string, any>,
-    )
-}
-
 export const formatVariantIdWithHash = (variantId: string) => {
     const parts = variantId.split("-")
     return `# ${parts[parts.length - 1]}`
-}
-
-export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
-    const paths: string[] = []
-    if (!obj || typeof obj !== "object") return paths
-
-    for (const [key, value] of Object.entries(obj)) {
-        const fullPath = prefix ? `${prefix}.${key}` : key
-
-        if (key === "outputs") {
-            paths.push(fullPath)
-            continue
-        }
-
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-            const nestedPaths = collectKeyPathsFromObject(value, fullPath)
-            paths.push(...nestedPaths)
-        } else {
-            paths.push(fullPath)
-        }
-    }
-
-    return paths
 }
 
 export const getUsernameFromEmail = (email: string) => email.split("@")[0]

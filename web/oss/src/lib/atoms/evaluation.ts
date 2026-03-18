@@ -1,7 +1,3 @@
-import {atom} from "jotai"
-
-import {Evaluator, SimpleEvaluator} from "../Types"
-
-export const evaluatorsAtom = atom<Evaluator[]>([])
-
-export const evaluatorConfigsAtom = atom<SimpleEvaluator[]>([])
+// Legacy bare atoms removed — use workflow-based atoms from @agenta/entities/workflow instead:
+// - evaluatorTemplatesDataAtom (replaces evaluatorsAtom)
+// - evaluatorConfigsListDataAtom (replaces evaluatorConfigsAtom)
