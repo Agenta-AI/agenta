@@ -15,7 +15,7 @@
  */
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
-import {dereferenceSchema} from "@agenta/shared/utils"
+import {dereferenceSchema, generateId} from "@agenta/shared/utils"
 
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../legacyAppRevision/api/schemaUtils"
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
@@ -582,7 +582,7 @@ export async function createWorkflow(
             {
                 workflow_revision: {
                     workflow_id: workflowId,
-                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    slug: generateId().replace(/-/g, "").slice(0, 12),
                     flags: payload.flags,
                     data: payload.data,
                 },
@@ -728,7 +728,7 @@ export async function updateWorkflow(
                 workflow_revision: {
                     workflow_id: payload.id,
                     workflow_variant_id: payload.variantId ?? undefined,
-                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    slug: generateId().replace(/-/g, "").slice(0, 12),
                     name: payload.name ?? undefined,
                     flags: payload.flags,
                     data: payload.data,
@@ -785,7 +785,7 @@ export async function commitWorkflowRevisionApi(
             workflow_revision: {
                 workflow_id: payload.workflowId,
                 workflow_variant_id: payload.variantId ?? undefined,
-                slug: payload.slug ?? crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                slug: payload.slug ?? generateId().replace(/-/g, "").slice(0, 12),
                 name: payload.name ?? undefined,
                 flags: payload.flags,
                 data: payload.data,

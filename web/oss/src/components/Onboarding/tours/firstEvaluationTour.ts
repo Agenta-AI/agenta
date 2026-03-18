@@ -56,7 +56,7 @@ const firstEvaluationTour: OnboardingTour = {
             icon: "▶️",
             title: "Open the Evaluation Modal",
             content:
-                'Click "Run Evaluation" to start. If you do not have a prompt yet, create one first.',
+                'Click "New Evaluation" to start. If you do not have a prompt yet, create one first.',
             selector: '[data-tour="run-evaluation-button"]',
             side: "bottom",
             showControls: true,
