@@ -278,12 +278,25 @@ export const workflowResponseSchema = z.object({
 export type WorkflowResponse = z.infer<typeof workflowResponseSchema>
 
 /**
+ * Windowing metadata returned by paginated query endpoints.
+ */
+export const windowingResponseSchema = z
+    .object({
+        next: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional()
+
+export type WindowingResponse = z.infer<typeof windowingResponseSchema>
+
+/**
  * Multiple workflows response wrapper.
  * Matches backend `WorkflowsResponse`.
  */
 export const workflowsResponseSchema = z.object({
     count: z.number().optional().default(0),
     workflows: z.array(workflowSchema).default([]),
+    windowing: windowingResponseSchema,
 })
 
 export type WorkflowsResponse = z.infer<typeof workflowsResponseSchema>
@@ -298,18 +311,6 @@ export const workflowRevisionResponseSchema = z.object({
 })
 
 export type WorkflowRevisionResponse = z.infer<typeof workflowRevisionResponseSchema>
-
-/**
- * Windowing metadata returned by paginated query endpoints.
- */
-export const windowingResponseSchema = z
-    .object({
-        next: z.string().nullable().optional(),
-    })
-    .nullable()
-    .optional()
-
-export type WindowingResponse = z.infer<typeof windowingResponseSchema>
 
 /**
  * Multiple workflow revisions response wrapper.
@@ -449,4 +450,39 @@ export function generateSlug(name: string): string {
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "")
+}
+
+// ============================================================================
+// OUTPUT SCHEMA UTILITIES
+// ============================================================================
+
+/**
+ * Resolve output metric properties from a workflow's data.
+ * Checks modern path first (`data.schemas.outputs.properties`),
+ * then falls back to legacy path (`data.service.format.properties.outputs.properties`).
+ */
+export function resolveOutputSchemaProperties(
+    data: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+    if (!data) return null
+
+    // Modern path: data.schemas.outputs.properties
+    const schemas = data.schemas as Record<string, unknown> | undefined
+    if (schemas?.outputs && typeof schemas.outputs === "object") {
+        const props = (schemas.outputs as Record<string, unknown>)?.properties
+        if (props && typeof props === "object") {
+            return props as Record<string, unknown>
+        }
+    }
+
+    // Legacy path: data.service.format.properties.outputs.properties
+    const service = data.service as Record<string, unknown> | undefined
+    const format = service?.format as Record<string, unknown> | undefined
+    const formatProps = format?.properties as Record<string, unknown> | undefined
+    const outputs = formatProps?.outputs as Record<string, unknown> | undefined
+    if (outputs?.properties && typeof outputs.properties === "object") {
+        return outputs.properties as Record<string, unknown>
+    }
+
+    return null
 }

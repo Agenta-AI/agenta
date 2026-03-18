@@ -48,6 +48,8 @@ export {
     type EvaluatorColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
+    // Output schema utilities
+    resolveOutputSchemaProperties,
 } from "./schema"
 
 // Flag query type (for filtering)
@@ -60,3 +62,15 @@ export type {
     WorkflowReference,
     QueryResult,
 } from "./types"
+
+// Evaluator resolution utilities
+export {
+    extractEvaluatorRef,
+    deduplicateRefs,
+    extractMetrics,
+    toEvaluatorDefinitionFromWorkflow,
+    toEvaluatorDefinitionFromRaw,
+    type EvaluatorRef,
+    type EvaluatorDefinition,
+    type MetricColumnDefinition,
+} from "./evaluatorResolution"

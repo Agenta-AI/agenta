@@ -34,6 +34,7 @@ import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
+import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import type {RequestPayloadData} from "../../runnable/types"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
@@ -352,12 +353,20 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         }
 
         // ── Evaluator workflows: use __rawBody format ──
+        // The entity store may hold nested params (prompt.messages format) from
+        // the UI nesting transform or from v3+ evaluators that store nested natively.
+        // The backend invoke endpoint expects flat params (prompt_template format),
+        // so we flatten before building the request body.
         if (isEvaluator) {
             const uri = entity.data.uri
             const url = entity.data.url
             if (!uri && !url) return null
 
-            const parameters = entity.data.parameters ?? entity.data.configuration ?? {}
+            const rawParams = (entity.data.parameters ?? entity.data.configuration ?? {}) as Record<
+                string,
+                unknown
+            >
+            const parameters = flattenEvaluatorConfiguration(rawParams, null)
             return {
                 __rawBody: true,
                 interface: uri ? {uri} : {url},

@@ -205,14 +205,34 @@ export async function queryWorkflowRevisionsByWorkflow(
     flags?: WorkflowQueryFlags,
     windowing?: WorkflowRevisionWindowing,
 ): Promise<WorkflowRevisionsResponse> {
-    if (!projectId || !workflowId) {
+    return queryWorkflowRevisionsByWorkflows([workflowId], projectId, flags, windowing)
+}
+
+/**
+ * Query workflow revisions across multiple workflows.
+ *
+ * Endpoint: `POST /preview/workflows/revisions/query`
+ *
+ * @param workflowIds - Array of workflow IDs to fetch revisions for
+ * @param projectId - Project ID
+ * @param flags - Optional query flags for filtering
+ * @param windowing - Optional windowing params for cursor-based pagination
+ * @returns Revisions response with workflow_revisions array and windowing cursor
+ */
+export async function queryWorkflowRevisionsByWorkflows(
+    workflowIds: string[],
+    projectId: string,
+    flags?: WorkflowQueryFlags,
+    windowing?: WorkflowRevisionWindowing,
+): Promise<WorkflowRevisionsResponse> {
+    if (!projectId || workflowIds.length === 0) {
         return {count: 0, workflow_revisions: []}
     }
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
         {
-            workflow_refs: [{id: workflowId}],
+            workflow_refs: workflowIds.map((id) => ({id})),
             workflow_revision: flags ? {flags} : undefined,
             ...(windowing ? {windowing} : {}),
         },
@@ -222,7 +242,7 @@ export async function queryWorkflowRevisionsByWorkflow(
     const validated = safeParseWithLogging(
         workflowRevisionsResponseSchema,
         response.data,
-        "[queryWorkflowRevisionsByWorkflow]",
+        "[queryWorkflowRevisionsByWorkflows]",
     )
     if (!validated) {
         return {count: 0, workflow_revisions: []}
@@ -548,6 +568,8 @@ export interface CreateWorkflowPayload {
     flags?: WorkflowFlags
     tags?: string[] | null
     meta?: Record<string, unknown> | null
+    /** Commit message for the initial revision */
+    message?: string | null
     data?: {
         uri?: string | null
         url?: string | null
@@ -604,16 +626,64 @@ export async function createWorkflow(
 
     const workflowId = validatedWorkflow.workflow.id
 
-    // Step 2: Commit the initial revision with data
+    // Step 2: Create a default variant (revisions require a variant_id)
+    const variantSlug = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+    const variantResponse = await axios.post(
+        `${getAgentaApiUrl()}/preview/workflows/variants/`,
+        {
+            workflow_variant: {
+                workflow_id: workflowId,
+                slug: variantSlug,
+                name: payload.name,
+            },
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validatedVariant = safeParseWithLogging(
+        workflowVariantResponseSchema,
+        variantResponse.data,
+        "[createWorkflow:variant]",
+    )
+    if (!validatedVariant?.workflow_variant) {
+        throw new Error("[createWorkflow] Failed to create workflow variant")
+    }
+
+    const variantId = validatedVariant.workflow_variant.id
+
+    // Step 3: Commit seed revision (v0) — tables dismiss v0, so the
+    // user-visible first version must be v1.
     if (payload.data) {
+        await axios.post(
+            `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
+            {
+                workflow_revision: {
+                    workflow_id: workflowId,
+                    variant_id: variantId,
+                    slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    name: payload.name,
+                    flags: payload.flags,
+                    data: {
+                        uri: payload.data.uri,
+                        url: payload.data.url,
+                    },
+                },
+            },
+            {params: {project_id: projectId}},
+        )
+
+        // Step 4: Commit actual data revision (v1) with full parameters
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/preview/workflows/revisions/commit`,
             {
                 workflow_revision: {
                     workflow_id: workflowId,
+                    variant_id: variantId,
                     slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12),
+                    name: payload.name,
                     flags: payload.flags,
                     data: payload.data,
+                    message: payload.message ?? undefined,
                 },
             },
             {params: {project_id: projectId}},

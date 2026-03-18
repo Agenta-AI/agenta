@@ -1100,6 +1100,18 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
     }),
 )
 
+/**
+ * Whether a workflow entity is ephemeral (created from a template, not yet committed).
+ * Ephemeral entities have `meta.__ephemeral: true`.
+ */
+export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        const meta = entity?.meta as Record<string, unknown> | null | undefined
+        return Boolean(meta?.__ephemeral)
+    }),
+)
+
 // ============================================================================
 // MUTATIONS (Write Atoms)
 // ============================================================================
@@ -1215,6 +1227,14 @@ export const workflowServerDataSelectorFamily = atomFamily((workflowId: string) 
                 )
                 if (sourceServerData) return sourceServerData
             }
+
+            // Ephemeral entities (created from templates, not cloned from a revision)
+            // have no server baseline — return null so isDirty treats them as uncommitted.
+            const meta = localData?.meta as Record<string, unknown> | null | undefined
+            if (meta?.__ephemeral) {
+                return null
+            }
+
             // Fallback to the clone if source is unavailable
             return localData
         }

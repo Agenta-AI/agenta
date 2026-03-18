@@ -26,8 +26,10 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
+import {flattenEvaluatorConfiguration} from "../../runnable/evaluatorTransforms"
 import {
     commitWorkflowRevisionApi,
+    createWorkflow as createWorkflowApi,
     createWorkflowVariantApi,
     archiveWorkflowRevision,
     archiveWorkflowVariant,
@@ -35,6 +37,7 @@ import {
 } from "../api"
 import type {Workflow} from "../core"
 
+import {invalidateEvaluatorsListCache} from "./evaluatorUtils"
 import {
     workflowEntityAtomFamily,
     discardWorkflowDraftAtom,
@@ -42,6 +45,28 @@ import {
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
 } from "./store"
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Prepare parameters for the commit API.
+ * For evaluator workflows, flattens nested params (prompt.messages → prompt_template)
+ * back to the flat format the backend expects.
+ */
+function prepareCommitParameters(entity: Workflow): Record<string, unknown> | undefined {
+    const rawParams = stripAgentaMetadataDeep(entity.data?.parameters) as
+        | Record<string, unknown>
+        | undefined
+    if (!rawParams) return undefined
+
+    const isEvaluator = entity.flags?.is_evaluator ?? false
+    if (isEvaluator) {
+        return flattenEvaluatorConfiguration(rawParams, null)
+    }
+    return rawParams
+}
 
 // ============================================================================
 // TYPES
@@ -125,8 +150,28 @@ export function registerWorkflowCommitCallbacks(callbacks: WorkflowCommitCallbac
     _commitCallbacks = {..._commitCallbacks, ...callbacks}
 }
 
+export function getWorkflowCommitCallbacks(): Readonly<WorkflowCommitCallbacks> {
+    return _commitCallbacks
+}
+
 export function clearWorkflowCommitCallbacks(): void {
     _commitCallbacks = {}
+}
+
+/**
+ * Invoke the registered onNewRevision callback.
+ *
+ * Used by flows that bypass `commitWorkflowRevisionAtom` (e.g., creating
+ * a new workflow for ephemeral entities) but still need to notify listeners
+ * like the CreateEvaluatorDrawer.
+ */
+export async function invokeWorkflowCommitCallbacks(
+    result: WorkflowCommitResult,
+    params: WorkflowCommitParams,
+): Promise<void> {
+    if (_commitCallbacks.onNewRevision) {
+        await _commitCallbacks.onNewRevision(result, params)
+    }
 }
 
 // ============================================================================
@@ -201,7 +246,7 @@ export const commitWorkflowRevisionAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: stripAgentaMetadataDeep(entity.data.parameters),
+                    parameters: prepareCommitParameters(entity),
                     schemas: entity.data.schemas,
                 },
             })
@@ -355,7 +400,7 @@ export const createWorkflowVariantAtom = atom(
                 data: {
                     uri: entity.data.uri,
                     url: entity.data.url,
-                    parameters: stripAgentaMetadataDeep(entity.data.parameters),
+                    parameters: prepareCommitParameters(entity),
                     schemas: entity.data.schemas,
                 },
             })
@@ -405,6 +450,110 @@ export const createWorkflowVariantAtom = atom(
 )
 
 // ============================================================================
+// CREATE FROM EPHEMERAL ATOM
+// ============================================================================
+
+/**
+ * Parameters for creating a workflow from an ephemeral (local-only) entity
+ */
+export interface WorkflowCreateFromEphemeralParams {
+    /** Local entity ID of the ephemeral workflow */
+    revisionId: string
+    /** Commit message */
+    commitMessage?: string
+    /** Display name for the new workflow (overrides entity name) */
+    name?: string
+}
+
+/**
+ * Create a new workflow from an ephemeral (local-only) entity.
+ *
+ * Ephemeral entities are created from templates and have `meta.__ephemeral: true`.
+ * They have no server baseline — this atom creates the workflow artifact and
+ * commits the initial revision.
+ *
+ * Flow:
+ * 1. Read ephemeral entity data from the store
+ * 2. Generate a unique slug (NOT the template key)
+ * 3. Call createWorkflow API (creates artifact + commits revision)
+ * 4. Invoke commit callbacks
+ * 5. Discard local draft
+ * 6. Invalidate caches
+ */
+export const createWorkflowFromEphemeralAtom = atom(
+    null,
+    async (get, set, params: WorkflowCreateFromEphemeralParams): Promise<WorkflowCommitOutcome> => {
+        const {revisionId, commitMessage, name} = params
+
+        try {
+            const projectId = get(projectIdAtom)
+            if (!projectId) {
+                throw new Error("No project ID available")
+            }
+
+            // 1. Read ephemeral entity data
+            const entity = get(workflowEntityAtomFamily(revisionId))
+            if (!entity) {
+                throw new Error(`No workflow entity found for ${revisionId}`)
+            }
+
+            // 2. Generate a unique slug (never use the template key)
+            const uniqueSlug = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
+
+            // 3. Create workflow via API
+            const newWorkflow = await createWorkflowApi(projectId, {
+                slug: uniqueSlug,
+                name: name || entity.name || "Workflow",
+                flags: entity.flags ?? undefined,
+                message: commitMessage ?? undefined,
+                data: entity.data
+                    ? {
+                          uri: entity.data.uri,
+                          parameters: prepareCommitParameters(entity),
+                          schemas: entity.data.schemas,
+                      }
+                    : undefined,
+            })
+
+            const newRevisionId = newWorkflow.id
+
+            const result: WorkflowCommitResult = {
+                success: true,
+                revisionId,
+                newRevisionId,
+                workflow: newWorkflow,
+            }
+
+            // 4. Invoke commit callbacks (reuse shared helper)
+            await invokeWorkflowCommitCallbacks(result, {revisionId, commitMessage})
+
+            // 5. Discard local draft
+            set(discardWorkflowDraftAtom, revisionId)
+
+            // 6. Invalidate caches (both app and evaluator lists)
+            invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
+            if (_commitCallbacks.onQueryInvalidate) {
+                void _commitCallbacks.onQueryInvalidate()
+            }
+
+            return result
+        } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error))
+
+            if (_commitCallbacks.onError) {
+                _commitCallbacks.onError(err, {revisionId, commitMessage})
+            }
+
+            return {
+                success: false,
+                error: err,
+            }
+        }
+    },
+)
+
+// ============================================================================
 // ARCHIVE ATOM
 // ============================================================================
 
@@ -425,20 +574,14 @@ export const archiveWorkflowRevisionAtom = atom(
                 throw new Error("No project ID available")
             }
 
-            const _t0 = performance.now()
             await archiveWorkflowRevision(projectId, revisionId)
-            console.log(`[archive] API call: ${(performance.now() - _t0).toFixed(0)}ms`)
 
             // When variantId is provided, check if the variant still has
             // active (non-archived) revisions. If not, archive the variant
             // so it no longer appears in the entity selector dropdown.
             if (variantId) {
                 try {
-                    const _t1 = performance.now()
                     const remaining = await queryWorkflowRevisions(variantId, projectId)
-                    console.log(
-                        `[archive] queryWorkflowRevisions: ${(performance.now() - _t1).toFixed(0)}ms`,
-                    )
                     const allRevisions = remaining.workflow_revisions ?? []
                     const activeRevisions = allRevisions.filter(
                         (r) => !r.deleted_at && r.id !== revisionId,
@@ -449,16 +592,12 @@ export const archiveWorkflowRevisionAtom = atom(
                         (r) => r.data?.parameters && Object.keys(r.data.parameters).length > 0,
                     )
                     if (userVisibleRevisions.length === 0) {
-                        const _t2 = performance.now()
                         // Archive leftover seed revisions first
                         for (const r of activeRevisions) {
                             await archiveWorkflowRevision(projectId, r.id)
                         }
                         // Then archive the now-empty variant
                         await archiveWorkflowVariant(projectId, variantId)
-                        console.log(
-                            `[archive] variant cleanup: ${(performance.now() - _t2).toFixed(0)}ms`,
-                        )
                     }
                 } catch (_variantErr) {
                     // Best-effort: don't fail the overall delete if variant cleanup fails
@@ -471,20 +610,12 @@ export const archiveWorkflowRevisionAtom = atom(
                 workflowId,
             }
 
-            const _t3 = performance.now()
             invalidateWorkflowsListCache()
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             invalidateWorkflowCache(revisionId)
-            console.log(
-                `[archive] sync cache invalidation: ${(performance.now() - _t3).toFixed(0)}ms`,
-            )
 
             if (_archiveCallbacks.onQueryInvalidate) {
-                const _t4 = performance.now()
                 await _archiveCallbacks.onQueryInvalidate()
-                console.log(
-                    `[archive] onQueryInvalidate callback: ${(performance.now() - _t4).toFixed(0)}ms`,
-                )
             }
 
             // Await selection cleanup so the replacement revision is in place
@@ -494,7 +625,6 @@ export const archiveWorkflowRevisionAtom = atom(
                 await _archiveCallbacks.onRevisionDeleted(result)
             }
 
-            console.log(`[archive] TOTAL: ${(performance.now() - _t0).toFixed(0)}ms`)
             return result
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error))

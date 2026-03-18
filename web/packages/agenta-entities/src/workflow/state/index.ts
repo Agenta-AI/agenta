@@ -35,6 +35,7 @@ export {
     workflowDraftAtomFamily,
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
+    workflowIsEphemeralAtomFamily,
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
@@ -112,12 +113,17 @@ export {
     type WorkflowCommitOutcome,
     type WorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
+    getWorkflowCommitCallbacks,
     clearWorkflowCommitCallbacks,
+    invokeWorkflowCommitCallbacks,
     // Create Variant
     createWorkflowVariantAtom,
     type WorkflowCreateVariantParams,
     type WorkflowCreateVariantResult,
     type WorkflowCreateVariantOutcome,
+    // Create from Ephemeral
+    createWorkflowFromEphemeralAtom,
+    type WorkflowCreateFromEphemeralParams,
     // Archive
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
@@ -142,8 +148,27 @@ export {
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesMapAtom,
+    // Template lookup
+    evaluatorTemplateByKeyAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Evaluator configs (non-human, non-custom)
+    evaluatorConfigsListDataAtom,
+    evaluatorConfigsQueryStateAtom,
+    // Human evaluators
+    humanEvaluatorsListQueryAtom,
+    humanEvaluatorsListDataAtom,
+    // Cache invalidation
+    invalidateEvaluatorsListCache,
+    // Create from template
+    createEvaluatorFromTemplate,
+    // Human evaluator CRUD
+    createHumanEvaluatorAtom,
+    updateHumanEvaluatorAtom,
+    buildHumanEvaluatorOutputsSchema,
+    type CreateHumanEvaluatorParams,
+    type UpdateHumanEvaluatorParams,
+    type HumanEvaluatorMetric,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,

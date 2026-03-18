@@ -86,6 +86,8 @@ export {
     type EvaluatorColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
+    // Output schema utilities
+    resolveOutputSchemaProperties,
 } from "./core"
 
 // Flag query type
@@ -100,6 +102,21 @@ export type {
 } from "./core"
 
 // ============================================================================
+// EVALUATOR RESOLUTION
+// ============================================================================
+
+export {
+    extractEvaluatorRef,
+    deduplicateRefs,
+    extractMetrics,
+    toEvaluatorDefinitionFromWorkflow,
+    toEvaluatorDefinitionFromRaw,
+    type EvaluatorRef,
+    type EvaluatorDefinition,
+    type MetricColumnDefinition,
+} from "./core"
+
+// ============================================================================
 // API FUNCTIONS
 // ============================================================================
 
@@ -110,6 +127,7 @@ export {
     queryWorkflowVariants,
     // Query / List (Revisions)
     queryWorkflowRevisionsByWorkflow,
+    queryWorkflowRevisionsByWorkflows,
     queryWorkflowRevisions,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
@@ -193,12 +211,17 @@ export {
     type WorkflowCommitOutcome,
     type WorkflowCommitCallbacks,
     registerWorkflowCommitCallbacks,
+    getWorkflowCommitCallbacks,
     clearWorkflowCommitCallbacks,
+    invokeWorkflowCommitCallbacks,
     // Create Variant
     createWorkflowVariantAtom,
     type WorkflowCreateVariantParams,
     type WorkflowCreateVariantResult,
     type WorkflowCreateVariantOutcome,
+    // Create from Ephemeral
+    createWorkflowFromEphemeralAtom,
+    type WorkflowCreateFromEphemeralParams,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,
@@ -232,8 +255,27 @@ export {
     evaluatorTemplatesQueryAtom,
     evaluatorTemplatesDataAtom,
     evaluatorTemplatesMapAtom,
+    // Template lookup
+    evaluatorTemplateByKeyAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
+    // Evaluator configs (non-human, non-custom)
+    evaluatorConfigsListDataAtom,
+    evaluatorConfigsQueryStateAtom,
+    // Human evaluators
+    humanEvaluatorsListQueryAtom,
+    humanEvaluatorsListDataAtom,
+    // Cache invalidation
+    invalidateEvaluatorsListCache,
+    // Create from template (entity lifecycle)
+    createEvaluatorFromTemplate,
+    // Human evaluator CRUD
+    createHumanEvaluatorAtom,
+    updateHumanEvaluatorAtom,
+    buildHumanEvaluatorOutputsSchema,
+    type CreateHumanEvaluatorParams,
+    type UpdateHumanEvaluatorParams,
+    type HumanEvaluatorMetric,
     // Selection config
     evaluatorSelectionConfig,
     type EvaluatorSelectionConfig,

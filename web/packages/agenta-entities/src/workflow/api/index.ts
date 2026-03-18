@@ -9,6 +9,7 @@ export {
     queryWorkflowVariants,
     // Query / List (Revisions)
     queryWorkflowRevisionsByWorkflow,
+    queryWorkflowRevisionsByWorkflows,
     type WorkflowRevisionWindowing,
     queryWorkflowRevisions,
     // Fetch (single revision by ID)

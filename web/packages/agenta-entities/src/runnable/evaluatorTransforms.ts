@@ -84,14 +84,13 @@ export function nestEvaluatorConfiguration(flat: Record<string, unknown>): Recor
         ...rest
     } = flat
 
-    // Build feedback_config object if response_type is present
-    // This matches the schema structure where feedback_config is a top-level property
-    const feedbackConfig: Record<string, unknown> | undefined = response_type
-        ? {
-              type: response_type,
-              ...(json_schema ? {json_schema} : {}),
-          }
-        : undefined
+    // Always include feedback_config — matches schema transform which always adds it.
+    // For v3 evaluators without response_type, this creates an empty config that
+    // FeedbackConfigurationControl can populate.
+    const feedbackConfig: Record<string, unknown> = {
+        type: response_type ?? "json_schema",
+        ...(json_schema ? {json_schema} : {}),
+    }
 
     const result = {
         prompt: {
@@ -101,7 +100,7 @@ export function nestEvaluatorConfiguration(flat: Record<string, unknown>): Recor
             },
         },
         // Feedback configuration as a top-level section (matches schema)
-        ...(feedbackConfig ? {feedback_config: feedbackConfig} : {}),
+        feedback_config: feedbackConfig,
         // Store evaluator-specific fields in a named section
         advanced_config: {
             correct_answer_key: _correctAnswerKey,
@@ -158,6 +157,30 @@ export function flattenEvaluatorConfiguration(
 }
 
 // ============================================================================
+// SCHEMA HELPERS
+// ============================================================================
+
+/**
+ * Build a feedback_config schema entry for the UI.
+ * Uses provided response_type/json_schema schema definitions when available,
+ * otherwise falls back to generic string/object schemas.
+ */
+function buildFeedbackConfigSchema(
+    responseTypeSchema?: unknown,
+    jsonSchemaSchema?: unknown,
+): Record<string, unknown> {
+    return {
+        type: "object",
+        title: "Feedback Configuration",
+        "x-parameter": "feedback_config",
+        properties: {
+            type: responseTypeSchema ?? {type: "string", title: "Response Type"},
+            json_schema: jsonSchemaSchema ?? {type: "object", title: "JSON Schema"},
+        },
+    }
+}
+
+// ============================================================================
 // SCHEMA TRANSFORMS
 // ============================================================================
 
@@ -172,7 +195,23 @@ export function flattenEvaluatorConfiguration(
  */
 export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record<string, unknown> {
     const properties = flatSchema.properties as Record<string, unknown> | undefined
-    if (!properties || !properties.prompt_template || !properties.model) return flatSchema
+    if (!properties || !properties.prompt_template || !properties.model) {
+        // Handle already-nested schema: the API may return a pre-nested schema without
+        // feedback_config. Since nestEvaluatorConfiguration creates feedback_config from
+        // response_type/json_schema data, we need a matching schema entry for the UI
+        // to render FeedbackConfigurationControl instead of a generic drill-in.
+        if (properties?.prompt && !properties.feedback_config) {
+            return {
+                ...flatSchema,
+                type: "object",
+                properties: {
+                    ...properties,
+                    feedback_config: buildFeedbackConfigSchema(),
+                },
+            }
+        }
+        return flatSchema
+    }
 
     const {
         prompt_template,
@@ -186,19 +225,11 @@ export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record
         ...restProps
     } = properties
 
-    // Build feedback_config schema as a top-level collapsible section
-    // Use x-parameter: "feedback_config" to trigger FeedbackConfigurationControl
-    const feedbackConfigSchema = response_type
-        ? {
-              type: "object",
-              title: "Feedback Configuration",
-              "x-parameter": "feedback_config",
-              properties: {
-                  type: response_type,
-                  ...(json_schema ? {json_schema} : {}),
-              },
-          }
-        : undefined
+    // Always include feedback_config schema — nestEvaluatorConfiguration creates
+    // feedback_config data from response_type/json_schema fields regardless of whether
+    // they appear in the schema (v3 evaluators have the data but not the schema fields).
+    // Use x-parameter: "feedback_config" to trigger FeedbackConfigurationControl.
+    const feedbackConfigSchema = buildFeedbackConfigSchema(response_type, json_schema)
 
     // Build advanced_config schema if any of the fields exist
     const hasAdvancedFields = correct_answer_key || threshold
@@ -214,8 +245,9 @@ export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record
           }
         : undefined
 
-    return {
+    const result = {
         ...flatSchema,
+        type: "object",
         properties: {
             prompt: {
                 type: "object",
@@ -233,9 +265,10 @@ export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record
                 },
             },
             // Feedback Configuration as a top-level collapsible section
-            ...(feedbackConfigSchema ? {feedback_config: feedbackConfigSchema} : {}),
+            feedback_config: feedbackConfigSchema,
             ...(advancedConfigSchema ? {advanced_config: advancedConfigSchema} : {}),
             ...restProps,
         },
     }
+    return result
 }

@@ -63,6 +63,7 @@ import {
     workflowEntityAtomFamily,
     workflowLocalServerDataAtomFamily,
     workflowIsDirtyAtomFamily,
+    workflowIsEphemeralAtomFamily,
     workflowServerDataSelectorFamily,
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
@@ -309,7 +310,8 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = !!entity?.flags?.is_evaluator
         if (isEvaluator) {
-            return nestEvaluatorSchema(flatSchema) as Record<string, unknown>
+            const nested = nestEvaluatorSchema(flatSchema) as Record<string, unknown>
+            return nested
         }
         return flatSchema
     }),
@@ -419,13 +421,21 @@ const serverDataAtomFamily = atomFamily((workflowId: string) =>
 )
 
 /**
- * Server configuration selector (flat params from server, before draft overlay).
- * Used as baseline for evaluator config flattening.
+ * Server configuration selector (params from server, before draft overlay).
+ * For evaluator workflows, applies the same nesting transform as `configurationSelectorAtomFamily`
+ * so that commit diffs compare like-for-like (both sides nested).
  */
 const serverConfigurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
         const serverData = get(workflowServerDataSelectorFamily(workflowId))
-        return (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+        const flatParams = (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+        if (!flatParams) return null
+
+        const isEvaluator = !!serverData?.flags?.is_evaluator
+        if (isEvaluator) {
+            return nestEvaluatorConfiguration(flatParams)
+        }
+        return flatParams
     }),
 )
 
@@ -476,6 +486,8 @@ export const workflowMolecule = {
         query: queryAtomFamily,
         /** Is dirty (has local edits) */
         isDirty: workflowIsDirtyAtomFamily,
+        /** Is ephemeral (created from template, not yet committed) */
+        isEphemeral: workflowIsEphemeralAtomFamily,
         /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
         uri: uriAtomFamily,
         /** Workflow key parsed from URI (e.g., "auto_exact_match") */
@@ -555,6 +567,8 @@ export const workflowMolecule = {
         entity: workflowEntityAtomFamily,
         /** Per-entity dirty flag */
         isDirty: workflowIsDirtyAtomFamily,
+        /** Per-entity ephemeral flag */
+        isEphemeral: workflowIsEphemeralAtomFamily,
     },
 
     // ========================================================================
@@ -577,6 +591,8 @@ export const workflowMolecule = {
             getStore(options).get(workflowEntityAtomFamily(workflowId)),
         isDirty: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(workflowIsDirtyAtomFamily(workflowId)),
+        isEphemeral: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowIsEphemeralAtomFamily(workflowId)),
         uri: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(uriAtomFamily(workflowId)),
         workflowKey: (workflowId: string, options?: StoreOptions) =>
