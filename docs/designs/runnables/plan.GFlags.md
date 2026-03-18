@@ -591,12 +591,12 @@ Dropped as redundant: `is_human` (`is_managed and is_custom and is_trace`).
 
 | Flag | Schema Location | Rule |
 |------|-----------------|------|
-| `is_chat` | `schemas.outputs` | `schemas.inputs` and `schemas.outputs` have `x-ag-message(s)` somewhere |
-| `is_structured` | `schemas.outputs` | `schemas.outputs` is a non-null, non-empty valid JSON schema object (?) |
+| `is_chat` | `schemas.outputs` | `schemas.outputs` has `x-ag-message(s)` somewhere |
+| `is_structured` | `schemas.outputs` | `schemas.outputs` is valid JSON schema |
 
 ---
 
-### Invocation-Derived Flags
+### Interface-Derived Flags
 
 A workflow is runnable if it has either a URL (remote endpoint) or a handler (local in-process function). The URL is always present for `agenta:builtin:*` (inferred by the platform). For `*:custom:*` families, both URL and handler may be absent.
 
@@ -607,11 +607,15 @@ A workflow is runnable if it has either a URL (remote endpoint) or a handler (lo
 | `agenta:custom:{code,hook}:*` | User-defined — may be absent | SDK registration — may be absent |
 | `user:custom:*` | User-defined — may be absent | SDK registration — may be absent |
 
-| Flag | Rule |
-|------|------|
-| `is_runnable` | `bool(url) or bool(handler)` |
+| Flag | Rule | Available |
+|------|------|-----------|
+| `has_url` | `bool(url)` | API + SDK |
+| `has_handler` | `bool(handler)` | SDK only — resolved via `HANDLER_REGISTRY` |
+| `has_script` | `bool(script)` | API + SDK — from `WorkflowServiceConfiguration.script` |
 
-`handler` is only resolvable in the SDK (via `HANDLER_REGISTRY`). At the API layer, only `url` is available — `is_runnable` degrades to `bool(url)` there.
+`handler` is only resolvable in the SDK. At the API layer `has_handler` is always `False`.
+
+Dropped as redundant: `is_runnable` (`has_url or has_handler`).
 
 ---
 
@@ -665,8 +669,9 @@ def infer_flags_from_data(
     *,
     uri: Optional[str],
     url: Optional[str],
-    schemas: Optional[JsonSchemas],
+    script: Optional[str] = None,        # from WorkflowServiceConfiguration.script
     handler: Optional[Callable] = None,  # SDK only — from HANDLER_REGISTRY lookup
+    schemas: Optional[JsonSchemas] = None,
     caller_is_evaluator: Optional[bool] = None,
     caller_is_application: Optional[bool] = None,
 ) -> WorkflowFlags:
@@ -683,8 +688,10 @@ def infer_flags_from_data(
     is_trace = key == "trace"
     is_match = key == "match"
 
-    # Invocation-derived (URL or local handler)
-    is_runnable = bool(url) or bool(handler)
+    # Interface-derived
+    has_url     = bool(url)
+    has_handler = bool(handler)
+    has_script  = bool(script)
 
     # Role flags — table provides defaults, caller overrides for any URI
     if kind and key:
@@ -721,8 +728,10 @@ def infer_flags_from_data(
         # topology
         is_custom=is_custom,
         is_managed=is_managed,
-        # runnability
-        is_runnable=is_runnable,
+        # Interface
+        has_url=has_url,
+        has_handler=has_handler,
+        has_script=has_script,
         # key-based type
         is_llm=is_llm,
         is_hook=is_hook,
@@ -742,28 +751,27 @@ def infer_flags_from_data(
 
 ### Flag Matrix by URI Family
 
-| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_trace` | `is_match` | `is_runnable` | `is_evaluator` | `is_application` |
-|-------------|-------------|--------------|----------|-----------|-----------|------------|------------|---------------|----------------|-----------------|
-| `agenta:builtin:chat:*` | F | T | F | F | F | F | F | T | F | T |
-| `agenta:builtin:completion:*` | F | T | F | F | F | F | F | T | F | T |
-| `agenta:builtin:match:*` | F | T | F | F | F | F | T | T | T | F |
-| `agenta:builtin:llm:*` | F | T | T | F | F | F | F | T | T | T |
-| `agenta:builtin:*` (all others) | F | T | F | F | F | F | F | T | T | F |
-| `agenta:custom:code:*` | T | T | F | F | T | F | F | bool(url\|handler) | T | T |
-| `agenta:custom:hook:*` | T | T | F | T | F | F | F | bool(url\|handler) | T | T |
-| `agenta:custom:trace:*` | T | T | F | F | F | T | F | F | T | T |
-| `user:custom:*` | T | F | F | F | F | F | F | bool(url\|handler) | T | F |
-| `None` | F | F | F | F | F | F | F | F | T | F |
+| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_trace` | `is_match` | `has_url` | `has_handler` | `has_script` | `is_evaluator` | `is_application` |
+|-------------|-------------|--------------|----------|-----------|-----------|------------|------------|-----------|---------------|--------------|----------------|-----------------|
+| `agenta:builtin:chat:*` | F | T | F | F | F | F | F | T | F | F | F | T |
+| `agenta:builtin:completion:*` | F | T | F | F | F | F | F | T | F | F | F | T |
+| `agenta:builtin:match:*` | F | T | F | F | F | F | T | T | F | F | T | F |
+| `agenta:builtin:llm:*` | F | T | T | F | F | F | F | T | F | F | T | T |
+| `agenta:builtin:*` (all others) | F | T | F | F | F | F | F | T | F | F | T | F |
+| `agenta:custom:code:*` | T | T | F | F | T | F | F | ? | ? | ? | T | T |
+| `agenta:custom:hook:*` | T | T | F | T | F | F | F | ? | ? | ? | T | T |
+| `agenta:custom:trace:*` | T | T | F | F | F | T | F | F | F | F | T | T |
+| `user:custom:*` | T | F | F | F | F | F | F | ? | ? | ? | T | F |
+| `None` | F | F | F | F | F | F | F | F | F | F | T | F |
 
 ---
 
 ### Notes for Iteration
 
 - `is_trace` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_human` is dropped — it was redundant with `is_managed and is_custom and is_trace`.
-- `is_runnable` (by exclusion) supersedes S2's read-time URL-presence derivation. Stored at write time.
 - `is_evaluator` and `is_application` for `agenta:*` URIs use the lookup table `_AGENTA_ROLE_TABLE` — it is **positively exhaustive**: every known key is listed, unknown keys raise. `agenta:builtin:chat` and `agenta:builtin:completion` are the only application-only builtins; all other builtins are evaluator-only. Update the table whenever a new agenta URI key is introduced.
 - `is_evaluator` and `is_application` for `user:custom:*` are caller-provided at creation and edit time. If omitted by caller, they default to `False`. Do NOT infer them from URI for external workflows.
 - `is_structured` is a lightweight flag — it does not validate the schema, only checks presence. Schema validity is enforced by `WorkflowServiceInterface` model validator at parse time.
-- `WorkflowFlags` model must be extended with: `is_managed`, `is_trace`, `is_runnable`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
+- `WorkflowFlags` model must be extended with: `is_managed`, `is_trace`, `is_match`, `has_url`, `has_handler`, `has_script`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
 - Call site: `api/oss/src/core/workflows/service.py` during `commit_revision` — replace manual flag construction with `infer_flags_from_data(...)`.
-- `AnnotationOrigin` derivation (S3) reads `flags.is_runnable` and `flags.is_custom` from stored flags — no URI re-parse needed at annotation time.
+- `AnnotationOrigin` derivation (S3) reads `flags.has_url`, `flags.has_handler`, and `flags.is_custom` from stored flags — no URI re-parse needed at annotation time.
