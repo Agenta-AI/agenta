@@ -1,13 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {
-    ArrowsClockwiseIcon,
-    DatabaseIcon,
-    ExportIcon,
-    ListChecks,
-    TrashIcon,
-} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -16,6 +10,7 @@ import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
@@ -44,11 +39,6 @@ const DeleteTraceModal = dynamic(
     {
         ssr: false,
     },
-)
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
 )
 
 const AutoRefreshControl: React.FC<{
@@ -493,26 +483,22 @@ const ObservabilityHeader = ({
                                     </Radio.Group>
                                 </Space>
 
-                                <EnhancedButton
-                                    aria-label="Add selected traces to testset"
-                                    onClick={() => getTestsetTraceData()}
-                                    icon={<DatabaseIcon size={14} />}
-                                    disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to testset"}}
-                                    data-tour="create-testset-button"
+                                <AddActionsDropdown
+                                    size="small"
+                                    dataTour="create-testset-button"
+                                    testsetAction={{
+                                        onSelect: getTestsetTraceData,
+                                        disabled:
+                                            traces.length === 0 || selectedRowKeys.length === 0,
+                                    }}
+                                    queueAction={{
+                                        itemType: "traces",
+                                        itemIds: selectedTraceIds,
+                                        disabled:
+                                            traces.length === 0 || selectedTraceIds.length === 0,
+                                        onItemsAdded: handleQueueItemsAdded,
+                                    }}
                                 />
-                                <AddToQueuePopover
-                                    itemType="traces"
-                                    itemIds={selectedTraceIds}
-                                    disabled={traces.length === 0 || selectedTraceIds.length === 0}
-                                    onItemsAdded={handleQueueItemsAdded}
-                                >
-                                    <EnhancedButton
-                                        aria-label="Add selected traces to annotation queue"
-                                        icon={<ListChecks size={14} />}
-                                        tooltipProps={{title: "Add to queue"}}
-                                    />
-                                </AddToQueuePopover>
                             </>
                         ) : null}
                         {isScrolled && componentType === "sessions" && setRealtimeMode ? (
@@ -579,22 +565,19 @@ const ObservabilityHeader = ({
                             >
                                 Delete
                             </Button>
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<DatabaseIcon size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                data-tour="create-testset-button"
-                            >
-                                Add to testset
-                            </Button>
-                            <AddToQueuePopover
-                                itemType="traces"
-                                itemIds={selectedTraceIds}
-                                disabled={traces.length === 0 || selectedTraceIds.length === 0}
-                                onItemsAdded={handleQueueItemsAdded}
-                            >
-                                <Button icon={<ListChecks size={14} />}>Add to queue</Button>
-                            </AddToQueuePopover>
+                            <AddActionsDropdown
+                                dataTour="create-testset-button"
+                                testsetAction={{
+                                    onSelect: getTestsetTraceData,
+                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
+                                }}
+                                queueAction={{
+                                    itemType: "traces",
+                                    itemIds: selectedTraceIds,
+                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                                    onItemsAdded: handleQueueItemsAdded,
+                                }}
+                            />
                         </Space>
                     </div>
                 ) : null}

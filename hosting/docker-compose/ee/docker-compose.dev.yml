@@ -369,7 +369,7 @@ services:
 
     postgres:
         # === IMAGE ================================================ #
-        image: postgres:16
+        image: postgres:17
         # === STORAGE ============================================== #
         volumes:
             - postgres-data:/var/lib/postgresql/data/

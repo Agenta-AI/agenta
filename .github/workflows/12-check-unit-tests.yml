@@ -1,0 +1,185 @@
+name: "12 - check unit tests"
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'sdk/**'
+      - 'api/**'
+      - 'services/**'
+      - '.github/workflows/12-check-unit-tests.yml'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - web-only
+          - sdk-only
+          - api-only
+          - services-only
+          - none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-unit-tests-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+
+  run-web-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Check for web unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: |
+          if ! find web/oss/tests/playwright/unit -type f ! -name '.gitkeep' | grep -q .; then
+            echo "No web unit tests found; skipping."
+            exit 0
+          fi
+
+          echo "Web unit tests exist but no dedicated no-deploy runner is wired yet."
+          exit 1
+
+  run-sdk-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when package selection excludes SDK
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-application-sdk-unit-pip-${{ hashFiles('sdk/pyproject.toml', 'sdk/poetry.lock', 'sdk/*/tests/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-application-sdk-unit-pip-
+
+      - name: Install SDK dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        run: |
+          pip install -r sdk/oss/tests/requirements.txt
+          pip install -e sdk/
+
+      - name: Run SDK unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages)
+        run: |
+          cd sdk
+          python run-tests.py --license oss -- oss/tests/pytest/unit
+
+      - name: Publish SDK unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdk/oss/tests/results/junit.xml
+          check_name: Application SDK Unit Test Results
+          comment_mode: off
+
+  run-api-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-application-api-unit-pip-${{ hashFiles('api/pyproject.toml', 'api/poetry.lock', 'api/*/tests/requirements.txt', 'sdk/pyproject.toml', 'sdk/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-pip-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: |
+          pip install "poetry==2.3.1" "poetry-plugin-export"
+          cd api
+          poetry export --without-hashes --format requirements.txt --output /tmp/api-requirements.txt
+          pip install -r /tmp/api-requirements.txt
+          pip install -r oss/tests/requirements.txt
+          pip install -e ../sdk/
+
+      - name: Run API unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: |
+          cd api
+          python run-tests.py --license oss -- oss/tests/pytest/unit
+
+      - name: Publish API unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/oss/tests/results/junit.xml
+          check_name: Application API Unit Test Results
+          comment_mode: off
+
+  run-services-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Check for services unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: |
+          if ! find services/oss/tests/pytest/unit -type f ! -name '.gitkeep' | grep -q .; then
+            echo "No services unit tests found; skipping."
+            exit 0
+          fi
+
+          echo "Services unit tests exist but no dedicated runner is wired yet."
+          exit 1

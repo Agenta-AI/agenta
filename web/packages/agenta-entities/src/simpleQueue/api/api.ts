@@ -198,7 +198,7 @@ export async function querySimpleQueueScenarios({
 /**
  * Add trace IDs to a simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/{queue_id}/traces`
+ * Endpoint: `POST /preview/simple/queues/{queue_id}/traces/`
  */
 export async function addSimpleQueueTraces(
     projectId: string,
@@ -210,7 +210,7 @@ export async function addSimpleQueueTraces(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/traces`,
+        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/traces/`,
         {trace_ids: traceIds},
         {params: {project_id: projectId}},
     )
@@ -226,7 +226,7 @@ export async function addSimpleQueueTraces(
 /**
  * Add testcase IDs to a simple queue.
  *
- * Endpoint: `POST /preview/simple/queues/{queue_id}/testcases`
+ * Endpoint: `POST /preview/simple/queues/{queue_id}/testcases/`
  */
 export async function addSimpleQueueTestcases(
     projectId: string,
@@ -238,7 +238,7 @@ export async function addSimpleQueueTestcases(
     }
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/testcases`,
+        `${getAgentaApiUrl()}/preview/simple/queues/${queueId}/testcases/`,
         {testcase_ids: testcaseIds},
         {params: {project_id: projectId}},
     )

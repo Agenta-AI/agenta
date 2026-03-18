@@ -42,8 +42,14 @@ import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {fetchTestcase} from "@agenta/entities/testcase"
+import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
+import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
+import {
+    fetchLatestRevisionsBatch,
+    fetchRevisionWithTestcases,
+    patchRevision,
+} from "@agenta/entities/testset"
 import {
     traceEntityAtomFamily,
     traceInputsAtomFamily,
@@ -57,6 +63,14 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {
+    buildTestsetSyncOperations,
+    buildTestsetSyncPreview,
+    remapTargetRowsToBaseRevision,
+    selectQueueScopedAnnotation,
+    type CompletedScenarioRef,
+    type TestsetSyncEvaluator,
+} from "../testsetSync"
 import type {
     AnnotationColumnDef,
     ScenarioListColumnDef,
@@ -114,7 +128,41 @@ const scenariosQueryAtom = atom((get) => {
 const completedScenarioIdsAtom = atom<Set<string>>(new Set<string>())
 
 /** Active view in the annotation session ("list" or "annotate") */
-const activeSessionViewAtom = atom<SessionView>("list")
+const activeSessionViewAtom = atom<SessionView>("annotate")
+
+/** Status filter for the annotate focus view */
+const focusStatusFilterAtom = atom<EvaluationStatus | null>(null)
+
+function getScenarioStatusValue({
+    scenarioId,
+    records,
+    completed,
+}: {
+    scenarioId: string
+    records: ScenarioRecord[]
+    completed: Set<string>
+}): string | null {
+    if (completed.has(scenarioId)) return "success"
+    const record = records.find((r) => r.id === scenarioId)
+    return (record?.status as string) ?? null
+}
+
+function getNavigableScenarioIds({get, view}: {get: Getter; view?: SessionView}): string[] {
+    const ids = get(scenarioIdsAtom)
+    const activeView = view ?? get(activeSessionViewAtom)
+    if (activeView !== "annotate") return ids
+
+    const statusFilter = get(focusStatusFilterAtom)
+    if (!statusFilter) return ids
+
+    const records = get(scenarioRecordsAtom)
+    const completed = get(completedScenarioIdsAtom)
+    return ids.filter(
+        (scenarioId) => getScenarioStatusValue({scenarioId, records, completed}) === statusFilter,
+    )
+}
+
+const navigableScenarioIdsAtom = atom<string[]>((get) => getNavigableScenarioIds({get}))
 
 // ============================================================================
 // DERIVED ATOMS — Queue-level
@@ -125,7 +173,7 @@ const isActiveAtom = atom<boolean>((get) => get(activeQueueIdAtom) !== null)
 
 /** The current scenario ID */
 const currentScenarioIdAtom = atom<string | null>((get) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     if (ids.length === 0) return null
 
     const focusedScenarioId = get(focusedScenarioIdAtom)
@@ -138,7 +186,7 @@ const currentScenarioIdAtom = atom<string | null>((get) => {
 
 /** Current scenario index (0-based) */
 const currentScenarioIndexAtom = atom<number>((get) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     const currentScenarioId = get(currentScenarioIdAtom)
 
     if (!currentScenarioId) return 0
@@ -150,7 +198,7 @@ const currentScenarioIndexAtom = atom<number>((get) => {
 /** Can navigate to next item? */
 const hasNextAtom = atom<boolean>((get) => {
     const idx = get(currentScenarioIndexAtom)
-    return idx < get(scenarioIdsAtom).length - 1
+    return idx < get(navigableScenarioIdsAtom).length - 1
 })
 
 /** Can navigate to previous item? */
@@ -201,7 +249,7 @@ const scenarioStatusesAtom = atom<Record<string, string | null>>((get) => {
         if (completed.has(id)) {
             map[id] = "success"
         } else {
-            map[id] = (s.status as string) ?? null
+            map[id] = getScenarioStatusValue({scenarioId: id, records, completed})
         }
     }
     return map
@@ -249,6 +297,40 @@ const evaluatorRevisionIdsAtom = atom<string[]>((get) => {
     const runId = get(activeRunIdAtom)
     if (!runId) return []
     return get(evaluationRunMolecule.selectors.evaluatorRevisionIds(runId))
+})
+
+/** Evaluator metadata for queue-scoped testcase sync. */
+const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
+    const runId = get(activeRunIdAtom)
+    if (!runId) return []
+
+    const byKey = new Map<string, TestsetSyncEvaluator>()
+    const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+
+    for (const step of annotationSteps) {
+        const workflowId = step.references?.evaluator?.id ?? null
+        const evaluatorEntity = workflowId
+            ? get(evaluatorMolecule.selectors.data(workflowId))
+            : null
+        const name = evaluatorEntity?.name?.trim() || null
+        const slug =
+            step.references?.evaluator?.slug ??
+            evaluatorEntity?.slug ??
+            step.references?.evaluator_revision?.slug ??
+            workflowId
+
+        if (!slug && !workflowId) continue
+        const key = workflowId ?? slug
+        if (!key) continue
+
+        byKey.set(key, {
+            slug: slug ?? key ?? "",
+            name,
+            workflowId,
+        })
+    }
+
+    return Array.from(byKey.values()).filter((evaluator) => Boolean(evaluator.slug))
 })
 
 /**
@@ -334,12 +416,15 @@ const testcaseInputKeysAtom = atom<string[]>((get) => {
     const testcase = query?.data
     if (!testcase?.data) return []
 
-    return Object.keys(testcase.data)
+    return Object.keys(testcase.data).filter((key) => !TESTCASE_SYSTEM_KEYS.has(key))
 })
 
 // ============================================================================
 // COLUMN DISCOVERY HELPERS (for testcase-based queues)
 // ============================================================================
+
+/** System keys to exclude from testcase data columns (internal fields not for display) */
+const TESTCASE_SYSTEM_KEYS = new Set(["testcase_dedup_id", "__dedup_id__"])
 
 /** Keys to exclude from display in testcase columns */
 const EXCLUDE_KEYS = new Set([
@@ -808,17 +893,49 @@ const scenarioAnnotationsByLinkQueryAtomFamily = atomFamily(
 )
 
 /**
+ * Testcase-based annotation query — finds annotations by testcase reference.
+ * This is the fallback for testcase-based queues where no trace_id exists.
+ */
+const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
+    ({scenarioId, testcaseId}: {scenarioId: string; testcaseId: string}) =>
+        atomWithQuery(() => ({
+            queryKey: ["scenarioAnnotationsByTestcase", scenarioId, testcaseId],
+            queryFn: async (): Promise<Annotation[]> => {
+                const projectId = getStore().get(projectIdAtom)
+                if (!projectId || !testcaseId) return []
+                const response = await queryAnnotations({
+                    projectId,
+                    annotation: {
+                        references: {
+                            testcase: {id: testcaseId},
+                        },
+                    },
+                })
+                return response.annotations ?? []
+            },
+            enabled: !!testcaseId,
+            retry: (failureCount: number, error: Error) => {
+                if (error?.message === "projectId not yet available" && failureCount < 5) {
+                    return true
+                }
+                return false
+            },
+            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+            staleTime: 30_000,
+        })),
+    (a: {scenarioId: string; testcaseId: string}, b: {scenarioId: string; testcaseId: string}) =>
+        a.scenarioId === b.scenarioId && a.testcaseId === b.testcaseId,
+)
+
+/**
  * Resolved annotations for a scenario.
  *
- * Uses two resolution paths:
+ * Uses three resolution paths:
  * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results
  * 2. **Link-based** (fallback): Query annotations whose `links` reference the invocation trace
+ * 3. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues)
  *
- * The link-based path is a TRUE FALLBACK — it only fires when step-based returns empty.
- * This avoids redundant API calls and UI flicker from dual queries resolving at different times.
- *
- * The link-based fallback ensures annotations are found even when step result
- * upserts fail (they run as non-blocking post-submit operations).
+ * The fallback paths only fire when previous paths return empty.
  */
 const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
@@ -844,6 +961,18 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
                 }),
             )
             return linkQuery.data ?? []
+        }
+
+        // Path 3: Testcase-based resolution (for testcase queues without trace_id)
+        const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
+        if (testcaseRef.testcaseId) {
+            const testcaseQuery = get(
+                scenarioAnnotationsByTestcaseQueryAtomFamily({
+                    scenarioId,
+                    testcaseId: testcaseRef.testcaseId,
+                }),
+            )
+            return testcaseQuery.data ?? []
         }
 
         return []
@@ -1236,6 +1365,25 @@ const scenarioAnnotationByEvaluatorAtomFamily = atomFamily(
             const annotations = get(scenarioAnnotationsAtomFamily(key.scenarioId))
             if (!annotations?.length) return null
 
+            if (get(queueKindAtom) === "testcases") {
+                const queueId = get(activeQueueIdAtom)
+                const evaluatorSlug =
+                    key.evaluatorSlug ??
+                    get(testsetSyncEvaluatorsAtom).find(
+                        (evaluator) => evaluator.workflowId === key.evaluatorId,
+                    )?.slug
+                if (!queueId || !evaluatorSlug) return null
+
+                const selection = selectQueueScopedAnnotation({
+                    annotations,
+                    queueId,
+                    evaluatorSlug,
+                    evaluatorWorkflowId: key.evaluatorId,
+                })
+
+                return selection.annotation
+            }
+
             return (
                 annotations.find((ann) => {
                     const ref = ann.references?.evaluator
@@ -1449,7 +1597,8 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
     set(activeQueueTypeAtom, queueType)
     set(focusedScenarioIdAtom, initialScenarioId ?? null)
     set(completedScenarioIdsAtom, new Set())
-    set(activeSessionViewAtom, initialView ?? "list")
+    set(activeSessionViewAtom, initialView ?? "annotate")
+    set(focusStatusFilterAtom, null)
 
     // scenarioIdsAtom and scenarioRecordsAtom are now derived from
     // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
@@ -1462,10 +1611,12 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
  * Navigate to next scenario.
  */
 const navigateNextAtom = atom(null, (get, set) => {
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    if (idx < ids.length - 1) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
+    const scenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "next",
+    })
+    if (scenarioId) {
+        setFocusedScenarioId({get, set, scenarioId, notify: true})
     }
 })
 
@@ -1473,10 +1624,12 @@ const navigateNextAtom = atom(null, (get, set) => {
  * Navigate to previous scenario.
  */
 const navigatePrevAtom = atom(null, (get, set) => {
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    if (idx > 0) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx - 1], notify: true})
+    const scenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "prev",
+    })
+    if (scenarioId) {
+        setFocusedScenarioId({get, set, scenarioId, notify: true})
     }
 })
 
@@ -1484,7 +1637,7 @@ const navigatePrevAtom = atom(null, (get, set) => {
  * Navigate to a specific scenario by index.
  */
 const navigateToIndexAtom = atom(null, (get, set, index: number) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     if (index >= 0 && index < ids.length) {
         setFocusedScenarioId({get, set, scenarioId: ids[index], notify: true})
     }
@@ -1533,6 +1686,42 @@ function resolveFallbackScenarioId({
     return ids[0] ?? null
 }
 
+function resolveAdjacentNavigableScenarioId({
+    get,
+    direction,
+}: {
+    get: Getter
+    direction: "next" | "prev"
+}): string | null {
+    const ids = get(navigableScenarioIdsAtom)
+    if (ids.length === 0) return null
+
+    const currentId = get(focusedScenarioIdAtom) ?? get(currentScenarioIdAtom)
+    if (!currentId) {
+        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
+    }
+
+    const visibleIndex = ids.indexOf(currentId)
+    if (visibleIndex >= 0) {
+        return direction === "next"
+            ? (ids[visibleIndex + 1] ?? null)
+            : (ids[visibleIndex - 1] ?? null)
+    }
+
+    const allIds = get(scenarioIdsAtom)
+    const currentIndex = allIds.indexOf(currentId)
+    if (currentIndex < 0) {
+        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
+    }
+
+    const matches = ids.filter((id) => {
+        const idIndex = allIds.indexOf(id)
+        return direction === "next" ? idIndex > currentIndex : idIndex < currentIndex
+    })
+
+    return direction === "next" ? (matches[0] ?? null) : (matches[matches.length - 1] ?? null)
+}
+
 function setFocusedScenarioId({
     get,
     set,
@@ -1549,7 +1738,7 @@ function setFocusedScenarioId({
 
     if (!notify || !scenarioId || scenarioId === previousScenarioId) return
 
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     const index = ids.indexOf(scenarioId)
 
     if (index >= 0) {
@@ -1567,23 +1756,12 @@ const completeAndAdvanceAtom = atom(null, (get, set) => {
         _onAnnotationSubmitted?.(currentId)
     }
 
-    // Auto-advance to the next pending (non-completed) scenario
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-    const completed = get(completedScenarioIdsAtom)
-
-    // Look for the next pending scenario after current index
-    for (let i = idx + 1; i < ids.length; i++) {
-        if (!isScenarioCompleted(ids[i], completed, records)) {
-            setFocusedScenarioId({get, set, scenarioId: ids[i], notify: true})
-            return
-        }
-    }
-
-    // If no pending scenario found after current, stay (all remaining are completed)
-    if (idx < ids.length - 1) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
+    const nextScenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "next",
+    })
+    if (nextScenarioId) {
+        setFocusedScenarioId({get, set, scenarioId: nextScenarioId, notify: true})
     }
 })
 
@@ -1598,7 +1776,7 @@ const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     if (view !== "annotate") return
 
     const currentScenarioId = get(currentScenarioIdAtom)
-    const ids = get(scenarioIdsAtom)
+    const ids = getNavigableScenarioIds({get, view})
     if (currentScenarioId && ids.includes(currentScenarioId)) {
         set(focusedScenarioIdAtom, currentScenarioId)
         return
@@ -1613,6 +1791,33 @@ const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     }
 })
 
+const setFocusStatusFilterAtom = atom(null, (get, set, status: EvaluationStatus | null) => {
+    const previousScenarioId = get(currentScenarioIdAtom)
+    set(focusStatusFilterAtom, status)
+
+    const ids = get(navigableScenarioIdsAtom)
+    if (previousScenarioId && ids.includes(previousScenarioId)) {
+        setFocusedScenarioId({get, set, scenarioId: previousScenarioId, notify: true})
+        return
+    }
+
+    if (ids.length === 0) {
+        setFocusedScenarioId({get, set, scenarioId: null, notify: true})
+        return
+    }
+
+    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
+    const completed = get(completedScenarioIdsAtom)
+    const fallbackScenarioId = resolveFallbackScenarioId({
+        ids,
+        records,
+        completed,
+        view: "annotate",
+    })
+
+    setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
+})
+
 /**
  * Apply route state from URL parameters.
  */
@@ -1620,7 +1825,7 @@ const applyRouteStateAtom = atom(null, (get, set, payload: ApplyRouteStatePayloa
     const nextView = payload.view ?? get(activeSessionViewAtom)
     set(activeSessionViewAtom, nextView)
 
-    const ids = get(scenarioIdsAtom)
+    const ids = getNavigableScenarioIds({get, view: nextView})
     const requestedScenarioId =
         payload.scenarioId === undefined ? get(focusedScenarioIdAtom) : payload.scenarioId
 
@@ -1672,7 +1877,8 @@ const closeSessionAtom = atom(null, (get, set) => {
     set(activeQueueTypeAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
-    set(activeSessionViewAtom, "list")
+    set(activeSessionViewAtom, "annotate")
+    set(focusStatusFilterAtom, null)
 
     // Notify callback
     _onSessionClosed?.()
@@ -1694,6 +1900,184 @@ let _onQueueOpened: ((queueId: string, queueType: QueueType) => void) | null = n
 let _onAnnotationSubmitted: ((scenarioId: string) => void) | null = null
 let _onSessionClosed: (() => void) | null = null
 let _onNavigate: ((scenarioId: string, index: number) => void) | null = null
+
+async function fetchBaseRevisionRows(params: {projectId: string; revisionId: string}) {
+    const revision = await fetchRevisionWithTestcases({
+        id: params.revisionId,
+        projectId: params.projectId,
+    })
+
+    const rawRows = revision?.data?.testcases ?? []
+
+    return rawRows as {
+        id?: string | null
+        data?: Record<string, unknown> | null
+    }[]
+}
+
+// ============================================================================
+// SYNC TO TESTSET
+// ============================================================================
+
+/**
+ * Whether the session can sync annotated data back to the source testset.
+ * True when queue kind is "testcases" and at least one scenario is completed.
+ */
+const canSyncToTestsetAtom = atom<boolean>((get) => {
+    const queueKind = get(queueKindAtom)
+    if (queueKind !== "testcases") return false
+    const ids = get(scenarioIdsAtom)
+    const completed = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+    return ids.some((id) => isScenarioCompleted(id, completed, records))
+})
+
+async function buildTestsetSyncPreviewForSession(get: Getter) {
+    const projectId = getStore().get(projectIdAtom)
+    if (!projectId) throw new Error("No project ID")
+
+    const queueId = get(activeQueueIdAtom)
+    if (!queueId) throw new Error("No active queue")
+
+    if (get(queueKindAtom) !== "testcases") {
+        throw new Error("Testset sync is only available for testcase queues")
+    }
+
+    const scenarioIds = get(scenarioIdsAtom)
+    const completedIds = get(completedScenarioIdsAtom)
+    const records = get(scenarioRecordsAtom)
+
+    const completedScenarios: CompletedScenarioRef[] = scenarioIds
+        .filter((id) => isScenarioCompleted(id, completedIds, records))
+        .map((scenarioId) => ({
+            scenarioId,
+            testcaseId: get(scenarioTestcaseRefAtomFamily(scenarioId)).testcaseId,
+        }))
+        .filter((entry) => entry.testcaseId)
+
+    if (completedScenarios.length === 0) {
+        throw new Error("No completed testcase scenarios")
+    }
+
+    const testcaseIds = Array.from(new Set(completedScenarios.map((entry) => entry.testcaseId)))
+    const testcases = await fetchTestcasesBatch({projectId, testcaseIds})
+
+    const testsetIds = Array.from(
+        new Set(
+            Array.from(testcases.values())
+                .map((testcase) => testcase.testset_id ?? testcase.set_id ?? null)
+                .filter(Boolean),
+        ),
+    ) as string[]
+
+    const [latestRevisionMap, annotationsByTestcaseId] = await Promise.all([
+        fetchLatestRevisionsBatch(projectId, testsetIds),
+        (async () => {
+            const entries = await Promise.all(
+                testcaseIds.map(async (testcaseId) => {
+                    const response = await queryAnnotations({
+                        projectId,
+                        annotation: {
+                            references: {
+                                testcase: {id: testcaseId},
+                            },
+                        },
+                    })
+                    return [testcaseId, response.annotations ?? []] as const
+                }),
+            )
+            return new Map(entries)
+        })(),
+    ])
+
+    const latestRevisionIdsByTestsetId = new Map<string, string>()
+    latestRevisionMap.forEach((revision, testsetId) => {
+        latestRevisionIdsByTestsetId.set(testsetId, revision.id)
+    })
+
+    return buildTestsetSyncPreview({
+        queueId,
+        completedScenarios,
+        testcasesById: testcases,
+        annotationsByTestcaseId,
+        evaluators: get(testsetSyncEvaluatorsAtom),
+        latestRevisionIdsByTestsetId,
+    })
+}
+
+const syncToTestsetsAtom = atom(null, async (get, set) => {
+    const projectId = getStore().get(projectIdAtom)
+    if (!projectId) throw new Error("No project ID")
+
+    const queueName = get(queueNameAtom) ?? "Annotation queue results"
+    const preview = await buildTestsetSyncPreviewForSession(get)
+
+    if (preview.hasBlockingConflicts) {
+        throw new Error("No exportable testcase annotations available for sync")
+    }
+
+    const preparedTargets = await Promise.all(
+        preview.targets.map(async (target) => {
+            const baseRows = await fetchBaseRevisionRows({
+                revisionId: target.baseRevisionId,
+                projectId,
+            })
+
+            return remapTargetRowsToBaseRevision({
+                target,
+                baseRows,
+            })
+        }),
+    )
+
+    const syncTargets = preparedTargets
+        .map((entry) => entry.target)
+        .filter((target) => target.rows.length > 0)
+    const remapDroppedRows = preparedTargets.reduce((sum, entry) => sum + entry.droppedRowCount, 0)
+
+    const results = await Promise.allSettled(
+        syncTargets.map(async (target) => {
+            await patchRevision({
+                projectId,
+                testsetId: target.testsetId,
+                baseRevisionId: target.baseRevisionId,
+                operations: buildTestsetSyncOperations(target),
+                message: `${queueName}: synced annotations`,
+            })
+
+            return target
+        }),
+    )
+
+    const successfulTargets = results.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+    )
+    const failedTargets = results.flatMap((result, index) =>
+        result.status === "rejected"
+            ? [
+                  {
+                      testsetId: syncTargets[index]?.testsetId ?? "",
+                      rowCount: syncTargets[index]?.rowCount ?? 0,
+                      reason: result.reason,
+                  },
+              ]
+            : [],
+    )
+
+    if (successfulTargets.length === 0) {
+        throw new Error("Failed to sync annotations to testsets")
+    }
+
+    return {
+        targets: successfulTargets,
+        revisionsCreated: successfulTargets.length,
+        rowsExported: successfulTargets.reduce((sum, target) => sum + target.rowCount, 0),
+        skippedRows: preview.skippedRows + remapDroppedRows,
+        rowsFailed: failedTargets.reduce((sum, target) => sum + target.rowCount, 0),
+        conflicts: preview.conflicts,
+        failedTargets,
+    }
+})
 
 /**
  * Register callbacks for annotation session side-effects.
@@ -1744,12 +2128,16 @@ export const annotationSessionController = {
         focusedScenarioId: () => focusedScenarioIdAtom,
         /** All scenario IDs */
         scenarioIds: () => scenarioIdsAtom,
+        /** Scenario IDs currently visible in annotate focus view */
+        focusScenarioIds: () => navigableScenarioIdsAtom,
         /** Progress (total, completed, remaining, currentIndex) */
         progress: () => progressAtom,
         /** Can navigate forward? */
         hasNext: () => hasNextAtom,
         /** Can navigate backward? */
         hasPrev: () => hasPrevAtom,
+        /** Status filter applied in annotate focus view */
+        focusStatusFilter: () => focusStatusFilterAtom,
         /** Is the current scenario already completed? */
         isCurrentCompleted: () => isCurrentCompletedAtom,
         /** Scenario statuses with local completed overlay */
@@ -1796,6 +2184,8 @@ export const annotationSessionController = {
         scenarioAnnotationByEvaluator: scenarioAnnotationByEvaluatorAtomFamily,
         /** Full metric resolution (value + stats + annotation) for an evaluator in a scenario */
         scenarioMetricForEvaluator: scenarioMetricForEvaluatorAtomFamily,
+        /** Whether the session can sync to testset (testcase queue + ≥1 completed) */
+        canSyncToTestset: () => canSyncToTestsetAtom,
     },
 
     // ========================================================================
@@ -1810,6 +2200,8 @@ export const annotationSessionController = {
         navigatePrev: navigatePrevAtom,
         /** Navigate to specific index */
         navigateToIndex: navigateToIndexAtom,
+        /** Set annotate focus status filter */
+        setFocusStatusFilter: setFocusStatusFilterAtom,
         /** Mark a scenario as completed */
         markCompleted: markCompletedAtom,
         /** Mark current as completed and advance */
@@ -1820,6 +2212,10 @@ export const annotationSessionController = {
         setActiveView: setActiveViewAtom,
         /** Apply route state ("view" and "scenarioId") */
         applyRouteState: applyRouteStateAtom,
+        /** Sync testcase annotations back into one or more testsets */
+        syncToTestsets: syncToTestsetsAtom,
+        /** Sync annotated data back to source testset as new revision */
+        syncToTestset: syncToTestsetsAtom,
     },
 
     // ========================================================================
@@ -1834,9 +2230,11 @@ export const annotationSessionController = {
         currentScenarioIndex: () => getStore().get(currentScenarioIndexAtom),
         focusedScenarioId: () => getStore().get(focusedScenarioIdAtom),
         scenarioIds: () => getStore().get(scenarioIdsAtom),
+        focusScenarioIds: () => getStore().get(navigableScenarioIdsAtom),
         progress: () => getStore().get(progressAtom),
         hasNext: () => getStore().get(hasNextAtom),
         hasPrev: () => getStore().get(hasPrevAtom),
+        focusStatusFilter: () => getStore().get(focusStatusFilterAtom),
         queueName: () => getStore().get(queueNameAtom),
         queueKind: () => getStore().get(queueKindAtom),
         queueDescription: () => getStore().get(queueDescriptionAtom),
@@ -1865,6 +2263,7 @@ export const annotationSessionController = {
             getStore().get(scenarioAnnotationByEvaluatorAtomFamily(key)),
         scenarioMetricForEvaluator: (key: ScenarioEvaluatorKey) =>
             getStore().get(scenarioMetricForEvaluatorAtomFamily(key)),
+        canSyncToTestset: () => getStore().get(canSyncToTestsetAtom),
     },
 
     // ========================================================================
@@ -1875,12 +2274,16 @@ export const annotationSessionController = {
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),
+        setFocusStatusFilter: (status: EvaluationStatus | null) =>
+            getStore().set(setFocusStatusFilterAtom, status),
         markCompleted: (scenarioId: string) => getStore().set(markCompletedAtom, scenarioId),
         completeAndAdvance: () => getStore().set(completeAndAdvanceAtom),
         closeSession: () => getStore().set(closeSessionAtom),
         setActiveView: (view: SessionView) => getStore().set(setActiveViewAtom, view),
         applyRouteState: (payload: ApplyRouteStatePayload) =>
             getStore().set(applyRouteStateAtom, payload),
+        syncToTestsets: () => getStore().set(syncToTestsetsAtom),
+        syncToTestset: () => getStore().set(syncToTestsetsAtom),
     },
 
     // ========================================================================

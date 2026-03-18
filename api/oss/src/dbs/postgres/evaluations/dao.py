@@ -286,6 +286,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 return None
 
             run_flags = run_dbe.flags or {}
+            base_flags = EvaluationRunFlags(**run_flags)
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
@@ -294,7 +295,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             run_references = edit_run_references(run)
 
-            run.flags = edit_run_flags(run)
+            run.flags = edit_run_flags(
+                run,
+                base_flags=base_flags,
+            )
 
             run_dbe = edit_dbe_from_dto(
                 dbe=run_dbe,
@@ -348,6 +352,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             for run_dbe in run_dbes:
                 run_flags = run_dbe.flags or {}
+                base_flags = EvaluationRunFlags(**run_flags)
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
@@ -364,7 +369,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 run_references = edit_run_references(run)
 
-                run.flags = edit_run_flags(run)
+                run.flags = edit_run_flags(
+                    run,
+                    base_flags=base_flags,
+                )
 
                 run_dbe = edit_dbe_from_dto(
                     dbe=run_dbe,

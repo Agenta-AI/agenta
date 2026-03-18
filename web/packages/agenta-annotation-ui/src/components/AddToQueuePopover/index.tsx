@@ -2,13 +2,14 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     simpleQueueMolecule,
+    simpleQueuePaginatedStore,
     simpleQueuesListDataAtom,
     simpleQueuesListQueryAtom,
     type SimpleQueue,
 } from "@agenta/entities/simpleQueue"
 import {message} from "@agenta/ui/app-message"
 import {MagnifyingGlass, PlusIcon} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Skeleton, Tag, Typography} from "antd"
+import {Button, Divider, Input, Popover, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -18,14 +19,21 @@ import {
 } from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
 
-const statusColorMap: Record<string, string> = {
-    pending: "default",
-    queued: "processing",
-    running: "processing",
-    success: "success",
-    failure: "error",
-    errors: "error",
-    cancelled: "warning",
+const ANNOTATION_QUEUE_TABLE_PARAMS = {
+    scopeId: "annotation-queues",
+    pageSize: 50,
+} as const
+
+function mergeQueuesById(...queueLists: SimpleQueue[][]): SimpleQueue[] {
+    const merged = new Map<string, SimpleQueue>()
+
+    for (const queues of queueLists) {
+        for (const queue of queues) {
+            merged.set(queue.id, queue)
+        }
+    }
+
+    return Array.from(merged.values())
 }
 
 interface AddToQueuePopoverProps {
@@ -34,6 +42,9 @@ interface AddToQueuePopoverProps {
     children: React.ReactNode
     disabled?: boolean
     onItemsAdded?: () => void
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
+    toggleOnTriggerClick?: boolean
 }
 
 const QueueListContent = ({
@@ -47,8 +58,11 @@ const QueueListContent = ({
     onClose: () => void
     onItemsAdded?: () => void
 }) => {
-    const allQueues = useAtomValue(simpleQueuesListDataAtom)
+    const listQueues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
+    const paginatedState = useAtomValue(
+        simpleQueuePaginatedStore.selectors.state(ANNOTATION_QUEUE_TABLE_PARAMS),
+    )
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
     const setDrawerOpen = useSetAtom(createQueueDrawerOpenAtom)
@@ -57,14 +71,24 @@ const QueueListContent = ({
     const [search, setSearch] = useState("")
     const [submittingId, setSubmittingId] = useState<string | null>(null)
 
-    const isLoading = listQuery.isPending
+    const cachedQueues = useMemo(
+        () =>
+            paginatedState.rows.filter((row): row is SimpleQueue => {
+                return !row.__isSkeleton && typeof row.id === "string"
+            }),
+        [paginatedState.rows],
+    )
 
     const filteredQueues = useMemo(() => {
+        const allQueues = mergeQueuesById(cachedQueues, listQueues)
         const byKind = allQueues.filter((q) => q.data?.kind === itemType)
         if (!search.trim()) return byKind
         const term = search.trim().toLowerCase()
         return byKind.filter((q) => (q.name || "").toLowerCase().includes(term))
-    }, [allQueues, itemType, search])
+    }, [cachedQueues, listQueues, itemType, search])
+
+    const hasImmediateQueues = cachedQueues.some((queue) => queue.data?.kind === itemType)
+    const isLoading = filteredQueues.length === 0 && !hasImmediateQueues && listQuery.isPending
 
     const handleSelect = useCallback(
         async (queue: SimpleQueue) => {
@@ -95,7 +119,11 @@ const QueueListContent = ({
     )
 
     return (
-        <div className="flex flex-col w-[300px]">
+        <div
+            className="flex flex-col w-[300px]"
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+        >
             <div className="px-2 py-1 border-0 border-b border-solid border-gray-200">
                 <Input
                     variant="borderless"
@@ -129,7 +157,10 @@ const QueueListContent = ({
                             type="button"
                             disabled={submittingId !== null}
                             className="w-full flex items-center gap-2 px-3 py-1.5 text-left bg-transparent border-0 cursor-pointer hover:bg-gray-50 disabled:opacity-50 disabled:cursor-wait"
-                            onClick={() => handleSelect(queue)}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                void handleSelect(queue)
+                            }}
                         >
                             <Typography.Text
                                 className="truncate flex-1"
@@ -137,14 +168,6 @@ const QueueListContent = ({
                             >
                                 {queue.name || "Untitled"}
                             </Typography.Text>
-                            {queue.status && (
-                                <Tag
-                                    color={statusColorMap[queue.status] ?? "default"}
-                                    className="!mr-0 text-xs"
-                                >
-                                    {queue.status.charAt(0).toUpperCase() + queue.status.slice(1)}
-                                </Tag>
-                            )}
                         </button>
                     ))
                 )}
@@ -155,7 +178,8 @@ const QueueListContent = ({
                     type="dashed"
                     icon={<PlusIcon size={14} />}
                     size="small"
-                    onClick={() => {
+                    onClick={(event) => {
+                        event.stopPropagation()
                         setDefaultKind(itemType)
                         setDrawerSelection({
                             itemType,
@@ -180,10 +204,25 @@ const AddToQueuePopover = ({
     children,
     disabled,
     onItemsAdded,
+    open: controlledOpen,
+    onOpenChange,
+    toggleOnTriggerClick = true,
 }: AddToQueuePopoverProps) => {
-    const [open, setOpen] = useState(false)
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+    const isControlled = controlledOpen !== undefined
+    const open = controlledOpen ?? uncontrolledOpen
 
-    const handleClose = useCallback(() => setOpen(false), [])
+    const setOpen = useCallback(
+        (nextOpen: boolean) => {
+            if (!isControlled) {
+                setUncontrolledOpen(nextOpen)
+            }
+            onOpenChange?.(nextOpen)
+        },
+        [isControlled, onOpenChange],
+    )
+
+    const handleClose = useCallback(() => setOpen(false), [setOpen])
 
     return (
         <Popover
@@ -216,7 +255,9 @@ const AddToQueuePopover = ({
                         : "inline-flex cursor-pointer"
                 }
                 onClick={() => {
-                    if (!disabled) setOpen((prev) => !prev)
+                    if (!disabled && toggleOnTriggerClick) {
+                        setOpen(!open)
+                    }
                 }}
             >
                 {children}

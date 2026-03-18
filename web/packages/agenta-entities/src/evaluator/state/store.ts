@@ -17,13 +17,11 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import type {StoreOptions} from "../../shared"
 import {
     fetchEvaluatorsBatch,
-    fetchEvaluatorTemplates,
     fetchEvaluatorRevisionById,
     queryEvaluators,
     queryEvaluatorVariants,
     queryEvaluatorRevisionsByWorkflow,
     queryEvaluatorRevisions,
-    type EvaluatorTemplate,
 } from "../api"
 import type {
     Evaluator,
@@ -32,7 +30,6 @@ import type {
     EvaluatorVariantsResponse,
     EvaluatorRevisionsResponse,
 } from "../core"
-import {parseEvaluatorKeyFromUri} from "../core"
 
 // ============================================================================
 // HELPERS
@@ -558,60 +555,3 @@ export function invalidateEvaluatorCache(evaluatorId: string, options?: StoreOpt
         current.refetch()
     }
 }
-
-// ============================================================================
-// EVALUATOR KEY MAP (workflowId → evaluatorKey)
-// ============================================================================
-
-/**
- * Derived atom: Map<workflowId, evaluatorKey>.
- *
- * Parses the `data.uri` of each evaluator in the list to extract the evaluator key.
- * Falls back to batch-fetching revisions for evaluators that lack `data.uri` in the list.
- */
-export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
-    const evaluators = get(evaluatorsListDataAtom)
-    const keyMap = new Map<string, string>()
-
-    for (const evaluator of evaluators) {
-        if (!evaluator.id) continue
-        const uri = evaluator.data?.uri
-        if (!uri) continue
-        const key = parseEvaluatorKeyFromUri(uri)
-        if (key) keyMap.set(evaluator.id, key)
-    }
-
-    return keyMap
-})
-
-// ============================================================================
-// EVALUATOR TEMPLATES MAP (evaluatorKey → displayName)
-// ============================================================================
-
-/**
- * Query atom for evaluator template definitions.
- * Fetches from `/preview/simple/evaluators/templates`.
- */
-const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
-    const projectId = get(evaluatorProjectIdAtom)
-    return {
-        queryKey: ["evaluators", "templates", projectId],
-        queryFn: async (): Promise<EvaluatorTemplate[]> => {
-            if (!projectId) return []
-            return fetchEvaluatorTemplates(projectId)
-        },
-        enabled: get(sessionAtom) && !!projectId,
-        staleTime: 300_000, // Templates rarely change
-    }
-})
-
-/**
- * Derived atom: Map<evaluatorKey, displayName>.
- *
- * Maps evaluator template keys to their human-readable display names.
- */
-export const evaluatorTemplatesMapAtom = atom<Map<string, string>>((get) => {
-    const query = get(evaluatorTemplatesQueryAtom)
-    const templates = query.data ?? []
-    return new Map(templates.map((t) => [t.key, t.name]))
-})

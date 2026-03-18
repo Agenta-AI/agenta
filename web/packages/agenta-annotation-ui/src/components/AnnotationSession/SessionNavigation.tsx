@@ -15,6 +15,7 @@ import {Button, Select, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
+import AnnotationStatusFilterSelect from "../AnnotationStatusFilterSelect"
 
 const SessionNavigation = () => {
     const navigation = useAnnotationNavigation()
@@ -22,8 +23,11 @@ const SessionNavigation = () => {
     const hasNext = useAtomValue(annotationSessionController.selectors.hasNext())
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
     const progress = useAtomValue(annotationSessionController.selectors.progress())
-    const scenarioIds = useAtomValue(annotationSessionController.selectors.scenarioIds())
+    const scenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const currentIndex = useAtomValue(annotationSessionController.selectors.currentScenarioIndex())
+    const focusStatusFilter = useAtomValue(
+        annotationSessionController.selectors.focusStatusFilter(),
+    )
 
     // Trace info for current scenario
     const currentScenarioId = useAtomValue(
@@ -39,6 +43,9 @@ const SessionNavigation = () => {
     const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
     const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
+    const setFocusStatusFilter = useSetAtom(
+        annotationSessionController.actions.setFocusStatusFilter,
+    )
 
     const handleSelect = useCallback(
         (value: number) => {
@@ -81,11 +88,20 @@ const SessionNavigation = () => {
                 />
 
                 <Select
-                    value={currentIndex}
+                    value={scenarioIds.length > 0 ? currentIndex : undefined}
                     onChange={handleSelect}
                     options={options}
                     size="small"
                     className="min-w-[140px]"
+                    popupMatchSelectWidth={false}
+                    disabled={scenarioIds.length === 0}
+                />
+
+                <AnnotationStatusFilterSelect
+                    value={focusStatusFilter}
+                    onChange={setFocusStatusFilter}
+                    size="small"
+                    className="min-w-[120px]"
                     popupMatchSelectWidth={false}
                 />
 

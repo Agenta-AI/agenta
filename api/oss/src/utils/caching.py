@@ -4,7 +4,8 @@ from asyncio import sleep
 from uuid import uuid4
 
 import orjson
-from cachetools import TTLCache
+
+# from cachetools import TTLCache
 from redis.asyncio import Redis
 from pydantic import BaseModel
 
@@ -13,9 +14,9 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_LOCK_TTL = 15  # 5 seconds
-AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
-AGENTA_CACHE_LOCAL_TTL = 60  # 60 seconds for local in-memory cache (Layer 1)
+AGENTA_LOCK_TTL = 15  # 15 seconds
+AGENTA_CACHE_TTL = 5 * 60  # 5 minutes (Layer 2) [L2]
+AGENTA_CACHE_LOCAL_TTL = 15  # 15 seconds for local in-memory cache (Layer 1) [L1]
 
 AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
 AGENTA_CACHE_ATTEMPTS_MAX = 4  # Maximum number of attempts to retry cache retrieval
@@ -30,9 +31,12 @@ AGENTA_LOCK_SOCKET_TIMEOUT = 2.0  # Locks should be more reliable than cache loo
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-# Two-tier caching: Local TTLCache (60s) + Redis (5min)
-# Layer 1: Local in-memory cache with 60s TTL (4096 entries max)
-local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
+# Redis is the only active cache layer.
+# L1 in-process caching is disabled because it can serve stale data across
+# gunicorn workers after mutations invalidate Redis from a different process.
+#
+# Original L1 cache:
+# local_cache: TTLCache = TTLCache(maxsize=4096, ttl=AGENTA_CACHE_LOCAL_TTL)
 
 # Use volatile Redis instance for caching (prefix-based separation)
 # decode_responses=False: orjson operates on bytes for 3x performance vs json
@@ -185,16 +189,18 @@ async def _try_get_and_maybe_renew(
 ) -> Optional[Any]:
     data = None
 
-    # Layer 1: Check local in-memory cache first (60s TTL, ~1μs latency)
-    if cache_name in local_cache:
-        raw = local_cache[cache_name]
-        if CACHE_DEBUG:
-            log.debug(
-                "[cache] L1-HIT",
-                name=cache_name,
-                value=raw if CACHE_DEBUG_VALUE else "***",
-            )
-        return _deserialize(raw, model=model, is_list=is_list)
+    # Layer 1 is intentionally disabled.
+    #
+    # Original L1 read path:
+    # if cache_name in local_cache:
+    #     raw = local_cache[cache_name]
+    #     if CACHE_DEBUG:
+    #         log.debug(
+    #             "[cache] L1-HIT",
+    #             name=cache_name,
+    #             value=raw if CACHE_DEBUG_VALUE else "***",
+    #         )
+    #     return _deserialize(raw, model=model, is_list=is_list)
 
     # Layer 2: Check Redis (distributed, 5min TTL, ~1ms latency)
     raw = await r.get(cache_name)
@@ -207,9 +213,8 @@ async def _try_get_and_maybe_renew(
                 value=raw if CACHE_DEBUG_VALUE else "***",
             )
 
-        # Populate local cache from Redis hit (raw is bytes from decode_responses=False)
-        local_cache[cache_name] = raw
-
+        # Original L1 backfill path:
+        # local_cache[cache_name] = raw
         data = _deserialize(raw, model=model, is_list=is_list)
 
         if ttl is not None and ttl > 0:
@@ -354,11 +359,10 @@ async def set_cache(
         cache_value: bytes = _serialize(value)
         cache_px = int(ttl * 1000)
 
-        # Write to both cache layers
-        # Layer 1: Local in-memory cache (auto-expires via TTL)
-        local_cache[cache_name] = cache_value
-
-        # Layer 2: Redis distributed cache
+        # Write to Redis only.
+        #
+        # Original L1 write path:
+        # local_cache[cache_name] = cache_value
         await r.set(cache_name, cache_value, px=cache_px)
 
         if CACHE_DEBUG:
@@ -489,8 +493,10 @@ async def invalidate_cache(
                 user_id=user_id,
             )
 
-            # Clear from both cache layers
-            local_cache.pop(cache_name, None)
+            # Clear from Redis.
+            #
+            # Original L1 invalidation path:
+            # local_cache.pop(cache_name, None)
             await r.delete(cache_name)
 
         else:
@@ -508,36 +514,31 @@ async def invalidate_cache(
                     f"[cache] INVALIDATE pattern={cache_name} redis_keys_found={len(keys)}"
                 )
 
-            # Clear from local cache (pattern matching)
-            # Pattern is like "cache:p:PROJECT:u:USER:*:*"
-            # We need to convert Redis wildcard pattern to a prefix match
-            # Strategy: Find the last concrete segment before wildcards start
-            parts = cache_name.split(":")
-            # Find the first part that contains "*"
-            concrete_parts = []
-            for part in parts:
-                if "*" in part:
-                    break
-                concrete_parts.append(part)
-            # Reconstruct prefix with trailing colon
-            local_prefix = ":".join(concrete_parts) + ":" if concrete_parts else ""
-            local_keys_deleted = 0
-
-            if CACHE_DEBUG:
-                log.debug(f"[cache] INVALIDATE local_prefix={local_prefix}")
-                log.debug(f"[cache] INVALIDATE local_cache has {len(local_cache)} keys")
-                for lk in list(local_cache.keys()):
-                    log.debug(f"[cache] INVALIDATE local_cache_key={lk}")
-
-            for local_key in list(local_cache.keys()):
-                if local_key.startswith(local_prefix):
-                    local_cache.pop(local_key, None)
-                    local_keys_deleted += 1
-                    if CACHE_DEBUG:
-                        log.debug(f"[cache] INVALIDATE deleted local_key={local_key}")
-
-            if CACHE_DEBUG:
-                log.debug(f"[cache] INVALIDATE local_keys_deleted={local_keys_deleted}")
+            # Original L1 pattern invalidation path:
+            # parts = cache_name.split(":")
+            # concrete_parts = []
+            # for part in parts:
+            #     if "*" in part:
+            #         break
+            #     concrete_parts.append(part)
+            # local_prefix = ":".join(concrete_parts) + ":" if concrete_parts else ""
+            # local_keys_deleted = 0
+            #
+            # if CACHE_DEBUG:
+            #     log.debug(f"[cache] INVALIDATE local_prefix={local_prefix}")
+            #     log.debug(f"[cache] INVALIDATE local_cache has {len(local_cache)} keys")
+            #     for lk in list(local_cache.keys()):
+            #         log.debug(f"[cache] INVALIDATE local_cache_key={lk}")
+            #
+            # for local_key in list(local_cache.keys()):
+            #     if local_key.startswith(local_prefix):
+            #         local_cache.pop(local_key, None)
+            #         local_keys_deleted += 1
+            #         if CACHE_DEBUG:
+            #             log.debug(f"[cache] INVALIDATE deleted local_key={local_key}")
+            #
+            # if CACHE_DEBUG:
+            #     log.debug(f"[cache] INVALIDATE local_keys_deleted={local_keys_deleted}")
 
             # Clear from Redis
             redis_keys_deleted = 0

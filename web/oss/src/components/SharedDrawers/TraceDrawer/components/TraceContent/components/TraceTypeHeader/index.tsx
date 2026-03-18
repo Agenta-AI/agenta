@@ -6,10 +6,15 @@ import {DeleteOutlined} from "@ant-design/icons"
 import {Play, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawer/components/AddToTestsetButton"
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
+import {
+    closeDrawerAtom,
+    isDrawerOpenAtom,
+    openDrawerWithSpanIdsAtom,
+} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/atoms/drawerState"
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
@@ -25,6 +30,10 @@ import {TraceTypeHeaderProps} from "./types"
 const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
     ssr: false,
 })
+const TestsetDrawer = dynamic(
+    () => import("@/oss/components/SharedDrawers/AddToTestsetDrawer/TestsetDrawer"),
+    {ssr: false},
+)
 
 /**
  * Check if a workflow span has an app reference (application or application_revision).
@@ -57,6 +66,9 @@ const TraceTypeHeader = ({
 }: TraceTypeHeaderProps) => {
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
+    const [isDrawerOpen] = useAtom(isDrawerOpenAtom)
+    const openDrawerWithSpanIds = useSetAtom(openDrawerWithSpanIdsAtom)
+    const closeDrawer = useSetAtom(closeDrawerAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
     const spanIds = useMemo(() => {
@@ -104,6 +116,11 @@ const TraceTypeHeader = ({
     }, [activeTrace, setOpenInPlayground, url.projectURL, url.baseAppURL, navigation])
 
     const displayTrace = activeTrace || traces?.[0]
+    const handleOpenTestsetDrawer = useCallback(() => {
+        if (spanIds.length === 0) return
+        openDrawerWithSpanIds(spanIds)
+    }, [openDrawerWithSpanIds, spanIds])
+
     return (
         <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
             <Tooltip
@@ -137,12 +154,17 @@ const TraceTypeHeader = ({
                 >
                     Playground
                 </Button>
-                <AddToTestsetButton
-                    className="flex items-center"
-                    label="Add to testset"
+                <AddActionsDropdown
                     size="small"
-                    spanIds={spanIds}
-                    disabled={!activeTrace?.span_id}
+                    testsetAction={{
+                        onSelect: handleOpenTestsetDrawer,
+                        disabled: !activeTrace?.span_id,
+                    }}
+                    queueAction={{
+                        itemType: "traces",
+                        itemIds: activeTrace?.trace_id ? [activeTrace.trace_id] : [],
+                        disabled: !activeTrace?.trace_id,
+                    }}
                 />
                 <AnnotateDrawerButton
                     label="Annotate"
@@ -182,6 +204,14 @@ const TraceTypeHeader = ({
             </div>
 
             <DeleteTraceModal />
+            <TestsetDrawer
+                open={isDrawerOpen}
+                spanIds={spanIds}
+                showSelectedSpanText={false}
+                onClose={() => {
+                    closeDrawer()
+                }}
+            />
         </div>
     )
 }

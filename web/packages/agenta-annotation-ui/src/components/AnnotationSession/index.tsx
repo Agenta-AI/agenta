@@ -21,7 +21,7 @@
  * - Active view state managed by `annotationSessionController.selectors.activeView()`
  */
 
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {annotationFormController, annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
@@ -101,7 +101,9 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
     const queueQuery = useAtomValue(simpleQueueMolecule.selectors.query(queueId))
     const queue = useAtomValue(simpleQueueMolecule.selectors.data(queueId))
     const initialRouteStateRef = useRef(routeState)
-    initialRouteStateRef.current = routeState
+    useEffect(() => {
+        initialRouteStateRef.current = routeState
+    })
 
     // Session controller actions
     const openQueue = useSetAtom(annotationSessionController.actions.openQueue)
@@ -109,6 +111,10 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
     const applyRouteState = useSetAtom(annotationSessionController.actions.applyRouteState)
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const markCompleted = useSetAtom(annotationSessionController.actions.markCompleted)
+    const syncToTestsets = useSetAtom(annotationSessionController.actions.syncToTestsets)
+
+    // Sync to testset state
+    const [isSyncing, setIsSyncing] = useState(false)
 
     // Session controller selectors — queue-level
     const queueName = useAtomValue(annotationSessionController.selectors.queueName())
@@ -174,6 +180,32 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
         [handleActiveViewChange],
     )
 
+    const handleSyncToTestset = useCallback(async () => {
+        setIsSyncing(true)
+        try {
+            const result = await syncToTestsets()
+
+            const summary = `Created ${result.revisionsCreated} revision${
+                result.revisionsCreated === 1 ? "" : "s"
+            }, exported ${result.rowsExported} row${result.rowsExported === 1 ? "" : "s"}`
+
+            if (result.failedTargets.length > 0) {
+                message.warning(summary)
+            } else {
+                message.success(summary)
+            }
+        } catch (err) {
+            const errorMessage =
+                err instanceof Error && err.message
+                    ? err.message
+                    : "Failed to save annotations to testsets"
+            message.error(errorMessage)
+            console.error("[syncToTestsets]", err)
+        } finally {
+            setIsSyncing(false)
+        }
+    }, [syncToTestsets])
+
     // Header title (queue name)
     const headerTitle = useMemo(
         () => (
@@ -198,7 +230,7 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
         [queueName],
     )
 
-    // Header right section (tabs)
+    // Header right section (tabs + sync button)
     const headerTabs = useMemo(
         () => <SessionHeaderRight activeView={resolvedActiveView} onTabChange={handleTabChange} />,
         [resolvedActiveView, handleTabChange],
@@ -254,6 +286,8 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
                         onSaved={handleSaved}
                         onCompleted={handleCompleted}
                         onViewChange={handleActiveViewChange}
+                        onSyncToTestset={handleSyncToTestset}
+                        isSyncing={isSyncing}
                     />
                 )}
             </div>

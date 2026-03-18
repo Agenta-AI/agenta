@@ -147,24 +147,33 @@ export async function deleteAnnotation(
 // ============================================================================
 
 /**
- * Query annotations by trace/span links.
+ * Query annotations by trace/span links or annotation filters.
  *
  * Endpoint: `POST /preview/annotations/query`
  *
- * This is the primary batch fetching endpoint. Pass an array of
- * `{trace_id, span_id}` pairs and get back all matching annotations.
+ * This is the primary batch fetching endpoint. Callers can either:
+ * - pass `annotationLinks` with `{trace_id, span_id}` pairs, or
+ * - pass an `annotation` filter object, such as `references.testcase.id`
  */
 export async function queryAnnotations({
     projectId,
     annotationLinks,
+    annotation,
     windowing,
 }: AnnotationQueryParams): Promise<AnnotationsResponse> {
-    if (!projectId || annotationLinks.length === 0) {
+    const hasLinks = (annotationLinks?.length ?? 0) > 0
+    const hasAnnotationFilter = !!annotation
+
+    if (!projectId || (!hasLinks && !hasAnnotationFilter)) {
         return {count: 0, annotations: []}
     }
 
-    const body: Record<string, unknown> = {
-        annotation_links: annotationLinks,
+    const body: Record<string, unknown> = {}
+    if (hasLinks) {
+        body.annotation_links = annotationLinks
+    }
+    if (annotation) {
+        body.annotation = annotation
     }
     if (windowing) {
         body.windowing = windowing
@@ -182,24 +191,6 @@ export async function queryAnnotations({
     return validated ?? {count: 0, annotations: []}
 }
 
-/**
- * Query annotations by their `links` field (i.e., find annotations that reference
- * a given invocation trace_id/span_id).
- *
- * This is a fallback for when annotation step results don't exist in the evaluation run,
- * allowing us to still find annotations linked to a scenario's invocation trace.
- *
- * Endpoint: `POST /preview/annotations/query`
- */
-/**
- * Finds annotations linked to a given invocation trace.
- *
- * Two-step approach:
- * 1. Query spans table for annotation traces whose `links` JSONB contains the target trace_id
- *    (uses `/preview/spans/query` with JSONB containment — bypasses the annotation query path
- *    which has a marshalling format mismatch between stored and queried link data).
- * 2. Use the discovered annotation trace_ids to fetch full annotation data via `queryAnnotations`.
- */
 export async function queryAnnotationsByInvocationLink({
     projectId,
     traceId,

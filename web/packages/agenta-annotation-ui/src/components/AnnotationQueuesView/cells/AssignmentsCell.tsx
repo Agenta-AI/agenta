@@ -1,7 +1,7 @@
 import {memo, useMemo} from "react"
 
 import {useUserDisplayName} from "@agenta/entities/shared"
-import {Avatar, Tag, Tooltip} from "antd"
+import {Avatar, Tag, Tooltip, Typography} from "antd"
 
 // Color pairs matching the OSS Avatar component for visual consistency
 const COLOR_PAIRS = [
@@ -84,7 +84,9 @@ const AssignmentsCell = memo(function AssignmentsCell({assignments}: Assignments
         return Array.from(set)
     }, [assignments])
 
-    if (uniqueIds.length === 0) return null
+    if (uniqueIds.length === 0) {
+        return <Typography.Text type="secondary">All</Typography.Text>
+    }
 
     // Show first 2 inline, rest in a tooltip
     const visible = uniqueIds.slice(0, 2)

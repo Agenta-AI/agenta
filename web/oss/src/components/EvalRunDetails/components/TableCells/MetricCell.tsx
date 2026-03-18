@@ -6,7 +6,6 @@ import {
     type BasicStats,
     extractBasicStats,
     hasDistributionData,
-    METRIC_PLACEHOLDER,
     formatMetricDisplay,
 } from "@agenta/ui/cell-renderers"
 import clsx from "clsx"
