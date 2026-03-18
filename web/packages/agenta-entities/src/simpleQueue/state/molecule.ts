@@ -118,16 +118,25 @@ function deriveQueueStatusFromScenarios(
  * Automatically fetches when projectId is set.
  */
 export const simpleQueuesListQueryAtom = atomWithQuery((get) => {
-    const projectId = get(projectIdAtom)
+    const isSessionReady = get(sessionAtom)
     return {
-        queryKey: ["simpleQueues", "list", projectId],
+        queryKey: ["simpleQueues", "list"],
         queryFn: async () => {
-            if (!projectId) return {count: 0, queues: []}
+            const projectId = getStore().get(projectIdAtom)
+            if (!projectId) {
+                throw new Error("projectId not yet available")
+            }
             return querySimpleQueues({projectId})
         },
-        enabled: get(sessionAtom) && !!projectId,
+        enabled: isSessionReady,
+        retry: (failureCount: number, error: Error) => {
+            if (error?.message === "projectId not yet available" && failureCount < 5) {
+                return true
+            }
+            return false
+        },
+        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
         staleTime: 30_000,
-        retry: false,
     }
 })
 

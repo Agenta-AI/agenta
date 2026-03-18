@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     simpleQueueMolecule,
+    simpleQueuePaginatedStore,
     simpleQueuesListDataAtom,
     simpleQueuesListQueryAtom,
     type SimpleQueue,
@@ -17,7 +18,23 @@ import {
     createQueueDrawerSelectionAtom,
 } from "../../state/atoms"
 import CreateQueueDrawer from "../CreateQueueDrawer"
-import QueueStatusTag from "../QueueStatusTag"
+
+const ANNOTATION_QUEUE_TABLE_PARAMS = {
+    scopeId: "annotation-queues",
+    pageSize: 50,
+} as const
+
+function mergeQueuesById(...queueLists: SimpleQueue[][]): SimpleQueue[] {
+    const merged = new Map<string, SimpleQueue>()
+
+    for (const queues of queueLists) {
+        for (const queue of queues) {
+            merged.set(queue.id, queue)
+        }
+    }
+
+    return Array.from(merged.values())
+}
 
 interface AddToQueuePopoverProps {
     itemType: "traces" | "testcases"
@@ -41,8 +58,11 @@ const QueueListContent = ({
     onClose: () => void
     onItemsAdded?: () => void
 }) => {
-    const allQueues = useAtomValue(simpleQueuesListDataAtom)
+    const listQueues = useAtomValue(simpleQueuesListDataAtom)
     const listQuery = useAtomValue(simpleQueuesListQueryAtom)
+    const paginatedState = useAtomValue(
+        simpleQueuePaginatedStore.selectors.state(ANNOTATION_QUEUE_TABLE_PARAMS),
+    )
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
     const setDrawerOpen = useSetAtom(createQueueDrawerOpenAtom)
@@ -51,14 +71,24 @@ const QueueListContent = ({
     const [search, setSearch] = useState("")
     const [submittingId, setSubmittingId] = useState<string | null>(null)
 
-    const isLoading = listQuery.isPending
+    const cachedQueues = useMemo(
+        () =>
+            paginatedState.rows.filter((row): row is SimpleQueue => {
+                return !row.__isSkeleton && typeof row.id === "string"
+            }),
+        [paginatedState.rows],
+    )
 
     const filteredQueues = useMemo(() => {
-        const byKind = allQueues.filter((q) => q.data?.kind === itemType && q.status !== "success")
+        const allQueues = mergeQueuesById(cachedQueues, listQueues)
+        const byKind = allQueues.filter((q) => q.data?.kind === itemType)
         if (!search.trim()) return byKind
         const term = search.trim().toLowerCase()
         return byKind.filter((q) => (q.name || "").toLowerCase().includes(term))
-    }, [allQueues, itemType, search])
+    }, [cachedQueues, listQueues, itemType, search])
+
+    const hasImmediateQueues = cachedQueues.some((queue) => queue.data?.kind === itemType)
+    const isLoading = filteredQueues.length === 0 && !hasImmediateQueues && listQuery.isPending
 
     const handleSelect = useCallback(
         async (queue: SimpleQueue) => {
@@ -138,11 +168,6 @@ const QueueListContent = ({
                             >
                                 {queue.name || "Untitled"}
                             </Typography.Text>
-                            <QueueStatusTag
-                                queueId={queue.id}
-                                fallbackStatus={queue.status ?? null}
-                                className="!mr-0 text-xs"
-                            />
                         </button>
                     ))
                 )}

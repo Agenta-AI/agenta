@@ -1,6 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {workspaceMembersAtom} from "@agenta/entities/shared"
 import {
     createSimpleQueueAtom,
     simpleQueueMolecule,
@@ -9,7 +8,7 @@ import {
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {projectIdAtom} from "@agenta/shared/state"
 import {ModalContent, ModalFooter, message} from "@agenta/ui"
-import {Divider, Drawer, Form, Input, InputNumber, Select, Typography} from "antd"
+import {Divider, Drawer, Form, Input, Select, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -37,8 +36,7 @@ interface FormValues {
     name: string
     kind: "traces" | "testcases"
     description?: string
-    repeats: number
-    assignments?: string[][]
+    evaluatorRevisionIds?: string[]
     batch_size?: number | null
     batch_offset?: number | null
 }
@@ -54,9 +52,8 @@ interface CreateQueueDrawerContentProps {
     onItemsAdded?: () => void
 }
 
-const INITIAL_FORM_VALUES: Pick<FormValues, "kind" | "repeats"> = {
+const INITIAL_FORM_VALUES: Pick<FormValues, "kind"> = {
     kind: "traces",
-    repeats: 1,
 }
 
 const COMPACT_FORM_ITEM_CLASS = "!mb-0"
@@ -99,43 +96,29 @@ function CreateQueueDrawerContent({
     onItemsAdded,
 }: CreateQueueDrawerContentProps) {
     const projectId = useAtomValue(projectIdAtom)
-    const members = useAtomValue(workspaceMembersAtom)
     const createQueue = useSetAtom(createSimpleQueueAtom)
     const addTraces = useSetAtom(simpleQueueMolecule.actions.addTraces)
     const addTestcases = useSetAtom(simpleQueueMolecule.actions.addTestcases)
     const [form] = Form.useForm<FormValues>()
     const [selectedEvaluators, setSelectedEvaluators] = useState<SelectedEvaluator[]>([])
 
-    const repeats = Math.max(Form.useWatch("repeats", form) ?? INITIAL_FORM_VALUES.repeats, 1)
-    const hasHumanEvaluatorSelected = selectedEvaluators.some((evaluator) => evaluator.isHuman)
-    const selectedRevisionIds = useMemo(
-        () => new Set(selectedEvaluators.map((evaluator) => evaluator.revisionId)),
+    const evaluatorRevisionIds = useMemo(
+        () => selectedEvaluators.map((evaluator) => evaluator.revisionId),
         [selectedEvaluators],
     )
+    const selectedRevisionIds = useMemo(() => new Set(evaluatorRevisionIds), [evaluatorRevisionIds])
     const latestSelectedEvaluator = selectedEvaluators[selectedEvaluators.length - 1] ?? null
 
     useEffect(() => {
-        if (!hasHumanEvaluatorSelected) {
-            form.setFieldValue("assignments", undefined)
+        form.setFieldValue("evaluatorRevisionIds", evaluatorRevisionIds)
+        if (form.getFieldError("evaluatorRevisionIds").length > 0) {
+            void form.validateFields(["evaluatorRevisionIds"]).catch(() => {})
         }
-    }, [form, hasHumanEvaluatorSelected])
+    }, [evaluatorRevisionIds, form])
 
     useEffect(() => {
         form.setFieldValue("kind", selection?.itemType ?? defaultKind)
     }, [defaultKind, form, selection])
-
-    const memberOptions = useMemo(
-        () =>
-            members
-                .filter((member) => member.user.id)
-                .map((member) => ({
-                    value: member.user.id!,
-                    label: member.user.username || member.user.email || member.user.id!,
-                })),
-        [members],
-    )
-
-    const hasMembersAvailable = memberOptions.length > 0
 
     const requestSubmit = useCallback(() => {
         form.submit()
@@ -185,7 +168,6 @@ function CreateQueueDrawerContent({
             onSetSubmitting(true)
 
             try {
-                const normalizedRepeats = Math.max(values.repeats ?? 1, 1)
                 if (selection && values.kind !== selection.itemType) {
                     message.error(
                         `Selected ${selection.itemType === "traces" ? "traces" : "test cases"} can only be added to a ${selection.itemType} queue`,
@@ -198,13 +180,6 @@ function CreateQueueDrawerContent({
                     (evaluator) => evaluator.revisionId,
                 )
 
-                const nonEmptyAssignments = hasHumanEvaluatorSelected
-                    ? (values.assignments ?? [])
-                          .slice(0, normalizedRepeats)
-                          .map((row) => (row ?? []).filter(Boolean))
-                          .filter((row) => row.length > 0)
-                    : []
-
                 const payload: CreateSimpleQueuePayload = {
                     name: values.name,
                     description: values.description || null,
@@ -212,11 +187,8 @@ function CreateQueueDrawerContent({
                         kind: values.kind,
                         evaluators:
                             evaluatorRevisionIds.length > 0 ? evaluatorRevisionIds : undefined,
-                        repeats: normalizedRepeats > 1 ? normalizedRepeats : undefined,
-                        assignments:
-                            hasHumanEvaluatorSelected && nonEmptyAssignments.length > 0
-                                ? nonEmptyAssignments
-                                : undefined,
+                        repeats: 1,
+                        assignments: undefined,
                         settings:
                             values.batch_size != null || values.batch_offset != null
                                 ? {
@@ -269,7 +241,6 @@ function CreateQueueDrawerContent({
             addTestcases,
             addTraces,
             createQueue,
-            hasHumanEvaluatorSelected,
             onClose,
             onClearSelection,
             onItemsAdded,
@@ -298,7 +269,13 @@ function CreateQueueDrawerContent({
                         className={COMPACT_FORM_ITEM_CLASS}
                         name="name"
                         label={<FieldLabel>Annotation name</FieldLabel>}
-                        rules={[{required: true, message: "Name is required"}]}
+                        rules={[
+                            {
+                                required: true,
+                                whitespace: true,
+                                message: "Name is required",
+                            },
+                        ]}
                     >
                         <Input placeholder="Enter name" />
                     </Form.Item>
@@ -336,90 +313,64 @@ function CreateQueueDrawerContent({
                 <div className="flex flex-col gap-4 px-6 py-3">
                     <SectionTitle>Annotation details</SectionTitle>
 
-                    <div className="flex flex-col gap-2">
-                        <FieldLabel>Feedback</FieldLabel>
-                        <div className="flex flex-col gap-3">
-                            <EntityEvaluatorSelector
-                                onSelect={handleEvaluatorSelect}
-                                instanceId="queue-evaluator"
-                                disabled={isSubmitting}
-                                disabledRevisionIds={selectedRevisionIds}
-                                selectedEvaluatorId={latestSelectedEvaluator?.evaluatorId ?? null}
-                                selectedRevisionId={latestSelectedEvaluator?.revisionId ?? null}
-                                openVersionOnHover
-                            />
-                            {selectedEvaluators.map((evaluator) => (
-                                <SelectedEvaluatorCard
-                                    key={evaluator.revisionId}
-                                    evaluator={evaluator}
-                                    onRemove={handleRemoveEvaluator}
-                                    disabled={isSubmitting}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <Divider className="!m-0" />
-
-                {/* ── Collaborator settings ── */}
-                <div className="flex flex-col gap-4 px-6 py-4">
-                    <SectionTitle>Collaborator settings</SectionTitle>
-
-                    <Form.Item
-                        className={COMPACT_FORM_ITEM_CLASS}
-                        name="repeats"
-                        label={
-                            <FieldLabel description="Reviewers required to mark a trace as 'Done'">
-                                Number of reviews per run
-                            </FieldLabel>
-                        }
+                    <Form.Item<FormValues>
+                        name="evaluatorRevisionIds"
+                        hidden
+                        rules={[
+                            {
+                                validator: async (_, value: string[] | undefined) => {
+                                    if (Array.isArray(value) && value.length > 0) return
+                                    throw new Error("At least one evaluator is required")
+                                },
+                            },
+                        ]}
                     >
-                        <InputNumber min={1} className="w-full" />
+                        <Input hidden />
                     </Form.Item>
 
-                    <div className="flex flex-col gap-3">
-                        {Array.from({length: repeats}, (_, index) => (
-                            <Form.Item
-                                className={COMPACT_FORM_ITEM_CLASS}
-                                key={index}
-                                name={["assignments", index]}
-                                preserve={false}
-                                label={
-                                    <FieldLabel
-                                        description={
-                                            !hasHumanEvaluatorSelected
-                                                ? "Select a human evaluator to enable assignee routing"
-                                                : undefined
-                                        }
-                                    >
-                                        {repeats > 1
-                                            ? `Repeat ${index + 1} - Assignees`
-                                            : "Assignees"}
-                                    </FieldLabel>
-                                }
-                            >
-                                <Select
-                                    mode="multiple"
-                                    placeholder={
-                                        !hasHumanEvaluatorSelected
-                                            ? "Requires human evaluator"
-                                            : hasMembersAvailable
-                                              ? "All members (leave empty for unassigned)"
-                                              : "Available on annotations page"
+                    <Form.Item noStyle shouldUpdate>
+                        {() => {
+                            const evaluatorErrors = form.getFieldError("evaluatorRevisionIds")
+
+                            return (
+                                <Form.Item
+                                    className={COMPACT_FORM_ITEM_CLASS}
+                                    label={<FieldLabel>Feedback</FieldLabel>}
+                                    required
+                                    validateStatus={
+                                        evaluatorErrors.length > 0 ? "error" : undefined
                                     }
-                                    options={memberOptions}
-                                    allowClear
-                                    disabled={
-                                        !hasHumanEvaluatorSelected ||
-                                        !hasMembersAvailable ||
-                                        isSubmitting
-                                    }
-                                />
-                            </Form.Item>
-                        ))}
-                    </div>
+                                    help={evaluatorErrors[0]}
+                                >
+                                    <div className="flex flex-col gap-3">
+                                        <EntityEvaluatorSelector
+                                            onSelect={handleEvaluatorSelect}
+                                            instanceId="queue-evaluator"
+                                            disabled={isSubmitting}
+                                            disabledRevisionIds={selectedRevisionIds}
+                                            selectedEvaluatorId={
+                                                latestSelectedEvaluator?.evaluatorId ?? null
+                                            }
+                                            selectedRevisionId={
+                                                latestSelectedEvaluator?.revisionId ?? null
+                                            }
+                                            openVersionOnHover
+                                        />
+                                        {selectedEvaluators.map((evaluator) => (
+                                            <SelectedEvaluatorCard
+                                                key={evaluator.revisionId}
+                                                evaluator={evaluator}
+                                                onRemove={handleRemoveEvaluator}
+                                                disabled={isSubmitting}
+                                            />
+                                        ))}
+                                    </div>
+                                </Form.Item>
+                            )
+                        }}
+                    </Form.Item>
                 </div>
+                {/* Collaborator settings intentionally hidden for now. */}
             </ModalContent>
         </Form>
     )

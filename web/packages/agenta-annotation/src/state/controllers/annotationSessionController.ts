@@ -42,6 +42,7 @@ import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {
@@ -127,7 +128,41 @@ const scenariosQueryAtom = atom((get) => {
 const completedScenarioIdsAtom = atom<Set<string>>(new Set<string>())
 
 /** Active view in the annotation session ("list" or "annotate") */
-const activeSessionViewAtom = atom<SessionView>("list")
+const activeSessionViewAtom = atom<SessionView>("annotate")
+
+/** Status filter for the annotate focus view */
+const focusStatusFilterAtom = atom<EvaluationStatus | null>(null)
+
+function getScenarioStatusValue({
+    scenarioId,
+    records,
+    completed,
+}: {
+    scenarioId: string
+    records: ScenarioRecord[]
+    completed: Set<string>
+}): string | null {
+    if (completed.has(scenarioId)) return "success"
+    const record = records.find((r) => r.id === scenarioId)
+    return (record?.status as string) ?? null
+}
+
+function getNavigableScenarioIds({get, view}: {get: Getter; view?: SessionView}): string[] {
+    const ids = get(scenarioIdsAtom)
+    const activeView = view ?? get(activeSessionViewAtom)
+    if (activeView !== "annotate") return ids
+
+    const statusFilter = get(focusStatusFilterAtom)
+    if (!statusFilter) return ids
+
+    const records = get(scenarioRecordsAtom)
+    const completed = get(completedScenarioIdsAtom)
+    return ids.filter(
+        (scenarioId) => getScenarioStatusValue({scenarioId, records, completed}) === statusFilter,
+    )
+}
+
+const navigableScenarioIdsAtom = atom<string[]>((get) => getNavigableScenarioIds({get}))
 
 // ============================================================================
 // DERIVED ATOMS — Queue-level
@@ -138,7 +173,7 @@ const isActiveAtom = atom<boolean>((get) => get(activeQueueIdAtom) !== null)
 
 /** The current scenario ID */
 const currentScenarioIdAtom = atom<string | null>((get) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     if (ids.length === 0) return null
 
     const focusedScenarioId = get(focusedScenarioIdAtom)
@@ -151,7 +186,7 @@ const currentScenarioIdAtom = atom<string | null>((get) => {
 
 /** Current scenario index (0-based) */
 const currentScenarioIndexAtom = atom<number>((get) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     const currentScenarioId = get(currentScenarioIdAtom)
 
     if (!currentScenarioId) return 0
@@ -163,7 +198,7 @@ const currentScenarioIndexAtom = atom<number>((get) => {
 /** Can navigate to next item? */
 const hasNextAtom = atom<boolean>((get) => {
     const idx = get(currentScenarioIndexAtom)
-    return idx < get(scenarioIdsAtom).length - 1
+    return idx < get(navigableScenarioIdsAtom).length - 1
 })
 
 /** Can navigate to previous item? */
@@ -214,7 +249,7 @@ const scenarioStatusesAtom = atom<Record<string, string | null>>((get) => {
         if (completed.has(id)) {
             map[id] = "success"
         } else {
-            map[id] = (s.status as string) ?? null
+            map[id] = getScenarioStatusValue({scenarioId: id, records, completed})
         }
     }
     return map
@@ -1562,7 +1597,8 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
     set(activeQueueTypeAtom, queueType)
     set(focusedScenarioIdAtom, initialScenarioId ?? null)
     set(completedScenarioIdsAtom, new Set())
-    set(activeSessionViewAtom, initialView ?? "list")
+    set(activeSessionViewAtom, initialView ?? "annotate")
+    set(focusStatusFilterAtom, null)
 
     // scenarioIdsAtom and scenarioRecordsAtom are now derived from
     // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
@@ -1575,10 +1611,12 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
  * Navigate to next scenario.
  */
 const navigateNextAtom = atom(null, (get, set) => {
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    if (idx < ids.length - 1) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
+    const scenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "next",
+    })
+    if (scenarioId) {
+        setFocusedScenarioId({get, set, scenarioId, notify: true})
     }
 })
 
@@ -1586,10 +1624,12 @@ const navigateNextAtom = atom(null, (get, set) => {
  * Navigate to previous scenario.
  */
 const navigatePrevAtom = atom(null, (get, set) => {
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    if (idx > 0) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx - 1], notify: true})
+    const scenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "prev",
+    })
+    if (scenarioId) {
+        setFocusedScenarioId({get, set, scenarioId, notify: true})
     }
 })
 
@@ -1597,7 +1637,7 @@ const navigatePrevAtom = atom(null, (get, set) => {
  * Navigate to a specific scenario by index.
  */
 const navigateToIndexAtom = atom(null, (get, set, index: number) => {
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     if (index >= 0 && index < ids.length) {
         setFocusedScenarioId({get, set, scenarioId: ids[index], notify: true})
     }
@@ -1646,6 +1686,42 @@ function resolveFallbackScenarioId({
     return ids[0] ?? null
 }
 
+function resolveAdjacentNavigableScenarioId({
+    get,
+    direction,
+}: {
+    get: Getter
+    direction: "next" | "prev"
+}): string | null {
+    const ids = get(navigableScenarioIdsAtom)
+    if (ids.length === 0) return null
+
+    const currentId = get(focusedScenarioIdAtom) ?? get(currentScenarioIdAtom)
+    if (!currentId) {
+        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
+    }
+
+    const visibleIndex = ids.indexOf(currentId)
+    if (visibleIndex >= 0) {
+        return direction === "next"
+            ? (ids[visibleIndex + 1] ?? null)
+            : (ids[visibleIndex - 1] ?? null)
+    }
+
+    const allIds = get(scenarioIdsAtom)
+    const currentIndex = allIds.indexOf(currentId)
+    if (currentIndex < 0) {
+        return direction === "next" ? (ids[0] ?? null) : (ids[ids.length - 1] ?? null)
+    }
+
+    const matches = ids.filter((id) => {
+        const idIndex = allIds.indexOf(id)
+        return direction === "next" ? idIndex > currentIndex : idIndex < currentIndex
+    })
+
+    return direction === "next" ? (matches[0] ?? null) : (matches[matches.length - 1] ?? null)
+}
+
 function setFocusedScenarioId({
     get,
     set,
@@ -1662,7 +1738,7 @@ function setFocusedScenarioId({
 
     if (!notify || !scenarioId || scenarioId === previousScenarioId) return
 
-    const ids = get(scenarioIdsAtom)
+    const ids = get(navigableScenarioIdsAtom)
     const index = ids.indexOf(scenarioId)
 
     if (index >= 0) {
@@ -1680,23 +1756,12 @@ const completeAndAdvanceAtom = atom(null, (get, set) => {
         _onAnnotationSubmitted?.(currentId)
     }
 
-    // Auto-advance to the next pending (non-completed) scenario
-    const idx = get(currentScenarioIndexAtom)
-    const ids = get(scenarioIdsAtom)
-    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
-    const completed = get(completedScenarioIdsAtom)
-
-    // Look for the next pending scenario after current index
-    for (let i = idx + 1; i < ids.length; i++) {
-        if (!isScenarioCompleted(ids[i], completed, records)) {
-            setFocusedScenarioId({get, set, scenarioId: ids[i], notify: true})
-            return
-        }
-    }
-
-    // If no pending scenario found after current, stay (all remaining are completed)
-    if (idx < ids.length - 1) {
-        setFocusedScenarioId({get, set, scenarioId: ids[idx + 1], notify: true})
+    const nextScenarioId = resolveAdjacentNavigableScenarioId({
+        get,
+        direction: "next",
+    })
+    if (nextScenarioId) {
+        setFocusedScenarioId({get, set, scenarioId: nextScenarioId, notify: true})
     }
 })
 
@@ -1711,7 +1776,7 @@ const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     if (view !== "annotate") return
 
     const currentScenarioId = get(currentScenarioIdAtom)
-    const ids = get(scenarioIdsAtom)
+    const ids = getNavigableScenarioIds({get, view})
     if (currentScenarioId && ids.includes(currentScenarioId)) {
         set(focusedScenarioIdAtom, currentScenarioId)
         return
@@ -1726,6 +1791,33 @@ const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     }
 })
 
+const setFocusStatusFilterAtom = atom(null, (get, set, status: EvaluationStatus | null) => {
+    const previousScenarioId = get(currentScenarioIdAtom)
+    set(focusStatusFilterAtom, status)
+
+    const ids = get(navigableScenarioIdsAtom)
+    if (previousScenarioId && ids.includes(previousScenarioId)) {
+        setFocusedScenarioId({get, set, scenarioId: previousScenarioId, notify: true})
+        return
+    }
+
+    if (ids.length === 0) {
+        setFocusedScenarioId({get, set, scenarioId: null, notify: true})
+        return
+    }
+
+    const records = get(scenarioRecordsAtom) as Record<string, unknown>[]
+    const completed = get(completedScenarioIdsAtom)
+    const fallbackScenarioId = resolveFallbackScenarioId({
+        ids,
+        records,
+        completed,
+        view: "annotate",
+    })
+
+    setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
+})
+
 /**
  * Apply route state from URL parameters.
  */
@@ -1733,7 +1825,7 @@ const applyRouteStateAtom = atom(null, (get, set, payload: ApplyRouteStatePayloa
     const nextView = payload.view ?? get(activeSessionViewAtom)
     set(activeSessionViewAtom, nextView)
 
-    const ids = get(scenarioIdsAtom)
+    const ids = getNavigableScenarioIds({get, view: nextView})
     const requestedScenarioId =
         payload.scenarioId === undefined ? get(focusedScenarioIdAtom) : payload.scenarioId
 
@@ -1785,7 +1877,8 @@ const closeSessionAtom = atom(null, (get, set) => {
     set(activeQueueTypeAtom, null)
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
-    set(activeSessionViewAtom, "list")
+    set(activeSessionViewAtom, "annotate")
+    set(focusStatusFilterAtom, null)
 
     // Notify callback
     _onSessionClosed?.()
@@ -2035,12 +2128,16 @@ export const annotationSessionController = {
         focusedScenarioId: () => focusedScenarioIdAtom,
         /** All scenario IDs */
         scenarioIds: () => scenarioIdsAtom,
+        /** Scenario IDs currently visible in annotate focus view */
+        focusScenarioIds: () => navigableScenarioIdsAtom,
         /** Progress (total, completed, remaining, currentIndex) */
         progress: () => progressAtom,
         /** Can navigate forward? */
         hasNext: () => hasNextAtom,
         /** Can navigate backward? */
         hasPrev: () => hasPrevAtom,
+        /** Status filter applied in annotate focus view */
+        focusStatusFilter: () => focusStatusFilterAtom,
         /** Is the current scenario already completed? */
         isCurrentCompleted: () => isCurrentCompletedAtom,
         /** Scenario statuses with local completed overlay */
@@ -2103,6 +2200,8 @@ export const annotationSessionController = {
         navigatePrev: navigatePrevAtom,
         /** Navigate to specific index */
         navigateToIndex: navigateToIndexAtom,
+        /** Set annotate focus status filter */
+        setFocusStatusFilter: setFocusStatusFilterAtom,
         /** Mark a scenario as completed */
         markCompleted: markCompletedAtom,
         /** Mark current as completed and advance */
@@ -2131,9 +2230,11 @@ export const annotationSessionController = {
         currentScenarioIndex: () => getStore().get(currentScenarioIndexAtom),
         focusedScenarioId: () => getStore().get(focusedScenarioIdAtom),
         scenarioIds: () => getStore().get(scenarioIdsAtom),
+        focusScenarioIds: () => getStore().get(navigableScenarioIdsAtom),
         progress: () => getStore().get(progressAtom),
         hasNext: () => getStore().get(hasNextAtom),
         hasPrev: () => getStore().get(hasPrevAtom),
+        focusStatusFilter: () => getStore().get(focusStatusFilterAtom),
         queueName: () => getStore().get(queueNameAtom),
         queueKind: () => getStore().get(queueKindAtom),
         queueDescription: () => getStore().get(queueDescriptionAtom),
@@ -2173,6 +2274,8 @@ export const annotationSessionController = {
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),
+        setFocusStatusFilter: (status: EvaluationStatus | null) =>
+            getStore().set(setFocusStatusFilterAtom, status),
         markCompleted: (scenarioId: string) => getStore().set(markCompletedAtom, scenarioId),
         completeAndAdvance: () => getStore().set(completeAndAdvanceAtom),
         closeSession: () => getStore().set(closeSessionAtom),

@@ -1,4 +1,4 @@
-import {useMemo, useCallback, useState, useEffect} from "react"
+import {useMemo, useCallback, useEffect, useState} from "react"
 
 import {currentUserAtom} from "@agenta/entities/shared"
 import {
@@ -21,6 +21,7 @@ import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
+import AnnotationStatusFilterSelect from "../AnnotationStatusFilterSelect"
 
 // ============================================================================
 // CONSTANTS
@@ -35,17 +36,6 @@ const statusColorMap: Record<string, string> = {
     errors: "error",
     cancelled: "warning",
 }
-
-const STATUS_OPTIONS: {value: EvaluationStatus | ""; label: string}[] = [
-    {value: "", label: "All statuses"},
-    {value: "pending", label: "Pending"},
-    {value: "queued", label: "Queued"},
-    {value: "running", label: "Running"},
-    {value: "success", label: "Success"},
-    {value: "failure", label: "Failure"},
-    {value: "errors", label: "Errors"},
-    {value: "cancelled", label: "Cancelled"},
-]
 
 // ============================================================================
 // EMPTY STATES
@@ -95,10 +85,6 @@ function TasksEmptyState() {
     )
 }
 
-// ============================================================================
-// FILTERS
-// ============================================================================
-
 const TasksFiltersContent = ({onClose}: {onClose: () => void}) => {
     const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
     const [draftStatus, setDraftStatus] = useState<EvaluationStatus | null>(statusFilter)
@@ -125,12 +111,9 @@ const TasksFiltersContent = ({onClose}: {onClose: () => void}) => {
                 <Typography.Text strong className="text-gray-700">
                     Status
                 </Typography.Text>
-                <Select
-                    value={draftStatus ?? ""}
-                    onChange={(val) =>
-                        setDraftStatus(val === "" ? null : (val as EvaluationStatus))
-                    }
-                    options={STATUS_OPTIONS}
+                <AnnotationStatusFilterSelect
+                    value={draftStatus}
+                    onChange={setDraftStatus}
                     className="w-full"
                 />
             </div>

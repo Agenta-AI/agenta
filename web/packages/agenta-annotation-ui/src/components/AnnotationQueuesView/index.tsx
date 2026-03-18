@@ -281,6 +281,20 @@ const AnnotationQueuesView = () => {
                 },
                 {
                     type: "text",
+                    key: "assignments",
+                    title: "Assignees",
+                    width: 180,
+                    render: (_value, record) => {
+                        if (record.__isSkeleton) return null
+                        return (
+                            <div className="h-full flex items-center">
+                                <AssignmentsCell assignments={record.data?.assignments} />
+                            </div>
+                        )
+                    },
+                },
+                {
+                    type: "text",
                     key: "description",
                     title: "Description",
                     width: 280,
@@ -325,20 +339,6 @@ const AnnotationQueuesView = () => {
                         return (
                             <div className="h-full flex items-center">
                                 <CreatedByCell createdById={record.created_by_id} />
-                            </div>
-                        )
-                    },
-                },
-                {
-                    type: "text",
-                    key: "assignments",
-                    title: "Assignees",
-                    width: 180,
-                    render: (_value, record) => {
-                        if (record.__isSkeleton) return null
-                        return (
-                            <div className="h-full flex items-center">
-                                <AssignmentsCell assignments={record.data?.assignments} />
                             </div>
                         )
                     },

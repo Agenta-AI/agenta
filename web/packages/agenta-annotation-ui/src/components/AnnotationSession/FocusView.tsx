@@ -148,7 +148,14 @@ const FocusView = memo(function FocusView({
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
+    const focusScenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
+    const focusStatusFilter = useAtomValue(
+        annotationSessionController.selectors.focusStatusFilter(),
+    )
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
+    const setFocusStatusFilter = useSetAtom(
+        annotationSessionController.actions.setFocusStatusFilter,
+    )
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
     )
@@ -168,6 +175,27 @@ const FocusView = memo(function FocusView({
     )
 
     if (scenarios.length === 0) return null
+
+    if (focusScenarioIds.length === 0) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <div className="flex flex-col items-center gap-2 text-center">
+                        <Typography.Text strong>No scenarios match this status</Typography.Text>
+                        <Typography.Text type="secondary" className="text-sm">
+                            Adjust the status filter to continue annotating.
+                        </Typography.Text>
+                        {focusStatusFilter && (
+                            <Button size="small" onClick={() => setFocusStatusFilter(null)}>
+                                Show all scenarios
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     // All scenarios completed — show sync prompt (testcases) or empty state
     if (progress.remaining === 0) {
