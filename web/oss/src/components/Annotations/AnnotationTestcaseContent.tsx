@@ -24,6 +24,9 @@ import {TraceSpanDrillInView} from "@/oss/components/DrillInView"
 // KEY CATEGORIZATION (same sets used in ScenarioContent)
 // ============================================================================
 
+/** System/internal keys to exclude from display */
+const SYSTEM_KEYS = new Set(["testcase_dedup_id", "__dedup_id__"])
+
 const OUTPUT_KEYS = new Set(["output", "outputs", "result", "response", "completion"])
 
 const EXPECTED_OUTPUT_KEYS = new Set([
@@ -96,6 +99,7 @@ const AnnotationTestcaseContent = memo(function AnnotationTestcaseContent({
         const expected: [string, unknown][] = []
 
         for (const [key, value] of Object.entries(data)) {
+            if (SYSTEM_KEYS.has(key)) continue
             const category = categorizeField(key)
             if (category === "output") outputs.push([key, value])
             else if (category === "expected") expected.push([key, value])

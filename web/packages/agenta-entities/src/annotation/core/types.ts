@@ -18,12 +18,27 @@ export interface AnnotationQueryLink {
     span_id?: string
 }
 
+export interface AnnotationQueryReference {
+    id?: string
+    slug?: string
+}
+
+export interface AnnotationQueryFilter {
+    references?: {
+        evaluator?: AnnotationQueryReference
+        evaluator_revision?: AnnotationQueryReference
+        testset?: AnnotationQueryReference
+        testcase?: AnnotationQueryReference
+    }
+}
+
 /**
  * Parameters for the batch annotation query endpoint.
  */
 export interface AnnotationQueryParams {
     projectId: string
-    annotationLinks: AnnotationQueryLink[]
+    annotationLinks?: AnnotationQueryLink[]
+    annotation?: AnnotationQueryFilter
     windowing?: {
         limit?: number
         order?: string
@@ -79,5 +94,6 @@ export interface UpdateAnnotationPayload {
     annotation: {
         data: {outputs?: Record<string, unknown>}
         meta?: {name?: string; description?: string; tags?: string[]}
+        links?: Record<string, {trace_id?: string; span_id?: string}>
     }
 }

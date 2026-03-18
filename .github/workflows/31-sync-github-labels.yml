@@ -1,17 +1,10 @@
-name: "00 - sync labels"
+name: "31 - sync GitHub labels"
 
 on:
+  schedule:
+    # Run daily at 06:00 UTC
+    - cron: "0 6 * * *"
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/.labels.yml"
-      - ".github/workflows/00-sync-labels.yml"
-  pull_request:
-    paths:
-      - ".github/.labels.yml"
-      - ".github/workflows/00-sync-labels.yml"
 
 jobs:
   sync-labels:
@@ -29,5 +22,5 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           yaml-file: .github/.labels.yml
-          dry-run: ${{ github.event_name == 'pull_request' }}
+          dry-run: false
           skip-delete: true

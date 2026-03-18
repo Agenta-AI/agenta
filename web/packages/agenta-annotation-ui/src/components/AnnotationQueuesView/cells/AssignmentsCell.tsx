@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {useUserDisplayName} from "@agenta/entities/shared"
 import {InitialsAvatar} from "@agenta/ui"
-import {Tag, Tooltip} from "antd"
+import {Tag, Tooltip, Typography} from "antd"
 
 /**
  * Resolves a single user ID and renders a tag with avatar badge.
@@ -46,7 +46,9 @@ const AssignmentsCell = memo(function AssignmentsCell({assignments}: Assignments
         return Array.from(set)
     }, [assignments])
 
-    if (uniqueIds.length === 0) return null
+    if (uniqueIds.length === 0) {
+        return <Typography.Text type="secondary">All</Typography.Text>
+    }
 
     // Show first 2 inline, rest in a tooltip
     const visible = uniqueIds.slice(0, 2)

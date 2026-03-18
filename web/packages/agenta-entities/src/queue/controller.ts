@@ -36,7 +36,7 @@
  * @packageDocumentation
  */
 
-import {atom} from "jotai"
+import {atom, type Atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 
@@ -46,7 +46,7 @@ import type {StoreOptions} from "../shared"
 import type {SimpleQueue, SimpleQueueKind} from "../simpleQueue/core"
 import {simpleQueueMolecule} from "../simpleQueue/state/molecule"
 
-import type {QueueType, QueueData, QueueQueryState, InternalQueueTypeConfig} from "./types"
+import type {QueueType, QueueData, QueueQueryState} from "./types"
 
 // ============================================================================
 // HELPERS
@@ -93,6 +93,47 @@ export function clearAllQueueTypeHints(): void {
 // ============================================================================
 
 /**
+ * Type-erased config used internally for probing across queue types.
+ * Each config is created via `createQueueConfig` which preserves type safety
+ * at the boundary, then erases the entity type for uniform storage.
+ */
+interface ErasedQueueConfig {
+    molecule: {
+        selectors: {
+            data: (id: string) => Atom<unknown>
+            query: (
+                id: string,
+            ) => Atom<{data: unknown; isPending: boolean; isError: boolean; error?: Error | null}>
+            isDirty: (id: string) => Atom<boolean>
+            status: (id: string) => Atom<string | null>
+        }
+    }
+    toQueueData: (entity: unknown) => QueueData
+}
+
+/**
+ * Create a type-safe queue config that erases the entity type for uniform storage.
+ */
+function createQueueConfig<TEntity>(config: {
+    molecule: {
+        selectors: {
+            data: (id: string) => Atom<TEntity | null>
+            query: (id: string) => Atom<{
+                data: TEntity | null
+                isPending: boolean
+                isError: boolean
+                error?: Error | null
+            }>
+            isDirty: (id: string) => Atom<boolean>
+            status: (id: string) => Atom<string | null>
+        }
+    }
+    toQueueData: (entity: TEntity) => QueueData
+}): ErasedQueueConfig {
+    return config as unknown as ErasedQueueConfig
+}
+
+/**
  * Map a SimpleQueue entity to the unified QueueData shape.
  */
 function simpleQueueToQueueData(entity: SimpleQueue): QueueData {
@@ -129,15 +170,15 @@ function evaluationQueueToQueueData(entity: EvaluationQueue): QueueData {
 /**
  * Registry of queue type configurations.
  */
-const queueConfigs: Record<QueueType, InternalQueueTypeConfig> = {
-    simple: {
+const queueConfigs: Record<QueueType, ErasedQueueConfig> = {
+    simple: createQueueConfig<SimpleQueue>({
         molecule: simpleQueueMolecule,
         toQueueData: simpleQueueToQueueData,
-    },
-    evaluation: {
+    }),
+    evaluation: createQueueConfig<EvaluationQueue>({
         molecule: evaluationQueueMolecule,
         toQueueData: evaluationQueueToQueueData,
-    },
+    }),
 }
 
 // ============================================================================
@@ -168,13 +209,13 @@ const dataFamily = atomFamily((queueId: string) =>
         if (hinted) {
             const entity = get(hinted.config.molecule.selectors.data(queueId))
             if (!entity) return null
-            return hinted.config.toQueueData(entity as never)
+            return hinted.config.toQueueData(entity)
         }
         // Probe: try simple first, then evaluation
         for (const [_type, config] of Object.entries(queueConfigs)) {
             const entity = get(config.molecule.selectors.data(queueId))
             if (entity) {
-                return config.toQueueData(entity as never)
+                return config.toQueueData(entity)
             }
         }
         return null
@@ -191,7 +232,7 @@ const queryFamily = atomFamily((queueId: string) =>
             const query = get(hinted.config.molecule.selectors.query(queueId))
             const entity = query.data
             return {
-                data: entity ? hinted.config.toQueueData(entity as never) : null,
+                data: entity ? hinted.config.toQueueData(entity) : null,
                 isPending: query.isPending,
                 isError: query.isError,
                 error: query.error ?? null,
@@ -202,7 +243,7 @@ const queryFamily = atomFamily((queueId: string) =>
             if (query.data || query.isPending || query.isError) {
                 const entity = query.data
                 return {
-                    data: entity ? config.toQueueData(entity as never) : null,
+                    data: entity ? config.toQueueData(entity) : null,
                     isPending: query.isPending,
                     isError: query.isError,
                     error: query.error ?? null,
@@ -235,8 +276,17 @@ const isDirtyFamily = atomFamily((queueId: string) =>
  */
 const statusFamily = atomFamily((queueId: string) =>
     atom<string | null>((get) => {
-        const data = get(dataFamily(queueId))
-        return data?.status ?? null
+        const hinted = getHintedConfig(queueId)
+        if (hinted) {
+            return get(hinted.config.molecule.selectors.status(queueId))
+        }
+        for (const [_type, config] of Object.entries(queueConfigs)) {
+            const query = get(config.molecule.selectors.query(queueId))
+            if (query.data || query.isPending || query.isError) {
+                return get(config.molecule.selectors.status(queueId))
+            }
+        }
+        return null
     }),
 )
 

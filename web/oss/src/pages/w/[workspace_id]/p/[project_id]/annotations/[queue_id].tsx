@@ -44,9 +44,9 @@ const AnnotationSessionPage = () => {
     const {projectURL} = useURL()
     const queueId = router.query.queue_id as string | undefined
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [viewParam, setViewParam] = useQueryParam("view", "list", "replace")
+    const [viewParam, setViewParam] = useQueryParam("view", "annotate", "replace")
     const [scenarioIdParam, setScenarioIdParam] = useQueryParam("scenarioId", undefined, "replace")
-    const activeView = isSessionView(viewParam) ? viewParam : "list"
+    const activeView = isSessionView(viewParam) ? viewParam : "annotate"
     const activeScenarioId = Array.isArray(scenarioIdParam) ? scenarioIdParam[0] : scenarioIdParam
     const handleActiveViewChange = useCallback(
         (view: SessionView) => {

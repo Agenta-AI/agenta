@@ -3705,7 +3705,7 @@ class SimpleQueuesService:
             description=queue.description,
             #
             created_at=queue.created_at,
-            updated_at=queue.updated_at,
+            updated_at=queue.updated_at or queue.created_at,
             deleted_at=queue.deleted_at,
             created_by_id=queue.created_by_id,
             updated_by_id=queue.updated_by_id,
