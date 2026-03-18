@@ -20,7 +20,7 @@ const SelectEvaluatorModal = ({open, onCancel, ...modalProps}: SelectEvaluatorMo
             classNames={{body: "!p-0 !overflow-hidden"}}
             {...modalProps}
         >
-            <SelectEvaluatorModalContent />
+            <SelectEvaluatorModalContent onClose={onCancel} />
         </EnhancedModal>
     )
 }

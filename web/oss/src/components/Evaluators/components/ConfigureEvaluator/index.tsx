@@ -1,142 +1,182 @@
 /**
- * ConfigureEvaluatorPage - Standalone evaluator configuration page
+ * ConfigureEvaluatorPage
  *
- * This is the page wrapper for the evaluator configuration playground.
- * It handles:
- * - Loading evaluator data from the URL
- * - Initializing playground atoms with the correct evaluator/mode
- * - Cleaning up atoms when leaving the page
+ * Evaluator configuration page using the playground infrastructure.
+ * Entity loading is URL-driven via playgroundSyncAtom (same as the app playground).
  *
- * The actual UI is rendered by ConfigureEvaluator which reads from atoms.
- * DebugSection handles its own data fetching for variants and testsets.
+ * URL: /evaluators/playground?revisions=<evalRevId>#pgSnapshot=...
+ *
+ * Phase 1 (initial load): URL has evaluator revision → hydrated as primary node
+ * Phase 2 (app select): App becomes primary, evaluator moves to downstream (depth 1)
  */
+
 import {useCallback, useEffect, useMemo} from "react"
 
-import {message} from "@agenta/ui/app-message"
-import {ArrowLeftOutlined} from "@ant-design/icons"
-import {Button, Result} from "antd"
+import {loadableController} from "@agenta/entities/loadable"
+import {testcaseMolecule} from "@agenta/entities/testcase"
+import {EntityPicker} from "@agenta/entity-ui"
+import {
+    createWorkflowRevisionAdapter,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
+import {playgroundController} from "@agenta/playground"
+import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
+import {EntitySelectorProvider} from "@agenta/playground-ui/components"
+import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
+import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
+
+import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
+import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
+import {OSSPlaygroundEntityProvider} from "@/oss/components/Playground/OSSPlaygroundEntityProvider"
+import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
+import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
 import {
-    initPlaygroundAtom,
-    playgroundEditValuesAtom,
-    resetPlaygroundAtom,
-} from "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/state/atoms"
-import useURL from "@/oss/hooks/useURL"
-import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
-import {Evaluator} from "@/oss/lib/Types"
-import {evaluatorByKeyAtomFamily} from "@/oss/state/evaluators"
+    connectAppToEvaluatorAtom,
+    evaluatorConfigEntityIdsAtom,
+    hasAppConnectedAtom,
+    selectedAppLabelAtom,
+} from "./atoms"
+import EvaluatorPlaygroundHeader from "./EvaluatorPlaygroundHeader"
 
-import ConfigureEvaluatorSkeleton from "./assets/ConfigureEvaluatorSkeleton"
-
-const ConfigureEvaluator = dynamic(
-    () =>
-        import("@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator"),
+const PlaygroundMainView = dynamic(
+    () => import("@/oss/components/Playground/Components/MainLayout"),
     {ssr: false},
 )
 
-const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) => {
-    const router = useRouter()
-    const {projectURL} = useURL()
-    const {
-        evaluatorsSwr,
-        evaluatorConfigsSwr,
-        isLoadingEvaluators,
-        isLoadingEvaluatorConfigs,
-        refetchAll,
-    } = useFetchEvaluatorsData()
-    const evaluators = evaluatorsSwr.data || []
-    const evaluatorConfigs = evaluatorConfigsSwr.data || []
+/**
+ * Sync state tag — renders sync badge in each row header.
+ * Same as the app playground's version.
+ */
+function EvaluatorSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: string}) {
+    const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
+        | "local"
+        | "connected"
+        | null
+    const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(rowId), [rowId])) as boolean
+    const discard = useSetAtom(testcaseMolecule.actions.discard)
+    const handleDiscard = useCallback(() => discard(rowId), [discard, rowId])
 
-    // Atom actions
-    const initPlayground = useSetAtom(initPlaygroundAtom)
-    const resetPlayground = useSetAtom(resetPlaygroundAtom)
-    const stagedConfig = useAtomValue(playgroundEditValuesAtom)
-    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+    if (mode !== "connected") return null
 
-    const existingConfig = useMemo(() => {
-        if (!evaluatorId) return null
-        return (
-            evaluatorConfigs.find((config) => config.id === evaluatorId) ??
-            (stagedConfig?.id === evaluatorId ? stagedConfig : null)
-        )
-    }, [evaluatorConfigs, evaluatorId, stagedConfig])
+    const isNew = rowId.startsWith("new-") || rowId.startsWith("local-")
+    const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
 
-    const evaluatorKey = resolveEvaluatorKey(existingConfig) ?? evaluatorId ?? null
+    return (
+        <SyncStateTag
+            syncState={syncState}
+            dismissible={syncState === "modified"}
+            onDismiss={syncState === "modified" ? handleDiscard : undefined}
+        />
+    )
+}
 
-    const evaluatorQuery = useAtomValue(evaluatorByKeyAtomFamily(evaluatorKey))
-    const evaluatorFromRegular = evaluators.find((item) => item.key === evaluatorKey)
-    const evaluator = evaluatorFromRegular ?? evaluatorQuery.data ?? null
-    const isLoadingEvaluatorByKey = evaluatorQuery.isPending && !evaluatorFromRegular
+const ConfigureEvaluatorPageInner = () => {
+    // Mount the playground URL sync system (same as app playground)
+    useAtomValue(playgroundSyncAtom)
 
-    const isLoading = isLoadingEvaluators || isLoadingEvaluatorConfigs || isLoadingEvaluatorByKey
+    const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
+    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
+    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
 
-    // Initialize playground atoms when evaluator data is ready
+    // Read the current evaluator entity from playground nodes
+    // Phase 1: evaluator is at depth 0 (primary)
+    // Phase 2: evaluator is at depth 1 (downstream)
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
+    const evaluatorNode = useMemo(() => {
+        const downstream = nodes.find((n) => n.depth > 0)
+        if (downstream) return downstream
+        return nodes[0] ?? null
+    }, [nodes])
+
+    // Preload editor plugins
     useEffect(() => {
-        if (!evaluator || isLoading) return
+        void preloadEditorPlugins()
+    }, [])
 
-        // Determine mode based on whether we have an existing config
-        const mode = existingConfig ? "edit" : "create"
+    // App workflow picker (shared between header and empty state)
+    const appWorkflowAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                skipVariantLevel: true,
+                excludeRevisionZero: true,
+                flags: {is_evaluator: false, is_human: false},
+            }),
+        [],
+    )
 
-        initPlayground({
-            evaluator: evaluator as Evaluator,
-            existingConfig: existingConfig ?? undefined,
-            mode,
-        })
-    }, [evaluator, existingConfig, isLoading, initPlayground])
+    const handleAppSelect = useCallback(
+        (selection: WorkflowRevisionSelectionResult) => {
+            if (!evaluatorNode) return
+            connectApp({
+                appRevisionId: selection.id,
+                appLabel: selection.label,
+                evaluatorRevisionId: evaluatorNode.entityId,
+                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
+            })
+        },
+        [connectApp, evaluatorNode],
+    )
 
-    // Cleanup atoms when leaving the page
-    useEffect(() => {
-        return () => {
-            resetPlayground()
-        }
-    }, [resetPlayground])
+    const runDisabledContent = useMemo(
+        () => (
+            <>
+                <Typography.Text type="secondary" className="text-sm">
+                    Select an app to run the evaluator chain
+                </Typography.Text>
+                <EntityPicker<WorkflowRevisionSelectionResult>
+                    variant="popover-cascader"
+                    adapter={appWorkflowAdapter}
+                    onSelect={handleAppSelect}
+                    size="middle"
+                    placeholder={selectedAppLabel ?? "Select app"}
+                />
+            </>
+        ),
+        [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
+    )
 
-    const navigateBack = useCallback(() => {
-        if (typeof window !== "undefined" && window.history.length > 1) {
-            router.back()
-            return
-        }
-        router.push(`${projectURL}/evaluators`)
-    }, [projectURL, router])
+    const providers = useMemo(
+        () =>
+            ({
+                SimpleSharedEditor,
+                SharedGenerationResultUtils,
+                renderSyncStateTag: EvaluatorSyncStateTag,
+                TestcaseEditor: PlaygroundTestcaseEditor,
+            }) as unknown as PlaygroundUIProviders,
+        [],
+    )
 
-    const handleSuccess = useCallback(async () => {
-        message.success("Evaluator configuration saved")
-        recordWidgetEvent("evaluator_created")
-        await refetchAll()
-    }, [recordWidgetEvent, refetchAll])
+    return (
+        <OSSPlaygroundEntityProvider>
+            <PlaygroundUIProvider providers={providers}>
+                <EntitySelectorProvider>
+                    <OSSdrillInUIProvider>
+                        <div className="flex flex-col w-full h-full overflow-hidden">
+                            <EvaluatorPlaygroundHeader
+                                appWorkflowAdapter={appWorkflowAdapter}
+                                onAppSelect={handleAppSelect}
+                            />
+                            <PlaygroundMainView
+                                mode="evaluator"
+                                configEntityIdsOverride={configEntityIds}
+                                runDisabled={!hasAppConnected}
+                                runDisabledContent={runDisabledContent}
+                            />
+                        </div>
+                    </OSSdrillInUIProvider>
+                </EntitySelectorProvider>
+            </PlaygroundUIProvider>
+        </OSSPlaygroundEntityProvider>
+    )
+}
 
-    if (!router.isReady || isLoading) {
-        return <ConfigureEvaluatorSkeleton />
-    }
-
-    if (!evaluator) {
-        const notFoundTitle = existingConfig
-            ? "Evaluator template not found"
-            : "Evaluator not found"
-        const notFoundSubtitle = existingConfig
-            ? "We could not find the template associated with this evaluator configuration."
-            : "We could not find the requested evaluator template."
-
-        return (
-            <Result
-                status="404"
-                title={notFoundTitle}
-                subTitle={notFoundSubtitle}
-                extra={
-                    <Button type="primary" icon={<ArrowLeftOutlined />} onClick={navigateBack}>
-                        Back to Evaluators
-                    </Button>
-                }
-            />
-        )
-    }
-
-    return <ConfigureEvaluator onClose={navigateBack} onSuccess={handleSuccess} />
+const ConfigureEvaluatorPage = () => {
+    return <ConfigureEvaluatorPageInner />
 }
 
 export default ConfigureEvaluatorPage

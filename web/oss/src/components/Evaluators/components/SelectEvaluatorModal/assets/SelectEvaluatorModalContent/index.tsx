@@ -1,12 +1,16 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
+import {
+    createEvaluatorFromTemplate,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesQueryAtom,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {ArrowRight} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
 import {Empty, Skeleton, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     buildEvaluatorTabItems,
@@ -16,17 +20,14 @@ import {
     getEvaluatorTagClassName,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
 import type {EvaluatorPreview} from "@/oss/components/Evaluators/assets/types"
-import useURL from "@/oss/hooks/useURL"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import type {Evaluator} from "@/oss/lib/Types"
-import {nonArchivedEvaluatorsAtom} from "@/oss/state/evaluators"
+import {openEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/EvaluatorDrawer/store/evaluatorDrawerStore"
 
-const SelectEvaluatorModalContent = () => {
-    const {projectURL} = useURL()
-    const router = useRouter()
-    const {isLoadingEvaluators} = useFetchEvaluatorsData()
+const SelectEvaluatorModalContent = ({onClose}: {onClose?: (...args: unknown[]) => void}) => {
+    const templatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
+    const isLoadingEvaluators = templatesQuery.isPending
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
-    const nonArchivedEvaluators = useAtomValue(nonArchivedEvaluatorsAtom)
+    const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom)
+    const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
 
     const tabItems = useMemo<TabsProps["items"]>(() => {
         return buildEvaluatorTabItems(nonArchivedEvaluators)
@@ -42,16 +43,26 @@ const SelectEvaluatorModalContent = () => {
     }, [])
 
     const handleTemplateSelect = useCallback(
-        async (template: EvaluatorPreview | Evaluator) => {
-            const evaluatorId = (template as any)?.key
-            if (!evaluatorId) {
+        async (template: EvaluatorPreview | {key?: string}) => {
+            const templateKey = (template as any)?.key
+            if (!templateKey) {
                 message.error("Unable to open evaluator template")
                 return
             }
 
-            await router.push(`${projectURL}/evaluators/configure/${evaluatorId}`)
+            const localId = await createEvaluatorFromTemplate(templateKey)
+            if (!localId) {
+                message.error("Unable to create evaluator from template")
+                return
+            }
+
+            openEvaluatorDrawer({
+                entityId: localId,
+                mode: "create",
+            })
+            onClose?.()
         },
-        [router, projectURL],
+        [openEvaluatorDrawer, onClose],
     )
 
     const renderContent = () => {
@@ -92,7 +103,7 @@ const SelectEvaluatorModalContent = () => {
                             )}
                         >
                             <div className="flex items-center gap-2">
-                                <Tag bordered={false} className={clsx("w-fit", tagClassnames)}>
+                                <Tag variant="filled" className={clsx("w-fit", tagClassnames)}>
                                     {item.name}
                                 </Tag>
                                 <ArrowRight
