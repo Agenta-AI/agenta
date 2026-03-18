@@ -185,6 +185,17 @@ export const simpleQueueIdResponseSchema = z.object({
 export type SimpleQueueIdResponse = z.infer<typeof simpleQueueIdResponseSchema>
 
 /**
+ * Queue IDs response.
+ * Matches backend `EvaluationQueueIdsResponse` when deleting multiple queues.
+ */
+export const simpleQueueIdsResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    queue_ids: z.array(z.string()).default([]),
+})
+
+export type SimpleQueueIdsResponse = z.infer<typeof simpleQueueIdsResponseSchema>
+
+/**
  * Scenarios response.
  * Matches backend `SimpleQueueScenariosResponse`.
  */

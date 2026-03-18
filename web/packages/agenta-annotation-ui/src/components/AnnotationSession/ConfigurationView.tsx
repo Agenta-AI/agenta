@@ -13,12 +13,14 @@ import type {KeyboardEvent, PropsWithChildren} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
+import {useEntityDelete} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
-import {Button, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
+import {Button, Divider, Form, Input, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
 import AssignmentsCell from "../AnnotationQueuesView/cells/AssignmentsCell"
 
 const {Text} = Typography
@@ -682,6 +684,42 @@ const GeneralSection = memo(function GeneralSection({queueId}: {queueId: string}
     )
 })
 
+const DeleteSection = memo(function DeleteSection({
+    queueId,
+    queueName,
+}: {
+    queueId: string
+    queueName?: string | null
+}) {
+    const navigation = useAnnotationNavigation()
+    const {deleteEntity} = useEntityDelete()
+
+    const handleDelete = useCallback(() => {
+        deleteEntity("simpleQueue", queueId, queueName ?? undefined, {
+            onSuccess: () => {
+                navigation.navigateToQueueList()
+            },
+        })
+    }, [deleteEntity, navigation, queueId, queueName])
+
+    return (
+        <SectionCard className="border-[#FEE4E2] bg-[#FFFBFA]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-1">
+                    <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
+                    <Text type="secondary">
+                        Permanently remove this annotation queue and return to the queue list.
+                    </Text>
+                </div>
+
+                <Button danger onClick={handleDelete}>
+                    Delete queue
+                </Button>
+            </div>
+        </SectionCard>
+    )
+})
+
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -729,6 +767,11 @@ const ConfigurationView = memo(function ConfigurationView({queueId}: Configurati
                         </Form.Item>
                     </Form>
                 </SectionCard>
+            </CollapsibleSection>
+
+            <Divider className="!my-4" />
+            <CollapsibleSection title="Delete">
+                <DeleteSection queueId={queueId} queueName={queue.name} />
             </CollapsibleSection>
         </div>
     )

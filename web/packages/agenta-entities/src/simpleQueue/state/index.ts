@@ -28,6 +28,8 @@ export {
     discardSimpleQueueDraftAtom,
     // Server mutations
     createSimpleQueueAtom,
+    deleteSimpleQueueAtom,
+    deleteSimpleQueuesAtom,
     addTracesToQueueAtom,
     addTestcasesToQueueAtom,
     // Cache invalidation

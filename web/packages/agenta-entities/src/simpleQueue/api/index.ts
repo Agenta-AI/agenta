@@ -10,6 +10,9 @@ export {
     querySimpleQueues,
     // Fetch (single)
     fetchSimpleQueue,
+    // Delete
+    deleteSimpleQueue,
+    deleteSimpleQueues,
     // Scenarios
     querySimpleQueueScenarios,
     // Add items

@@ -129,6 +129,17 @@ export const evaluationQueueIdResponseSchema = z.object({
 export type EvaluationQueueIdResponse = z.infer<typeof evaluationQueueIdResponseSchema>
 
 /**
+ * Queue IDs response.
+ * Matches backend `EvaluationQueueIdsResponse`.
+ */
+export const evaluationQueueIdsResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    queue_ids: z.array(z.string()).default([]),
+})
+
+export type EvaluationQueueIdsResponse = z.infer<typeof evaluationQueueIdsResponseSchema>
+
+/**
  * Scenario IDs response.
  * Matches backend `EvaluationQueueScenarioIdsResponse`.
  */

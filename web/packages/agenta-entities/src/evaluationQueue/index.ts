@@ -48,6 +48,8 @@ export {
     type EvaluationQueuesResponse,
     evaluationQueueIdResponseSchema,
     type EvaluationQueueIdResponse,
+    evaluationQueueIdsResponseSchema,
+    type EvaluationQueueIdsResponse,
     evaluationQueueScenarioIdsResponseSchema,
     type EvaluationQueueScenarioIdsResponse,
 } from "./core"
@@ -62,7 +64,13 @@ export type {
 // API FUNCTIONS
 // ============================================================================
 
-export {queryEvaluationQueues, fetchEvaluationQueue, queryEvaluationQueueScenarios} from "./api"
+export {
+    queryEvaluationQueues,
+    fetchEvaluationQueue,
+    deleteEvaluationQueue,
+    deleteEvaluationQueues,
+    queryEvaluationQueueScenarios,
+} from "./api"
 
 // ============================================================================
 // STATE ATOMS

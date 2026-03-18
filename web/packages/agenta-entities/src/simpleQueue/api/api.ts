@@ -9,15 +9,18 @@
 
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 
+import {deleteEvaluationQueue, deleteEvaluationQueues} from "../../evaluationQueue/api"
 import {safeParseWithLogging} from "../../shared"
 import {
     simpleQueueResponseSchema,
     simpleQueuesResponseSchema,
     simpleQueueIdResponseSchema,
+    simpleQueueIdsResponseSchema,
     simpleQueueScenariosResponseSchema,
     type SimpleQueue,
     type SimpleQueuesResponse,
     type SimpleQueueIdResponse,
+    type SimpleQueueIdsResponse,
     type SimpleQueueScenariosResponse,
     type SimpleQueueKind,
 } from "../core"
@@ -147,6 +150,59 @@ export async function fetchSimpleQueue({
         "[fetchSimpleQueue]",
     )
     return validated?.queue ?? null
+}
+
+// ============================================================================
+// DELETE
+// ============================================================================
+
+/**
+ * Delete a simple queue by ID.
+ *
+ * Uses the existing evaluation queue delete endpoint because simple queues are
+ * backed by evaluation queues.
+ */
+export async function deleteSimpleQueue(
+    projectId: string,
+    queueId: string,
+): Promise<SimpleQueueIdResponse> {
+    if (!projectId || !queueId) {
+        return {count: 0, queue_id: null}
+    }
+
+    const response = await deleteEvaluationQueue({id: queueId, projectId})
+
+    const validated = safeParseWithLogging(
+        simpleQueueIdResponseSchema,
+        response,
+        "[deleteSimpleQueue]",
+    )
+    return validated ?? {count: 0, queue_id: null}
+}
+
+/**
+ * Delete multiple simple queues by ID.
+ *
+ * Uses the existing evaluation queue bulk delete endpoint because simple
+ * queues are backed by evaluation queues.
+ */
+export async function deleteSimpleQueues(
+    projectId: string,
+    queueIds: string[],
+): Promise<SimpleQueueIdsResponse> {
+    const normalizedQueueIds = Array.from(new Set(queueIds.filter(Boolean)))
+    if (!projectId || normalizedQueueIds.length === 0) {
+        return {count: 0, queue_ids: []}
+    }
+
+    const response = await deleteEvaluationQueues(projectId, normalizedQueueIds)
+
+    const validated = safeParseWithLogging(
+        simpleQueueIdsResponseSchema,
+        response,
+        "[deleteSimpleQueues]",
+    )
+    return validated ?? {count: 0, queue_ids: []}
 }
 
 // ============================================================================
