@@ -347,12 +347,15 @@ export const triggerExecutionAtom = atom(
                 data: testcaseData,
                 nodes: executionNodes,
                 allConnections: executionConnections,
-                sessionOptions: {
-                    [sessionId]: {
-                        headers,
-                        ...(projectId ? {projectId} : {}),
-                    },
-                },
+                sessionOptions: Object.fromEntries(
+                    executionNodes.map((n) => [
+                        n.depth === 0 ? sessionId : `sess:${rootEntityId}:${n.entityId}`,
+                        {
+                            headers,
+                            ...(projectId ? {projectId} : {}),
+                        },
+                    ]),
+                ),
                 repetitionCount,
                 targetNodeId: params.targetNodeId,
                 lifecycle: {

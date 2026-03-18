@@ -307,12 +307,11 @@ const EvaluatorCard = memo(function EvaluatorCard({evaluatorId}: {evaluatorId: s
     const description = evaluator?.description
     const uri = evaluator?.data?.uri
     const typeLabel = deriveTypeLabel(uri)
-    const workflowId = evaluator?.workflow_id ?? evaluatorId
 
     const evaluatorHref = useMemo(() => {
         const base = getProjectBaseUrl()
-        return base ? `${base}/evaluators/configure/${workflowId}` : undefined
-    }, [workflowId])
+        return base ? `${base}/evaluators/playground?revisions=${evaluatorId}` : undefined
+    }, [evaluatorId])
 
     const paramEntries = useMemo(
         () => extractParameters(evaluator?.data as Record<string, unknown> | null),
