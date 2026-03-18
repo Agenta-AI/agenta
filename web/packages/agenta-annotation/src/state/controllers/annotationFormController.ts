@@ -1414,7 +1414,9 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
         // Phase 5: Mark completed + advance (don't block on post-submit ops)
         if (markComplete && scenarioId) {
             annotationSessionController.set.markCompleted(scenarioId)
-            annotationSessionController.set.navigateNext()
+            if (get(annotationSessionController.selectors.focusAutoNext())) {
+                annotationSessionController.set.navigateNext()
+            }
 
             await patchScenarioStatus(projectId, scenarioId, "success")
             await (runId ? checkAndUpdateRunStatus(projectId, runId) : Promise.resolve())

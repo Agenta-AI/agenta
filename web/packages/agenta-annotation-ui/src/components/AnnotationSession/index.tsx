@@ -54,7 +54,7 @@ interface AnnotationSessionProps {
 
 const SESSION_TABS: {key: SessionView; label: string}[] = [
     {key: "annotate", label: "Annotate"},
-    {key: "list", label: "All Traces"},
+    {key: "list", label: "All Anntations"},
     {key: "configuration", label: "Configuration"},
 ]
 

@@ -42,7 +42,6 @@ import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {
@@ -130,8 +129,8 @@ const completedScenarioIdsAtom = atom<Set<string>>(new Set<string>())
 /** Active view in the annotation session ("list" or "annotate") */
 const activeSessionViewAtom = atom<SessionView>("annotate")
 
-/** Status filter for the annotate focus view */
-const focusStatusFilterAtom = atom<EvaluationStatus | null>(null)
+const hideCompletedInFocusAtom = atom<boolean>(false)
+const focusAutoNextAtom = atom<boolean>(true)
 
 function getScenarioStatusValue({
     scenarioId,
@@ -152,14 +151,17 @@ function getNavigableScenarioIds({get, view}: {get: Getter; view?: SessionView})
     const activeView = view ?? get(activeSessionViewAtom)
     if (activeView !== "annotate") return ids
 
-    const statusFilter = get(focusStatusFilterAtom)
-    if (!statusFilter) return ids
-
+    const hideCompleted = get(hideCompletedInFocusAtom)
     const records = get(scenarioRecordsAtom)
     const completed = get(completedScenarioIdsAtom)
-    return ids.filter(
-        (scenarioId) => getScenarioStatusValue({scenarioId, records, completed}) === statusFilter,
-    )
+
+    return ids.filter((scenarioId) => {
+        const status = getScenarioStatusValue({scenarioId, records, completed})
+        if (hideCompleted && status === "success") {
+            return false
+        }
+        return true
+    })
 }
 
 const navigableScenarioIdsAtom = atom<string[]>((get) => getNavigableScenarioIds({get}))
@@ -1598,7 +1600,8 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
     set(focusedScenarioIdAtom, initialScenarioId ?? null)
     set(completedScenarioIdsAtom, new Set())
     set(activeSessionViewAtom, initialView ?? "annotate")
-    set(focusStatusFilterAtom, null)
+    set(hideCompletedInFocusAtom, false)
+    set(focusAutoNextAtom, true)
 
     // scenarioIdsAtom and scenarioRecordsAtom are now derived from
     // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
@@ -1791,9 +1794,9 @@ const setActiveViewAtom = atom(null, (get, set, view: SessionView) => {
     }
 })
 
-const setFocusStatusFilterAtom = atom(null, (get, set, status: EvaluationStatus | null) => {
+const setHideCompletedInFocusAtom = atom(null, (get, set, hideCompleted: boolean) => {
     const previousScenarioId = get(currentScenarioIdAtom)
-    set(focusStatusFilterAtom, status)
+    set(hideCompletedInFocusAtom, hideCompleted)
 
     const ids = get(navigableScenarioIdsAtom)
     if (previousScenarioId && ids.includes(previousScenarioId)) {
@@ -1816,6 +1819,10 @@ const setFocusStatusFilterAtom = atom(null, (get, set, status: EvaluationStatus 
     })
 
     setFocusedScenarioId({get, set, scenarioId: fallbackScenarioId, notify: true})
+})
+
+const setFocusAutoNextAtom = atom(null, (_get, set, autoNext: boolean) => {
+    set(focusAutoNextAtom, autoNext)
 })
 
 /**
@@ -1878,7 +1885,8 @@ const closeSessionAtom = atom(null, (get, set) => {
     set(focusedScenarioIdAtom, null)
     set(completedScenarioIdsAtom, new Set())
     set(activeSessionViewAtom, "annotate")
-    set(focusStatusFilterAtom, null)
+    set(hideCompletedInFocusAtom, false)
+    set(focusAutoNextAtom, true)
 
     // Notify callback
     _onSessionClosed?.()
@@ -2136,8 +2144,10 @@ export const annotationSessionController = {
         hasNext: () => hasNextAtom,
         /** Can navigate backward? */
         hasPrev: () => hasPrevAtom,
-        /** Status filter applied in annotate focus view */
-        focusStatusFilter: () => focusStatusFilterAtom,
+        /** Whether completed scenarios are hidden in annotate focus view */
+        hideCompletedInFocus: () => hideCompletedInFocusAtom,
+        /** Whether complete action auto-advances in annotate focus view */
+        focusAutoNext: () => focusAutoNextAtom,
         /** Is the current scenario already completed? */
         isCurrentCompleted: () => isCurrentCompletedAtom,
         /** Scenario statuses with local completed overlay */
@@ -2200,8 +2210,10 @@ export const annotationSessionController = {
         navigatePrev: navigatePrevAtom,
         /** Navigate to specific index */
         navigateToIndex: navigateToIndexAtom,
-        /** Set annotate focus status filter */
-        setFocusStatusFilter: setFocusStatusFilterAtom,
+        /** Hide or show completed scenarios in annotate focus view */
+        setHideCompletedInFocus: setHideCompletedInFocusAtom,
+        /** Enable or disable auto-next in annotate focus view */
+        setFocusAutoNext: setFocusAutoNextAtom,
         /** Mark a scenario as completed */
         markCompleted: markCompletedAtom,
         /** Mark current as completed and advance */
@@ -2234,7 +2246,8 @@ export const annotationSessionController = {
         progress: () => getStore().get(progressAtom),
         hasNext: () => getStore().get(hasNextAtom),
         hasPrev: () => getStore().get(hasPrevAtom),
-        focusStatusFilter: () => getStore().get(focusStatusFilterAtom),
+        hideCompletedInFocus: () => getStore().get(hideCompletedInFocusAtom),
+        focusAutoNext: () => getStore().get(focusAutoNextAtom),
         queueName: () => getStore().get(queueNameAtom),
         queueKind: () => getStore().get(queueKindAtom),
         queueDescription: () => getStore().get(queueDescriptionAtom),
@@ -2274,8 +2287,9 @@ export const annotationSessionController = {
         navigateNext: () => getStore().set(navigateNextAtom),
         navigatePrev: () => getStore().set(navigatePrevAtom),
         navigateToIndex: (index: number) => getStore().set(navigateToIndexAtom, index),
-        setFocusStatusFilter: (status: EvaluationStatus | null) =>
-            getStore().set(setFocusStatusFilterAtom, status),
+        setHideCompletedInFocus: (hideCompleted: boolean) =>
+            getStore().set(setHideCompletedInFocusAtom, hideCompleted),
+        setFocusAutoNext: (autoNext: boolean) => getStore().set(setFocusAutoNextAtom, autoNext),
         markCompleted: (scenarioId: string) => getStore().set(markCompletedAtom, scenarioId),
         completeAndAdvance: () => getStore().set(completeAndAdvanceAtom),
         closeSession: () => getStore().set(closeSessionAtom),

@@ -149,13 +149,7 @@ const FocusView = memo(function FocusView({
         annotationSessionController.selectors.currentScenarioId(),
     )
     const focusScenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
-    const focusStatusFilter = useAtomValue(
-        annotationSessionController.selectors.focusStatusFilter(),
-    )
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
-    const setFocusStatusFilter = useSetAtom(
-        annotationSessionController.actions.setFocusStatusFilter,
-    )
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
     )
@@ -182,15 +176,10 @@ const FocusView = memo(function FocusView({
                 <SessionNavigation />
                 <div className="flex flex-1 items-center justify-center">
                     <div className="flex flex-col items-center gap-2 text-center">
-                        <Typography.Text strong>No scenarios match this status</Typography.Text>
+                        <Typography.Text strong>No scenarios available</Typography.Text>
                         <Typography.Text type="secondary" className="text-sm">
-                            Adjust the status filter to continue annotating.
+                            Adjust the focus switches to continue annotating.
                         </Typography.Text>
-                        {focusStatusFilter && (
-                            <Button size="small" onClick={() => setFocusStatusFilter(null)}>
-                                Show all scenarios
-                            </Button>
-                        )}
                     </div>
                 </div>
             </div>
