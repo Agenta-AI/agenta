@@ -241,7 +241,6 @@ function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): 
         cached = atom((get) => {
             const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
-
             return getSchemaAtPathUtil(schema, params.path) ?? null
         })
         moleculeSchemaAtPathCache.set(key, cached)

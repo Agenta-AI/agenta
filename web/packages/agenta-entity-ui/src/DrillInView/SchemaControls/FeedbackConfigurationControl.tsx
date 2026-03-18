@@ -574,7 +574,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Boolean info */}
             {responseFormat === "boolean" && (
                 <Alert
-                    message="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
+                    title="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
                     type="info"
                     showIcon
                     className="mb-4"

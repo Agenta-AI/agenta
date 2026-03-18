@@ -131,11 +131,11 @@ export function FieldItemContent({
         if (!isExpandable) return false
         // Schema-based detection
         if (schema) {
+            const xParam = schema["x-parameter"] as string | undefined
             if (isPromptSchema(schema)) return true
             if (isMessagesSchema(schema)) return true
             if (shouldRenderObjectInline(schema)) return true
             // Check for feedback_config x-parameter
-            const xParam = schema["x-parameter"] as string | undefined
             if (xParam === "feedback_config") return true
         }
         // Value-based detection (no schema)

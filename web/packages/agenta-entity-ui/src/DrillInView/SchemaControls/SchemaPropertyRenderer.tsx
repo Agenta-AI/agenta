@@ -21,6 +21,7 @@ import clsx from "clsx"
 import {formatLabel} from "../utils"
 
 import {BooleanToggleControl} from "./BooleanToggleControl"
+import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
 import {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
@@ -85,6 +86,7 @@ function getControlType(
     | "enum"
     | "boolean"
     | "textarea"
+    | "code"
     | "object"
     | "object_inline"
     | "array"
@@ -155,13 +157,18 @@ function getControlType(
         case "integer":
             return "number"
 
-        case "string":
-            // Check for multiline hint
+        case "string": {
+            // Check for code editor hint
             const xParams = schema?.["x-parameters"] as SchemaProperty["x-parameters"]
-            if (xParams?.multiline === true || xParams?.code === true) {
+            if (xParams?.code === true) {
+                return "code"
+            }
+            // Check for multiline hint
+            if (xParams?.multiline === true) {
                 return "textarea"
             }
             return "text"
+        }
 
         case "object":
             // Check if object should be rendered inline (e.g., llm_config)
@@ -303,6 +310,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     schema={resolvedSchema}
                     label={displayLabel}
                     value={value as boolean | null}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
+            )
+
+        case "code":
+            return (
+                <CodeEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={value as string | null}
                     onChange={(v) => onChange(v)}
                     description={tooltipDesc}
                     withTooltip={withTooltip}
