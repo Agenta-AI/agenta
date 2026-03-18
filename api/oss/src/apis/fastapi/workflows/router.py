@@ -44,6 +44,9 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionResolveResponse,
     ResolutionInfo,
 )
+from oss.src.apis.fastapi.shared.utils import (
+    compute_next_windowing,
+)
 from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_query_request_from_params,
     parse_workflow_query_request_from_body,
@@ -553,9 +556,17 @@ class WorkflowsRouter:
             windowing=workflow_query_request.windowing,
         )
 
+        next_windowing = compute_next_windowing(
+            entities=workflows,
+            attribute="id",
+            windowing=workflow_query_request.windowing,
+            order="descending",
+        )
+
         workflows_response = WorkflowsResponse(
             count=len(workflows),
             workflows=workflows,
+            windowing=next_windowing,
         )
 
         return workflows_response
@@ -773,9 +784,17 @@ class WorkflowsRouter:
             windowing=workflow_variant_query_request.windowing,
         )
 
+        next_windowing = compute_next_windowing(
+            entities=workflow_variants,
+            attribute="id",
+            windowing=workflow_variant_query_request.windowing,
+            order="descending",
+        )
+
         workflow_variants_response = WorkflowVariantsResponse(
             count=len(workflow_variants),
             workflow_variants=workflow_variants,
+            windowing=next_windowing,
         )
 
         return workflow_variants_response
@@ -1024,9 +1043,17 @@ class WorkflowsRouter:
             windowing=workflow_revision_query_request.windowing,
         )
 
+        next_windowing = compute_next_windowing(
+            entities=workflow_revisions,
+            attribute="id",
+            windowing=workflow_revision_query_request.windowing,
+            order="descending",
+        )
+
         workflow_revisions_response = WorkflowRevisionsResponse(
             count=len(workflow_revisions),
             workflow_revisions=workflow_revisions,
+            windowing=next_windowing,
         )
 
         return workflow_revisions_response
