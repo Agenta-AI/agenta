@@ -1,10 +1,9 @@
 import {useMemo} from "react"
 
+import {evaluatorConfigsListDataAtom} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
-import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
-import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
 
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "../constants"
 import {collectEvaluatorCandidates} from "../utils/evaluatorDetails"
@@ -16,9 +15,7 @@ export interface UseEvaluatorTypeFromConfigsParams {
 export const useEvaluatorTypeFromConfigs = ({
     evaluator,
 }: UseEvaluatorTypeFromConfigsParams): {label?: string; color?: string} => {
-    const cached = useAtomValue(evaluatorConfigsAtom)
-    const {data: fetched} = useEvaluatorConfigs({})
-    const configs = cached && cached.length ? cached : fetched
+    const configs = useAtomValue(evaluatorConfigsListDataAtom)
 
     return useMemo(() => {
         if (!evaluator || !Array.isArray(configs) || configs.length === 0) {
