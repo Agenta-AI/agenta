@@ -242,10 +242,17 @@ async def get_project(
             if not project:
                 raise HTTPException(status_code=404, detail="Project not found")
 
-            organization = project.organization
+            if not project.organization_id:
+                raise HTTPException(
+                    status_code=404, detail="Project organization not found"
+                )
+
+            organization = await db_manager.fetch_organization_by_id(
+                organization_id=str(project.organization_id)
+            )
             if not organization:
-                organization = await db_manager.fetch_organization_by_id(
-                    organization_id=str(project.organization_id)
+                raise HTTPException(
+                    status_code=404, detail="Project organization not found"
                 )
 
             user_role = _get_oss_user_role(organization, request.state.user_id)

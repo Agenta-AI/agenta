@@ -45,5 +45,5 @@ The suite moved forward, but it is not fully done:
 
 - Must run against live deployments (not only localhost).
 - Must support OSS and EE trees without breaking current workflows.
-- `AGENTA_ALLOW_DESTRUCTIVE_TEARDOWN` defaults to `false` on shared environments.
+- `AGENTA_TEST_ALLOW_DESTRUCTIVE_TEARDOWN` defaults to `false` on shared environments.
 - Local verification is only trustworthy when runs stay serial. Parallel invocations still share setup state.

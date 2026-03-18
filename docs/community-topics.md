@@ -29,7 +29,7 @@ Community topics are described with these label dimensions:
 | Topic | Provider | Platform | Runtime | OLAP | Maintenance | Support | Owners | Paths | Docs | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Local OSS with Docker Compose | `provider/local` | `platform/local` | `runtime/docker-compose` | `olap/local` | `maintenance/internal` | `support/official` | `CODEOWNERS` | `hosting/docker-compose/oss/` | `README.md`, `docs/docs/self-host/01-quick-start.mdx` | Default OSS self-host path with local storage services |
-| Railway OSS | `provider/railway` | `platform/vps` | `runtime/docker-compose` | `olap/local` | `maintenance/internal` | `support/experimental` | `CODEOWNERS` | `hosting/railway/oss/`, `.github/workflows/06-railway-preview-build.yml`, `.github/workflows/07-railway-preview-deploy.yml`, `.github/workflows/08-railway-preview-cleanup.yml` | `docs/docs/self-host/guides/04-deploy-on-railway.mdx`, `hosting/railway/oss/README.md` | Managed deployment path using the local storage classification for now |
+| Railway OSS | `provider/railway` | `platform/vps` | `runtime/docker-compose` | `olap/local` | `maintenance/internal` | `support/experimental` | `CODEOWNERS` | `hosting/railway/oss/`, `.github/workflows/14-check-pr-preview.yml`, `.github/workflows/40-railway.yml`, `.github/workflows/41-railway-setup.yml`, `.github/workflows/42-railway-build.yml`, `.github/workflows/43-railway-deploy.yml`, `.github/workflows/44-railway-tests.yml`, `.github/workflows/45-railway-cleanup.yml` | `docs/docs/self-host/guides/04-deploy-on-railway.mdx`, `hosting/railway/oss/README.md` | Managed deployment path using the local storage classification for now |
 
 ## Not In Scope For This Matrix
 

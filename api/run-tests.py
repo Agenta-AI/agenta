@@ -20,6 +20,13 @@ TYPES = {
 }
 
 
+def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
+    if not pytest_args:
+        return False
+
+    return any(arg == option or arg.startswith(f"{option}=") for arg in pytest_args)
+
+
 @click.command()
 @click.option(
     "--env-file",
@@ -43,6 +50,7 @@ TYPES = {
     default="oss",
     type=click.Choice(TYPES["license"]),
     help="License [oss|ee]",
+    envvar="AGENTA_LICENSE",
     show_default=True,
 )
 @click.option(
@@ -173,6 +181,15 @@ def run_tests(
     if marker_args:
         marker_expr = " and ".join(marker_args)
         cmd += ["-m", marker_expr]
+
+    results_dir = os.path.join(license, "tests", "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    if not _has_pytest_option(pytest_args, "--junit-xml"):
+        cmd.append(f"--junit-xml={results_dir}/junit.xml")
+    if not _has_pytest_option(pytest_args, "--html"):
+        cmd.append(f"--html={results_dir}/report.html")
+
     if pytest_args:
         flags_only = [a for a in pytest_args if a.startswith("-")]
         cmd += flags_only

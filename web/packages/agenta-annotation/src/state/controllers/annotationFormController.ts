@@ -43,16 +43,24 @@ import {
     evaluationRunMolecule,
     queryEvaluationResults,
     type EvaluationResult,
+    type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
-import {invalidateScenarioProgressCache} from "@agenta/entities/simpleQueue"
 import {workflowQueryAtomFamily, type Workflow} from "@agenta/entities/workflow"
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {
+    invalidateScenarioProgressCache,
+    invalidateSimpleQueueCache,
+    invalidateSimpleQueuesListCache,
+    simpleQueuePaginatedStore,
+} from "@agenta/entities/simpleQueue"
+import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
+import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
+import {mergeTestcaseAnnotationTags, selectQueueScopedAnnotation} from "../testsetSync"
 import type {
     AnnotationMetricField,
     AnnotationMetrics,
@@ -73,7 +81,7 @@ const USEABLE_METRIC_TYPES = ["number", "integer", "float", "boolean", "string",
  * Extract the outputs schema from an evaluator entity.
  * Handles both new (`data.schemas.outputs`) and legacy (`data.service.format.properties.outputs`) paths.
  */
-export function getOutputsSchema(evaluator: Workflow): {
+export function getOutputsSchema(evaluator: Evaluator): {
     properties?: Record<string, unknown>
     required?: string[]
 } {
@@ -328,6 +336,33 @@ async function patchScenarioStatus(projectId: string, scenarioId: string, status
     )
 }
 
+const TERMINAL_SCENARIO_STATUSES = new Set([
+    "success",
+    "error",
+    "failure",
+    "failed",
+    "errors",
+    "cancelled",
+])
+
+function getTerminalParentStatus(
+    scenarios: {status?: string | null}[],
+): "success" | "errors" | null {
+    if (scenarios.length === 0) return null
+
+    const allComplete = scenarios.every((scenario) =>
+        TERMINAL_SCENARIO_STATUSES.has(scenario.status?.toLowerCase() ?? ""),
+    )
+    if (!allComplete) return null
+
+    const hasErrors = scenarios.some((scenario) => {
+        const status = scenario.status?.toLowerCase() ?? ""
+        return ["error", "failure", "failed", "errors"].includes(status)
+    })
+
+    return hasErrors ? "errors" : "success"
+}
+
 /**
  * Convert a hex string (32 chars) to UUID format (with dashes).
  */
@@ -573,27 +608,8 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
         const scenarios = scenariosResponse.data?.scenarios ?? []
         if (scenarios.length === 0) return
 
-        const terminalStatuses = new Set([
-            "success",
-            "error",
-            "failure",
-            "failed",
-            "errors",
-            "cancelled",
-        ])
-
-        const allComplete = scenarios.every((scenario: {status?: string}) =>
-            terminalStatuses.has(scenario.status?.toLowerCase() ?? ""),
-        )
-
-        if (!allComplete) return
-
-        const hasErrors = scenarios.some((scenario: {status?: string}) => {
-            const status = scenario.status?.toLowerCase() ?? ""
-            return ["error", "failure", "failed", "errors"].includes(status)
-        })
-
-        const newRunStatus = hasErrors ? "errors" : "success"
+        const newRunStatus = getTerminalParentStatus(scenarios)
+        if (!newRunStatus) return
 
         // Fetch existing run data to preserve all fields
         const runResponse = await axios.post(
@@ -612,6 +628,35 @@ async function checkAndUpdateRunStatus(projectId: string, runId: string) {
         )
     } catch (error) {
         console.warn("[annotationForm] checkAndUpdateRunStatus failed:", error)
+    }
+}
+
+async function resolveTraceLinkSpanId({
+    projectId,
+    traceId,
+    spanId,
+}: {
+    projectId: string
+    traceId: string
+    spanId?: string
+}): Promise<string> {
+    if (spanId) return spanId
+
+    try {
+        const traceResponse = await fetchPreviewTrace(traceId, projectId)
+        const traceKey = traceId.replace(/-/g, "")
+        const traceEntry = traceResponse?.traces?.[traceKey] ?? traceResponse?.traces?.[traceId]
+        const rawSpans = traceEntry?.spans ? Object.values(traceEntry.spans) : []
+        const spans = rawSpans.filter(
+            (span): span is TraceSpan =>
+                !!span && typeof span === "object" && !Array.isArray(span) && "trace_id" in span,
+        )
+
+        const rootSpan = spans.find((span) => !span.parent_id) ?? spans[0]
+        return rootSpan?.span_id ?? ""
+    } catch (error) {
+        console.warn("[annotationForm] resolveTraceLinkSpanId failed:", error)
+        return ""
     }
 }
 
@@ -637,7 +682,7 @@ function computeBaseline(
     // Resolve evaluators reactively by workflow ID — creates subscriptions
     // Uses the same atom family as the queues table (proven working path)
     const evaluators: Workflow[] = []
-    const evaluatorMap = new Map<string, Evaluator>()
+    const evaluatorMap = new Map<string, Workflow>()
 
     for (const workflowId of evaluatorWorkflowIds) {
         if (!workflowId) continue
@@ -706,7 +751,8 @@ const annotationsByScenarioAtomFamily = atomFamily(
 
 /** Trace/span IDs per scenario */
 const traceSpanByScenarioAtomFamily = atomFamily(
-    (_scenarioId: string) => atom<{traceId: string; spanId: string}>({traceId: "", spanId: ""}),
+    (_scenarioId: string) =>
+        atom<{traceId: string; spanId: string; testcaseId?: string}>({traceId: "", spanId: ""}),
     (a, b) => a === b,
 )
 
@@ -814,6 +860,7 @@ const setScenarioContextAtom = atom(null, (get, set, ctx: ScenarioContext) => {
     set(traceSpanByScenarioAtomFamily(ctx.scenarioId), {
         traceId: ctx.traceId,
         spanId: ctx.spanId,
+        testcaseId: ctx.testcaseId,
     })
 
     // If annotations changed (e.g. after save + refetch), clear matching edits
@@ -874,14 +921,297 @@ const resetEditsAtom = atom(null, (_get, set, scenarioId: string) => {
     set(editsAtomFamily(scenarioId), {})
 })
 
+// ============================================================================
+// SUBMIT HELPERS (pure functions, testable in isolation)
+// ============================================================================
+
+interface EvaluatorMaps {
+    evaluatorMap: Map<string, Workflow>
+    workflowIdBySlug: Map<string, string>
+}
+
+/**
+ * Build evaluator slug → evaluator and slug → workflowId maps from query atoms.
+ * workflowQueryAtomFamily returns revision data where `evaluator.id` is the
+ * REVISION ID, not the workflow/artifact ID. The backend expects the workflow ID
+ * in annotation references, so we track both mappings.
+ */
+function buildEvaluatorMaps(
+    evalIds: string[],
+    getEvaluator: (workflowId: string) => Workflow | null,
+): EvaluatorMaps {
+    const evaluatorMap = new Map<string, Workflow>()
+    const workflowIdBySlug = new Map<string, string>()
+    for (const workflowId of evalIds) {
+        const evalData = getEvaluator(workflowId)
+        if (evalData) {
+            if (evalData.slug) {
+                evaluatorMap.set(evalData.slug, evalData)
+                workflowIdBySlug.set(evalData.slug, workflowId)
+            }
+            if (evalData.id) evaluatorMap.set(evalData.id, evalData)
+        }
+    }
+    return {evaluatorMap, workflowIdBySlug}
+}
+
+interface StepRefs {
+    evaluator_revision?: {id?: string; slug?: string}
+    evaluator_variant?: {id?: string; slug?: string}
+}
+
+/**
+ * Build evaluator ID → annotation step references map from annotation steps.
+ * These refs are needed for the backend to find existing evaluators
+ * (avoids SimpleEvaluator slug conflicts).
+ */
+function buildStepReferences(annotationSteps: EvaluationRunDataStep[]): Map<string, StepRefs> {
+    const stepRefsByEvalId = new Map<string, StepRefs>()
+    for (const step of annotationSteps) {
+        const evalId = step.references?.evaluator?.id
+        if (evalId) {
+            stepRefsByEvalId.set(evalId, {
+                evaluator_revision: step.references?.evaluator_revision
+                    ? {
+                          id: step.references.evaluator_revision.id ?? undefined,
+                          slug: step.references.evaluator_revision.slug ?? undefined,
+                      }
+                    : undefined,
+                evaluator_variant: step.references?.evaluator_variant
+                    ? {
+                          id: step.references.evaluator_variant.id ?? undefined,
+                          slug: step.references.evaluator_variant.slug ?? undefined,
+                      }
+                    : undefined,
+            })
+        }
+    }
+    return stepRefsByEvalId
+}
+
+/**
+ * Match existing annotations to evaluator slugs.
+ * In testcase mode, uses queue-scoped matching with conflict detection.
+ * In trace mode, matches by evaluator reference.
+ */
+function matchExistingAnnotations({
+    isTestcaseMode,
+    existingAnnotations,
+    evaluatorMap,
+    workflowIdBySlug,
+    queueId,
+}: {
+    isTestcaseMode: boolean
+    existingAnnotations: Annotation[]
+    evaluatorMap: Map<string, Workflow>
+    workflowIdBySlug: Map<string, string>
+    queueId: string
+}): Map<string, Annotation> {
+    const existingBySlug = new Map<string, Annotation>()
+
+    if (isTestcaseMode) {
+        for (const [slug, workflowId] of workflowIdBySlug.entries()) {
+            const selection = selectQueueScopedAnnotation({
+                annotations: existingAnnotations,
+                queueId,
+                evaluatorSlug: slug,
+                evaluatorWorkflowId: workflowId,
+            })
+
+            if (selection.conflictCode) {
+                throw new Error(
+                    `Multiple existing testcase annotations found for evaluator "${slug}" in this queue`,
+                )
+            }
+
+            if (selection.annotation) {
+                existingBySlug.set(slug, selection.annotation)
+            }
+        }
+    } else {
+        for (const ann of existingAnnotations) {
+            const ref = ann.references?.evaluator
+            const key = ref?.slug ?? ref?.id
+            if (key) {
+                const evaluator = evaluatorMap.get(key)
+                if (evaluator?.slug) {
+                    existingBySlug.set(evaluator.slug, ann)
+                }
+            }
+        }
+    }
+
+    return existingBySlug
+}
+
+/**
+ * Resolve the invocation step key from cached or fetched scenario steps.
+ */
+async function resolveInvocationStepKey({
+    cachedSteps,
+    projectId,
+    runId,
+    scenarioId,
+}: {
+    cachedSteps: EvaluationResult[]
+    projectId: string
+    runId: string
+    scenarioId: string
+}): Promise<string | null> {
+    let steps = cachedSteps
+
+    if (steps.length === 0) {
+        try {
+            steps = await queryEvaluationResults({
+                projectId,
+                runId,
+                scenarioIds: [scenarioId],
+            })
+        } catch {
+            // Ignore fetch errors
+        }
+    }
+
+    for (const step of steps) {
+        if (step.trace_id && step.step_key) {
+            return step.step_key
+        }
+    }
+    return null
+}
+
+interface SubmittedEntry {
+    slug: string
+    outputs: Record<string, unknown>
+    annotationTraceId: string
+    annotationSpanId: string
+}
+
+/**
+ * Build the list of submitted entries by matching responses to metrics.
+ * Maps each evaluator slug to its outputs and the annotation trace/span IDs
+ * from either the existing annotation or the create response.
+ */
+function buildSubmittedEntries({
+    metrics,
+    evaluatorMap,
+    existingBySlug,
+    responses,
+}: {
+    metrics: AnnotationMetrics
+    evaluatorMap: Map<string, Workflow>
+    existingBySlug: Map<string, Annotation>
+    responses: unknown[]
+}): SubmittedEntry[] {
+    const entries: SubmittedEntry[] = []
+    let responseIdx = 0
+
+    for (const [slug, fields] of Object.entries(metrics)) {
+        if (isEmptyMetrics(fields)) continue
+
+        const evaluator = evaluatorMap.get(slug)
+        if (!evaluator) continue
+
+        const outputs: Record<string, unknown> = {}
+        for (const [fieldKey, field] of Object.entries(fields)) {
+            outputs[fieldKey] = field.value
+        }
+
+        const existingAnn = existingBySlug.get(slug)
+        const response = responses[responseIdx] as Annotation | null | undefined
+        responseIdx++
+
+        let annotationTraceId: string | undefined
+        let annotationSpanId: string | undefined
+
+        if (existingAnn) {
+            annotationTraceId = existingAnn.trace_id
+            annotationSpanId = existingAnn.span_id
+        } else if (response) {
+            annotationTraceId = response.trace_id
+            annotationSpanId = response.span_id
+        }
+
+        if (annotationTraceId && annotationSpanId) {
+            entries.push({slug, outputs, annotationTraceId, annotationSpanId})
+        }
+    }
+
+    return entries
+}
+
+/**
+ * Fire-and-forget post-submit operations: upsert step results and metrics.
+ * These are best-effort — the link-based annotation fallback ensures data
+ * is found even if these fail.
+ */
+function firePostSubmitOps({
+    entries,
+    annotationSteps,
+    invocationStepKey,
+    projectId,
+    runId,
+    scenarioId,
+}: {
+    entries: SubmittedEntry[]
+    annotationSteps: EvaluationRunDataStep[]
+    invocationStepKey: string
+    projectId: string
+    runId: string
+    scenarioId: string
+}): Promise<PromiseSettledResult<void>[]> {
+    const stepKeyBySlug = new Map<string, string>()
+    for (const step of annotationSteps) {
+        const evalSlug = step.references?.evaluator?.slug
+        if (evalSlug && step.key) {
+            stepKeyBySlug.set(evalSlug, step.key)
+        }
+    }
+
+    const promises: Promise<void>[] = []
+
+    for (const entry of entries) {
+        const annotationStepKey =
+            stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
+
+        promises.push(
+            upsertStepResultWithAnnotation({
+                projectId,
+                runId,
+                scenarioId,
+                stepKey: annotationStepKey,
+                annotationTraceId: entry.annotationTraceId,
+                annotationSpanId: entry.annotationSpanId,
+            }).catch((err) => console.warn("[annotationForm] Step result upsert failed:", err)),
+        )
+
+        promises.push(
+            upsertAnnotationMetrics({
+                projectId,
+                runId,
+                scenarioId,
+                outputs: entry.outputs,
+                stepKey: annotationStepKey,
+            }).catch((err) => console.warn("[annotationForm] Metric save failed:", err)),
+        )
+    }
+
+    return Promise.allSettled(promises)
+}
+
+// ============================================================================
+// SUBMIT ATOM
+// ============================================================================
+
 /** Submit annotations and optionally mark scenario complete */
 const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotationsPayload) => {
     const {scenarioId, queueId, markComplete} = payload
     const rawProjectId = get(projectIdAtom)
     const traceSpan = get(traceSpanByScenarioAtomFamily(scenarioId))
 
-    if (!rawProjectId || !traceSpan.traceId) {
-        throw new Error("Missing project or trace ID")
+    const isTestcaseMode = !!traceSpan.testcaseId && !traceSpan.traceId
+    if (!rawProjectId || (!traceSpan.traceId && !traceSpan.testcaseId)) {
+        throw new Error("Missing project ID or trace/testcase reference")
     }
 
     const projectId: string = rawProjectId
@@ -893,118 +1223,48 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
     try {
         const metrics = get(effectiveMetricsAtomFamily(scenarioId))
         const evalIds = get(evaluatorIdsAtom)
-
-        // Get existing annotations from the session controller's cache.
-        // These were fetched using annotation step trace_ids (the correct path).
-        // Fall back to empty array if not yet loaded.
         const existingAnnotations =
-            annotationSessionController.get.scenarioAnnotations(scenarioId) ?? []
+            get(annotationSessionController.selectors.scenarioAnnotations(scenarioId)) ?? []
 
-        // Build evaluator slug → evaluator map (evalIds are workflow IDs).
-        // IMPORTANT: workflowQueryAtomFamily returns revision data where `evaluator.id`
-        // is the REVISION ID, not the workflow/artifact ID. The backend expects the
-        // workflow ID in annotation references. Track both mappings.
-        const evaluatorMap = new Map<string, Evaluator>()
-        const workflowIdBySlug = new Map<string, string>()
-        for (const workflowId of evalIds) {
-            const query = get(workflowQueryAtomFamily(workflowId))
-            const evalData = query.data ?? null
-            if (evalData) {
-                if (evalData.slug) {
-                    evaluatorMap.set(evalData.slug, evalData)
-                    workflowIdBySlug.set(evalData.slug, workflowId)
-                }
-                if (evalData.id) evaluatorMap.set(evalData.id, evalData)
-            }
-        }
+        // Phase 1: Build lookup maps
+        const {evaluatorMap, workflowIdBySlug} = buildEvaluatorMaps(
+            evalIds,
+            (wfId) => get(workflowQueryAtomFamily(wfId)).data ?? null,
+        )
 
-        // Build evaluator slug → annotation step references map.
-        // Annotation steps contain evaluator_revision and evaluator_variant refs
-        // that are needed for the backend to find existing evaluators (avoids
-        // SimpleEvaluator slug conflicts).
-        const activeRunId = annotationSessionController.get.activeRunId()
+        const activeRunId = get(annotationSessionController.selectors.activeRunId())
         const annotationSteps = activeRunId
-            ? getStore().get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
+            ? get(evaluationRunMolecule.selectors.annotationSteps(activeRunId))
             : []
-        const stepRefsByEvalId = new Map<
-            string,
-            {
-                evaluator_revision?: {id?: string; slug?: string}
-                evaluator_variant?: {id?: string; slug?: string}
-            }
-        >()
-        for (const step of annotationSteps) {
-            const evalId = step.references?.evaluator?.id
-            if (evalId) {
-                stepRefsByEvalId.set(evalId, {
-                    evaluator_revision: step.references?.evaluator_revision
-                        ? {
-                              id: step.references.evaluator_revision.id ?? undefined,
-                              slug: step.references.evaluator_revision.slug ?? undefined,
-                          }
-                        : undefined,
-                    evaluator_variant: step.references?.evaluator_variant
-                        ? {
-                              id: step.references.evaluator_variant.id ?? undefined,
-                              slug: step.references.evaluator_variant.slug ?? undefined,
-                          }
-                        : undefined,
-                })
-            }
-        }
+        const stepRefsByEvalId = buildStepReferences(annotationSteps)
 
-        // Build existing annotation map: evaluator slug → annotation
-        const existingBySlug = new Map<string, Annotation>()
-        for (const ann of existingAnnotations) {
-            const ref = ann.references?.evaluator
-            const key = ref?.slug ?? ref?.id
-            if (key) {
-                const evaluator = evaluatorMap.get(key)
-                if (evaluator?.slug) {
-                    existingBySlug.set(evaluator.slug, ann)
-                }
-            }
-        }
+        // Phase 2: Match existing annotations to evaluator slugs
+        const existingBySlug = matchExistingAnnotations({
+            isTestcaseMode,
+            existingAnnotations,
+            evaluatorMap,
+            workflowIdBySlug,
+            queueId,
+        })
 
-        // Resolve the run ID and invocation step key BEFORE annotation creation
-        // so we can use it in the links payload (matching EvalRunDetails flow).
-        const runId = annotationSessionController.get.activeRunId()
-
+        // Phase 3: Resolve invocation step key
+        const runId = get(annotationSessionController.selectors.activeRunId())
         let invocationStepKey: string | null = null
         if (runId) {
-            // Try cached scenario steps first
-            const stepsQuery = getStore().get(
+            const stepsQuery = get(
                 evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}),
             )
-            let steps = stepsQuery.data ?? []
-
-            // If cache is empty, fetch imperatively
-            if (steps.length === 0) {
-                try {
-                    steps = await queryEvaluationResults({
-                        projectId,
-                        runId,
-                        scenarioIds: [scenarioId],
-                    })
-                } catch {
-                    // Ignore fetch errors
-                }
-            }
-
-            for (const step of steps) {
-                if (step.trace_id && step.step_key) {
-                    invocationStepKey = step.step_key
-                    break
-                }
-            }
+            invocationStepKey = await resolveInvocationStepKey({
+                cachedSteps: stepsQuery.data ?? [],
+                projectId,
+                runId,
+                scenarioId,
+            })
         }
 
-        // Derive span_id from trace_id if empty (EvalRunDetails does this too)
-        const effectiveSpanId =
-            spanId || (traceId.length === 36 ? traceId.replace(/-/g, "").slice(16) : "")
-
-        // Submit annotations for each evaluator with non-empty metrics
+        // Phase 4: Build and execute annotation create/update promises
         const promises: Promise<unknown>[] = []
+        let resolvedSpanId = spanId
 
         for (const [slug, fields] of Object.entries(metrics)) {
             if (isEmptyMetrics(fields)) continue
@@ -1012,18 +1272,44 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             const evaluator = evaluatorMap.get(slug)
             if (!evaluator) continue
 
-            // Build outputs from metric fields (extract just values)
             const outputs: Record<string, unknown> = {}
             for (const [fieldKey, field] of Object.entries(fields)) {
                 outputs[fieldKey] = field.value
             }
 
             const existingAnn = existingBySlug.get(slug)
+            const linksKey = invocationStepKey || "invocation"
 
             if (existingAnn) {
-                // Use the annotation's own trace_id/span_id for the PATCH URL,
-                // not the form controller's stored values (which may have empty spanId
-                // for trace-based queues).
+                let updatedLinks = existingAnn.links
+                const updatedTags = isTestcaseMode
+                    ? mergeTestcaseAnnotationTags({
+                          queueId,
+                          existingTags: existingAnn.meta?.tags,
+                          outputKeys: Object.keys(outputs),
+                      })
+                    : existingAnn.meta?.tags
+
+                if (!isTestcaseMode) {
+                    if (!resolvedSpanId) {
+                        resolvedSpanId = await resolveTraceLinkSpanId({
+                            projectId,
+                            traceId,
+                            spanId,
+                        })
+                    }
+
+                    updatedLinks = resolvedSpanId
+                        ? {
+                              ...(existingAnn.links ?? {}),
+                              [linksKey]: {
+                                  trace_id: traceId,
+                                  span_id: resolvedSpanId,
+                              },
+                          }
+                        : existingAnn.links
+                }
+
                 promises.push(
                     updateAnnotation(projectId, existingAnn.trace_id, existingAnn.span_id, {
                         annotation: {
@@ -1032,195 +1318,153 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                                 ? {
                                       name: existingAnn.meta.name,
                                       description: existingAnn.meta.description,
-                                      tags: existingAnn.meta.tags,
+                                      tags: updatedTags,
                                   }
-                                : undefined,
+                                : updatedTags
+                                  ? {
+                                        name: evaluator.name ?? "",
+                                        description: evaluator.description ?? "",
+                                        tags: updatedTags,
+                                    }
+                                  : undefined,
+                            links: updatedLinks,
                         },
                     }),
                 )
             } else {
-                // Use the WORKFLOW ID (from evalIds / run step references),
-                // NOT evaluator.id which is the revision ID.
-                // The backend's annotation service uses this to look up
-                // the evaluator via fetch_evaluator_revision(evaluator_ref).
                 const evalWorkflowId =
                     workflowIdBySlug.get(slug) ?? evaluator.workflow_id ?? evaluator.id
-
-                // Resolve step references for this evaluator (revision + variant)
-                // so the backend can find the existing evaluator directly
                 const stepRefs = stepRefsByEvalId.get(evalWorkflowId)
 
-                // Build links using the invocation step key (matching EvalRunDetails)
-                const linksKey = invocationStepKey || "invocation"
-                const links: Record<string, {trace_id?: string; span_id?: string}> = {
-                    [linksKey]: {
-                        trace_id: traceId,
-                        span_id: effectiveSpanId,
-                    },
+                let createPayload: CreateAnnotationPayload
+
+                if (isTestcaseMode) {
+                    createPayload = {
+                        data: {outputs},
+                        references: {
+                            evaluator: {
+                                id: evalWorkflowId,
+                                slug: evaluator.slug ?? undefined,
+                            },
+                            ...(stepRefs?.evaluator_revision?.id
+                                ? {evaluator_revision: stepRefs.evaluator_revision}
+                                : {}),
+                            testcase: {id: traceSpan.testcaseId},
+                        },
+                        links: {},
+                        origin: "human",
+                        kind: "adhoc",
+                        channel: "web",
+                        meta: {
+                            name: evaluator.name ?? "",
+                            description: evaluator.description ?? "",
+                            tags: mergeTestcaseAnnotationTags({
+                                queueId,
+                                outputKeys: Object.keys(outputs),
+                            }),
+                        },
+                    }
+                } else {
+                    if (!resolvedSpanId) {
+                        resolvedSpanId = await resolveTraceLinkSpanId({
+                            projectId,
+                            traceId,
+                            spanId,
+                        })
+                    }
+
+                    if (!resolvedSpanId) {
+                        throw new Error("Could not resolve the trace span for this annotation")
+                    }
+
+                    createPayload = {
+                        data: {outputs},
+                        references: {
+                            evaluator: {
+                                id: evalWorkflowId,
+                                slug: evaluator.slug ?? undefined,
+                            },
+                            ...(stepRefs?.evaluator_revision?.id
+                                ? {evaluator_revision: stepRefs.evaluator_revision}
+                                : {}),
+                        },
+                        links: {
+                            [linksKey]: {
+                                trace_id: traceId,
+                                span_id: resolvedSpanId,
+                            },
+                        },
+                        origin: "human",
+                        kind: "adhoc",
+                        channel: "web",
+                        meta: {
+                            name: evaluator.name ?? "",
+                            description: evaluator.description ?? "",
+                            tags: Object.keys(outputs),
+                        },
+                    }
                 }
 
-                const createPayload: CreateAnnotationPayload = {
-                    data: {outputs},
-                    references: {
-                        evaluator: {
-                            id: evalWorkflowId,
-                            slug: evaluator.slug ?? undefined,
-                        },
-                        ...(stepRefs?.evaluator_revision?.id
-                            ? {evaluator_revision: stepRefs.evaluator_revision}
-                            : {}),
-                    },
-                    links,
-                    origin: "human",
-                    kind: "adhoc",
-                    channel: "web",
-                    meta: {
-                        name: evaluator.name ?? "",
-                        description: evaluator.description ?? "",
-                        tags: Object.keys(outputs),
-                    },
-                }
                 promises.push(createAnnotation(projectId, createPayload))
             }
         }
 
         const responses = await Promise.all(promises)
 
-        // Mark completed + advance IMMEDIATELY (don't block on post-submit ops)
+        // Phase 5: Mark completed + advance (don't block on post-submit ops)
         if (markComplete && scenarioId) {
             annotationSessionController.set.markCompleted(scenarioId)
             annotationSessionController.set.navigateNext()
 
-            // Patch scenario status in background (non-blocking)
-            patchScenarioStatus(projectId, scenarioId, "success").catch((err) =>
-                console.warn("[annotationForm] Scenario status patch failed:", err),
-            )
-
-            // Check if all scenarios are done — update run status if so
-            if (runId) {
-                checkAndUpdateRunStatus(projectId, runId).catch((err) =>
-                    console.warn("[annotationForm] Run status check failed:", err),
-                )
-            }
+            await patchScenarioStatus(projectId, scenarioId, "success")
+            await (runId ? checkAndUpdateRunStatus(projectId, runId) : Promise.resolve())
         }
 
-        // Post-submission: upsert step results and save metrics (fire-and-forget)
+        // Phase 6: Fire-and-forget post-submit ops (step results + metrics)
         if (runId && invocationStepKey) {
-            // Build a list of slug → {outputs, annotationTraceId, annotationSpanId}
-            const submittedEntries: {
-                slug: string
-                outputs: Record<string, unknown>
-                annotationTraceId: string
-                annotationSpanId: string
-            }[] = []
+            const submittedEntries = buildSubmittedEntries({
+                metrics,
+                evaluatorMap,
+                existingBySlug,
+                responses,
+            })
 
-            let responseIdx = 0
-            for (const [slug, fields] of Object.entries(metrics)) {
-                if (isEmptyMetrics(fields)) continue
-
-                const evaluator = evaluatorMap.get(slug)
-                if (!evaluator) continue
-
-                const outputs: Record<string, unknown> = {}
-                for (const [fieldKey, field] of Object.entries(fields)) {
-                    outputs[fieldKey] = field.value
-                }
-
-                const existingAnn = existingBySlug.get(slug)
-                const response = responses[responseIdx] as Record<string, unknown> | undefined
-                responseIdx++
-
-                // For updates, use existing annotation's trace/span
-                // For creates, the API response contains the new trace/span
-                let annotationTraceId: string | undefined
-                let annotationSpanId: string | undefined
-
-                if (existingAnn) {
-                    annotationTraceId = existingAnn.trace_id
-                    annotationSpanId = existingAnn.span_id
-                } else if (response) {
-                    // createAnnotation returns unwrapped Annotation | null directly
-                    annotationTraceId = (response as Record<string, unknown>)?.trace_id as
-                        | string
-                        | undefined
-                    annotationSpanId = (response as Record<string, unknown>)?.span_id as
-                        | string
-                        | undefined
-                }
-
-                if (annotationTraceId && annotationSpanId) {
-                    submittedEntries.push({
-                        slug,
-                        outputs,
-                        annotationTraceId,
-                        annotationSpanId,
-                    })
-                }
-            }
-
-            // Find existing annotation step keys to avoid duplicates
-            const annotationSteps = getStore().get(
+            const currentAnnotationSteps = get(
                 evaluationRunMolecule.selectors.annotationSteps(runId),
             )
-            const stepKeyBySlug = new Map<string, string>()
-            for (const step of annotationSteps) {
-                const evalSlug = step.references?.evaluator?.slug
-                if (evalSlug && step.key) {
-                    stepKeyBySlug.set(evalSlug, step.key)
-                }
-            }
 
-            // Fire step result upserts and metric saves concurrently (fire-and-forget)
-            const postSubmitPromises: Promise<void>[] = []
-
-            for (const entry of submittedEntries) {
-                // Use existing step key if available, otherwise construct one
-                const annotationStepKey =
-                    stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
-
-                // Upsert step result
-                postSubmitPromises.push(
-                    upsertStepResultWithAnnotation({
-                        projectId,
-                        runId,
-                        scenarioId,
-                        stepKey: annotationStepKey,
-                        annotationTraceId: entry.annotationTraceId,
-                        annotationSpanId: entry.annotationSpanId,
-                    }).catch((err) =>
-                        console.warn("[annotationForm] Step result upsert failed:", err),
-                    ),
-                )
-
-                // Save scenario metrics
-                postSubmitPromises.push(
-                    upsertAnnotationMetrics({
-                        projectId,
-                        runId,
-                        scenarioId,
-                        outputs: entry.outputs,
-                        stepKey: annotationStepKey,
-                    }).catch((err) => console.warn("[annotationForm] Metric save failed:", err)),
-                )
-            }
-
-            // Fire and forget — don't block UI on post-submit operations.
-            // These operations (step result upserts + metrics saves) are best-effort.
-            // The link-based annotation fallback ensures data is found even if these fail.
-            Promise.allSettled(postSubmitPromises).then(() => {
-                // Invalidate caches AFTER post-submit ops complete so refetches get fresh data
+            firePostSubmitOps({
+                entries: submittedEntries,
+                annotationSteps: currentAnnotationSteps,
+                invocationStepKey,
+                projectId,
+                runId,
+                scenarioId,
+            }).then(() => {
                 annotationSessionController.cache.invalidateScenarioAnnotations(scenarioId)
             })
         } else {
-            // No post-submit ops — invalidate caches immediately
             annotationSessionController.cache.invalidateScenarioAnnotations(scenarioId)
         }
 
-        // Invalidate annotation cache and progress
-        invalidateAnnotationCacheByLink(traceId, spanId)
+        // Phase 7: Invalidate caches
+        if (traceId) {
+            invalidateAnnotationCacheByLink(traceId, resolvedSpanId || spanId)
+        }
         if (queueId) {
             invalidateScenarioProgressCache(queueId)
+            invalidateSimpleQueueCache(queueId)
+            invalidateSimpleQueuesListCache()
+            set(simpleQueuePaginatedStore.refreshAtom)
         }
+        await Promise.allSettled([
+            queryClient.invalidateQueries({queryKey: ["annotations"], exact: false}),
+            queryClient.invalidateQueries({queryKey: ["trace-drawer-annotations"], exact: false}),
+            queryClient.invalidateQueries({
+                queryKey: ["session-drawer-annotations"],
+                exact: false,
+            }),
+        ])
     } finally {
         set(isSubmittingAtomFamily(scenarioId), false)
     }

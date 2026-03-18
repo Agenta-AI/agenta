@@ -7,10 +7,9 @@ import {
     transformTracingResponse,
 } from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {ArrowLeft, CaretDown, CaretUp, ListChecks} from "@phosphor-icons/react"
+import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 
 import {
     setTraceDrawerTraceAtom,
@@ -25,11 +24,6 @@ import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTrace
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
 import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
-
-const AddToQueuePopover = dynamic(
-    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
-    {ssr: false},
-)
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -487,15 +481,6 @@ const TraceHeader = ({
                         </Tag>
                     </TooltipWithCopyAction>
                 </Space>
-                <AddToQueuePopover
-                    itemType="traces"
-                    itemIds={displayTraceId ? [displayTraceId] : []}
-                    disabled={!displayTraceId}
-                >
-                    <Button type="default" size="small" icon={<ListChecks size={14} />}>
-                        Add to queue
-                    </Button>
-                </AddToQueuePopover>
             </div>
         </>
     )

@@ -13,6 +13,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
 import {
+    traceEntityAtomFamily,
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
@@ -250,14 +251,16 @@ const TraceNameCell = memo(function TraceNameCell({
     )
     const effectiveTraceId = directTraceId || traceRef.traceId || ""
 
+    const traceQuery = useAtomValue(traceEntityAtomFamily(effectiveTraceId || null))
     const rootSpan = useAtomValue(traceRootSpanAtomFamily(effectiveTraceId || null))
 
     if (!effectiveTraceId) return <Typography.Text type="secondary">—</Typography.Text>
+    if (traceQuery.isPending) return <Typography.Text type="secondary">...</Typography.Text>
 
     return (
         <div className="flex items-center gap-1.5">
             <Typography.Text className="text-xs font-medium" ellipsis>
-                {rootSpan?.span_name || "Unknown"}
+                {rootSpan?.span_name || "—"}
             </Typography.Text>
             {rootSpan?.span_type && (
                 <Typography.Text

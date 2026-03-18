@@ -36,6 +36,8 @@ interface UseAnnotationFormStateProps {
     traceId?: string
     /** Span ID for the current scenario */
     spanId?: string
+    /** Testcase ID for testcase-based queues (no trace_id needed) */
+    testcaseId?: string
 }
 
 interface UseAnnotationFormStateResult {
@@ -69,6 +71,7 @@ export function useAnnotationFormState({
     annotations,
     traceId = "",
     spanId = "",
+    testcaseId,
 }: UseAnnotationFormStateProps): UseAnnotationFormStateResult {
     const setScenarioContext = useSetAtom(annotationFormController.actions.setScenarioContext)
     const updateMetricAction = useSetAtom(annotationFormController.actions.updateMetric)
@@ -77,8 +80,8 @@ export function useAnnotationFormState({
     // Sync scenario context into controller
     useEffect(() => {
         if (!scenarioId) return
-        setScenarioContext({scenarioId, annotations, traceId, spanId})
-    }, [setScenarioContext, scenarioId, annotations, traceId, spanId])
+        setScenarioContext({scenarioId, annotations, traceId, spanId, testcaseId})
+    }, [setScenarioContext, scenarioId, annotations, traceId, spanId, testcaseId])
 
     // Read from controller selectors
     const metrics = useAtomValue(annotationFormController.selectors.effectiveMetrics(scenarioId))
