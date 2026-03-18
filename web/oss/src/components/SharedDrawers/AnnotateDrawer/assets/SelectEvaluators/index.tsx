@@ -1,9 +1,9 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {humanEvaluatorsListDataAtom, humanEvaluatorsListQueryAtom} from "@agenta/entities/workflow"
 import {Checkbox, CheckboxChangeEvent, Input, Skeleton, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {useAtomValue} from "jotai"
 
 import {SelectEvaluatorsProps} from "../types"
 
@@ -14,10 +14,8 @@ const SelectEvaluators = ({
     setTempSelectedEvaluators,
 }: SelectEvaluatorsProps) => {
     const [search, setSearch] = useState("")
-    const {data: evaluators, isLoading} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
+    const {isPending: isLoading} = useAtomValue(humanEvaluatorsListQueryAtom)
 
     const filteredEvals = useMemo(
         () =>
