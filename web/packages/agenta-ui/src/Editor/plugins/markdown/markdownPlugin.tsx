@@ -1,4 +1,4 @@
-import {useEffect, useLayoutEffect, useCallback} from "react"
+import {useEffect, useLayoutEffect, useCallback, useRef} from "react"
 import * as React from "react"
 import type {JSX} from "react"
 
@@ -27,9 +27,16 @@ import {
 } from "lexical"
 
 import {markdownViewAtom} from "../../state/assets/atoms"
+import {
+    isEditorLargeDocument,
+    isLargeRichTextDocument,
+    setEditorLargeDocumentFlag,
+} from "../../utils/largeDocument"
+import {showEditorLoadingOverlay} from "../code/utils/loadingOverlay"
 
 import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
 import {SET_MARKDOWN_VIEW, TOGGLE_MARKDOWN_VIEW} from "./commands"
+import {importMarkdownWithHtmlBatches} from "./utils/htmlImport"
 
 const URL_REGEX =
     /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/
@@ -45,6 +52,8 @@ const MATCHERS = [
         return `mailto:${text}`
     }),
 ]
+
+const MARKDOWN_VIEW_TOGGLE_UPDATE_TAG = "agenta:markdown-view-toggle"
 
 function LexicalAutoLinkPlugin(): JSX.Element {
     return <AutoLinkPlugin matchers={MATCHERS} />
@@ -79,50 +88,176 @@ function LexicalLinkPlugin({hasLinkAttributes = false}: Props): JSX.Element {
     )
 }
 
-const MarkdownPlugin = ({id}: {id: string}) => {
+const MarkdownPlugin = ({
+    id,
+    largeDocumentMode = false,
+}: {
+    id: string
+    largeDocumentMode?: boolean
+}) => {
     const [, setMarkdownView] = useAtom(markdownViewAtom(id))
     const [editor] = useLexicalComposerContext()
+    const markdownSourceCacheRef = useRef<{value: string; reusable: boolean}>({
+        value: "",
+        reusable: false,
+    })
+    const isMarkdownTogglePendingRef = useRef(false)
+
+    const deferLargePasteUpdate = useCallback((callback: () => void) => {
+        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(callback)
+            })
+            return
+        }
+
+        setTimeout(callback, 0)
+    }, [])
+
+    const $applyMarkdownViewUpdate = useCallback(
+        (nextMarkdownView?: boolean) => {
+            const root = $getRoot()
+            const firstChild = root.getFirstChild()
+            const isCurrentlyMarkdown =
+                $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+            const targetMarkdownView = nextMarkdownView ?? !isCurrentlyMarkdown
+
+            if (targetMarkdownView === isCurrentlyMarkdown) {
+                return
+            }
+
+            if (isCurrentlyMarkdown) {
+                const markdownSource = firstChild.getTextContent()
+                markdownSourceCacheRef.current = {
+                    value: markdownSource,
+                    reusable: true,
+                }
+                setEditorLargeDocumentFlag(editor, isLargeRichTextDocument(markdownSource))
+                if (isLargeRichTextDocument(markdownSource)) {
+                    importMarkdownWithHtmlBatches(editor, markdownSource)
+                } else {
+                    $convertFromMarkdownString(
+                        markdownSource,
+                        PLAYGROUND_TRANSFORMERS,
+                        undefined,
+                        true,
+                    )
+                }
+                setMarkdownView(false)
+                return
+            }
+
+            const cachedMarkdownSource = markdownSourceCacheRef.current
+            const markdownSource =
+                cachedMarkdownSource.reusable && cachedMarkdownSource.value
+                    ? cachedMarkdownSource.value
+                    : $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
+
+            const codeNode = $createCodeNode("markdown")
+            codeNode.append($createTextNode(markdownSource))
+            root.clear().append(codeNode)
+            codeNode.selectStart()
+
+            markdownSourceCacheRef.current = {
+                value: markdownSource,
+                reusable: true,
+            }
+            setEditorLargeDocumentFlag(editor, isLargeRichTextDocument(markdownSource))
+            setMarkdownView(true)
+        },
+        [editor, setMarkdownView],
+    )
+
+    const runMarkdownViewUpdate = useCallback(
+        ({
+            nextMarkdownView,
+            defer,
+            overlayMessage,
+        }: {
+            nextMarkdownView?: boolean
+            defer: boolean
+            overlayMessage?: string
+        }) => {
+            if (isMarkdownTogglePendingRef.current) {
+                return
+            }
+
+            isMarkdownTogglePendingRef.current = true
+
+            const executeUpdate = (removeOverlay?: (() => void) | null) => {
+                editor.update(
+                    () => {
+                        $applyMarkdownViewUpdate(nextMarkdownView)
+                    },
+                    {
+                        tag: MARKDOWN_VIEW_TOGGLE_UPDATE_TAG,
+                        onUpdate: () => {
+                            isMarkdownTogglePendingRef.current = false
+                            removeOverlay?.()
+                        },
+                    },
+                )
+            }
+
+            if (!defer) {
+                executeUpdate()
+                return
+            }
+
+            const removeOverlay = showEditorLoadingOverlay(
+                editor,
+                overlayMessage ?? "Switching markdown view…",
+            )
+
+            deferLargePasteUpdate(() => {
+                executeUpdate(removeOverlay)
+            })
+        },
+        [$applyMarkdownViewUpdate, deferLargePasteUpdate, editor],
+    )
 
     // Core handler: when nextMarkdownView is provided, explicitly set to that state;
     // when omitted, toggle the current state.
     const handleSetMarkdownView = useCallback(
         (nextMarkdownView?: boolean) => {
-            editor.update(() => {
+            let shouldRunToggle = false
+            let shouldDeferToggle = false
+            let overlayMessage = "Switching markdown view…"
+
+            editor.getEditorState().read(() => {
                 const root = $getRoot()
                 const firstChild = root.getFirstChild()
                 const isCurrentlyMarkdown =
                     $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+                const targetMarkdownView = nextMarkdownView ?? !isCurrentlyMarkdown
 
-                // If explicit target matches current state, nothing to do
-                if (nextMarkdownView !== undefined && nextMarkdownView === isCurrentlyMarkdown) {
+                if (targetMarkdownView === isCurrentlyMarkdown) {
                     return
                 }
 
+                shouldRunToggle = true
+
                 if (isCurrentlyMarkdown) {
-                    // markdown → rich text
-                    $convertFromMarkdownString(
-                        firstChild.getTextContent(),
-                        PLAYGROUND_TRANSFORMERS,
-                        undefined,
-                        true,
-                    )
-                    setMarkdownView(false)
-                } else {
-                    // rich text → markdown
-                    const markdown = $convertToMarkdownStringCustom(
-                        PLAYGROUND_TRANSFORMERS,
-                        undefined,
-                        true,
-                    )
-                    const codeNode = $createCodeNode("markdown")
-                    codeNode.append($createTextNode(markdown))
-                    root.clear().append(codeNode)
-                    codeNode.selectStart()
-                    setMarkdownView(true)
+                    shouldDeferToggle = isLargeRichTextDocument(firstChild.getTextContent())
+                    overlayMessage = "Rendering markdown preview…"
+                    return
                 }
+
+                shouldDeferToggle = largeDocumentMode || isEditorLargeDocument(editor)
+                overlayMessage = "Switching to markdown source…"
+            })
+
+            if (!shouldRunToggle) {
+                return
+            }
+
+            runMarkdownViewUpdate({
+                nextMarkdownView,
+                defer: shouldDeferToggle,
+                overlayMessage,
             })
         },
-        [editor, setMarkdownView],
+        [editor, largeDocumentMode, runMarkdownViewUpdate],
     )
 
     const handleMarkdownToggle = useCallback(() => {
@@ -189,14 +324,83 @@ const MarkdownPlugin = ({id}: {id: string}) => {
         return editor.registerCommand(
             PASTE_COMMAND,
             (event: ClipboardEvent) => {
+                const clipboardPlainText = event.clipboardData?.getData("text/plain")
+                if (clipboardPlainText && isLargeRichTextDocument(clipboardPlainText)) {
+                    event.preventDefault()
+                    event.stopPropagation()
+
+                    setEditorLargeDocumentFlag(editor, true)
+
+                    const removeOverlay = showEditorLoadingOverlay(editor, "Pasting large content…")
+
+                    deferLargePasteUpdate(() => {
+                        editor.update(
+                            () => {
+                                const selection = $getSelection()
+                                if (!$isRangeSelection(selection)) return
+
+                                const root = $getRoot()
+                                const firstChild = root.getFirstChild()
+                                const isCurrentlyMarkdown =
+                                    $isCodeNode(firstChild) &&
+                                    firstChild.getLanguage() === "markdown"
+                                const isEmptyEditor =
+                                    root.getChildrenSize() === 0 ||
+                                    (root.getChildrenSize() === 1 &&
+                                        root.getFirstChild()?.getTextContent() === "")
+
+                                if (isEmptyEditor) {
+                                    const markdownNode = $createCodeNode("markdown")
+                                    markdownNode.append($createTextNode(clipboardPlainText))
+                                    root.clear().append(markdownNode)
+                                    markdownNode.selectEnd()
+                                    setMarkdownView(true)
+                                    return
+                                }
+
+                                if (isCurrentlyMarkdown) {
+                                    let markdownNode = firstChild
+
+                                    if (!$isCodeNode(markdownNode)) {
+                                        markdownNode = $createCodeNode("markdown")
+                                        root.clear().append(markdownNode)
+                                    }
+
+                                    if (markdownNode.getChildrenSize() === 0) {
+                                        markdownNode.append($createTextNode(""))
+                                    }
+
+                                    markdownNode.selectEnd()
+
+                                    const nextSelection = $getSelection()
+                                    if ($isRangeSelection(nextSelection)) {
+                                        nextSelection.insertRawText(clipboardPlainText)
+                                    }
+
+                                    setMarkdownView(true)
+                                    return
+                                }
+
+                                selection.insertRawText(clipboardPlainText)
+                            },
+                            {
+                                onUpdate: () => {
+                                    removeOverlay?.()
+                                },
+                            },
+                        )
+                    })
+
+                    return true
+                }
+
                 const htmlData = event.clipboardData?.getData("text/html")
                 if (!htmlData) return false
 
                 // Only intercept when HTML contains monospace font styling
                 if (!/font-family[^;]*monospace/i.test(htmlData)) return false
 
-                const plainText = event.clipboardData?.getData("text/plain")
-                if (!plainText) return false
+                if (!clipboardPlainText) return false
 
                 // Check VS Code metadata to determine the source language.
                 const vscodeData = event.clipboardData?.getData("vscode-editor-data")
@@ -231,7 +435,7 @@ const MarkdownPlugin = ({id}: {id: string}) => {
 
                     if (isEmpty) {
                         $convertFromMarkdownString(
-                            plainText,
+                            clipboardPlainText,
                             PLAYGROUND_TRANSFORMERS,
                             undefined,
                             true,
@@ -239,7 +443,7 @@ const MarkdownPlugin = ({id}: {id: string}) => {
                     } else {
                         // Pasting into existing content — insert as raw text
                         // since $convertFromMarkdownString replaces root content
-                        selection.insertRawText(plainText)
+                        selection.insertRawText(clipboardPlainText)
                     }
                 })
 
@@ -247,6 +451,29 @@ const MarkdownPlugin = ({id}: {id: string}) => {
             },
             COMMAND_PRIORITY_HIGH,
         )
+    }, [deferLargePasteUpdate, editor, setMarkdownView])
+
+    useEffect(() => {
+        return editor.registerUpdateListener(({editorState, dirtyElements, dirtyLeaves, tags}) => {
+            if (tags.has(MARKDOWN_VIEW_TOGGLE_UPDATE_TAG)) {
+                return
+            }
+
+            if (dirtyElements.size === 0 && dirtyLeaves.size === 0) {
+                return
+            }
+
+            editorState.read(() => {
+                const root = $getRoot()
+                const firstChild = root.getFirstChild()
+                const isCurrentlyMarkdown =
+                    $isCodeNode(firstChild) && firstChild.getLanguage() === "markdown"
+
+                if (!isCurrentlyMarkdown && markdownSourceCacheRef.current.reusable) {
+                    markdownSourceCacheRef.current.reusable = false
+                }
+            })
+        })
     }, [editor])
 
     useEffect(() => {
@@ -292,12 +519,14 @@ const MarkdownPlugin = ({id}: {id: string}) => {
 
     return (
         <>
-            <MarkdownShortcutPlugin transformers={PLAYGROUND_TRANSFORMERS} />
+            {!largeDocumentMode ? (
+                <MarkdownShortcutPlugin transformers={PLAYGROUND_TRANSFORMERS} />
+            ) : null}
             <ListPlugin />
             <CheckListPlugin />
             <TabIndentationPlugin />
-            <LexicalAutoLinkPlugin />
-            <ClickableLinkPlugin />
+            {!largeDocumentMode ? <LexicalAutoLinkPlugin /> : null}
+            {!largeDocumentMode ? <ClickableLinkPlugin /> : null}
             <HorizontalRulePlugin />
             <TablePlugin />
             <LexicalLinkPlugin />

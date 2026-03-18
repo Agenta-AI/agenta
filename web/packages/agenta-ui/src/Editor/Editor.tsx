@@ -11,7 +11,7 @@ import {
 } from "react"
 
 import {createLogger} from "@agenta/shared/utils"
-import {$isCodeNode} from "@lexical/code"
+import {$createCodeNode, $isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
@@ -29,7 +29,7 @@ import {
     defineExtension,
     type InitialEditorStateType,
 } from "lexical"
-import {$getRoot} from "lexical"
+import {$createTextNode, $getRoot} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
 import FormView from "./form/FormView"
@@ -56,11 +56,17 @@ import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
 import {$getLineCount} from "./plugins/code/utils/segmentUtils"
 import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
+import {stripBackslashEscapes} from "./plugins/markdown/utils/textCleanup"
 import {
     TokenBehaviorExtension,
     TokenBehaviorCoreExtension,
 } from "./plugins/token/extensions/tokenBehavior"
 import type {EditorProps} from "./types"
+import {
+    isEditorLargeDocument,
+    isLargeRichTextDocument,
+    setEditorLargeDocumentFlag,
+} from "./utils/largeDocument"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
@@ -90,6 +96,17 @@ function $getNativeCodeAsString(): string {
         return codeNode.getTextContent()
     }
     return root.getTextContent()
+}
+
+function $getRichTextAsMarkdownString(): string {
+    const root = $getRoot()
+    const firstChild = root.getFirstChild()
+
+    if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
+        return firstChild.getTextContent()
+    }
+
+    return $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
 }
 
 // Re-export the useLexicalComposerContext hook for easier access
@@ -165,6 +182,11 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         })
 
         const [editor] = useLexicalComposerContext()
+        const effectiveValue = value !== undefined ? value : initialValue
+        const isLargeRichTextDoc = useMemo(
+            () => !codeOnly && isLargeRichTextDocument(effectiveValue || ""),
+            [codeOnly, effectiveValue],
+        )
 
         const handleUpdate = useCallback(
             (editorState: EditorState, _editor: LexicalEditor, tags?: ReadonlySet<string>) => {
@@ -250,56 +272,64 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 })
                             }
                         } else {
-                            const root = $getRoot()
-                            const firstChild = root.getFirstChild()
-                            let textContent: string
+                            const emitRichTextChange = () => {
+                                const textContent = $getRichTextAsMarkdownString()
+                                const tokens: unknown[] = [] // Extract tokens if needed
+                                const result = {
+                                    value: "", // Omit this for now
+                                    textContent: stripBackslashEscapes(textContent),
+                                    tokens,
+                                }
 
-                            if (
-                                $isCodeNode(firstChild) &&
-                                firstChild.getLanguage() === "markdown"
-                            ) {
-                                textContent = firstChild.getTextContent()
-                            } else {
-                                textContent = $convertToMarkdownStringCustom(
-                                    TRANSFORMERS,
-                                    undefined,
-                                    true,
+                                setEditorLargeDocumentFlag(
+                                    _editor,
+                                    isLargeRichTextDocument(result.textContent),
                                 )
+                                lastEmittedTextRef.current = result.textContent
+                                const callbackStartMs = getNow()
+                                onChange(result)
+                                const callbackMs = getNow() - callbackStartMs
+                                const totalMs = getNow() - onChangeStartMs
+                                if (
+                                    (DEBUG_ENTER_ON_CHANGE_PROFILE && isEnterUpdate) ||
+                                    totalMs >= SLOW_ON_CHANGE_THRESHOLD_MS
+                                ) {
+                                    onChangeLog("updateProfile", {
+                                        editorId: id,
+                                        isEnterUpdate,
+                                        codeOnly: false,
+                                        contentLength: result.textContent.length,
+                                        callbackMs: Number(callbackMs.toFixed(2)),
+                                        totalMs: Number(totalMs.toFixed(2)),
+                                    })
+                                }
                             }
 
-                            const tokens: unknown[] = [] // Extract tokens if needed
+                            const shouldDebounceRichTextChange =
+                                isLargeRichTextDoc || isEditorLargeDocument(_editor)
 
-                            const result = {
-                                value: "", // Omit this for now
-                                textContent: textContent.replaceAll(/\\(.)/g, "$1"),
-                                tokens,
+                            if (shouldDebounceRichTextChange) {
+                                if (onChangeDebounceRef.current != null) {
+                                    clearTimeout(onChangeDebounceRef.current)
+                                }
+                                onChangeDebounceRef.current = setTimeout(() => {
+                                    onChangeDebounceRef.current = null
+                                    editor.getEditorState().read(() => {
+                                        if (!editor.isEditable()) return
+                                        emitRichTextChange()
+                                    })
+                                }, LARGE_DOC_ON_CHANGE_DEBOUNCE_MS)
+                                return true
                             }
 
-                            lastEmittedTextRef.current = result.textContent
-                            const callbackStartMs = getNow()
-                            onChange(result)
-                            const callbackMs = getNow() - callbackStartMs
-                            const totalMs = getNow() - onChangeStartMs
-                            if (
-                                (DEBUG_ENTER_ON_CHANGE_PROFILE && isEnterUpdate) ||
-                                totalMs >= SLOW_ON_CHANGE_THRESHOLD_MS
-                            ) {
-                                onChangeLog("updateProfile", {
-                                    editorId: id,
-                                    isEnterUpdate,
-                                    codeOnly: false,
-                                    contentLength: result.textContent.length,
-                                    callbackMs: Number(callbackMs.toFixed(2)),
-                                    totalMs: Number(totalMs.toFixed(2)),
-                                })
-                            }
+                            emitRichTextChange()
                         }
                     })
                     return true
                 },
                 COMMAND_PRIORITY_HIGH,
             )
-        }, [codeOnly, editor, onChange])
+        }, [codeOnly, editor, id, isLargeRichTextDoc, onChange, useNativeCodeNodes])
 
         const [view, setView] = useState<"code" | "form">("code")
         const [jsonValue, setJsonValue] = useState<Record<string, unknown>>({})
@@ -433,26 +463,47 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                         }
                         isInitRef.current = true
                         if (hydrateWithRemoteContent) {
-                            $convertFromMarkdownString(
-                                hydrateWithRemoteContent,
-                                TRANSFORMERS,
-                                undefined,
-                                true,
-                            )
+                            if (!codeOnly && isLargeRichTextDocument(hydrateWithRemoteContent)) {
+                                setEditorLargeDocumentFlag(editor, true)
+
+                                const root = $getRoot()
+                                const codeNode = $createCodeNode("markdown")
+                                codeNode.append($createTextNode(hydrateWithRemoteContent))
+                                root.clear().append(codeNode)
+                            } else {
+                                $convertFromMarkdownString(
+                                    hydrateWithRemoteContent,
+                                    TRANSFORMERS,
+                                    undefined,
+                                    true,
+                                )
+                            }
                         }
                         return false
                     },
                     COMMAND_PRIORITY_LOW,
                 ),
             )
-        }, [editor])
+        }, [codeOnly, editor])
 
         const lastHydratedRef = useRef<string>("")
         const lastEmittedTextRef = useRef<string>("")
         const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-        // Use controlled value if provided, otherwise fall back to initialValue
-        const effectiveValue = value !== undefined ? value : initialValue
+        useEffect(
+            () => () => {
+                if (onChangeDebounceRef.current != null) {
+                    clearTimeout(onChangeDebounceRef.current)
+                    onChangeDebounceRef.current = null
+                }
+            },
+            [],
+        )
+
+        useEffect(() => {
+            setEditorLargeDocumentFlag(editor, isLargeRichTextDoc)
+        }, [editor, isLargeRichTextDoc])
+
         const shouldDisableLineNumbersForLargeDoc = useMemo(() => {
             if (!codeOnly || !showLineNumbers) {
                 return false
@@ -563,9 +614,13 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 style.height = dimensions.height
             }
 
-            // Virtualization needs a bounded scroll container.
-            // If caller did not provide a fixed height, apply a large-doc default.
-            if (codeOnly && shouldEnableLargeDocOptimizations && !hasExplicitHeight) {
+            // Large documents benefit from a bounded scroll container so the
+            // page does not reflow around extremely tall editor content.
+            if (
+                ((codeOnly && shouldEnableLargeDocOptimizations) ||
+                    (!codeOnly && isLargeRichTextDoc)) &&
+                !hasExplicitHeight
+            ) {
                 style.maxHeight = "70vh"
                 style.overflow = "auto"
             }
@@ -576,6 +631,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             dimensions?.height,
             dimensions?.width,
             hasExplicitHeight,
+            isLargeRichTextDoc,
             shouldEnableLargeDocOptimizations,
         ])
 
@@ -617,13 +673,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             // code fences, etc.) causing false mismatches after markdown paste/conversion.
             let currentContent = ""
             editor.getEditorState().read(() => {
-                const root = $getRoot()
-                const firstChild = root.getFirstChild()
-                if ($isCodeNode(firstChild) && firstChild.getLanguage() === "markdown") {
-                    currentContent = firstChild.getTextContent()
-                } else {
-                    currentContent = $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
-                }
+                currentContent = $getRichTextAsMarkdownString()
             })
             // Skip if content already matches (no change needed)
             if (currentContent === next) {
@@ -656,6 +706,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             showMarkdownToggleButton={showMarkdownToggleButton}
                             singleLine={singleLine}
                             codeOnly={codeOnly}
+                            largeDocumentMode={isLargeRichTextDoc}
                             debug={debug}
                             language={language}
                             placeholder={placeholder}
