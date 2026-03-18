@@ -364,3 +364,29 @@ class AgentV0Error(ErrorStatus):
             message=message,
             stacktrace=stacktrace,
         )
+
+
+class LLMUnavailableV0Error(ErrorStatus):
+    code: int = 503
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:llm-unavailable"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
+class LLMV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:llm-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )

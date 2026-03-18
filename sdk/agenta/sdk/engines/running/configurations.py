@@ -7,6 +7,7 @@ code_v0_configuration = WorkflowServiceConfiguration()
 match_v0_configuration = WorkflowServiceConfiguration()
 prompt_v0_configuration = WorkflowServiceConfiguration()
 agent_v0_configuration = WorkflowServiceConfiguration()
+llm_v0_configuration = WorkflowServiceConfiguration()
 
 # --- OLD URI
 chat_v0_configuration = WorkflowServiceConfiguration()

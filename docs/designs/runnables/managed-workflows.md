@@ -1,4 +1,4 @@
-# Builtin Evaluators
+# Managed Workflows
 
 ## Scope
 
@@ -152,7 +152,7 @@ At the top level:
             "starts_with",
             "ends_with",
             "contains",
-            "overlap"
+            "diff"
           ]
         },
         "match": {
@@ -226,7 +226,7 @@ Exhaustive matcher fields:
   - `starts_with`
   - `ends_with`
   - `contains`
-  - `overlap`
+  - `diff`
 - `match`
   - used when `references` is present
   - `all`
@@ -251,11 +251,11 @@ Exhaustive matcher fields:
 - `threshold`
   - score threshold for success-producing modes
 - `use_schema_only`
-  - overlap-specific setting
+  - diff-specific setting
   - when `true`, compare flattened JSON entries by path and value type only
   - when `false`, compare flattened JSON entries by path and value
 - `include_unexpected_keys`
-  - overlap-specific setting
+  - diff-specific setting
   - when `false`, only ground-truth keys are scored
   - when `true`, predicted-only keys are also added to the scoring set
 - `matchers`
@@ -274,7 +274,7 @@ The matcher fields are not all used by every mode.
 | `starts_with` | yes | yes | no | no | no | Prefix comparison. Can also use `case_sensitive`. |
 | `ends_with` | yes | yes | no | no | no | Suffix comparison. Can also use `case_sensitive`. |
 | `contains` | yes | optional | optional | no | no | Single-value contains uses `reference`. Multi-value contains uses `references` with `match=\"all\" | \"any\"`. Can also use `case_sensitive`. |
-| `overlap` | yes | yes | no | no | yes | Mainly for JSON-to-JSON comparison. Also uses `use_schema_only`, `include_unexpected_keys`, and optionally `case_sensitive` for key comparison. |
+| `diff` | yes | yes | no | no | yes | Mainly for JSON-to-JSON comparison. Also uses `use_schema_only`, `include_unexpected_keys`, and optionally `case_sensitive` for key comparison. |
 
 Per-operand rules:
 
@@ -303,31 +303,31 @@ Direct mode rules:
 - regex
   - only used for actual regex semantics
 
-### Overlap Options
+### diff Options
 
-`overlap` is still the least clean mode in the current design. The options
+`diff` is still the least clean mode in the current design. The options
 below should be treated as provisional until we settle the exact semantics.
 
 Current candidate options:
 
 - `use_schema_only`
   - likely keep
-  - meaningful for JSON overlap
+  - meaningful for JSON diff
   - compares flattened entries by path and value type only
-  - when `false`, overlap compares flattened entries by path and value
+  - when `false`, diff compares flattened entries by path and value
 - `include_unexpected_keys`
   - likely keep for legacy parity
   - when `false`, score only keys present in the reference JSON
   - when `true`, include predicted-only keys in the scoring set too
 - `case_sensitive`
   - likely keep as the generic option instead of a JSON-specific key flag
-  - for JSON overlap, applies to flattened object-key comparison
+  - for JSON diff, applies to flattened object-key comparison
   - `false` means keys are normalized before comparison
 
 Open questions:
 
-- whether `overlap` is the final mode name
-- whether any overlap options should be nested under an `options` object instead
+- whether `diff` is the final mode name
+- whether any diff options should be nested under an `options` object instead
   of staying flat on the matcher
 
 Implementation shape:
@@ -387,7 +387,7 @@ Minimal root-only examples:
     "matchers": [
         {
             "kind": "json",
-            "mode": "overlap",
+            "mode": "diff",
             "path": "$.outputs",
             "reference": "$.inputs.correct_answer",
             "use_schema_only": False,
@@ -408,7 +408,7 @@ Important notes:
 - `field_match_test` becomes a single-path special case
 - `json_multi_field_match` becomes a multi-path special case
 - `auto_contains_json` becomes the loosest JSON matcher case
-- `auto_json_diff` becomes `mode="overlap"`
+- `auto_json_diff` becomes `mode="diff"`
 
 Example shape:
 
@@ -417,7 +417,7 @@ Example shape:
     "matchers": [
         {
             "kind": "json",
-            "mode": "overlap",
+            "mode": "diff",
             "path": "$.outputs",
             "reference": "$.inputs.correct_answer",
             "matchers": [
@@ -556,7 +556,7 @@ The existing settings are:
 - `case_sensitive`
 
 So in the canonical matcher family, those settings belong to
-`mode="overlap"` rather than to generic regex/similarity matching.
+`mode="diff"` rather than to generic regex/similarity matching.
 
 ## Current Implementation Differences
 
@@ -631,7 +631,7 @@ JSON-typed variant when the output is already treated as JSON:
     {
       "key": "exact_match_json",
       "kind": "json",
-      "mode": "overlap",
+      "mode": "diff",
       "path": "$.outputs",
       "reference": "$.inputs.correct_answer",
       "threshold": 1.0
@@ -880,7 +880,7 @@ Equivalent `match` settings:
     {
       "key": "json_multi_field_match",
       "kind": "json",
-      "mode": "overlap",
+      "mode": "diff",
       "path": "$.outputs",
       "reference": "$.inputs.correct_answer",
       "aggregate": "weighted",
@@ -954,7 +954,7 @@ Equivalent `match` settings:
     {
       "key": "json_diff",
       "kind": "json",
-      "mode": "overlap",
+      "mode": "diff",
       "path": "$.outputs",
       "reference": "$.inputs.correct_answer",
       "threshold": 0.5,

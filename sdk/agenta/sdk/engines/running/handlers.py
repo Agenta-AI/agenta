@@ -1446,6 +1446,625 @@ async def agent_v0(
     )
 
 
+# ---------------------------------------------------------------------------
+# llm_v0 helpers
+# ---------------------------------------------------------------------------
+
+
+def _merge_usage(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge two LiteLLM usage dicts by summing numeric fields."""
+    result = dict(a)
+    for k, v in b.items():
+        if isinstance(v, (int, float)):
+            result[k] = result.get(k, 0) + v
+        else:
+            result[k] = v
+    return result
+
+
+def _merge_consent(
+    param_consent: Optional[Dict[str, Any]],
+    input_consent: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Merge parameter-level consent policy with per-run consent input.
+    Returns None when both are absent (no consent gate).
+    """
+    if param_consent is None and not input_consent:
+        return None
+    base = dict(param_consent or {})
+    override = dict(input_consent or {})
+    # Merge decisions by key
+    base_decisions = dict(base.get("decisions") or {})
+    override_decisions = dict(override.get("decisions") or {})
+    merged = {**base, **override, "decisions": {**base_decisions, **override_decisions}}
+    return merged
+
+
+def _apply_variables(
+    messages: List[Dict[str, Any]],
+    variables: Dict[str, Any],
+    template_format: str,
+) -> List[Dict[str, Any]]:
+    """Apply template variable substitution to message content strings."""
+    if not variables:
+        return messages
+    result = []
+    for msg in messages:
+        content = msg.get("content")
+        if isinstance(content, str):
+            try:
+                content = _format_with_template(
+                    content=content,
+                    format=template_format,
+                    kwargs=variables,
+                )
+            except Exception as e:
+                raise PromptFormattingV0Error(
+                    message=str(e),
+                    stacktrace=traceback.format_exc(),
+                ) from e
+        result.append({**msg, "content": content})
+    return result
+
+
+def _build_llm_tools(tools_config: Optional[Dict[str, Any]]) -> Optional[List[Dict]]:
+    """Convert tools config into a litellm-compatible tools list."""
+    if not tools_config:
+        return None
+    internal_names: List[str] = list(tools_config.get("internal") or [])
+    external_defs: List[Dict] = list(tools_config.get("external") or [])
+    tool_defs = list(external_defs)
+    # Register built-in internal tool schemas
+    _INTERNAL_TOOL_SCHEMAS: Dict[str, Dict] = {
+        "files.list": {
+            "type": "function",
+            "function": {
+                "name": "files.list",
+                "description": "List files in a directory.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "default": "."},
+                        "pattern": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "files.read": {
+            "type": "function",
+            "function": {
+                "name": "files.read",
+                "description": "Read the contents of a file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                    },
+                    "required": ["path"],
+                },
+            },
+        },
+        "files.search": {
+            "type": "function",
+            "function": {
+                "name": "files.search",
+                "description": "Search for text in files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "path": {"type": "string", "default": "."},
+                    },
+                    "required": ["query"],
+                },
+            },
+        },
+        "control.terminate": {
+            "type": "function",
+            "function": {
+                "name": "control.terminate",
+                "description": "Signal that the agent considers the run complete.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "control.request_consent": {
+            "type": "function",
+            "function": {
+                "name": "control.request_consent",
+                "description": "Ask the caller to collect consent for an internal tool call.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tool_call_id": {"type": "string"},
+                        "tool_name": {"type": "string"},
+                        "arguments": {},
+                        "reason": {"type": "string"},
+                    },
+                    "required": ["tool_call_id", "tool_name"],
+                },
+            },
+        },
+    }
+    for name in internal_names:
+        schema = _INTERNAL_TOOL_SCHEMAS.get(name)
+        if schema:
+            tool_defs.append(schema)
+    return tool_defs or None
+
+
+async def _execute_internal_tool(
+    name: str,
+    arguments: Dict[str, Any],
+    files_config: Optional[Dict[str, Any]],
+    context: Dict[str, Any],
+) -> Any:
+    """Execute an internal tool and return its result."""
+    import glob as _glob
+    import os as _os
+
+    fc = files_config or {}
+    roots: List[str] = list(fc.get("roots") or ["."])
+    allow_globs: List[str] = list(fc.get("allow_globs") or ["**/*"])
+    deny_globs: List[str] = list(fc.get("deny_globs") or [])
+    max_file_bytes: int = int(fc.get("max_file_bytes") or 65536)
+    max_total_bytes: int = int(fc.get("max_total_bytes_per_turn") or 262144)
+    include_hidden: bool = bool(fc.get("include_hidden", False))
+
+    def _is_allowed(path: str) -> bool:
+        import fnmatch
+
+        if not include_hidden:
+            parts = path.replace("\\", "/").split("/")
+            if any(p.startswith(".") for p in parts):
+                return False
+        allowed = any(fnmatch.fnmatch(path, pat) for pat in allow_globs)
+        denied = any(fnmatch.fnmatch(path, pat) for pat in deny_globs)
+        return allowed and not denied
+
+    if name == "files.list":
+        path = str(arguments.get("path") or ".")
+        pattern = str(arguments.get("pattern") or "**/*")
+        results = []
+        for root in roots:
+            search_root = _os.path.join(root, path)
+            for match in _glob.glob(
+                _os.path.join(search_root, pattern), recursive=True
+            ):
+                rel = _os.path.relpath(match, root)
+                if _is_allowed(rel) and _os.path.isfile(match):
+                    results.append(rel)
+        return {"files": results}
+
+    if name == "files.read":
+        path = str(arguments.get("path") or "")
+        for root in roots:
+            full = _os.path.join(root, path)
+            if not _os.path.isfile(full):
+                continue
+            rel = _os.path.relpath(full, root)
+            if not _is_allowed(rel):
+                return {"error": f"Access denied: {path}"}
+            size = _os.path.getsize(full)
+            if size > max_file_bytes:
+                return {
+                    "error": f"File too large: {size} bytes (limit {max_file_bytes})"
+                }
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                return {"path": path, "content": fh.read()}
+        return {"error": f"File not found: {path}"}
+
+    if name == "files.search":
+        query = str(arguments.get("query") or "")
+        path = str(arguments.get("path") or ".")
+        matches = []
+        total_bytes = 0
+        for root in roots:
+            search_root = _os.path.join(root, path)
+            for fpath in _glob.glob(_os.path.join(search_root, "**/*"), recursive=True):
+                if not _os.path.isfile(fpath):
+                    continue
+                rel = _os.path.relpath(fpath, root)
+                if not _is_allowed(rel):
+                    continue
+                try:
+                    with open(fpath, "r", encoding="utf-8", errors="replace") as fh:
+                        for lineno, line in enumerate(fh, 1):
+                            if query in line:
+                                entry = f"{rel}:{lineno}: {line.rstrip()}"
+                                total_bytes += len(entry)
+                                if total_bytes > max_total_bytes:
+                                    return {"matches": matches, "truncated": True}
+                                matches.append(entry)
+                except OSError:
+                    continue
+        return {"matches": matches}
+
+    return {"error": f"Unknown internal tool: {name}"}
+
+
+def _first_without_consent(
+    tool_calls: List[Dict[str, Any]],
+    consent_state: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Return the first tool call that lacks consent, or None if all are approved."""
+    if consent_state is None:
+        return None
+    mode = consent_state.get("mode") or "per_call"
+    if mode == "allow_all":
+        return None
+    if mode == "deny_all":
+        return tool_calls[0] if tool_calls else None
+    allowed_tools: List[str] = list(consent_state.get("allowed_tools") or [])
+    denied_tools: List[str] = list(consent_state.get("denied_tools") or [])
+    decisions: Dict[str, Any] = dict(consent_state.get("decisions") or {})
+    for tc in tool_calls:
+        fn_name = (tc.get("function") or {}).get("name", "")
+        if fn_name in denied_tools:
+            return tc
+        if fn_name in allowed_tools:
+            continue
+        tc_id = tc.get("id", "")
+        decision = decisions.get(tc_id) or decisions.get(fn_name)
+        if not decision or decision.get("decision") != "allow":
+            return tc
+    return None
+
+
+def _make_consent_request_call(missing: Dict[str, Any]) -> Dict[str, Any]:
+    """Construct a control.request_consent tool call for a missing-consent internal call."""
+    fn = missing.get("function") or {}
+    return {
+        "id": f"consent_{missing.get('id', 'unknown')}",
+        "type": "function",
+        "function": {
+            "name": "control.request_consent",
+            "arguments": json.dumps(
+                {
+                    "tool_call_id": missing.get("id", ""),
+                    "tool_name": fn.get("name", ""),
+                    "arguments": fn.get("arguments", "{}"),
+                }
+            ),
+        },
+    }
+
+
+async def _call_llm_with_fallback(
+    llms: List[Dict[str, Any]],
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict]],
+) -> tuple:
+    """
+    Try each LLM entry in order.
+    Falls back on authentication, rate limit, and availability errors.
+    Returns (assistant_message_dict, usage_dict).
+    Raises LLMUnavailableV0Error if all entries fail.
+    """
+    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
+
+    litellm = _load_litellm()
+    if not litellm:
+        raise ImportError("litellm is required for llm_v0.")
+
+    _retriable = tuple(
+        cls
+        for name in (
+            "AuthenticationError",
+            "RateLimitError",
+            "ServiceUnavailableError",
+            "NotFoundError",
+        )
+        if (cls := getattr(litellm, name, None)) is not None
+    )
+
+    secrets, _, _ = await SecretsManager.retrieve_secrets()
+    if secrets and isinstance(secrets, list):
+        for secret in secrets:
+            if secret.get("kind") != "provider_key":
+                continue
+            data = secret.get("data", {})
+            kind = data.get("kind")
+            key = data.get("provider", {}).get("key")
+            if kind == "openai" and key:
+                litellm.openai_key = key
+            elif kind == "anthropic" and key:
+                litellm.anthropic_key = key
+            elif kind == "openrouter" and key:
+                litellm.openrouter_key = key
+            elif kind == "cohere" and key:
+                litellm.cohere_key = key
+            elif kind == "azure" and key:
+                litellm.azure_key = key
+            elif kind == "groq" and key:
+                litellm.groq_key = key
+
+    last_error = None
+    for llm_config in llms:
+        model = llm_config.get("model")
+        if not model:
+            continue
+        kwargs: Dict[str, Any] = {"model": str(model), "messages": messages}
+        if tools:
+            kwargs["tools"] = tools
+            if llm_config.get("tool_choice"):
+                kwargs["tool_choice"] = llm_config["tool_choice"]
+        for field in (
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "reasoning_effort",
+        ):
+            val = llm_config.get(field)
+            if val is not None:
+                kwargs[field] = val
+        try:
+            response = await litellm.acompletion(**kwargs)
+            msg = response.choices[0].message
+            assistant_message = (
+                msg.model_dump(exclude_none=True)
+                if hasattr(msg, "model_dump")
+                else dict(msg)
+            )
+            usage = (
+                dict(response.usage)
+                if hasattr(response, "usage") and response.usage
+                else {}
+            )
+            return assistant_message, usage
+        except _retriable as exc:
+            last_error = exc
+            continue
+        except Exception:
+            raise
+
+    raise LLMUnavailableV0Error(
+        message=f"All LLM entries exhausted. Last error: {last_error}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# llm_v0 — unified prompt + agent handler
+# ---------------------------------------------------------------------------
+
+
+@instrument()
+async def llm_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Unified LLM handler covering single-call prompt mode and multi-step agent loop.
+
+    Parameters (stored per revision):
+        llms:            Ordered list of LLM configs. Runtime tries each in order on
+                         auth / rate-limit / availability errors.
+        messages:        System/initial messages. Template substitution applied.
+        template_format: "curly" (default), "fstring", or "jinja2".
+        loop:            null → single LLM call (prompt mode).
+                         dict → agent loop config with max_iterations etc.
+        tools:           {"internal": [...], "external": [...]}. null → no tools.
+        consent:         Consent policy dict. null → auto-approve all internal tools.
+        response:        {"stream": false}.
+
+    Inputs (per invocation):
+        messages:   Incremental messages appended after parameters.messages.
+        variables:  Template variables substituted into all messages.
+        context:    Structured context merged with parameters.context.
+        consent:    Consent decisions merged with parameters.consent.
+
+    Returns always:
+        {
+            "status":  {"code": int, "type": str, "message": str},
+            "messages": [...],   # full message history
+            "context":  {...},
+            "consent":  {...},
+            "usage":    {...},
+        }
+    """
+    from agenta.sdk.engines.running.errors import LLMUnavailableV0Error
+
+    # --- Validate parameters
+    if parameters is None or not isinstance(parameters, dict):
+        raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
+
+    llms = parameters.get("llms")
+    if not llms or not isinstance(llms, list):
+        raise InvalidConfigurationParameterV0Error(
+            path="llms", expected="non-empty list", got=llms
+        )
+
+    param_messages: List[Dict] = list(parameters.get("messages") or [])
+    template_format = str(parameters.get("template_format") or "curly")
+    loop_config: Optional[Dict] = parameters.get("loop")
+    tools_config: Optional[Dict] = parameters.get("tools")
+    param_consent: Optional[Dict] = parameters.get("consent")
+    param_context: Dict = dict(parameters.get("context") or {})
+
+    # --- Parse inputs
+    run_inputs: Dict = dict(inputs or {})
+    if inputs is not None and not isinstance(inputs, dict):
+        raise InvalidInputsV0Error(expected="dict", got=inputs)
+
+    input_messages: List[Dict] = list(run_inputs.get("messages") or [])
+    variables: Dict = dict(run_inputs.get("variables") or {})
+    input_context: Dict = dict(run_inputs.get("context") or {})
+    input_consent: Optional[Dict] = run_inputs.get("consent")
+
+    # --- Apply template variables and build message list
+    fmt_param_messages = _apply_variables(param_messages, variables, template_format)
+    fmt_input_messages = _apply_variables(input_messages, variables, template_format)
+    all_messages: List[Dict] = [*fmt_param_messages, *fmt_input_messages]
+
+    # --- Merge context and consent
+    context: Dict = {**param_context, **input_context}
+    consent_state: Optional[Dict] = _merge_consent(param_consent, input_consent)
+
+    usage: Dict[str, Any] = {}
+
+    # =========================================================================
+    # PROMPT MODE: loop = null → single LLM call, return immediately
+    # =========================================================================
+    if loop_config is None:
+        try:
+            assistant_message, call_usage = await _call_llm_with_fallback(
+                llms=llms,
+                messages=all_messages,
+                tools=_build_llm_tools(tools_config),
+            )
+        except LLMUnavailableV0Error:
+            raise
+        usage = _merge_usage(usage, call_usage)
+        return {
+            "status": {"code": 200, "type": "success", "message": "completed"},
+            "messages": [*all_messages, assistant_message],
+            "context": context,
+            "consent": consent_state or {},
+            "usage": usage,
+        }
+
+    # =========================================================================
+    # AGENT MODE: loop present → multi-step loop
+    # =========================================================================
+    max_iterations = int(loop_config.get("max_iterations") or 8)
+    max_internal_calls = int(loop_config.get("max_internal_tool_calls") or 16)
+    max_consecutive_errors = int(loop_config.get("max_consecutive_errors") or 2)
+    allow_implicit_stop = bool(loop_config.get("allow_implicit_stop", True))
+
+    internal_names: set = set(list((tools_config or {}).get("internal") or []))
+    external_names: set = set(list((tools_config or {}).get("external") or []))
+
+    state: Dict[str, Any] = {
+        "messages": all_messages,
+        "context": context,
+        "consent": consent_state,
+        "iterations": 0,
+        "internal_tool_calls": 0,
+        "consecutive_errors": 0,
+    }
+
+    def _envelope(status_code: int, status_type: str, status_message: str) -> Dict:
+        return {
+            "status": {
+                "code": status_code,
+                "type": status_type,
+                "message": status_message,
+            },
+            "messages": state["messages"],
+            "context": state["context"],
+            "consent": state["consent"] or {},
+            "usage": usage,
+        }
+
+    while True:
+        if state["iterations"] >= max_iterations:
+            return _envelope(500, "failure", "iterations_exhausted")
+        if state["internal_tool_calls"] >= max_internal_calls:
+            return _envelope(500, "failure", "calls_exhausted")
+
+        state["iterations"] += 1
+
+        try:
+            assistant_message, call_usage = await _call_llm_with_fallback(
+                llms=llms,
+                messages=state["messages"],
+                tools=_build_llm_tools(tools_config),
+            )
+            state["consecutive_errors"] = 0
+        except LLMUnavailableV0Error:
+            return _envelope(503, "failure", "llm_unavailable")
+        except Exception:
+            state["consecutive_errors"] += 1
+            if state["consecutive_errors"] >= max_consecutive_errors:
+                return _envelope(500, "failure", "error_raised")
+            continue
+
+        usage = _merge_usage(usage, call_usage)
+        state["messages"] = [*state["messages"], assistant_message]
+
+        tool_calls: List[Dict] = list(assistant_message.get("tool_calls") or [])
+
+        # No tool calls
+        if not tool_calls:
+            if allow_implicit_stop:
+                return _envelope(200, "success", "completed")
+            continue
+
+        # control.terminate
+        if any(
+            (tc.get("function") or {}).get("name") == "control.terminate"
+            for tc in tool_calls
+        ):
+            return _envelope(200, "success", "completed")
+
+        # Classify tool calls
+        external_calls = [
+            tc
+            for tc in tool_calls
+            if (tc.get("function") or {}).get("name") in external_names
+        ]
+        internal_calls = [
+            tc
+            for tc in tool_calls
+            if (tc.get("function") or {}).get("name") in internal_names
+        ]
+
+        # External tool calls → pause and return to caller
+        if external_calls:
+            return _envelope(202, "awaiting", "tool_requested")
+
+        # Consent gate for internal tools
+        if state["consent"] is not None:
+            missing = _first_without_consent(internal_calls, state["consent"])
+            if missing:
+                consent_call = _make_consent_request_call(missing)
+                last = dict(state["messages"][-1])
+                last_tool_calls = list(last.get("tool_calls") or []) + [consent_call]
+                state["messages"] = [
+                    *state["messages"][:-1],
+                    {**last, "tool_calls": last_tool_calls},
+                ]
+                return _envelope(202, "awaiting", "consent_requested")
+
+        # Execute internal tools
+        for tc in internal_calls:
+            fn = tc.get("function") or {}
+            fn_name = fn.get("name", "")
+            try:
+                fn_args = json.loads(fn.get("arguments") or "{}")
+            except (json.JSONDecodeError, ValueError):
+                fn_args = {}
+            result = await _execute_internal_tool(
+                name=fn_name,
+                arguments=fn_args,
+                files_config=parameters.get("files"),
+                context=state["context"],
+            )
+            state["internal_tool_calls"] += 1
+            state["messages"] = [
+                *state["messages"],
+                {
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": json.dumps(result)
+                    if not isinstance(result, str)
+                    else result,
+                },
+            ]
+
+
 # --- OLD URI
 
 

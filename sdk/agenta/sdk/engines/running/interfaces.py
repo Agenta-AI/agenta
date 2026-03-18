@@ -98,6 +98,37 @@ agent_v0_interface = WorkflowServiceInterface(
     schemas=None,
 )
 
+llm_v0_interface = WorkflowServiceInterface(
+    uri="agenta:builtin:llm:v0",
+    schemas=dict(  # type: ignore
+        outputs={
+            "type": "object",
+            "title": "LLM Outputs",
+            "description": "Unified output envelope for prompt and agent runs.",
+            "properties": {
+                "status": {
+                    "type": "object",
+                    "properties": {
+                        "code": {"type": "integer"},
+                        "type": {"type": "string"},
+                        "message": {"type": "string"},
+                    },
+                    "required": ["code", "type", "message"],
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                },
+                "context": {"type": "object"},
+                "consent": {"type": "object"},
+                "usage": {"type": "object"},
+            },
+            "required": ["status", "messages", "context", "consent", "usage"],
+            "additionalProperties": False,
+        }
+    ),
+)
+
 # --- OLD URI
 
 chat_v0_interface = WorkflowServiceInterface(

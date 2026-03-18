@@ -1,29 +1,29 @@
-# prompt_v0 and agent_v0
+# llm_v0
 
 ## Goal
 
-Define a unified handler family where `agent_v0` is a strict superset of
-`prompt_v0`, and `prompt_v0` behavior falls out naturally when loop and consent
-are disabled or absent.
+Define a single unified handler `llm_v0` that covers both prompt and agent
+behavior. Prompt mode (`loop = null`) and agent mode (`loop` present) share the
+same input contract, the same output schema, and the same LLM fallback logic.
 
 This document covers:
 
-- the shared handler signature and parameter contract
+- the unified handler signature and parameter contract
 - how configuration drives behavior from single-call prompt to multi-step agent
-- presets that express named configurations (`single_prompt`, `agent`, etc.)
-- LLM fallback ordering
+- `variables` input for template substitution
+- LLM fallback ordering across the `llms` array
+- `status` output object replacing state/reason/final
 - loop semantics, consent gate, and tool routing
-
-This is research/design only.
+- presets that express named configurations
 
 ---
 
 ## Positioning
 
-Both handlers follow the canonical workflow signature:
+The handler follows the canonical workflow signature:
 
 ```python
-async def prompt_v0(   # or agent_v0
+async def llm_v0(
     request: Optional[Data] = None,
     revision: Optional[Data] = None,
     inputs: Optional[Data] = None,
@@ -35,15 +35,12 @@ async def prompt_v0(   # or agent_v0
     ...
 ```
 
-Recommended URIs:
+Recommended URI:
 
-- `agenta:builtin:prompt:v0`
-- `agenta:builtin:agent:v0`
+- `agenta:builtin:llm:v0`
 
-`prompt_v0` is a restricted entry point that rejects `loop`, `consent`, and
-`tools` parameters. `agent_v0` accepts them all. Both share the same inner
-execution path — the difference is which parameter blocks are permitted and
-which defaults apply.
+`prompt_v0` and `agent_v0` remain as named aliases that delegate to `llm_v0`
+with restricted or permissive parameter sets respectively.
 
 ---
 
@@ -370,7 +367,9 @@ Consent modes:
 
 ```json
 "response": {
-  "stream": false
+  "stream": false,
+  "format": "messages",
+  "schema": {...},
 }
 ```
 
@@ -396,17 +395,26 @@ and then closes with the final envelope.
 
 ```json
 {
-  "messages": [],
-  "context": {},
-  "consent": {}
+  "messages": [],  // x-ag-messages
+  "message": [],   // x-ag-message
+  "content": [],   // x-ag-content
+  "context": {},   // x-ag-context
+  "consent": {},   // x-ag-consent
+  "variables": {}, // x-ag-variables ~ rest of testcase.data ?
+  ...              // rest of testcase.data
 }
 ```
 
-- `messages` — concatenated onto `parameters.messages`
+- `messages` — concatenated onto `parameters.messages` after variable substitution
+- `variables` — key/value map applied to `{{placeholder}}` slots in all messages (both `parameters.messages` and `inputs.messages`)
 - `context` — merged into `parameters.context`
 - `consent` — merged into `parameters.consent` (decisions carry through resumptions)
 
-When resuming after an `awaiting` state, the caller appends the external tool
+`variables` uses the `template_format` from `parameters` (default `"curly"`).
+Template substitution happens before messages are concatenated, so variables
+work uniformly across system prompts and user messages.
+
+When resuming after an `pending` status, the caller appends the external tool
 result as a tool-role message inside `inputs.messages` and optionally provides
 updated `inputs.consent`.
 
@@ -418,42 +426,34 @@ The output envelope is always the same shape regardless of mode:
 
 ```json
 {
-  "state": "success",
-  "reason": "goal_achieved",
-  "final": { "role": "assistant", "content": "..." },
-  "messages": [],
-  "context": {},
-  "consent": {},
-  "usage": {}
+  "status": {},   // x-ag-status
+  "messages": [], // x-ag-messages
+  "message": [],  // x-ag-message
+  "content": [],  // x-ag-content
+  "context": {},  // x-ag-context
+  "consent": {}   // x-ag-consent
 }
 ```
 
-- `final` — the last assistant message when `state="success"`, `null` otherwise
-- `messages` — the full effective message list after the run (system + user + assistant + tool messages)
-- `context` — the effective structured context after the run
-- `consent` — the effective consent state after the run (useful for passing back on resumption)
-- `usage` — aggregated token usage across all LLM calls in the run
+- `status` — lifecycle result object. Same `code`/`type`/`message` shape as error objects so callers handle outcomes uniformly.
+- `messages` — full effective message list after the run (system + user + assistant + tool messages). The last assistant message is always the last `role=assistant` entry in this list — no need for a separate `final` field.
+- `context` — effective structured context after the run
+- `consent` — effective consent state after the run (pass back on resumption)
 
-The schema does not vary between prompt mode and agent mode. Callers can always
-use the same response shape. In prompt mode, `context` and `consent` will
-simply be empty objects if no values were provided.
+The schema does not vary between prompt mode and agent mode. In prompt mode,
+`context` and `consent` will be empty objects if no values were provided.
 
-Recommended `state` values:
+`status` values:
 
-- `running`
-- `awaiting`
-- `success`
-- `failure`
-
-Recommended `reason` values:
-
-- `goal_achieved`
-- `tool_requested`
-- `consent_requested`
-- `iterations_exhausted`
-- `calls_exhausted`
-- `error_raised`
-- `llm_unavailable`
+| `code` | `type`      | `message`               | Meaning                                         |
+|--------|-------------|-------------------------|-------------------------------------------------|
+| 200    | `success`   | `completed`             | Run finished, last message is the answer        |
+| 202    | `pending`  | `tool_requested`        | External tool call pending, resume with result  |
+| 202    | `pending`  | `consent_requested`     | Consent needed, resume with updated consent     |
+| 500    | `failure`   | `iterations_exhausted`  | Loop limit reached                              |
+| 500    | `failure`   | `calls_exhausted`       | Internal tool call limit reached                |
+| 500    | `failure`   | `error_raised`          | Too many consecutive errors                     |
+| 503    | `failure`   | `llm_unavailable`       | All LLMs in fallback list exhausted             |
 
 ---
 
@@ -596,7 +596,7 @@ When `loop` is present:
 ### States
 
 - `running` — executing
-- `awaiting` — paused, waiting for caller
+- `pending` — paused, waiting for caller
 - `success` — completed
 - `failure` — terminated with error
 
@@ -856,6 +856,6 @@ The `llm → llms` rename is a parameter-level change. Old configurations using
 `llm: {}` should be normalized at read time by the configuration layer, not
 require a data migration.
 
-Resuming an `awaiting` run is a fresh invocation with appended
+Resuming an `pending` run is a fresh invocation with appended
 `inputs.messages` and updated `inputs.consent`. The runtime does not need a
 separate paused session object for v0.

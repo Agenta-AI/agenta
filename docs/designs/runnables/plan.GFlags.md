@@ -539,3 +539,231 @@ Any toggle that is shown when the capability is not available should be hidden o
 - G5 streaming backend changes — handled in `plan.g5.md`; G17 frontend work consumes G5 output
 - Removing `is_chat` from the flag model entirely — it stays as materialized metadata; only authoring is removed
 - Removing `is_evaluator` from stored flags — it does not derive cleanly from URI today; leave as authored for now
+
+---
+
+## Appendix A — Flag Inference Rules (`infer_flags_from_data`)
+
+> Status: draft (iterable — update this appendix as rules change)
+> Last updated: 2026-03-18
+
+Flags are **inferred at commit/write time** in the core service layer, not at read time. When a workflow revision is about to be saved, call `infer_flags_from_data(uri, schemas)` to compute the full flag set and store it. The stored flags are the canonical source — no inference at read time.
+
+### Inputs
+
+| Parameter | Source | Inference |
+|-----------|--------|-----------|
+| `uri` | `WorkflowRevisionData.uri` | drives all URI-derived flags |
+| `schemas` | `WorkflowRevisionData.schemas` | drives schema-derived flags |
+| `is_evaluator` | caller-provided (creation / edit payload) | caller wins if provided; table default otherwise |
+| `is_application` | caller-provided (creation / edit payload) | caller wins if provided; table default otherwise |
+
+---
+
+### URI-Derived Flags
+
+URI components (from `parse_uri(uri)`): `provider : kind : key : version`
+
+**Identity / topology:**
+
+| Flag | Rule | Examples |
+|------|------|---------|
+| `is_custom` | `kind == "custom"` | `agenta:custom:trace:v0` → T, `user:custom:my-app:v3` → T, `agenta:builtin:echo:v0` → F |
+| `is_managed` | `provider == "agenta"` | `agenta:*` → T, `user:custom:*` → F |
+
+Dropped as redundant: `is_builtin` (`not is_custom`), `is_internal` (`not is_managed`).
+
+Dropped as redundant: `is_human` (`is_managed and is_custom and is_trace`).
+
+**Key-based type flags** (derived from the `key` component, regardless of provider):
+
+| Flag | Rule | Examples |
+|------|------|---------|
+| `is_llm` | `key == "llm"` | `agenta:builtin:llm:v0` → T |
+| `is_hook` | `key == "hook"` | `agenta:custom:hook:v0` → T |
+| `is_code` | `key == "code"` | `agenta:custom:code:v0` → T |
+| `is_trace` | `key == "trace"` | `agenta:custom:trace:v0` → T |
+| `is_match` | `key == "match"` | `agenta:builtin:match:v0` → T |
+
+---
+
+### Schema-Derived Flags
+
+| Flag | Schema Location | Rule |
+|------|-----------------|------|
+| `is_chat` | `schemas.outputs` | `schemas.inputs` and `schemas.outputs` have `x-ag-message(s)` somewhere |
+| `is_structured` | `schemas.outputs` | `schemas.outputs` is a non-null, non-empty valid JSON schema object (?) |
+
+---
+
+### Invocation-Derived Flags
+
+A workflow is runnable if it has either a URL (remote endpoint) or a handler (local in-process function). The URL is always present for `agenta:builtin:*` (inferred by the platform). For `*:custom:*` families, both URL and handler may be absent.
+
+| URI family | URL source | Handler source |
+|------------|------------|----------------|
+| `agenta:builtin:*` | Inferred by platform — always present | n/a |
+| `agenta:custom:trace:*` | None — not invocable | None |
+| `agenta:custom:{code,hook}:*` | User-defined — may be absent | SDK registration — may be absent |
+| `user:custom:*` | User-defined — may be absent | SDK registration — may be absent |
+
+| Flag | Rule |
+|------|------|
+| `is_runnable` | `bool(url) or bool(handler)` |
+
+`handler` is only resolvable in the SDK (via `HANDLER_REGISTRY`). At the API layer, only `url` is available — `is_runnable` degrades to `bool(url)` there.
+
+---
+
+### User-Defined Flags
+
+Provided by the caller at creation or edit time. The lookup table defines default values when the caller omits them; the caller's value always wins when present.
+
+| Flag | Default lookup table (by URI) |
+|------|-------------------------------|
+| `is_evaluator` | see table below |
+| `is_application` | see table below |
+
+| URI Pattern | `is_evaluator` default | `is_application` default |
+|-------------|------------------------|--------------------------|
+| `agenta:custom:code:*` | T | T |
+| `agenta:custom:hook:*` | T | T |
+| `agenta:custom:trace:*` | T | T |
+| `agenta:builtin:chat:*` | F | T |
+| `agenta:builtin:completion:*` | F | T |
+| `agenta:builtin:match:*` | T | F |
+| `agenta:builtin:llm:*` | T | T |
+| `agenta:builtin:*` (all others) | T | F |
+| `none` | ? | ? |
+
+The table is **positively exhaustive** for `agenta:*` — unknown keys raise an error. For `user:custom:*` and `none`, defaults fall through to `(True, False)` unless caller overrides.
+
+---
+
+### Python Pseudocode
+
+```python
+# Positively exhaustive lookup: agenta:* URIs → (is_evaluator, is_application)
+# Every known agenta URI key must appear here.
+# agenta:builtin:chat and agenta:builtin:completion are the ONLY application-only builtins.
+# All other agenta:builtin:* are evaluator-only.
+_AGENTA_ROLE_TABLE: Dict[Tuple[str, str], Tuple[bool, bool]] = {
+    # (kind, key):               (is_evaluator, is_application)
+    ("custom",  "code"):         (True,  True),
+    ("custom",  "hook"):         (True,  True),
+    ("custom",  "trace"):        (True,  True),
+    ("builtin", "chat"):         (False, True),
+    ("builtin", "completion"):   (False, True),
+    ("builtin", "match"):        (True,  False),
+    ("builtin", "llm"):          (True,  True),
+    # add new agenta builtin/custom keys here as they are introduced
+}
+# No default — unknown agenta URI keys raise an error to force explicit classification
+
+
+def infer_flags_from_data(
+    *,
+    uri: Optional[str],
+    url: Optional[str],
+    schemas: Optional[JsonSchemas],
+    handler: Optional[Callable] = None,  # SDK only — from HANDLER_REGISTRY lookup
+    caller_is_evaluator: Optional[bool] = None,
+    caller_is_application: Optional[bool] = None,
+) -> WorkflowFlags:
+    provider, kind, key, version = parse_uri(uri) if uri else (None, None, None, None)
+
+    # Identity / topology
+    is_custom   = kind == "custom"
+    is_managed  = provider == "agenta"
+
+    # Key-based type flags
+    is_llm   = key == "llm"
+    is_hook  = key == "hook"
+    is_code  = key == "code"
+    is_trace = key == "trace"
+    is_match = key == "match"
+
+    # Invocation-derived (URL or local handler)
+    is_runnable = bool(url) or bool(handler)
+
+    # Role flags — table provides defaults, caller overrides for any URI
+    if kind and key:
+        if is_managed and (kind, key) not in _AGENTA_ROLE_TABLE:
+            raise ValueError(
+                f"Unknown agenta URI key ({kind!r}, {key!r}). "
+                "Add it to _AGENTA_ROLE_TABLE with explicit is_evaluator / is_application."
+            )
+        default_evaluator, default_application = _AGENTA_ROLE_TABLE.get((kind, key), (False, False))
+    else:
+        default_evaluator, default_application = True, False  # none: evaluator by default
+
+    # Caller-provided values win over table defaults (creation and edit time)
+    is_evaluator   = caller_is_evaluator   if caller_is_evaluator   is not None else default_evaluator
+    is_application = caller_is_application if caller_is_application is not None else default_application
+
+    # Schema-derived
+    outputs_schema = schemas.outputs if schemas and schemas.outputs else None
+    inputs_schema  = schemas.inputs  if schemas and schemas.inputs  else None
+
+    is_structured = bool(outputs_schema)
+
+    def _has_ag_message(schema: Optional[dict]) -> bool:
+        props = (schema or {}).get("properties", {})
+        return any(
+            prop.get("x-ag-message") or prop.get("x-ag-messages")
+            for prop in props.values()
+            if isinstance(prop, dict)
+        )
+
+    is_chat = _has_ag_message(inputs_schema) or _has_ag_message(outputs_schema)
+
+    return WorkflowFlags(
+        # topology
+        is_custom=is_custom,
+        is_managed=is_managed,
+        # runnability
+        is_runnable=is_runnable,
+        # key-based type
+        is_llm=is_llm,
+        is_hook=is_hook,
+        is_code=is_code,
+        is_trace=is_trace,
+        is_match=is_match,
+        # role
+        is_evaluator=is_evaluator,
+        is_application=is_application,
+        # schema-derived
+        is_chat=is_chat,
+        is_structured=is_structured,
+    )
+```
+
+---
+
+### Flag Matrix by URI Family
+
+| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_trace` | `is_match` | `is_runnable` | `is_evaluator` | `is_application` |
+|-------------|-------------|--------------|----------|-----------|-----------|------------|------------|---------------|----------------|-----------------|
+| `agenta:builtin:chat:*` | F | T | F | F | F | F | F | T | F | T |
+| `agenta:builtin:completion:*` | F | T | F | F | F | F | F | T | F | T |
+| `agenta:builtin:match:*` | F | T | F | F | F | F | T | T | T | F |
+| `agenta:builtin:llm:*` | F | T | T | F | F | F | F | T | T | T |
+| `agenta:builtin:*` (all others) | F | T | F | F | F | F | F | T | T | F |
+| `agenta:custom:code:*` | T | T | F | F | T | F | F | bool(url\|handler) | T | T |
+| `agenta:custom:hook:*` | T | T | F | T | F | F | F | bool(url\|handler) | T | T |
+| `agenta:custom:trace:*` | T | T | F | F | F | T | F | F | T | T |
+| `user:custom:*` | T | F | F | F | F | F | F | bool(url\|handler) | T | F |
+| `None` | F | F | F | F | F | F | F | F | T | F |
+
+---
+
+### Notes for Iteration
+
+- `is_trace` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_human` is dropped — it was redundant with `is_managed and is_custom and is_trace`.
+- `is_runnable` (by exclusion) supersedes S2's read-time URL-presence derivation. Stored at write time.
+- `is_evaluator` and `is_application` for `agenta:*` URIs use the lookup table `_AGENTA_ROLE_TABLE` — it is **positively exhaustive**: every known key is listed, unknown keys raise. `agenta:builtin:chat` and `agenta:builtin:completion` are the only application-only builtins; all other builtins are evaluator-only. Update the table whenever a new agenta URI key is introduced.
+- `is_evaluator` and `is_application` for `user:custom:*` are caller-provided at creation and edit time. If omitted by caller, they default to `False`. Do NOT infer them from URI for external workflows.
+- `is_structured` is a lightweight flag — it does not validate the schema, only checks presence. Schema validity is enforced by `WorkflowServiceInterface` model validator at parse time.
+- `WorkflowFlags` model must be extended with: `is_managed`, `is_trace`, `is_runnable`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
+- Call site: `api/oss/src/core/workflows/service.py` during `commit_revision` — replace manual flag construction with `infer_flags_from_data(...)`.
+- `AnnotationOrigin` derivation (S3) reads `flags.is_runnable` and `flags.is_custom` from stored flags — no URI re-parse needed at annotation time.
