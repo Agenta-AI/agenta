@@ -13,4 +13,4 @@
 
 ## Chosen Experiment
 
-Replace the post-deploy test invocation in `.github/workflows/14-check-pr-preview.yml` with a no-op informational job that explains preview tests are temporarily disabled for isolation.
+Keep the original post-deploy test invocation in `.github/workflows/14-check-pr-preview.yml`, but disable it with `if: false` and add a separate informational job that explains preview tests are temporarily disabled for isolation. This makes the experiment easy to revert by removing the leading `false &&` from the original `tests` job.
