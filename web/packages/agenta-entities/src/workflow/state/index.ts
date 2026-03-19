@@ -156,6 +156,7 @@ export {
     evaluatorConfigsListDataAtom,
     evaluatorConfigsQueryStateAtom,
     // Human evaluators
+    humanEvaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,
     // Cache invalidation
     invalidateEvaluatorsListCache,

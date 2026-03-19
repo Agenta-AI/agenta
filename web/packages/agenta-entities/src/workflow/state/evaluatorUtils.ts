@@ -217,12 +217,31 @@ export const evaluatorConfigsQueryStateAtom = atom<ListQueryState<Workflow>>((ge
 // ============================================================================
 
 /**
+ * Query atom for human evaluator workflows.
+ * Calls `queryWorkflows` with `flags: { is_evaluator: true, is_human: true }`.
+ */
+export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["workflows", "evaluators", "human", "list", projectId],
+        queryFn: async (): Promise<WorkflowsResponse> => {
+            if (!projectId) return {count: 0, workflows: []}
+            return queryWorkflows({
+                projectId,
+                flags: {is_evaluator: true, is_human: true},
+            })
+        },
+        enabled: get(sessionAtom) && !!projectId,
+        staleTime: 30_000,
+    }
+})
+
+/**
  * Derived atom for human evaluator workflows list data.
- * Filters `evaluatorsListDataAtom` by `flags.is_human === true` — no separate HTTP request.
  */
 export const humanEvaluatorsListDataAtom = atom<Workflow[]>((get) => {
-    const evaluators = get(evaluatorsListDataAtom)
-    return evaluators.filter((w) => w.flags?.is_human === true)
+    const query = get(humanEvaluatorsListQueryAtom)
+    return query.data?.workflows ?? []
 })
 
 // ============================================================================
