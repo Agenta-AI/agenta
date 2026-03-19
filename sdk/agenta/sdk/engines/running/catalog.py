@@ -5,6 +5,7 @@ from agenta.sdk.engines.running.utils import (
     INTERFACE_REGISTRY,
     _AGENTA_ROLE_TABLE,
 )
+from agenta.sdk.engines.running.CATALOG_REGISTRY import CATALOG_REGISTRY
 
 
 def _humanize_key(key: str) -> str:
@@ -27,28 +28,34 @@ def _infer_flags(*, kind: str, key: str) -> dict[str, Any]:
 
 
 def _build_entry(*, kind: str, key: str, interface: Any) -> dict[str, Any]:
+    metadata = (
+        CATALOG_REGISTRY.get("agenta", {}).get(kind, {}).get(key, {}).get("v0", {})
+    )
     schemas = (
         interface.schemas.model_dump(mode="json", exclude_none=True)
         if interface.schemas
         else None
     )
+    flags = _infer_flags(kind=kind, key=key)
+    flags.update(metadata.get("flags") or {})
 
     return {
         "key": key,
-        "name": _humanize_key(key),
-        "description": (
+        "name": metadata.get("name") or _humanize_key(key),
+        "description": metadata.get("description")
+        or (
             schemas.get("parameters", {}).get("description")
             if isinstance(schemas, dict)
             else None
         )
         or f"Managed Agenta workflow for `{interface.uri}`.",
-        "categories": [kind],
-        "flags": _infer_flags(kind=kind, key=key),
+        "categories": _clone(metadata.get("categories") or [kind]),
+        "flags": flags,
         "data": {
             "uri": interface.uri,
             "schemas": schemas,
         },
-        "presets": [],
+        "presets": _clone(metadata.get("presets") or []),
     }
 
 

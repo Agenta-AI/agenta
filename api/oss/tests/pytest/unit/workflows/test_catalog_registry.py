@@ -13,6 +13,16 @@ def test_workflow_catalog_contains_application_and_evaluator_templates():
     assert "auto_ai_critique" in keys
 
 
+def test_sdk_catalog_registry_is_connected():
+    template = get_workflow_catalog_template(template_key="chat", is_application=True)
+
+    assert template is not None
+    assert "name" in template
+    assert "description" in template
+    assert "categories" in template
+    assert "flags" in template
+
+
 def test_application_catalog_filter_uses_flags():
     templates = get_filtered_workflow_catalog_templates(is_application=True)
 
