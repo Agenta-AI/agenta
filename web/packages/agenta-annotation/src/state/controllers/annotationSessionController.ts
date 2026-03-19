@@ -41,7 +41,7 @@ import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
-import {simpleQueueMolecule, invalidateScenarioProgressCache} from "@agenta/entities/simpleQueue"
+import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
 import {fetchTestcase, fetchTestcasesBatch} from "@agenta/entities/testcase"
 import type {Testcase} from "@agenta/entities/testcase"
 import {
@@ -1834,11 +1834,6 @@ const openQueueAtom = atom(null, (_get, set, payload: OpenQueuePayload) => {
 
     // scenarioIdsAtom and scenarioRecordsAtom are now derived from
     // simpleQueueMolecule.selectors.scenarios(queueId) — no manual set needed.
-
-    // Force-refresh scenario data to avoid stale cache from the queue list page.
-    // After queue creation, the scenario cache may hold empty/incomplete data
-    // from the polling window — invalidating here ensures a fresh fetch.
-    invalidateScenarioProgressCache(queueId)
 
     // Notify callback
     _onQueueOpened?.(queueId, queueType)
