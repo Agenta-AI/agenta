@@ -1,11 +1,28 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.2
-    hooks:
-      - id: ruff-format
-      - id: ruff
   - repo: local
     hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format
+        language: system
+        types: [python]
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check
+        language: system
+        types: [python]
+      - id: prettier-format
+        name: prettier --write (web)
+        entry: bash -c 'cd web && npx prettier --write --cache --log-level warn "**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore'
+        language: system
+        files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
+        pass_filenames: false
+      - id: turbo-lint
+        name: turbo lint (web)
+        entry: bash -c 'cd web && turbo run lint'
+        language: system
+        files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
+        pass_filenames: false
       - id: gitleaks-pre-commit
         name: gitleaks git (staged only)
         entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged'

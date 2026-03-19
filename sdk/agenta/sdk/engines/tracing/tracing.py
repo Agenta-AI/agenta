@@ -24,13 +24,13 @@ from agenta.sdk.engines.tracing.processors import (
     EndedSpanRecorder,
     _get_last_ended,
 )
-from agenta.sdk.engines.tracing.exporters import InlineExporter, OTLPExporter
+from agenta.sdk.engines.tracing.exporters import OTLPExporter
 from agenta.sdk.engines.tracing.spans import CustomSpan
-from agenta.sdk.engines.tracing.inline import parse_inline_trace
 from agenta.sdk.engines.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.engines.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
+import agenta as ag
 
 log = get_module_logger(__name__)
 
@@ -72,12 +72,8 @@ class Tracing(metaclass=Singleton):
 
         # TRACER PROVIDER
         self.tracer_provider: Optional[TracerProvider] = None
-        # TRACE PROCESSORS -- INLINE
-        self.inline: Optional[TraceProcessor] = None
         # TRACER
         self.tracer: Optional[Tracer] = None
-        # INLINE SPANS for INLINE TRACES (INLINE PROCESSOR)
-        self.inline_spans: Dict[str, Any] = dict()
 
         # REDACT
         self.redact = redact
@@ -88,7 +84,6 @@ class Tracing(metaclass=Singleton):
     def configure(
         self,
         api_key: Optional[str] = None,
-        inline: Optional[bool] = True,
     ):
         # HEADERS (OTLP)
         if api_key:
@@ -98,19 +93,6 @@ class Tracing(metaclass=Singleton):
         self.tracer_provider = TracerProvider(
             resource=Resource(attributes={"service.name": "agenta-sdk"})
         )
-
-        # --- INLINE
-        if inline:
-            # TRACE PROCESSORS -- INLINE
-            self.inline = TraceProcessor(
-                InlineExporter(
-                    registry=self.inline_spans,
-                ),
-                references=self.references,
-                inline=inline,
-            )
-            self.tracer_provider.add_span_processor(self.inline)
-        # --- INLINE
 
         # TRACE PROCESSORS -- OTLP
         try:
@@ -215,35 +197,41 @@ class Tracing(metaclass=Singleton):
                         namespace="metrics",
                     )
 
-    def is_inline_trace_ready(
+    def store_session(
         self,
-        trace_id: Optional[int] = None,
-    ) -> bool:
-        is_ready = True
+        session_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set session attributes on the current span.
 
+        Args:
+            session_id: Unique identifier for the session
+            span: Optional span to set attributes on (defaults to current span)
+        """
         with suppress():
-            if self.inline and trace_id:
-                is_ready = self.inline.is_ready(trace_id)
+            if span is None:
+                span = self.get_current_span()
 
-        return is_ready
+            if session_id:
+                span.set_attribute("id", session_id, namespace="session")
 
-    def get_inline_trace(
+    def store_user(
         self,
-        trace_id: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        _inline_trace = {}
+        user_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set user attributes on the current span.
 
+        Args:
+            user_id: Unique identifier for the user
+            span: Optional span to set attributes on (defaults to current span)
+        """
         with suppress():
-            if self.inline and trace_id:
-                is_ready = self.inline.is_ready(trace_id)
+            if span is None:
+                span = self.get_current_span()
 
-                if is_ready is True:
-                    otel_spans = self.inline.fetch(trace_id)
-
-                    if otel_spans:
-                        _inline_trace = parse_inline_trace(otel_spans)
-
-        return _inline_trace
+            if user_id:
+                span.set_attribute("id", user_id, namespace="user")
 
     def extract(
         self,
@@ -313,6 +301,58 @@ class Tracing(metaclass=Singleton):
             )
 
         return None
+
+    def get_trace_url(
+        self,
+        trace_id: Optional[str] = None,
+    ) -> str:
+        """
+        Build a URL to view a trace in the Agenta UI.
+
+        Automatically extracts the trace ID from the current tracing context
+        if not explicitly provided.
+
+        Args:
+            trace_id: Optional trace ID (hex string format). If not provided,
+                      it will be automatically extracted from the current trace context.
+
+        Returns:
+            The full URL to view the trace in the observability dashboard
+
+        Raises:
+            RuntimeError: If the SDK is not initialized, no active trace context exists,
+                          or scope info cannot be fetched
+        """
+        if trace_id is None:
+            span_ctx = self.get_span_context()
+            if span_ctx is None or not span_ctx.is_valid:
+                raise RuntimeError(
+                    "No active trace context found. "
+                    "Make sure you call this within an instrumented function or span."
+                )
+
+            trace_id = f"{span_ctx.trace_id:032x}"
+
+        if not ag or not ag.DEFAULT_AGENTA_SINGLETON_INSTANCE:
+            raise RuntimeError(
+                "Agenta SDK is not initialized. Please call ag.init() first."
+            )
+
+        api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+        web_url = api_url.replace("/api", "") if api_url else None
+
+        (organization_id, workspace_id, project_id) = (
+            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.resolve_scopes()
+        )
+
+        if not web_url or not workspace_id or not project_id:
+            raise RuntimeError(
+                "Could not determine workspace/project context. Please call ag.init() first."
+            )
+
+        return (
+            f"{web_url}/w/{workspace_id}/p/{project_id}/observability?trace={trace_id}"
+        )
 
 
 def get_tracer(

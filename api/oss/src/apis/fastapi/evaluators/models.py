@@ -34,6 +34,10 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
+from oss.src.core.evaluators.dtos import (
+    EvaluatorCatalogPreset,
+    EvaluatorCatalogTemplate,
+)
 
 
 # EVALUATORS -------------------------------------------------------------------
@@ -136,7 +140,7 @@ class EvaluatorRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EvaluatorRevisionCommitRequest(BaseModel):
@@ -147,7 +151,22 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
     evaluator_ref: Optional[Reference] = None
     evaluator_variant_ref: Optional[Reference] = None
     evaluator_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class EvaluatorRevisionDeployRequest(BaseModel):
+    evaluator_ref: Optional[Reference] = None
+    evaluator_variant_ref: Optional[Reference] = None
+    evaluator_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    message: Optional[str] = None
 
 
 class EvaluatorRevisionResponse(BaseModel):
@@ -233,3 +252,26 @@ class EvaluatorTemplate(BaseModel):
 class EvaluatorTemplatesResponse(BaseModel):
     count: int = 0
     templates: List[EvaluatorTemplate] = []
+
+
+# EVALUATORS CATALOG -----------------------------------------------------------
+
+
+class EvaluatorCatalogTemplateResponse(BaseModel):
+    count: int = 0
+    template: Optional[EvaluatorCatalogTemplate] = None
+
+
+class EvaluatorCatalogTemplatesResponse(BaseModel):
+    count: int = 0
+    templates: List[EvaluatorCatalogTemplate] = []
+
+
+class EvaluatorCatalogPresetResponse(BaseModel):
+    count: int = 0
+    preset: Optional[EvaluatorCatalogPreset] = None
+
+
+class EvaluatorCatalogPresetsResponse(BaseModel):
+    count: int = 0
+    presets: List[EvaluatorCatalogPreset] = []

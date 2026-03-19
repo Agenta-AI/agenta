@@ -1,22 +1,10 @@
 from typing import Optional, Dict, Any, Union  # noqa: F401
 from uuid import UUID, uuid4  # noqa: F401
-from urllib.parse import urlparse
 
 from pydantic import (
     BaseModel,
     Field,
-    model_validator,
-    ValidationError,
 )
-
-from jsonschema import (
-    Draft202012Validator,
-    Draft201909Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-)
-from jsonschema.exceptions import SchemaError
 
 from oss.src.core.git.dtos import (
     Artifact,
@@ -45,6 +33,7 @@ from oss.src.core.shared.dtos import (  # noqa: F401
     Identifier,
     Slug,
     Version,
+    Lifecycle,
     Header,
     Data,
     Metadata,
@@ -65,9 +54,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceStreamResponse,  # noqa: F401
     #
     JsonSchemas,  # noqa: F401
-    WorkflowServiceInterface as SDKWorkflowServiceInterface,
-    WorkflowServiceConfiguration as SDKWorkflowServiceConfiguration,
-    WorkflowRevisionData as SDKWorkflowRevisionData,
+    WorkflowRevisionData,
 )
 
 # aliases ----------------------------------------------------------------------
@@ -104,17 +91,57 @@ class WorkflowRevisionIdAlias(AliasConfig):
 
 
 class WorkflowFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: bool = False
+    ## kind
     is_custom: bool = False
-    is_evaluator: bool = False
+    ## key
+    is_llm: bool = False
+    is_hook: bool = False
+    is_code: bool = False
+    is_match: bool = False
     is_human: bool = False
+    # interface-derived
+    ## schema
     is_chat: bool = False
+    ## hook
+    has_url: bool = False
+    ## code
+    has_script: bool = False
+    ## function
+    has_handler: bool = False
+    # user-defined
+    is_application: bool = False
+    is_evaluator: bool = False
+    is_snippet: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: Optional[bool] = None
+    ## kind
     is_custom: Optional[bool] = None
-    is_evaluator: Optional[bool] = None
+    ## key
+    is_llm: Optional[bool] = None
+    is_hook: Optional[bool] = None
+    is_code: Optional[bool] = None
+    is_match: Optional[bool] = None
     is_human: Optional[bool] = None
+    # interface-derived
+    ## schema
     is_chat: Optional[bool] = None
+    ## hook
+    has_url: Optional[bool] = None
+    ## code
+    has_script: Optional[bool] = None
+    ## function
+    has_handler: Optional[bool] = None
+    # user-defined
+    is_application: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_snippet: Optional[bool] = None
 
 
 # workflows --------------------------------------------------------------------
@@ -168,102 +195,6 @@ class WorkflowVariantQuery(VariantQuery):
 
 
 # workflow revisions -----------------------------------------------------------
-
-# Re-export SDK types for use in API
-WorkflowServiceInterface = SDKWorkflowServiceInterface
-WorkflowServiceConfiguration = SDKWorkflowServiceConfiguration
-
-
-class WorkflowRevisionData(SDKWorkflowRevisionData):
-    """
-    Extends SDK's WorkflowRevisionData with legacy field support for migration.
-
-    SDK format (new):
-        - version: str
-        - uri: Optional[str]
-        - url: Optional[str]
-        - headers: Optional[Dict[str, Union[str, Reference]]]
-        - schemas: Optional[JsonSchemas]  # with parameters/inputs/outputs
-        - script: Optional[Data]
-        - parameters: Optional[Data]
-
-    Legacy format (old, from config_parameters):
-        - service: dict with {agenta, url, format, ...}
-        - configuration: dict with parameters
-    """
-
-    # LEGACY FIELDS (for backward compatibility during migration)
-    service: Optional[dict] = None  # url, schema, kind, etc
-    configuration: Optional[dict] = None  # parameters, variables, etc
-
-    @model_validator(mode="after")
-    def validate_legacy_fields(self) -> "WorkflowRevisionData":
-        """Validate legacy service fields if present."""
-        errors = []
-
-        if self.service and self.service.get("agenta") and self.service.get("format"):
-            _format = self.service.get("format")
-
-            try:
-                validator_class = self._get_validator_class_from_schema(_format)
-                validator_class.check_schema(_format)
-            except SchemaError as e:
-                errors.append(
-                    {
-                        "loc": ("format",),
-                        "msg": f"Invalid JSON Schema: {e.message}",
-                        "type": "value_error",
-                        "ctx": {"error": str(e)},
-                        "input": _format,
-                    }
-                )
-
-        if self.service and self.service.get("agenta") and self.service.get("url"):
-            url = self.service.get("url")
-
-            if not self._is_valid_http_url(url):
-                errors.append(
-                    {
-                        "loc": ("url",),
-                        "msg": "Invalid HTTP(S) URL",
-                        "type": "value_error.url",
-                        "ctx": {"error": "Invalid URL format"},
-                        "input": url,
-                    }
-                )
-
-        if errors:
-            raise ValidationError.from_exception_data(
-                self.__class__.__name__,
-                errors,
-            )
-
-        return self
-
-    @staticmethod
-    def _get_validator_class_from_schema(schema: dict):
-        """Detect JSON Schema draft from $schema or fallback to 2020-12."""
-        schema_uri = schema.get(
-            "$schema", "https://json-schema.org/draft/2020-12/schema"
-        )
-
-        if "2020-12" in schema_uri:
-            return Draft202012Validator
-        elif "2019-09" in schema_uri:
-            return Draft201909Validator
-        elif "draft-07" in schema_uri:
-            return Draft7Validator
-        elif "draft-06" in schema_uri:
-            return Draft6Validator
-        elif "draft-04" in schema_uri:
-            return Draft4Validator
-        else:
-            return Draft202012Validator
-
-    @staticmethod
-    def _is_valid_http_url(url: str) -> bool:
-        parsed = urlparse(url)
-        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
 class WorkflowRevision(
@@ -373,3 +304,42 @@ class WorkflowFork(
         sync_alias("workflow_variant", "variant", self)
         sync_alias("workflow_revision_id", "revision_id", self)
         sync_alias("workflow_revision", "revision", self)
+
+
+# simple workflows -------------------------------------------------------------
+
+
+class SimpleWorkflowFlags(WorkflowFlags):
+    pass
+
+
+class SimpleWorkflowQueryFlags(WorkflowQueryFlags):
+    pass
+
+
+class SimpleWorkflowData(WorkflowRevisionData):
+    pass
+
+
+class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+    revision_id: Optional[UUID] = None
+
+
+class SimpleWorkflowCreate(Slug, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+
+class SimpleWorkflowEdit(Identifier, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+
+class SimpleWorkflowQuery(Metadata):
+    flags: Optional[SimpleWorkflowQueryFlags] = None

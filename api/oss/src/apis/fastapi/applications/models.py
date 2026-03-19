@@ -127,7 +127,7 @@ class ApplicationRevisionQueryRequest(BaseModel):
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class ApplicationRevisionCommitRequest(BaseModel):
@@ -138,7 +138,22 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
     application_ref: Optional[Reference] = None
     application_variant_ref: Optional[Reference] = None
     application_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class ApplicationRevisionDeployRequest(BaseModel):
+    application_ref: Optional[Reference] = None
+    application_variant_ref: Optional[Reference] = None
+    application_revision_ref: Optional[Reference] = None
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    message: Optional[str] = None
 
 
 class ApplicationRevisionResponse(BaseModel):

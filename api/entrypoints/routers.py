@@ -69,8 +69,6 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
-from oss.src.core.invocations.service import InvocationsService
-from oss.src.core.annotations.service import AnnotationsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
@@ -80,6 +78,7 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import SimpleWorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -88,6 +87,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.src.core.tracing.service import SimpleTracesService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -98,8 +98,6 @@ from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.tracing.router import TracesRouter
 from oss.src.apis.fastapi.tracing.router import SpansRouter
 from oss.src.apis.fastapi.events.router import EventsRouter
-from oss.src.apis.fastapi.invocations.router import InvocationsRouter
-from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.testcases.router import TestcasesRouter
 from oss.src.apis.fastapi.testsets.router import TestsetsRouter
 from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
@@ -109,6 +107,7 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
@@ -116,6 +115,7 @@ from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
 from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
+from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
@@ -283,6 +283,10 @@ tracing_service = TracingService(
     tracing_dao=tracing_dao,
 )
 
+simple_traces_service = SimpleTracesService(
+    tracing_service=tracing_service,
+)
+
 events_service = EventsService(
     events_dao=events_dao,
 )
@@ -349,6 +353,10 @@ evaluators_service.embeds_service = embeds_service
 
 simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
+)
+
+simple_workflows_service = SimpleWorkflowsService(
+    workflows_service=workflows_service,
 )
 
 simple_environments_service = SimpleEnvironmentsService(
@@ -419,7 +427,9 @@ webhooks = WebhooksRouter(
     webhooks_service=webhooks_service,
 )
 
-otlp = OTLPRouter()
+otlp = OTLPRouter(
+    tracing_service=tracing_service,
+)
 
 tracing = TracingRouter(
     tracing_service=tracing_service,
@@ -462,6 +472,7 @@ simple_queries = SimpleQueriesRouter(
 
 applications = ApplicationsRouter(
     applications_service=applications_service,
+    environments_service=environments_service,
 )
 
 simple_applications = SimpleApplicationsRouter(
@@ -474,10 +485,16 @@ folders = FoldersRouter(
 
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
+    environments_service=environments_service,
+)
+
+simple_workflows = SimpleWorkflowsRouter(
+    simple_workflows_service=simple_workflows_service,
 )
 
 evaluators = EvaluatorsRouter(
     evaluators_service=evaluators_service,
+    environments_service=environments_service,
 )
 
 simple_evaluators = SimpleEvaluatorsRouter(
@@ -509,24 +526,8 @@ tools = ToolsRouter(
     tools_service=tools_service,
 )
 
-invocations_service = InvocationsService(
-    tracing_service=tracing_service,
-    applications_service=applications_service,
-    simple_applications_service=simple_applications_service,
-)
-
-annotations_service = AnnotationsService(
-    tracing_service=tracing_service,
-    evaluators_service=evaluators_service,
-    simple_evaluators_service=simple_evaluators_service,
-)
-
-invocations = InvocationsRouter(
-    invocations_service=invocations_service,
-)
-
-annotations = AnnotationsRouter(
-    annotations_service=annotations_service,
+simple_traces = SimpleTracesRouter(
+    simple_traces_service=simple_traces_service,
 )
 
 # AI SERVICES ------------------------------------------------------------------
@@ -596,28 +597,15 @@ app.include_router(
 )
 
 app.include_router(
-    router=invocations.router,
-    prefix="/invocations",
-    tags=["Invocations"],
+    router=simple_traces.router,
+    prefix="/simple/traces",
+    tags=["Simple Traces"],
 )
 
 app.include_router(
-    router=invocations.router,
-    prefix="/preview/invocations",
-    tags=["Invocations"],
-    include_in_schema=False,
-)
-
-app.include_router(
-    router=annotations.router,
-    prefix="/annotations",
-    tags=["Annotations"],
-)
-
-app.include_router(
-    router=annotations.router,
-    prefix="/preview/annotations",
-    tags=["Annotations"],
+    router=simple_traces.router,
+    prefix="/preview/simple/traces",
+    tags=["Simple Traces"],
     include_in_schema=False,
 )
 
@@ -727,6 +715,19 @@ app.include_router(
 app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
+    tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/simple/workflows",
+    tags=["Workflows"],
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/preview/simple/workflows",
     tags=["Workflows"],
     include_in_schema=False,
 )

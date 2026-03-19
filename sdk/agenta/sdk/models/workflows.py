@@ -1,6 +1,6 @@
 # /agenta/sdk/models/running.py
 
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, Optional, Union, List, Literal
 from uuid import UUID
 from urllib.parse import urlparse
 
@@ -64,22 +64,74 @@ class JsonSchemas(BaseModel):
 
 
 class WorkflowFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: bool = False
+    ## kind
     is_custom: bool = False
-    is_evaluator: bool = False
+    ## key
+    is_llm: bool = False
+    is_hook: bool = False
+    is_code: bool = False
+    is_match: bool = False
     is_human: bool = False
+    # interface-derived
+    ## schema
     is_chat: bool = False
+    ## hook
+    has_url: bool = False
+    ## code
+    has_script: bool = False
+    ## function
+    has_handler: bool = False
+    # user-defined
+    is_application: bool = False
+    is_evaluator: bool = False
+    is_snippet: bool = False
 
 
-class WorkflowServiceInterface(BaseModel):
-    version: Optional[str] = "2025.07.14"
+class WorkflowQueryFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: Optional[bool] = None
+    ## kind
+    is_custom: Optional[bool] = None
+    ## key
+    is_llm: Optional[bool] = None
+    is_hook: Optional[bool] = None
+    is_code: Optional[bool] = None
+    is_match: Optional[bool] = None
+    is_human: Optional[bool] = None
+    # interface-derived
+    ## schema
+    is_chat: Optional[bool] = None
+    ## hook
+    has_url: Optional[bool] = None
+    ## code
+    has_script: Optional[bool] = None
+    ## function
+    has_handler: Optional[bool] = None
+    # user-defined
+    is_application: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_snippet: Optional[bool] = None
 
+
+class WorkflowRevisionData(BaseModel):
     uri: Optional[str] = None
+
     url: Optional[str] = None
     headers: Optional[Dict[str, Union[str, Reference]]] = None
+
+    runtime: Optional[Literal["python", "typescript", "javascript"]] = None
+    script: Optional[str] = None
+
     schemas: Optional[JsonSchemas] = None
 
+    parameters: Optional[Data] = None
+
     @model_validator(mode="after")
-    def validate_jsonschemas_and_url(self) -> "WorkflowServiceInterface":
+    def _validate(self) -> "WorkflowRevisionData":
         errors = []
 
         if self.schemas:
@@ -87,7 +139,6 @@ class WorkflowServiceInterface(BaseModel):
                 try:
                     if not schema:
                         continue
-
                     validator_class = self._get_validator_class_from_schema(schema)
                     validator_class.check_schema(schema)
                 except SchemaError as e:
@@ -101,17 +152,16 @@ class WorkflowServiceInterface(BaseModel):
                         }
                     )
 
-        if self.url:
-            if not self._is_valid_http_url(self.url):
-                errors.append(
-                    {
-                        "loc": ("url",),
-                        "msg": "Invalid HTTP(S) URL",
-                        "type": "value_error.url",
-                        "ctx": {"error": "Invalid URL format"},
-                        "input": self.url,
-                    }
-                )
+        if self.url and not self._is_valid_http_url(self.url):
+            errors.append(
+                {
+                    "loc": ("url",),
+                    "msg": "Invalid HTTP(S) URL",
+                    "type": "value_error.url",
+                    "ctx": {"error": "Invalid URL format"},
+                    "input": self.url,
+                }
+            )
 
         if errors:
             raise ValidationError.from_exception_data(
@@ -123,7 +173,6 @@ class WorkflowServiceInterface(BaseModel):
 
     @staticmethod
     def _get_validator_class_from_schema(schema: Dict[str, Any]):
-        """Detect JSON Schema draft from $schema or fallback to 2020-12."""
         schema_uri = schema.get(
             "$schema", "https://json-schema.org/draft/2020-12/schema"
         )
@@ -146,24 +195,12 @@ class WorkflowServiceInterface(BaseModel):
         return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
-class WorkflowServiceConfiguration(BaseModel):
-    script: Optional[Data] = None
-    parameters: Optional[Data] = None
-
-
-class WorkflowRevisionData(
-    WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
-):
-    pass
-
-
 class WorkflowServiceStatus(Status):
     type: Optional[str] = None
     stacktrace: Optional[Union[list[str], str]] = None
 
 
-class WorkflowServiceRequestData(BaseModel):
+class WorkflowRequestData(BaseModel):
     revision: Optional[dict] = None
     parameters: Optional[dict] = None
     #
@@ -174,15 +211,16 @@ class WorkflowServiceRequestData(BaseModel):
     outputs: Optional[Any] = None
 
 
+# back-compat alias
+WorkflowServiceRequestData = WorkflowRequestData
+
+
 class WorkflowServiceResponseData(BaseModel):
     outputs: Optional[Any] = None
 
 
-class WorkflowServiceBaseRequest(Metadata):
+class WorkflowBaseRequest(Metadata):
     version: Optional[str] = "2025.07.14"
-
-    interface: Optional[Union[WorkflowServiceInterface, Dict[str, Any]]] = None
-    configuration: Optional[Union[WorkflowServiceConfiguration, Dict[str, Any]]] = None
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
     links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None
@@ -192,15 +230,6 @@ class WorkflowServiceBaseRequest(Metadata):
 
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert dicts into their respective Pydantic models."""
-        if "interface" in values and isinstance(values["interface"], dict):
-            values["interface"] = WorkflowServiceInterface(**values["interface"])
-
-        if "configuration" in values and isinstance(values["configuration"], dict):
-            values["configuration"] = WorkflowServiceConfiguration(
-                **values["configuration"]
-            )
-
         if "references" in values and isinstance(values["references"], dict):
             values["references"] = {
                 k: (Reference(**v) if isinstance(v, dict) else v)
@@ -216,21 +245,62 @@ class WorkflowServiceBaseRequest(Metadata):
         return values
 
 
-class WorkflowServiceRequest(WorkflowServiceBaseRequest):
-    data: Optional[WorkflowServiceRequestData] = None
+# back-compat alias
+WorkflowServiceBaseRequest = WorkflowBaseRequest
 
 
-class WorkflowServiceBaseResponse(TraceID, SpanID):
+class WorkflowInvokeRequest(WorkflowBaseRequest):
+    data: Optional[WorkflowRequestData] = None
+
+
+# back-compat alias
+WorkflowServiceRequest = WorkflowInvokeRequest
+
+
+class WorkflowInspectRequest(Metadata):
+    version: Optional[str] = "2025.07.14"
+
+    revision: Optional[Union[WorkflowRevisionData, Dict[str, Any]]] = None
+
+    references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
+
+    @model_validator(mode="before")
+    def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        if "references" in values and isinstance(values["references"], dict):
+            values["references"] = {
+                k: (Reference(**v) if isinstance(v, dict) else v)
+                for k, v in values["references"].items()
+            }
+
+        if "revision" in values and isinstance(values["revision"], dict):
+            values["revision"] = WorkflowRevisionData(**values["revision"])
+
+        return values
+
+
+# back-compat alias
+WorkflowServiceInspectRequest = WorkflowInspectRequest
+
+
+class WorkflowBaseResponse(TraceID, SpanID):
     version: Optional[str] = "2025.07.14"
 
     status: Optional[WorkflowServiceStatus] = WorkflowServiceStatus()
 
 
-class WorkflowServiceBatchResponse(WorkflowServiceBaseResponse):
+# back-compat alias
+WorkflowServiceBaseResponse = WorkflowBaseResponse
+
+
+class WorkflowBatchResponse(WorkflowBaseResponse):
     data: Optional[WorkflowServiceResponseData] = None
 
 
-class WorkflowServiceStreamResponse(WorkflowServiceBaseResponse):
+# back-compat alias
+WorkflowServiceBatchResponse = WorkflowBatchResponse
+
+
+class WorkflowStreamingResponse(WorkflowBaseResponse):
     generator: Any  # Callable[[], AsyncGenerator[Any, None]]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -238,6 +308,10 @@ class WorkflowServiceStreamResponse(WorkflowServiceBaseResponse):
     async def iterator(self):
         async for item in self.generator():
             yield item
+
+
+# back-compat alias
+WorkflowServiceStreamResponse = WorkflowStreamingResponse
 
 
 WorkflowServiceResponse = Union[
@@ -491,7 +565,9 @@ class EvaluatorRevisionData(WorkflowRevisionData):
 
 class EvaluatorFlags(WorkflowFlags):
     def __init__(self, **data):
+        data["is_application"] = False
         data["is_evaluator"] = True
+        data["is_snippet"] = False
 
         super().__init__(**data)
 
@@ -583,7 +659,9 @@ class ApplicationRevisionIdAlias(AliasConfig):
 
 class ApplicationFlags(WorkflowFlags):
     def __init__(self, **data):
+        data["is_application"] = True
         data["is_evaluator"] = False
+        data["is_snippet"] = False
 
         super().__init__(**data)
 

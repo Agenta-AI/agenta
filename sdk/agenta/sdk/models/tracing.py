@@ -58,7 +58,7 @@ class AgMetricsAttributes(BaseModel):
 
 
 class AgTypeAttributes(BaseModel):
-    trace: Optional[TraceType] = TraceType.INVOCATION
+    trace: Optional[TraceType] = TraceType.UNKNOWN
     span: Optional[SpanType] = SpanType.TASK
 
 
@@ -203,7 +203,7 @@ class Span(Lifecycle):
     @model_validator(mode="after")
     def set_defaults(self):
         if self.trace_type is None:
-            self.trace_type = TraceType.INVOCATION
+            self.trace_type = TraceType.UNKNOWN
         if self.span_type is None:
             self.span_type = SpanType.TASK
         if self.span_kind is None:

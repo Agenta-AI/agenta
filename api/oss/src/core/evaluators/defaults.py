@@ -143,9 +143,14 @@ async def create_default_human_evaluator(
                 is_human=True,
             ),
             data=SimpleEvaluatorData(
-                service={
-                    "agenta": "v0.1.0",
-                    "format": _get_default_human_evaluator_schema(),
+                version="2025.07.14",
+                schemas={
+                    "outputs": {
+                        "type": "object",
+                        "$schema": "http://json-schema.org/schema#",
+                        "properties": {"approved": {"type": "boolean"}},
+                        "required": ["approved"],
+                    }
                 },
             ),
         )

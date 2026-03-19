@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 import os
+import subprocess
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import urlopen
@@ -16,7 +17,6 @@ def derive_services_url(api_url: str) -> str:
     path = parsed.path.rstrip("/")
     if path.endswith("/api"):
         path = path[: -len("/api")]
-
     services_path = f"{path}/services" if path else "/services"
     return urlunsplit((parsed.scheme, parsed.netloc, services_path, "", ""))
 
@@ -38,56 +38,88 @@ def check_health(url: str, timeout: float) -> None:
 @click.option(
     "--env-file",
     type=click.Path(exists=True, dir_okay=False),
-    help="Path to a .env.* file with AGENTA_SERVICES_URL or AGENTA_API_URL",
+    help="Path to a .env.* file with AGENTA_API_URL and AGENTA_AUTH_KEY",
 )
 @click.option(
-    "--base-url",
+    "--api-url",
     type=str,
-    help="Services base URL",
-    envvar=["AGENTA_SERVICES_URL", "SERVICE_BASE_URL"],
+    help="API URL for Agenta",
+    envvar="AGENTA_API_URL",
+)
+@click.option(
+    "--auth-key",
+    type=str,
+    help="Access token for Agenta",
+    envvar="AGENTA_AUTH_KEY",
 )
 @click.option(
     "--timeout",
     type=float,
     default=10.0,
     show_default=True,
-    help="HTTP timeout in seconds",
+    help="HTTP timeout for smoke checks (seconds)",
+)
+@click.argument(
+    "pytest_args",
+    nargs=-1,
+    type=click.UNPROCESSED,
 )
 def run_tests(
     env_file: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_url: Optional[str] = None,
+    auth_key: Optional[str] = None,
     timeout: float = 10.0,
+    pytest_args: Optional[tuple] = None,
 ) -> None:
     """
-    Run services smoke checks.
+    Run services smoke checks then pytest acceptance tests.
+
+    Additional args after '--' are passed directly to pytest.
+    Examples:
+        python run-tests.py --env-file ../.env.dev
+        python run-tests.py --env-file ../.env.dev -- -n 4 -v
+        python run-tests.py --env-file ../.env.dev -- oss/tests/pytest/acceptance/
     """
     if env_file:
         load_dotenv(env_file)
         click.echo(f"Loaded environment variables from {env_file}")
-        if not base_url:
-            base_url = os.getenv("AGENTA_SERVICES_URL") or os.getenv("SERVICE_BASE_URL")
+        if not api_url:
+            api_url = os.getenv("AGENTA_API_URL")
+        if not auth_key:
+            auth_key = os.getenv("AGENTA_AUTH_KEY")
 
-    if not base_url:
-        api_url = os.getenv("AGENTA_API_URL")
-        if api_url:
-            base_url = derive_services_url(api_url)
-            click.echo(
-                f"AGENTA_SERVICES_URL not set; derived from AGENTA_API_URL -> {base_url}"
-            )
+    if api_url:
+        os.environ["AGENTA_API_URL"] = api_url
+        click.echo(f"AGENTA_API_URL={api_url}")
+    if auth_key:
+        os.environ["AGENTA_AUTH_KEY"] = auth_key
+        L = len(auth_key)
+        click.echo(f"AGENTA_AUTH_KEY={auth_key[:2]}{'.' * (L - 4)}{auth_key[-2:]}")
 
-    if not base_url:
-        base_url = "http://localhost/services"
+    # Derive services URL for smoke checks
+    _api_url = os.getenv("AGENTA_API_URL", "http://localhost/api")
+    services_url = derive_services_url(_api_url).rstrip("/")
+    click.echo(f"AGENTA_SERVICES_URL={services_url}")
 
-    base_url = base_url.rstrip("/")
-    click.echo(f"AGENTA_SERVICES_URL={base_url}")
-
-    checks = ["/chat/health", "/completion/health"]
-    for path in checks:
-        url = f"{base_url}{path}"
-        check_health(url, timeout)
-        click.echo(f"OK {url}")
+    # Smoke check — verify the API is reachable
+    api_health_url = f"{_api_url.rstrip('/')}/health"
+    check_health(api_health_url, timeout)
+    click.echo(f"OK {api_health_url}")
 
     click.echo("Services smoke checks passed")
+
+    # Build pytest command
+    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    test_dirs = extra_paths if extra_paths else ["oss/tests/pytest"]
+
+    cmd = ["pytest"] + test_dirs
+
+    flags_only = [a for a in (pytest_args or []) if a.startswith("-")]
+    cmd += flags_only
+
+    services_dir = os.path.dirname(os.path.abspath(__file__))
+    click.echo(f"\nExecuting: {' '.join(cmd)}")
+    subprocess.run(cmd, cwd=services_dir, check=True)
 
 
 if __name__ == "__main__":

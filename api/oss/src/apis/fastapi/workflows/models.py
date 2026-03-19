@@ -25,6 +25,11 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    #
+    SimpleWorkflow,
+    SimpleWorkflowCreate,
+    SimpleWorkflowEdit,
+    SimpleWorkflowQuery,
 )
 from oss.src.core.embeds.dtos import (
     ErrorPolicy,
@@ -133,7 +138,25 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None
     #
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
+
+
+class WorkflowRevisionDeployRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
+    #
+    environment_ref: Optional[Reference] = None
+    environment_variant_ref: Optional[Reference] = None
+    environment_revision_ref: Optional[Reference] = None
+    key: Optional[str] = None
+    #
+    message: Optional[str] = None
 
 
 class WorkflowRevisionsLogRequest(BaseModel):
@@ -171,3 +194,32 @@ class WorkflowRevisionResolveResponse(BaseModel):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+# SIMPLE WORKFLOWS -------------------------------------------------------------
+
+
+class SimpleWorkflowCreateRequest(BaseModel):
+    workflow: SimpleWorkflowCreate
+
+
+class SimpleWorkflowEditRequest(BaseModel):
+    workflow: SimpleWorkflowEdit
+
+
+class SimpleWorkflowQueryRequest(BaseModel):
+    workflow: Optional[SimpleWorkflowQuery] = None
+    #
+    include_archived: Optional[bool] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleWorkflowResponse(BaseModel):
+    count: int = 0
+    workflow: Optional[SimpleWorkflow] = None
+
+
+class SimpleWorkflowsResponse(BaseModel):
+    count: int = 0
+    workflows: List[SimpleWorkflow] = []

@@ -4,13 +4,18 @@ from datetime import datetime
 
 from fastapi import Query
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import (
     Windowing,
     Reference,
 )
+from oss.src.core.environments.service import (
+    EnvironmentsService,
+)
 from oss.src.core.environments.dtos import (
+    EnvironmentFlags,
     EnvironmentQuery,
     EnvironmentVariantQuery,
     EnvironmentRevisionQuery,
@@ -28,6 +33,45 @@ from oss.src.apis.fastapi.environments.models import (
 
 
 log = get_module_logger(__name__)
+
+
+if is_ee():
+    from ee.src.models.shared_models import Permission
+    from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+
+
+async def ensure_environment_deploy_allowed(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    environment_id: Optional[UUID],
+    environments_service: EnvironmentsService,
+) -> None:
+    if not is_ee() or not environment_id:
+        return
+
+    environment = await environments_service.fetch_environment(
+        project_id=project_id,
+        environment_ref=Reference(id=environment_id),
+    )
+
+    is_guarded = False
+    if environment and environment.flags:
+        flags = environment.flags
+        if isinstance(flags, EnvironmentFlags):
+            is_guarded = bool(getattr(flags, "is_guarded", False))
+        elif isinstance(flags, dict):
+            is_guarded = bool(flags.get("is_guarded", False))
+
+    if not is_guarded:
+        return
+
+    if not await check_action_access(  # type: ignore
+        user_uid=str(user_id),
+        project_id=str(project_id),
+        permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
+    ):
+        raise FORBIDDEN_EXCEPTION  # type: ignore
 
 
 def parse_environment_query_request_from_params(
