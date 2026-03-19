@@ -243,6 +243,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
                         onImportCSV={() => setIsImportModalOpen(true)}
                         isNewTestset={isNewTestset}
                         selectedRowKeys={selectedRowKeys}
+                        allTestcaseIds={table.testcaseIds}
                     />
                 }
             />
