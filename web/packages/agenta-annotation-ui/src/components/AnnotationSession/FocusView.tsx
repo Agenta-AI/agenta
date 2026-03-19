@@ -204,17 +204,17 @@ const FocusView = memo(function FocusView({
         )
     }
 
-    if (focusScenarioIds.length === 0 && !currentScenarioId) {
-        if (progress.remaining === 0) {
-            return (
-                <AllCaughtUp
-                    onViewChange={onViewChange}
-                    onSyncToTestset={onSyncToTestset}
-                    isSyncing={isSyncing}
-                />
-            )
-        }
+    if (progress.remaining === 0) {
+        return (
+            <AllCaughtUp
+                onViewChange={onViewChange}
+                onSyncToTestset={onSyncToTestset}
+                isSyncing={isSyncing}
+            />
+        )
+    }
 
+    if (focusScenarioIds.length === 0 && !currentScenarioId) {
         return (
             <div className="flex flex-col gap-3 flex-1 min-h-0">
                 <SessionNavigation />
