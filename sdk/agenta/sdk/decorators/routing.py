@@ -8,7 +8,6 @@ from traceback import format_exception
 
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse, Response
-from fastapi.openapi.utils import get_openapi
 from starlette.routing import Mount
 
 from agenta.sdk.utils.exceptions import suppress
@@ -34,7 +33,7 @@ from agenta.sdk.engines.running.errors import ErrorStatus
 # These names are used by the per-route namespace triple itself.
 # ---------------------------------------------------------------------------
 
-_RESERVED_PATHS = {"invoke", "inspect", "openapi.json"}
+_RESERVED_PATHS = {"invoke", "inspect"}
 
 
 def _validate_path(path: str) -> None:
@@ -87,98 +86,6 @@ def _ensure_root_is_last(app: FastAPI) -> None:
     root_mounts = [r for r in routes if isinstance(r, Mount) and r.path in ("", "/")]
     others = [r for r in routes if r not in root_mounts]
     app.router.routes[:] = others + root_mounts
-
-
-# ---------------------------------------------------------------------------
-# OpenAPI schema enrichment
-# ---------------------------------------------------------------------------
-
-
-def _attach_openapi_schema(
-    sub_app: FastAPI,
-    workflow_name: str,
-    schemas: Any,  # Optional[JsonSchemas]
-) -> None:
-    """Override sub_app.openapi() to include workflow-specific input/output schemas.
-
-    The enrichment strategy:
-    1. Add ``info["x-agenta-schemas"]`` containing whichever of inputs/outputs/
-       parameters are defined — always readable regardless of FastAPI version.
-    2. Patch the corresponding field inside the relevant OpenAPI component so
-       swagger-ui and code-gen tools show the actual shapes:
-       - ``WorkflowServiceRequestData.inputs``  ← schemas.inputs
-       - ``WorkflowServiceResponseData.outputs`` ← schemas.outputs
-       - ``WorkflowServiceConfiguration.parameters`` ← schemas.parameters
-    """
-
-    def custom_openapi() -> dict:
-        if sub_app.openapi_schema:
-            return sub_app.openapi_schema
-
-        schema = get_openapi(
-            title=workflow_name,
-            version="0.1.0",
-            routes=sub_app.routes,
-        )
-
-        if schemas is not None:
-            agenta_schemas: dict = {}
-
-            if schemas.inputs is not None:
-                agenta_schemas["inputs"] = schemas.inputs
-                _patch_component_field(
-                    schema,
-                    component="WorkflowServiceRequestData",
-                    field="inputs",
-                    new_schema=schemas.inputs,
-                )
-
-            if schemas.outputs is not None:
-                agenta_schemas["outputs"] = schemas.outputs
-                _patch_component_field(
-                    schema,
-                    component="WorkflowServiceResponseData",
-                    field="outputs",
-                    new_schema=schemas.outputs,
-                )
-
-            if schemas.parameters is not None:
-                agenta_schemas["parameters"] = schemas.parameters
-                _patch_component_field(
-                    schema,
-                    component="WorkflowServiceConfiguration",
-                    field="parameters",
-                    new_schema=schemas.parameters,
-                )
-
-            if agenta_schemas:
-                schema.setdefault("info", {})["x-agenta-schemas"] = agenta_schemas
-
-        sub_app.openapi_schema = schema
-        return schema
-
-    sub_app.openapi = custom_openapi  # type: ignore[method-assign]
-
-
-def _patch_component_field(
-    openapi_schema: dict,
-    *,
-    component: str,
-    field: str,
-    new_schema: dict,
-) -> None:
-    """Replace a field inside an OpenAPI component's properties with *new_schema*."""
-    try:
-        props = (
-            openapi_schema.get("components", {})
-            .get("schemas", {})
-            .get(component, {})
-            .get("properties", {})
-        )
-        if field in props:
-            props[field] = new_schema
-    except (TypeError, KeyError):
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -468,24 +375,6 @@ class route:
         wf = auto_workflow(foo, flags=self.flags)
 
         # ------------------------------------------------------------------
-        # Resolve the workflow name, schemas, and interface from the
-        # underlying workflow decorator instance.
-        # running._extend_handler() sets wrapper.__agenta_workflow__ = self
-        # so we can reach interface.schemas synchronously at decoration time.
-        # ------------------------------------------------------------------
-        _workflow_name = getattr(foo, "__name__", "workflow")
-        _schemas = None
-        try:
-            _wf_instance = getattr(
-                getattr(wf, "_fn", None), "__agenta_workflow__", None
-            )
-            if _wf_instance is not None:
-                _iface = getattr(_wf_instance, "interface", None)
-                _schemas = getattr(_iface, "schemas", None) if _iface else None
-        except Exception:
-            pass
-
-        # ------------------------------------------------------------------
         # Build the two endpoint closures (same logic as before).
         # ------------------------------------------------------------------
 
@@ -584,12 +473,10 @@ class route:
 
         # ------------------------------------------------------------------
         # Isolated path: create a sub-app per route and mount it.
-        # Each sub-app gets its own middleware stack, /invoke, /inspect, and
-        # an auto-generated /openapi.json enriched with workflow schemas.
+        # Each sub-app gets its own middleware stack, /invoke, and /inspect.
         #
-        # Special case: when path="/", FastAPI's built-in /openapi.json route
-        # on mount_root would intercept before the Mount reaches the sub-app,
-        # producing paths:{}.  Register routes directly on mount_root instead.
+        # Special case: when path="/", register routes directly on mount_root
+        # instead of a mounted sub-app.
         # ------------------------------------------------------------------
         if self.path == "/":
             self.mount_root.add_api_route(
@@ -604,8 +491,6 @@ class route:
                 methods=["GET"],
                 response_model=WorkflowServiceRequest,
             )
-
-            _attach_openapi_schema(self.mount_root, _workflow_name, _schemas)
 
             return foo
 
@@ -623,8 +508,6 @@ class route:
             methods=["GET"],
             response_model=WorkflowServiceRequest,
         )
-
-        _attach_openapi_schema(sub_app, _workflow_name, _schemas)
 
         self.mount_root.mount(self.path, sub_app)
 

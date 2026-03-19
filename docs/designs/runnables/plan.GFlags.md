@@ -293,32 +293,9 @@ class WorkflowFlags(BaseModel):
 
 ## 6. Phase 4 — Frontend Flag Source Migration (G11)
 
-Depends on the new system exposing flags in a stable form. This requires either:
-- G13 (per-workflow `{path}/openapi.json`) to be available, OR
-- API revision/query responses to include `derived` flags (S2 above)
+Depends on the new system exposing flags in a stable form via API revision/query responses (S11 below).
 
-### S11a. Embed flags in per-route `openapi.json`
-
-**File:** `sdk/agenta/sdk/decorators/routing.py`
-
-Pass `self.flags` into `_attach_openapi_schema` and embed as `info["x-agenta-flags"]`:
-
-```python
-# Call site (~line 606)
-_attach_openapi_schema(sub_app, _workflow_name, _schemas, flags=self.flags)
-
-# Function signature
-def _attach_openapi_schema(sub_app, workflow_name, schemas, flags=None):
-    def custom_openapi():
-        ...
-        if flags:
-            schema.setdefault("info", {})["x-agenta-flags"] = flags
-        ...
-```
-
-**Result:** `GET {path}/openapi.json` → `info["x-agenta-flags"]` mirrors `GET {path}/inspect` → `flags`. Both discovery surfaces carry the same flags.
-
----
+Per-route `openapi.json` is dropped — flags are not embedded there.
 
 ### S11. Add `flags` and `derived` to API revision responses
 

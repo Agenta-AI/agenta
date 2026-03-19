@@ -83,16 +83,14 @@ The goal is to get the new system to feature parity with the legacy system — a
 
 **Does not remove:** Lower-level runtime/tracing can still use `annotation` terminology internally during expand.
 
-### 1e. Route Isolation and Per-Workflow OpenAPI (G3, G13)
+### 1e. Route Isolation (G13)
 
-**What:** Make each workflow its own namespace with isolated `invoke`, `inspect`, and `openapi.json`.
+**What:** Make each workflow its own namespace with isolated `invoke` and `inspect`.
 
 - [ ] Modify `route()` in `routing.py` to create an isolated sub-application per workflow
-- [ ] Add `{path}/openapi.json` endpoint per workflow — OpenAPI 3.x spec reflecting only that workflow's invoke request/response schemas
-- [ ] Add SDK discovery helpers for the same documents: `get_workflow_openapi()`, `get_application_openapi()`, `get_evaluator_openapi()`
-- [ ] Include capability flags and identity flags in the per-workflow OpenAPI spec (as extensions or in the schema)
 - [ ] Ensure multiple `route()` calls on the same codebase produce isolated namespaces
 
+**Not included:** Per-route `openapi.json` is dropped — `/inspect` is the sole discovery surface.
 **Does not remove:** Legacy shared `/openapi.json` still exists. Legacy `serving.py` routes still mounted.
 
 ### 1f. Catalogs for Predefined Workflows, Applications, and Evaluators (G12a)
@@ -195,7 +193,7 @@ After checkpoint 1, all of the following are true:
 4. Unsupported requested media types fail explicitly
 5. Chat/message behavior is derivable from schemas / OpenAPI rather than authored primary flags
 6. Trace ingestion can classify `annotation` from trace links independently of runnable flags
-7. Each workflow has its own `{path}/invoke`, `{path}/inspect`, `{path}/openapi.json`, and matching SDK OpenAPI getter
+7. Each workflow has its own `{path}/invoke` and `{path}/inspect` as isolated namespaces
 8. Workflows expose the canonical catalog for predefined runnables, and applications/evaluators expose filtered catalog views over the same source
 9. Code evaluators and AI-critique evaluators have equivalent output-schema definition support
 10. Using workflow/application/evaluator catalog data in normal creation flows persists explicit shared evaluator input schema, optional parameter schema, and full output schema
@@ -205,7 +203,7 @@ After checkpoint 1, all of the following are true:
 14. Builtin service URLs and builtin input/output schemas are refreshed from URI/inspect with caching, without blindly overwriting user-owned parameter schema
 15. Applications and evaluators have invoke/inspect endpoints as filtered wrappers over the workflow family
 16. SDK routing/running can honor incoming trace context when present for workflow-to-workflow propagation
-17. Frontend can read from inspect/OpenAPI truth and send negotiated response headers
+17. Frontend can read from inspect truth and send negotiated response headers
 18. **The legacy system still works** — nothing has been removed
 
 ---

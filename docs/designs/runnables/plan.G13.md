@@ -9,16 +9,15 @@
 
 ## Goal
 
-Each `@ag.route()` call produces a self-contained triple:
+Each `@ag.route()` call produces an isolated pair:
 
 ```
 {path}/invoke       — POST, execute this workflow
 {path}/inspect      — GET, discover this workflow's interface/schemas/flags
-{path}/openapi.json — GET, OpenAPI 3.x spec for this workflow only, with actual input/output schemas
 ```
 
-Multiple routes on the same codebase are isolated namespaces — no shared OpenAPI doc.
-The root route `"/"` is a valid route: its triple lives at `/invoke`, `/inspect`, `/openapi.json`.
+Multiple routes on the same codebase are isolated namespaces.
+The root route `"/"` is a valid route: its pair lives at `/invoke`, `/inspect`.
 
 ---
 
@@ -34,10 +33,9 @@ class route:
     def __call__(self, foo):
         self.root.add_api_route(self.path + "/invoke", ...)
         self.root.add_api_route(self.path + "/inspect", ...)
-        # NO per-route openapi.json
 ```
 
-All routes share `default_app`. There is no `{path}/openapi.json`. The `create_app()` factory exists but is only called once to create `default_app`.
+All routes share `default_app`. The `create_app()` factory exists but is only called once to create `default_app`.
 
 ---
 
@@ -63,7 +61,7 @@ For the root route `"/"`: mount last (see S1c below).
 Before registering anything, validate that the path is not a reserved name. Raise at import/decoration time (not at request time):
 
 ```python
-_RESERVED_PATHS = {"invoke", "inspect", "openapi.json"}
+_RESERVED_PATHS = {"invoke", "inspect"}
 
 def _validate_path(path: str) -> None:
     segments = path.strip("/").split("/")
@@ -121,7 +119,6 @@ class route:
         sub_app = create_app()
         sub_app.add_api_route("/invoke", invoke_endpoint, methods=["POST"], ...)
         sub_app.add_api_route("/inspect", inspect_endpoint, methods=["GET"], ...)
-        _attach_openapi_schema(sub_app, workflow)   # see S3
 
         self.mount_root.mount(self.path, sub_app)
         return foo
@@ -165,95 +162,15 @@ async def foo(): ...
 
 Do not remove yet — the fallback path continues to work during the expand phase.
 
-### S3. Enrich per-route `openapi.json` with actual input/output schemas
-
-The default FastAPI-generated schema for the sub-app describes `/invoke` with a generic `WorkflowServiceRequest` body and `WorkflowServiceBatchResponse` response. This is structurally correct but semantically opaque — consumers can't see the actual input fields.
-
-Override `sub_app.openapi()` to return a spec that inlines the workflow's actual input/output schemas.
-
-#### S3a. Synchronous schema extraction at decoration time
-
-At decoration time, `auto_workflow(foo, flags=...)` already inspects the function signature to build the `WorkflowServiceRequest` template (used by `inspect()`). Extract the same schema synchronously without making an HTTP call:
-
-```python
-def _extract_workflow_schema(workflow: Workflow) -> dict:
-    """
-    Pull input/output schemas from the workflow at decoration time.
-    For local functions: derived from Python function signature (synchronous).
-    For remote workflows (URI-based): use the stored schema if available.
-    """
-    # Call the synchronous part of inspect — avoid async here
-    request_template = workflow._build_inspect_template()  # new internal helper
-    return {
-        "inputs": request_template.data.inputs,
-        "outputs": request_template.data.outputs,
-        "configuration": request_template.configuration,
-    }
-```
-
-#### S3b. Build enriched OpenAPI spec
-
-```python
-def _attach_openapi_schema(sub_app: FastAPI, workflow: Workflow) -> None:
-    schema = _extract_workflow_schema(workflow)
-
-    def custom_openapi():
-        if sub_app.openapi_schema:
-            return sub_app.openapi_schema
-        base = get_openapi(
-            title=workflow.__name__,
-            version="0.1.0",
-            routes=sub_app.routes,
-        )
-        # Inline actual input fields into the /invoke request body schema
-        _patch_invoke_schema(base, schema)
-        sub_app.openapi_schema = base
-        return base
-
-    sub_app.openapi = custom_openapi
-```
-
-`_patch_invoke_schema` replaces the generic `WorkflowServiceRequest.data` with the concrete input fields derived from the function signature / workflow schema. Output schema goes in the response component.
-
-#### S3c. Builtin interface schemas
-
-For `agenta:builtin:*` workflows (e.g., completion, chat), the schemas are currently defined in the builtin catalog or in the workflow configuration. These need to be surfaced through the same `_extract_workflow_schema()` path so that the per-route openapi.json for builtins is equally enriched.
-
-- If a builtin's schemas are stored in the workflow revision's `data.schemas.*`, read from there.
-- If they are only in in-memory configuration, expose them via `workflow._build_inspect_template()` at decoration time.
-- **Gap to close:** verify that all `agenta:builtin:*` and `agenta:custom:*` interface definitions carry complete `inputs` and `outputs` schemas. If any are missing or schema-less, add them before relying on this path.
-
-### S4. Root `/openapi.json` behavior
-
-After route isolation:
-- `GET /openapi.json` → handled by the `"/"` sub-app if a root route is registered, or returns a 404/empty spec from the bare `default_app` if no root route exists
-- `GET /summarize/openapi.json` → handled by the `"/summarize"` sub-app
-
-The bare `default_app` has no routes of its own (only mounts), so its auto-generated `/openapi.json` is empty. This is intentional — there is no "combined" spec anymore.
-
-**Migration note for legacy consumers:** the legacy `serving.py` still provides a single `/openapi.json` covering all routes. That is the compatibility path until removal.
-
-### S5. API layer — no changes required
+### S3. API layer — no changes required
 
 The API's `_invoke_workflow` and `_inspect_workflow` use the full URL from the revision. As long as:
 - `{service_url}/invoke` → works (single root route)
 - `{service_url}/summarize/invoke` → works (named route)
-- `{service_url}/summarize/openapi.json` → new, works automatically
 
 No API change needed.
 
-### S6. Frontend — per-route OpenAPI fetch
-
-The caller always knows the route path because that is how they reached the workflow in the first place:
-
-- **Builtins / single-route services**: service URL points directly to the root (`/`) → `{serviceUrl}/openapi.json`
-- **Multi-route services**: the caller is working within a specific variant/revision whose route is already known (e.g. it was invoked via `/summarize/invoke`) → `{serviceUrl}/summarize/openapi.json`
-
-There is no case where a caller has the service URL but the route path is opaque. Appending `/{routePath}/openapi.json` is a trivial composition on the caller side — no new fields, no discovery mechanism needed.
-
-No code changes required.
-
-### S7. Validate middleware fires per-request on sub-apps
+### S4. Validate middleware fires per-request on sub-apps
 
 Each sub-app from `create_app()` has its own CORS, Vault, Auth, and OTel middleware. Verify:
 - [ ] Auth middleware processes `Authorization` header on sub-app requests
@@ -263,7 +180,7 @@ Each sub-app from `create_app()` has its own CORS, Vault, Auth, and OTel middlew
 
 One concern: ASGI middleware stacking on sub-apps can be different from middleware on the parent. The parent's middleware does not run for sub-app requests. Confirm all four middleware layers run correctly when accessed through the sub-app mount path.
 
-### S8. Tests
+### S5. Tests
 
 Write/update SDK tests:
 ```python
@@ -273,15 +190,15 @@ async def summarize(text: str) -> str: ...
 @ag.route("/embed")
 async def embed(text: str) -> list[float]: ...
 
-# GET /summarize/openapi.json → only summarize endpoints, includes `text` input schema
-# GET /embed/openapi.json     → only embed endpoints, includes `text` input schema + float[] output
-# GET /openapi.json           → 404 or empty (no root route defined)
-# GET /summarize/invoke/openapi.json → 404 (invoke is not a route, it's a reserved endpoint)
+# POST /summarize/invoke → executes summarize workflow
+# GET  /summarize/inspect → returns WorkflowServiceRequest
+# POST /embed/invoke → executes embed workflow
+# GET  /embed/inspect → returns WorkflowServiceRequest
 ```
 
 Also test:
 - Decoration with reserved path raises `ValueError` at import time
-- Root `"/"` route: `GET /invoke`, `GET /inspect`, `GET /openapi.json` all resolve correctly
+- Root `"/"` route: `POST /invoke`, `GET /inspect` all resolve correctly
 - Root `"/"` + named routes: `/summarize/invoke` does not fall through to root sub-app
 
 ---
@@ -290,15 +207,13 @@ Also test:
 
 | File | Change |
 |------|--------|
-| `sdk/agenta/sdk/decorators/routing.py` | Core: sub-app mounting, reserved path validation, `router=` deprecation warning, openapi enrichment, mount ordering for `"/"` |
-| `sdk/agenta/sdk/decorators/running.py` | Expose `__agenta_workflow__` on the wrapper so `routing.py` can read interface schemas at decoration time |
-| `sdk/tests/pytest/unit/test_routing.py` | New: 26 unit tests — path validation, route isolation, openapi schemas, root ordering, router= deprecation |
+| `sdk/agenta/sdk/decorators/routing.py` | Core: sub-app mounting, reserved path validation, `router=` deprecation warning, mount ordering for `"/"` |
+| `sdk/tests/pytest/unit/test_routing.py` | New: unit tests — path validation, route isolation, root ordering, router= deprecation |
 
 ---
 
 ## Constraints and Compatibility
 
-- **`router=` fallback**: continues to work (no isolation, no per-route openapi.json) until removed in Checkpoint 2
+- **`router=` fallback**: continues to work (no isolation) until removed in Checkpoint 2
 - **Legacy `serving.py`**: still provides a single `/openapi.json`; not touched here
-- **`default_app` root spec**: becomes empty (no routes, only mounts); expected and intentional
-- **Builtin schemas**: all `agenta:builtin:*` and `agenta:custom:*` interfaces must have complete `inputs`/`outputs` schemas before S3c can work correctly — audit required
+- **`default_app` root spec**: empty (no routes, only mounts); expected and intentional

@@ -85,7 +85,6 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 |-------|--------|-----------|
 | Programmatic | `invoke(request=...)` | `WorkflowServiceRequest` -> `WorkflowServiceBatchResponse \| WorkflowServiceStreamResponse` |
 | Programmatic | `inspect()` | `() -> WorkflowServiceRequest` |
-| Programmatic | OpenAPI getter | Missing today; target parity would add `get_workflow_openapi()` / domain peers |
 | HTTP | `POST {path}/invoke` | JSON body as `WorkflowServiceRequest` -> JSON or NDJSON/SSE stream |
 | HTTP | `GET {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
 
@@ -107,7 +106,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 |--------|----------------------|----------------------------------|
 | HTTP endpoints | `/run`, `/test`, `/generate`, `/generate_deployed` | `{path}/invoke`, `{path}/inspect` |
 | Schema source | Python function signature + Pydantic model | Explicit JSON Schema in `WorkflowServiceInterface` |
-| Flags in OpenAPI | `x-agenta.flags` on path operations | Not in OpenAPI; returned by `GET /inspect` |
+| OpenAPI discovery | Legacy `/openapi.json` with `x-agenta` extensions | Not in new system; use `GET /inspect` |
 | Streaming | Detected from return type | `WorkflowServiceStreamResponse` + Accept header negotiation (SSE/NDJSON) |
 | Tracing | OTel middleware + `TracingContext` | `TracingContext` via context manager |
 | Config resolution | Middleware chain (Config -> request.state) | Resolver middleware |
