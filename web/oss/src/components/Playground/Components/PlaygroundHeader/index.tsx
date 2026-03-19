@@ -11,8 +11,8 @@ import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
 import {textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
-import {LinkSimple, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
+import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
+import {Button, Divider, Dropdown, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -301,31 +301,36 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                             </div>
                         </div>
                     )}
-                    <EntityPicker<WorkflowRevisionSelectionResult>
-                        variant="popover-cascader"
-                        adapter={evaluatorWorkflowAdapter}
-                        onSelect={handleEvaluatorSelect}
-                        size="small"
-                        placeholder="Evaluator"
-                        icon={<LinkSimple size={14} />}
-                        disabled={!hasRootNode}
-                        disabledChildIds={connectedRevisionIds}
-                        popupFooter={
-                            connectedEvaluatorNodes.length > 0 ? (
-                                <div className="border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
-                                    <Button
-                                        size="small"
-                                        danger
-                                        className="w-full"
-                                        onClick={handleDisconnectAll}
-                                    >
-                                        Disconnect all
-                                    </Button>
-                                </div>
-                            ) : undefined
-                        }
-                    />
                     <RunEvaluationButton />
+                    <Divider type="vertical" className="!mx-0 h-5" />
+                    <Tooltip title="Add evaluators to automatically score outputs in the playground.">
+                        <span>
+                            <EntityPicker<WorkflowRevisionSelectionResult>
+                                variant="popover-cascader"
+                                adapter={evaluatorWorkflowAdapter}
+                                onSelect={handleEvaluatorSelect}
+                                size="small"
+                                placeholder="Evaluator"
+                                icon={<Gavel size={14} />}
+                                disabled={!hasRootNode}
+                                disabledChildIds={connectedRevisionIds}
+                                popupFooter={
+                                    connectedEvaluatorNodes.length > 0 ? (
+                                        <div className="border-t border-solid border-[rgba(5,23,41,0.06)] p-2">
+                                            <Button
+                                                size="small"
+                                                danger
+                                                className="w-full"
+                                                onClick={handleDisconnectAll}
+                                            >
+                                                Disconnect all
+                                            </Button>
+                                        </div>
+                                    ) : undefined
+                                }
+                            />
+                        </span>
+                    </Tooltip>
                     <TestsetDropdown />
                     {isProjectLevelPlayground ? (
                         <Tooltip title="Compare mode is unavailable in project-level playground">
