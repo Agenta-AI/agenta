@@ -45,7 +45,6 @@ import {
     type EvaluationResult,
     type EvaluationRunDataStep,
 } from "@agenta/entities/evaluationRun"
-import {workflowQueryAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {
     invalidateScenarioProgressCache,
     invalidateSimpleQueueCache,
@@ -53,6 +52,7 @@ import {
     simpleQueuePaginatedStore,
 } from "@agenta/entities/simpleQueue"
 import {fetchPreviewTrace, type TraceSpan} from "@agenta/entities/trace"
+import {workflowQueryAtomFamily, type Workflow} from "@agenta/entities/workflow"
 import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
