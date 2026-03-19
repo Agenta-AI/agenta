@@ -2,14 +2,10 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from agenta.sdk.engines.running.utils import (
+    CATALOG_REGISTRY,
     INTERFACE_REGISTRY,
     _AGENTA_ROLE_TABLE,
 )
-from agenta.sdk.engines.running.CATALOG_REGISTRY import CATALOG_REGISTRY
-
-
-def _humanize_key(key: str) -> str:
-    return key.replace("_", " ").replace("-", " ").title()
 
 
 def _clone(value: Any) -> Any:
@@ -38,10 +34,11 @@ def _build_entry(*, kind: str, key: str, interface: Any) -> dict[str, Any]:
     )
     flags = _infer_flags(kind=kind, key=key)
     flags.update(metadata.get("flags") or {})
+    categories = metadata.get("categories")
 
     return {
         "key": key,
-        "name": metadata.get("name") or _humanize_key(key),
+        "name": metadata.get("name"),
         "description": metadata.get("description")
         or (
             schemas.get("parameters", {}).get("description")
@@ -49,7 +46,7 @@ def _build_entry(*, kind: str, key: str, interface: Any) -> dict[str, Any]:
             else None
         )
         or f"Managed Agenta workflow for `{interface.uri}`.",
-        "categories": _clone(metadata.get("categories") or [kind]),
+        "categories": _clone(categories if categories is not None else [kind]),
         "flags": flags,
         "data": {
             "uri": interface.uri,
@@ -71,11 +68,8 @@ def build_agenta_catalog() -> list[dict[str, Any]]:
     return entries
 
 
-catalog = build_agenta_catalog()
-
-
 def get_all_catalog_templates() -> list[dict[str, Any]]:
-    return _clone(catalog)
+    return _clone(build_agenta_catalog())
 
 
 def get_filtered_catalog_templates(

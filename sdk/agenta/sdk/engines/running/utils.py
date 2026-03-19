@@ -69,38 +69,6 @@ from agenta.sdk.engines.running.interfaces import (
     auto_semantic_similarity_v0_interface,
 )
 
-
-from agenta.sdk.engines.running.configurations import (
-    # --- NEW URI
-    trace_v0_configuration,
-    hook_v0_configuration,
-    code_v0_configuration,
-    snippet_v0_configuration,
-    match_v0_configuration,
-    llm_v0_configuration,
-    # --- OLD URI
-    chat_v0_configuration,
-    completion_v0_configuration,
-    echo_v0_configuration,
-    auto_exact_match_v0_configuration,
-    auto_regex_test_v0_configuration,
-    field_match_test_v0_configuration,
-    json_multi_field_match_v0_configuration,
-    auto_webhook_test_v0_configuration,
-    auto_custom_code_run_v0_configuration,
-    auto_ai_critique_v0_configuration,
-    auto_starts_with_v0_configuration,
-    auto_ends_with_v0_configuration,
-    auto_contains_v0_configuration,
-    auto_contains_any_v0_configuration,
-    auto_contains_all_v0_configuration,
-    auto_contains_json_v0_configuration,
-    auto_json_diff_v0_configuration,
-    auto_levenshtein_distance_v0_configuration,
-    auto_similarity_match_v0_configuration,
-    auto_semantic_similarity_v0_configuration,
-)
-
 INTERFACE_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
@@ -139,42 +107,160 @@ INTERFACE_REGISTRY: dict = dict(
     ),
 )
 
+
+def _catalog_entry() -> dict:
+    return dict(
+        name=None,
+        description=None,
+        categories=None,
+        flags=None,
+        presets=[],
+    )
+
+
+CATALOG_REGISTRY: dict = dict(
+    agenta=dict(
+        custom=dict(
+            trace=dict(
+                v0=dict(
+                    name="Custom Trace",
+                    description="Capture an external invocation or a manual annotation.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=True,
+                        is_evaluator=True,
+                        is_snippet=False,
+                    ),
+                    presets=[],
+                )
+            ),
+            hook=dict(
+                v0=dict(
+                    name="Custom Hook",
+                    description="Invoke an HTTP(S) endpoint as a workflow step.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=True,
+                        is_evaluator=True,
+                        is_snippet=False,
+                    ),
+                    presets=[],
+                )
+            ),
+            code=dict(
+                v0=dict(
+                    name="Custom Code",
+                    description="Run user-provided code as a workflow step.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=True,
+                        is_evaluator=True,
+                        is_snippet=False,
+                    ),
+                    presets=[],
+                )
+            ),
+            snippet=dict(
+                v0=dict(
+                    name="Custom Snippet",
+                    description="Information like instructions, guardrails, skills, rules, etc.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=False,
+                        is_evaluator=False,
+                        is_snippet=True,
+                    ),
+                    presets=[],
+                )
+            ),
+        ),
+        builtin=dict(
+            match=dict(
+                v0=dict(
+                    name="Builtin Matcher",
+                    description="Flexible matcher for TEXT and JSON.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=False,
+                        is_evaluator=True,
+                        is_snippet=False,
+                    ),
+                    presets=[],
+                )
+            ),
+            llm=dict(
+                v0=dict(
+                    name="Builtin LLM",
+                    description="Generic LLM-based workflow for single-prompt apps, multi-step agents, LLM-as-a-judge, etc.",
+                    categories=[],
+                    flags=WorkflowFlags(
+                        is_application=True,
+                        is_evaluator=True,
+                        is_snippet=False,
+                    ),
+                    presets=[],
+                )
+            ),
+            #
+            chat=dict(v0=_catalog_entry()),
+            completion=dict(v0=_catalog_entry()),
+            #
+            echo=dict(v0=_catalog_entry()),
+            auto_exact_match=dict(v0=_catalog_entry()),
+            auto_regex_test=dict(v0=_catalog_entry()),
+            field_match_test=dict(v0=_catalog_entry()),
+            json_multi_field_match=dict(v0=_catalog_entry()),
+            auto_webhook_test=dict(v0=_catalog_entry()),
+            auto_custom_code_run=dict(v0=_catalog_entry()),
+            auto_ai_critique=dict(v0=_catalog_entry()),
+            auto_starts_with=dict(v0=_catalog_entry()),
+            auto_ends_with=dict(v0=_catalog_entry()),
+            auto_contains=dict(v0=_catalog_entry()),
+            auto_contains_any=dict(v0=_catalog_entry()),
+            auto_contains_all=dict(v0=_catalog_entry()),
+            auto_contains_json=dict(v0=_catalog_entry()),
+            auto_json_diff=dict(v0=_catalog_entry()),
+            auto_levenshtein_distance=dict(v0=_catalog_entry()),
+            auto_similarity_match=dict(v0=_catalog_entry()),
+            auto_semantic_similarity=dict(v0=_catalog_entry()),
+        ),
+    ),
+)
+
 CONFIGURATION_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
             # --- NEW URI
-            trace=dict(v0=trace_v0_configuration),
-            hook=dict(v0=hook_v0_configuration),
-            code=dict(v0=code_v0_configuration),
-            snippet=dict(v0=snippet_v0_configuration),
+            trace=dict(v0=WorkflowRevisionData()),
+            hook=dict(v0=WorkflowRevisionData()),
+            code=dict(v0=WorkflowRevisionData()),
+            snippet=dict(v0=WorkflowRevisionData()),
         ),
         builtin=dict(
             # --- NEW URI
-            match=dict(v0=match_v0_configuration),
-            llm=dict(v0=llm_v0_configuration),
+            match=dict(v0=WorkflowRevisionData()),
+            llm=dict(v0=WorkflowRevisionData()),
             # --- OLD URI
-            chat=dict(v0=chat_v0_configuration),
-            completion=dict(v0=completion_v0_configuration),
-            echo=dict(v0=echo_v0_configuration),
-            auto_exact_match=dict(v0=auto_exact_match_v0_configuration),
-            auto_regex_test=dict(v0=auto_regex_test_v0_configuration),
-            field_match_test=dict(v0=field_match_test_v0_configuration),
-            json_multi_field_match=dict(v0=json_multi_field_match_v0_configuration),
-            auto_webhook_test=dict(v0=auto_webhook_test_v0_configuration),
-            auto_custom_code_run=dict(v0=auto_custom_code_run_v0_configuration),
-            auto_ai_critique=dict(v0=auto_ai_critique_v0_configuration),
-            auto_starts_with=dict(v0=auto_starts_with_v0_configuration),
-            auto_ends_with=dict(v0=auto_ends_with_v0_configuration),
-            auto_contains=dict(v0=auto_contains_v0_configuration),
-            auto_contains_any=dict(v0=auto_contains_any_v0_configuration),
-            auto_contains_all=dict(v0=auto_contains_all_v0_configuration),
-            auto_contains_json=dict(v0=auto_contains_json_v0_configuration),
-            auto_json_diff=dict(v0=auto_json_diff_v0_configuration),
-            auto_levenshtein_distance=dict(
-                v0=auto_levenshtein_distance_v0_configuration
-            ),
-            auto_similarity_match=dict(v0=auto_similarity_match_v0_configuration),
-            auto_semantic_similarity=dict(v0=auto_semantic_similarity_v0_configuration),
+            chat=dict(v0=WorkflowRevisionData()),
+            completion=dict(v0=WorkflowRevisionData()),
+            echo=dict(v0=WorkflowRevisionData()),
+            auto_exact_match=dict(v0=WorkflowRevisionData()),
+            auto_regex_test=dict(v0=WorkflowRevisionData()),
+            field_match_test=dict(v0=WorkflowRevisionData()),
+            json_multi_field_match=dict(v0=WorkflowRevisionData()),
+            auto_webhook_test=dict(v0=WorkflowRevisionData()),
+            auto_custom_code_run=dict(v0=WorkflowRevisionData()),
+            auto_ai_critique=dict(v0=WorkflowRevisionData()),
+            auto_starts_with=dict(v0=WorkflowRevisionData()),
+            auto_ends_with=dict(v0=WorkflowRevisionData()),
+            auto_contains=dict(v0=WorkflowRevisionData()),
+            auto_contains_any=dict(v0=WorkflowRevisionData()),
+            auto_contains_all=dict(v0=WorkflowRevisionData()),
+            auto_contains_json=dict(v0=WorkflowRevisionData()),
+            auto_json_diff=dict(v0=WorkflowRevisionData()),
+            auto_levenshtein_distance=dict(v0=WorkflowRevisionData()),
+            auto_similarity_match=dict(v0=WorkflowRevisionData()),
+            auto_semantic_similarity=dict(v0=WorkflowRevisionData()),
         ),
     ),
 )

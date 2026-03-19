@@ -17,7 +17,7 @@ def test_sdk_catalog_registry_is_connected():
     template = get_workflow_catalog_template(template_key="chat", is_application=True)
 
     assert template is not None
-    assert "name" in template
+    assert template["key"] == "chat"
     assert "description" in template
     assert "categories" in template
     assert "flags" in template
