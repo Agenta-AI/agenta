@@ -10,7 +10,7 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {annotationSessionController} from "@agenta/annotation"
+import {annotationSessionController, OUTPUT_KEYS} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
 import {
     traceEntityAtomFamily,
@@ -341,15 +341,65 @@ const AnnotationGroupHeader = memo(function AnnotationGroupHeader({
     )
 })
 
+/**
+ * Shared hook for annotation cell fallback logic.
+ * Resolves testcase data for a scenario and computes the fallback value
+ * to show when no annotation value exists yet.
+ */
+function useAnnotationCellFallback(
+    scenarioId: string,
+    fallbackDataKey: string | null | undefined,
+    outputKey?: string,
+) {
+    const testcaseRef = useAtomValue(
+        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
+    )
+    const testcaseId = fallbackDataKey ? testcaseRef.testcaseId || null : null
+    const testcaseQuery = useAtomValue(
+        annotationSessionController.selectors.testcaseData(testcaseId ?? ""),
+    )
+
+    const isPending = testcaseId ? (testcaseQuery?.isPending ?? false) : false
+    const testcaseData = testcaseId ? (testcaseQuery?.data?.data ?? null) : null
+
+    let fallbackValue: unknown = null
+    if (fallbackDataKey && testcaseData) {
+        const raw = testcaseData[fallbackDataKey] ?? null
+        if (outputKey) {
+            // For sub-column: drill into the container object
+            fallbackValue =
+                raw && typeof raw === "object" && !Array.isArray(raw)
+                    ? ((raw as Record<string, unknown>)[outputKey] ?? null)
+                    : null
+        } else {
+            fallbackValue = raw
+        }
+    }
+
+    const chatPreference = fallbackDataKey
+        ? OUTPUT_KEYS.has(fallbackDataKey.toLowerCase())
+            ? "output"
+            : "input"
+        : undefined
+
+    return {fallbackValue, isPending, chatPreference}
+}
+
 const AnnotationColumnCell = memo(function AnnotationColumnCell({
     scenarioId,
     def,
+    fallbackDataKey,
 }: {
     scenarioId: string
     def: AnnotationColumnDef
+    fallbackDataKey?: string | null
 }) {
     const runId = useAtomValue(annotationSessionController.selectors.activeRunId()) ?? undefined
     const PopoverWrapper = useMetricPopoverWrapper()
+    const {fallbackValue, isPending, chatPreference} = useAnnotationCellFallback(
+        scenarioId,
+        fallbackDataKey,
+    )
 
     const {value, stats: rawStats} = useAtomValue(
         annotationSessionController.selectors.scenarioMetricForEvaluator({
@@ -364,14 +414,29 @@ const AnnotationColumnCell = memo(function AnnotationColumnCell({
     const showDistribution =
         isDistributionType(rawStats) &&
         hasDistributionData(rawStats ? extractBasicStats(rawStats) : undefined)
+    const hasAnnotationValue =
+        rawStats !== null && rawStats !== undefined ? true : value !== null && value !== undefined
 
-    const cellContent = showDistribution ? (
-        <MetricCellContent value={rawStats} showDistribution className="metric-cell-content" />
+    const cellContent = hasAnnotationValue ? (
+        showDistribution ? (
+            <MetricCellContent value={rawStats} showDistribution className="metric-cell-content" />
+        ) : (
+            <MetricValueDisplay value={value} />
+        )
+    ) : isPending && fallbackDataKey ? (
+        <Typography.Text type="secondary">...</Typography.Text>
+    ) : fallbackValue !== null && fallbackValue !== undefined ? (
+        <SmartCellContent
+            value={fallbackValue}
+            keyPrefix={`merged-annot-${fallbackDataKey}-${scenarioId}`}
+            maxLines={3}
+            chatPreference={chatPreference}
+        />
     ) : (
-        <MetricValueDisplay value={value} />
+        <Typography.Text type="secondary">—</Typography.Text>
     )
 
-    if (PopoverWrapper) {
+    if (PopoverWrapper && hasAnnotationValue) {
         return (
             <PopoverWrapper
                 runId={runId}
@@ -401,13 +466,20 @@ const AnnotationOutputKeyCell = memo(function AnnotationOutputKeyCell({
     scenarioId,
     def,
     outputKey,
+    fallbackDataKey,
 }: {
     scenarioId: string
     def: AnnotationColumnDef
     outputKey: string
+    fallbackDataKey?: string | null
 }) {
     const runId = useAtomValue(annotationSessionController.selectors.activeRunId()) ?? undefined
     const PopoverWrapper = useMetricPopoverWrapper()
+    const {fallbackValue, isPending} = useAnnotationCellFallback(
+        scenarioId,
+        fallbackDataKey,
+        outputKey,
+    )
 
     const {value, stats: rawStats} = useAtomValue(
         annotationSessionController.selectors.scenarioMetricForEvaluator({
@@ -422,14 +494,29 @@ const AnnotationOutputKeyCell = memo(function AnnotationOutputKeyCell({
     const showDistribution =
         isDistributionType(rawStats) &&
         hasDistributionData(rawStats ? extractBasicStats(rawStats) : undefined)
+    const hasAnnotationValue =
+        rawStats !== null && rawStats !== undefined ? true : value !== null && value !== undefined
 
-    const cellContent = showDistribution ? (
-        <MetricCellContent value={rawStats} showDistribution className="metric-cell-content" />
+    const cellContent = hasAnnotationValue ? (
+        showDistribution ? (
+            <MetricCellContent value={rawStats} showDistribution className="metric-cell-content" />
+        ) : (
+            <MetricValueDisplay value={value} />
+        )
+    ) : isPending && fallbackDataKey ? (
+        <Typography.Text type="secondary">...</Typography.Text>
+    ) : fallbackValue !== null && fallbackValue !== undefined ? (
+        <SmartCellContent
+            value={fallbackValue}
+            keyPrefix={`merged-annot-${fallbackDataKey}-${outputKey}-${scenarioId}`}
+            maxLines={3}
+            chatPreference="output"
+        />
     ) : (
-        <MetricValueDisplay value={value} />
+        <Typography.Text type="secondary">—</Typography.Text>
     )
 
-    if (PopoverWrapper) {
+    if (PopoverWrapper && hasAnnotationValue) {
         return (
             <PopoverWrapper
                 runId={runId}
@@ -702,7 +789,11 @@ function mapDefToColumn(
                             style: {minWidth: 200, textAlign: "left" as const},
                         }),
                         render: (_value: unknown, record: ScenarioTableRow) => (
-                            <AnnotationColumnCell scenarioId={record.scenarioId} def={annotDef} />
+                            <AnnotationColumnCell
+                                scenarioId={record.scenarioId}
+                                def={annotDef}
+                                fallbackDataKey={def.fallbackDataKey}
+                            />
                         ),
                     }
                 }
@@ -726,6 +817,7 @@ function mapDefToColumn(
                                 scenarioId={record.scenarioId}
                                 def={annotDef}
                                 outputKey={outputKey}
+                                fallbackDataKey={def.fallbackDataKey}
                             />
                         ),
                     })),
@@ -742,6 +834,7 @@ function mapDefToColumn(
                             scenarioId={record.scenarioId}
                             def={annotDef}
                             outputKey={outputKeys[0]}
+                            fallbackDataKey={def.fallbackDataKey}
                         />
                     ),
                 }
@@ -752,7 +845,11 @@ function mapDefToColumn(
                 ...base,
                 title: <AnnotationColumnHeader def={annotDef} />,
                 render: (_value: unknown, record: ScenarioTableRow) => (
-                    <AnnotationColumnCell scenarioId={record.scenarioId} def={annotDef} />
+                    <AnnotationColumnCell
+                        scenarioId={record.scenarioId}
+                        def={annotDef}
+                        fallbackDataKey={def.fallbackDataKey}
+                    />
                 ),
             }
         }

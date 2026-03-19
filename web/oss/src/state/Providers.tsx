@@ -4,6 +4,7 @@ import {testsetSelectionConfig} from "@agenta/entities/testset"
 import {evaluatorSelectionConfig} from "@agenta/entities/workflow"
 import {
     revisionModalAdapter,
+    simpleQueueModalAdapter,
     testsetModalAdapter,
     variantModalAdapter,
 } from "@agenta/entity-ui/adapters"
@@ -28,6 +29,7 @@ initializeSelectionSystem({
 // Explicitly reference modal adapters so registration is not tree-shaken.
 void testsetModalAdapter
 void revisionModalAdapter
+void simpleQueueModalAdapter
 void variantModalAdapter
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {

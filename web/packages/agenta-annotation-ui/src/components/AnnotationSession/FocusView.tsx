@@ -12,7 +12,7 @@ import {memo, useCallback, useMemo} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
 import {Check} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -148,14 +148,9 @@ const FocusView = memo(function FocusView({
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
+    const scenariosQuery = useAtomValue(annotationSessionController.selectors.scenariosQuery())
     const focusScenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
-    const focusStatusFilter = useAtomValue(
-        annotationSessionController.selectors.focusStatusFilter(),
-    )
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
-    const setFocusStatusFilter = useSetAtom(
-        annotationSessionController.actions.setFocusStatusFilter,
-    )
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
     )
@@ -174,30 +169,41 @@ const FocusView = memo(function FocusView({
         [scenarios, currentScenarioId],
     )
 
-    if (scenarios.length === 0) return null
-
-    if (focusScenarioIds.length === 0) {
+    if (scenariosQuery.isPending) {
         return (
             <div className="flex flex-col gap-3 flex-1 min-h-0">
                 <SessionNavigation />
-                <div className="flex flex-1 items-center justify-center">
-                    <div className="flex flex-col items-center gap-2 text-center">
-                        <Typography.Text strong>No scenarios match this status</Typography.Text>
-                        <Typography.Text type="secondary" className="text-sm">
-                            Adjust the status filter to continue annotating.
-                        </Typography.Text>
-                        {focusStatusFilter && (
-                            <Button size="small" onClick={() => setFocusStatusFilter(null)}>
-                                Show all scenarios
-                            </Button>
-                        )}
-                    </div>
+                <div className="flex-1 p-4">
+                    <Skeleton active paragraph={{rows: 6}} />
                 </div>
             </div>
         )
     }
 
-    // All scenarios completed — show sync prompt (testcases) or empty state
+    if (scenariosQuery.isError) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <Typography.Text type="secondary">
+                        Failed to load annotation scenarios
+                    </Typography.Text>
+                </div>
+            </div>
+        )
+    }
+
+    if (scenarios.length === 0) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <Typography.Text type="secondary">No scenarios available</Typography.Text>
+                </div>
+            </div>
+        )
+    }
+
     if (progress.remaining === 0) {
         return (
             <AllCaughtUp
@@ -205,6 +211,22 @@ const FocusView = memo(function FocusView({
                 onSyncToTestset={onSyncToTestset}
                 isSyncing={isSyncing}
             />
+        )
+    }
+
+    if (focusScenarioIds.length === 0 && !currentScenarioId) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <div className="flex flex-col items-center gap-2 text-center">
+                        <Typography.Text strong>No scenarios available</Typography.Text>
+                        <Typography.Text type="secondary" className="text-sm">
+                            Adjust the focus switches to continue annotating.
+                        </Typography.Text>
+                    </div>
+                </div>
+            </div>
         )
     }
 

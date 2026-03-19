@@ -11,11 +11,10 @@ import {useCallback, useMemo} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {ArrowSquareOut, CaretLeft, CaretRight} from "@phosphor-icons/react"
-import {Button, Select, Typography} from "antd"
+import {Button, Select, Switch, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context"
-import AnnotationStatusFilterSelect from "../AnnotationStatusFilterSelect"
 
 const SessionNavigation = () => {
     const navigation = useAnnotationNavigation()
@@ -24,15 +23,16 @@ const SessionNavigation = () => {
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
     const progress = useAtomValue(annotationSessionController.selectors.progress())
     const scenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
-    const currentIndex = useAtomValue(annotationSessionController.selectors.currentScenarioIndex())
-    const focusStatusFilter = useAtomValue(
-        annotationSessionController.selectors.focusStatusFilter(),
+    const hideCompletedInFocus = useAtomValue(
+        annotationSessionController.selectors.hideCompletedInFocus(),
     )
+    const focusAutoNext = useAtomValue(annotationSessionController.selectors.focusAutoNext())
 
     // Trace info for current scenario
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
+    const currentVisibleIndex = currentScenarioId ? scenarioIds.indexOf(currentScenarioId) : -1
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
@@ -43,9 +43,10 @@ const SessionNavigation = () => {
     const navigateNext = useSetAtom(annotationSessionController.actions.navigateNext)
     const navigatePrev = useSetAtom(annotationSessionController.actions.navigatePrev)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
-    const setFocusStatusFilter = useSetAtom(
-        annotationSessionController.actions.setFocusStatusFilter,
+    const setHideCompletedInFocus = useSetAtom(
+        annotationSessionController.actions.setHideCompletedInFocus,
     )
+    const setFocusAutoNext = useSetAtom(annotationSessionController.actions.setFocusAutoNext)
 
     const handleSelect = useCallback(
         (value: number) => {
@@ -88,7 +89,11 @@ const SessionNavigation = () => {
                 />
 
                 <Select
-                    value={scenarioIds.length > 0 ? currentIndex : undefined}
+                    value={
+                        scenarioIds.length > 0 && currentVisibleIndex >= 0
+                            ? currentVisibleIndex
+                            : undefined
+                    }
                     onChange={handleSelect}
                     options={options}
                     size="small"
@@ -97,13 +102,23 @@ const SessionNavigation = () => {
                     disabled={scenarioIds.length === 0}
                 />
 
-                <AnnotationStatusFilterSelect
-                    value={focusStatusFilter}
-                    onChange={setFocusStatusFilter}
-                    size="small"
-                    className="min-w-[120px]"
-                    popupMatchSelectWidth={false}
-                />
+                <label className="inline-flex items-center gap-2 whitespace-nowrap">
+                    <Typography.Text type="secondary" className="text-xs">
+                        Hide completed
+                    </Typography.Text>
+                    <Switch
+                        size="small"
+                        checked={hideCompletedInFocus}
+                        onChange={setHideCompletedInFocus}
+                    />
+                </label>
+
+                <label className="inline-flex items-center gap-2 whitespace-nowrap">
+                    <Typography.Text type="secondary" className="text-xs">
+                        Auto next
+                    </Typography.Text>
+                    <Switch size="small" checked={focusAutoNext} onChange={setFocusAutoNext} />
+                </label>
 
                 <Typography.Text type="secondary" className="text-xs whitespace-nowrap">
                     {progress.remaining} of {progress.total} remaining

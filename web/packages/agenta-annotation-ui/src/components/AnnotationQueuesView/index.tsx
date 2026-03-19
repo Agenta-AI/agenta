@@ -1,4 +1,4 @@
-import {useMemo, useCallback, useState, useEffect} from "react"
+import {useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {
     simpleQueuePaginatedStore,
@@ -7,13 +7,15 @@ import {
     type SimpleQueueTableRow,
 } from "@agenta/entities/simpleQueue"
 import type {SimpleQueueKind} from "@agenta/entities/simpleQueue"
+import {useEntityDelete} from "@agenta/entity-ui"
+import {copyToClipboard} from "@agenta/ui"
 import {
     InfiniteVirtualTableFeatureShell,
     useTableManager,
     createStandardColumns,
     FiltersPopoverTrigger,
 } from "@agenta/ui/table"
-import {ArrowRight, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRight, Copy, PlusIcon, Trash} from "@phosphor-icons/react"
 import {Button, Divider, Input, Select, Tag, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -186,8 +188,28 @@ const AnnotationQueuesView = () => {
     const setDrawerDefaultKind = useSetAtom(createQueueDrawerDefaultKindAtom)
     const setDrawerSelection = useSetAtom(createQueueDrawerSelectionAtom)
     const setSearchTerm = useSetAtom(simpleQueueSearchTermAtom)
+    const {deleteEntity, deleteEntities} = useEntityDelete()
     const normalizedSearchTerm = searchTerm.trim()
     const hasSearchQuery = normalizedSearchTerm.length > 0
+    const clearSelectionRef = useRef<() => void>(() => {})
+
+    const handleBulkDelete = useCallback(
+        (records: SimpleQueueTableRow[]) => {
+            deleteEntities(
+                records.map((record) => ({
+                    type: "simpleQueue",
+                    id: record.id,
+                    name: record.name ?? undefined,
+                })),
+                {
+                    onSuccess: () => {
+                        clearSelectionRef.current()
+                    },
+                },
+            )
+        },
+        [deleteEntities],
+    )
 
     const openCreateQueueDrawer = useCallback(() => {
         setDrawerSelection(null)
@@ -208,7 +230,9 @@ const AnnotationQueuesView = () => {
         pageSize: 50,
         onRowClick: handleRowClick,
         searchDeps: [normalizedSearchTerm, kindFilter],
+        onBulkDelete: handleBulkDelete,
     })
+    clearSelectionRef.current = table.clearSelection
 
     const columns = useMemo(
         () =>
@@ -347,6 +371,7 @@ const AnnotationQueuesView = () => {
                     type: "actions",
                     width: 48,
                     maxWidth: 48,
+                    showCopyId: false,
                     items: [
                         {
                             key: "open",
@@ -362,11 +387,31 @@ const AnnotationQueuesView = () => {
                                 }
                             },
                         },
+                        {
+                            type: "divider",
+                        },
+                        {
+                            key: "copy-id",
+                            label: "Copy ID",
+                            icon: <Copy size={16} />,
+                            onClick: (record) => {
+                                void copyToClipboard(record.id)
+                            },
+                        },
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            onClick: (record) => {
+                                deleteEntity("simpleQueue", record.id, record.name ?? undefined)
+                            },
+                        },
                     ],
                     getRecordId: (record) => record.id,
                 },
             ]),
-        [navigation],
+        [deleteEntity, navigation],
     )
 
     const filtersNode = useMemo(() => <QueuesHeaderFilters />, [])

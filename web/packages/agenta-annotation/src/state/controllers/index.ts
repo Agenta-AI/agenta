@@ -3,6 +3,7 @@ export {
     type AnnotationSessionController,
     type ScenarioMetricData,
     registerAnnotationCallbacks,
+    OUTPUT_KEYS,
 } from "./annotationSessionController"
 
 export {

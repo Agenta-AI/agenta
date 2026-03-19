@@ -13,9 +13,13 @@ import {safeParseWithLogging} from "../../shared"
 import {
     evaluationQueueResponseSchema,
     evaluationQueuesResponseSchema,
+    evaluationQueueIdResponseSchema,
+    evaluationQueueIdsResponseSchema,
     evaluationQueueScenarioIdsResponseSchema,
     type EvaluationQueue,
     type EvaluationQueuesResponse,
+    type EvaluationQueueIdResponse,
+    type EvaluationQueueIdsResponse,
     type EvaluationQueueScenarioIdsResponse,
 } from "../core"
 import type {
@@ -90,6 +94,62 @@ export async function fetchEvaluationQueue({
         "[fetchEvaluationQueue]",
     )
     return validated?.queue ?? null
+}
+
+// ============================================================================
+// DELETE
+// ============================================================================
+
+/**
+ * Delete a single evaluation queue by ID.
+ *
+ * Endpoint: `DELETE /evaluations/queues/{queue_id}`
+ */
+export async function deleteEvaluationQueue({
+    id,
+    projectId,
+}: EvaluationQueueDetailParams): Promise<EvaluationQueueIdResponse> {
+    if (!projectId || !id) {
+        return {count: 0, queue_id: null}
+    }
+
+    const response = await axios.delete(`${getAgentaApiUrl()}/evaluations/queues/${id}`, {
+        params: {project_id: projectId},
+    })
+
+    const validated = safeParseWithLogging(
+        evaluationQueueIdResponseSchema,
+        response.data,
+        "[deleteEvaluationQueue]",
+    )
+    return validated ?? {count: 0, queue_id: null}
+}
+
+/**
+ * Delete multiple evaluation queues by ID.
+ *
+ * Endpoint: `DELETE /evaluations/queues/`
+ */
+export async function deleteEvaluationQueues(
+    projectId: string,
+    queueIds: string[],
+): Promise<EvaluationQueueIdsResponse> {
+    const normalizedQueueIds = Array.from(new Set(queueIds.filter(Boolean)))
+    if (!projectId || normalizedQueueIds.length === 0) {
+        return {count: 0, queue_ids: []}
+    }
+
+    const response = await axios.delete(`${getAgentaApiUrl()}/evaluations/queues/`, {
+        params: {project_id: projectId},
+        data: {queue_ids: normalizedQueueIds},
+    })
+
+    const validated = safeParseWithLogging(
+        evaluationQueueIdsResponseSchema,
+        response.data,
+        "[deleteEvaluationQueues]",
+    )
+    return validated ?? {count: 0, queue_ids: []}
 }
 
 // ============================================================================

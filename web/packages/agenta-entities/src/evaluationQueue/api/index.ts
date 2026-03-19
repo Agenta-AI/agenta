@@ -7,6 +7,9 @@ export {
     queryEvaluationQueues,
     // Fetch (single)
     fetchEvaluationQueue,
+    // Delete
+    deleteEvaluationQueue,
+    deleteEvaluationQueues,
     // Scenarios
     queryEvaluationQueueScenarios,
 } from "./api"

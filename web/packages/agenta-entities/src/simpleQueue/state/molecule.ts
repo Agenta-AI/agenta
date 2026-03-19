@@ -29,12 +29,14 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import type {StoreOptions} from "../../shared"
 import {
     createSimpleQueue,
     type CreateSimpleQueuePayload,
+    deleteSimpleQueue,
+    deleteSimpleQueues,
     fetchSimpleQueue,
     querySimpleQueues,
     querySimpleQueueScenarios,
@@ -44,6 +46,7 @@ import {
 import type {SimpleQueue, SimpleQueueKind, EvaluationStatus, EvaluationScenario} from "../core"
 
 import {simpleQueuePaginatedStore} from "./paginatedStore"
+import {taskQueueIdAtom} from "./tasksPaginatedStore"
 
 // ============================================================================
 // HELPERS
@@ -285,6 +288,81 @@ export const createSimpleQueueAtom = atom(
 )
 
 /**
+ * Delete a simple queue on the server.
+ * Clears detail/progress caches and refreshes list-backed UI on success.
+ *
+ * @returns The deleted queue ID on success, or null on failure.
+ */
+export const deleteSimpleQueueAtom = atom(
+    null,
+    async (get, set, queueId: string): Promise<string | null> => {
+        const projectId = get(projectIdAtom)
+        if (!projectId || !queueId) return null
+
+        const queryClient = get(queryClientAtom)
+        const result = await deleteSimpleQueue(projectId, queueId)
+        if (result.queue_id) {
+            set(simpleQueueDraftAtomFamily(queueId), null)
+
+            if (get(taskQueueIdAtom) === queueId) {
+                set(taskQueueIdAtom, null)
+            }
+
+            queryClient.removeQueries({queryKey: ["simpleQueue", queueId], exact: false})
+            queryClient.removeQueries({
+                queryKey: ["simpleQueue", "scenarioProgress", queueId],
+                exact: false,
+            })
+            await queryClient.invalidateQueries({queryKey: ["simpleQueues", "list"], exact: false})
+
+            set(simpleQueuePaginatedStore.refreshAtom)
+        }
+
+        return result.queue_id ?? null
+    },
+)
+
+/**
+ * Delete multiple simple queues on the server.
+ * Clears detail/progress caches and refreshes list-backed UI on success.
+ *
+ * @returns The deleted queue IDs on success.
+ */
+export const deleteSimpleQueuesAtom = atom(
+    null,
+    async (get, set, queueIds: string[]): Promise<string[]> => {
+        const projectId = get(projectIdAtom)
+        const normalizedQueueIds = Array.from(new Set(queueIds.filter(Boolean)))
+        if (!projectId || normalizedQueueIds.length === 0) return []
+
+        const queryClient = get(queryClientAtom)
+        const result = await deleteSimpleQueues(projectId, normalizedQueueIds)
+        const deletedQueueIds = result.queue_ids ?? []
+
+        if (deletedQueueIds.length > 0) {
+            deletedQueueIds.forEach((queueId) => {
+                set(simpleQueueDraftAtomFamily(queueId), null)
+                queryClient.removeQueries({queryKey: ["simpleQueue", queueId], exact: false})
+                queryClient.removeQueries({
+                    queryKey: ["simpleQueue", "scenarioProgress", queueId],
+                    exact: false,
+                })
+            })
+
+            const selectedTaskQueueId = get(taskQueueIdAtom)
+            if (selectedTaskQueueId && deletedQueueIds.includes(selectedTaskQueueId)) {
+                set(taskQueueIdAtom, null)
+            }
+
+            await queryClient.invalidateQueries({queryKey: ["simpleQueues", "list"], exact: false})
+            set(simpleQueuePaginatedStore.refreshAtom)
+        }
+
+        return deletedQueueIds
+    },
+)
+
+/**
  * Add trace IDs to an existing simple queue.
  * Invalidates the queue's detail cache + paginated store on success.
  *
@@ -349,13 +427,20 @@ export function invalidateSimpleQueuesListCache(options?: StoreOptions) {
 
 /**
  * Invalidate a single queue's cache.
+ *
+ * Uses the TanStack QueryClient directly instead of `store.get(atomFamily).refetch()`
+ * to avoid prematurely creating the Jotai atom/observer state without a React
+ * subscription. Doing `store.get()` on an `atomWithQuery` atom initialises the
+ * observer and caches the initial `{isPending: true}` result but never mounts
+ * `onMount` (no subscriber). If `.refetch()` then resolves, the observer's
+ * tracked result updates but the Jotai `resultAtom` stays stale. When a
+ * component later subscribes, the observer sees no diff and never notifies,
+ * leaving the atom stuck at `{isPending: true}` forever.
  */
 export function invalidateSimpleQueueCache(queueId: string, options?: StoreOptions) {
     const store = getStore(options)
-    const current = store.get(simpleQueueQueryAtomFamily(queueId))
-    if (current?.refetch) {
-        current.refetch()
-    }
+    const queryClient = store.get(queryClientAtom)
+    queryClient.invalidateQueries({queryKey: ["simpleQueue", queueId], exact: true})
 }
 
 // ============================================================================
@@ -535,13 +620,16 @@ const statusAtomFamily = atomFamily((queueId: string) =>
 
 /**
  * Invalidate a queue's scenario progress cache.
+ *
+ * Uses QueryClient directly — see `invalidateSimpleQueueCache` for rationale.
  */
 export function invalidateScenarioProgressCache(queueId: string, options?: StoreOptions) {
     const store = getStore(options)
-    const current = store.get(scenarioProgressQueryAtomFamily(queueId))
-    if (current?.refetch) {
-        current.refetch()
-    }
+    const queryClient = store.get(queryClientAtom)
+    queryClient.invalidateQueries({
+        queryKey: ["simpleQueue", "scenarioProgress", queueId],
+        exact: true,
+    })
 }
 
 // ============================================================================
@@ -610,6 +698,10 @@ export const simpleQueueMolecule = {
         discard: discardSimpleQueueDraftAtom,
         /** Create a new queue (server mutation) */
         createQueue: createSimpleQueueAtom,
+        /** Delete a queue (server mutation) */
+        deleteQueue: deleteSimpleQueueAtom,
+        /** Delete multiple queues (server mutation) */
+        deleteQueues: deleteSimpleQueuesAtom,
         /** Add traces to a queue (server mutation) */
         addTraces: addTracesToQueueAtom,
         /** Add testcases to a queue (server mutation) */
@@ -652,6 +744,10 @@ export const simpleQueueMolecule = {
             getStore(options).set(discardSimpleQueueDraftAtom, queueId),
         createQueue: (payload: CreateSimpleQueuePayload, options?: StoreOptions) =>
             getStore(options).set(createSimpleQueueAtom, payload),
+        deleteQueue: (queueId: string, options?: StoreOptions) =>
+            getStore(options).set(deleteSimpleQueueAtom, queueId),
+        deleteQueues: (queueIds: string[], options?: StoreOptions) =>
+            getStore(options).set(deleteSimpleQueuesAtom, queueIds),
         addTraces: (queueId: string, traceIds: string[], options?: StoreOptions) =>
             getStore(options).set(addTracesToQueueAtom, queueId, traceIds),
         addTestcases: (queueId: string, testcaseIds: string[], options?: StoreOptions) =>

@@ -494,4 +494,9 @@ export {EntityTable, type EntityTableProps} from "./shared"
 // ENTITY ADAPTERS (registration for entity modals)
 // ============================================================================
 
-export {testsetModalAdapter, revisionModalAdapter, variantModalAdapter} from "./adapters"
+export {
+    testsetModalAdapter,
+    revisionModalAdapter,
+    simpleQueueModalAdapter,
+    variantModalAdapter,
+} from "./adapters"

@@ -24,6 +24,8 @@ export {
     type EvaluationQueuesResponse,
     evaluationQueueIdResponseSchema,
     type EvaluationQueueIdResponse,
+    evaluationQueueIdsResponseSchema,
+    type EvaluationQueueIdsResponse,
     evaluationQueueScenarioIdsResponseSchema,
     type EvaluationQueueScenarioIdsResponse,
 } from "./schema"

@@ -130,6 +130,8 @@ export interface AnnotationDataColumnDef extends BaseColumnDef {
     annotationDef: AnnotationColumnDef
     /** Output keys from the evaluator's output schema (used for sub-columns). */
     outputKeys: string[]
+    /** Testcase data key to fall back to when the same logical column exists in synced testcase data. */
+    fallbackDataKey?: string | null
 }
 
 export interface StatusColumnDef extends BaseColumnDef {

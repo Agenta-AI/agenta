@@ -58,6 +58,8 @@ export {
     type SimpleQueuesResponse,
     simpleQueueIdResponseSchema,
     type SimpleQueueIdResponse,
+    simpleQueueIdsResponseSchema,
+    type SimpleQueueIdsResponse,
     simpleQueueScenariosResponseSchema,
     type SimpleQueueScenariosResponse,
 } from "./core"
@@ -77,6 +79,8 @@ export {
     type CreateSimpleQueuePayload,
     querySimpleQueues,
     fetchSimpleQueue,
+    deleteSimpleQueue,
+    deleteSimpleQueues,
     querySimpleQueueScenarios,
     addSimpleQueueTraces,
     addSimpleQueueTestcases,
@@ -100,6 +104,8 @@ export {
     discardSimpleQueueDraftAtom,
     // Server mutations
     createSimpleQueueAtom,
+    deleteSimpleQueueAtom,
+    deleteSimpleQueuesAtom,
     addTracesToQueueAtom,
     addTestcasesToQueueAtom,
     // Cache invalidation

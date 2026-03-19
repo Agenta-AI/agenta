@@ -29,6 +29,8 @@ export {
     type SimpleQueuesResponse,
     simpleQueueIdResponseSchema,
     type SimpleQueueIdResponse,
+    simpleQueueIdsResponseSchema,
+    type SimpleQueueIdsResponse,
     simpleQueueScenariosResponseSchema,
     type SimpleQueueScenariosResponse,
 } from "./schema"

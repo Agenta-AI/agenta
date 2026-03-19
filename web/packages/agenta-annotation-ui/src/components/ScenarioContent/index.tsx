@@ -79,6 +79,26 @@ const EXPECTED_OUTPUT_KEYS = new Set([
     "correct_answer",
 ])
 
+function readScenarioRefString(
+    scenario: Record<string, unknown> | null,
+    key: "trace_id" | "testcase_id",
+): string {
+    if (!scenario) return ""
+
+    const direct = scenario[key]
+    if (typeof direct === "string" && direct) return direct
+
+    const tags = scenario.tags as Record<string, unknown> | null | undefined
+    const tagValue = tags?.[key]
+    if (typeof tagValue === "string" && tagValue) return tagValue
+
+    const meta = scenario.meta as Record<string, unknown> | null | undefined
+    const metaValue = meta?.[key]
+    if (typeof metaValue === "string" && metaValue) return metaValue
+
+    return ""
+}
+
 function formatValue(value: unknown): string {
     if (value === null || value === undefined) return "—"
     if (typeof value === "string") return value || "—"
@@ -387,14 +407,26 @@ const ScenarioContent = memo(function ScenarioContent({
     }
 
     const isTrace = queueKind === "traces"
+    const effectiveTraceId = traceId || readScenarioRefString(scenario, "trace_id")
+    const effectiveTestcaseId = testcaseId || readScenarioRefString(scenario, "testcase_id")
 
     // For traces with a valid trace ID, fetch the full trace and display root span data
-    if (isTrace && traceId) {
-        return <TraceScenarioContent traceId={traceId} />
+    if (isTrace && effectiveTraceId) {
+        return <TraceScenarioContent traceId={effectiveTraceId} />
+    }
+
+    if (isTrace) {
+        return (
+            <div className="flex items-center justify-center h-full py-20">
+                <Typography.Text type="secondary">
+                    Trace reference is not available yet
+                </Typography.Text>
+            </div>
+        )
     }
 
     // For test cases, fetch testcase data by ID and display
-    return <TestcaseScenarioContent scenario={scenario} testcaseId={testcaseId} />
+    return <TestcaseScenarioContent scenario={scenario} testcaseId={effectiveTestcaseId} />
 })
 
 export default ScenarioContent
