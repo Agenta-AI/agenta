@@ -4,22 +4,21 @@
  * Provides paginated fetching for evaluator revisions with IVT integration.
  * Evaluators are workflows with `flags.is_evaluator === true`.
  *
- * Rows are revision-level (not workflow-level) so each row has access to
- * `data` (uri, schemas, parameters). This follows the same pattern as the
- * registry variants table in `VariantsComponents/store/registryStore.ts`.
+ * Rows carry IDs and bare sorting/grouping fields only.
+ * All display data (name, slug, evaluatorKey, outputProperties, etc.)
+ * is read from workflowMolecule per revisionId inside cell renderers.
  *
  * Since each evaluator workflow currently has a single variant, the table
  * supports a 2-level structure: evaluator (workflow) → revisions.
  */
 
 import {createPaginatedEntityStore} from "@agenta/entities/shared"
-import type {InfiniteTableFetchResult, WindowingState} from "@agenta/entities/shared"
+import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import type {Workflow} from "@agenta/entities/workflow"
 import {
     queryWorkflows,
     queryWorkflowRevisionsByWorkflows,
-    parseWorkflowKeyFromUri,
-    resolveOutputSchemaProperties,
+    workflowMolecule,
 } from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
@@ -39,32 +38,14 @@ export interface EvaluatorTableRow {
     __isEvaluatorGroup?: boolean
     __isGroupChild?: boolean
     __revisionCount?: number
-    // Core IDs
+    // Core IDs — used as molecule keys by cell renderers
     revisionId: string
     workflowId: string
     variantId: string
-    // Display fields (pre-computed from revision data)
-    name: string
-    slug: string
+    // Bare fields needed for grouping/sorting only — all display data comes from molecules
     version: number | null
-    /** Evaluator key parsed from URI (e.g., "auto_exact_match") */
-    evaluatorKey: string | null
-    /** Raw URI from revision data */
-    uri: string | null
-    /** Output schema properties — used for feedback column (human evaluators) */
-    outputProperties: Record<string, unknown> | null
-    /** Template tags resolved from evaluator key */
-    tags: string[]
-    createdAt: string | null
-    updatedAt: string | null
-    createdById: string | null
-    updatedById: string | null
-    /** Revision's own created_at (for child rows in grouped view) */
+    /** Revision's own created_at — used for child row date sort */
     revisionCreatedAt: string | null
-    /** Commit message from the revision */
-    commitMessage: string | null
-    /** Raw workflow revision for actions */
-    raw: Workflow
     [k: string]: unknown
 }
 
@@ -92,68 +73,37 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
     revisionId: "",
     workflowId: "",
     variantId: "",
-    name: "",
-    slug: "",
     version: null,
-    evaluatorKey: null,
-    uri: null,
-    outputProperties: null,
-    tags: [],
-    createdAt: null,
-    updatedAt: null,
-    createdById: null,
-    updatedById: null,
     revisionCreatedAt: null,
-    commitMessage: null,
-    raw: {} as Workflow,
     key: "",
 }
 
 // ============================================================================
-// WORKFLOW METADATA CACHE
+// WORKFLOW ID CACHE
 // ============================================================================
 
 /**
- * Cache workflow metadata (name, slug, timestamps) per category.
- * Fetched once on first page request, reused across all pages.
- * Also stores the list of workflow IDs needed for revision queries.
+ * Lightweight cache of workflow IDs per category+project.
+ * Used only to know which workflow IDs to pass to the revisions query.
+ *
+ * Workflow entities are seeded into workflowMolecule by their ID so that
+ * group parent rows (which look up by workflowId) can read name/slug without
+ * triggering individual revision fetches.
  */
-interface WorkflowCacheEntry {
-    name: string
-    slug: string
-    createdAt: string | null
-    updatedAt: string | null
-    createdById: string | null
-    updatedById: string | null
-}
-
-interface EvaluatorWorkflowCache {
+interface WorkflowIdCache {
     key: string // `${projectId}:${category}`
     workflowIds: string[]
-    map: Map<string, WorkflowCacheEntry>
 }
 
-let _workflowCache: EvaluatorWorkflowCache | null = null
+let _workflowIdCache: WorkflowIdCache | null = null
 
-/** Clear caches so the next fetch re-queries the API. */
-export const clearEvaluatorWorkflowNameCache = () => {
-    _workflowCache = null
-}
-
-/** @deprecated Use clearEvaluatorWorkflowNameCache instead */
-export const clearEvaluatorRevisionCache = clearEvaluatorWorkflowNameCache
-
-/**
- * Ensure evaluator workflow metadata is cached for the given category.
- * Returns the cached workflow IDs.
- */
-async function ensureWorkflowCache(
+async function ensureWorkflowIdCache(
     projectId: string,
     category: EvaluatorCategory,
-): Promise<string[]> {
+): Promise<WorkflowIdCache> {
     const cacheKey = `${projectId}:${category}`
-    if (_workflowCache?.key === cacheKey) {
-        return _workflowCache.workflowIds
+    if (_workflowIdCache?.key === cacheKey) {
+        return _workflowIdCache
     }
 
     const flags =
@@ -164,22 +114,20 @@ async function ensureWorkflowCache(
     const workflowsResponse = await queryWorkflows({projectId, flags})
     const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
 
-    const map = new Map<string, WorkflowCacheEntry>()
     const workflowIds: string[] = []
     for (const w of workflows) {
         workflowIds.push(w.id)
-        map.set(w.id, {
-            name: w.name ?? w.slug ?? w.id,
-            slug: w.slug ?? "",
-            createdAt: w.created_at ?? null,
-            updatedAt: w.updated_at ?? null,
-            createdById: w.created_by_id ?? null,
-            updatedById: w.updated_by_id ?? null,
-        })
+        // Seed workflow entity so group parent rows can read name/slug/dates via workflowId
+        workflowMolecule.set.seedEntity(w.id, w)
     }
 
-    _workflowCache = {key: cacheKey, workflowIds, map}
-    return workflowIds
+    _workflowIdCache = {key: cacheKey, workflowIds}
+    return _workflowIdCache
+}
+
+/** Clear caches so the next fetch re-queries the API. */
+export const clearEvaluatorWorkflowCache = () => {
+    _workflowIdCache = null
 }
 
 // ============================================================================
@@ -205,10 +153,9 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        // Ensure workflow metadata is cached (lightweight, one-time per category)
-        const workflowIds = await ensureWorkflowCache(meta.projectId, meta.category)
+        const cache = await ensureWorkflowIdCache(meta.projectId, meta.category)
 
-        if (workflowIds.length === 0) {
+        if (cache.workflowIds.length === 0) {
             return {
                 rows: [],
                 totalCount: 0,
@@ -219,18 +166,11 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        // Query revisions across all evaluator workflows with cursor-based pagination
-        const windowing: WindowingState = {
-            next: cursor,
-            limit,
-            order: "descending",
-        }
-
         const response = await queryWorkflowRevisionsByWorkflows(
-            workflowIds,
+            cache.workflowIds,
             meta.projectId,
             undefined,
-            windowing,
+            {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
         )
 
         // Filter out v0 revisions (auto-created initial revisions)
@@ -253,35 +193,13 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
     },
     transformRow: (apiRow): EvaluatorTableRow => {
         const workflowId = apiRow.workflow_id ?? ""
-        const variantId = apiRow.workflow_variant_id ?? apiRow.variant_id ?? ""
-        const cached = _workflowCache?.map.get(workflowId)
-        const name = cached?.name ?? apiRow.name ?? workflowId ?? "-"
-        const slug = cached?.slug ?? apiRow.slug ?? ""
-
-        const uri = apiRow.data?.uri ?? null
-        const evaluatorKey = parseWorkflowKeyFromUri(uri)
-
-        const outputProperties = resolveOutputSchemaProperties(apiRow.data)
-
         return {
             key: apiRow.id,
             revisionId: apiRow.id,
             workflowId,
-            variantId,
-            name,
-            slug,
+            variantId: apiRow.workflow_variant_id ?? apiRow.variant_id ?? "",
             version: apiRow.version ?? null,
-            evaluatorKey,
-            uri,
-            outputProperties,
-            tags: [],
-            createdAt: cached?.createdAt ?? apiRow.created_at ?? null,
-            updatedAt: cached?.updatedAt ?? apiRow.updated_at ?? null,
-            createdById: cached?.createdById ?? apiRow.created_by_id ?? null,
-            updatedById: cached?.updatedById ?? apiRow.updated_by_id ?? null,
             revisionCreatedAt: apiRow.created_at ?? null,
-            commitMessage: apiRow.message ?? null,
-            raw: apiRow,
         }
     },
     isEnabled: (meta) => Boolean(meta?.projectId),
