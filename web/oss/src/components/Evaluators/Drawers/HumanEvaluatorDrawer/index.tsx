@@ -10,6 +10,7 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -18,7 +19,7 @@ import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer
 import {
     closeHumanEvaluatorDrawerAtom,
     humanEvaluatorDrawerCallbackAtom,
-    humanEvaluatorDrawerEntityAtom,
+    humanEvaluatorDrawerWorkflowIdAtom,
     humanEvaluatorDrawerModeAtom,
     humanEvaluatorDrawerOpenAtom,
 } from "./store"
@@ -30,7 +31,9 @@ const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/Anno
 const HumanEvaluatorDrawer = () => {
     const isOpen = useAtomValue(humanEvaluatorDrawerOpenAtom)
     const mode = useAtomValue(humanEvaluatorDrawerModeAtom)
-    const evaluator = useAtomValue(humanEvaluatorDrawerEntityAtom)
+    const workflowId = useAtomValue(humanEvaluatorDrawerWorkflowIdAtom)
+    const workflowQuery = useAtomValue(workflowMolecule.atoms.query(workflowId ?? ""))
+    const evaluatorWorkflow = mode === "edit" && workflowId ? workflowQuery.data : null
     const onSuccessCallback = useAtomValue(humanEvaluatorDrawerCallbackAtom)
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 
@@ -49,11 +52,11 @@ const HumanEvaluatorDrawer = () => {
     const createEvaluatorProps = useMemo(
         () => ({
             mode,
-            evaluator: mode === "edit" ? evaluator || undefined : undefined,
+            evaluator: mode === "edit" ? evaluatorWorkflow || undefined : undefined,
             onSuccess: handleSuccess,
             skipPostCreateStepChange: mode === "create",
         }),
-        [mode, evaluator, handleSuccess],
+        [mode, evaluatorWorkflow, handleSuccess],
     )
 
     return (
