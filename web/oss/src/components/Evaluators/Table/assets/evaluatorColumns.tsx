@@ -1,11 +1,18 @@
-import {memo, useSyncExternalStore} from "react"
+import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {evaluatorTemplatesDataAtom, getEvaluatorColor} from "@agenta/entities/workflow"
+import {
+    evaluatorTemplatesDataAtom,
+    getEvaluatorColor,
+    workflowMolecule,
+    resolveOutputSchemaProperties,
+} from "@agenta/entities/workflow"
 import {SkeletonLine, createStandardColumns} from "@agenta/ui/table"
 import {Eye, GearSix, MinusCircle, PencilSimple, PlusCircle, Trash} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
 import type {Atom} from "jotai"
+import {atom, useAtomValue} from "jotai"
+import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import type {EvaluatorCategory} from "../../assets/types"
@@ -34,19 +41,63 @@ const formatDateDisplay = (value: string): string => {
 // DEFAULT STORE HOOK
 // ============================================================================
 
+const defaultStore = getDefaultStore()
+
 /**
  * Reads an atom from Jotai's default store, bypassing any Provider scope.
  * IVT cell renderers run inside an isolated Jotai Provider,
  * but entity atoms live in the default store.
  */
-function useDefaultStoreAtomValue<T>(atom: Atom<T>): T {
-    const store = getDefaultStore()
-    return useSyncExternalStore(
-        (cb) => store.sub(atom, cb),
-        () => store.get(atom),
-        () => store.get(atom),
-    )
+function useDefaultStoreAtomValue<T>(atomArg: Atom<T>): T {
+    return useAtomValue(atomArg, {store: defaultStore})
 }
+
+// ============================================================================
+// SCALAR ATOM FAMILIES
+// Derive primitive values from molecule selectors so cells subscribe to
+// stable scalar atoms rather than full Workflow objects or query state objects.
+// Primitives never change identity when the value is the same, preventing
+// unnecessary re-renders and avoiding max-update-depth from object churn.
+// ============================================================================
+
+/** Workflow name — string | null */
+const workflowNameAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => get(workflowMolecule.selectors.name(id))),
+)
+/** Workflow slug — string | null */
+const workflowSlugAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => get(workflowMolecule.selectors.slug(id))),
+)
+/** Workflow key parsed from URI (e.g. "auto_exact_match") — string | null */
+const workflowKeyAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => get(workflowMolecule.selectors.workflowKey(id))),
+)
+/** updated_at — string | null */
+const workflowUpdatedAtAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowMolecule.selectors.data(id))
+        return entity?.updated_at ?? entity?.created_at ?? null
+    }),
+)
+/** updated_by_id or created_by_id — string | null */
+const workflowUpdatedByIdAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowMolecule.selectors.data(id))
+        return entity?.updated_by_id ?? entity?.created_by_id ?? null
+    }),
+)
+/** commit message — string | null */
+const workflowMessageAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => get(workflowMolecule.selectors.data(id))?.message ?? null),
+)
+/** output schema properties keys — derived scalar to avoid object churn */
+const workflowOutputSchemaKeysAtomFamily = atomFamily((id: string) =>
+    atom<string[]>((get) => {
+        const entity = get(workflowMolecule.selectors.data(id))
+        const props = resolveOutputSchemaProperties(entity?.data)
+        return props ? Object.keys(props) : []
+    }),
+)
 
 // ============================================================================
 // CELL RENDERERS
@@ -54,10 +105,11 @@ function useDefaultStoreAtomValue<T>(atom: Atom<T>): T {
 
 /**
  * Type badge cell for automatic evaluators.
- * Reads evaluatorKey directly from the revision row data.
+ * Reads evaluatorKey via scalar atomFamily (stable primitive).
  */
-const EvaluatorTypeCell = memo(({evaluatorKey}: {evaluatorKey: string | null}) => {
+const EvaluatorTypeCell = memo(({revisionId}: {revisionId: string}) => {
     const templates = useDefaultStoreAtomValue(evaluatorTemplatesDataAtom)
+    const evaluatorKey = useDefaultStoreAtomValue(workflowKeyAtomFamily(revisionId))
 
     if (!evaluatorKey) return null
 
@@ -86,10 +138,11 @@ const EvaluatorTypeCell = memo(({evaluatorKey}: {evaluatorKey: string | null}) =
 
 /**
  * Tags cell for automatic evaluators.
- * Resolves template tags from evaluatorKey.
+ * Reads evaluatorKey via scalar atomFamily (stable primitive).
  */
-const AutomaticTagsCell = memo(({evaluatorKey}: {evaluatorKey: string | null}) => {
+const AutomaticTagsCell = memo(({revisionId}: {revisionId: string}) => {
     const templates = useDefaultStoreAtomValue(evaluatorTemplatesDataAtom)
+    const evaluatorKey = useDefaultStoreAtomValue(workflowKeyAtomFamily(revisionId))
 
     const template = evaluatorKey ? templates.find((t) => t.key === evaluatorKey) : null
     const tags = template?.tags ?? []
@@ -118,35 +171,240 @@ const AutomaticTagsCell = memo(({evaluatorKey}: {evaluatorKey: string | null}) =
 
 /**
  * Feedback cell for human evaluators.
- * Reads output schema properties directly from the revision row data.
+ * Reads output schema keys via scalar atomFamily (stable string[]).
  */
-const FeedbackCell = memo(
-    ({outputProperties}: {outputProperties: Record<string, unknown> | null}) => {
-        const metricNames = outputProperties ? Object.keys(outputProperties) : []
+const FeedbackCell = memo(({revisionId}: {revisionId: string}) => {
+    const metricNames = useDefaultStoreAtomValue(workflowOutputSchemaKeysAtomFamily(revisionId))
 
-        if (!metricNames.length) return null
+    if (!metricNames.length) return null
 
+    return (
+        <div className="flex items-center gap-1 h-full flex-wrap overflow-hidden">
+            {metricNames.slice(0, 3).map((name) => (
+                <Tag
+                    key={name}
+                    variant="filled"
+                    className="!m-0 truncate max-w-[120px] bg-[#0517290F]"
+                >
+                    {name}
+                </Tag>
+            ))}
+            {metricNames.length > 3 && (
+                <Typography.Text type="secondary" className="text-xs">
+                    +{metricNames.length - 3}
+                </Typography.Text>
+            )}
+        </div>
+    )
+})
+
+/** Name display for group parent rows — reads from seeded workflow entity via scalar atoms. */
+const NameCellParent = memo(
+    ({
+        workflowId,
+        version,
+        revisionCount,
+        rowKey,
+        expandState,
+    }: {
+        workflowId: string
+        version: number | null
+        revisionCount: number
+        rowKey: string
+        expandState: EvaluatorExpandState
+    }) => {
+        const name = useDefaultStoreAtomValue(workflowNameAtomFamily(workflowId))
+        const slug = useDefaultStoreAtomValue(workflowSlugAtomFamily(workflowId))
+        const displayName = name ?? slug ?? "—"
+        const isExpanded = expandState.expandedRowKeys.includes(rowKey)
+        const revisionTag =
+            version != null ? (
+                <Tag className="bg-[rgba(5,23,41,0.06)] !m-0 shrink-0" variant="filled">
+                    v{version}
+                </Tag>
+            ) : null
         return (
-            <div className="flex items-center gap-1 h-full flex-wrap overflow-hidden">
-                {metricNames.slice(0, 3).map((name) => (
-                    <Tag
-                        key={name}
-                        variant="filled"
-                        className="!m-0 truncate max-w-[120px] bg-[#0517290F]"
-                    >
-                        {name}
-                    </Tag>
-                ))}
-                {metricNames.length > 3 && (
-                    <Typography.Text type="secondary" className="text-xs">
-                        +{metricNames.length - 3}
-                    </Typography.Text>
-                )}
+            <div className="flex items-center gap-2 h-full min-w-0">
+                <span
+                    className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0 leading-[1]"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        expandState.handleExpand(!isExpanded, rowKey)
+                    }}
+                >
+                    {isExpanded ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
+                </span>
+                <span className="truncate">{displayName}</span>
+                {revisionCount > 1 && revisionTag}
             </div>
         )
     },
 )
 
+/** Name display for revision rows (child or flat) — reads via scalar atoms. */
+const NameCellRevision = memo(
+    ({
+        revisionId,
+        version,
+        isGroupChild,
+    }: {
+        revisionId: string
+        version: number | null
+        isGroupChild: boolean
+    }) => {
+        const name = useDefaultStoreAtomValue(workflowNameAtomFamily(revisionId))
+        const slug = useDefaultStoreAtomValue(workflowSlugAtomFamily(revisionId))
+        const displayName = name ?? slug ?? "—"
+        const revisionTag =
+            version != null ? (
+                <Tag className="bg-[rgba(5,23,41,0.06)] !m-0 shrink-0" variant="filled">
+                    v{version}
+                </Tag>
+            ) : null
+        if (isGroupChild) {
+            return (
+                <div className="flex items-center gap-2 h-full min-w-0 pl-6">
+                    <span className="truncate">{displayName}</span>
+                    {revisionTag}
+                </div>
+            )
+        }
+        return (
+            <div className="flex items-center gap-2 h-full min-w-0">
+                <span className="truncate">{displayName}</span>
+                {revisionTag}
+            </div>
+        )
+    },
+)
+
+/**
+ * Name cell — routes to NameCellParent (workflowId, seeded) or NameCellRevision (revisionId, raw query).
+ */
+const NameCellContent = memo(
+    ({
+        entityId,
+        isGroupParent,
+        version,
+        isGroupChild,
+        revisionCount,
+        rowKey,
+        expandState,
+    }: {
+        entityId: string
+        isGroupParent: boolean
+        version: number | null
+        isGroupChild: boolean
+        revisionCount: number
+        rowKey: string
+        expandState?: EvaluatorExpandState
+    }) => {
+        if (isGroupParent && expandState) {
+            return (
+                <NameCellParent
+                    workflowId={entityId}
+                    version={version}
+                    revisionCount={revisionCount}
+                    rowKey={rowKey}
+                    expandState={expandState}
+                />
+            )
+        }
+        return (
+            <NameCellRevision revisionId={entityId} version={version} isGroupChild={isGroupChild} />
+        )
+    },
+)
+
+/**
+ * Modified-by cell for group parent rows — reads via scalar atomFamily.
+ */
+const ModifiedByCell = memo(({workflowId}: {workflowId: string}) => {
+    const userId = useDefaultStoreAtomValue(workflowUpdatedByIdAtomFamily(workflowId))
+    if (!userId) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                <UserAuthorLabel userId={userId} showPrefix={false} showAvatar showYouLabel />
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
+ * Modified-by cell for child revision rows — reads via scalar atomFamily.
+ */
+const ModifiedByRevisionCell = memo(({revisionId}: {revisionId: string}) => {
+    const userId = useDefaultStoreAtomValue(workflowUpdatedByIdAtomFamily(revisionId))
+    if (!userId) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                <UserAuthorLabel userId={userId} showPrefix={false} showAvatar showYouLabel />
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
+ * Commit message cell — reads via scalar atomFamily.
+ */
+const CommitMessageCell = memo(({revisionId}: {revisionId: string}) => {
+    const commitMessage = useDefaultStoreAtomValue(workflowMessageAtomFamily(revisionId))
+    if (!commitMessage) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                {commitMessage}
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
+ * Date display cell — renders a pre-resolved date string from the row.
+ * Used for "Date Created" on both parent and child rows.
+ */
+const DateCell = memo(({date}: {date: string | null}) => {
+    if (!date) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs">
+                {formatDateDisplay(date)}
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
+ * Updated-at cell for group parent rows — reads via scalar atomFamily.
+ */
+const UpdatedAtCell = memo(({workflowId}: {workflowId: string}) => {
+    const updatedAt = useDefaultStoreAtomValue(workflowUpdatedAtAtomFamily(workflowId))
+    if (!updatedAt) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs">
+                {formatDateDisplay(updatedAt)}
+            </Typography.Text>
+        </div>
+    )
+})
+
+/**
+ * Updated-at cell for child revision rows — reads via scalar atomFamily.
+ */
+const UpdatedAtRevisionCell = memo(({revisionId}: {revisionId: string}) => {
+    const updatedAt = useDefaultStoreAtomValue(workflowUpdatedAtAtomFamily(revisionId))
+    if (!updatedAt) return null
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs">
+                {formatDateDisplay(updatedAt)}
+            </Typography.Text>
+        </div>
+    )
+})
 // ============================================================================
 // COLUMN FACTORY
 // ============================================================================
@@ -159,7 +417,7 @@ export interface EvaluatorColumnActions {
 
 export interface EvaluatorExpandState {
     expandedRowKeys: string[]
-    handleExpand: (expanded: boolean, record: EvaluatorTableRow) => void
+    handleExpand: (expanded: boolean, rowKey: string) => void
 }
 
 export function createEvaluatorColumns(
@@ -177,54 +435,18 @@ export function createEvaluatorColumns(
             columnVisibilityLocked: true,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="70%" />
-
-                const isGroupParent = !!record.__isEvaluatorGroup
-                const isGroupChild = !!record.__isGroupChild
-                const displayName = record.name || "—"
-
-                const revisionTag =
-                    record.version != null ? (
-                        <Tag className="bg-[rgba(5,23,41,0.06)] !m-0 shrink-0" variant="filled">
-                            v{record.version}
-                        </Tag>
-                    ) : null
-
-                // Grouped parent row — expand icon + name + revision tag
-                if (isGroupParent && expandState) {
-                    const isExpanded = expandState.expandedRowKeys.includes(String(record.key))
-                    return (
-                        <div className="flex items-center gap-2 h-full min-w-0">
-                            <span
-                                className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0 leading-[1]"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    expandState.handleExpand(!isExpanded, record)
-                                }}
-                            >
-                                {isExpanded ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
-                            </span>
-                            <span className="truncate">{displayName}</span>
-                            {(record.__revisionCount ?? 0) > 1 && revisionTag}
-                        </div>
-                    )
-                }
-
-                // Child row — indent to align with parent content
-                if (isGroupChild) {
-                    return (
-                        <div className="flex items-center gap-2 h-full min-w-0 pl-6">
-                            <span className="truncate">{displayName}</span>
-                            {revisionTag}
-                        </div>
-                    )
-                }
-
-                // Flat mode
+                // Group parent shows workflow-level name (workflowId), children show revision name
+                const entityId = record.__isEvaluatorGroup ? record.workflowId : record.revisionId
                 return (
-                    <div className="flex items-center gap-2 h-full min-w-0">
-                        <span className="truncate">{displayName}</span>
-                        {revisionTag}
-                    </div>
+                    <NameCellContent
+                        entityId={entityId}
+                        version={record.version}
+                        isGroupParent={!!record.__isEvaluatorGroup}
+                        isGroupChild={!!record.__isGroupChild}
+                        revisionCount={record.__revisionCount ?? 1}
+                        rowKey={String(record.key)}
+                        expandState={expandState}
+                    />
                 )
             },
         },
@@ -237,7 +459,7 @@ export function createEvaluatorColumns(
                       width: 180,
                       render: (_value: unknown, record: EvaluatorTableRow) => {
                           if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                          return <EvaluatorTypeCell evaluatorKey={record.evaluatorKey} />
+                          return <EvaluatorTypeCell revisionId={record.revisionId} />
                       },
                   },
               ]
@@ -250,33 +472,30 @@ export function createEvaluatorColumns(
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="40%" />
                 if (category === "human") {
-                    return <FeedbackCell outputProperties={record.outputProperties} />
+                    return <FeedbackCell revisionId={record.revisionId} />
                 }
-                return <AutomaticTagsCell evaluatorKey={record.evaluatorKey} />
+                return <AutomaticTagsCell revisionId={record.revisionId} />
             },
         },
         {
-            type: "date",
+            type: "text",
             key: "createdAt",
             title: "Date Created",
-            // For child rows in grouped view, show the revision's own created_at
             render: (_value: unknown, record: EvaluatorTableRow) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                const dateStr = record.__isGroupChild ? record.revisionCreatedAt : record.createdAt
-                if (!dateStr) return null
-                return (
-                    <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs">
-                            {formatDateDisplay(dateStr)}
-                        </Typography.Text>
-                    </div>
-                )
+                return <DateCell date={record.revisionCreatedAt as string | null} />
             },
         },
         {
-            type: "date",
+            type: "text",
             key: "updatedAt",
             title: "Last modified",
+            render: (_value: unknown, record: EvaluatorTableRow) => {
+                if (record.__isSkeleton) return <SkeletonLine width="50%" />
+                if (record.__isGroupChild)
+                    return <UpdatedAtRevisionCell revisionId={record.revisionId} />
+                return <UpdatedAtCell workflowId={record.workflowId} />
+            },
         },
         {
             type: "text",
@@ -285,19 +504,9 @@ export function createEvaluatorColumns(
             width: 200,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (!record.updatedById && !record.createdById) return null
-                return (
-                    <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs truncate block">
-                            <UserAuthorLabel
-                                userId={record.updatedById ?? record.createdById ?? ""}
-                                showPrefix={false}
-                                showAvatar
-                                showYouLabel
-                            />
-                        </Typography.Text>
-                    </div>
-                )
+                if (record.__isGroupChild)
+                    return <ModifiedByRevisionCell revisionId={record.revisionId} />
+                return <ModifiedByCell workflowId={record.workflowId} />
             },
         },
         {
@@ -307,14 +516,7 @@ export function createEvaluatorColumns(
             width: 200,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="60%" />
-                if (!record.commitMessage) return null
-                return (
-                    <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs truncate block">
-                            {record.commitMessage}
-                        </Typography.Text>
-                    </div>
-                )
+                return <CommitMessageCell revisionId={record.revisionId} />
             },
         },
         {

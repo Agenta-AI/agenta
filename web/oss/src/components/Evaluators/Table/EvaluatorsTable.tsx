@@ -62,16 +62,22 @@ const EvaluatorsTable = ({
     // Track which evaluator groups are expanded
     const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([])
 
-    const handleExpand = useCallback((expanded: boolean, record: EvaluatorTableRow) => {
-        const rowKey = String(record.key)
-        if (record.__isGroupChild) return
-
+    const handleExpand = useCallback((expanded: boolean, rowKey: string) => {
         if (expanded) {
             setExpandedRowKeys((prev) => [...prev, rowKey])
         } else {
             setExpandedRowKeys((prev) => prev.filter((k) => k !== rowKey))
         }
     }, [])
+
+    // Adapter for Ant Design's onExpand which passes the full record
+    const handleExpandRecord = useCallback(
+        (expanded: boolean, record: EvaluatorTableRow) => {
+            if (record.__isGroupChild) return
+            handleExpand(expanded, String(record.key))
+        },
+        [handleExpand],
+    )
 
     const table = useTableManager<EvaluatorTableRow>({
         datasetStore: evaluatorsPaginatedStore.store as never,
@@ -130,10 +136,10 @@ const EvaluatorsTable = ({
         if (displayMode !== "grouped") return undefined
         return {
             expandedRowKeys,
-            onExpand: handleExpand,
+            onExpand: handleExpandRecord,
             expandIcon: () => null,
         }
-    }, [displayMode, expandedRowKeys, handleExpand])
+    }, [displayMode, expandedRowKeys, handleExpandRecord])
 
     return (
         <InfiniteVirtualTableFeatureShell<EvaluatorTableRow>
