@@ -12,7 +12,7 @@ import {memo, useCallback, useMemo} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import type {SessionView} from "@agenta/annotation"
 import {Check} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
+import {Button, Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationNavigation} from "../../context/AnnotationUIContext"
@@ -148,6 +148,7 @@ const FocusView = memo(function FocusView({
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
+    const scenariosQuery = useAtomValue(annotationSessionController.selectors.scenariosQuery())
     const focusScenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const traceRef = useAtomValue(
@@ -168,9 +169,52 @@ const FocusView = memo(function FocusView({
         [scenarios, currentScenarioId],
     )
 
-    if (scenarios.length === 0) return null
+    if (scenariosQuery.isPending) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex-1 p-4">
+                    <Skeleton active paragraph={{rows: 6}} />
+                </div>
+            </div>
+        )
+    }
+
+    if (scenariosQuery.isError) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <Typography.Text type="secondary">
+                        Failed to load annotation scenarios
+                    </Typography.Text>
+                </div>
+            </div>
+        )
+    }
+
+    if (scenarios.length === 0) {
+        return (
+            <div className="flex flex-col gap-3 flex-1 min-h-0">
+                <SessionNavigation />
+                <div className="flex flex-1 items-center justify-center">
+                    <Typography.Text type="secondary">No scenarios available</Typography.Text>
+                </div>
+            </div>
+        )
+    }
 
     if (focusScenarioIds.length === 0) {
+        if (progress.remaining === 0) {
+            return (
+                <AllCaughtUp
+                    onViewChange={onViewChange}
+                    onSyncToTestset={onSyncToTestset}
+                    isSyncing={isSyncing}
+                />
+            )
+        }
+
         return (
             <div className="flex flex-col gap-3 flex-1 min-h-0">
                 <SessionNavigation />
@@ -183,17 +227,6 @@ const FocusView = memo(function FocusView({
                     </div>
                 </div>
             </div>
-        )
-    }
-
-    // All scenarios completed — show sync prompt (testcases) or empty state
-    if (progress.remaining === 0) {
-        return (
-            <AllCaughtUp
-                onViewChange={onViewChange}
-                onSyncToTestset={onSyncToTestset}
-                isSyncing={isSyncing}
-            />
         )
     }
 

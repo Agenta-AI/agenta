@@ -110,6 +110,49 @@ const scenarioRecordsAtom = atom<ScenarioRecord[]>((get) => {
     return get(simpleQueueMolecule.selectors.scenarios(queueId)) as ScenarioRecord[]
 })
 
+function findScenarioRecordById(
+    records: ScenarioRecord[],
+    scenarioId: string,
+): ScenarioRecord | null {
+    return records.find((scenario) => scenario.id === scenarioId) ?? null
+}
+
+function readScenarioRefString(
+    scenario: ScenarioRecord | null,
+    key: "trace_id" | "span_id" | "testcase_id",
+): string {
+    if (!scenario) return ""
+
+    const direct = scenario[key]
+    if (typeof direct === "string" && direct) return direct
+
+    const tags = scenario.tags as Record<string, unknown> | null | undefined
+    const tagValue = tags?.[key]
+    if (typeof tagValue === "string" && tagValue) return tagValue
+
+    const meta = scenario.meta as Record<string, unknown> | null | undefined
+    const metaValue = meta?.[key]
+    if (typeof metaValue === "string" && metaValue) return metaValue
+
+    return ""
+}
+
+function extractScenarioTraceRef(scenario: ScenarioRecord | null): {
+    traceId: string
+    spanId: string
+} {
+    return {
+        traceId: readScenarioRefString(scenario, "trace_id"),
+        spanId: readScenarioRefString(scenario, "span_id"),
+    }
+}
+
+function extractScenarioTestcaseRef(scenario: ScenarioRecord | null): {testcaseId: string} {
+    return {
+        testcaseId: readScenarioRefString(scenario, "testcase_id"),
+    }
+}
+
 /** All scenario IDs — derived from scenario records */
 const scenarioIdsAtom = atom<string[]>((get) => {
     const records = get(scenarioRecordsAtom)
@@ -742,9 +785,16 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
  */
 const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
+        const records = get(scenarioRecordsAtom)
+        const directRef = extractScenarioTraceRef(findScenarioRecordById(records, scenarioId))
+
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return {traceId: "", spanId: ""}
-        return get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+        if (!runId || !scenarioId) return directRef
+
+        const stepRef = get(evaluationRunMolecule.selectors.scenarioTraceRef({runId, scenarioId}))
+        if (stepRef.traceId) return stepRef
+
+        return directRef
     }),
 )
 
@@ -754,9 +804,18 @@ const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
  */
 const scenarioTestcaseRefAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
+        const records = get(scenarioRecordsAtom)
+        const directRef = extractScenarioTestcaseRef(findScenarioRecordById(records, scenarioId))
+
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return {testcaseId: ""}
-        return get(evaluationRunMolecule.selectors.scenarioTestcaseRef({runId, scenarioId}))
+        if (!runId || !scenarioId) return directRef
+
+        const stepRef = get(
+            evaluationRunMolecule.selectors.scenarioTestcaseRef({runId, scenarioId}),
+        )
+        if (stepRef.testcaseId) return stepRef
+
+        return directRef
     }),
 )
 
