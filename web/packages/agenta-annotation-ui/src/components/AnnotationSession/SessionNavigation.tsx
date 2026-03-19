@@ -23,7 +23,6 @@ const SessionNavigation = () => {
     const hasPrev = useAtomValue(annotationSessionController.selectors.hasPrev())
     const progress = useAtomValue(annotationSessionController.selectors.progress())
     const scenarioIds = useAtomValue(annotationSessionController.selectors.focusScenarioIds())
-    const currentIndex = useAtomValue(annotationSessionController.selectors.currentScenarioIndex())
     const hideCompletedInFocus = useAtomValue(
         annotationSessionController.selectors.hideCompletedInFocus(),
     )
@@ -33,6 +32,7 @@ const SessionNavigation = () => {
     const currentScenarioId = useAtomValue(
         annotationSessionController.selectors.currentScenarioId(),
     )
+    const currentVisibleIndex = currentScenarioId ? scenarioIds.indexOf(currentScenarioId) : -1
     const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
     const traceRef = useAtomValue(
         annotationSessionController.selectors.scenarioTraceRef(currentScenarioId ?? ""),
@@ -89,7 +89,11 @@ const SessionNavigation = () => {
                 />
 
                 <Select
-                    value={scenarioIds.length > 0 ? currentIndex : undefined}
+                    value={
+                        scenarioIds.length > 0 && currentVisibleIndex >= 0
+                            ? currentVisibleIndex
+                            : undefined
+                    }
                     onChange={handleSelect}
                     options={options}
                     size="small"

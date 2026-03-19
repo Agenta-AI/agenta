@@ -204,7 +204,7 @@ const FocusView = memo(function FocusView({
         )
     }
 
-    if (focusScenarioIds.length === 0) {
+    if (focusScenarioIds.length === 0 && !currentScenarioId) {
         if (progress.remaining === 0) {
             return (
                 <AllCaughtUp

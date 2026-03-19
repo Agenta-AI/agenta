@@ -110,7 +110,7 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
     const closeSession = useSetAtom(annotationSessionController.actions.closeSession)
     const applyRouteState = useSetAtom(annotationSessionController.actions.applyRouteState)
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
-    const markCompleted = useSetAtom(annotationSessionController.actions.markCompleted)
+    const syncScenarioOrder = useSetAtom(annotationSessionController.actions.syncScenarioOrder)
     const syncToTestsets = useSetAtom(annotationSessionController.actions.syncToTestsets)
 
     // Sync to testset state
@@ -150,18 +150,18 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
         })
     }, [applyRouteState, routeState.view, routeState.scenarioId, scenarioCount])
 
+    useEffect(() => {
+        syncScenarioOrder()
+    }, [syncScenarioOrder, scenariosQuery.data])
+
     // Callbacks for AnnotationPanel notifications
     const handleSaved = useCallback(() => {
         message.success("Annotations saved")
     }, [])
 
-    const handleCompleted = useCallback(
-        (scenarioId: string) => {
-            markCompleted(scenarioId)
-            message.success("Scenario completed")
-        },
-        [markCompleted],
-    )
+    const handleCompleted = useCallback((scenarioId: string) => {
+        message.success("Scenario completed")
+    }, [])
 
     const handleActiveViewChange = useCallback(
         (nextView: SessionView) => {
