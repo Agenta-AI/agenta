@@ -723,6 +723,9 @@ class EnvironmentsService:
                 environment_revision_commit=environment_revision_commit,
             )
 
+        if not environment_revision_commit.slug:
+            raise ValueError("slug is required for environment revision commit")
+
         dumped = environment_revision_commit.model_dump(
             mode="json",
             exclude_none=True,
@@ -838,6 +841,9 @@ class EnvironmentsService:
                 base_references.pop(key, None)
 
         # Reconstruct commit with full data (no delta)
+        if not environment_revision_commit.slug:
+            raise ValueError("slug is required for environment revision commit")
+
         environment_revision_commit = EnvironmentRevisionCommit(
             slug=environment_revision_commit.slug,
             name=environment_revision_commit.name,

@@ -1,9 +1,7 @@
-from typing import Any, Awaitable, Callable, Optional, Union
+from typing import Any, Awaitable, Callable
 
 import agenta as ag
-from pydantic import BaseModel, Field
 
-from agenta.sdk.models.shared import Data
 from agenta.sdk.engines.running.handlers import (
     auto_ai_critique_v0,
     auto_contains_all_v0,
@@ -32,42 +30,11 @@ from agenta.sdk.engines.running.handlers import (
 ManagedHandler = Callable[..., Awaitable[Any]]
 
 
-class WorkflowServiceData(BaseModel):
-    revision: Optional[Data] = None
-    inputs: Optional[Data] = None
-    parameters: Optional[Data] = None
-    outputs: Optional[Union[Data, str, int, float, bool, list, None]] = None
-    trace: Optional[Data] = None
-    testcase: Optional[Data] = None
-
-
-class WorkflowServiceRequest(BaseModel):
-    data: WorkflowServiceData = Field(default_factory=WorkflowServiceData)
-
-
 def _create_managed_service(
     handler: ManagedHandler,
 ):
     service_app = ag.create_app()
-
-    async def workflow_service(
-        request: WorkflowServiceRequest,
-    ):
-        data = request.data
-        return await handler(
-            request=None,
-            revision=data.revision,
-            inputs=data.inputs,
-            parameters=data.parameters,
-            outputs=data.outputs,
-            trace=data.trace,
-            testcase=data.testcase,
-        )
-
-    workflow_service.__name__ = handler.__name__
-    workflow_service.__qualname__ = handler.__name__
-    ag.route("/", app=service_app)(workflow_service)
-
+    ag.route("/", app=service_app)(handler)
     return service_app
 
 

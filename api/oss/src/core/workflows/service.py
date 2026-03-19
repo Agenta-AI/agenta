@@ -78,6 +78,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceRequest,  # noqa: F811
     WorkflowServiceBatchResponse,  # noqa: F811
     WorkflowServiceStreamResponse,  # noqa: F811
+    WorkflowRequestData,
 )
 
 log = get_module_logger(__name__)
@@ -799,6 +800,43 @@ class WorkflowsService:
         )
 
         credentials = f"Secret {secret_token}"
+
+        # Resolve references → inject revision into request.data before dispatch
+        if request.references and not (request.data and request.data.revision):
+            refs = request.references
+            workflow_revision = None
+
+            if "environment" in refs and self.environments_service:
+                env_revision = (
+                    await self.environments_service.fetch_environment_revision(
+                        project_id=project_id,
+                        environment_ref=refs["environment"],
+                    )
+                )
+                if env_revision and env_revision.data and env_revision.data.references:
+                    for _key, refs_dict in env_revision.data.references.items():
+                        wf_rev_ref = refs_dict.get("workflow_revision")
+                        if wf_rev_ref:
+                            workflow_revision = await self.fetch_workflow_revision(
+                                project_id=project_id,
+                                workflow_revision_ref=wf_rev_ref,
+                            )
+                            break
+
+            elif "workflow_revision" in refs or "workflow" in refs:
+                workflow_revision = await self.fetch_workflow_revision(
+                    project_id=project_id,
+                    workflow_ref=refs.get("workflow"),
+                    workflow_variant_ref=refs.get("workflow_variant"),
+                    workflow_revision_ref=refs.get("workflow_revision"),
+                )
+
+            if workflow_revision and workflow_revision.data:
+                if not request.data:
+                    request.data = WorkflowRequestData()
+                request.data.revision = {
+                    "data": workflow_revision.data.model_dump(mode="json")
+                }
 
         return await _invoke_workflow(
             request=request,

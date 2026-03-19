@@ -1,5 +1,5 @@
 from typing import Optional, List
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
 
@@ -1114,6 +1114,7 @@ class EvaluatorsRouter:
             user_id=UUID(request.state.user_id),
             #
             environment_revision_commit=EnvironmentRevisionCommit(
+                slug=uuid4().hex[-12:],
                 environment_id=environment_id,
                 environment_variant_id=environment_variant_id,
                 message=evaluator_deploy_request.message,

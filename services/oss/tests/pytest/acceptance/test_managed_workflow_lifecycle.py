@@ -244,11 +244,11 @@ MANAGED_WORKFLOW_CASES = [
             "service_path": "/builtin/auto_custom_code_run/v0",
             "parameters": {
                 "code": (
-                    "def evaluate(inputs, output, correct_answer):\n"
-                    "    return 1.0 if output == correct_answer else 0.0\n"
+                    "def evaluate(inputs, output, trace):\n"
+                    "    return 1.0 if output == inputs.get('correct_answer') else 0.0\n"
                 ),
                 "runtime": "python",
-                "version": "1",
+                "version": "2",
                 "correct_answer_key": "correct_answer",
                 "threshold": 0.5,
             },

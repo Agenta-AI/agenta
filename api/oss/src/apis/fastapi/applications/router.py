@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 from typing import Optional
 
 from fastapi import APIRouter, status, Request, Depends, HTTPException
@@ -1093,6 +1093,7 @@ class ApplicationsRouter:
             user_id=UUID(request.state.user_id),
             #
             environment_revision_commit=EnvironmentRevisionCommit(
+                slug=uuid4().hex[-12:],
                 environment_id=environment_id,
                 environment_variant_id=environment_variant_id,
                 message=application_deploy_request.message,
