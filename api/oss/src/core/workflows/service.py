@@ -7,6 +7,8 @@ if TYPE_CHECKING:
 
 from oss.src.utils.logging import get_module_logger
 
+from agenta.sdk.engines.running.utils import infer_flags_from_data
+
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.dtos import (
@@ -639,6 +641,15 @@ class WorkflowsService:
         #
         workflow_revision_commit: WorkflowRevisionCommit,
     ) -> Optional[WorkflowRevision]:
+        workflow_revision_commit = workflow_revision_commit.model_copy(
+            update={
+                "flags": infer_flags_from_data(
+                    flags=workflow_revision_commit.flags,
+                    data=workflow_revision_commit.data,
+                )
+            }
+        )
+
         _revision_commit = RevisionCommit(
             **workflow_revision_commit.model_dump(mode="json", exclude_none=True),
         )

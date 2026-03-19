@@ -2,13 +2,18 @@
 
 from typing import Optional, Tuple, Callable
 
-from agenta.sdk.models.workflows import WorkflowServiceInterface
+from agenta.sdk.models.workflows import (
+    WorkflowFlags,
+    WorkflowRevisionData,
+    WorkflowServiceInterface,
+)
 
 from agenta.sdk.engines.running.handlers import (
     # --- NEW URI
     trace_v0,
     hook_v0,
     code_v0,
+    snippet_v0,
     match_v0,
     prompt_v0,
     agent_v0,
@@ -41,6 +46,7 @@ from agenta.sdk.engines.running.interfaces import (
     trace_v0_interface,
     hook_v0_interface,
     code_v0_interface,
+    snippet_v0_interface,
     match_v0_interface,
     prompt_v0_interface,
     agent_v0_interface,
@@ -74,6 +80,7 @@ from agenta.sdk.engines.running.configurations import (
     trace_v0_configuration,
     hook_v0_configuration,
     code_v0_configuration,
+    snippet_v0_configuration,
     match_v0_configuration,
     prompt_v0_configuration,
     agent_v0_configuration,
@@ -108,6 +115,7 @@ INTERFACE_REGISTRY: dict = dict(
             trace=dict(v0=trace_v0_interface),
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
+            snippet=dict(v0=snippet_v0_interface),
         ),
         builtin=dict(
             # --- NEW URI
@@ -147,6 +155,7 @@ CONFIGURATION_REGISTRY: dict = dict(
             trace=dict(v0=trace_v0_configuration),
             hook=dict(v0=hook_v0_configuration),
             code=dict(v0=code_v0_configuration),
+            snippet=dict(v0=snippet_v0_configuration),
         ),
         builtin=dict(
             # --- NEW URI
@@ -215,6 +224,7 @@ HANDLER_REGISTRY: dict = dict(
             # --- NEW URI
             trace=dict(v0=trace_v0),
             hook=dict(v0=hook_v0),
+            snippet=dict(v0=snippet_v0),
             code=dict(v0=code_v0),
         ),
         builtin=dict(
@@ -381,3 +391,132 @@ def is_custom_uri(uri: Optional[str] = None) -> bool:
     provider, kind, key, version = parse_uri(uri)
 
     return provider == "user" and kind == "custom"
+
+
+# ---------------------------------------------------------------------------
+# Flag inference
+# ---------------------------------------------------------------------------
+
+# Positively exhaustive: every known agenta URI key must appear here.
+# Unknown agenta keys raise ValueError at write time — add new keys explicitly.
+# Format: (kind, key) → (is_application, is_evaluator, is_snippet)
+_AGENTA_ROLE_TABLE: dict = {
+    ("custom", "snippet"): (False, False, True),
+    # agenta:custom:* — user-deployed code running on agenta platform
+    ("custom", "code"): (True, True, False),
+    ("custom", "hook"): (True, True, False),
+    ("custom", "trace"): (True, True, False),
+    # agenta:builtin:* — application-only (not evaluators)
+    ("builtin", "chat"): (True, False, False),
+    ("builtin", "completion"): (True, False, False),
+    # agenta:builtin:* — both evaluator and application
+    ("builtin", "llm"): (True, True, False),
+    # agenta:builtin:* — evaluator-only
+    ("builtin", "match"): (False, True, False),
+    ("builtin", "prompt"): (False, True, False),
+    ("builtin", "agent"): (False, True, False),
+    ("builtin", "echo"): (False, True, False),
+    ("builtin", "human"): (False, True, False),
+    ("builtin", "auto_exact_match"): (False, True, False),
+    ("builtin", "auto_regex_test"): (False, True, False),
+    ("builtin", "field_match_test"): (False, True, False),
+    ("builtin", "json_multi_field_match"): (False, True, False),
+    ("builtin", "auto_webhook_test"): (False, True, False),
+    ("builtin", "auto_custom_code_run"): (False, True, False),
+    ("builtin", "auto_ai_critique"): (False, True, False),
+    ("builtin", "auto_starts_with"): (False, True, False),
+    ("builtin", "auto_ends_with"): (False, True, False),
+    ("builtin", "auto_contains"): (False, True, False),
+    ("builtin", "auto_contains_any"): (False, True, False),
+    ("builtin", "auto_contains_all"): (False, True, False),
+    ("builtin", "auto_contains_json"): (False, True, False),
+    ("builtin", "auto_json_diff"): (False, True, False),
+    ("builtin", "auto_levenshtein_distance"): (False, True, False),
+    ("builtin", "auto_similarity_match"): (False, True, False),
+    ("builtin", "auto_semantic_similarity"): (False, True, False),
+}
+
+
+def infer_flags_from_data(
+    *,
+    flags: Optional[WorkflowFlags] = None,
+    data: Optional[WorkflowRevisionData] = None,
+    handler: Optional[Callable] = None,  # SDK only — from HANDLER_REGISTRY lookup
+) -> WorkflowFlags:
+    """Infer the full WorkflowFlags from revision data and caller-provided role overrides.
+
+    Called at revision commit time in the core service layer.
+    Schema-derived flags (is_chat) are handled separately by the schema materializer.
+
+    Args:
+        flags: Caller-provided flags from the commit payload. is_evaluator, is_application,
+               and is_snippet are taken directly from here when provided (flags is not None).
+               All URI/interface flags are always re-inferred from data, ignoring any stored values.
+        data: WorkflowRevisionData containing uri, url, and script.
+        handler: In-process callable, if any (SDK only — None at the API layer).
+    """
+    uri = data.uri if data else None
+    url = data.url if data else None
+    script = data.script if data else None
+
+    provider, kind, key, version = parse_uri(uri) if uri else (None, None, None, None)
+
+    # topology
+    is_custom = kind == "custom"
+    is_managed = provider == "agenta"
+
+    # key-based type flags
+    is_llm = key == "llm"
+    is_hook = key == "hook"
+    is_code = key == "code"
+    is_trace = key == "trace"
+    is_match = key == "match"
+
+    # interface
+    has_url = bool(url)
+    has_handler = bool(handler)
+    has_script = bool(script)
+
+    # role defaults from lookup table
+    if kind and key:
+        table_key = (kind, key)
+        if is_managed and table_key not in _AGENTA_ROLE_TABLE:
+            raise ValueError(
+                f"Unknown agenta URI key ({kind!r}, {key!r}). "
+                "Add it to _AGENTA_ROLE_TABLE with explicit (is_application, is_evaluator, is_snippet)."
+            )
+        default_application, default_evaluator, default_snippet = (
+            _AGENTA_ROLE_TABLE.get(table_key, (False, False, False))
+        )
+    else:
+        # no URI — default: evaluator, not application, not snippet
+        default_application, default_evaluator, default_snippet = False, True, False
+
+    # caller-provided role flags win over table defaults when flags object is present
+    if flags is not None:
+        is_application = flags.is_application
+        is_evaluator = flags.is_evaluator
+        is_snippet = flags.is_snippet
+    else:
+        is_application = default_application
+        is_evaluator = default_evaluator
+        is_snippet = default_snippet
+
+    return WorkflowFlags(
+        # uri-derived
+        is_managed=is_managed,
+        is_custom=is_custom,
+        is_llm=is_llm,
+        is_hook=is_hook,
+        is_code=is_code,
+        is_trace=is_trace,
+        is_match=is_match,
+        # interface-derived
+        has_url=has_url,
+        has_handler=has_handler,
+        has_script=has_script,
+        # user-defined
+        is_evaluator=is_evaluator,
+        is_application=is_application,
+        is_snippet=is_snippet,
+    )

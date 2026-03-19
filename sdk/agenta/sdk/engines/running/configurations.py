@@ -4,6 +4,7 @@ from agenta.sdk.models.workflows import WorkflowServiceConfiguration
 trace_v0_configuration = WorkflowServiceConfiguration()
 hook_v0_configuration = WorkflowServiceConfiguration()
 code_v0_configuration = WorkflowServiceConfiguration()
+snippet_v0_configuration = WorkflowServiceConfiguration()
 match_v0_configuration = WorkflowServiceConfiguration()
 prompt_v0_configuration = WorkflowServiceConfiguration()
 agent_v0_configuration = WorkflowServiceConfiguration()

@@ -36,6 +36,7 @@ from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
     ErrorStatus,
     HookV0Error,
+    SnippetV0Error,
     InvalidConfigurationParametersV0Error,
     InvalidConfigurationParameterV0Error,
     InvalidInputsV0Error,
@@ -1167,6 +1168,26 @@ async def code_v0(
 
     raise InvalidOutputsV0Error(
         expected=["dict", "str", "int", "float", "bool"], got=_result
+    )
+
+
+@instrument()
+async def snippet_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    outputs: Optional[Union[Data, str]] = None,
+    trace: Optional[Data] = None,
+    testcase: Optional[Data] = None,
+) -> Any:
+    """
+    Interface-only handler for agenta:custom:snippet:v0.
+
+    Snippets are stored code fragments — they are not directly invocable.
+    """
+    raise SnippetV0Error(
+        message="agenta:custom:snippet:v0 is not runnable.",
     )
 
 

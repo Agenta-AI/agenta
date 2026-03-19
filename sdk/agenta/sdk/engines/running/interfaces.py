@@ -18,6 +18,11 @@ code_v0_interface = WorkflowServiceInterface(
     schemas=None,
 )
 
+snippet_v0_interface = WorkflowServiceInterface(
+    uri="agenta:custom:snippet:v0",
+    schemas=None,
+)
+
 match_v0_interface = WorkflowServiceInterface(
     uri="agenta:builtin:match:v0",
     schemas=dict(  # type: ignore

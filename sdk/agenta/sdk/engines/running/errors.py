@@ -340,6 +340,19 @@ class CodeV0Error(ErrorStatus):
         )
 
 
+class SnippetV0Error(ErrorStatus):
+    code: int = 500
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:snippet-error"
+
+    def __init__(self, message: str, stacktrace: Optional[str] = None):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=message,
+            stacktrace=stacktrace,
+        )
+
+
 class PromptV0Error(ErrorStatus):
     code: int = 500
     type: str = f"{ERRORS_BASE_URL}#v0:workflows:prompt-error"

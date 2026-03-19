@@ -92,17 +92,57 @@ class WorkflowRevisionIdAlias(AliasConfig):
 
 
 class WorkflowFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: bool = False
+    ## kind
     is_custom: bool = False
-    is_evaluator: bool = False
-    is_human: bool = False
+    ## key
+    is_llm: bool = False
+    is_hook: bool = False
+    is_code: bool = False
+    is_trace: bool = False
+    is_match: bool = False
+    # interface-derived
+    ## schema
     is_chat: bool = False
+    ## hook
+    has_url: bool = False
+    ## code
+    has_script: bool = False
+    ## function
+    has_handler: bool = False
+    # user-defined
+    is_application: bool = False
+    is_evaluator: bool = False
+    is_snippet: bool = False
 
 
 class WorkflowQueryFlags(BaseModel):
+    # uri-derived
+    ## source
+    is_managed: Optional[bool] = None
+    ## kind
     is_custom: Optional[bool] = None
-    is_evaluator: Optional[bool] = None
-    is_human: Optional[bool] = None
+    ## key
+    is_llm: Optional[bool] = None
+    is_hook: Optional[bool] = None
+    is_code: Optional[bool] = None
+    is_trace: Optional[bool] = None
+    is_match: Optional[bool] = None
+    # interface-derived
+    ## schema
     is_chat: Optional[bool] = None
+    ## hook
+    has_url: Optional[bool] = None
+    ## code
+    has_script: Optional[bool] = None
+    ## function
+    has_handler: Optional[bool] = None
+    # user-defined
+    is_application: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_snippet: Optional[bool] = None
 
 
 # workflows --------------------------------------------------------------------
