@@ -123,7 +123,7 @@ class workflow:
         script: Optional[str] = None,
         parameters: Optional[dict] = None,
         #
-        revision: Optional[Union[WorkflowRevisionData, Dict[str, Any]]] = None,
+        revision: Optional[dict] = None,
         # -------------------------------------------------------------------- #
         **kwargs,
     ):
@@ -143,9 +143,17 @@ class workflow:
         self.tags = tags
         self.meta = meta
         # -------------------------------------------------------------------- #
-        self.revision = (
-            WorkflowRevisionData(**revision) if isinstance(revision, dict) else revision
-        ) or WorkflowRevisionData(
+        # revision= always carries revision-shaped data (may be incomplete):
+        # {"data": {"uri": ..., "parameters": ...}, "id": ..., "slug": ...}
+        # Extract the data subkey; fall back to treating the whole dict as data.
+        if isinstance(revision, dict):
+            _rev_data = revision.get("data") if "data" in revision else revision
+            _data = WorkflowRevisionData(**_rev_data) if _rev_data else None
+        elif isinstance(revision, WorkflowRevisionData):
+            _data = revision
+        else:
+            _data = None
+        _data = _data or WorkflowRevisionData(
             uri=uri,
             url=url,
             headers=headers,
@@ -154,6 +162,23 @@ class workflow:
             script=script,
             parameters=parameters,
         )
+        # self.revision is WorkflowRevision — identity fields come from outer revision dict
+        # or from explicit id/slug/version kwargs.
+        _rev_id = id or (revision.get("id") if isinstance(revision, dict) else None)
+        _rev_slug = slug or (
+            revision.get("slug") if isinstance(revision, dict) else None
+        )
+        _rev_version = version or (
+            revision.get("version") if isinstance(revision, dict) else None
+        )
+        self.revision = WorkflowRevision(
+            id=_rev_id,
+            slug=_rev_slug,
+            version=_rev_version,
+            data=_data,
+        )
+        # -------------------------------------------------------------------- #
+        self.parameters = _data.parameters
         # -------------------------------------------------------------------- #
         self.kwargs = kwargs
         # -------------------------------------------------------------------- #
@@ -168,7 +193,7 @@ class workflow:
 
         self.default_request = None
 
-        self.uri = self.revision.uri
+        self.uri = _data.uri
 
         if self.uri is not None:
             self._retrieve_handler(self.uri)
@@ -176,17 +201,17 @@ class workflow:
             if self.handler:
                 registered = retrieve_interface(self.uri)
                 if registered:
-                    # merge registered interface into revision, keeping caller overrides
+                    # merge registered interface into revision data, keeping caller overrides
                     merged = registered.model_dump(exclude_none=True)
-                    merged.update(self.revision.model_dump(exclude_none=True))
-                    self.revision = WorkflowRevisionData(**merged)
-                    self.uri = self.revision.uri
+                    merged.update(self.revision.data.model_dump(exclude_none=True))
+                    self.revision.data = WorkflowRevisionData(**merged)
+                    self.uri = self.revision.data.uri
 
                 registered_config = retrieve_configuration(self.uri)
-                if registered_config and not self.revision.parameters:
-                    self.revision.parameters = registered_config.parameters
+                if registered_config and not self.revision.data.parameters:
+                    self.revision.data.parameters = registered_config.parameters
 
-                self.parameters = self.revision.parameters
+                self.parameters = self.revision.data.parameters
 
         if is_custom_uri(self.uri):
             self.flags = self.flags or dict()
@@ -229,10 +254,12 @@ class workflow:
             instrumented = auto_instrument(handler)
             uri = register_handler(instrumented, uri=uri)
             if self.revision is None:
-                self.revision = WorkflowRevisionData()
+                self.revision = WorkflowRevision(data=WorkflowRevisionData())
+            if self.revision.data is None:
+                self.revision.data = WorkflowRevisionData()
             self.uri = uri
-            self.revision.uri = uri
-            # schemas already populated from __init__ into self.revision.schemas
+            self.revision.data.uri = uri
+            # schemas already populated from __init__ into self.revision.data.schemas
             self.handler = instrumented
 
     def _retrieve_handler(self, uri: str):
@@ -240,10 +267,12 @@ class workflow:
         if self.handler is None:
             raise ValueError(f"Unable to retrieve handler for URI: {uri}")
         if self.revision is None:
-            self.revision = WorkflowRevisionData()
+            self.revision = WorkflowRevision(data=WorkflowRevisionData())
+        if self.revision.data is None:
+            self.revision.data = WorkflowRevisionData()
         self.uri = uri
-        self.revision.uri = uri
-        self.revision.schemas = self.revision.schemas or self.schemas
+        self.revision.data.uri = uri
+        # schemas already populated from __init__ into self.revision.data.schemas
 
     def _extend_handler(self):
         """Extend the registered handler with additional workflow capabilities.
@@ -329,8 +358,16 @@ class workflow:
                 running_ctx.secrets = secrets
                 running_ctx.credentials = credentials
 
-                running_ctx.revision = self.revision
-                running_ctx.schemas = self.revision.schemas if self.revision else None
+                running_ctx.revision = (
+                    self.revision.model_dump(mode="json", exclude_none=True)
+                    if self.revision
+                    else None
+                )
+                running_ctx.schemas = (
+                    self.revision.data.schemas
+                    if self.revision and self.revision.data
+                    else None
+                )
                 running_ctx.parameters = self.parameters
 
                 async def terminal(req: WorkflowInvokeRequest):
@@ -372,7 +409,11 @@ class workflow:
                 running_ctx = RunningContext.get()
 
                 running_ctx.credentials = credentials
-                running_ctx.revision = self.revision
+                running_ctx.revision = (
+                    self.revision.model_dump(mode="json", exclude_none=True)
+                    if self.revision
+                    else None
+                )
                 running_ctx.parameters = self.parameters
 
                 if self.default_request is None:
@@ -394,7 +435,7 @@ class workflow:
                                 name=self.name,
                                 description=self.description,
                                 #
-                                data=self.revision,
+                                data=self.revision.data,
                             ).model_dump(
                                 mode="json",
                                 exclude_none=True,
@@ -471,9 +512,7 @@ async def invoke_workflow(
     return await workflow(
         data=request.data,
         #
-        revision=request.data.revision.get("data")
-        if request.data and request.data.revision
-        else None,
+        revision=request.data.revision if request.data else None,
         #
         flags=request.flags,
         tags=request.tags,
@@ -570,9 +609,7 @@ async def invoke_application(
     return await application(
         data=request.data,
         #
-        revision=request.data.revision.get("data")
-        if request.data and request.data.revision
-        else None,
+        revision=request.data.revision if request.data else None,
         #
         flags=request.flags,
         tags=request.tags,
@@ -669,9 +706,7 @@ async def invoke_evaluator(
     return await evaluator(
         data=request.data,
         #
-        revision=request.data.revision.get("data")
-        if request.data and request.data.revision
-        else None,
+        revision=request.data.revision if request.data else None,
         #
         flags=request.flags,
         tags=request.tags,

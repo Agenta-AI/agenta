@@ -8,6 +8,8 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.applications.dtos import (
     Application,
+    ApplicationCatalogPreset,
+    ApplicationCatalogTemplate,
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
@@ -215,3 +217,23 @@ class ApplicationRevisionResolveResponse(BaseModel):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+class ApplicationCatalogTemplateResponse(BaseModel):
+    count: int = 0
+    template: Optional[ApplicationCatalogTemplate] = None
+
+
+class ApplicationCatalogTemplatesResponse(BaseModel):
+    count: int = 0
+    templates: List[ApplicationCatalogTemplate] = []
+
+
+class ApplicationCatalogPresetResponse(BaseModel):
+    count: int = 0
+    preset: Optional[ApplicationCatalogPreset] = None
+
+
+class ApplicationCatalogPresetsResponse(BaseModel):
+    count: int = 0
+    presets: List[ApplicationCatalogPreset] = []

@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
-from agenta.sdk.models.workflows import WorkflowServiceInterface
+from agenta.sdk.models.workflows import WorkflowRevisionData
 from agenta.sdk.workflows.errors import HookV0Error
 from agenta.sdk.workflows.handlers import (
     code_v0,
@@ -68,9 +68,9 @@ class TestTraceV0Acceptance:
         assert callable(handler)
 
     def test_interface_registry_lookup_returns_interface(self):
-        """retrieve_interface('agenta:custom:trace:v0') resolves to a WorkflowServiceInterface."""
-        interface = retrieve_interface("agenta:custom:trace:v0")
-        assert interface is not None
+        """retrieve_interface('agenta:custom:trace:v0') resolves to revision data."""
+        revision = retrieve_interface("agenta:custom:trace:v0")
+        assert revision is not None
 
     def test_calling_trace_v0_raises_hook_error(self):
         """Direct invocation of trace_v0 raises HookV0Error (interface-only contract)."""
@@ -147,8 +147,8 @@ class TestHookV0Acceptance:
 
         try:
             _hook_v0 = hook_v0.__wrapped__
-            interface = WorkflowServiceInterface(uri="agenta:custom:hook:v0", url=url)
-            ctx = RunningContext(interface=interface)
+            revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
+            ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
                 result = run(_hook_v0(inputs={"question": "Paris?"}, outputs="Paris"))
@@ -189,8 +189,8 @@ class TestHookV0Acceptance:
 
         try:
             _hook_v0 = hook_v0.__wrapped__
-            interface = WorkflowServiceInterface(uri="agenta:custom:hook:v0", url=url)
-            ctx = RunningContext(interface=interface)
+            revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
+            ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
                 run(_hook_v0(inputs={"city": "Paris"}, outputs="correct"))
@@ -230,8 +230,8 @@ class TestHookV0Acceptance:
 
         try:
             _hook_v0 = hook_v0.__wrapped__
-            interface = WorkflowServiceInterface(uri="agenta:custom:hook:v0", url=url)
-            ctx = RunningContext(interface=interface)
+            revision = WorkflowRevisionData(uri="agenta:custom:hook:v0", url=url)
+            ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
                 run(
@@ -478,9 +478,9 @@ class TestLlmV0Acceptance:
         assert handler == llm_v0
 
     def test_interface_registry_lookup_returns_interface(self):
-        interface = retrieve_interface("agenta:builtin:llm:v0")
-        assert isinstance(interface, WorkflowServiceInterface)
-        assert interface.uri == "agenta:builtin:llm:v0"
+        revision = retrieve_interface("agenta:builtin:llm:v0")
+        assert isinstance(revision, WorkflowRevisionData)
+        assert revision.uri == "agenta:builtin:llm:v0"
 
     def test_prompt_alias_is_not_registered(self):
         assert retrieve_handler("agenta:builtin:prompt:v0") is None

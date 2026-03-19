@@ -914,9 +914,6 @@ class SimpleEvaluatorsService:
                 exclude_unset=True,
             )
 
-        if "version" not in normalized_data_dict and simple_evaluator_data.version:
-            normalized_data_dict["version"] = simple_evaluator_data.version
-
         return SimpleEvaluatorData(
             **{
                 **normalized_data_dict,
@@ -1106,6 +1103,9 @@ class SimpleEvaluatorsService:
             tags=evaluator.tags,
             meta=evaluator.meta,
             #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
+            #
             data=simple_evaluator_data,
         )
 
@@ -1198,6 +1198,9 @@ class SimpleEvaluatorsService:
             flags=simple_evaluator_flags,
             tags=evaluator.tags,
             meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
             #
             data=simple_evaluator_data,
         )
@@ -1365,6 +1368,9 @@ class SimpleEvaluatorsService:
             flags=simple_evaluator_flags,
             tags=evaluator.tags,
             meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
             #
             data=simple_evaluator_data,
         )

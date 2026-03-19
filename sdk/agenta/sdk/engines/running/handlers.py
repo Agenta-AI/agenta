@@ -1021,7 +1021,11 @@ async def hook_v0(
     from agenta.sdk.contexts.running import RunningContext
 
     ctx = RunningContext.get()
-    webhook_url = ctx.interface.url if ctx.interface else None
+    revision = ctx.revision
+    if isinstance(revision, dict):
+        webhook_url = revision.get("url")
+    else:
+        webhook_url = getattr(revision, "url", None)
 
     if not webhook_url:
         raise MissingConfigurationParameterV0Error(path="url")

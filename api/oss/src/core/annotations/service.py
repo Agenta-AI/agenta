@@ -101,7 +101,6 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
-                version="2025.07.14",
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),
@@ -323,7 +322,6 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
-                version="2025.07.14",
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),

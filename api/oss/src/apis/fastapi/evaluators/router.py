@@ -88,6 +88,10 @@ from oss.src.apis.fastapi.evaluators.utils import (
 from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
 )
+from oss.src.resources.workflows.catalog import (
+    get_filtered_workflow_catalog_templates,
+    get_workflow_catalog_template,
+)
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -117,39 +121,13 @@ def _build_builtin_uri(key: str) -> str:
 
 
 def _registry_entry_to_catalog_template(entry: dict) -> "EvaluatorCatalogTemplate":
-    settings_template = entry.get("settings_template") or {}
-    outputs_schema = entry.get("outputs_schema")
-
-    schemas: dict = {"parameters": settings_template}
-    if outputs_schema is not None:
-        schemas["outputs"] = outputs_schema
-
-    return EvaluatorCatalogTemplate(
-        key=entry["key"],
-        name=entry.get("name"),
-        description=entry.get("description"),
-        archived=entry.get("archived") or False,
-        categories=entry.get("tags") or [],
-        data={
-            "uri": _build_builtin_uri(entry["key"]),
-            "schemas": schemas,
-        },
-    )
+    return EvaluatorCatalogTemplate(**entry)
 
 
 def _registry_preset_to_catalog_preset(
     preset: dict, *, uri: str
 ) -> "EvaluatorCatalogPreset":
-    return EvaluatorCatalogPreset(
-        key=preset["key"],
-        name=preset.get("name"),
-        description=preset.get("description"),
-        archived=preset.get("archived") or False,
-        data={
-            "uri": uri,
-            "parameters": preset.get("values") or {},
-        },
-    )
+    return EvaluatorCatalogPreset(**preset)
 
 
 class EvaluatorsRouter:
@@ -464,12 +442,10 @@ class EvaluatorsRouter:
         *,
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogTemplatesResponse:
-        from oss.src.resources.evaluators.evaluators import get_all_evaluators
-
         templates = [
             _registry_entry_to_catalog_template(entry)
-            for entry in get_all_evaluators()
-            if include_archived or not entry.get("archived", False)
+            for entry in get_filtered_workflow_catalog_templates(is_evaluator=True)
+            if include_archived or not entry["flags"]["is_archived"]
         ]
 
         return EvaluatorCatalogTemplatesResponse(
@@ -486,11 +462,9 @@ class EvaluatorsRouter:
         *,
         template_key: str,
     ) -> EvaluatorCatalogTemplateResponse:
-        from oss.src.resources.evaluators.evaluators import get_all_evaluators
-
-        entry = next(
-            (e for e in get_all_evaluators() if e.get("key") == template_key),
-            None,
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_evaluator=True,
         )
         template = _registry_entry_to_catalog_template(entry) if entry else None
 
@@ -509,20 +483,17 @@ class EvaluatorsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogPresetsResponse:
-        from oss.src.resources.evaluators.evaluators import get_all_evaluators
-
-        entry = next(
-            (e for e in get_all_evaluators() if e.get("key") == template_key),
-            None,
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_evaluator=True,
         )
         if not entry:
             return EvaluatorCatalogPresetsResponse()
 
-        uri = _build_builtin_uri(template_key)
         presets = [
-            _registry_preset_to_catalog_preset(p, uri=uri)
-            for p in entry.get("settings_presets") or []
-            if include_archived or not p.get("archived", False)
+            _registry_preset_to_catalog_preset(p, uri="")
+            for p in entry.get("presets") or []
+            if include_archived or not p["flags"]["is_archived"]
         ]
 
         return EvaluatorCatalogPresetsResponse(
@@ -540,26 +511,19 @@ class EvaluatorsRouter:
         template_key: str,
         preset_key: str,
     ) -> EvaluatorCatalogPresetResponse:
-        from oss.src.resources.evaluators.evaluators import get_all_evaluators
-
-        entry = next(
-            (e for e in get_all_evaluators() if e.get("key") == template_key),
-            None,
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_evaluator=True,
         )
         if not entry:
             return EvaluatorCatalogPresetResponse()
 
-        uri = _build_builtin_uri(template_key)
         raw_preset = next(
-            (
-                p
-                for p in (entry.get("settings_presets") or [])
-                if p.get("key") == preset_key
-            ),
+            (p for p in (entry.get("presets") or []) if p.get("key") == preset_key),
             None,
         )
         preset = (
-            _registry_preset_to_catalog_preset(raw_preset, uri=uri)
+            _registry_preset_to_catalog_preset(raw_preset, uri="")
             if raw_preset
             else None
         )

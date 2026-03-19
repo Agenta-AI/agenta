@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
-from agenta.sdk.models.workflows import WorkflowServiceInterface
+from agenta.sdk.models.workflows import WorkflowRevisionData
 from agenta.sdk.workflows.errors import (
     InvalidConfigurationParameterV0Error,
     MissingConfigurationParameterV0Error,
@@ -41,8 +41,11 @@ def run(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
-def make_interface(url: str) -> WorkflowServiceInterface:
-    return WorkflowServiceInterface(uri="user:custom:test:latest", url=url)
+def make_revision(url: str) -> dict:
+    return WorkflowRevisionData(
+        uri="user:custom:test:latest",
+        url=url,
+    ).model_dump(mode="json", exclude_none=True)
 
 
 def make_response(body, *, status_code: int = 200):
@@ -66,8 +69,8 @@ def make_response(body, *, status_code: int = 200):
 
 
 def with_url(url: str):
-    """Context manager that injects a RunningContext with the given interface URL."""
-    ctx = RunningContext(interface=make_interface(url))
+    """Context manager that injects a RunningContext with the given revision URL."""
+    ctx = RunningContext(revision=make_revision(url))
     return running_context_manager(ctx)
 
 
@@ -107,7 +110,7 @@ class TestHookV0UrlResolution:
             run(_hook_v0())
 
     def test_context_without_interface_raises_missing_url(self):
-        ctx = RunningContext(interface=None)
+        ctx = RunningContext(revision=None)
         with running_context_manager(ctx):
             with pytest.raises(MissingConfigurationParameterV0Error):
                 run(_hook_v0())

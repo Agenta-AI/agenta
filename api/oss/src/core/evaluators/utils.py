@@ -100,7 +100,6 @@ def build_evaluator_data(
     runtime = "python" if evaluator_key == "auto_custom_code_run" else None
 
     return SimpleEvaluatorData(
-        version=_DATA_VERSION,
         uri=uri,
         url=url,
         headers=None,

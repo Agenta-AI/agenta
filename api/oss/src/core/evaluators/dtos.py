@@ -1,7 +1,7 @@
-from typing import Any, Dict, List, Optional
+from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.shared.dtos import (
@@ -15,6 +15,10 @@ from oss.src.core.workflows.dtos import (
     ArtifactFork,  # noqa: F401
     VariantFork,
     RevisionFork,
+    #
+    WorkflowCatalogFlags,
+    WorkflowCatalogPreset,
+    WorkflowCatalogTemplate,
     #
     WorkflowFlags,
     WorkflowQueryFlags,
@@ -303,24 +307,12 @@ class SimpleEvaluatorQuery(Header, Metadata):
 # CATALOG ----------------------------------------------------------------------
 
 
-class EvaluatorCatalogPreset(BaseModel):
-    key: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    archived: Optional[bool] = None
-    recommended: Optional[bool] = None
-    categories: Optional[List[str]] = None
-    data: Optional[Dict[str, Any]] = None
+class EvaluatorCatalogPreset(WorkflowCatalogPreset):
+    flags: Optional[WorkflowCatalogFlags] = None
 
 
-class EvaluatorCatalogTemplate(BaseModel):
-    key: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    archived: Optional[bool] = None
-    recommended: Optional[bool] = None
-    categories: Optional[List[str]] = None
-    data: Optional[Dict[str, Any]] = None
+class EvaluatorCatalogTemplate(WorkflowCatalogTemplate):
+    flags: Optional[WorkflowCatalogFlags] = None
 
 
 # ------------------------------------------------------------------------------

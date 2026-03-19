@@ -260,7 +260,7 @@ WorkflowServiceRequest = WorkflowInvokeRequest
 class WorkflowInspectRequest(Metadata):
     version: Optional[str] = "2025.07.14"
 
-    revision: Optional[Union[WorkflowRevisionData, Dict[str, Any]]] = None
+    revision: Optional[Dict[str, Any]] = None
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
 
@@ -271,9 +271,6 @@ class WorkflowInspectRequest(Metadata):
                 k: (Reference(**v) if isinstance(v, dict) else v)
                 for k, v in values["references"].items()
             }
-
-        if "revision" in values and isinstance(values["revision"], dict):
-            values["revision"] = WorkflowRevisionData(**values["revision"])
 
         return values
 

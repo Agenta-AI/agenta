@@ -83,7 +83,13 @@ async def resolve_revision(
 
     ctx = RunningContext.get()
     if ctx.revision:
-        return WorkflowRevisionData(**ctx.revision)
+        if isinstance(ctx.revision, WorkflowRevisionData):
+            return ctx.revision
+        if isinstance(ctx.revision, dict):
+            # revision-shaped: {"data": {"uri": ...}} — or bare WorkflowRevisionData dict
+            _data = ctx.revision.get("data") if "data" in ctx.revision else ctx.revision
+            if _data:
+                return WorkflowRevisionData(**_data)
     return None
 
 
@@ -228,7 +234,11 @@ class ResolverMiddleware:
         handler = await resolve_handler(uri=(revision.uri if revision else None))
 
         ctx = RunningContext.get()
-        ctx.revision = revision.model_dump(mode="json") if revision else None
+        ctx.revision = (
+            {"data": revision.model_dump(mode="json", exclude_none=True)}
+            if revision
+            else None
+        )
         ctx.handler = handler
 
         if not request.data:

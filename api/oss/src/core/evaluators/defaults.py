@@ -143,7 +143,6 @@ async def create_default_human_evaluator(
                 is_human=True,
             ),
             data=SimpleEvaluatorData(
-                version="2025.07.14",
                 schemas={
                     "outputs": {
                         "type": "object",

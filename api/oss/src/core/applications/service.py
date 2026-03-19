@@ -1014,6 +1014,9 @@ class SimpleApplicationsService:
             meta=application.meta,
             tags=application.tags,
             #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
+            #
             data=SimpleApplicationData(
                 **(
                     application_revision.data.model_dump(mode="json")
@@ -1090,6 +1093,9 @@ class SimpleApplicationsService:
             flags=simple_application_flags,
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
@@ -1232,6 +1238,9 @@ class SimpleApplicationsService:
             flags=simple_application_flags,
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
