@@ -78,6 +78,7 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import SimpleWorkflowsService
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 from oss.src.core.environments.service import EnvironmentsService
@@ -106,6 +107,7 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
@@ -353,6 +355,10 @@ simple_evaluators_service = SimpleEvaluatorsService(
     evaluators_service=evaluators_service,
 )
 
+simple_workflows_service = SimpleWorkflowsService(
+    workflows_service=workflows_service,
+)
+
 simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
 )
@@ -480,6 +486,10 @@ folders = FoldersRouter(
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
     environments_service=environments_service,
+)
+
+simple_workflows = SimpleWorkflowsRouter(
+    simple_workflows_service=simple_workflows_service,
 )
 
 evaluators = EvaluatorsRouter(
@@ -705,6 +715,19 @@ app.include_router(
 app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
+    tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/simple/workflows",
+    tags=["Workflows"],
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/preview/simple/workflows",
     tags=["Workflows"],
     include_in_schema=False,
 )

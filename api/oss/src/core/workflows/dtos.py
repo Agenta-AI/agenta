@@ -33,6 +33,7 @@ from oss.src.core.shared.dtos import (  # noqa: F401
     Identifier,
     Slug,
     Version,
+    Lifecycle,
     Header,
     Data,
     Metadata,
@@ -303,3 +304,42 @@ class WorkflowFork(
         sync_alias("workflow_variant", "variant", self)
         sync_alias("workflow_revision_id", "revision_id", self)
         sync_alias("workflow_revision", "revision", self)
+
+
+# simple workflows -------------------------------------------------------------
+
+
+class SimpleWorkflowFlags(WorkflowFlags):
+    pass
+
+
+class SimpleWorkflowQueryFlags(WorkflowQueryFlags):
+    pass
+
+
+class SimpleWorkflowData(WorkflowRevisionData):
+    pass
+
+
+class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+    revision_id: Optional[UUID] = None
+
+
+class SimpleWorkflowCreate(Slug, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+
+class SimpleWorkflowEdit(Identifier, Header, Metadata):
+    flags: Optional[SimpleWorkflowFlags] = None
+
+    data: Optional[SimpleWorkflowData] = None
+
+
+class SimpleWorkflowQuery(Metadata):
+    flags: Optional[SimpleWorkflowQueryFlags] = None

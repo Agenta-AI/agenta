@@ -13,6 +13,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
+    SimpleWorkflowsService,
 )
 from oss.src.core.environments.service import (
     EnvironmentsService,
@@ -51,6 +52,12 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
     ResolutionInfo,
+    #
+    SimpleWorkflowCreateRequest,
+    SimpleWorkflowEditRequest,
+    SimpleWorkflowQueryRequest,
+    SimpleWorkflowResponse,
+    SimpleWorkflowsResponse,
 )
 from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_query_request_from_params,
@@ -1567,3 +1574,257 @@ class WorkflowsRouter:
 
         except Exception as exception:
             return await handle_inspect_failure(exception)
+
+
+class SimpleWorkflowsRouter:
+    def __init__(
+        self,
+        *,
+        simple_workflows_service: SimpleWorkflowsService,
+    ):
+        self.simple_workflows_service = simple_workflows_service
+
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/",
+            self.create_simple_workflow,
+            methods=["POST"],
+            operation_id="create_simple_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{workflow_id}",
+            self.fetch_simple_workflow,
+            methods=["GET"],
+            operation_id="fetch_simple_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{workflow_id}",
+            self.edit_simple_workflow,
+            methods=["PUT"],
+            operation_id="edit_simple_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{workflow_id}/archive",
+            self.archive_simple_workflow,
+            methods=["POST"],
+            operation_id="archive_simple_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{workflow_id}/unarchive",
+            self.unarchive_simple_workflow,
+            methods=["POST"],
+            operation_id="unarchive_simple_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/query",
+            self.query_simple_workflows,
+            methods=["POST"],
+            operation_id="query_simple_workflows",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleWorkflowsResponse,
+            response_model_exclude_none=True,
+        )
+
+    # SIMPLE WORKFLOWS ---------------------------------------------------------
+
+    @intercept_exceptions()
+    async def create_simple_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_id: Optional[UUID] = None,
+        #
+        simple_workflow_create_request: SimpleWorkflowCreateRequest,
+    ) -> SimpleWorkflowResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        simple_workflow = await self.simple_workflows_service.create(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            simple_workflow_create=simple_workflow_create_request.workflow,
+            #
+            workflow_id=workflow_id,
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return SimpleWorkflowResponse(
+            count=1 if simple_workflow else 0,
+            workflow=simple_workflow,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleWorkflowResponse(), exclude=[HTTPException])
+    async def fetch_simple_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_id: UUID,
+    ) -> SimpleWorkflowResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        simple_workflow = await self.simple_workflows_service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_id=workflow_id,
+        )
+
+        return SimpleWorkflowResponse(
+            count=1 if simple_workflow else 0,
+            workflow=simple_workflow,
+        )
+
+    @intercept_exceptions()
+    async def edit_simple_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_id: UUID,
+        #
+        simple_workflow_edit_request: SimpleWorkflowEditRequest,
+    ) -> SimpleWorkflowResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(workflow_id) != str(simple_workflow_edit_request.workflow.id):
+            return SimpleWorkflowResponse()
+
+        simple_workflow = await self.simple_workflows_service.edit(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            simple_workflow_edit=simple_workflow_edit_request.workflow,
+        )
+
+        return SimpleWorkflowResponse(
+            count=1 if simple_workflow else 0,
+            workflow=simple_workflow,
+        )
+
+    @intercept_exceptions()
+    async def archive_simple_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_id: UUID,
+    ) -> SimpleWorkflowResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        simple_workflow = await self.simple_workflows_service.archive(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            workflow_id=workflow_id,
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return SimpleWorkflowResponse(
+            count=1 if simple_workflow else 0,
+            workflow=simple_workflow,
+        )
+
+    @intercept_exceptions()
+    async def unarchive_simple_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_id: UUID,
+    ) -> SimpleWorkflowResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        simple_workflow = await self.simple_workflows_service.unarchive(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            workflow_id=workflow_id,
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return SimpleWorkflowResponse(
+            count=1 if simple_workflow else 0,
+            workflow=simple_workflow,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleWorkflowsResponse(), exclude=[HTTPException])
+    async def query_simple_workflows(
+        self,
+        request: Request,
+        *,
+        simple_workflow_query_request: SimpleWorkflowQueryRequest,
+    ) -> SimpleWorkflowsResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        simple_workflows = await self.simple_workflows_service.query(
+            project_id=UUID(request.state.project_id),
+            #
+            simple_workflow_query=simple_workflow_query_request.workflow,
+            #
+            include_archived=simple_workflow_query_request.include_archived,
+            #
+            windowing=simple_workflow_query_request.windowing,
+        )
+
+        return SimpleWorkflowsResponse(
+            count=len(simple_workflows),
+            workflows=simple_workflows,
+        )

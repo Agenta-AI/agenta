@@ -41,8 +41,12 @@ def create_account(ag_env):
     credentials = scope_data.get("credentials")
     assert credentials, "No credentials in scopes"
 
+    project_id = scope_data.get("project_id")
+    assert project_id, "No project_id in scopes"
+
     return {
         "api_url": api_url,
+        "project_id": project_id,
         "credentials": credentials,
     }
 

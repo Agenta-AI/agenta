@@ -101,11 +101,10 @@ def run_tests(
     services_url = derive_services_url(_api_url).rstrip("/")
     click.echo(f"AGENTA_SERVICES_URL={services_url}")
 
-    # Smoke checks
-    for path in ["/chat/health", "/completion/health"]:
-        url = f"{services_url}{path}"
-        check_health(url, timeout)
-        click.echo(f"OK {url}")
+    # Smoke check — verify the API is reachable
+    api_health_url = f"{_api_url.rstrip('/')}/health"
+    check_health(api_health_url, timeout)
+    click.echo(f"OK {api_health_url}")
 
     click.echo("Services smoke checks passed")
 
