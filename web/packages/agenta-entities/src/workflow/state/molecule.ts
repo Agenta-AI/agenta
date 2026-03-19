@@ -644,6 +644,14 @@ export const workflowMolecule = {
             params: Record<string, unknown>,
             options?: StoreOptions,
         ) => getStore(options).set(updateConfigurationAtom, workflowId, params),
+        /**
+         * Seed a workflow entity into the local server data store without
+         * persisting it to the API. Use this to pre-load a server-fetched
+         * Workflow so that `workflowMolecule.selectors.*` can resolve it
+         * in the default store without a React context or query subscription.
+         */
+        seedEntity: (workflowId: string, workflow: Workflow, options?: StoreOptions) =>
+            getStore(options).set(workflowLocalServerDataAtomFamily(workflowId), workflow),
     },
 
     // ========================================================================
