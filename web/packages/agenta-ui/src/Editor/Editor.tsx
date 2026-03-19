@@ -17,6 +17,7 @@ import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
+import {useSetAtom} from "jotai"
 import yaml from "js-yaml"
 import {
     COMMAND_PRIORITY_HIGH,
@@ -61,6 +62,7 @@ import {
     TokenBehaviorExtension,
     TokenBehaviorCoreExtension,
 } from "./plugins/token/extensions/tokenBehavior"
+import {markdownViewAtom} from "./state/assets/atoms"
 import type {EditorProps} from "./types"
 import {
     isEditorLargeDocument,
@@ -187,6 +189,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             () => !codeOnly && isLargeRichTextDocument(effectiveValue || ""),
             [codeOnly, effectiveValue],
         )
+        const setMarkdownView = useSetAtom(markdownViewAtom(id))
 
         const handleUpdate = useCallback(
             (editorState: EditorState, _editor: LexicalEditor, tags?: ReadonlySet<string>) => {
@@ -470,6 +473,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                 const codeNode = $createCodeNode("markdown")
                                 codeNode.append($createTextNode(hydrateWithRemoteContent))
                                 root.clear().append(codeNode)
+                                setMarkdownView(true)
                             } else {
                                 $convertFromMarkdownString(
                                     hydrateWithRemoteContent,

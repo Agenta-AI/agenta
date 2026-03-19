@@ -326,6 +326,17 @@ const MarkdownPlugin = ({
             (event: ClipboardEvent) => {
                 const clipboardPlainText = event.clipboardData?.getData("text/plain")
                 if (clipboardPlainText && isLargeRichTextDocument(clipboardPlainText)) {
+                    // Verify the current selection supports raw text insertion before
+                    // intercepting. TableSelection/NodeSelection etc. cannot accept
+                    // insertRawText, so fall back to Lexical's default paste handling.
+                    let hasRangeSelection = false
+                    editor.getEditorState().read(() => {
+                        hasRangeSelection = $isRangeSelection($getSelection())
+                    })
+                    if (!hasRangeSelection) {
+                        return false
+                    }
+
                     event.preventDefault()
                     event.stopPropagation()
 

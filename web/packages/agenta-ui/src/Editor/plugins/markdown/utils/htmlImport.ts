@@ -1,5 +1,6 @@
 import {$generateNodesFromDOM} from "@lexical/html"
 import {$convertFromMarkdownString} from "@lexical/markdown"
+import DOMPurify from "dompurify"
 import {$createParagraphNode, $createTextNode, $getRoot, type LexicalEditor} from "lexical"
 import {Parser, marked} from "marked"
 
@@ -101,7 +102,7 @@ export function $importMarkdownWithHtmlBatches(editor: LexicalEditor, markdown: 
         const tokenBatches = batchMarkdownTokens(markdown)
 
         for (const tokenBatch of tokenBatches) {
-            const html = Parser.parse(tokenBatch)
+            const html = DOMPurify.sanitize(Parser.parse(tokenBatch))
             const dom = parser.parseFromString(html, "text/html")
             const nodes = $generateNodesFromDOM(editor, dom)
 
