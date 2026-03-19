@@ -50,6 +50,7 @@ import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
 import {
     executionModeAtomFamily as runnableExecutionModeAtomFamily,
     invocationUrlAtomFamily as runnableInvocationUrlAtomFamily,
+    deploymentUrlAtomFamily as runnableDeploymentUrlAtomFamily,
     requestPayloadAtomFamily as runnableRequestPayloadAtomFamily,
 } from "./runnableSetup"
 import {
@@ -289,7 +290,13 @@ const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = !!entity?.flags?.is_evaluator
         if (isEvaluator) {
-            return nestEvaluatorConfiguration(flatParams as Record<string, unknown>)
+            const flatSchema =
+                (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+            const nested = nestEvaluatorConfiguration(
+                flatParams as Record<string, unknown>,
+                flatSchema,
+            )
+            return nested
         }
         return flatParams as Record<string, unknown>
     }),
@@ -310,8 +317,7 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = !!entity?.flags?.is_evaluator
         if (isEvaluator) {
-            const nested = nestEvaluatorSchema(flatSchema) as Record<string, unknown>
-            return nested
+            return nestEvaluatorSchema(flatSchema) as Record<string, unknown>
         }
         return flatSchema
     }),
@@ -433,7 +439,9 @@ const serverConfigurationAtomFamily = atomFamily((workflowId: string) =>
 
         const isEvaluator = !!serverData?.flags?.is_evaluator
         if (isEvaluator) {
-            return nestEvaluatorConfiguration(flatParams)
+            const flatSchema =
+                (serverData?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+            return nestEvaluatorConfiguration(flatParams, flatSchema)
         }
         return flatParams
     }),
@@ -535,8 +543,10 @@ export const workflowMolecule = {
         serverConfiguration: serverConfigurationAtomFamily,
         /** Execution mode: "chat" | "completion" from flags */
         executionMode: runnableExecutionModeAtomFamily,
-        /** Resolved invocation URL */
+        /** Resolved invocation URL (for playground execution via /preview/workflows/invoke) */
         invocationUrl: runnableInvocationUrlAtomFamily,
+        /** Deployment URL (for code snippets — user-facing /run endpoint) */
+        deploymentUrl: runnableDeploymentUrlAtomFamily,
         /** Pre-built request payload for execution */
         requestPayload: runnableRequestPayloadAtomFamily,
     },
@@ -613,6 +623,8 @@ export const workflowMolecule = {
             getStore(options).get(runnableExecutionModeAtomFamily(workflowId)),
         invocationUrl: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(runnableInvocationUrlAtomFamily(workflowId)),
+        deploymentUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableDeploymentUrlAtomFamily(workflowId)),
         serverData: (workflowId: string, options?: StoreOptions) =>
             getStore(options).get(serverDataAtomFamily(workflowId)),
     },

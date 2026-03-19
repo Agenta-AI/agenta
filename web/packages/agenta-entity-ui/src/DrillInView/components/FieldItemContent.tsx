@@ -137,6 +137,8 @@ export function FieldItemContent({
             if (shouldRenderObjectInline(schema)) return true
             // Check for feedback_config x-parameter
             if (xParam === "feedback_config") return true
+            // Check for fields_tags_editor x-parameter
+            if (xParam === "fields_tags_editor") return true
         }
         // Value-based detection (no schema)
         if (isPromptValue(item.value)) return true

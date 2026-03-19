@@ -47,7 +47,10 @@ export function isEvaluatorFlatParams(params: Record<string, unknown> | null | u
  * Hidden fields (not rendered): version, correct_answer_key, threshold
  * These are stored but not shown in the UI config section.
  */
-export function nestEvaluatorConfiguration(flat: Record<string, unknown>): Record<string, unknown> {
+export function nestEvaluatorConfiguration(
+    flat: Record<string, unknown>,
+    schema?: Record<string, unknown> | null,
+): Record<string, unknown> {
     // Handle already-nested data: extract feedback_config from prompt.llm_config.response_format
     if (!isEvaluatorFlatParams(flat)) {
         // Check if data is already nested with prompt.llm_config.response_format
@@ -69,6 +72,30 @@ export function nestEvaluatorConfiguration(flat: Record<string, unknown>): Recor
                 feedback_config: responseFormat,
             }
         }
+
+        // Non-LLM evaluator: group x-advanced fields under advanced_settings
+        // to match the schema transform from nestEvaluatorSchema.
+        const schemaProps = schema?.properties as
+            | Record<string, Record<string, unknown>>
+            | undefined
+        if (schemaProps) {
+            const advancedKeys = Object.entries(schemaProps)
+                .filter(([, prop]) => prop["x-advanced"] === true)
+                .map(([key]) => key)
+            if (advancedKeys.length > 0) {
+                const primaryData: Record<string, unknown> = {}
+                const advancedData: Record<string, unknown> = {}
+                for (const [key, value] of Object.entries(flat)) {
+                    if (advancedKeys.includes(key)) {
+                        advancedData[key] = value
+                    } else {
+                        primaryData[key] = value
+                    }
+                }
+                return {...primaryData, advanced_settings: advancedData}
+            }
+        }
+
         return flat
     }
 
@@ -119,6 +146,13 @@ export function flattenEvaluatorConfiguration(
     nested: Record<string, unknown>,
     originalFlat: Record<string, unknown> | null,
 ): Record<string, unknown> {
+    // Non-LLM evaluator: unwrap advanced_settings back to flat
+    if (nested.advanced_settings && !nested.prompt) {
+        const {advanced_settings, ...rest} = nested
+        const advancedData = advanced_settings as Record<string, unknown>
+        return {...rest, ...advancedData}
+    }
+
     const prompt = nested.prompt as Record<string, unknown> | undefined
     if (!prompt || !prompt.messages) return nested
 
@@ -181,6 +215,53 @@ function buildFeedbackConfigSchema(
 }
 
 // ============================================================================
+// NON-LLM EVALUATOR SCHEMA GROUPING
+// ============================================================================
+
+/**
+ * Group non-LLM evaluator schema properties into primary fields and an
+ * "Advanced Settings" collapsible section, matching the legacy evaluator form.
+ *
+ * Properties with `x-advanced: true` (set by template UI hints) are placed
+ * under an "Advanced Settings" inline object. Remaining properties render
+ * as top-level inline fields.
+ */
+function nestNonLlmEvaluatorSchema(
+    flatSchema: Record<string, unknown>,
+    properties: Record<string, Record<string, unknown>>,
+): Record<string, unknown> {
+    const primaryProps: Record<string, Record<string, unknown>> = {}
+    const advancedProps: Record<string, Record<string, unknown>> = {}
+
+    for (const [key, prop] of Object.entries(properties)) {
+        if (prop["x-advanced"] === true) {
+            // Strip x-advanced from the prop since the grouping handles visibility
+            const {["x-advanced"]: _, ...cleanProp} = prop
+            advancedProps[key] = cleanProp
+        } else {
+            primaryProps[key] = prop
+        }
+    }
+
+    const resultProperties: Record<string, unknown> = {...primaryProps}
+
+    if (Object.keys(advancedProps).length > 0) {
+        resultProperties.advanced_settings = {
+            type: "object",
+            title: "Advanced Settings",
+            "x-parameter": "inline",
+            properties: advancedProps,
+        }
+    }
+
+    return {
+        ...flatSchema,
+        type: "object",
+        properties: resultProperties,
+    }
+}
+
+// ============================================================================
 // SCHEMA TRANSFORMS
 // ============================================================================
 
@@ -194,7 +275,7 @@ function buildFeedbackConfigSchema(
  * Hidden fields (not in output schema): version, correct_answer_key, threshold
  */
 export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record<string, unknown> {
-    const properties = flatSchema.properties as Record<string, unknown> | undefined
+    const properties = flatSchema.properties as Record<string, Record<string, unknown>> | undefined
     if (!properties || !properties.prompt_template || !properties.model) {
         // Handle already-nested schema: the API may return a pre-nested schema without
         // feedback_config. Since nestEvaluatorConfiguration creates feedback_config from
@@ -210,6 +291,14 @@ export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record
                 },
             }
         }
+
+        // Non-LLM evaluators: group x-advanced fields under "Advanced Settings"
+        // so the playground renders them in a collapsible section matching the
+        // legacy evaluator form layout.
+        if (properties) {
+            return nestNonLlmEvaluatorSchema(flatSchema, properties)
+        }
+
         return flatSchema
     }
 

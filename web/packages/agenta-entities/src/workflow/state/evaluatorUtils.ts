@@ -266,8 +266,9 @@ function extractDefaultValues(settingsTemplate: Record<string, unknown>): Record
             const meta = value as Record<string, unknown>
             if ("default" in meta) {
                 result[key] = meta.default
-            } else {
-                result[key] = value
+            } else if (meta.type !== "hidden") {
+                // No default → include key with null so the field appears in the UI
+                result[key] = null
             }
         } else {
             result[key] = value
@@ -333,6 +334,11 @@ function settingsTemplateToJsonSchema(
                 break
             case "messages":
                 prop.type = "array"
+                break
+            case "fields_tags_editor":
+                prop.type = "array"
+                prop.items = {type: "string"}
+                prop["x-parameter"] = "fields_tags_editor"
                 break
             default:
                 prop.type = "string"
@@ -471,7 +477,7 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
             is_evaluator: true,
             is_human: false,
             is_chat: false,
-            is_base: true,
+            is_base: false,
         },
         data: {
             uri,

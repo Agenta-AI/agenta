@@ -24,6 +24,7 @@ import {BooleanToggleControl} from "./BooleanToggleControl"
 import {CodeEditorControl} from "./CodeEditorControl"
 import {EnumSelectControl} from "./EnumSelectControl"
 import {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
+import {FieldsTagsEditorControl} from "./FieldsTagsEditorControl"
 import {GroupedChoiceControl} from "./GroupedChoiceControl"
 import {MessagesSchemaControl, isMessagesSchema} from "./MessagesSchemaControl"
 import {NumberSliderControl} from "./NumberSliderControl"
@@ -94,6 +95,7 @@ function getControlType(
     | "prompt"
     | "grouped_choice"
     | "feedback_config"
+    | "fields_tags_editor"
     | "unknown" {
     if (forceType) return forceType
 
@@ -101,6 +103,9 @@ function getControlType(
     const xParam = schema?.["x-parameter"] as string | undefined
     if (xParam === "feedback_config") {
         return "feedback_config"
+    }
+    if (xParam === "fields_tags_editor") {
+        return "fields_tags_editor"
     }
 
     // When schema is null, fall back to value-based detection
@@ -450,6 +455,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                         properties (click to expand)
                     </Typography.Text>
                 </div>
+            )
+
+        case "fields_tags_editor":
+            return (
+                <FieldsTagsEditorControl
+                    schema={resolvedSchema}
+                    label={displayLabel}
+                    value={Array.isArray(value) ? (value as string[]) : []}
+                    onChange={(v) => onChange(v)}
+                    description={tooltipDesc}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    className={className}
+                />
             )
 
         case "array":
