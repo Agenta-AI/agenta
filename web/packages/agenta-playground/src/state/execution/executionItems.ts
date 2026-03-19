@@ -528,7 +528,11 @@ export function createExecutionItemHandle(params: CreateExecutionItemParams): Ex
                     .filter((key): key is string => typeof key === "string" && key.length > 0),
             ),
         )
-        const variablesFromPayload = requestPayload?.variables ?? []
+        // Extract variables: for __rawBody app workflows, variables are in __meta
+        const rawPayload = requestPayload as Record<string, unknown> | null
+        const rawMeta = rawPayload?.__meta as Record<string, unknown> | undefined
+        const variablesFromPayload =
+            (rawMeta?.variables as string[]) ?? requestPayload?.variables ?? []
         const variables =
             variablesFromInputPorts.length > 0 ? variablesFromInputPorts : variablesFromPayload
 
@@ -1102,12 +1106,96 @@ function buildExecutionItem(
 
     // When the entity provides a pre-built request body (e.g. workflow invoke),
     // use it directly instead of building a legacy ag_config body.
-    const isRawBody = !!(requestPayload as Record<string, unknown> | null)?.__rawBody
+    const rawPayloadRecord = asRecord(requestPayload)
+    const isRawBody = !!rawPayloadRecord?.__rawBody
+    const isAppWorkflow = !!rawPayloadRecord?.__appWorkflow
     const requestBody = isRawBody
         ? (() => {
-              const rawPayload = asRecord(requestPayload)
-              if (!rawPayload) return {}
-              const {__rawBody: _, invocationUrl: _url, ...body} = rawPayload
+              if (!rawPayloadRecord) return {}
+
+              if (isAppWorkflow) {
+                  // App workflow __rawBody: use buildRequestBody to resolve inputs/messages
+                  // from the current row, then wrap into the invoke payload format.
+                  const meta = rawPayloadRecord.__meta as Record<string, unknown> | undefined
+                  const appPayload: RequestPayloadData = {
+                      ag_config: (meta?.agConfig as Record<string, unknown>) ?? {},
+                      isChat: (meta?.isChat as boolean) ?? false,
+                      appType: null,
+                      invocationUrl: null,
+                      runtimePrefix: (meta?.runtimePrefix as string) ?? null,
+                      variables: (meta?.variables as string[]) ?? [],
+                      spec: meta?.spec,
+                      routePath: meta?.routePath as string | undefined,
+                      isCustom: false,
+                      appId: (meta?.appId as string) ?? null,
+                  }
+                  const legacyBody = buildRequestBody(mode, {
+                      entityData,
+                      inputRow: params.inputRow,
+                      chatHistory: params.chatHistory,
+                      requestPayload: appPayload,
+                      variables: params.variables || [],
+                      variableValues: params.variableValues || {},
+                      entityId: params.entityId,
+                      agConfigFallbacks: params.agConfigFallbacks,
+                  })
+
+                  // Extract parts from the legacy body to build the invoke format
+                  const {
+                      ag_config: legacyAgConfig,
+                      inputs: legacyInputs,
+                      messages: legacyMessages,
+                      references: legacyRefs,
+                      ...legacyRest
+                  } = legacyBody as Record<string, unknown>
+
+                  // Build data.inputs: for chat mode, include messages in inputs
+                  const dataInputs: Record<string, unknown> = {}
+                  if (legacyInputs && typeof legacyInputs === "object") {
+                      Object.assign(dataInputs, legacyInputs)
+                  }
+                  if (Array.isArray(legacyMessages) && legacyMessages.length > 0) {
+                      dataInputs.messages = legacyMessages
+                  }
+                  // Include any extra top-level fields from legacy body
+                  // (e.g. custom workflow fields)
+                  for (const [key, value] of Object.entries(legacyRest)) {
+                      if (value !== undefined) {
+                          dataInputs[key] = value
+                      }
+                  }
+
+                  // Build the invoke format
+                  const {
+                      __rawBody: _,
+                      __appWorkflow: _aw,
+                      __meta: _m,
+                      ...baseBody
+                  } = rawPayloadRecord
+                  const body: Record<string, unknown> = {
+                      ...baseBody,
+                      configuration: legacyAgConfig
+                          ? {parameters: legacyAgConfig as Record<string, unknown>}
+                          : baseBody.configuration,
+                      data: {
+                          inputs: dataInputs,
+                      },
+                  }
+
+                  // Merge references from legacy body and raw payload
+                  const refs = {
+                      ...(asRecord(baseBody.references) ?? {}),
+                      ...(asRecord(legacyRefs) ?? {}),
+                  }
+                  if (Object.keys(refs).length > 0) {
+                      body.references = refs
+                  }
+
+                  return body
+              }
+
+              // Evaluator / other __rawBody payloads: pass through as before
+              const {__rawBody: _, invocationUrl: _url, ...body} = rawPayloadRecord
               // When inputValues are provided (e.g. from chain execution),
               // merge them into the raw body's inputs field.
               if (params.inputValues && Object.keys(params.inputValues).length > 0) {
