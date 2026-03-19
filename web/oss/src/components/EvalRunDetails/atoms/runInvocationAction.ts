@@ -276,6 +276,7 @@ export const triggerRunInvocationAtom = atom(
                 appId,
                 requestBody,
                 references,
+                workflow,
             })
 
             if (result.success) {

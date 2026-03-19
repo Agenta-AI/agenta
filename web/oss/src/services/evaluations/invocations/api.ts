@@ -4,6 +4,9 @@
  * and updating step results with the invocation response.
  */
 
+import type {Workflow} from "@agenta/entities/workflow"
+import {getAgentaApiUrl} from "@agenta/shared/api"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
@@ -33,6 +36,8 @@ export interface RunInvocationParams {
     requestBody: Record<string, any>
     /** References to store in the step result */
     references?: InvocationReferences
+    /** Full workflow entity — used to determine the correct invocation endpoint */
+    workflow?: Workflow
 }
 
 export interface InvocationResult {
@@ -78,8 +83,29 @@ const spanHexToUuid = (hex: string): string => {
  * @param params - The invocation parameters
  * @returns The invocation result with success status and response data
  */
+/**
+ * Determine whether this workflow should be invoked via the unified
+ * `/preview/workflows/invoke` endpoint (returns true) or the legacy
+ * `/test` endpoint (returns false).
+ *
+ * Mirrors the logic in `invocationUrlAtomFamily` (runnableSetup.ts):
+ * - Custom app with URL but no URI → legacy /test
+ * - Everything else with uri/url → /preview/workflows/invoke
+ */
+function shouldUseUnifiedInvoke(workflow: Workflow | undefined): boolean {
+    if (!workflow?.data) return false
+    const isCustom = workflow.flags?.is_custom ?? false
+    const uri = workflow.data.uri
+    const url = workflow.data.url
+    // Custom app without URI: legacy /test
+    if (isCustom && url && !uri) return false
+    // Has URI or URL (and not the custom-no-uri case): unified invoke
+    if (uri || url) return true
+    return false
+}
+
 export const runInvocation = async (params: RunInvocationParams): Promise<InvocationResult> => {
-    const {runId, scenarioId, stepKey, appUrl, appId, requestBody, references} = params
+    const {runId, scenarioId, stepKey, appUrl, appId, requestBody, references, workflow} = params
     const {projectId} = getProjectValues()
 
     if (!projectId) {
@@ -87,14 +113,38 @@ export const runInvocation = async (params: RunInvocationParams): Promise<Invoca
     }
 
     try {
-        // 1. Call the app's /test endpoint
-        const testUrl = `${appUrl}/test`
+        let invocationUrl: string
+        let finalRequestBody: Record<string, any>
         const queryParams = new URLSearchParams({
             application_id: appId,
             project_id: projectId,
         })
 
-        const response = await axios.post(`${testUrl}?${queryParams.toString()}`, requestBody, {
+        if (shouldUseUnifiedInvoke(workflow)) {
+            // 1a. Call the unified /preview/workflows/invoke endpoint
+            const apiUrl = getAgentaApiUrl()
+            invocationUrl = `${apiUrl}/preview/workflows/invoke?${queryParams.toString()}`
+            const uri = workflow!.data?.uri
+            const url = workflow!.data?.url
+            // requestBody here is {ag_config, inputs} — reshape to invoke format
+            const agConfig = requestBody.ag_config ?? {}
+            const inputs = requestBody.inputs ?? {}
+            finalRequestBody = {
+                interface: uri ? {uri} : {url},
+                configuration:
+                    agConfig && Object.keys(agConfig).length > 0
+                        ? {parameters: agConfig}
+                        : undefined,
+                data: {inputs},
+            }
+        } else {
+            // 1b. Call the legacy /test endpoint (custom apps without URI)
+            invocationUrl = `${appUrl}/test?${queryParams.toString()}`
+            finalRequestBody = requestBody
+        }
+
+        // 1. Invoke the workflow
+        const response = await axios.post(invocationUrl, finalRequestBody, {
             headers: {
                 "Content-Type": "application/json",
                 "ngrok-skip-browser-warning": "1",
