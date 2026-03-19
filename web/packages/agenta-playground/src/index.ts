@@ -80,3 +80,13 @@ export type {PlaygroundEntityProviders} from "./state"
 export type {PlaygroundTestResult, PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
+
+// ============================================================================
+// STANDALONE EXECUTION (no React context needed)
+// ============================================================================
+
+export {executeWorkflowRevision} from "./executeWorkflowRevision"
+export type {
+    ExecuteWorkflowRevisionParams,
+    ExecuteWorkflowRevisionResult,
+} from "./executeWorkflowRevision"

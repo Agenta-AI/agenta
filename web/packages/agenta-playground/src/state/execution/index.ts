@@ -266,6 +266,12 @@ export {
 export type {RenderableExecutionItem, RenderableExecutionRow} from "./selectors"
 
 // ============================================================================
+// RUNNER (standalone imperative execution)
+// ============================================================================
+
+export {executeStepForSessionWithExecutionItems} from "./executionRunner"
+
+// ============================================================================
 // GENERATION SELECTORS (higher-level UI selectors)
 // ============================================================================
 
