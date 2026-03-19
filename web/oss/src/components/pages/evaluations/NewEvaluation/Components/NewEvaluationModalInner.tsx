@@ -22,7 +22,10 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {clearEvaluatorWorkflowNameCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {
+    clearEvaluatorWorkflowNameCache,
+    evaluatorsPaginatedStore,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
 import {registryWorkflowIdOverrideAtom} from "@/oss/components/VariantsComponents/store/registryStore"
 import useURL from "@/oss/hooks/useURL"
@@ -164,6 +167,24 @@ const NewEvaluationModalInner = ({
     const [selectedTestsetName, setSelectedTestsetName] = useAtom(selectedTestsetNameAtom)
     const [selectedTestsetVersion, setSelectedTestsetVersion] = useAtom(selectedTestsetVersionAtom)
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useAtom(selectedEvalConfigsAtom)
+
+    // Read evaluator rows from the paginated store for revision ID → {id, slug} lookup
+    const evaluatorStoreState = useAtomValue(
+        evaluatorsPaginatedStore.selectors.state({
+            scopeId: "evaluation-evaluator-selector",
+            pageSize: 50,
+        }),
+    )
+    const evaluatorRowsByRevisionId = useMemo(() => {
+        const map = new Map<string, {id: string; slug: string; name: string}>()
+        for (const row of evaluatorStoreState.rows) {
+            if (!row.__isSkeleton && row.revisionId) {
+                // Backend resolves evaluator references by workflow (artifact) ID, not revision ID
+                map.set(row.revisionId, {id: row.workflowId, slug: row.slug, name: row.name})
+            }
+        }
+        return map
+    }, [evaluatorStoreState.rows])
 
     // Reset testset selection on mount to match previous local state behavior
     useEffect(() => {
@@ -477,7 +498,7 @@ const NewEvaluationModalInner = ({
                     revisions: selectedRevisions,
                     testset: selectionTestset,
                     evaluators: selectedEvalConfigs
-                        .map((id) => workflowMolecule.get.data(id))
+                        .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
                     rate_limit: rateLimitValues,
                     correctAnswerColumn: correct_answer_column,
