@@ -117,6 +117,9 @@ const AnnotationPanel = memo(function AnnotationPanel({
 
     const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
     const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
+    const hasFilledMetrics = useAtomValue(
+        annotationFormController.selectors.hasFilledMetrics(scenarioId),
+    )
     const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
     const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
@@ -294,7 +297,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     type="primary"
                     block
                     onClick={handleCompleteAndAdvance}
-                    disabled={isSubmitting || isCompleted}
+                    disabled={isSubmitting || isCompleted || !hasFilledMetrics}
                     loading={isSubmitting}
                 >
                     {isCompleted ? "Completed" : "Annotate"}

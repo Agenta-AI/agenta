@@ -839,6 +839,16 @@ const hasPendingChangesAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/** Whether the form has at least one non-empty metric value */
+const hasFilledMetricsAtomFamily = atomFamily(
+    (scenarioId: string) =>
+        atom((get) => {
+            const metrics = get(effectiveMetricsAtomFamily(scenarioId))
+            return Object.values(metrics).some((fields) => !isEmptyMetrics(fields))
+        }),
+    (a, b) => a === b,
+)
+
 /** Resolved evaluators for the current session */
 const evaluatorsAtomFamily = atomFamily(
     (scenarioId: string) =>
@@ -1222,6 +1232,10 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
 
     try {
         const metrics = get(effectiveMetricsAtomFamily(scenarioId))
+        const hasFilledMetrics = get(hasFilledMetricsAtomFamily(scenarioId))
+        if (!hasFilledMetrics) {
+            throw new Error("Select or enter at least one annotation value")
+        }
         const evalIds = get(evaluatorIdsAtom)
         const existingAnnotations =
             get(annotationSessionController.selectors.scenarioAnnotations(scenarioId)) ?? []
@@ -1504,6 +1518,8 @@ export const annotationFormController = {
         effectiveMetrics: (scenarioId: string) => effectiveMetricsAtomFamily(scenarioId),
         /** Whether there are unsaved changes */
         hasPendingChanges: (scenarioId: string) => hasPendingChangesAtomFamily(scenarioId),
+        /** Whether the form has at least one non-empty metric value */
+        hasFilledMetrics: (scenarioId: string) => hasFilledMetricsAtomFamily(scenarioId),
         /** Whether a submission is in progress */
         isSubmitting: (scenarioId: string) => isSubmittingAtomFamily(scenarioId),
         /** Evaluator IDs for the session */
@@ -1539,6 +1555,8 @@ export const annotationFormController = {
             getStore().get(effectiveMetricsAtomFamily(scenarioId)),
         hasPendingChanges: (scenarioId: string) =>
             getStore().get(hasPendingChangesAtomFamily(scenarioId)),
+        hasFilledMetrics: (scenarioId: string) =>
+            getStore().get(hasFilledMetricsAtomFamily(scenarioId)),
         isSubmitting: (scenarioId: string) => getStore().get(isSubmittingAtomFamily(scenarioId)),
         evaluatorIds: () => getStore().get(evaluatorIdsAtom),
         evaluators: (scenarioId: string) => getStore().get(evaluatorsAtomFamily(scenarioId)),
