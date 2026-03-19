@@ -47,7 +47,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     // Get invocation URL and input ports from workflow molecule
     const uri = useAtomValue(
         useMemo(
-            () => workflowMolecule.selectors.invocationUrl(selectedRevisionId || ""),
+            () => workflowMolecule.selectors.deploymentUrl(selectedRevisionId || ""),
             [selectedRevisionId],
         ),
     )

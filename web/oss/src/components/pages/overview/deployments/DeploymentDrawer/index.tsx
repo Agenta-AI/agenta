@@ -72,7 +72,7 @@ const DeploymentDrawer = ({
     const deployedRevisionId = selectedEnvironment?.deployedRevisionId || ""
     const uri = useAtomValue(
         useMemo(
-            () => workflowMolecule.selectors.invocationUrl(deployedRevisionId),
+            () => workflowMolecule.selectors.deploymentUrl(deployedRevisionId),
             [deployedRevisionId],
         ),
     )

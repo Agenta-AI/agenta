@@ -48,7 +48,7 @@ const UseApiContent = ({
 
     const uri = useAtomValue(
         useMemo(
-            () => workflowMolecule.selectors.invocationUrl(effectiveRevisionId || ""),
+            () => workflowMolecule.selectors.deploymentUrl(effectiveRevisionId || ""),
             [effectiveRevisionId],
         ),
     )
@@ -70,12 +70,8 @@ const UseApiContent = ({
         return createParams(synthesized, envName || "none", "add_a_value", currentApp)
     }, [variableNames, envName, currentApp])
 
-    // invocationUrl resolves to /test (expects config in body).
-    // For deployment context we use /run (resolves config from the deployed environment).
-    const invokeLlmUrl = useMemo(() => {
-        if (!uri) return ""
-        return uri.trim().replace(/\/test$/, "/run")
-    }, [uri])
+    // deploymentUrl resolves to /run (resolves config from the deployed environment).
+    const invokeLlmUrl = useMemo(() => uri?.trim() || "", [uri])
 
     const invokeLlmAppCodeSnippet = useMemo(
         () => ({

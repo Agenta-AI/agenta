@@ -168,7 +168,7 @@ export default function VariantEndpoint() {
 
     const invocationUrl = useAtomValue(
         useMemo(
-            () => workflowMolecule.selectors.invocationUrl(deployedRevisionId),
+            () => workflowMolecule.selectors.deploymentUrl(deployedRevisionId),
             [deployedRevisionId],
         ),
     )
@@ -193,12 +193,7 @@ export default function VariantEndpoint() {
     const hasVariants = (variants?.length ?? 0) > 0
 
     // Build code snippet params
-    const invokeLlmUrl = useMemo(() => {
-        if (!invocationUrl) return ""
-        // The invocationUrl from the atom resolves to /test endpoint.
-        // For the /run endpoint, replace /test suffix with /run.
-        return invocationUrl.replace(/\/test$/, "/run")
-    }, [invocationUrl])
+    const invokeLlmUrl = useMemo(() => invocationUrl?.trim() || "", [invocationUrl])
 
     const params = useMemo(
         () =>
