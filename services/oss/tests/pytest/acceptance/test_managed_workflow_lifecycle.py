@@ -408,69 +408,28 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     parameters = {**preset_parameters, **case.get("parameters", {})}
 
     # ------------------------------------------------------------------
-    # 3. Create workflow artifact
+    # 3. Create workflow (artifact + variant + revision in one shot)
     # ------------------------------------------------------------------
     uid = uuid4().hex[:8]
     name = f"test-{template_key}-{uid}"
     slug = f"test-{template_key}-{uid}".replace("_", "-")
+
+    workflow_data: Dict[str, Any] = {"uri": uri, "parameters": parameters}
+    if template_data.get("schemas"):
+        workflow_data["schemas"] = template_data["schemas"]
+
     resp = mod_api(
         "POST",
-        "/preview/workflows/",
-        json={"workflow": {"slug": slug, "name": name}},
+        "/preview/simple/workflows/",
+        json={"workflow": {"slug": slug, "name": name, "data": workflow_data}},
     )
-    assert resp.status_code == 200, f"Create workflow failed: {resp.text}"
+    assert resp.status_code == 200, f"Create simple workflow failed: {resp.text}"
     assert resp.json().get("workflow"), f"No workflow in response: {resp.text}"
     workflow = resp.json()["workflow"]
     workflow_id = workflow["id"]
-
-    # ------------------------------------------------------------------
-    # 4. Create workflow variant
-    # ------------------------------------------------------------------
-    resp = mod_api(
-        "POST",
-        "/preview/workflows/variants/",
-        json={
-            "workflow_variant": {
-                "workflow_id": workflow_id,
-                "name": "v1",
-                "slug": f"v1-{uid}",
-            }
-        },
-    )
-    assert resp.status_code == 200, f"Create variant failed: {resp.text}"
-    assert resp.json().get("workflow_variant"), (
-        f"No workflow_variant in response: {resp.text}"
-    )
-    variant = resp.json()["workflow_variant"]
-    variant_id = variant["id"]
-
-    # ------------------------------------------------------------------
-    # 5. Commit workflow revision with template data
-    # ------------------------------------------------------------------
-    revision_data = {
-        "uri": uri,
-        "parameters": parameters,
-    }
-    if template_data.get("schemas"):
-        revision_data["schemas"] = template_data["schemas"]
-
-    resp = mod_api(
-        "POST",
-        "/preview/workflows/revisions/commit",
-        json={
-            "workflow_revision": {
-                "workflow_id": workflow_id,
-                "workflow_variant_id": variant_id,
-                "message": "initial commit from acceptance test",
-                "data": revision_data,
-            }
-        },
-    )
-    assert resp.status_code == 200, f"Commit revision failed: {resp.text}"
-    revision = resp.json()["workflow_revision"]
-    revision_id = revision["id"]
-    revision_slug = revision.get("slug")
-    revision_version = revision.get("version")
+    revision_id = workflow["revision_id"]
+    revision_slug = workflow.get("slug")
+    revision_version = None
 
     # ------------------------------------------------------------------
     # 6. Find default environment (first environment returned)
@@ -506,7 +465,6 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "trace": case.get("trace", {}),
         #
         "workflow_id": workflow_id,
-        "variant_id": variant_id,
         "revision_id": revision_id,
         "revision_slug": revision_slug,
         "revision_version": revision_version,
@@ -541,10 +499,10 @@ class TestManagedWorkflowLifecycle:
 
     def test_invoke_via_workflow_url(self):
         """POST {services}/{service_path}/invoke — direct per-service endpoint."""
-        ctx = self.__class__._ctx
+        ctx = self._ctx
         body = _invoke_body(ctx)
 
-        resp = self.__class__._mod_services_api(
+        resp = self._mod_services_api(
             "POST",
             f"{ctx['service_path']}/invoke",
             json=body,
@@ -557,13 +515,13 @@ class TestManagedWorkflowLifecycle:
 
     def test_invoke_via_services_invoke(self):
         """POST /invoke with uri in data.revision.data."""
-        ctx = self.__class__._ctx
+        ctx = self._ctx
         body = _invoke_body(
             ctx,
             revision={"data": {"uri": ctx["uri"]}},
         )
 
-        resp = self.__class__._mod_services_api("POST", "/invoke", json=body)
+        resp = self._mod_services_api("POST", "/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     # ------------------------------------------------------------------
@@ -572,11 +530,10 @@ class TestManagedWorkflowLifecycle:
 
     def test_invoke_via_workflow_refs(self):
         """POST /preview/workflows/invoke with workflow/variant/revision IDs."""
-        ctx = self.__class__._ctx
+        ctx = self._ctx
         body = {
             "references": {
                 "workflow": {"id": ctx["workflow_id"]},
-                "workflow_variant": {"id": ctx["variant_id"]},
                 "workflow_revision": {"id": ctx["revision_id"]},
             },
             "data": {
@@ -586,7 +543,7 @@ class TestManagedWorkflowLifecycle:
             },
         }
 
-        resp = self.__class__._mod_api("POST", "/preview/workflows/invoke", json=body)
+        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     # ------------------------------------------------------------------
@@ -595,7 +552,7 @@ class TestManagedWorkflowLifecycle:
 
     def test_invoke_via_environment_refs(self):
         """POST /preview/workflows/invoke with environment ref."""
-        ctx = self.__class__._ctx
+        ctx = self._ctx
         body = {
             "references": {
                 "environment": {"slug": ctx["environment_slug"]},
@@ -607,7 +564,7 @@ class TestManagedWorkflowLifecycle:
             },
         }
 
-        resp = self.__class__._mod_api("POST", "/preview/workflows/invoke", json=body)
+        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
     # ------------------------------------------------------------------
@@ -616,7 +573,7 @@ class TestManagedWorkflowLifecycle:
 
     def test_invoke_via_revision_by_value(self):
         """POST /invoke with full revision data inline — no DB lookup."""
-        ctx = self.__class__._ctx
+        ctx = self._ctx
         body = _invoke_body(
             ctx,
             revision={
@@ -627,5 +584,5 @@ class TestManagedWorkflowLifecycle:
             },
         )
 
-        resp = self.__class__._mod_services_api("POST", "/invoke", json=body)
+        resp = self._mod_services_api("POST", "/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])

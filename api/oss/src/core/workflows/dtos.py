@@ -144,6 +144,14 @@ class WorkflowQueryFlags(BaseModel):
     is_snippet: Optional[bool] = None
 
 
+class WorkflowCatalogFlags(BaseModel):
+    is_archived: bool = False
+    is_recommended: bool = False
+    is_application: bool = False
+    is_evaluator: bool = False
+    is_snippet: bool = False
+
+
 # workflows --------------------------------------------------------------------
 
 
@@ -257,6 +265,24 @@ class WorkflowRevisionsLog(
         sync_alias("workflow_revision_id", "revision_id", self)
 
 
+class WorkflowCatalogPreset(Header):
+    key: str
+
+    categories: Optional[list[str]] = None
+
+    flags: Optional[WorkflowCatalogFlags] = None
+    data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowCatalogTemplate(Header):
+    key: str
+
+    categories: Optional[list[str]] = None
+
+    flags: Optional[WorkflowCatalogFlags] = None
+    data: Optional[WorkflowRevisionData] = None
+
+
 # forks ------------------------------------------------------------------------
 
 
@@ -326,6 +352,7 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
 
     data: Optional[SimpleWorkflowData] = None
 
+    variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
 

@@ -22,7 +22,11 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
 )
-from oss.src.core.workflows.dtos import WorkflowRevisionData
+from oss.src.core.workflows.dtos import (
+    WorkflowCatalogPreset,
+    WorkflowCatalogTemplate,
+    WorkflowRevisionData,
+)
 from oss.src.core.embeds.dtos import ErrorPolicy
 
 from oss.src.apis.fastapi.workflows.models import (
@@ -51,6 +55,10 @@ from oss.src.apis.fastapi.workflows.models import (
     #
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
+    WorkflowCatalogPresetResponse,
+    WorkflowCatalogPresetsResponse,
+    WorkflowCatalogTemplateResponse,
+    WorkflowCatalogTemplatesResponse,
     ResolutionInfo,
     #
     SimpleWorkflowCreateRequest,
@@ -75,6 +83,10 @@ from oss.src.apis.fastapi.workflows.utils import (
 )
 from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
+)
+from oss.src.resources.workflows.catalog import (
+    get_all_workflow_catalog_templates,
+    get_workflow_catalog_template,
 )
 
 from agenta.sdk.models.workflows import (
@@ -108,6 +120,48 @@ class WorkflowsRouter:
         self.environments_service = environments_service
 
         self.router = APIRouter()
+
+        # WORKFLOW CATALOG -----------------------------------------------------
+
+        self.router.add_api_route(
+            "/catalog/templates",
+            self.list_workflow_catalog_templates,
+            methods=["GET"],
+            operation_id="list_workflow_catalog_templates",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogTemplatesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}",
+            self.fetch_workflow_catalog_template,
+            methods=["GET"],
+            operation_id="fetch_workflow_catalog_template",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogTemplateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets",
+            self.list_workflow_catalog_presets,
+            methods=["GET"],
+            operation_id="list_workflow_catalog_presets",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogPresetsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets/{preset_key}",
+            self.fetch_workflow_catalog_preset,
+            methods=["GET"],
+            operation_id="fetch_workflow_catalog_preset",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogPresetResponse,
+            response_model_exclude_none=True,
+        )
 
         # WORKFLOWS ------------------------------------------------------------
 
@@ -375,6 +429,99 @@ class WorkflowsRouter:
             status_code=status.HTTP_200_OK,
             response_model=WorkflowInvokeRequest,
             response_model_exclude_none=True,
+        )
+
+    # WORKFLOW CATALOG ---------------------------------------------------------
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=WorkflowCatalogTemplatesResponse(), exclude=[HTTPException]
+    )
+    async def list_workflow_catalog_templates(
+        self,
+        *,
+        include_archived: Optional[bool] = None,
+    ) -> WorkflowCatalogTemplatesResponse:
+        templates = [
+            WorkflowCatalogTemplate(**entry)
+            for entry in get_all_workflow_catalog_templates()
+            if include_archived or not entry["flags"]["is_archived"]
+        ]
+
+        return WorkflowCatalogTemplatesResponse(
+            count=len(templates),
+            templates=templates,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=WorkflowCatalogTemplateResponse(), exclude=[HTTPException]
+    )
+    async def fetch_workflow_catalog_template(
+        self,
+        *,
+        template_key: str,
+    ) -> WorkflowCatalogTemplateResponse:
+        entry = get_workflow_catalog_template(template_key=template_key)
+        template = WorkflowCatalogTemplate(**entry) if entry else None
+
+        return WorkflowCatalogTemplateResponse(
+            count=1 if template else 0,
+            template=template,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=WorkflowCatalogPresetsResponse(), exclude=[HTTPException]
+    )
+    async def list_workflow_catalog_presets(
+        self,
+        *,
+        template_key: str,
+        include_archived: Optional[bool] = None,
+    ) -> WorkflowCatalogPresetsResponse:
+        entry = get_workflow_catalog_template(template_key=template_key)
+        if not entry:
+            return WorkflowCatalogPresetsResponse()
+
+        presets = [
+            WorkflowCatalogPreset(**preset)
+            for preset in entry.get("presets") or []
+            if include_archived or not preset["flags"]["is_archived"]
+        ]
+
+        return WorkflowCatalogPresetsResponse(
+            count=len(presets),
+            presets=presets,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=WorkflowCatalogPresetResponse(), exclude=[HTTPException]
+    )
+    async def fetch_workflow_catalog_preset(
+        self,
+        *,
+        template_key: str,
+        preset_key: str,
+    ) -> WorkflowCatalogPresetResponse:
+        entry = get_workflow_catalog_template(template_key=template_key)
+        if not entry:
+            return WorkflowCatalogPresetResponse()
+
+        raw_preset = next(
+            (
+                preset
+                for preset in (entry.get("presets") or [])
+                if preset.get("key") == preset_key
+            ),
+            None,
+        )
+        preset = WorkflowCatalogPreset(**raw_preset) if raw_preset else None
+
+        return WorkflowCatalogPresetResponse(
+            count=1 if preset else 0,
+            preset=preset,
         )
 
     # WORKFLOWS ----------------------------------------------------------------

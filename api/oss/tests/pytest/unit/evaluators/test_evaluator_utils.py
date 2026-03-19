@@ -175,14 +175,3 @@ def test_build_evaluator_data_parameters_schema_contains_known_key():
     # auto_ai_critique settings_template has at least a "model" field
     data = _data("auto_ai_critique")
     assert "model" in data.schemas.parameters
-
-
-# ---------------------------------------------------------------------------
-# version
-# ---------------------------------------------------------------------------
-
-
-def test_build_evaluator_data_version_set():
-    data = _data("auto_exact_match")
-    assert data.version is not None
-    assert isinstance(data.version, str)

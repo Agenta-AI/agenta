@@ -148,30 +148,24 @@ class TestResolverMiddlewareEmbedGate:
         """
         from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
         from agenta.sdk.models.workflows import (
-            WorkflowServiceRequest,
-            WorkflowServiceConfiguration,
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
         )
 
-        request = MagicMock(spec=WorkflowServiceRequest)
-        request.flags = {"resolve": True}
-        request.credentials = "test-creds"
-        request.interface = None
-        request.configuration = WorkflowServiceConfiguration(
-            parameters={"model": "gpt-4", "temperature": 0.7}
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(
+                revision={
+                    "data": {
+                        "uri": "test://uri",
+                        "parameters": {"model": "gpt-4", "temperature": 0.7},
+                    }
+                }
+            ),
         )
-        request.data = None
 
         with (
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_interface",
-                new_callable=AsyncMock,
-                return_value=MagicMock(uri="test://uri"),
-            ),
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_configuration",
-                new_callable=AsyncMock,
-                return_value=request.configuration,
-            ),
             patch(
                 "agenta.sdk.middlewares.running.resolver.resolve_handler",
                 new_callable=AsyncMock,
@@ -196,8 +190,8 @@ class TestResolverMiddlewareEmbedGate:
         """
         from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
         from agenta.sdk.models.workflows import (
-            WorkflowServiceRequest,
-            WorkflowServiceConfiguration,
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
         )
 
         params_with_embed = {
@@ -208,28 +202,22 @@ class TestResolverMiddlewareEmbedGate:
             }
         }
 
-        request = MagicMock(spec=WorkflowServiceRequest)
-        request.flags = {"resolve": True}
-        request.credentials = "test-creds"
-        request.interface = None
-        request.configuration = WorkflowServiceConfiguration(
-            parameters=params_with_embed
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(
+                revision={
+                    "data": {
+                        "uri": "test://uri",
+                        "parameters": params_with_embed,
+                    }
+                }
+            ),
         )
-        request.data = None
 
         resolved_params = {"prompt": "resolved-value"}
 
         with (
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_interface",
-                new_callable=AsyncMock,
-                return_value=MagicMock(uri="test://uri"),
-            ),
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_configuration",
-                new_callable=AsyncMock,
-                return_value=request.configuration,
-            ),
             patch(
                 "agenta.sdk.middlewares.running.resolver.resolve_handler",
                 new_callable=AsyncMock,
@@ -258,34 +246,28 @@ class TestResolverMiddlewareEmbedGate:
         """
         from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
         from agenta.sdk.models.workflows import (
-            WorkflowServiceRequest,
-            WorkflowServiceConfiguration,
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
         )
 
         params_with_embed = {
             "prompt": {"@ag.embed": {"@ag.references": {"workflow_revision": {}}}}
         }
 
-        request = MagicMock(spec=WorkflowServiceRequest)
-        request.flags = {"resolve": False}
-        request.credentials = "test-creds"
-        request.interface = None
-        request.configuration = WorkflowServiceConfiguration(
-            parameters=params_with_embed
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": False},
+            data=WorkflowRequestData(
+                revision={
+                    "data": {
+                        "uri": "test://uri",
+                        "parameters": params_with_embed,
+                    }
+                }
+            ),
         )
-        request.data = None
 
         with (
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_interface",
-                new_callable=AsyncMock,
-                return_value=MagicMock(uri="test://uri"),
-            ),
-            patch(
-                "agenta.sdk.middlewares.running.resolver.resolve_configuration",
-                new_callable=AsyncMock,
-                return_value=request.configuration,
-            ),
             patch(
                 "agenta.sdk.middlewares.running.resolver.resolve_handler",
                 new_callable=AsyncMock,

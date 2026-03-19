@@ -75,8 +75,6 @@ async def services_inspect(req: Request, request: WorkflowInspectRequest):
 
 app = FastAPI()
 
-app.mount("/", services_app)
-#
 app.mount("/chat", chat_app)
 app.mount("/completion", completion_app)
 #
@@ -103,6 +101,9 @@ app.mount(
 )
 app.mount("/builtin/auto_similarity_match/v0", builtin_auto_similarity_match_app)
 app.mount("/builtin/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
+#
+# Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
+app.mount("/", services_app)
 
 
 # Health check endpoint

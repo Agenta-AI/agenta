@@ -22,7 +22,11 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
 )
-from oss.src.core.applications.dtos import ApplicationRevisionData
+from oss.src.core.applications.dtos import (
+    ApplicationCatalogPreset,
+    ApplicationCatalogTemplate,
+    ApplicationRevisionData,
+)
 
 from oss.src.apis.fastapi.applications.models import (
     ApplicationCreateRequest,
@@ -47,6 +51,10 @@ from oss.src.apis.fastapi.applications.models import (
     ApplicationRevisionDeployRequest,
     ApplicationRevisionResponse,
     ApplicationRevisionsResponse,
+    ApplicationCatalogPresetResponse,
+    ApplicationCatalogPresetsResponse,
+    ApplicationCatalogTemplateResponse,
+    ApplicationCatalogTemplatesResponse,
     ApplicationRevisionResolveRequest,
     ApplicationRevisionResolveResponse,
     #
@@ -63,6 +71,10 @@ from oss.src.apis.fastapi.applications.utils import (
 )
 from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
+)
+from oss.src.resources.workflows.catalog import (
+    get_filtered_workflow_catalog_templates,
+    get_workflow_catalog_template,
 )
 
 if is_ee():
@@ -96,6 +108,48 @@ class ApplicationsRouter:
         self.environments_service = environments_service
 
         self.router = APIRouter()
+
+        # APPLICATION CATALOG --------------------------------------------------
+
+        self.router.add_api_route(
+            "/catalog/templates",
+            self.list_application_catalog_templates,
+            methods=["GET"],
+            operation_id="list_application_catalog_templates",
+            status_code=status.HTTP_200_OK,
+            response_model=ApplicationCatalogTemplatesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}",
+            self.fetch_application_catalog_template,
+            methods=["GET"],
+            operation_id="fetch_application_catalog_template",
+            status_code=status.HTTP_200_OK,
+            response_model=ApplicationCatalogTemplateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets",
+            self.list_application_catalog_presets,
+            methods=["GET"],
+            operation_id="list_application_catalog_presets",
+            status_code=status.HTTP_200_OK,
+            response_model=ApplicationCatalogPresetsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets/{preset_key}",
+            self.fetch_application_catalog_preset,
+            methods=["GET"],
+            operation_id="fetch_application_catalog_preset",
+            status_code=status.HTTP_200_OK,
+            response_model=ApplicationCatalogPresetResponse,
+            response_model_exclude_none=True,
+        )
 
         # APPLICATIONS ---------------------------------------------------------
 
@@ -341,6 +395,108 @@ class ApplicationsRouter:
             status_code=status.HTTP_200_OK,
             response_model=ApplicationRevisionResolveResponse,
             response_model_exclude_none=True,
+        )
+
+    # APPLICATION CATALOG ------------------------------------------------------
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=ApplicationCatalogTemplatesResponse(), exclude=[HTTPException]
+    )
+    async def list_application_catalog_templates(
+        self,
+        *,
+        include_archived: Optional[bool] = None,
+    ) -> ApplicationCatalogTemplatesResponse:
+        templates = [
+            ApplicationCatalogTemplate(**entry)
+            for entry in get_filtered_workflow_catalog_templates(is_application=True)
+            if include_archived or not entry["flags"]["is_archived"]
+        ]
+
+        return ApplicationCatalogTemplatesResponse(
+            count=len(templates),
+            templates=templates,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=ApplicationCatalogTemplateResponse(), exclude=[HTTPException]
+    )
+    async def fetch_application_catalog_template(
+        self,
+        *,
+        template_key: str,
+    ) -> ApplicationCatalogTemplateResponse:
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_application=True,
+        )
+        template = ApplicationCatalogTemplate(**entry) if entry else None
+
+        return ApplicationCatalogTemplateResponse(
+            count=1 if template else 0,
+            template=template,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=ApplicationCatalogPresetsResponse(), exclude=[HTTPException]
+    )
+    async def list_application_catalog_presets(
+        self,
+        *,
+        template_key: str,
+        include_archived: Optional[bool] = None,
+    ) -> ApplicationCatalogPresetsResponse:
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_application=True,
+        )
+        if not entry:
+            return ApplicationCatalogPresetsResponse()
+
+        presets = [
+            ApplicationCatalogPreset(**preset)
+            for preset in entry.get("presets") or []
+            if include_archived or not preset["flags"]["is_archived"]
+        ]
+
+        return ApplicationCatalogPresetsResponse(
+            count=len(presets),
+            presets=presets,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=ApplicationCatalogPresetResponse(), exclude=[HTTPException]
+    )
+    async def fetch_application_catalog_preset(
+        self,
+        *,
+        template_key: str,
+        preset_key: str,
+    ) -> ApplicationCatalogPresetResponse:
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_application=True,
+        )
+        if not entry:
+            return ApplicationCatalogPresetResponse()
+
+        raw_preset = next(
+            (
+                preset
+                for preset in (entry.get("presets") or [])
+                if preset.get("key") == preset_key
+            ),
+            None,
+        )
+        preset = ApplicationCatalogPreset(**raw_preset) if raw_preset else None
+
+        return ApplicationCatalogPresetResponse(
+            count=1 if preset else 0,
+            preset=preset,
         )
 
     # APPLICATIONS -------------------------------------------------------------

@@ -1087,6 +1087,9 @@ class SimpleWorkflowsService:
             meta=workflow.meta,
             tags=workflow.tags,
             #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
+            #
             data=SimpleWorkflowData(
                 **(
                     workflow_revision.data.model_dump(mode="json")
@@ -1167,6 +1170,9 @@ class SimpleWorkflowsService:
             flags=simple_workflow_flags,
             meta=workflow.meta,
             tags=workflow.tags,
+            #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
             #
             data=SimpleWorkflowData(
                 **(
@@ -1315,6 +1321,9 @@ class SimpleWorkflowsService:
             flags=simple_workflow_flags,
             meta=workflow.meta,
             tags=workflow.tags,
+            #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
             #
             data=SimpleWorkflowData(
                 **(
