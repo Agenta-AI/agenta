@@ -6,8 +6,7 @@ Tests cover end-to-end happy paths for:
 - agenta:custom:hook:v0   — webhook forwarder (POST to a URL in RunningContext)
 - agenta:custom:code:v0   — Python code evaluator
 - agenta:builtin:match:v0 — rule-based matcher
-- agenta:builtin:prompt:v0 — LLM-based evaluator (mocked litellm)
-- agenta:builtin:agent:v0 — registered stub, raises AgentV0Error on invocation
+- agenta:builtin:llm:v0   — unified LLM builtin surface
 
 These tests do NOT require a running Agenta server — they exercise the handler
 logic directly by bypassing @instrument() via __wrapped__.  They are acceptance
@@ -21,19 +20,16 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
 from agenta.sdk.models.workflows import WorkflowServiceInterface
-from agenta.sdk.workflows.errors import AgentV0Error, HookV0Error
+from agenta.sdk.workflows.errors import HookV0Error
 from agenta.sdk.workflows.handlers import (
-    agent_v0,
     code_v0,
     hook_v0,
+    llm_v0,
     match_v0,
-    prompt_v0,
     trace_v0,
 )
 from agenta.sdk.workflows.utils import retrieve_handler, retrieve_interface
@@ -94,27 +90,6 @@ class TestTraceV0Acceptance:
         with pytest.raises(HookV0Error) as exc_info:
             run(_trace_v0())
         assert "agenta:custom:trace:v0" in exc_info.value.message
-
-
-@pytest.mark.acceptance
-class TestAgentV0Acceptance:
-    """Registry and stub behavior for agenta:builtin:agent:v0."""
-
-    def test_registry_lookup_returns_callable(self):
-        handler = retrieve_handler("agenta:builtin:agent:v0")
-        assert handler is not None
-        assert callable(handler)
-
-    def test_interface_registry_lookup_returns_interface(self):
-        interface = retrieve_interface("agenta:builtin:agent:v0")
-        assert isinstance(interface, WorkflowServiceInterface)
-        assert interface.uri == "agenta:builtin:agent:v0"
-
-    def test_calling_agent_v0_raises_explicit_agent_error(self):
-        _agent_v0 = agent_v0.__wrapped__
-        with pytest.raises(AgentV0Error) as exc_info:
-            run(_agent_v0())
-        assert "agenta:builtin:agent:v0" in exc_info.value.message
 
 
 # ---------------------------------------------------------------------------
@@ -492,185 +467,25 @@ class TestMatchV0Acceptance:
 # ---------------------------------------------------------------------------
 
 
-def _make_llm_response(content: str):
-    """Minimal mock litellm response."""
-    choice = MagicMock()
-    choice.message.content = content
-    resp = MagicMock()
-    resp.choices = [choice]
-    return resp
-
-
-def _patched_prompt_call(llm_content: str, secrets=None):
-    """
-    Returns (secrets_patch, litellm_patch, mock_llm) so tests can use:
-        with sp, lp:
-            run(_prompt_v0(...))
-    """
-    if secrets is None:
-        secrets = [
-            {
-                "kind": "provider_key",
-                "data": {
-                    "kind": "openai",
-                    "provider": {"key": "sk-test"},
-                },
-            }
-        ]
-
-    mock_litellm = MagicMock()
-    mock_litellm.acompletion = AsyncMock(return_value=_make_llm_response(llm_content))
-    mock_litellm.AuthenticationError = type(
-        "AuthenticationError", (Exception,), {"message": ""}
-    )
-
-    sp = patch(
-        "agenta.sdk.managers.secrets.SecretsManager.retrieve_secrets",
-        new=AsyncMock(return_value=(secrets, None, None)),
-    )
-    lp = patch(
-        "agenta.sdk.workflows.handlers._load_litellm",
-        return_value=mock_litellm,
-    )
-    return sp, lp, mock_litellm
-
-
 @pytest.mark.acceptance
-class TestPromptV0Acceptance:
-    """Happy-path acceptance tests for agenta:builtin:prompt:v0."""
+class TestLlmV0Acceptance:
+    """Registry coverage for the single unified agenta:builtin:llm:v0 surface."""
 
     def test_registry_lookup_returns_callable(self):
-        """retrieve_handler('agenta:builtin:prompt:v0') resolves to a callable."""
-        handler = retrieve_handler("agenta:builtin:prompt:v0")
+        handler = retrieve_handler("agenta:builtin:llm:v0")
         assert handler is not None
         assert callable(handler)
+        assert handler == llm_v0
 
-    def test_numeric_llm_response_produces_score_and_success(self):
-        """
-        When the LLM returns a numeric string, prompt_v0 returns a score/success dict.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [
-                {"role": "user", "content": "Rate the output quality from 0 to 1."}
-            ]
-        }
-        sp, lp, _ = _patched_prompt_call("0.9")
-        with sp, lp:
-            result = run(_prompt_v0(parameters=params, outputs="Great answer"))
-        assert "score" in result
-        assert result["score"] == pytest.approx(0.9)
-        assert result["success"] is True
+    def test_interface_registry_lookup_returns_interface(self):
+        interface = retrieve_interface("agenta:builtin:llm:v0")
+        assert isinstance(interface, WorkflowServiceInterface)
+        assert interface.uri == "agenta:builtin:llm:v0"
 
-    def test_boolean_llm_response_true_produces_success(self):
-        """
-        When the LLM returns 'true', prompt_v0 returns {'success': True} without score.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [
-                {"role": "user", "content": "Is this output correct? true/false."}
-            ]
-        }
-        sp, lp, _ = _patched_prompt_call("true")
-        with sp, lp:
-            result = run(_prompt_v0(parameters=params, outputs="Paris"))
-        assert result == {"success": True}
+    def test_prompt_alias_is_not_registered(self):
+        assert retrieve_handler("agenta:builtin:prompt:v0") is None
+        assert retrieve_interface("agenta:builtin:prompt:v0") is None
 
-    def test_boolean_llm_response_false_produces_failure(self):
-        """
-        When the LLM returns 'false', prompt_v0 returns {'success': False}.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [
-                {"role": "user", "content": "Is this output correct? true/false."}
-            ]
-        }
-        sp, lp, _ = _patched_prompt_call("false")
-        with sp, lp:
-            result = run(_prompt_v0(parameters=params, outputs="wrong answer"))
-        assert result == {"success": False}
-
-    def test_template_variable_substitution(self):
-        """
-        Template variables {{outputs}} and {{inputs}} are substituted before the LLM call.
-        The messages sent to litellm contain the resolved values.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [
-                {
-                    "role": "user",
-                    "content": "Question: {{question}} Answer: {{outputs}}",
-                }
-            ]
-        }
-        sp, lp, mock_llm = _patched_prompt_call("1.0")
-        with sp, lp:
-            run(
-                _prompt_v0(
-                    parameters=params,
-                    inputs={"question": "What is 2+2?"},
-                    outputs="4",
-                )
-            )
-
-        _, call_kwargs = mock_llm.acompletion.call_args
-        messages = call_kwargs.get(
-            "messages"
-        ) or mock_llm.acompletion.call_args.kwargs.get("messages")
-        assert messages is not None
-        content = messages[0]["content"]
-        assert "What is 2+2?" in content
-        assert "4" in content
-
-    def test_custom_threshold_applied(self):
-        """
-        A threshold of 0.95 causes a 0.8 LLM score to result in success=False.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [{"role": "user", "content": "Rate from 0 to 1."}],
-            "threshold": 0.95,
-        }
-        sp, lp, _ = _patched_prompt_call("0.8")
-        with sp, lp:
-            result = run(_prompt_v0(parameters=params, outputs="answer"))
-        assert result["score"] == pytest.approx(0.8)
-        assert result["success"] is False
-
-    def test_json_dict_response_returned_as_is(self):
-        """
-        When the LLM returns a JSON object, prompt_v0 returns it verbatim.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [
-                {"role": "user", "content": "Evaluate and return JSON."}
-            ]
-        }
-        llm_payload = {"score": 0.7, "reason": "mostly correct"}
-        sp, lp, _ = _patched_prompt_call(json.dumps(llm_payload))
-        with sp, lp:
-            result = run(_prompt_v0(parameters=params, outputs="decent answer"))
-        assert result == llm_payload
-
-    def test_model_parameter_forwarded_to_litellm(self):
-        """
-        The 'model' parameter in configuration is passed through to litellm.acompletion.
-        """
-        _prompt_v0 = prompt_v0.__wrapped__
-        params = {
-            "prompt_template": [{"role": "user", "content": "Rate this."}],
-            "model": "gpt-4o",
-        }
-        sp, lp, mock_llm = _patched_prompt_call("0.9")
-        with sp, lp:
-            run(_prompt_v0(parameters=params, outputs="good answer"))
-
-        _, call_kwargs = mock_llm.acompletion.call_args
-        model_used = call_kwargs.get(
-            "model"
-        ) or mock_llm.acompletion.call_args.kwargs.get("model")
-        assert model_used == "gpt-4o"
+    def test_agent_alias_is_not_registered(self):
+        assert retrieve_handler("agenta:builtin:agent:v0") is None
+        assert retrieve_interface("agenta:builtin:agent:v0") is None

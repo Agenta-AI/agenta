@@ -15,8 +15,6 @@ from agenta.sdk.engines.running.handlers import (
     code_v0,
     snippet_v0,
     match_v0,
-    prompt_v0,
-    agent_v0,
     llm_v0,
     # --- OLD URI
     chat_v0,
@@ -48,8 +46,6 @@ from agenta.sdk.engines.running.interfaces import (
     code_v0_interface,
     snippet_v0_interface,
     match_v0_interface,
-    prompt_v0_interface,
-    agent_v0_interface,
     llm_v0_interface,
     # --- OLD URI
     chat_v0_interface,
@@ -82,8 +78,6 @@ from agenta.sdk.engines.running.configurations import (
     code_v0_configuration,
     snippet_v0_configuration,
     match_v0_configuration,
-    prompt_v0_configuration,
-    agent_v0_configuration,
     llm_v0_configuration,
     # --- OLD URI
     chat_v0_configuration,
@@ -120,8 +114,6 @@ INTERFACE_REGISTRY: dict = dict(
         builtin=dict(
             # --- NEW URI
             match=dict(v0=match_v0_interface),
-            prompt=dict(v0=prompt_v0_interface),
-            agent=dict(v0=agent_v0_interface),
             llm=dict(v0=llm_v0_interface),
             # --- OLD URI
             chat=dict(v0=chat_v0_interface),
@@ -160,8 +152,6 @@ CONFIGURATION_REGISTRY: dict = dict(
         builtin=dict(
             # --- NEW URI
             match=dict(v0=match_v0_configuration),
-            prompt=dict(v0=prompt_v0_configuration),
-            agent=dict(v0=agent_v0_configuration),
             llm=dict(v0=llm_v0_configuration),
             # --- OLD URI
             chat=dict(v0=chat_v0_configuration),
@@ -230,8 +220,6 @@ HANDLER_REGISTRY: dict = dict(
         builtin=dict(
             # --- NEW URI
             match=dict(v0=match_v0),
-            prompt=dict(v0=prompt_v0),
-            agent=dict(v0=agent_v0),
             llm=dict(v0=llm_v0),
             # --- OLD URI
             chat=dict(v0=chat_v0),

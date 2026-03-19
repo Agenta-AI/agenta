@@ -44,6 +44,308 @@ with restricted or permissive parameter sets respectively.
 
 ---
 
+## Canonical Schema Model
+
+This document should follow the canonical runnable schema structure:
+
+```json
+{
+  "uri": "agenta:builtin:llm:v0",
+  "schemas": {
+    "inputs": {...},
+    "parameters": {...},
+    "outputs": {...}
+  }
+}
+```
+
+Rules:
+
+- `schemas.parameters` and `schemas.outputs` are first-class
+- `schemas.inputs` should be present when the input contract is meaningful and
+  stable
+- each schema should use normal JSON Schema primitives first
+- use `x-` extension fields only when plain JSON Schema is not enough to
+  express the semantic intent
+
+### JSON Schema first
+
+Prefer normal JSON Schema for structural meaning:
+
+- `type`
+- `properties`
+- `items`
+- `required`
+- `enum`
+- `additionalProperties`
+- `oneOf` / `anyOf`
+- `description`
+- `default`
+
+Examples:
+
+- `messages` is an `array`
+- `context` is an `object`
+- `stream` is a `boolean`
+- `allowed_tools` is an `array` of `string`
+
+### `x-` extension second
+
+Use an `x-` extension only when we need to say what a field means to the
+runtime or UI, beyond its raw JSON shape.
+
+Examples:
+
+- a field is semantically a chat message list
+- a field is semantically consent state
+- a field is semantically lifecycle status
+- a field should use a specialized UI/editor treatment
+
+### SDK model requirement
+
+For any reusable `x-` semantic field or sub-object, we should also define a
+corresponding Pydantic model in the SDK type layer so that:
+
+- the type can be used programmatically in Python
+- the JSON Schema sub-object can be generated from the model
+- the wire contract and SDK contract stay aligned
+
+Relevant current SDK source:
+
+- `sdk/agenta/sdk/utils/types.py`
+
+Existing examples already in that file:
+
+- `Message`
+- `ToolCall`
+- `ContentPartText`
+- `ContentPartImage`
+- `ContentPartFile`
+- `JSONSchema`
+- `ResponseFormatJSONSchema`
+- `ModelConfig`
+- `MultipleChoiceParam`
+- `GroupedMultipleChoiceParam`
+- `MessagesInput`
+
+So the intended pattern is not new. We should formalize it.
+
+### Initial `x-ag-*` extension table
+
+| Extension | Applies To | Intent | SDK model direction |
+|-----------|------------|--------|---------------------|
+| `x-ag-messages` | inputs, outputs, parameters | Marks a field as a message-list semantic slot | `List[Message]` |
+| `x-ag-message` | inputs, outputs | Marks a field as a single-message semantic slot | `Message` |
+| `x-ag-content` | inputs, outputs | Marks raw multimodal/tool content parts | `List[ContentPart]` or `ContentPart` |
+| `x-ag-context` | inputs, outputs, parameters | Marks structured execution context | typed `BaseModel` with `extra="allow"` or domain-specific context model |
+| `x-ag-consent` | inputs, outputs, parameters | Marks consent policy/state | new `Consent*` Pydantic models |
+| `x-ag-variables` | inputs | Marks variable bindings used for template substitution | `Dict[str, Any]` or a typed variables model |
+| `x-ag-status` | outputs | Marks lifecycle status envelope | new `Status` Pydantic model |
+
+These extensions do not replace JSON Schema. They annotate it.
+
+### Current SDK `x-parameter` precedent
+
+The SDK already uses Pydantic-driven schema annotations for parameter widgets in
+`sdk/agenta/sdk/utils/types.py`.
+
+Current examples:
+
+- `MCField(...)` emits `json_schema_extra={"x-parameter": "choice"}` or
+  `"grouped_choice"`
+- `MessagesInput` emits `{"x-parameter": "messages", "type": "array"}`
+- `TextParam`, `BinaryParam`, `IntParam`, `FloatParam`,
+  `MultipleChoiceParam`, and `GroupedMultipleChoiceParam` all expose schema
+  properties through `__schema_type_properties__()`
+
+This is useful prior art for the new managed-workflow schema model:
+
+- JSON Schema shape comes from the Pydantic or Python type
+- extension metadata comes from explicit SDK type definitions
+
+For the canonical managed-workflow schema model, Agenta-owned extensions should
+use the `x-ag-*` namespace.
+
+### Dynamic schema composition
+
+Some schema fields should not embed their full option payload in stored schema.
+
+Example:
+
+- model selection backed by `supported_llm_models` from the SDK assets layer
+
+In those cases, the schema should carry enough information for a consumer to
+resolve the dynamic options, without persisting the fully expanded list into
+revision data.
+
+This means we should support composition patterns like:
+
+- static JSON Schema structure
+- extension metadata that points to a dynamic option source
+- optional SDK-side helper that resolves that source into concrete choices
+
+The missing piece is that the extension itself needs a typed contract so a
+consumer knows how to interpret it.
+
+At minimum, the extension should answer:
+
+- what kind of dynamic payload is this?
+- is the payload passed inline or by reference?
+- if by reference, where should it be resolved from?
+- what version of the extension contract is this?
+
+### By-value vs by-reference
+
+For these dynamic schema helpers, we should support two explicit modes.
+
+By value:
+
+- the schema carries the full payload inline
+- use this when the option set is small, local, or intentionally snapshotted
+
+By reference:
+
+- the schema carries only a typed reference
+- the consumer resolves the current canonical value from the referenced source
+- use this when the option set is centrally owned, large, or expected to evolve
+
+Conceptually:
+
+```json
+{
+  "type": "string",
+  "x-ag-type": "grouped_choice",
+  "x-ag-type-ref": {
+    "type": "model_catalog",
+    "version": "v1",
+    "mode": "reference",
+    "source": {
+      "kind": "sdk_asset",
+      "path": "agenta.sdk.utils.assets.supported_llm_models"
+    }
+  }
+}
+```
+
+And by value:
+
+```json
+{
+  "type": "string",
+  "x-ag-type": "grouped_choice",
+  "x-ag-type-ref": {
+    "type": "model_catalog",
+    "version": "v1",
+    "mode": "value",
+    "value": {
+      "choices": {
+        "openai": ["gpt-5", "gpt-5-mini"]
+      }
+    }
+  }
+}
+```
+
+The exact field names are not fixed yet. The important part is that the
+definition is self-describing and versioned.
+
+### Typed extension contract
+
+The extension object should itself have a stable type identity.
+
+For example:
+
+- `type = "model_catalog"`
+- `type = "choice_catalog"`
+- `type = "response_format_catalog"`
+
+That lets consumers switch on the definition type and understand the shape they
+should expect.
+
+This also gives us a clean migration path:
+
+- legacy definitions can remain materialized
+- new definitions can use typed by-reference contracts
+- both can coexist while consumers adopt the newer contract
+
+Conceptually:
+
+```json
+{
+  "type": "string",
+  "x-ag-type": "grouped_choice",
+  "x-ag-type-ref": {
+    "type": "model_catalog",
+    "version": "v1",
+    "mode": "reference",
+    "source": {
+      "kind": "sdk_asset",
+      "path": "agenta.sdk.utils.assets.supported_llm_models"
+    }
+  }
+}
+```
+
+The important rule is:
+
+- store the reference to the dynamic source
+- do not store the full expanded list when the list is large or centrally owned
+- make the extension object typed and versioned so consumers know how to
+  interpret it
+
+### Current frontend behavior
+
+Today, consumers commonly expect the expanded options to already be present in
+schema-like payloads:
+
+- legacy app parsing reads `openapi.json` and uses `x-parameter` plus schema
+  defaults in `web/oss/src/services/api.ts`
+- backend OpenAPI parsing reads `x-parameter` in
+  `api/oss/src/services/llm_apps_service.py`
+- schema-driven UI utilities read `choices`, `enum`, and `x-model-metadata`
+  directly from the schema in:
+  - `web/packages/agenta-shared/src/utils/schemaOptions.ts`
+  - `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/schemaUtils.ts`
+
+So the current system is mostly "materialized options in schema", not
+"reference to option source".
+
+The target model should allow both during migration:
+
+- materialized choices for compatibility
+- dynamic source references for cleaner canonical schemas using `x-ag-*`
+
+### Intent by schema member
+
+`schemas.parameters`
+
+- stored configuration of the runnable
+- preset payloads are parameter examples against this schema
+- should express required vs optional clearly
+- may include `x-` semantic annotations when a parameter has special runtime or
+  UI meaning
+- when a parameter uses special `x-` semantics, there should be a matching SDK
+  model/type that can generate that sub-schema programmatically
+- when a parameter's options come from a dynamic source, the schema should
+  prefer storing a source reference over embedding the full option set
+
+`schemas.outputs`
+
+- canonical output contract produced by the runnable
+- should use plain JSON Schema wherever possible
+- may use `x-` annotations when a field has semantic meaning such as message
+  list, status, or content parts
+- reusable structured output members should have matching SDK Pydantic models
+
+`schemas.inputs`
+
+- canonical run-time input contract provided by the caller
+- optional when the family does not yet have a stable explicit input contract
+- preferred when there is shared reusable meaning across templates
+- reusable structured input members should have matching SDK Pydantic models
+
+---
+
 ## Behavior Spectrum
 
 The handler family covers a continuous spectrum of behaviors, driven entirely by
