@@ -53,8 +53,6 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceStreamResponse,  # noqa: F401
     #
     JsonSchemas,  # noqa: F401
-    WorkflowServiceInterface,  # noqa: F401
-    WorkflowServiceConfiguration,  # noqa: F401
     WorkflowRevisionData,
 )
 
@@ -101,8 +99,8 @@ class WorkflowFlags(BaseModel):
     is_llm: bool = False
     is_hook: bool = False
     is_code: bool = False
-    is_trace: bool = False
     is_match: bool = False
+    is_human: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -128,8 +126,8 @@ class WorkflowQueryFlags(BaseModel):
     is_llm: Optional[bool] = None
     is_hook: Optional[bool] = None
     is_code: Optional[bool] = None
-    is_trace: Optional[bool] = None
     is_match: Optional[bool] = None
+    is_human: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None

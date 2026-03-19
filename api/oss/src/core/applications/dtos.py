@@ -77,21 +77,19 @@ class ApplicationRevisionIdAlias(AliasConfig):
 
 
 class ApplicationFlags(WorkflowFlags):
-    """Application flags - is_evaluator=False means it's an application."""
+    """Application flags - is_application=True, is_evaluator=False."""
 
     def __init__(self, **data):
-        # Applications have is_evaluator=False (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
 
 
 class ApplicationQueryFlags(WorkflowQueryFlags):
-    """Application query flags - filter for is_evaluator=False."""
+    """Application query flags - filter for is_application=True, is_evaluator=False."""
 
     def __init__(self, **data):
-        # Query for non-evaluators (applications) (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
 

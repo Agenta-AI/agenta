@@ -88,12 +88,16 @@ export const invokeEvaluator = async ({
         throw new Error("Evaluator interface is missing (uri/url)")
     }
 
+    const revisionData: Record<string, any> = {}
+    if (evaluatorUri) revisionData.uri = evaluatorUri
+    else if (evaluatorUrl) revisionData.url = evaluatorUrl
+    if (parameters) revisionData.parameters = parameters
+
     const request: Record<string, any> = {
-        interface: evaluatorUri ? {uri: evaluatorUri} : {url: evaluatorUrl},
-        configuration: parameters ? {parameters} : undefined,
         references,
         links,
         data: {
+            revision: {data: revisionData},
             inputs,
             outputs,
             trace,
@@ -132,12 +136,16 @@ export const invokeApplication = async ({
         throw new Error("Application interface is missing (uri/url)")
     }
 
+    const revisionData: Record<string, any> = {}
+    if (explicitUri) revisionData.uri = explicitUri
+    else if (explicitUrl) revisionData.url = explicitUrl
+    if (parameters) revisionData.parameters = parameters
+
     const request: Record<string, any> = {
-        interface: explicitUri ? {uri: explicitUri} : {url: explicitUrl},
-        configuration: parameters ? {parameters} : undefined,
         references,
         links,
         data: {
+            revision: {data: revisionData},
             inputs,
             parameters,
         },

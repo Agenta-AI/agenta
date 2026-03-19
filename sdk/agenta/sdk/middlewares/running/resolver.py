@@ -6,10 +6,9 @@ import agenta as ag
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequestData,
-    WorkflowServiceRequest,
-    WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
+    WorkflowRequestData,
+    WorkflowInvokeRequest,
+    WorkflowRevisionData,
 )
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.engines.running.utils import (
@@ -60,62 +59,32 @@ def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
     return False
 
 
-async def resolve_interface(
+async def resolve_revision(
     *,
-    request: Optional[WorkflowServiceRequest] = None,
-    interface: Optional[WorkflowServiceInterface] = None,
-) -> Optional[WorkflowServiceInterface]:
-    """Resolve the workflow service interface from multiple sources.
+    request: Optional[WorkflowInvokeRequest] = None,
+    revision: Optional[WorkflowRevisionData] = None,
+) -> Optional[WorkflowRevisionData]:
+    """Resolve WorkflowRevisionData from multiple sources.
 
-    Checks for interface in this priority order:
-    1. Provided interface parameter
-    2. Interface from the request
-    3. Interface from the RunningContext
-
-    Args:
-        request: Optional workflow service request that may contain an interface
-        interface: Optional interface to use directly
-
-    Returns:
-        The resolved WorkflowServiceInterface or None if not found
+    Priority order:
+    1. Provided revision parameter (direct, e.g. from workflow constructor)
+    2. request.data.revision dict → coerced to WorkflowRevisionData
+    3. RunningContext.revision dict → coerced to WorkflowRevisionData
     """
-    if interface is not None:
-        return interface
+    if revision is not None:
+        return revision
 
-    if request and request.interface:
-        return request.interface
+    if request and request.data and request.data.revision:
+        rev_dict = request.data.revision
+        # revision dict is the full WorkflowRevision dump; data sub-key holds the actual fields
+        data_dict = rev_dict.get("data") if isinstance(rev_dict, dict) else None
+        if data_dict:
+            return WorkflowRevisionData(**data_dict)
 
     ctx = RunningContext.get()
-    return ctx.interface
-
-
-async def resolve_configuration(
-    *,
-    request: Optional[WorkflowServiceRequest] = None,
-    configuration: Optional[WorkflowServiceConfiguration] = None,
-) -> Optional[WorkflowServiceConfiguration]:
-    """Resolve workflow parameters from multiple sources.
-
-    Checks for parameters in this priority order:
-    1. Provided parameters parameter
-    2. Parameters from request.data.parameters
-    3. Parameters from the RunningContext
-
-    Args:
-        request: Optional workflow service request that may contain parameters
-        parameters: Optional parameters dict to use directly
-
-    Returns:
-        The resolved parameters dict or None if not found
-    """
-    if configuration is not None:
-        return configuration
-
-    if request and request.configuration:
-        return request.configuration
-
-    ctx = RunningContext.get()
-    return ctx.configuration
+    if ctx.revision:
+        return WorkflowRevisionData(**ctx.revision)
+    return None
 
 
 async def resolve_handler(
@@ -231,60 +200,41 @@ class ResolverMiddleware:
 
     async def __call__(
         self,
-        request: WorkflowServiceRequest,
-        call_next: Callable[[WorkflowServiceRequest], Any],
+        request: WorkflowInvokeRequest,
+        call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
-        """Resolve workflow components and populate the running context.
+        revision = await resolve_revision(request=request)
 
-        Args:
-            request: The workflow service request being processed
-            call_next: The next middleware or handler in the chain
-
-        Returns:
-            The result from calling the next middleware/handler in the chain
-
-        Raises:
-            InvalidInterfaceURIV0Error: If the handler cannot be resolved from the interface URI
-        """
-        interface = await resolve_interface(request=request)
-        configuration = await resolve_configuration(request=request)
-
-        # Resolve embeds in configuration if enabled (via flags.resolve)
-        # Only call the API if markers are actually present - avoids a second
-        # round trip when the config was already fetched with resolve=True.
+        # Resolve embeds in parameters if enabled (via flags.resolve)
         resolve_flag = (request.flags or {}).get("resolve", True)
         if (
             resolve_flag
-            and configuration
-            and configuration.parameters
-            and _has_embed_markers(configuration.parameters)
+            and revision
+            and revision.parameters
+            and _has_embed_markers(revision.parameters)
         ):
             try:
                 log.info("Resolving embeds in configuration parameters")
                 resolved_params = await resolve_embeds(
-                    parameters=configuration.parameters,
+                    parameters=revision.parameters,
                     credentials=request.credentials,
                 )
-                configuration.parameters = resolved_params
+                revision.parameters = resolved_params
                 log.info("Embeds resolution completed successfully")
             except Exception as e:
                 log.error(f"Embeds resolution failed: {e}")
-                # Error policy is handled internally by resolve_embeds
                 raise
 
-        handler = await resolve_handler(uri=(interface.uri if interface else None))
+        handler = await resolve_handler(uri=(revision.uri if revision else None))
 
         ctx = RunningContext.get()
-        ctx.interface = interface
-        ctx.configuration = configuration
+        ctx.revision = revision.model_dump(mode="json") if revision else None
         ctx.handler = handler
 
         if not request.data:
-            request.data = WorkflowServiceRequestData()
+            request.data = WorkflowRequestData()
 
-        if configuration:
-            request.data.parameters = request.data.parameters or (
-                configuration.parameters if configuration else None
-            )
+        if revision:
+            request.data.parameters = request.data.parameters or revision.parameters
 
         return await call_next(request)

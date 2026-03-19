@@ -4,19 +4,14 @@ from contextlib import contextmanager, asynccontextmanager
 
 from pydantic import BaseModel
 
-from agenta.sdk.models.workflows import (
-    WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
-)
-
 
 class RunningContext(BaseModel):
     flags: Optional[dict] = None
     tags: Optional[dict] = None
     meta: Optional[dict] = None
 
-    interface: Optional[WorkflowServiceInterface] = None
-    configuration: Optional[WorkflowServiceConfiguration] = None
+    revision: Optional[dict] = None
+
     parameters: Optional[dict] = None
     schemas: Optional[dict] = None
 

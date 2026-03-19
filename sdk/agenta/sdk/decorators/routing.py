@@ -12,11 +12,12 @@ from starlette.routing import Mount
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
+    WorkflowInvokeRequest,
+    WorkflowInspectRequest,
     WorkflowServiceStatus,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
-    WorkflowServiceBaseResponse,
+    WorkflowBatchResponse,
+    WorkflowStreamingResponse,
+    WorkflowBaseResponse,
     WorkflowServiceResponseData,
 )
 from agenta.sdk.middlewares.routing.cors import CORSMiddleware
@@ -24,7 +25,7 @@ from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext
-from agenta.sdk.decorators.running import auto_workflow, Workflow
+from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
 
 
@@ -143,7 +144,7 @@ def _sse_stream(aiter: AsyncGenerator[Any, None]):
 
 def _set_common_headers(
     res: Response,
-    response: WorkflowServiceBaseResponse,
+    response: WorkflowBaseResponse,
 ) -> Response:
     res.headers.setdefault("x-ag-version", response.version or "unknown")
 
@@ -157,7 +158,7 @@ def _set_common_headers(
 
 
 def _make_json_response(
-    response: WorkflowServiceBatchResponse,
+    response: WorkflowBatchResponse,
 ) -> JSONResponse:
     res = JSONResponse(
         status_code=((response.status.code or 200) if response.status else 200),
@@ -168,7 +169,7 @@ def _make_json_response(
 
 
 def _make_stream_response(
-    response: WorkflowServiceStreamResponse,
+    response: WorkflowStreamingResponse,
     wire_format: str,
 ) -> StreamingResponse:
     aiter = response.iterator()
@@ -188,10 +189,10 @@ def _make_stream_response(
 
 def _make_not_acceptable_response(
     requested: str,
-    response: WorkflowServiceBaseResponse,
+    response: WorkflowBaseResponse,
 ) -> JSONResponse:
     """Return 406 when the handler's output cannot satisfy the requested Accept type."""
-    is_batch = isinstance(response, WorkflowServiceBatchResponse)
+    is_batch = isinstance(response, WorkflowBatchResponse)
     supported = sorted(BATCH_MEDIA_TYPES) if is_batch else sorted(STREAM_MEDIA_TYPES)
 
     body: dict = {
@@ -216,15 +217,13 @@ async def handle_invoke_success(
     response: Any,
 ) -> Response:
     # Normalise raw values that escaped the middleware chain
-    if not isinstance(
-        response, (WorkflowServiceBatchResponse, WorkflowServiceStreamResponse)
-    ):
-        response = WorkflowServiceBatchResponse(
+    if not isinstance(response, (WorkflowBatchResponse, WorkflowStreamingResponse)):
+        response = WorkflowBatchResponse(
             data=WorkflowServiceResponseData(outputs=response)
         )
 
-    is_batch = isinstance(response, WorkflowServiceBatchResponse)
-    is_stream = isinstance(response, WorkflowServiceStreamResponse)
+    is_batch = isinstance(response, WorkflowBatchResponse)
+    is_stream = isinstance(response, WorkflowStreamingResponse)
 
     requested = _parse_accept(req)
 
@@ -304,7 +303,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
         trace_id = UUID(int=_trace_id).hex if _trace_id else None
         span_id = UUID(int=_span_id).hex[16:] if _span_id else None
 
-    error = WorkflowServiceBatchResponse(
+    error = WorkflowBatchResponse(
         status=status,
         trace_id=trace_id,
         span_id=span_id,
@@ -314,7 +313,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 
 
 async def handle_inspect_success(
-    request: Optional[WorkflowServiceRequest],
+    request: Optional[WorkflowInvokeRequest],
 ):
     if request:
         return JSONResponse(request.model_dump(mode="json", exclude_none=True))
@@ -378,7 +377,7 @@ class route:
         # Build the two endpoint closures (same logic as before).
         # ------------------------------------------------------------------
 
-        async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
+        async def invoke_endpoint(req: Request, request: WorkflowInvokeRequest):
             credentials = req.state.auth.get("credentials")
 
             try:
@@ -401,15 +400,16 @@ class route:
             except Exception as exception:
                 return await handle_invoke_failure(exception)
 
-        async def inspect_endpoint(req: Request):
+        async def inspect_endpoint(req: Request, request: WorkflowInspectRequest):
             credentials = req.state.auth.get("credentials")
 
             try:
-                request = await wf.inspect(
+                result = await inspect_workflow(
+                    request=request,
                     credentials=credentials,
                 )
 
-                return await handle_inspect_success(request)
+                return await handle_inspect_success(result)
 
             except Exception as exception:
                 return await handle_inspect_failure(exception)
@@ -419,7 +419,7 @@ class route:
                 "description": "Negotiated response — format determined by Accept header",
                 "content": {
                     "application/json": {
-                        "schema": WorkflowServiceBatchResponse.model_json_schema()
+                        "schema": WorkflowBatchResponse.model_json_schema()
                     },
                     "application/x-ndjson": {
                         "schema": {"type": "string", "description": "NDJSON stream"}
@@ -466,8 +466,8 @@ class route:
             self.router_fallback.add_api_route(
                 self.path + "/inspect",
                 inspect_endpoint,
-                methods=["GET"],
-                response_model=WorkflowServiceRequest,
+                methods=["POST"],
+                response_model=WorkflowInvokeRequest,
             )
             return foo
 
@@ -488,8 +488,8 @@ class route:
             self.mount_root.add_api_route(
                 "/inspect",
                 inspect_endpoint,
-                methods=["GET"],
-                response_model=WorkflowServiceRequest,
+                methods=["POST"],
+                response_model=WorkflowInvokeRequest,
             )
 
             return foo
@@ -505,8 +505,8 @@ class route:
         sub_app.add_api_route(
             "/inspect",
             inspect_endpoint,
-            methods=["GET"],
-            response_model=WorkflowServiceRequest,
+            methods=["POST"],
+            response_model=WorkflowInvokeRequest,
         )
 
         self.mount_root.mount(self.path, sub_app)

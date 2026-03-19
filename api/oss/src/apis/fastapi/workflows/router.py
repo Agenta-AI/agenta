@@ -68,9 +68,10 @@ from oss.src.apis.fastapi.environments.utils import (
 )
 
 from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowInvokeRequest,
+    WorkflowInspectRequest,
+    WorkflowBatchResponse,
+    WorkflowStreamingResponse,
 )
 from agenta.sdk.decorators.routing import (
     handle_invoke_success,
@@ -352,9 +353,7 @@ class WorkflowsRouter:
             methods=["POST"],
             operation_id="invoke_workflow",
             status_code=status.HTTP_200_OK,
-            response_model=Union[
-                WorkflowServiceBatchResponse, WorkflowServiceStreamResponse
-            ],
+            response_model=Union[WorkflowBatchResponse, WorkflowStreamingResponse],
             response_model_exclude_none=True,
         )
 
@@ -364,7 +363,7 @@ class WorkflowsRouter:
             methods=["POST"],
             operation_id="inspect_workflow",
             status_code=status.HTTP_200_OK,
-            response_model=WorkflowServiceRequest,
+            response_model=WorkflowInvokeRequest,
             response_model_exclude_none=True,
         )
 
@@ -1512,14 +1511,12 @@ class WorkflowsRouter:
     # WORKFLOW SERVICES --------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=WorkflowServiceBatchResponse(), exclude=[HTTPException]
-    )
+    @suppress_exceptions(default=WorkflowBatchResponse(), exclude=[HTTPException])
     async def invoke_workflow(
         self,
         request: Request,
         *,
-        workflow_service_request: WorkflowServiceRequest,
+        workflow_service_request: WorkflowInvokeRequest,
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1543,12 +1540,12 @@ class WorkflowsRouter:
             return await handle_invoke_failure(exception)
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceRequest(), exclude=[HTTPException])
+    @suppress_exceptions(default=WorkflowInvokeRequest(), exclude=[HTTPException])
     async def inspect_workflow(
         self,
         request: Request,
         *,
-        workflow_service_request: WorkflowServiceRequest,
+        workflow_service_request: WorkflowInspectRequest,
     ):
         if is_ee():
             if not await check_action_access(  # type: ignore

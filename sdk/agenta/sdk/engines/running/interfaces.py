@@ -1,4 +1,4 @@
-from agenta.sdk.models.workflows import WorkflowServiceInterface
+from agenta.sdk.models.workflows import WorkflowRevisionData
 
 
 JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -170,27 +170,27 @@ SCORE_SUCCESS_OUTPUTS_SCHEMA = obj(
 
 # --- NEW URI
 
-trace_v0_interface = WorkflowServiceInterface(
+trace_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:trace:v0",
     schemas=None,
 )
 
-hook_v0_interface = WorkflowServiceInterface(
+hook_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:hook:v0",
     schemas=None,
 )
 
-code_v0_interface = WorkflowServiceInterface(
+code_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:code:v0",
     schemas=None,
 )
 
-snippet_v0_interface = WorkflowServiceInterface(
+snippet_v0_interface = WorkflowRevisionData(
     uri="agenta:custom:snippet:v0",
     schemas=None,
 )
 
-match_v0_interface = WorkflowServiceInterface(
+match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:match:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -245,7 +245,7 @@ match_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-llm_v0_interface = WorkflowServiceInterface(
+llm_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:llm:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -386,7 +386,7 @@ llm_v0_interface = WorkflowServiceInterface(
 
 # --- OLD URI
 
-chat_v0_interface = WorkflowServiceInterface(
+chat_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:chat:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -427,7 +427,7 @@ chat_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-completion_v0_interface = WorkflowServiceInterface(
+completion_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -458,7 +458,7 @@ completion_v0_interface = WorkflowServiceInterface(
 )
 
 
-echo_v0_interface = WorkflowServiceInterface(
+echo_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:echo:v0",
     schemas=dict(  # type: ignore
         parameters=obj(title="Echo Parameters", additional_properties=True),
@@ -481,7 +481,7 @@ echo_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_exact_match_v0_interface = WorkflowServiceInterface(
+auto_exact_match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_exact_match:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -500,7 +500,7 @@ auto_exact_match_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_regex_test_v0_interface = WorkflowServiceInterface(
+auto_regex_test_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_regex_test:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -521,7 +521,7 @@ auto_regex_test_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-field_match_test_v0_interface = WorkflowServiceInterface(
+field_match_test_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:field_match_test:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -542,7 +542,7 @@ field_match_test_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-json_multi_field_match_v0_interface = WorkflowServiceInterface(
+json_multi_field_match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:json_multi_field_match:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -593,7 +593,7 @@ json_multi_field_match_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_webhook_test_v0_interface = WorkflowServiceInterface(
+auto_webhook_test_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_webhook_test:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -619,7 +619,7 @@ auto_webhook_test_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_custom_code_run_v0_interface = WorkflowServiceInterface(
+auto_custom_code_run_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_custom_code_run:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -656,7 +656,7 @@ auto_custom_code_run_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_ai_critique_v0_interface = WorkflowServiceInterface(
+auto_ai_critique_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_ai_critique:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -727,7 +727,7 @@ auto_ai_critique_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_starts_with_v0_interface = WorkflowServiceInterface(
+auto_starts_with_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_starts_with:v0",
     schemas=dict(  # type: ignore  # type: ignore
         parameters=obj(
@@ -746,7 +746,7 @@ auto_starts_with_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_ends_with_v0_interface = WorkflowServiceInterface(
+auto_ends_with_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_ends_with:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -765,7 +765,7 @@ auto_ends_with_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_contains_v0_interface = WorkflowServiceInterface(
+auto_contains_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_contains:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -784,7 +784,7 @@ auto_contains_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_contains_any_v0_interface = WorkflowServiceInterface(
+auto_contains_any_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_contains_any:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -803,7 +803,7 @@ auto_contains_any_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_contains_all_v0_interface = WorkflowServiceInterface(
+auto_contains_all_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_contains_all:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -822,7 +822,7 @@ auto_contains_all_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_contains_json_v0_interface = WorkflowServiceInterface(
+auto_contains_json_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_contains_json:v0",
     schemas=dict(  # type: ignore
         parameters=obj(title="Contains JSON Parameters", additional_properties=False),
@@ -831,7 +831,7 @@ auto_contains_json_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_json_diff_v0_interface = WorkflowServiceInterface(
+auto_json_diff_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_json_diff:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -865,7 +865,7 @@ auto_json_diff_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
+auto_levenshtein_distance_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_levenshtein_distance:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -885,7 +885,7 @@ auto_levenshtein_distance_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_similarity_match_v0_interface = WorkflowServiceInterface(
+auto_similarity_match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_similarity_match:v0",
     schemas=dict(  # type: ignore
         parameters=obj(
@@ -909,7 +909,7 @@ auto_similarity_match_v0_interface = WorkflowServiceInterface(
     ),
 )
 
-auto_semantic_similarity_v0_interface = WorkflowServiceInterface(
+auto_semantic_similarity_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:auto_semantic_similarity:v0",
     schemas=dict(  # type: ignore
         parameters=obj(

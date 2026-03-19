@@ -2078,15 +2078,7 @@ class SimpleEvaluatorsRouter:
             else None
         )
 
-        flags = EvaluatorQueryFlags(
-            is_custom=(
-                simple_evaluator_flags.is_custom if simple_evaluator_flags else None
-            ),
-            is_evaluator=True,
-            is_human=(
-                simple_evaluator_flags.is_human if simple_evaluator_flags else None
-            ),
-        )
+        flags = simple_evaluator_flags or EvaluatorQueryFlags()
 
         evaluator_query = EvaluatorQuery(
             flags=flags,

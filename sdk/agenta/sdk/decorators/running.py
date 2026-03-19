@@ -9,12 +9,12 @@ from uuid import UUID
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
     WorkflowRevision,
-    WorkflowServiceRequestData,
-    WorkflowServiceRequest,
-    WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowRevisionData,
+    WorkflowRequestData,
+    WorkflowInvokeRequest,
+    WorkflowInspectRequest,
+    WorkflowBatchResponse,
+    WorkflowStreamingResponse,
     Reference,
     Link,
 )
@@ -25,8 +25,6 @@ from agenta.sdk.middlewares.running.normalizer import (
 )
 from agenta.sdk.middlewares.running.resolver import (
     ResolverMiddleware,
-    resolve_interface,
-    resolve_configuration,
 )
 from agenta.sdk.middlewares.running.vault import (
     VaultMiddleware,
@@ -49,12 +47,12 @@ log = get_module_logger(__name__)
 class InvokeFn(Protocol):
     async def __call__(
         self,
-        request: Union[WorkflowServiceRequest, dict],
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]: ...
+        request: Union[WorkflowInvokeRequest, dict],
+    ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]: ...
 
 
 class InspectFn(Protocol):
-    async def __call__(self) -> WorkflowServiceRequest: ...
+    async def __call__(self) -> WorkflowInvokeRequest: ...
 
 
 class Workflow:
@@ -70,13 +68,13 @@ class Workflow:
     async def invoke(
         self,
         *,
-        request: Union[WorkflowServiceRequest, dict],
+        request: Union[WorkflowInvokeRequest, dict],
         #
         secrets: Optional[list] = None,
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]: ...
+    ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]: ...
 
     async def inspect(
         self,
@@ -84,7 +82,7 @@ class Workflow:
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> WorkflowServiceRequest: ...
+    ) -> WorkflowInvokeRequest: ...
 
     def __call__(self, *args, **kwargs) -> Any:
         return self._fn(*args, **kwargs)
@@ -121,22 +119,11 @@ class workflow:
         headers: Optional[dict] = None,
         schemas: Optional[dict] = None,
         #
-        interface: Optional[
-            Union[
-                WorkflowServiceInterface,
-                Dict[str, Any],
-            ]
-        ] = None,
-        # -------------------------------------------------------------------- #
+        runtime: Optional[str] = None,
         script: Optional[str] = None,
         parameters: Optional[dict] = None,
         #
-        configuration: Optional[
-            Union[
-                WorkflowServiceConfiguration,
-                Dict[str, Any],
-            ]
-        ] = None,
+        revision: Optional[Union[WorkflowRevisionData, Dict[str, Any]]] = None,
         # -------------------------------------------------------------------- #
         **kwargs,
     ):
@@ -156,17 +143,17 @@ class workflow:
         self.tags = tags
         self.meta = meta
         # -------------------------------------------------------------------- #
-        self.uri = uri
-        self.url = url
-        self.headers = headers
-        self.schemas = schemas
-        #
-        self.interface = interface
-        # -------------------------------------------------------------------- #
-        self.script = script
-        self.parameters = parameters
-        #
-        self.configuration = configuration
+        self.revision = (
+            WorkflowRevisionData(**revision) if isinstance(revision, dict) else revision
+        ) or WorkflowRevisionData(
+            uri=uri,
+            url=url,
+            headers=headers,
+            schemas=schemas,
+            runtime=runtime,
+            script=script,
+            parameters=parameters,
+        )
         # -------------------------------------------------------------------- #
         self.kwargs = kwargs
         # -------------------------------------------------------------------- #
@@ -181,24 +168,25 @@ class workflow:
 
         self.default_request = None
 
-        self.uri = uri or (interface.uri if interface else None)
+        self.uri = self.revision.uri
 
         if self.uri is not None:
             self._retrieve_handler(self.uri)
 
             if self.handler:
-                self.interface = retrieve_interface(self.uri) or self.interface
-                if isinstance(self.interface, WorkflowServiceInterface):
-                    self.uri = self.interface.uri or self.uri
-                self.configuration = self.configuration or retrieve_configuration(
-                    self.uri
-                )
-                if not isinstance(self.configuration, WorkflowServiceConfiguration):
-                    self.configuration = WorkflowServiceConfiguration()
-                self.configuration.parameters = (
-                    self.parameters or self.configuration.parameters
-                )
-                self.parameters = self.configuration.parameters
+                registered = retrieve_interface(self.uri)
+                if registered:
+                    # merge registered interface into revision, keeping caller overrides
+                    merged = registered.model_dump(exclude_none=True)
+                    merged.update(self.revision.model_dump(exclude_none=True))
+                    self.revision = WorkflowRevisionData(**merged)
+                    self.uri = self.revision.uri
+
+                registered_config = retrieve_configuration(self.uri)
+                if registered_config and not self.revision.parameters:
+                    self.revision.parameters = registered_config.parameters
+
+                self.parameters = self.revision.parameters
 
         if is_custom_uri(self.uri):
             self.flags = self.flags or dict()
@@ -240,22 +228,22 @@ class workflow:
         if handler is not None and callable(handler):
             instrumented = auto_instrument(handler)
             uri = register_handler(instrumented, uri=uri)
-            if self.interface is None:
-                self.interface = WorkflowServiceInterface()
+            if self.revision is None:
+                self.revision = WorkflowRevisionData()
             self.uri = uri
-            self.interface.uri = uri
-            self.interface.schemas = self.schemas
+            self.revision.uri = uri
+            # schemas already populated from __init__ into self.revision.schemas
             self.handler = instrumented
 
     def _retrieve_handler(self, uri: str):
         self.handler = retrieve_handler(uri)
         if self.handler is None:
             raise ValueError(f"Unable to retrieve handler for URI: {uri}")
-        if self.interface is None:
-            self.interface = WorkflowServiceInterface()
+        if self.revision is None:
+            self.revision = WorkflowRevisionData()
         self.uri = uri
-        self.interface.uri = uri
-        self.interface.schemas = self.schemas
+        self.revision.uri = uri
+        self.revision.schemas = self.revision.schemas or self.schemas
 
     def _extend_handler(self):
         """Extend the registered handler with additional workflow capabilities.
@@ -302,13 +290,13 @@ class workflow:
     async def invoke(
         self,
         *,
-        request: WorkflowServiceRequest,
+        request: WorkflowInvokeRequest,
         #
         secrets: Optional[list] = None,
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
+    ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
         _flags = {**(self.flags or {}), **(request.flags or {})}
         _tags = {**(self.tags or {}), **(request.tags or {})}
         _meta = {**(self.meta or {}), **(request.meta or {})}
@@ -341,12 +329,11 @@ class workflow:
                 running_ctx.secrets = secrets
                 running_ctx.credentials = credentials
 
-                running_ctx.interface = self.interface
-                running_ctx.schemas = self.schemas
-                running_ctx.configuration = self.configuration
+                running_ctx.revision = self.revision
+                running_ctx.schemas = self.revision.schemas if self.revision else None
                 running_ctx.parameters = self.parameters
 
-                async def terminal(req: WorkflowServiceRequest):
+                async def terminal(req: WorkflowInvokeRequest):
                     return None
 
                 call_next = terminal
@@ -356,7 +343,7 @@ class workflow:
 
                     async def make_call(mw, prev_next):
                         async def _call(
-                            req: WorkflowServiceRequest,
+                            req: WorkflowInvokeRequest,
                         ):
                             return await mw(req, prev_next)
 
@@ -372,7 +359,7 @@ class workflow:
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> WorkflowServiceRequest:
+    ) -> WorkflowInvokeRequest:
         with tracing_context_manager(TracingContext.get()):
             tracing_ctx = TracingContext.get()
 
@@ -385,26 +372,11 @@ class workflow:
                 running_ctx = RunningContext.get()
 
                 running_ctx.credentials = credentials
-
-                running_ctx.interface = self.interface
-                running_ctx.schemas = self.schemas
-                running_ctx.configuration = self.configuration
+                running_ctx.revision = self.revision
                 running_ctx.parameters = self.parameters
 
                 if self.default_request is None:
-                    interface = await resolve_interface(
-                        interface=self.interface,
-                        **self.kwargs,
-                    )
-                    configuration = await resolve_configuration(
-                        configuration=self.configuration,
-                        **self.kwargs,
-                    )
-
-                    self.default_request = WorkflowServiceRequest(
-                        #
-                        interface=interface,
-                        configuration=configuration,
+                    self.default_request = WorkflowInvokeRequest(
                         #
                         references=self.references,
                         links=self.links,
@@ -413,7 +385,7 @@ class workflow:
                         tags=self.tags,
                         meta=self.meta,
                         #
-                        data=WorkflowServiceRequestData(
+                        data=WorkflowRequestData(
                             revision=WorkflowRevision(
                                 id=self.id,
                                 slug=self.slug,
@@ -421,6 +393,8 @@ class workflow:
                                 #
                                 name=self.name,
                                 description=self.description,
+                                #
+                                data=self.revision,
                             ).model_dump(
                                 mode="json",
                                 exclude_none=True,
@@ -487,18 +461,19 @@ def auto_workflow(obj: Any, **kwargs) -> Workflow:
 
 
 async def invoke_workflow(
-    request: WorkflowServiceRequest,
+    request: WorkflowInvokeRequest,
     #
     secrets: Optional[list] = None,
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
+) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
     return await workflow(
         data=request.data,
         #
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.data.revision.get("data")
+        if request.data and request.data.revision
+        else None,
         #
         flags=request.flags,
         tags=request.tags,
@@ -519,22 +494,20 @@ async def invoke_workflow(
 
 
 async def inspect_workflow(
-    request: WorkflowServiceRequest,
+    request: WorkflowInspectRequest,
     #
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> WorkflowServiceRequest:
+) -> WorkflowInvokeRequest:
     return await workflow(
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.revision,
         #
         flags=request.flags,
         tags=request.tags,
         meta=request.meta,
         #
         references=request.references,
-        links=request.links,
     )().inspect(
         credentials=credentials,
         #
@@ -587,18 +560,19 @@ class application(workflow):
 
 
 async def invoke_application(
-    request: WorkflowServiceRequest,
+    request: WorkflowInvokeRequest,
     #
     secrets: Optional[list] = None,
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
+) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
     return await application(
         data=request.data,
         #
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.data.revision.get("data")
+        if request.data and request.data.revision
+        else None,
         #
         flags=request.flags,
         tags=request.tags,
@@ -619,24 +593,20 @@ async def invoke_application(
 
 
 async def inspect_application(
-    request: WorkflowServiceRequest,
+    request: WorkflowInspectRequest,
     #
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> WorkflowServiceRequest:
+) -> WorkflowInvokeRequest:
     return await application(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.revision,
         #
         flags=request.flags,
         tags=request.tags,
         meta=request.meta,
         #
         references=request.references,
-        links=request.links,
     )().inspect(
         credentials=credentials,
         #
@@ -689,18 +659,19 @@ class evaluator(workflow):
 
 
 async def invoke_evaluator(
-    request: WorkflowServiceRequest,
+    request: WorkflowInvokeRequest,
     #
     secrets: Optional[list] = None,
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
+) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
     return await evaluator(
         data=request.data,
         #
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.data.revision.get("data")
+        if request.data and request.data.revision
+        else None,
         #
         flags=request.flags,
         tags=request.tags,
@@ -721,24 +692,20 @@ async def invoke_evaluator(
 
 
 async def inspect_evaluator(
-    request: WorkflowServiceRequest,
+    request: WorkflowInspectRequest,
     #
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> WorkflowServiceRequest:
+) -> WorkflowInvokeRequest:
     return await evaluator(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
+        revision=request.revision,
         #
         flags=request.flags,
         tags=request.tags,
         meta=request.meta,
         #
         references=request.references,
-        links=request.links,
     )().inspect(
         credentials=credentials,
         #

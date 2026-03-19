@@ -550,7 +550,7 @@ URI components (from `parse_uri(uri)`): `provider : kind : key : version`
 
 Dropped as redundant: `is_builtin` (`not is_custom`), `is_internal` (`not is_managed`).
 
-Dropped as redundant: `is_human` (`is_managed and is_custom and is_trace`).
+Dropped as redundant: `is_human` (`is_managed and is_custom and is_human`).
 
 **Key-based type flags** (derived from the `key` component, regardless of provider):
 
@@ -559,7 +559,7 @@ Dropped as redundant: `is_human` (`is_managed and is_custom and is_trace`).
 | `is_llm` | `key == "llm"` | `agenta:builtin:llm:v0` → T |
 | `is_hook` | `key == "hook"` | `agenta:custom:hook:v0` → T |
 | `is_code` | `key == "code"` | `agenta:custom:code:v0` → T |
-| `is_trace` | `key == "trace"` | `agenta:custom:trace:v0` → T |
+| `is_human` | `key == "trace"` | `agenta:custom:trace:v0` → T |
 | `is_match` | `key == "match"` | `agenta:builtin:match:v0` → T |
 
 ---
@@ -662,7 +662,7 @@ def infer_flags_from_data(
     is_llm   = key == "llm"
     is_hook  = key == "hook"
     is_code  = key == "code"
-    is_trace = key == "trace"
+    is_human = key == "trace"
     is_match = key == "match"
 
     # Interface-derived
@@ -713,7 +713,7 @@ def infer_flags_from_data(
         is_llm=is_llm,
         is_hook=is_hook,
         is_code=is_code,
-        is_trace=is_trace,
+        is_human=is_human,
         is_match=is_match,
         # role
         is_evaluator=is_evaluator,
@@ -728,7 +728,7 @@ def infer_flags_from_data(
 
 ### Flag Matrix by URI Family
 
-| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_trace` | `is_match` | `has_url` | `has_handler` | `has_script` | `is_evaluator` | `is_application` |
+| URI Pattern | `is_custom` | `is_managed` | `is_llm` | `is_hook` | `is_code` | `is_human` | `is_match` | `has_url` | `has_handler` | `has_script` | `is_evaluator` | `is_application` |
 |-------------|-------------|--------------|----------|-----------|-----------|------------|------------|-----------|---------------|--------------|----------------|-----------------|
 | `agenta:builtin:chat:*` | F | T | F | F | F | F | F | T | F | F | F | T |
 | `agenta:builtin:completion:*` | F | T | F | F | F | F | F | T | F | F | F | T |
@@ -745,10 +745,10 @@ def infer_flags_from_data(
 
 ### Notes for Iteration
 
-- `is_trace` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_human` is dropped — it was redundant with `is_managed and is_custom and is_trace`.
+- `is_human` and `is_match` are key-based type flags (`key == "trace"`, `key == "match"`). `is_human` is dropped — it was redundant with `is_managed and is_custom and is_human`.
 - `is_evaluator` and `is_application` for `agenta:*` URIs use the lookup table `_AGENTA_ROLE_TABLE` — it is **positively exhaustive**: every known key is listed, unknown keys raise. `agenta:builtin:chat` and `agenta:builtin:completion` are the only application-only builtins; all other builtins are evaluator-only. Update the table whenever a new agenta URI key is introduced.
 - `is_evaluator` and `is_application` for `user:custom:*` are caller-provided at creation and edit time. If omitted by caller, they default to `False`. Do NOT infer them from URI for external workflows.
 - `is_structured` is a lightweight flag — it does not validate the schema, only checks presence. Schema validity is enforced by `WorkflowServiceInterface` model validator at parse time.
-- `WorkflowFlags` model must be extended with: `is_managed`, `is_trace`, `is_match`, `has_url`, `has_handler`, `has_script`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
+- `WorkflowFlags` model must be extended with: `is_managed`, `is_human`, `is_match`, `has_url`, `has_handler`, `has_script`, `is_llm`, `is_hook`, `is_code`, `is_application`, `is_structured` before `infer_flags_from_data` can be implemented. Drop `is_builtin`, `is_external`, `is_internal`, `is_human` — all redundant composites of the remaining flags.
 - Call site: `api/oss/src/core/workflows/service.py` during `commit_revision` — replace manual flag construction with `infer_flags_from_data(...)`.
 - `AnnotationOrigin` derivation (S3) reads `flags.has_url`, `flags.has_handler`, and `flags.is_custom` from stored flags — no URI re-parse needed at annotation time.

@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Callable
 from agenta.sdk.models.workflows import (
     WorkflowFlags,
     WorkflowRevisionData,
-    WorkflowServiceInterface,
 )
 
 from agenta.sdk.engines.running.handlers import (
@@ -356,7 +355,7 @@ def retrieve_handler(uri: Optional[str] = None) -> Optional[Callable]:
     return _get_with_latest(HANDLER_REGISTRY, provider, kind, key, version)
 
 
-def retrieve_interface(uri: Optional[str] = None) -> Optional[WorkflowServiceInterface]:
+def retrieve_interface(uri: Optional[str] = None) -> Optional[WorkflowRevisionData]:
     if not uri:
         return None
     provider, kind, key, version = parse_uri(uri)
@@ -457,8 +456,8 @@ def infer_flags_from_data(
     is_llm = key == "llm"
     is_hook = key == "hook"
     is_code = key == "code"
-    is_trace = key == "trace"
     is_match = key == "match"
+    is_human = key == "trace"
 
     # interface
     has_url = bool(url)
@@ -497,8 +496,8 @@ def infer_flags_from_data(
         is_llm=is_llm,
         is_hook=is_hook,
         is_code=is_code,
-        is_trace=is_trace,
         is_match=is_match,
+        is_human=is_human,
         # interface-derived
         has_url=has_url,
         has_handler=has_handler,

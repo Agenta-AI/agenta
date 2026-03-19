@@ -50,10 +50,6 @@ from agenta.sdk.evaluations.metrics import (
 )
 
 
-from agenta.sdk.models.workflows import (
-    WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
-)
 from agenta.sdk.decorators.running import (
     invoke_application,
     invoke_evaluator,
@@ -579,21 +575,11 @@ async def aevaluate(
                     mode="json",
                     exclude_none=True,
                 )
-                interface = WorkflowServiceInterface(
-                    **(
-                        application_revision.data.model_dump()
-                        if application_revision.data
-                        else {}
-                    )
+                parameters = (
+                    application_revision.data.parameters
+                    if application_revision.data
+                    else None
                 )
-                configuration = WorkflowServiceConfiguration(
-                    **(
-                        application_revision.data.model_dump()
-                        if application_revision.data
-                        else {}
-                    )
-                )
-                parameters = application_revision.data.parameters
 
                 _trace = None
                 outputs = None
@@ -610,9 +596,6 @@ async def aevaluate(
                 )
 
                 application_request = ApplicationServiceRequest(
-                    interface=interface,
-                    configuration=configuration,
-                    #
                     data=workflow_service_request_data,
                     #
                     references=references,  # type: ignore
@@ -721,21 +704,11 @@ async def aevaluate(
                         mode="json",
                         exclude_none=True,
                     )
-                    interface = WorkflowServiceInterface(
-                        **(
-                            evaluator_revision.data.model_dump()
-                            if evaluator_revision.data
-                            else {}
-                        )
+                    parameters = (
+                        evaluator_revision.data.parameters
+                        if evaluator_revision.data
+                        else None
                     )
-                    configuration = WorkflowServiceConfiguration(
-                        **(
-                            evaluator_revision.data.model_dump()
-                            if evaluator_revision.data
-                            else {}
-                        )
-                    )
-                    parameters = evaluator_revision.data.parameters
 
                     workflow_service_request_data = WorkflowServiceRequestData(
                         revision=_revision,
@@ -750,9 +723,6 @@ async def aevaluate(
 
                     evaluator_request = EvaluatorServiceRequest(
                         version="2025.07.14",
-                        #
-                        interface=interface,
-                        configuration=configuration,
                         #
                         data=workflow_service_request_data,
                         #
