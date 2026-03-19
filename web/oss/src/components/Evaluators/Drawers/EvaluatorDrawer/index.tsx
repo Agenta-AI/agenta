@@ -40,7 +40,7 @@ import {
     hasAppConnectedAtom,
     selectedAppLabelAtom,
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
-import {clearEvaluatorWorkflowNameCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundEntityProvider} from "@/oss/components/Playground/OSSPlaygroundEntityProvider"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
@@ -164,7 +164,7 @@ const DrawerContent = ({entityId, onClose}: {entityId: string; onClose: () => vo
 
         registerWorkflowCommitCallbacks({
             onNewRevision: async (result, params) => {
-                clearEvaluatorWorkflowNameCache()
+                clearEvaluatorWorkflowCache()
                 // Call the previous handler first (entity switch, etc.)
                 await previousOnNewRevision?.(result, params)
                 onCloseRef.current()

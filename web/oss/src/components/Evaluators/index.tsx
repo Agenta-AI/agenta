@@ -29,7 +29,7 @@ import {evaluatorCategoryAtom, evaluatorSearchTermAtom} from "./store/evaluatorF
 import type {EvaluatorTableRow} from "./store/evaluatorsPaginatedStore"
 import {
     evaluatorsPaginatedStore,
-    clearEvaluatorWorkflowNameCache,
+    clearEvaluatorWorkflowCache,
 } from "./store/evaluatorsPaginatedStore"
 import EvaluatorsTable from "./Table/EvaluatorsTable"
 
@@ -85,7 +85,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const [deleteTargetNames, setDeleteTargetNames] = useState<string[]>([])
 
     const refetchAll = useCallback(() => {
-        clearEvaluatorWorkflowNameCache()
+        clearEvaluatorWorkflowCache()
         refreshStore()
     }, [refreshStore])
 
@@ -132,7 +132,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             if (activeTab === "human") {
                 openHumanDrawer({
                     mode: "edit",
-                    evaluator: record.raw,
+                    workflowId: record.workflowId,
                     onSuccess: () => refetchAll(),
                 })
             } else {
@@ -163,7 +163,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
 
             await Promise.all(deleteTargetIds.map((id) => archiveWorkflow(projectId, id)))
             invalidateWorkflowsListCache()
-            clearEvaluatorWorkflowNameCache()
+            clearEvaluatorWorkflowCache()
 
             message.success(
                 deleteTargetIds.length === 1
@@ -195,7 +195,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             handleEdit: (record: EvaluatorTableRow) => {
                 openHumanDrawer({
                     mode: "edit",
-                    evaluator: record.raw,
+                    workflowId: record.workflowId,
                     onSuccess: () => refetchAll(),
                 })
             },

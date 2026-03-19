@@ -13,7 +13,6 @@ import {
     evaluatorsListDataAtom,
     evaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,
-    humanEvaluatorsListQueryAtom,
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
@@ -23,7 +22,7 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {
-    clearEvaluatorWorkflowNameCache,
+    clearEvaluatorWorkflowCache,
     evaluatorsPaginatedStore,
 } from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
@@ -123,7 +122,6 @@ const NewEvaluationModalInner = ({
 
     // Workflow-based evaluator list atoms (replace legacy useEvaluators hook)
     const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
-    const humanEvaluatorsQuery = useAtomValue(humanEvaluatorsListQueryAtom)
     const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
     const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
 
@@ -132,11 +130,10 @@ const NewEvaluationModalInner = ({
         useMemo(() => {
             if (preview) {
                 const data = evaluationType === "human" ? humanEvaluatorsList : evaluatorsList
-                const query = evaluationType === "human" ? humanEvaluatorsQuery : evaluatorsQuery
                 return {
                     evaluators: data || [],
                     evaluatorConfigs: [],
-                    loadingEvaluators: query.isPending ?? false,
+                    loadingEvaluators: evaluatorsQuery.isPending ?? false,
                     loadingEvaluatorConfigs: false,
                 }
             } else {
@@ -294,7 +291,7 @@ const NewEvaluationModalInner = ({
         // Refetch evaluator configs to get the newly created one
         invalidateWorkflowsListCache()
         invalidateEvaluatorsListCache()
-        clearEvaluatorWorkflowNameCache()
+        clearEvaluatorWorkflowCache()
 
         // Auto-select the newly created evaluator config
         if (configId) {

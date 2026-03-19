@@ -11,7 +11,7 @@ import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import {
     evaluatorsPaginatedStore,
-    clearEvaluatorWorkflowNameCache,
+    clearEvaluatorWorkflowCache,
 } from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {
     registryPaginatedStore,
@@ -92,7 +92,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 }
 
                 clearRegistryVariantNameCache()
-                clearEvaluatorWorkflowNameCache()
+                clearEvaluatorWorkflowCache()
                 getDefaultStore().set(registryPaginatedStore.actions.refresh)
                 getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
@@ -145,7 +145,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 }
 
                 clearRegistryVariantNameCache()
-                clearEvaluatorWorkflowNameCache()
+                clearEvaluatorWorkflowCache()
                 getDefaultStore().set(registryPaginatedStore.actions.refresh)
                 getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
                 onSuccess?.({revisionId: result.newRevisionId, variantId: undefined})
@@ -184,7 +184,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }
 
             clearRegistryVariantNameCache()
-            clearEvaluatorWorkflowNameCache()
+            clearEvaluatorWorkflowCache()
             getDefaultStore().set(registryPaginatedStore.actions.refresh)
             getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
             onSuccess?.({revisionId: result.newRevisionId, variantId: variantSlug ?? undefined})

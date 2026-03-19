@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {humanEvaluatorsListDataAtom, humanEvaluatorsListQueryAtom} from "@agenta/entities/workflow"
+import {evaluatorsListQueryAtom, humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {Checkbox, CheckboxChangeEvent, Input, Skeleton, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
@@ -15,7 +15,7 @@ const SelectEvaluators = ({
 }: SelectEvaluatorsProps) => {
     const [search, setSearch] = useState("")
     const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
-    const {isPending: isLoading} = useAtomValue(humanEvaluatorsListQueryAtom)
+    const {isPending: isLoading} = useAtomValue(evaluatorsListQueryAtom)
 
     const filteredEvals = useMemo(
         () =>
