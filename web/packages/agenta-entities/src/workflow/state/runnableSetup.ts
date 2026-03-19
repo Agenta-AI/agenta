@@ -158,16 +158,17 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
         if (!entity?.data) return null
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
-        const isCustom = entity.flags?.is_custom ?? false
 
         // Evaluator workflows with URL (webhook): return URL as-is
         if (entity.data.url && isEvaluator) {
             return entity.data.url
         }
 
-        // Custom app workflows without URI: legacy /test path
-        // These are user-hosted services that don't go through the SDK invoke endpoint.
-        if (isCustom && entity.data.url && !entity.data.uri) {
+        // App workflows without URI: legacy /test path
+        // This covers custom user-hosted services and standard SDK apps that were deployed
+        // before the uri field was introduced. Both cases require direct service invocation
+        // rather than going through /preview/workflows/invoke (which needs interface.uri).
+        if (!isEvaluator && entity.data.url && !entity.data.uri) {
             const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
             const effectiveAppUrl = resolvedBuiltinUrl ?? entity.data.url
             const routePath = get(appRoutePathAtomFamily(workflowId))
@@ -466,9 +467,11 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             references.application_revision = {id: entity.id}
         }
 
-        // Custom app workflows without URI: legacy RequestPayloadData format
+        // App workflows without URI: legacy RequestPayloadData format
         // for buildRequestBody() → /test endpoint path.
-        if (isCustom && !entity.data.uri) {
+        // Covers custom user-hosted services and standard SDK apps deployed before
+        // the uri field was introduced — both require direct service invocation.
+        if (!entity.data.uri) {
             const invocationUrl = get(invocationUrlAtomFamily(workflowId))
             return {
                 ag_config: agConfig,
@@ -479,7 +482,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                 variables,
                 spec: openApiSchema,
                 routePath: routePath || undefined,
-                isCustom: true,
+                isCustom: isCustom,
                 appId,
                 references: Object.keys(references).length > 0 ? references : undefined,
             } satisfies RequestPayloadData
