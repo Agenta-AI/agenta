@@ -1,7 +1,7 @@
 import {memo} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Play, Plus} from "@phosphor-icons/react"
+import {Flask, Plus} from "@phosphor-icons/react"
 import {Button, Space, Typography} from "antd"
 import dynamic from "next/dynamic"
 
@@ -20,14 +20,13 @@ const PlaygroundLoadingShell = () => {
                 </Typography>
                 <div className="flex items-center gap-2">
                     <Button
-                        variant="outlined"
-                        color="default"
+                        type="text"
                         size="small"
-                        icon={<Play size={14} />}
+                        icon={<Flask size={14} />}
                         className="self-start"
                         disabled
                     >
-                        Run Evaluation
+                        New Evaluation
                     </Button>
                     <Space.Compact size="small">
                         <Button

@@ -1,0 +1,289 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# NOTE: This evaluator calls an LLM (gpt-4o-mini) at invocation time.
+# Requires a valid LLM API key configured in the Agenta vault.
+
+###
+# 0. Fetch catalog
+# @name fetch_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 1. Inspect the auto_ai_critique template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/evaluators/catalog/templates/auto_ai_critique
+Authorization: {{authorization}}
+
+###
+# 2. Create workflow — artifact + variant + committed revision in one shot
+# Uses json_schema response_type so the output is structured and parseable
+# @name create_workflow
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-auto-ai-critique-manual",
+    "name": "test-auto-ai-critique-manual",
+    "flags": {
+      "is_evaluator": true
+    },
+    "data": {
+      "uri": "agenta:builtin:auto_ai_critique:v0",
+      "parameters": {
+        "prompt_template": [
+          {
+            "role": "system",
+            "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1) indicating correctness."
+          },
+          {
+            "role": "user",
+            "content": "Answer: {output}"
+          }
+        ],
+        "model": "gpt-4o-mini",
+        "response_type": "json_schema",
+        "json_schema": {
+          "name": "evaluation_result",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": { "type": "number" }
+            },
+            "required": ["score"],
+            "additionalProperties": false
+          },
+          "strict": true
+        },
+        "threshold": 0.5
+      }
+    }
+  }
+}
+
+###
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
+@revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+@workflow_url  = {{create_workflow.response.body.workflow.data.url}}
+
+###
+# 3. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 4. Deploy revision to environment
+# @name deploy
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 4b. Check environment revision
+# @name check_env_revision
+POST {{api_url}}/preview/environments/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "environment_ref": { "id": "{{environment_id}}" }
+}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# Correct geography answer → LLM should score high
+# Requires: LLM API key
+# @name invoke_direct
+POST {{services_url}}/builtin/auto_ai_critique/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "prompt_template": [
+        {
+          "role": "system",
+          "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1) indicating correctness."
+        },
+        { "role": "user", "content": "Answer: {output}" }
+      ],
+      "model": "gpt-4o-mini",
+      "response_type": "json_schema",
+      "json_schema": {
+        "name": "evaluation_result",
+        "schema": {
+          "type": "object",
+          "properties": { "score": { "type": "number" } },
+          "required": ["score"],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name invoke_inline
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:auto_ai_critique:v0",
+        "parameters": {
+          "prompt_template": [
+            {
+              "role": "system",
+              "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1)."
+            },
+            { "role": "user", "content": "Answer: {output}" }
+          ],
+          "model": "gpt-4o-mini",
+          "response_type": "json_schema",
+          "json_schema": {
+            "name": "evaluation_result",
+            "schema": {
+              "type": "object",
+              "properties": { "score": { "type": "number" } },
+              "required": ["score"],
+              "additionalProperties": false
+            },
+            "strict": true
+          },
+          "threshold": 0.5
+        }
+      }
+    }
+  }
+}
+
+###
+# 5c. Invoke — /invoke with env ref + selector key
+# @name invoke_by_env
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  },
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France"
+  }
+}
+
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name invoke_by_url
+POST {{workflow_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital of France",
+    "parameters": {
+      "prompt_template": [
+        {
+          "role": "system",
+          "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1)."
+        },
+        { "role": "user", "content": "Answer: {output}" }
+      ],
+      "model": "gpt-4o-mini",
+      "response_type": "json_schema",
+      "json_schema": {
+        "name": "evaluation_result",
+        "schema": {
+          "type": "object",
+          "properties": { "score": { "type": "number" } },
+          "required": ["score"],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      "threshold": 0.5
+    }
+  }
+}
+
+###
+# BONUS — wrong answer: LLM should score low → success=false
+# @name invoke_wrong_answer
+POST {{services_url}}/builtin/auto_ai_critique/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "London is the capital of France",
+    "parameters": {
+      "prompt_template": [
+        {
+          "role": "system",
+          "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1) indicating correctness."
+        },
+        { "role": "user", "content": "Answer: {output}" }
+      ],
+      "model": "gpt-4o-mini",
+      "response_type": "json_schema",
+      "json_schema": {
+        "name": "evaluation_result",
+        "schema": {
+          "type": "object",
+          "properties": { "score": { "type": "number" } },
+          "required": ["score"],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      "threshold": 0.5
+    }
+  }
+}

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "services"
-version = "0.94.6"
+version = "0.94.8"
 description = "Agenta Services (Chat & Completion)"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
@@ -16,7 +16,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.94.4"
+agenta = ">=0.94.8"
 
 # Server
 uvicorn = "^0.42"

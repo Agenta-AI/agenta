@@ -1218,7 +1218,10 @@ class EvaluatorsRouter:
                     detail="Environment-backed evaluator retrieve requires key.",
                 )
 
-        evaluator_revision = await self.evaluators_service.retrieve_evaluator_revision(
+        (
+            evaluator_revision,
+            resolution_info,
+        ) = await self.evaluators_service.retrieve_evaluator_revision(
             project_id=UUID(request.state.project_id),
             #
             environment_ref=environment_ref,
@@ -1229,6 +1232,8 @@ class EvaluatorsRouter:
             evaluator_ref=evaluator_ref,
             evaluator_variant_ref=evaluator_variant_ref,
             evaluator_revision_ref=evaluator_revision_ref,
+            #
+            resolve=evaluator_revision_retrieve_request.resolve or False,
         )
 
         if environment_lookup_requested and not evaluator_revision:
@@ -1236,23 +1241,6 @@ class EvaluatorsRouter:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Environment revision does not contain evaluator references for the requested key.",
             )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if evaluator_revision and evaluator_revision_retrieve_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=evaluator_revision.data.model_dump()
-                if evaluator_revision.data
-                else {},
-            )
-
-            if evaluator_revision.data:
-                evaluator_revision.data = EvaluatorRevisionData(**resolved_config)
 
         evaluator_revision_response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
@@ -1528,7 +1516,6 @@ class EvaluatorsRouter:
 
         result = await self.evaluators_service.resolve_evaluator_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
             evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,

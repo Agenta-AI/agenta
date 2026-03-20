@@ -18,15 +18,18 @@ def registry_entry_to_catalog_template(
     entry: dict[str, Any],
     template_cls: Type[CatalogTemplateT],
 ) -> CatalogTemplateT:
+    flags = entry.get("flags") or {}
+    schemas = entry.get("schemas") or {}
+
     return template_cls(
         key=entry["key"],
         name=entry.get("name"),
         description=entry.get("description"),
-        categories=entry["categories"],
-        flags=WorkflowCatalogFlags(**entry["flags"]),
+        categories=entry.get("categories") or [],
+        flags=WorkflowCatalogFlags(**flags),
         data={
             "uri": build_builtin_uri(entry["key"]),
-            "schemas": entry["schemas"],
+            "schemas": schemas,
         },
     )
 
@@ -42,9 +45,9 @@ def registry_preset_to_catalog_preset(
         key=preset["key"],
         name=preset.get("name"),
         description=preset.get("description"),
-        categories=preset["categories"],
+        categories=preset.get("categories") or [],
         flags=WorkflowCatalogFlags(
-            **preset["flags"],
+            **(preset.get("flags") or {}),
             **(flags or {}),
         ),
         data={

@@ -23,11 +23,12 @@ class ChatConfig(BaseModel):
 async def chat(
     inputs: Optional[Dict[str, str]] = None,
     messages: Optional[List[Message]] = None,
+    parameters: Optional[Dict] = None,
 ):
     if messages is None:
         messages = []
 
-    config = ag.ConfigManager.get_from_route(schema=ChatConfig)
+    config = ChatConfig(**(parameters or {}))
 
     return await chat_v0(
         parameters=config.model_dump(mode="json", exclude_none=True),

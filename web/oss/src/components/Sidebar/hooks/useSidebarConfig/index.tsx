@@ -1,8 +1,9 @@
-import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
+import {AppstoreOutlined, GithubFilled} from "@ant-design/icons"
 import {
-    ChartDonut,
     ChartLineUp,
+    Database,
     Desktop,
+    Flask,
     PaperPlane,
     Phone,
     Question,
@@ -13,7 +14,7 @@ import {
     Lightning,
     Rocket,
     ChatCircle,
-    Gauge,
+    Gavel,
     HouseIcon,
     RocketLaunch,
     ListChecks,
@@ -68,7 +69,7 @@ export const useSidebarConfig = () => {
             key: "app-testsets-link",
             title: "Test sets",
             link: `${projectURL}/testsets`,
-            icon: <DatabaseOutlined style={{fontSize: 14}} />,
+            icon: <Database size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -76,7 +77,7 @@ export const useSidebarConfig = () => {
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
             // isHidden: !isDemo(),
-            icon: <Gauge size={14} />,
+            icon: <Gavel size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -84,7 +85,7 @@ export const useSidebarConfig = () => {
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
-            icon: <ChartDonut size={14} />,
+            icon: <Flask size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -135,7 +136,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
             isHidden: !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
-            icon: <ChartDonut size={14} />,
+            icon: <Flask size={14} />,
             disabled: !hasProjectURL,
             dataTour: "evaluations-nav",
         },

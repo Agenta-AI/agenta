@@ -467,6 +467,25 @@ def is_custom_uri(uri: Optional[str] = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# URL inference
+# ---------------------------------------------------------------------------
+
+
+def infer_url_from_uri(uri: Optional[str]) -> Optional[str]:
+    """Infer the service URL from a managed URI.
+
+    For managed agenta URIs, derives the mount path as /{kind}/{key}/{version}.
+    Returns None for non-managed or unparseable URIs.
+    """
+    if not uri:
+        return None
+    provider, kind, key, version = parse_uri(uri)
+    if provider == "agenta" and kind and key and version:
+        return f"/{kind}/{key}/{version}"
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Flag inference
 # ---------------------------------------------------------------------------
 
@@ -547,7 +566,7 @@ def infer_flags_from_data(
 
     # For managed URIs, infer URL from URI components if not explicitly provided
     if not url and is_managed and kind and key and version:
-        url = f"/{kind}/{key}/{version}"
+        url = infer_url_from_uri(uri)
 
     # interface
     has_url = bool(url)

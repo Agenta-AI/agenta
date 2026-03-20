@@ -146,6 +146,8 @@ def _set_common_headers(
     res: Response,
     response: WorkflowBaseResponse,
 ) -> Response:
+    res.headers.setdefault("x-ag-version", response.version or "unknown")
+
     if response.trace_id:
         res.headers.setdefault("x-ag-trace-id", response.trace_id)
 

@@ -32,6 +32,8 @@ export interface SharedEditorProps extends BaseContainerProps {
     disabled?: boolean
     editorProps?: EditorProps
     useAntdInput?: boolean
+    /** Switch oversized rich-text inputs to cheaper plain-text handling paths. */
+    optimizeLargeInput?: boolean
     /** Disable root container transition classes (useful in animated parent layouts) */
     disableContainerTransition?: boolean
     antdInputProps?: SharedAntdInputProps

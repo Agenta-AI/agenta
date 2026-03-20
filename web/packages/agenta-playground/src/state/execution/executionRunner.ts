@@ -10,6 +10,7 @@ import {
     type EntitySelection,
 } from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {generateId} from "@agenta/shared/utils"
 import type {Getter, Setter} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -667,7 +668,7 @@ async function executeViaFetch(params: {
     }
 }): Promise<ExecutionResult> {
     const {invocationUrl, requestBody, headers, abortSignal, normalizeResponse} = params
-    const executionId = crypto.randomUUID()
+    const executionId = generateId()
     const startedAt = new Date().toISOString()
 
     try {

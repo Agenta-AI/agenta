@@ -6,7 +6,7 @@
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
-import {getValueAtPath} from "@agenta/shared/utils"
+import {getValueAtPath, generateId} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {parseEvaluatorKeyFromUri} from "../workflow/core"
@@ -1182,7 +1182,7 @@ export async function executeRunnable(
     options: ExecuteRunnableOptions,
 ): Promise<ExecutionResult> {
     const {inputs, abortSignal, rawBody, headers: optionHeaders} = options
-    const executionId = crypto.randomUUID()
+    const executionId = generateId()
     const startedAt = new Date().toISOString()
 
     // Route built-in evaluator execution to the legacy evaluator run endpoint

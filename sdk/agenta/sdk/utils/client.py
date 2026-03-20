@@ -36,3 +36,33 @@ def authed_api():
             )
 
     return _request
+
+
+def authed_async_api():
+    """
+    Async preconfigured httpx client for authenticated endpoints.
+    """
+
+    api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+    api_key = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
+
+    if not api_url or not api_key:
+        log.error("Please call ag.init() first.")
+        log.error("And don't forget to set AGENTA_API_URL and AGENTA_API_KEY.")
+        raise ValueError("API URL and API Key must be set.")
+
+    async def _request(method: str, endpoint: str, **kwargs):
+        url = f"{api_url}{endpoint}"
+        headers = kwargs.pop("headers", {})
+        headers.setdefault("Authorization", f"ApiKey {api_key}")
+
+        async with httpx.AsyncClient() as client:
+            return await client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                timeout=BASE_TIMEOUT,
+                **kwargs,
+            )
+
+    return _request

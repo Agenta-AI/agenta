@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -23,8 +23,9 @@ class CompletionConfig(BaseModel):
 @ag.route("/", app=completion_app)
 async def completion(
     inputs: Dict[str, str],
+    parameters: Optional[Dict] = None,
 ):
-    config = ag.ConfigManager.get_from_route(schema=CompletionConfig)
+    config = CompletionConfig(**(parameters or {}))
 
     return await completion_v0(
         parameters=config.model_dump(mode="json", exclude_none=True),

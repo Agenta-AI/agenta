@@ -16,27 +16,21 @@ export function showEditorLoadingOverlay(
     const rootElement = editor.getRootElement()
     if (!rootElement) return null
 
-    // Find a host container that represents the visible area the user sees.
-    // Priority: modal body (stable size) > editor wrapper > scrollable ancestor.
+    // Find a host container that represents the visible editor surface.
+    // Prefer the editor's own shell so loading states stay scoped to the
+    // active input instead of blanketing the surrounding panel/section.
     let host: HTMLElement | null = null
 
-    // 1. Prefer Ant Design modal body — it has a known, stable size even
-    //    before the paste inflates the editor content.
-    host = rootElement.closest(".ant-modal-body") as HTMLElement | null
+    // 1. Shared editor shell — includes header, controls, and content area.
+    host = rootElement.closest(".agenta-shared-editor") as HTMLElement | null
 
-    // 2. Editor wrapper — always present, already has position:relative,
-    //    and scoping the overlay to the editor is better UX than covering
-    //    the entire page when the editor is inside a scrollable ancestor.
-    //    However, after a bulk-clear the wrapper may be tiny (single empty line),
-    //    so fall through to a scrollable ancestor when the wrapper is too short.
+    // 2. Editor wrapper inside the shell.
     if (!host) {
-        const wrapper = rootElement.closest(".agenta-editor-wrapper") as HTMLElement | null
-        if (wrapper && wrapper.offsetHeight >= 100) {
-            host = wrapper
-        }
+        host = rootElement.closest(".agenta-editor-wrapper") as HTMLElement | null
     }
 
-    // 3. Try the nearest ancestor with overflow-y scrolling
+    // 3. Prefer the nearest scrollable editor ancestor before escalating
+    //    to larger containers.
     if (!host) {
         let current = rootElement.parentElement
         while (current) {
@@ -49,11 +43,15 @@ export function showEditorLoadingOverlay(
         }
     }
 
-    // 4. Final fallback to editor wrapper or parent element
+    // 4. If the editor lives inside a modal and no local shell exists,
+    //    fall back to the modal body.
     if (!host) {
-        host =
-            (rootElement.closest(".agenta-editor-wrapper") as HTMLElement) ||
-            rootElement.parentElement
+        host = rootElement.closest(".ant-modal-body") as HTMLElement | null
+    }
+
+    // 5. Final fallback to the immediate parent.
+    if (!host) {
+        host = rootElement.parentElement
     }
 
     if (!host) return null

@@ -210,7 +210,7 @@ class TestSDKEmbedsIntegration:
             revision_slug=f"{ref_slug}-v1",
             data={
                 "parameters": {
-                    "text": f"Value: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path:parameters.value]]"
+                    "text": f"Value: @ag.embed[@ag.references[workflow_revision.slug={base_slug}-v1], @ag.selector[path=parameters.value]]"
                 }
             },
         )

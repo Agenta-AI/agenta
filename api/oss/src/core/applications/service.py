@@ -570,13 +570,18 @@ class ApplicationsService:
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
         application_revision_ref: Optional[Reference] = None,
-    ) -> Optional[ApplicationRevision]:
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[ApplicationRevision], Optional[ResolutionInfo]]:
         if environment_ref or environment_variant_ref or environment_revision_ref:
             environments_service = self.workflows_service.environments_service
             if not environments_service:
-                return None
+                return None, None
 
-            env_revision = await environments_service.fetch_environment_revision(
+            (
+                env_revision,
+                _,
+            ) = await environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
@@ -594,7 +599,7 @@ class ApplicationsService:
             )
 
             if not application_references:
-                return None
+                return None, None
 
             application_ref = application_references.get("application")
             application_variant_ref = application_references.get("application_variant")
@@ -602,13 +607,24 @@ class ApplicationsService:
                 "application_revision"
             )
 
-        return await self.fetch_application_revision(
+        if resolve:
+            result = await self.resolve_application_revision(
+                project_id=project_id,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+            return result if result else (None, None)
+
+        application_revision = await self.fetch_application_revision(
             project_id=project_id,
             #
             application_ref=application_ref,
             application_variant_ref=application_variant_ref,
             application_revision_ref=application_revision_ref,
         )
+        return application_revision, None
 
     async def edit_application_revision(
         self,
@@ -820,7 +836,6 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,

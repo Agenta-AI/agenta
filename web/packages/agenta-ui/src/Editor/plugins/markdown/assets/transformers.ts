@@ -28,6 +28,8 @@ import {
 } from "@lexical/table"
 import {$isParagraphNode, $isTextNode, ElementNode, LexicalNode} from "lexical"
 
+import {unescapeTemplateDelimiters} from "../utils/textCleanup"
+
 // Stores the original markdown divider patterns (e.g. ":---", "---:", ":---:")
 // keyed by table node key so we can reproduce them exactly on export.
 // Uses node key (string) instead of node identity because Lexical clones nodes on mutation.
@@ -38,21 +40,7 @@ export function $convertToMarkdownStringCustom(
     node?: ElementNode,
     shouldPreserveNewLines?: boolean,
 ): string {
-    const markdown = originalConvert(transformers, node, shouldPreserveNewLines)
-
-    return markdown
-        .replace(/\{\{(.*?)\}\}/g, (_, content) => {
-            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
-            return `{{${unescapedContent}}}`
-        })
-        .replace(/\{%([-]?)(.*?)([-]?)%\}/g, (_, trimL, content, trimR) => {
-            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
-            return `{%${trimL}${unescapedContent}${trimR}%}`
-        })
-        .replace(/\{#(.*?)#\}/g, (_, content) => {
-            const unescapedContent = content.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, "$1")
-            return `{#${unescapedContent}#}`
-        })
+    return unescapeTemplateDelimiters(originalConvert(transformers, node, shouldPreserveNewLines))
 }
 
 export const HR: ElementTransformer = {

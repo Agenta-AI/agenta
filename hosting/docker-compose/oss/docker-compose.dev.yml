@@ -74,6 +74,8 @@ services:
                 "--port",
                 "8000",
                 "--reload",
+                "--reload-dir",
+                "/sdk",
                 "--root-path",
                 "/api",
             ]
@@ -337,6 +339,8 @@ services:
                 "--port",
                 "8080",
                 "--reload",
+                "--reload-dir",
+                "/sdk",
                 "--root-path",
                 "/services",
             ]

@@ -6,8 +6,9 @@ if TYPE_CHECKING:
     from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
-from agenta.sdk.engines.running.utils import infer_flags_from_data
+from agenta.sdk.engines.running.utils import infer_flags_from_data, infer_url_from_uri
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -587,14 +588,23 @@ class WorkflowsService:
     ) -> tuple[Optional[WorkflowRevision], Optional[ResolutionInfo]]:
         if environment_ref or environment_variant_ref or environment_revision_ref:
             if not self.environments_service:
+                log.warning("retrieve_workflow_revision: no environments_service")
                 return None, None
 
-            env_revision = await self.environments_service.fetch_environment_revision(
+            (
+                env_revision,
+                _,
+            ) = await self.environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
                 environment_variant_ref=environment_variant_ref,
                 environment_revision_ref=environment_revision_ref,
+            )
+            log.info(
+                "retrieve_workflow_revision: env_revision=%r env_data=%r",
+                env_revision and env_revision.id,
+                env_revision and env_revision.data,
             )
 
             references_by_key = (
@@ -605,6 +615,12 @@ class WorkflowsService:
             workflow_references = (
                 references_by_key.get(key) if references_by_key and key else None
             )
+            log.info(
+                "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
+                key,
+                list(references_by_key.keys()) if references_by_key else None,
+                workflow_references,
+            )
 
             if not workflow_references:
                 return None, None
@@ -614,13 +630,14 @@ class WorkflowsService:
             workflow_revision_ref = workflow_references.get("workflow_revision")
 
         if resolve:
-            return await self.resolve_workflow_revision(
+            result = await self.resolve_workflow_revision(
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
             )
+            return result if result else (None, None)
 
         workflow_revision = await self.fetch_workflow_revision(
             project_id=project_id,
@@ -713,12 +730,21 @@ class WorkflowsService:
         #
         workflow_revision_commit: WorkflowRevisionCommit,
     ) -> Optional[WorkflowRevision]:
+        data = workflow_revision_commit.data
+        if data and data.uri and not data.url:
+            path = infer_url_from_uri(data.uri)
+            if path:
+                data = data.model_copy(
+                    update={"url": env.agenta.services_url.rstrip("/") + path}
+                )
+
         workflow_revision_commit = workflow_revision_commit.model_copy(
             update={
                 "flags": infer_flags_from_data(
                     flags=workflow_revision_commit.flags,
-                    data=workflow_revision_commit.data,
-                )
+                    data=data,
+                ),
+                "data": data,
             }
         )
 
@@ -922,7 +948,6 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
@@ -1017,6 +1042,20 @@ class WorkflowsService:
         return (revision, resolution_info)
 
     # --------------------------------------------------------------------------
+
+
+def _build_simple_workflow_data(
+    revision_data: Optional[WorkflowRevisionData],
+) -> SimpleWorkflowData:
+    """Build SimpleWorkflowData, inferring url from uri if absent (on read)."""
+    if not revision_data:
+        return SimpleWorkflowData()
+    data_dict = revision_data.model_dump(mode="json", exclude_none=True)
+    if revision_data.uri and not revision_data.url:
+        path = infer_url_from_uri(revision_data.uri)
+        if path:
+            data_dict["url"] = env.agenta.services_url.rstrip("/") + path
+    return SimpleWorkflowData(**data_dict)
 
 
 class SimpleWorkflowsService:
@@ -1198,13 +1237,7 @@ class SimpleWorkflowsService:
             variant_id=workflow_variant.id,
             revision_id=workflow_revision.id,
             #
-            data=SimpleWorkflowData(
-                **(
-                    workflow_revision.data.model_dump(mode="json")
-                    if workflow_revision.data
-                    else {}
-                ),
-            ),
+            data=_build_simple_workflow_data(workflow_revision.data),
         )
 
         return simple_workflow
@@ -1280,17 +1313,7 @@ class SimpleWorkflowsService:
             variant_id=workflow_variant.id,
             revision_id=workflow_revision.id,
             #
-            data=SimpleWorkflowData(
-                **(
-                    workflow_revision.data.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    )
-                    if workflow_revision.data
-                    else {}
-                ),
-            ),
+            data=_build_simple_workflow_data(workflow_revision.data),
         )
 
         return simple_workflow

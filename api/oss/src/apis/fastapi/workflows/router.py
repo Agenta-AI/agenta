@@ -1551,7 +1551,6 @@ class WorkflowsRouter:
         # Resolve the workflow revision
         result = await self.workflows_service.resolve_workflow_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             workflow_ref=workflow_revision_resolve_request.workflow_ref,
             workflow_variant_ref=workflow_revision_resolve_request.workflow_variant_ref,

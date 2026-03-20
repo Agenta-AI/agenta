@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.94.6"
+version = "0.94.8"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -18,7 +18,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.94.5"
+agenta = ">=0.94.8"
 
 # Core framework dependencies
 fastapi = ">=0.135"
@@ -43,7 +43,6 @@ orjson = "^3"
 jsonschema = "^4"
 genson = "^1"
 python-jsonpath = "^2"
-bson = "^0.5"
 uuid-utils = "^0.14"
 
 # caches, channels, streams

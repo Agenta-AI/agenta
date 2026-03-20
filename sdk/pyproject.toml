@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.94.6"
+version = "0.94.8"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
@@ -35,14 +35,14 @@ opentelemetry-instrumentation = "^0.61b0"
 opentelemetry-exporter-otlp-proto-http = "^1"
 
 # Lazy-loaded dependencies (imported only when used)
-fastapi = ">=0.129"
+fastapi = ">=0.135"
 pyyaml = "^6"
 litellm = "^1"
 openai = "^2"
 jinja2 = "^3"
 orjson = "^3"
 python-jsonpath = "^2"
-daytona = "^0.151"
+daytona = "^0.153"
 
 
 [tool.poetry.group.dev.dependencies]

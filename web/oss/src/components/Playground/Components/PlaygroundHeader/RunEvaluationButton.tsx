@@ -1,8 +1,8 @@
 import {memo, useState} from "react"
 
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {Play} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Flask} from "@phosphor-icons/react"
+import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -32,18 +32,19 @@ const RunEvaluationButton: React.FC<RunEvaluationButtonProps> = ({className}) =>
 
     return (
         <>
-            <Button
-                variant="outlined"
-                color="default"
-                icon={<Play size={14} />}
-                className={clsx("self-start", className)}
-                disabled={!hasEntities}
-                data-tour="run-evaluation-button"
-                onClick={() => setIsModalOpen(true)}
-                size="small"
-            >
-                Run Evaluation
-            </Button>
+            <Tooltip title="Run your prompt against a full test set with evaluators. Results are saved to the Evaluations page.">
+                <Button
+                    type="text"
+                    icon={<Flask size={14} />}
+                    className={clsx("self-start", className)}
+                    disabled={!hasEntities}
+                    data-tour="run-evaluation-button"
+                    onClick={() => setIsModalOpen(true)}
+                    size="small"
+                >
+                    New Evaluation
+                </Button>
+            </Tooltip>
 
             <NewEvaluationModal
                 open={isModalOpen}
