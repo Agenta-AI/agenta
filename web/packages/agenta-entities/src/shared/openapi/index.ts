@@ -36,6 +36,3 @@ export {
 
 // Network-dependent schema fetching and URI probing
 export {fetchServiceSchema, probeEndpointPath, fetchRevisionSchemaWithProbe} from "./schemaFetcher"
-
-// Service schema prefetch atoms
-export {completionServiceSchemaAtom, chatServiceSchemaAtom} from "./serviceSchemaAtoms"

@@ -92,6 +92,10 @@ export function nestEvaluatorConfiguration(
                         primaryData[key] = value
                     }
                 }
+                // When all fields are advanced (no primary data), keep flat
+                if (Object.keys(primaryData).length === 0) {
+                    return flat
+                }
                 return {...primaryData, advanced_settings: advancedData}
             }
         }
@@ -243,9 +247,23 @@ function nestNonLlmEvaluatorSchema(
         }
     }
 
+    const hasPrimaryFields = Object.keys(primaryProps).length > 0
+    const hasAdvancedFields = Object.keys(advancedProps).length > 0
+
+    // When ALL fields are advanced (no primary fields), render them directly
+    // without wrapping in an "Advanced Settings" section — the wrapper adds
+    // no value when everything is "advanced".
+    if (!hasPrimaryFields && hasAdvancedFields) {
+        return {
+            ...flatSchema,
+            type: "object",
+            properties: advancedProps,
+        }
+    }
+
     const resultProperties: Record<string, unknown> = {...primaryProps}
 
-    if (Object.keys(advancedProps).length > 0) {
+    if (hasAdvancedFields) {
         resultProperties.advanced_settings = {
             type: "object",
             title: "Advanced Settings",
