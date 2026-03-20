@@ -29,6 +29,9 @@ Authorization: {{authorization}}
   "workflow": {
     "slug": "test-auto-exact-match-manual",
     "name": "test-auto-exact-match-manual",
+    "flags": {
+      "is_evaluator": true
+    },
     "data": {
       "uri": "agenta:builtin:auto_exact_match:v0",
       "parameters": {
