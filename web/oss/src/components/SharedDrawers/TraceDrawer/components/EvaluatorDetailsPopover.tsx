@@ -1,15 +1,14 @@
 import {memo, ReactNode, useMemo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import type {Workflow} from "@agenta/entities/workflow"
 import {Button, Popover, Typography} from "antd"
 
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {Evaluator} from "@/oss/lib/Types"
 
 import useEvaluatorNavigation from "../hooks/useEvaluatorNavigation"
 
-type EvaluatorLike = EvaluatorPreviewDto | Evaluator | null | undefined
+type EvaluatorLike = Workflow | null | undefined
 
 interface EvaluatorDetailsPopoverProps {
     evaluator: EvaluatorLike

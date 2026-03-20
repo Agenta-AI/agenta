@@ -12,7 +12,6 @@ import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {Evaluator} from "@/oss/lib/Types"
 
 import {useStyles} from "./assets/styles"
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
@@ -31,7 +30,7 @@ interface AnnotationChipEntry {
 
 interface AnnotationGroup {
     refId: string
-    evaluator?: Evaluator | Workflow | null
+    evaluator?: Workflow | null
     metrics: Record<string, AnnotationChipEntry>
 }
 
@@ -42,12 +41,10 @@ const TraceAnnotations = ({annotations = []}: TraceAnnotationsProps) => {
     const evaluators = useAtomValue(evaluatorsListDataAtom)
 
     const evaluatorMap = useMemo(() => {
-        const map = new Map<string, Evaluator | Workflow>()
+        const map = new Map<string, Workflow>()
         evaluators.forEach((ev) => {
             if (ev?.slug) {
                 map.set(ev.slug, ev)
-            } else if ((ev as Evaluator)?.key) {
-                map.set((ev as Evaluator).key, ev as Evaluator)
             }
         })
         return map

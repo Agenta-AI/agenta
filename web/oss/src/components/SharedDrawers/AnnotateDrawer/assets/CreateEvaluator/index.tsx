@@ -57,6 +57,7 @@ const CreateEvaluator = ({
         if (!isEditMode || !evaluator) return []
 
         const outputs =
+            (evaluator as any)?.data?.schemas?.outputs ||
             evaluator.data?.service?.format?.properties?.outputs ||
             (evaluator as EvaluatorWithMeta)?.data?.service?.format?.properties?.outputs
 
