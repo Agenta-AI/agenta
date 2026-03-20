@@ -11,6 +11,8 @@ import {
     $getSelection,
 } from "lexical"
 
+import {isEditorLargeDocument} from "../../utils/largeDocument"
+
 import {navigateCursor} from "./assets/selectionUtils"
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
 import {TokenNode, $createTokenNode, $isTokenNode} from "./TokenNode"
@@ -37,6 +39,7 @@ function buildRegexes(templateFormat: TemplateFormat) {
 export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: TemplateFormat}): null {
     const [editor] = useLexicalComposerContext()
     const {FULL_TOKEN_REGEX, TOKEN_INPUT_REGEX, EXACT_TOKEN_REGEX} = buildRegexes(templateFormat)
+    const isLargeDocumentMode = useCallback(() => isEditorLargeDocument(editor), [editor])
 
     useEffect(() => {
         if (!editor.hasNodes([TokenNode, TokenInputNode])) {
@@ -45,6 +48,7 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
         const $transformNode = (textNode: LexicalNode | null | undefined) => {
             if (!textNode) return
+            if (isLargeDocumentMode()) return
 
             const text = textNode?.getTextContent()
 
@@ -156,6 +160,10 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
         // pipeline never sees the initial TextNodes. Marking them dirty ensures the
         // just-registered transforms process any pending {{...}} patterns.
         editor.update(() => {
+            if (isLargeDocumentMode()) {
+                return
+            }
+
             const root = $getRoot()
             for (const textNode of root.getAllTextNodes()) {
                 if (textNode.getType() === "text") {
@@ -168,10 +176,14 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
             unregisterTextNodeTransform()
             unregisterTokenInputNodeTransform()
         }
-    }, [editor, templateFormat])
+    }, [editor, isLargeDocumentMode, templateFormat])
 
     const getTokenMatch = useCallback(
         (text: string) => {
+            if (isLargeDocumentMode()) {
+                return null
+            }
+
             const fullTokenMatch = FULL_TOKEN_REGEX.exec(text)
 
             if (fullTokenMatch) {
@@ -186,11 +198,15 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
             return null
         },
-        [templateFormat],
+        [FULL_TOKEN_REGEX, isLargeDocumentMode],
     )
 
     const getTokenInputMatch = useCallback(
         (text: string) => {
+            if (isLargeDocumentMode()) {
+                return null
+            }
+
             const matchArr = TOKEN_INPUT_REGEX.exec(text)
 
             if (matchArr) {
@@ -205,7 +221,7 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
             return null
         },
-        [templateFormat],
+        [TOKEN_INPUT_REGEX, isLargeDocumentMode],
     )
 
     const $createTokenNode_ = useCallback((textNode: TextNode) => {
