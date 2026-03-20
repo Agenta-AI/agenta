@@ -11,6 +11,13 @@ Authorization: Access {{token}}
 
 ###
 @authorization = {{create_account.response.body.scopes[0].credentials}}
+@country = France
+
+###
+# 0. Fetch catalog
+# @name fetch_catalog
+GET {{api_url}}/preview/workflows/catalog/templates/
+Authorization: {{authorization}}
 
 ###
 # 1. Inspect the completion template (schema + uri)
@@ -50,6 +57,7 @@ Authorization: {{authorization}}
 ###
 @workflow_slug = {{create_workflow.response.body.workflow.slug}}
 @revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+@workflow_url  = {{create_workflow.response.body.workflow.data.url}}
 
 ###
 # 3. Query environments — find the default one
@@ -61,8 +69,8 @@ Authorization: {{authorization}}
 {}
 
 ###
-@env_id   = {{query_environments.response.body.environments[0].id}}
-@env_slug = {{query_environments.response.body.environments[0].slug}}
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
 
 ###
 # 4. Deploy revision to environment
@@ -73,14 +81,25 @@ Authorization: {{authorization}}
 
 {
   "workflow_revision_ref": { "id": "{{revision_id}}" },
-  "environment_ref":       { "id": "{{env_id}}" }
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 4b. Check environment revision — verify data.references contains the deployed key
+# @name check_env_revision
+POST {{api_url}}/preview/environments/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "environment_ref": { "id": "{{environment_id}}" }
 }
 
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # NOTE: requires a valid LLM API key configured in Agenta vault
 # @name invoke_direct
-POST {{services_url}}/completion/invoke
+POST {{services_url}}/builtin/completion/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -123,7 +142,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# 5c. Invoke — /invoke with environment + workflow slug refs (SDK resolves via retrieve)
+# 5c. Invoke — /invoke with env ref + selector key (SDK resolves via retrieve)
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -131,8 +150,10 @@ Authorization: {{authorization}}
 
 {
   "references": {
-    "environment": { "slug": "{{env_slug}}" },
-    "workflow":    { "slug": "{{workflow_slug}}" }
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
   },
   "data": {
     "inputs": { "country": "France" }
@@ -140,9 +161,29 @@ Authorization: {{authorization}}
 }
 
 ###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name invoke_by_url
+POST {{workflow_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs": { "country": "France" },
+    "parameters": {
+      "prompt": {
+        "system_prompt": "You are an expert in geography",
+        "user_prompt": "What is the capital of {{country}}?",
+        "llm_config": { "model": "gpt-4o-mini" }
+      }
+    }
+  }
+}
+
+###
 # BONUS — different prompt: ask for population instead of capital
 # @name invoke_population
-POST {{services_url}}/completion/invoke
+POST {{services_url}}/builtin/completion/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

@@ -84,7 +84,9 @@ async def health():
 
 
 app.mount("/chat", chat_app)
+app.mount("/builtin/chat/v0", chat_app)
 app.mount("/completion", completion_app)
+app.mount("/builtin/completion/v0", completion_app)
 #
 app.mount("/custom/code/v0", custom_code_app)
 app.mount("/custom/hook/v0", custom_hook_app)
