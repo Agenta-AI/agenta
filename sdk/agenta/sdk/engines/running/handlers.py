@@ -1257,7 +1257,10 @@ async def match_v0(
         result = await _execute_match_node(matcher, request)
         results.append(result)
 
-    return {"results": results}
+    return {
+        "results": results,
+        "success": all(result.get("success") is True for result in results),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2285,6 +2288,7 @@ def json_multi_field_match_v0(
 
     # Aggregate score is the percentage of matching fields
     results["aggregate_score"] = matches / len(fields) if fields else 0.0
+    results["success"] = matches == len(fields) if fields else True
     # --------------------------------------------------------------------------
 
     return results
@@ -2796,6 +2800,12 @@ async def auto_ai_critique_v0(
         }
 
     if isinstance(_outputs, dict):
+        if "success" not in _outputs:
+            score = _outputs.get("score")
+            if isinstance(score, bool):
+                _outputs["success"] = score
+            elif isinstance(score, (int, float)) and not isinstance(score, bool):
+                _outputs["success"] = score >= threshold
         return _outputs
 
     raise InvalidOutputsV0Error(expected=["dict", "str", "int", "float"], got=_outputs)

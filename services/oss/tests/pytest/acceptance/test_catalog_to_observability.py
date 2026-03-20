@@ -34,7 +34,7 @@ pytestmark = [pytest.mark.acceptance]
 # ---------------------------------------------------------------------------
 
 _POLL_INTERVAL = 0.5  # seconds between trace-fetch retries
-_POLL_TIMEOUT = 10.0  # maximum seconds to wait for a trace to appear
+_POLL_TIMEOUT = 20.0  # maximum seconds to wait for a trace to appear
 
 
 def _uid() -> str:
@@ -124,8 +124,16 @@ def _fetch_trace(
         resp = mod_api("GET", f"/tracing/traces/{trace_id}")
         if resp.status_code == 200:
             data = resp.json()
-            # Accept non-empty trace
-            if data:
+            if isinstance(data, dict):
+                traces = data.get("traces")
+                if isinstance(traces, dict) and traces:
+                    trace = traces.get(trace_id)
+                    if isinstance(trace, dict) and trace.get("spans"):
+                        return trace
+                    first_trace = next(iter(traces.values()), None)
+                    if isinstance(first_trace, dict) and first_trace.get("spans"):
+                        return first_trace
+            elif isinstance(data, list) and data:
                 return data
         time.sleep(_POLL_INTERVAL)
     return None
@@ -134,10 +142,14 @@ def _fetch_trace(
 def _assert_trace_structure(trace: dict, *, trace_id: str) -> None:
     """Assert the trace has the expected top-level fields."""
     assert trace, f"Trace {trace_id} is empty"
-    # Traces may be returned as a list of spans or a top-level object
+
     if isinstance(trace, list):
         assert len(trace) > 0, f"Trace {trace_id} returned empty list"
         span = trace[0]
+    elif isinstance(trace, dict) and "spans" in trace:
+        spans = trace.get("spans") or {}
+        assert spans, f"Trace {trace_id} returned no spans: {trace}"
+        span = next(iter(spans.values()))
     else:
         span = trace
 

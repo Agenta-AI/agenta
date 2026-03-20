@@ -57,7 +57,7 @@ class AppManager:
     ) -> ReferencesResponse:
         response = authed_api()(
             method="POST",
-            endpoint="/preview/simple/applications",
+            endpoint="/preview/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=template_key or app_type,
@@ -78,7 +78,7 @@ class AppManager:
     ) -> ReferencesResponse:
         response = await authed_async_api()(
             method="POST",
-            endpoint="/preview/simple/applications",
+            endpoint="/preview/simple/applications/",
             json=_build_simple_application_payload(
                 app_slug=app_slug,
                 app_type=template_key or app_type,
