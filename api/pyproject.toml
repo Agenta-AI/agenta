@@ -18,7 +18,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.94.5"
+agenta = ">=0.94.8"
 
 # Core framework dependencies
 fastapi = ">=0.135"
