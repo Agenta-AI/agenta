@@ -1,0 +1,188 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# 1. List evaluator catalog templates
+# @name list_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates
+Authorization: {{authorization}}
+
+###
+# 2. Inspect the auto_exact_match template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/evaluators/catalog/templates/auto_exact_match
+Authorization: {{authorization}}
+
+###
+# 3. Inspect the default preset (parameters)
+# @name get_presets
+GET {{api_url}}/preview/evaluators/catalog/templates/auto_exact_match/presets
+Authorization: {{authorization}}
+
+###
+# 4. Create workflow — artifact + variant + committed revision in one shot
+# @name create_workflow
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-auto-exact-match-manual",
+    "name": "test-auto-exact-match-manual",
+    "data": {
+      "uri": "agenta:builtin:auto_exact_match:v0",
+      "parameters": {
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+
+###
+@workflow_id   = {{create_workflow.response.body.workflow.id}}
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
+@revision_id   = {{create_workflow.response.body.workflow.revision_id}}
+
+###
+# 5. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@env_id   = {{query_environments.response.body.environments[0].id}}
+@env_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 6. Deploy revision to environment
+# @name deploy
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{revision_id}}" },
+  "environment_ref":       { "id": "{{env_id}}" }
+}
+
+###
+# 7a. Invoke via direct service URL
+#     Calls the handler at its mount path — no revision lookup, parameters inline
+# @name invoke_direct
+POST {{services_url}}/builtin/auto_exact_match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "correct_answer": "Paris" },
+    "outputs":    "Paris",
+    "parameters": { "correct_answer_key": "correct_answer" }
+  }
+}
+
+###
+# 7b. Invoke via /invoke — dispatch by URI in revision.data
+# @name invoke_by_uri
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":   { "correct_answer": "Paris" },
+    "outputs":  "Paris",
+    "parameters": { "correct_answer_key": "correct_answer" },
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0"
+      }
+    }
+  }
+}
+
+###
+# 7c. Invoke via API — workflow + revision IDs (DB lookup)
+# @name invoke_by_refs
+POST {{api_url}}/preview/workflows/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "workflow":          { "id": "{{workflow_id}}" },
+    "workflow_revision": { "id": "{{revision_id}}" }
+  },
+  "data": {
+    "inputs":  { "correct_answer": "Paris" },
+    "outputs": "Paris"
+  }
+}
+
+###
+# 7d. Invoke via API — environment + workflow slugs (env lookup)
+# @name invoke_by_env
+POST {{api_url}}/preview/workflows/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": { "slug": "{{env_slug}}" },
+    "workflow":    { "slug": "{{workflow_slug}}" }
+  },
+  "data": {
+    "inputs":  { "correct_answer": "Paris" },
+    "outputs": "Paris"
+  }
+}
+
+###
+# 7e. Invoke with full revision inline — uri + parameters, zero DB calls
+# @name invoke_inline
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  { "correct_answer": "Paris" },
+    "outputs": "Paris",
+    "revision": {
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0",
+        "parameters": { "correct_answer_key": "correct_answer" }
+      }
+    }
+  }
+}
+
+###
+# BONUS — mismatch: expect score=0.0, success=false
+# @name invoke_mismatch
+POST {{services_url}}/builtin/auto_exact_match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":     { "correct_answer": "Paris" },
+    "outputs":    "London",
+    "parameters": { "correct_answer_key": "correct_answer" }
+  }
+}
