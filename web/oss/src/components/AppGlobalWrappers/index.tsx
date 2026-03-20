@@ -1,6 +1,5 @@
 import {memo, useEffect} from "react"
 
-import {chatServiceSchemaAtom, completionServiceSchemaAtom} from "@agenta/entities/shared/openapi"
 import {setUserAtoms} from "@agenta/entities/shared/user"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -187,13 +186,6 @@ const NavigationCommandListener = () => {
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
 
-    // Eagerly prefetch service schemas for completion/chat apps.
-    // These atoms use atomWithQuery — subscribing here triggers the fetch
-    // at app startup rather than waiting until a revision is selected.
-    useAtomValue(completionServiceSchemaAtom)
-    useAtomValue(chatServiceSchemaAtom)
-
-    // Pre-heat metadata for service schemas as soon as they resolve.
     return (
         <EntityModalsProvider>
             <NavigationCommandListener />

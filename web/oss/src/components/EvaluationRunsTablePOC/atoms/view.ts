@@ -581,7 +581,7 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
 
     const evaluatorData =
         isActive && evaluatorQueries?.data
-            ? (((evaluatorQueries.data as any)?.workflows as any[]) ?? [])
+            ? (((evaluatorQueries.data as any)?.refs as any[]) ?? [])
             : []
     const evaluatorLoading = Boolean(
         isActive &&
