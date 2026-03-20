@@ -573,13 +573,18 @@ class EvaluatorsService:
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
         evaluator_revision_ref: Optional[Reference] = None,
-    ) -> Optional[EvaluatorRevision]:
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[EvaluatorRevision], Optional[ResolutionInfo]]:
         if environment_ref or environment_variant_ref or environment_revision_ref:
             environments_service = self.workflows_service.environments_service
             if not environments_service:
-                return None
+                return None, None
 
-            env_revision = await environments_service.fetch_environment_revision(
+            (
+                env_revision,
+                _,
+            ) = await environments_service.retrieve_environment_revision(
                 project_id=project_id,
                 #
                 environment_ref=environment_ref,
@@ -597,19 +602,30 @@ class EvaluatorsService:
             )
 
             if not evaluator_references:
-                return None
+                return None, None
 
             evaluator_ref = evaluator_references.get("evaluator")
             evaluator_variant_ref = evaluator_references.get("evaluator_variant")
             evaluator_revision_ref = evaluator_references.get("evaluator_revision")
 
-        return await self.fetch_evaluator_revision(
+        if resolve:
+            result = await self.resolve_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            return result if result else (None, None)
+
+        evaluator_revision = await self.fetch_evaluator_revision(
             project_id=project_id,
             #
             evaluator_ref=evaluator_ref,
             evaluator_variant_ref=evaluator_variant_ref,
             evaluator_revision_ref=evaluator_revision_ref,
         )
+        return evaluator_revision, None
 
     async def edit_evaluator_revision(
         self,

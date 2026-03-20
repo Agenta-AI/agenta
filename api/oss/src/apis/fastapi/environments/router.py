@@ -794,7 +794,6 @@ class EnvironmentsRouter:
         # Resolve the environment revision
         result = await self.environments_service.resolve_environment_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             environment_ref=environment_revision_resolve_request.environment_ref,
             environment_variant_ref=environment_revision_resolve_request.environment_variant_ref,

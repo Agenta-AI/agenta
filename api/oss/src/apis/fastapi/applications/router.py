@@ -1208,19 +1208,22 @@ class ApplicationsRouter:
                     detail="Environment-backed application retrieve requires key.",
                 )
 
-        application_revision = (
-            await self.applications_service.retrieve_application_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                environment_ref=environment_ref,
-                environment_variant_ref=environment_variant_ref,
-                environment_revision_ref=environment_revision_ref,
-                key=key,
-                #
-                application_ref=application_ref,
-                application_variant_ref=application_variant_ref,
-                application_revision_ref=application_revision_ref,
-            )
+        (
+            application_revision,
+            resolution_info,
+        ) = await self.applications_service.retrieve_application_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+            #
+            resolve=application_revision_retrieve_request.resolve or False,
         )
 
         if environment_lookup_requested and not application_revision:
@@ -1235,35 +1238,6 @@ class ApplicationsRouter:
             getattr(application_revision, "id", None),
             bool(application_revision and application_revision.data),
         )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if application_revision and application_revision_retrieve_request.resolve:
-            log.info(
-                "[applications.revisions.retrieve] resolve-start project_id=%s revision_id=%s",
-                request.state.project_id,
-                getattr(application_revision, "id", None),
-            )
-            embeds_service = self.applications_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=application_revision.data.model_dump()
-                if application_revision.data
-                else {},
-            )
-
-            if application_revision.data:
-                application_revision.data = ApplicationRevisionData(**resolved_config)
-
-            log.info(
-                "[applications.revisions.retrieve] resolve-done project_id=%s revision_id=%s has_resolution_info=%s",
-                request.state.project_id,
-                getattr(application_revision, "id", None),
-                resolution_info is not None,
-            )
 
         application_revision_response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
@@ -1557,7 +1531,6 @@ class ApplicationsRouter:
 
         result = await self.applications_service.resolve_application_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             application_ref=application_revision_resolve_request.application_ref,
             application_variant_ref=application_revision_resolve_request.application_variant_ref,

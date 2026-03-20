@@ -630,13 +630,14 @@ class WorkflowsService:
             workflow_revision_ref = workflow_references.get("workflow_revision")
 
         if resolve:
-            return await self.resolve_workflow_revision(
+            result = await self.resolve_workflow_revision(
                 project_id=project_id,
                 #
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
             )
+            return result if result else (None, None)
 
         workflow_revision = await self.fetch_workflow_revision(
             project_id=project_id,

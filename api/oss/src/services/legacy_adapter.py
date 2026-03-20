@@ -749,7 +749,6 @@ class LegacyApplicationsAdapter:
             try:
                 resolved = await self.applications_service.resolve_application_revision(
                     project_id=project_id,
-                    user_id=user_id,
                     application_revision_ref=Reference(id=revision_id),
                     error_policy="keep",
                 )
