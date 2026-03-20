@@ -19,10 +19,10 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
+import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/evaluatorTransforms"
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
-import {completionServiceSchemaAtom, chatServiceSchemaAtom} from "../../shared/openapi"
 import type {InspectWorkflowResponse, InterfaceSchemasResponse, AppOpenApiSchemas} from "../api"
 import {
     fetchWorkflowRevisionsByIdsBatch,
@@ -36,17 +36,13 @@ import {
 } from "../api"
 import type {
     Workflow,
-    WorkflowsResponse,
     WorkflowVariant,
     WorkflowVariantsResponse,
     WorkflowRevisionsResponse,
 } from "../core"
+import {buildWorkflowUri} from "../core/schema"
 
-import {
-    resolveBuiltinAppServiceUrl,
-    resolveServiceTypeFromUri,
-    resolveServiceTypeFromUrl,
-} from "./helpers"
+import {resolveServiceTypeFromUrl} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -338,17 +334,71 @@ export const workflowProjectIdAtom = projectIdAtom
 // ============================================================================
 
 /**
+ * Thin workflow reference — only fields needed for list display and filtering.
+ * Full workflow data lives in the molecule (workflowEntityAtomFamily).
+ *
+ * Contains the superset of fields consumed by all list-level atoms:
+ * - `id`, `name`, `slug` — display and lookup
+ * - `flags` — filtering (is_evaluator, is_human, is_custom)
+ * - `deleted_at` — archive filtering
+ * - `description` — human evaluator list display
+ * - `created_at` — sort order in some views
+ */
+export interface WorkflowListRef {
+    id: string
+    name: string | null
+    slug: string | null
+    description: string | null
+    flags: Workflow["flags"]
+    deleted_at: string | null
+    created_at: string | null
+}
+
+/**
+ * Thin list response cached in TanStack Query.
+ */
+interface WorkflowListRefsResponse {
+    count: number
+    refs: WorkflowListRef[]
+}
+
+/**
+ * Strip a full Workflow down to a WorkflowListRef.
+ */
+export function toWorkflowListRef(w: Workflow): WorkflowListRef {
+    return {
+        id: w.id,
+        name: w.name ?? null,
+        slug: w.slug ?? null,
+        description: w.description ?? null,
+        flags: w.flags,
+        deleted_at: w.deleted_at ?? null,
+        created_at: w.created_at ?? null,
+    }
+}
+
+/**
  * Query atom for app (non-evaluator) workflows.
  * Fetches workflows with `is_evaluator: false`.
- * Automatically fetches when projectId is set.
+ *
+ * Caches only thin references in TanStack Query.
+ * The list API already returns lean objects (no `data` field),
+ * so no molecule seeding is needed — the molecule fetches full
+ * entity data on demand when something subscribes.
  */
 export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
         queryKey: ["workflows", "apps", "list", projectId],
-        queryFn: async (): Promise<WorkflowsResponse> => {
-            if (!projectId) return {count: 0, workflows: []}
-            return queryWorkflows({projectId, flags: {is_evaluator: false}})
+        queryFn: async (): Promise<WorkflowListRefsResponse> => {
+            if (!projectId) return {count: 0, refs: []}
+            const response = await queryWorkflows({projectId, flags: {is_evaluator: false}})
+            const workflows = response.workflows ?? []
+
+            return {
+                count: response.count ?? workflows.length,
+                refs: workflows.map(toWorkflowListRef),
+            }
         },
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
@@ -357,18 +407,27 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for app (non-evaluator) workflows list data.
+ * Resolves thin refs through the molecule for full Workflow objects.
  */
 export const appWorkflowsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(appWorkflowsListQueryAtom)
-    return query.data?.workflows ?? []
+    const refs = query.data?.refs ?? []
+    return refs
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 /**
  * Derived atom for non-archived app workflows.
+ * Uses thin refs for filtering (avoids subscribing to full entity objects).
  */
 export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
-    const workflows = get(appWorkflowsListDataAtom)
-    return workflows.filter((w) => !w.deleted_at)
+    const query = get(appWorkflowsListQueryAtom)
+    const refs = query.data?.refs ?? []
+    return refs
+        .filter((ref) => !ref.deleted_at)
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 // ============================================================================
@@ -409,8 +468,29 @@ export const workflowVariantsListDataAtomFamily = atomFamily((workflowId: string
 // ============================================================================
 
 /**
- * Query atom family for fetching revisions directly by workflow ID.
- * Skips the variant level — used for the 2-level list-popover selection.
+ * Thin revision reference — only IDs and sorting fields.
+ * Full revision data lives in the molecule (workflowQueryAtomFamily).
+ */
+export interface WorkflowRevisionRef {
+    id: string
+    version: number | null
+    created_at: string | null
+}
+
+/**
+ * Thin reference response for revisions-by-workflow query.
+ */
+interface WorkflowRevisionRefsResponse {
+    count: number
+    refs: WorkflowRevisionRef[]
+}
+
+/**
+ * Query atom family for fetching revisions by workflow ID.
+ *
+ * Returns **thin references only** (id, version, created_at).
+ * Full revision data is primed into the per-revision detail cache
+ * so the molecule can serve it without extra fetches.
  */
 export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId: string) =>
     atomWithQuery((get) => {
@@ -418,14 +498,16 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
         const queryClient = get(queryClientAtom)
         return {
             queryKey: ["workflows", "revisionsByWorkflow", workflowId, projectId],
-            queryFn: async (): Promise<WorkflowRevisionsResponse> => {
-                if (!projectId || !workflowId) return {count: 0, workflow_revisions: []}
+            queryFn: async (): Promise<WorkflowRevisionRefsResponse> => {
+                if (!projectId || !workflowId) return {count: 0, refs: []}
                 const response = await queryWorkflowRevisionsByWorkflow(workflowId, projectId)
 
+                // Prime full data into the per-revision detail cache (molecule source)
                 for (const revision of response.workflow_revisions ?? []) {
                     primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
                 }
 
+                // Also prime the latest revision cache
                 const revisions = response.workflow_revisions ?? []
                 const latestByRecency = pickMostRecentWorkflowRevision(revisions)
                 if (latestByRecency) {
@@ -435,7 +517,15 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
                     )
                 }
 
-                return response
+                // Return thin references only — full data is in the detail cache
+                return {
+                    count: response.count ?? revisions.length,
+                    refs: revisions.map((r) => ({
+                        id: r.id,
+                        version: r.version ?? null,
+                        created_at: r.created_at ?? null,
+                    })),
+                }
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
@@ -444,14 +534,38 @@ export const workflowRevisionsByWorkflowQueryAtomFamily = atomFamily((workflowId
 )
 
 /**
- * Derived atom family for revision list data by workflow ID (convenience).
- * Sorted by revision recency (`created_at` fallback `updated_at`, then version).
+ * Derived atom family for revision reference list by workflow ID.
+ * Sorted by recency (created_at desc, then version desc).
+ *
+ * Returns thin references — use `workflowMolecule.selectors.data(ref.id)`
+ * to read full revision data per item.
+ */
+export const workflowRevisionRefsByWorkflowAtomFamily = atomFamily((workflowId: string) =>
+    atom<WorkflowRevisionRef[]>((get) => {
+        const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
+        const refs = query.data?.refs ?? []
+        return [...refs].sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+            if (bTime !== aTime) return bTime - aTime
+            return (b.version ?? 0) - (a.version ?? 0)
+        })
+    }),
+)
+
+/**
+ * Derived atom family for resolved revision list by workflow ID.
+ * Resolves thin refs through the molecule entity atom for full data.
+ *
+ * Use this when you need full Workflow objects (display, drawer, selection).
+ * For just IDs, use `workflowRevisionRefsByWorkflowAtomFamily` instead.
  */
 export const workflowRevisionsByWorkflowListDataAtomFamily = atomFamily((workflowId: string) =>
     atom<Workflow[]>((get) => {
-        const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
-        const revisions = query.data?.workflow_revisions ?? []
-        return [...revisions].sort((a, b) => workflowRecencyScore(b) - workflowRecencyScore(a))
+        const refs = get(workflowRevisionRefsByWorkflowAtomFamily(workflowId))
+        return refs
+            .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+            .filter((w): w is Workflow => w !== null)
     }),
 )
 
@@ -460,8 +574,20 @@ export const workflowRevisionsByWorkflowListDataAtomFamily = atomFamily((workflo
 // ============================================================================
 
 /**
+ * Thin revision reference response for the 3-level revision query.
+ */
+interface WorkflowRevisionRefsByVariantResponse {
+    count: number
+    refs: WorkflowRevisionRef[]
+}
+
+/**
  * Query atom family for fetching revisions of a variant.
  * Used in the Workflow → Variant → Revision selection hierarchy.
+ *
+ * Returns **thin references only** (id, version, created_at).
+ * Full revision data is primed into the per-revision detail cache
+ * so the molecule can serve it without extra fetches.
  */
 export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =>
     atomWithQuery((get) => {
@@ -469,10 +595,11 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
         const queryClient = get(queryClientAtom)
         return {
             queryKey: ["workflows", "revisions", variantId, projectId],
-            queryFn: async (): Promise<WorkflowRevisionsResponse> => {
-                if (!projectId || !variantId) return {count: 0, workflow_revisions: []}
+            queryFn: async (): Promise<WorkflowRevisionRefsByVariantResponse> => {
+                if (!projectId || !variantId) return {count: 0, refs: []}
                 const response = await queryWorkflowRevisions(variantId, projectId)
 
+                // Prime full data into the per-revision detail cache (molecule source)
                 for (const revision of response.workflow_revisions ?? []) {
                     primeWorkflowRevisionDetailCache(queryClient, projectId, revision)
                     if (revision.workflow_id) {
@@ -494,7 +621,16 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
                     }
                 }
 
-                return response
+                // Return thin references only — full data is in the detail cache
+                const revisions = response.workflow_revisions ?? []
+                return {
+                    count: response.count ?? revisions.length,
+                    refs: revisions.map((r) => ({
+                        id: r.id,
+                        version: r.version ?? null,
+                        created_at: r.created_at ?? null,
+                    })),
+                }
             },
             enabled: get(sessionAtom) && !!projectId && !!variantId,
             staleTime: 30_000,
@@ -503,14 +639,33 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
 )
 
 /**
- * Derived atom family for revision list data (convenience).
+ * Derived atom family for revision reference list by variant ID.
  * Sorted by version descending (newest first).
+ *
+ * Returns thin references — use `workflowMolecule.selectors.data(ref.id)`
+ * to read full revision data per item.
+ */
+export const workflowRevisionRefsByVariantAtomFamily = atomFamily((variantId: string) =>
+    atom<WorkflowRevisionRef[]>((get) => {
+        const query = get(workflowRevisionsQueryAtomFamily(variantId))
+        const refs = query.data?.refs ?? []
+        return [...refs].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+    }),
+)
+
+/**
+ * Derived atom family for resolved revision list by variant ID.
+ * Resolves thin refs through the molecule entity atom for full data.
+ *
+ * Use this when you need full Workflow objects (display, drawer, selection).
+ * For just IDs, use `workflowRevisionRefsByVariantAtomFamily` instead.
  */
 export const workflowRevisionsListDataAtomFamily = atomFamily((variantId: string) =>
     atom<Workflow[]>((get) => {
-        const query = get(workflowRevisionsQueryAtomFamily(variantId))
-        const revisions = query.data?.workflow_revisions ?? []
-        return [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        const refs = get(workflowRevisionRefsByVariantAtomFamily(variantId))
+        return refs
+            .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+            .filter((w): w is Workflow => w !== null)
     }),
 )
 
@@ -538,14 +693,15 @@ export const workflowVariantsListQueryStateAtomFamily = atomFamily((workflowId: 
 /**
  * ListQueryState wrapper for workflow revisions (by variant).
  * Used in the 3-level selection hierarchy (Workflow → Variant → Revision).
+ * Resolves thin refs through the molecule for full Workflow objects.
  * Sorted by version descending (newest first).
  */
 export const workflowRevisionsListQueryStateAtomFamily = atomFamily((variantId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsQueryAtomFamily(variantId))
-        const revisions = query.data?.workflow_revisions ?? []
+        const data = get(workflowRevisionsListDataAtomFamily(variantId))
         return {
-            data: [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0)),
+            data,
             isPending: query.isPending ?? false,
             isError: query.isError ?? false,
             error: query.error ?? null,
@@ -559,7 +715,7 @@ export const workflowRevisionsListQueryStateAtomFamily = atomFamily((variantId: 
  */
 export const appWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const query = get(appWorkflowsListQueryAtom)
-    const data = (query.data?.workflows ?? []).filter((w) => !w.deleted_at)
+    const data = get(nonArchivedAppWorkflowsAtom)
     return {
         data,
         isPending: query.isPending ?? false,
@@ -619,12 +775,28 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
 
 /**
  * Derived atom family for the latest revision ID of a workflow.
- * Reads from the dedicated latest revision query (1 API call)
- * instead of fetching all revisions.
+ *
+ * Tries to resolve the revision ID from already-cached data first
+ * (revisions-by-workflow query), falling back to the dedicated latest
+ * revision query only if no cached data is available.
+ *`
+ * This avoids duplicating full revision data in memory — the molecule's
+ * `workflowQueryAtomFamily(revisionId)` is the single source of truth
+ * for revision content.
  */
 export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
         if (!workflowId) return null
+
+        // Try revisions-by-workflow cache first (already fetched by the table)
+        const revisionsQuery = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
+        const refs = revisionsQuery.data?.refs
+        if (refs && refs.length > 0) {
+            // Refs are sorted by recency — first is latest
+            return refs[0].id ?? null
+        }
+
+        // Fallback to the dedicated latest revision query
         const query = get(workflowLatestRevisionQueryAtomFamily(workflowId))
         return query.data?.id ?? null
     }),
@@ -672,7 +844,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
-// INSPECT QUERY (resolve full schema — evaluator workflows only)
+// INSPECT QUERY (resolve full schema — any workflow with a URI)
 // ============================================================================
 
 /**
@@ -680,17 +852,24 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
  * After revision data loads, calls `/preview/workflows/inspect` with the
  * revision's URI to resolve the full interface schema (including inputs).
  *
- * **Only fires for evaluator workflows** (`flags.is_evaluator`).
- * For app workflows the inspect endpoint does not return input schemas;
- * those use the OpenAPI fallback below instead.
+ * Fires for **any workflow with a URI** — evaluators, managed apps, builtins.
+ *
+ * For pre-migration builtin apps that have a `/services/{type}` URL but no
+ * stored URI, the URI is derived from the URL pattern (e.g.,
+ * `http://host/services/completion` → `agenta:builtin:completion:v0`).
  */
 export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
         const projectId = get(workflowProjectIdAtom)
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
-        const uri = serverData?.data?.uri ?? null
-        const isEvaluator = serverData?.flags?.is_evaluator ?? false
+
+        // Use stored URI, or derive one from builtin service URL pattern
+        const storedUri = serverData?.data?.uri ?? null
+        const storedUrl = serverData?.data?.url ?? null
+        const derivedServiceType = storedUri ? null : resolveServiceTypeFromUrl(storedUrl)
+        const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
+        const isEnabled = get(sessionAtom) && !!projectId && !!uri
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, projectId],
@@ -698,128 +877,42 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
                 if (!projectId || !uri) return null
                 return inspectWorkflow(uri, projectId)
             },
-            enabled: get(sessionAtom) && !!projectId && !!uri && isEvaluator,
+            enabled: isEnabled,
             staleTime: 60_000,
         }
     }),
 )
 
 // ============================================================================
-// SERVICE SCHEMA FOR BUILTIN APPS (reuses legacy prefetch)
+// APP OPENAPI SCHEMA QUERY (legacy fallback for custom apps without URI)
 // ============================================================================
 
 /**
- * Result of the service schema lookup for builtin app workflows.
- * Includes `isServiceType` so consumers can distinguish between:
- * - "this IS a service type but schema is still loading" (don't fall through)
- * - "this is NOT a service type" (fall through to per-revision fetch)
- */
-interface ServiceSchemaResult {
-    /** The resolved schemas, or null if not yet loaded */
-    schemas: AppOpenApiSchemas | null
-    /** Whether this revision IS a builtin service type (completion/chat) */
-    isServiceType: boolean
-}
-
-/**
- * Service schema for builtin app workflows — reuses the legacy service schema
- * atoms (`completionServiceSchemaAtom` / `chatServiceSchemaAtom`) that are
- * already prefetched at app startup.
+ * OpenAPI schema query atom family — **legacy fallback only**.
  *
- * Maps `RevisionSchemaState` → `AppOpenApiSchemas` so the workflow entity
- * system can consume them in the same shape as the OpenAPI fallback.
+ * Fires only for truly custom user-hosted apps that have a `data.url`
+ * but no `data.uri` AND whose URL does not match the builtin service
+ * pattern (`/services/completion` or `/services/chat`).
  *
- * Returns `{ isServiceType: false }` for evaluators, custom apps, or when
- * the service type cannot be determined from URI or URL.
+ * Builtin apps without URIs are handled by the inspect atom above
+ * (which derives the URI from the URL pattern). Custom apps without
+ * URIs still need OpenAPI fetching because the inspect endpoint
+ * requires a URI.
  *
- * Returns `{ isServiceType: true, schemas: null }` when the service type
- * IS known but the schema hasn't loaded yet — this prevents consumers from
- * falling through to a per-revision OpenAPI fetch that would duplicate the
- * already-in-flight service schema request.
- */
-export const workflowServiceSchemaForRevisionAtomFamily = atomFamily((revisionId: string) =>
-    atom<ServiceSchemaResult>((get) => {
-        const NOT_SERVICE = {schemas: null, isServiceType: false} as const
-
-        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
-        const serverData = revisionQuery.data ?? null
-        if (!serverData) {
-            return NOT_SERVICE
-        }
-
-        if (serverData.flags?.is_evaluator) {
-            return NOT_SERVICE
-        }
-        if (serverData.flags?.is_custom) {
-            return NOT_SERVICE
-        }
-
-        const uri = serverData.data?.uri
-        const url = serverData.data?.url
-
-        // Determine service type from URI (preferred) or URL (fallback for missing URI)
-        const serviceType = resolveServiceTypeFromUri(uri) ?? resolveServiceTypeFromUrl(url)
-        if (!serviceType) return NOT_SERVICE
-
-        // Read the prefetched service schema
-        const schemaQuery =
-            serviceType === "completion"
-                ? get(completionServiceSchemaAtom)
-                : serviceType === "chat"
-                  ? get(chatServiceSchemaAtom)
-                  : null
-
-        const schemaData = schemaQuery?.data ?? null
-        if (!schemaData) return {schemas: null, isServiceType: true}
-
-        return {
-            isServiceType: true,
-            schemas: {
-                inputs:
-                    (schemaData.primaryEndpoint?.inputsSchema as unknown as Record<
-                        string,
-                        unknown
-                    >) ?? null,
-                outputs: (schemaData.outputsSchema as unknown as Record<string, unknown>) ?? null,
-                parameters:
-                    (schemaData.agConfigSchema as unknown as Record<string, unknown>) ?? null,
-                routePath: schemaData.routePath ?? undefined,
-                runtimePrefix: schemaData.runtimePrefix,
-                openApiSchema: schemaData.openApiSchema,
-            },
-        }
-    }),
-)
-
-// ============================================================================
-// APP OPENAPI SCHEMA QUERY (non-evaluator workflow fallback)
-// ============================================================================
-
-/**
- * OpenAPI schema query atom family.
- * For custom app workflows, fetches the OpenAPI spec from the
- * app's service URL and extracts input/output/parameter schemas.
- *
- * **Only fires for custom, non-evaluator workflows** that have a `data.url`.
- * Evaluator workflows use the inspect endpoint above instead.
- * Builtin apps (completion/chat) already have schemas from the server
- * (`data.schemas`) and their service schema is prefetched by
- * `serviceSchemaQueryAtomFamily`, so this fetch is skipped for them.
+ * All other workflows (with URIs) use the inspect endpoint.
  */
 export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
     atomWithQuery((get) => {
         const projectId = get(workflowProjectIdAtom)
         const revisionQuery = get(workflowQueryAtomFamily(revisionId))
         const serverData = revisionQuery.data ?? null
-        const isEvaluator = serverData?.flags?.is_evaluator ?? false
-        // --- Builtin app URL resolution (migration fix) ---
-        // Use corrected URL for builtin apps with stale data.url.
-        // TODO: Remove resolveBuiltinAppServiceUrl once backend migration patches
-        // all revision data.url values. After that, data.url will always be correct.
-        const resolvedUrl = serverData ? resolveBuiltinAppServiceUrl(serverData) : null
-        const url = resolvedUrl ?? serverData?.data?.url ?? null
+        const uri = serverData?.data?.uri ?? null
+        const url = serverData?.data?.url ?? null
 
-        const enabled = get(sessionAtom) && !!projectId && !!url && !isEvaluator
+        // Skip if URI exists (inspect handles it), if URL matches builtin
+        // service pattern (inspect derives URI), or if no URL at all.
+        const isBuiltinServiceUrl = !!resolveServiceTypeFromUrl(url)
+        const enabled = get(sessionAtom) && !!projectId && !!url && !uri && !isBuiltinServiceUrl
 
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],
@@ -885,24 +978,69 @@ export const workflowDraftAtomFamily = atomFamily((_workflowId: string) =>
  *
  * Merges in layers:
  * 1. Server revision data (from query)
- * 2. Schema resolution (flag-gated):
- *    - **Evaluator workflows**: inspect endpoint fills missing schemas
- *    - **App workflows**: OpenAPI spec fetch fills missing schemas
- * 3. Interface schemas fallback (for builtin workflows missing schemas)
- * 4. Local draft overlay (user edits)
+ * 2. Schema resolution (unified for all workflow types):
+ *    a. **Service schema** — fast path for builtin completion/chat (prefetched)
+ *    b. **Inspect** — any workflow with a URI (evaluators, managed apps, builtins)
+ *    c. **OpenAPI fallback** — legacy custom apps without URI
+ * 3. Local draft overlay (user edits)
+ *
+ * Server data fields take precedence — resolved schemas only fill gaps
+ * where `data.schemas.*` is null/missing.
  *
  * Local drafts already contain fully-merged data from the source revision,
  * so they skip the schema resolution stage.
+ *
+ * NOTE: For evaluator workflows, nesting is re-applied after draft merge
+ * because presets write flat params to the draft which would overwrite
+ * the nested structure from localData.
  */
-export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
+/**
+ * Base entity atom — server data + evaluator normalization + draft overlay.
+ *
+ * Does everything `workflowEntityAtomFamily` does EXCEPT subscribing to
+ * inspect/OpenAPI schema resolution. This makes it safe for consumers that
+ * only need parameters and metadata (isDirty, isEphemeral) without triggering
+ * schema-resolution side effects.
+ */
+export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
     atom<Workflow | null>((get) => {
         // Check local draft storage first (for browser-only clones)
-        // Local drafts already contain fully-merged data from their source revision
-        const localData = get(workflowLocalServerDataAtomFamily(workflowId))
+        let localData = get(workflowLocalServerDataAtomFamily(workflowId))
         if (localData) {
+            // Apply evaluator normalization to local drafts too
+            if (localData.flags?.is_evaluator) {
+                const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
+                const flatSchema = localData.data?.schemas?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+
+                const nestedParams = flatParams
+                    ? nestEvaluatorConfiguration(flatParams, flatSchema)
+                    : undefined
+                const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
+
+                if (nestedParams || nestedSchema) {
+                    localData = {
+                        ...localData,
+                        data: {
+                            ...localData.data,
+                            ...(nestedParams ? {parameters: nestedParams} : {}),
+                            ...(nestedSchema
+                                ? {
+                                      schemas: {
+                                          ...localData.data?.schemas,
+                                          parameters: nestedSchema,
+                                      },
+                                  }
+                                : {}),
+                        },
+                    } as Workflow
+                }
+            }
+
             const draft = get(workflowDraftAtomFamily(workflowId))
             if (!draft) return localData
-            return {
+            let localMerged = {
                 ...localData,
                 ...draft,
                 data: {
@@ -910,6 +1048,37 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                     ...draft.data,
                 },
             } as Workflow
+
+            // Re-apply evaluator nesting after draft merge.
+            // Presets write flat params to the draft, overwriting the nested
+            // structure. Re-nesting ensures the UI sees the correct format.
+            if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
+                const draftParams = localMerged.data?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+                const draftSchema = localMerged.data?.schemas?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+                if (draftParams) {
+                    localMerged = {
+                        ...localMerged,
+                        data: {
+                            ...localMerged.data,
+                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
+                            ...(draftSchema
+                                ? {
+                                      schemas: {
+                                          ...localMerged.data?.schemas,
+                                          parameters: nestEvaluatorSchema(draftSchema),
+                                      },
+                                  }
+                                : {}),
+                        },
+                    } as Workflow
+                }
+            }
+
+            return localMerged
         }
 
         const query = get(workflowQueryAtomFamily(workflowId))
@@ -918,80 +1087,250 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
 
         if (!serverData) return draft as Workflow | null
 
-        const isEvaluator = serverData.flags?.is_evaluator ?? false
-
         let merged = serverData
 
-        if (isEvaluator) {
-            // Evaluator workflows: merge inspect data
-            const inspectQuery = get(workflowInspectAtomFamily(workflowId))
-            const inspectData = inspectQuery.data ?? null
+        // ── Evaluator normalization ──
+        if (merged.flags?.is_evaluator) {
+            const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
+            const flatSchema = merged.data?.schemas?.parameters as
+                | Record<string, unknown>
+                | undefined
 
-            if (inspectData) {
-                const inspectSchemas = inspectData.interface?.schemas
-                const inspectParams =
-                    (inspectData.configuration as Record<string, unknown> | undefined)
-                        ?.parameters ?? null
+            const nestedParams = flatParams
+                ? nestEvaluatorConfiguration(flatParams, flatSchema)
+                : undefined
+            const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
 
+            if (nestedParams || nestedSchema) {
                 merged = {
-                    ...serverData,
+                    ...merged,
                     data: {
-                        ...serverData.data,
-                        parameters:
-                            serverData.data?.parameters ??
-                            (inspectParams as Record<string, unknown> | null) ??
-                            undefined,
-                        ...(inspectSchemas
+                        ...merged.data,
+                        ...(nestedParams ? {parameters: nestedParams} : {}),
+                        ...(nestedSchema
                             ? {
                                   schemas: {
-                                      ...serverData.data?.schemas,
-                                      inputs:
-                                          serverData.data?.schemas?.inputs ?? inspectSchemas.inputs,
-                                      outputs:
-                                          serverData.data?.schemas?.outputs ??
-                                          inspectSchemas.outputs,
-                                      parameters:
-                                          serverData.data?.schemas?.parameters ??
-                                          inspectSchemas.parameters,
+                                      ...merged.data?.schemas,
+                                      parameters: nestedSchema,
                                   },
                               }
                             : {}),
                     },
                 } as Workflow
             }
-        } else {
-            // App workflows: prefer prefetched service schema for builtin apps,
-            // fall back to per-revision OpenAPI fetch for custom apps.
-            // IMPORTANT: only subscribe to workflowAppSchemaAtomFamily when we
-            // know this is NOT a builtin service type — subscribing to an
-            // atomWithQuery triggers its fetch, so we gate behind isServiceType
-            // to avoid duplicate fetches for builtin apps (even while the
-            // service schema is still loading).
-            const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-            const appSchemas = serviceResult.isServiceType
-                ? serviceResult.schemas
-                : (get(workflowAppSchemaAtomFamily(workflowId)).data ?? null)
+        }
 
-            if (appSchemas) {
-                merged = {
-                    ...serverData,
-                    data: {
-                        ...serverData.data,
-                        schemas: {
-                            ...serverData.data?.schemas,
-                            inputs: serverData.data?.schemas?.inputs ?? appSchemas.inputs,
-                            outputs: serverData.data?.schemas?.outputs ?? appSchemas.outputs,
-                            parameters:
-                                serverData.data?.schemas?.parameters ?? appSchemas.parameters,
+        if (!draft) return merged
+
+        return {
+            ...merged,
+            ...draft,
+            data: {
+                ...merged.data,
+                ...draft.data,
+            },
+        } as Workflow
+    }),
+)
+
+export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => {
+        // Check local draft storage first (for browser-only clones)
+        let localData = get(workflowLocalServerDataAtomFamily(workflowId))
+        if (localData) {
+            // Apply evaluator normalization to local drafts too
+            if (localData.flags?.is_evaluator) {
+                const flatParams = localData.data?.parameters as Record<string, unknown> | undefined
+                const flatSchema = localData.data?.schemas?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+
+                const nestedParams = flatParams
+                    ? nestEvaluatorConfiguration(flatParams, flatSchema)
+                    : undefined
+                const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
+
+                if (nestedParams || nestedSchema) {
+                    localData = {
+                        ...localData,
+                        data: {
+                            ...localData.data,
+                            ...(nestedParams ? {parameters: nestedParams} : {}),
+                            ...(nestedSchema
+                                ? {
+                                      schemas: {
+                                          ...localData.data?.schemas,
+                                          parameters: nestedSchema,
+                                      },
+                                  }
+                                : {}),
                         },
+                    } as Workflow
+                }
+            }
+
+            const draft = get(workflowDraftAtomFamily(workflowId))
+            if (!draft) return localData
+            let localMerged = {
+                ...localData,
+                ...draft,
+                data: {
+                    ...localData.data,
+                    ...draft.data,
+                },
+            } as Workflow
+
+            // Re-apply evaluator nesting after draft merge.
+            // Presets write flat params to the draft, overwriting the nested
+            // structure. Re-nesting ensures the UI sees the correct format.
+            if (localMerged.flags?.is_evaluator && draft.data?.parameters) {
+                const draftParams = localMerged.data?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+                const draftSchema = localMerged.data?.schemas?.parameters as
+                    | Record<string, unknown>
+                    | undefined
+                if (draftParams) {
+                    localMerged = {
+                        ...localMerged,
+                        data: {
+                            ...localMerged.data,
+                            parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
+                            ...(draftSchema
+                                ? {
+                                      schemas: {
+                                          ...localMerged.data?.schemas,
+                                          parameters: nestEvaluatorSchema(draftSchema),
+                                      },
+                                  }
+                                : {}),
+                        },
+                    } as Workflow
+                }
+            }
+
+            return localMerged
+        }
+
+        const query = get(workflowQueryAtomFamily(workflowId))
+        const serverData = query.data ?? null
+        const draft = get(workflowDraftAtomFamily(workflowId))
+
+        if (!serverData) return draft as Workflow | null
+
+        let merged = serverData
+
+        // ── Schema resolution (unified) ──
+        // Try sources in priority order. Each source fills missing schema
+        // fields without overwriting existing server data.
+
+        let resolvedInputs: Record<string, unknown> | null | undefined = null
+        let resolvedOutputs: Record<string, unknown> | null | undefined = null
+        let resolvedParameters: Record<string, unknown> | null | undefined = null
+        let resolvedParams: Record<string, unknown> | null | undefined = null
+
+        // (a) Inspect — primary source for any workflow with a URI.
+        // Returns interface.schemas.{inputs, parameters, outputs} directly.
+        const inspectQuery = get(workflowInspectAtomFamily(workflowId))
+        const inspectData = inspectQuery.data ?? null
+        if (inspectData) {
+            const inspectSchemas = inspectData.revision?.schemas ?? inspectData.interface?.schemas
+            if (inspectSchemas) {
+                resolvedInputs = inspectSchemas.inputs
+                resolvedOutputs = inspectSchemas.outputs
+                resolvedParameters = inspectSchemas.parameters
+            }
+            resolvedParams =
+                (inspectData.revision?.parameters as Record<string, unknown> | undefined) ??
+                (inspectData.configuration as Record<string, unknown> | undefined)?.parameters ??
+                null
+        }
+
+        // (b) OpenAPI fallback — only for legacy custom apps without URI.
+        // Only subscribe when we know inspect won't fire (no URI).
+        if (!serverData.data?.uri) {
+            const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
+            const appSchemas = appSchemaQuery.data ?? null
+            if (appSchemas) {
+                resolvedInputs = resolvedInputs ?? appSchemas.inputs
+                resolvedOutputs = resolvedOutputs ?? appSchemas.outputs
+                resolvedParameters = resolvedParameters ?? appSchemas.parameters
+            }
+        }
+
+        // Merge resolved schemas into entity (server data takes precedence)
+        const hasResolvedSchemas = resolvedInputs || resolvedOutputs || resolvedParameters
+        const hasResolvedParams = resolvedParams && !serverData.data?.parameters
+
+        if (hasResolvedSchemas || hasResolvedParams) {
+            merged = {
+                ...serverData,
+                data: {
+                    ...serverData.data,
+                    ...(hasResolvedParams
+                        ? {parameters: resolvedParams as Record<string, unknown>}
+                        : {}),
+                    ...(hasResolvedSchemas
+                        ? {
+                              schemas: {
+                                  ...serverData.data?.schemas,
+                                  inputs:
+                                      serverData.data?.schemas?.inputs ??
+                                      resolvedInputs ??
+                                      undefined,
+                                  outputs:
+                                      serverData.data?.schemas?.outputs ??
+                                      resolvedOutputs ??
+                                      undefined,
+                                  parameters:
+                                      serverData.data?.schemas?.parameters ??
+                                      resolvedParameters ??
+                                      undefined,
+                              },
+                          }
+                        : {}),
+                },
+            } as Workflow
+        }
+
+        // ── Evaluator normalization ──
+        // Transform flat evaluator parameters and schemas to the nested
+        // structure that app workflows already use. This is done once at
+        // the entity merge boundary so all downstream consumers
+        // (selectors, UI, commit diff) see a unified shape regardless
+        // of workflow type.
+        //
+        // The reverse transform (flattenEvaluatorConfiguration) is only
+        // applied at write boundaries (commit, updateConfiguration action).
+        if (merged.flags?.is_evaluator) {
+            const flatParams = merged.data?.parameters as Record<string, unknown> | undefined
+            const flatSchema = merged.data?.schemas?.parameters as
+                | Record<string, unknown>
+                | undefined
+
+            const nestedParams = flatParams
+                ? nestEvaluatorConfiguration(flatParams, flatSchema)
+                : undefined
+            const nestedSchema = flatSchema ? nestEvaluatorSchema(flatSchema) : undefined
+
+            if (nestedParams || nestedSchema) {
+                merged = {
+                    ...merged,
+                    data: {
+                        ...merged.data,
+                        ...(nestedParams ? {parameters: nestedParams} : {}),
+                        ...(nestedSchema
+                            ? {
+                                  schemas: {
+                                      ...merged.data?.schemas,
+                                      parameters: nestedSchema,
+                                  },
+                              }
+                            : {}),
                     },
                 } as Workflow
             }
         }
-
-        // NOTE: Interface schemas fallback (workflowInterfaceSchemasAtomFamily) is
-        // disabled — backend endpoint not yet implemented. When re-enabled, add
-        // the builtin URI schema merge back here.
 
         if (!draft) return merged
 
@@ -1031,8 +1370,9 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // Get the effective current parameters (entity = server/clone + draft overlay)
-        const entityData = get(workflowEntityAtomFamily(workflowId))
+        // Get the effective current parameters (base entity = server/clone + draft overlay,
+        // without schema resolution — isDirty only compares parameters, never schemas)
+        const entityData = get(workflowBaseEntityAtomFamily(workflowId))
 
         // Get the comparison baseline — for local drafts this redirects to the
         // source entity's live server data via workflowServerDataSelectorFamily.
@@ -1044,7 +1384,19 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
         if (!entityData) return false
 
         const entityParams = entityData.data?.parameters
-        const serverParams = serverData.data?.parameters
+
+        // Server params may be flat for evaluator workflows, while entity params
+        // are nested (normalized in workflowEntityAtomFamily). Apply the same
+        // nesting to server params so comparison is like-for-like.
+        const rawServerParams = serverData.data?.parameters as Record<string, unknown> | undefined
+        const serverParams =
+            rawServerParams && serverData.flags?.is_evaluator
+                ? nestEvaluatorConfiguration(
+                      rawServerParams,
+                      (serverData.data?.schemas?.parameters as Record<string, unknown> | null) ??
+                          null,
+                  )
+                : rawServerParams
 
         // No parameters on entity side — check for other data changes
         if (!entityParams) {
@@ -1106,7 +1458,7 @@ export const workflowIsDirtyAtomFamily = atomFamily((workflowId: string) =>
  */
 export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
     atom<boolean>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         const meta = entity?.meta as Record<string, unknown> | null | undefined
         return Boolean(meta?.__ephemeral)
     }),

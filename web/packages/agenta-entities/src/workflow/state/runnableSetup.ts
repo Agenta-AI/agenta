@@ -43,8 +43,8 @@ import {parseRevisionUri} from "../../shared"
 import {resolveBuiltinAppServiceUrl} from "./helpers"
 import {
     workflowAppSchemaAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
-    workflowServiceSchemaForRevisionAtomFamily,
 } from "./store"
 
 // Re-export for external consumers
@@ -95,7 +95,7 @@ function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>):
  */
 export const executionModeAtomFamily = atomFamily((workflowId: string) =>
     atom<"chat" | "completion">((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.flags?.is_chat ? "chat" : "completion"
     }),
 )
@@ -106,15 +106,11 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Route path derived from the app schema.
- * Prefers the prefetched service schema for builtin apps (completion/chat),
- * falls back to per-revision OpenAPI fetch for custom apps.
+ * Only populated for legacy custom apps (no URI) that use the OpenAPI fallback.
+ * Workflows with URIs use the unified invoke endpoint and don't need a route path.
  */
 export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
     atom<string>((get) => {
-        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-        if (serviceResult.isServiceType) {
-            return serviceResult.schemas?.routePath || ""
-        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.routePath || ""
     }),
@@ -122,16 +118,11 @@ export const appRoutePathAtomFamily = atomFamily((workflowId: string) =>
 
 /**
  * Raw dereferenced OpenAPI spec from the app schema.
- * Prefers the prefetched service schema for builtin apps (completion/chat),
- * falls back to per-revision OpenAPI fetch for custom apps.
- * Needed by `buildRequestBody()` for input mapping and custom workflow detection.
+ * Only populated for legacy custom apps (no URI) that use the OpenAPI fallback.
+ * Needed by `buildRequestBody()` for legacy input mapping.
  */
 export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
     atom<unknown | null>((get) => {
-        const serviceResult = get(workflowServiceSchemaForRevisionAtomFamily(workflowId))
-        if (serviceResult.isServiceType) {
-            return serviceResult.schemas?.openApiSchema ?? null
-        }
         const appSchemaQuery = get(workflowAppSchemaAtomFamily(workflowId))
         return appSchemaQuery.data?.openApiSchema ?? null
     }),
@@ -144,17 +135,16 @@ export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Invocation URL for workflow execution.
  *
- * All workflow types (app, evaluator, custom) use the unified
- * `POST /preview/workflows/invoke` endpoint. The backend resolves
- * the handler via the `interface` field in the request body.
+ * All workflow types use the unified `POST /preview/workflows/invoke`
+ * endpoint. The backend resolves the handler via the `interface` field
+ * in the request body (uri or url).
  *
- * Exceptions:
- * - **Evaluator workflows** with `data.url` (webhook): URL as-is
- * - **Custom app workflows** with `data.url` but no `data.uri`: legacy `/test` path
+ * Exception: **Evaluator workflows** with `data.url` (webhook) return
+ * the URL as-is for direct invocation.
  */
 export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
         const isEvaluator = entity.flags?.is_evaluator ?? false
@@ -164,34 +154,7 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
             return entity.data.url
         }
 
-        // App workflows without URI: legacy /test path
-        // This covers custom user-hosted services and standard SDK apps that were deployed
-        // before the uri field was introduced. Both cases require direct service invocation
-        // rather than going through /preview/workflows/invoke (which needs interface.uri).
-        if (!isEvaluator && entity.data.url && !entity.data.uri) {
-            const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
-            const effectiveAppUrl = resolvedBuiltinUrl ?? entity.data.url
-            const routePath = get(appRoutePathAtomFamily(workflowId))
-            const parsed = effectiveAppUrl ? parseRevisionUri(effectiveAppUrl) : null
-            if (!parsed) return `${effectiveAppUrl}/test`
-
-            const apiUrl = getAgentaApiUrl()
-            const currentOrigin = apiUrl ? apiUrl.replace(/\/api\/?$/, "") : null
-            const storedOrigin = parsed.runtimePrefix.replace(/\/$/, "")
-            const prefix =
-                currentOrigin && currentOrigin !== storedOrigin ? currentOrigin : storedOrigin
-            const cleanRoutePath = (routePath || parsed.routePath || "")
-                .replace(/^\//, "")
-                .replace(/\/$/, "")
-
-            if (cleanRoutePath) {
-                return `${prefix}/${cleanRoutePath}/test`
-            }
-            return `${prefix}/test`
-        }
-
-        // All other workflows: unified invoke endpoint
-        // The backend resolves the handler via interface.uri or interface.url
+        // All workflows with a URI or URL: unified invoke endpoint
         if (entity.data.uri || entity.data.url) {
             return `${getAgentaApiUrl()}/preview/workflows/invoke`
         }
@@ -211,7 +174,7 @@ export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
  */
 export const deploymentUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
         const resolvedBuiltinUrl = resolveBuiltinAppServiceUrl(entity)
@@ -285,7 +248,7 @@ export const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
  */
 export const configurationAtomFamily = atomFamily((workflowId: string) =>
     atom<Record<string, unknown> | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.data?.parameters ?? entity?.data?.configuration ?? null
     }),
 )
@@ -300,7 +263,7 @@ export const configurationAtomFamily = atomFamily((workflowId: string) =>
  */
 export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
-        const entity = get(workflowEntityAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
         return entity?.data?.uri ?? null
     }),
 )
@@ -314,12 +277,10 @@ export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
  *
  * - **Evaluator workflows** use the `{interface, configuration, data}` format
  *   (`__rawBody: true`) for `/preview/workflows/invoke`.
- * - **App workflows** (non-custom with URI) use `__rawBody` with `__appWorkflow`
- *   marker. The execution pipeline builds inputs via `buildRequestBody()` then
+ * - **App workflows** use `__rawBody` with `__appWorkflow` marker.
+ *   The execution pipeline builds inputs via `buildRequestBody()` then
  *   wraps them into the invoke format. Metadata needed for `buildRequestBody()`
  *   is passed in `__meta`.
- * - **Custom app workflows** (no URI, user-hosted) return `RequestPayloadData`
- *   for the legacy `buildRequestBody()` → `/test` endpoint path.
  * - **Ephemeral (base) workflows** return `RequestPayloadData` for trace replay.
  */
 export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
@@ -420,15 +381,11 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // ── App workflows ──
+        // ── App workflows: __rawBody format for /preview/workflows/invoke ──
         const isChat = entity.flags?.is_chat ?? false
-        const isCustom = entity.flags?.is_custom ?? false
         const openApiSchema = get(appOpenApiSchemaAtomFamily(workflowId))
         const routePath = get(appRoutePathAtomFamily(workflowId))
 
-        // --- Builtin app URL resolution (migration fix) ---
-        // Use corrected URL for builtin apps with stale data.url.
-        // TODO: Remove once backend migration is complete.
         const resolvedUrl = resolveBuiltinAppServiceUrl(entity)
         const effectiveUrl = resolvedUrl ?? entity.data.url
         const parsed = effectiveUrl ? parseRevisionUri(effectiveUrl) : null
@@ -437,9 +394,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         const params = entity.data.parameters as Record<string, unknown> | undefined
         const agConfig = (params?.ag_config as Record<string, unknown>) || params || {}
 
-        // Primary source of truth follows workflow input-port logic:
-        // 1) schema input keys, 2) prompt-template variables.
-        // Final fallback: persisted input_keys from ag_config.
+        // Derive input variables: schema keys → prompt-template vars → persisted input_keys
         const schemaVariables = extractSchemaInputKeys(entity.data?.schemas?.inputs)
         const promptVariables =
             schemaVariables.length > 0 ? [] : extractVariablesFromConfig(agConfig)
@@ -467,28 +422,6 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             references.application_revision = {id: entity.id}
         }
 
-        // App workflows without URI: legacy RequestPayloadData format
-        // for buildRequestBody() → /test endpoint path.
-        // Covers custom user-hosted services and standard SDK apps deployed before
-        // the uri field was introduced — both require direct service invocation.
-        if (!entity.data.uri) {
-            const invocationUrl = get(invocationUrlAtomFamily(workflowId))
-            return {
-                ag_config: agConfig,
-                isChat,
-                appType: null,
-                invocationUrl,
-                runtimePrefix: parsed?.runtimePrefix ?? null,
-                variables,
-                spec: openApiSchema,
-                routePath: routePath || undefined,
-                isCustom: isCustom,
-                appId,
-                references: Object.keys(references).length > 0 ? references : undefined,
-            } satisfies RequestPayloadData
-        }
-
-        // Standard app workflows: use __rawBody format for /preview/workflows/invoke.
         // The interface field tells the backend which handler to resolve.
         // Configuration carries the ag_config (prompt configs, LLM settings).
         // data.inputs will be populated at execution time by buildExecutionItem.

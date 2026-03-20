@@ -13,6 +13,7 @@
  */
 
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {dereferenceSchema} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -21,16 +22,19 @@ import type {ListQueryState} from "../../shared"
 import {generateLocalId} from "../../shared"
 import {queryWorkflows, createWorkflow, updateWorkflow} from "../api"
 import {inspectWorkflow} from "../api"
-import type {EvaluatorTemplate} from "../api/templates"
-import {fetchEvaluatorTemplates} from "../api/templates"
-import type {Workflow, WorkflowsResponse} from "../core"
+import type {EvaluatorCatalogTemplate, EvaluatorCatalogPresetsResponse} from "../api/templates"
+import {fetchEvaluatorTemplates, fetchEvaluatorCatalogPresets} from "../api/templates"
+import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     invalidateWorkflowsListCache,
+    type WorkflowListRef,
+    toWorkflowListRef,
 } from "./store"
 
 // ============================================================================
@@ -38,16 +42,32 @@ import {
 // ============================================================================
 
 /**
+ * Thin list response cached in TanStack Query for evaluators.
+ */
+interface WorkflowListRefsResponse {
+    count: number
+    refs: WorkflowListRef[]
+}
+
+/**
  * Query atom for evaluator-type workflows only.
  * Calls `queryWorkflows` with `flags: { is_evaluator: true }`.
+ *
+ * Caches only thin references in TanStack Query.
  */
 export const evaluatorsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
         queryKey: ["workflows", "evaluators", "list", projectId],
-        queryFn: async (): Promise<WorkflowsResponse> => {
-            if (!projectId) return {count: 0, workflows: []}
-            return queryWorkflows({projectId, flags: {is_evaluator: true}})
+        queryFn: async (): Promise<WorkflowListRefsResponse> => {
+            if (!projectId) return {count: 0, refs: []}
+            const response = await queryWorkflows({projectId, flags: {is_evaluator: true}})
+            const workflows = response.workflows ?? []
+
+            return {
+                count: response.count ?? workflows.length,
+                refs: workflows.map(toWorkflowListRef),
+            }
         },
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
@@ -56,18 +76,27 @@ export const evaluatorsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for evaluator-type workflows list data.
+ * Resolves thin refs through the molecule for full Workflow objects.
  */
 export const evaluatorsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
-    return query.data?.workflows ?? []
+    const refs = query.data?.refs ?? []
+    return refs
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 /**
  * Derived atom for non-archived evaluator-type workflows.
+ * Uses thin refs for filtering (avoids subscribing to full entity objects).
  */
 export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
-    const evaluators = get(evaluatorsListDataAtom)
-    return evaluators.filter((w) => !w.deleted_at)
+    const query = get(evaluatorsListQueryAtom)
+    const refs = query.data?.refs ?? []
+    return refs
+        .filter((ref) => !ref.deleted_at)
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 /**
@@ -94,7 +123,7 @@ export const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: ["evaluatorTemplates", projectId],
-        queryFn: async (): Promise<{count: number; templates: EvaluatorTemplate[]}> => {
+        queryFn: async (): Promise<{count: number; templates: EvaluatorCatalogTemplate[]}> => {
             if (!projectId) return {count: 0, templates: []}
             return fetchEvaluatorTemplates(projectId)
         },
@@ -107,7 +136,7 @@ export const evaluatorTemplatesQueryAtom = atomWithQuery((get) => {
 /**
  * Derived atom for the templates data array.
  */
-export const evaluatorTemplatesDataAtom = atom<EvaluatorTemplate[]>((get) => {
+export const evaluatorTemplatesDataAtom = atom<EvaluatorCatalogTemplate[]>((get) => {
     const query = get(evaluatorTemplatesQueryAtom)
     return query.data?.templates ?? []
 })
@@ -171,10 +200,54 @@ export const evaluatorKeyMapAtom = atom<Map<string, string>>((get) => {
  * Returns the matching EvaluatorTemplate or null.
  */
 export const evaluatorTemplateByKeyAtomFamily = atomFamily((key: string | null) =>
-    atom<EvaluatorTemplate | null>((get) => {
+    atom<EvaluatorCatalogTemplate | null>((get) => {
         if (!key) return null
         const templates = get(evaluatorTemplatesDataAtom)
         return templates.find((t) => t.key === key) ?? null
+    }),
+)
+
+// ============================================================================
+// CATALOG PRESETS QUERY
+// ============================================================================
+
+/**
+ * Query atom family for evaluator catalog presets.
+ * Fetches presets for a specific template key from the catalog API.
+ * Returns presets transformed to `{key, name, values}` shape for PlaygroundConfigSection.
+ */
+export const evaluatorCatalogPresetsQueryAtomFamily = atomFamily((templateKey: string | null) =>
+    atomWithQuery((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["evaluatorCatalogPresets", templateKey, projectId],
+            queryFn: async (): Promise<EvaluatorCatalogPresetsResponse> => {
+                if (!projectId || !templateKey) return {count: 0, presets: []}
+                return fetchEvaluatorCatalogPresets(projectId, templateKey)
+            },
+            enabled: get(sessionAtom) && !!projectId && !!templateKey,
+            staleTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * Derived atom family: catalog presets for a template key, transformed to
+ * the `{key, name, values}` shape expected by PlaygroundConfigSection.
+ */
+export const evaluatorPresetsAtomFamily = atomFamily((templateKey: string | null) =>
+    atom<{key: string; name: string; values: Record<string, unknown>}[]>((get) => {
+        if (!templateKey) return []
+        const query = get(evaluatorCatalogPresetsQueryAtomFamily(templateKey))
+        const presets = query.data?.presets ?? []
+        return presets
+            .filter((p) => p.key && p.name)
+            .map((p) => ({
+                key: p.key,
+                name: p.name!,
+                values: (p.data?.parameters as Record<string, unknown>) ?? {},
+            }))
     }),
 )
 
@@ -185,16 +258,21 @@ export const evaluatorTemplateByKeyAtomFamily = atomFamily((key: string | null) 
 /**
  * Derived atom for evaluator config instances.
  * Filters out human and custom evaluators — returns only "automatic" evaluator workflows.
+ * Uses thin refs for filtering, then resolves through molecule.
  */
 export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
-    const evaluators = get(evaluatorsListDataAtom)
-    return evaluators.filter((w) => {
-        const flags = w.flags
-        if (!flags) return true
-        if (flags.is_human) return false
-        if (flags.is_custom) return false
-        return true
-    })
+    const query = get(evaluatorsListQueryAtom)
+    const refs = query.data?.refs ?? []
+    return refs
+        .filter((ref) => {
+            const flags = ref.flags
+            if (!flags) return true
+            if (flags.is_human) return false
+            if (flags.is_custom) return false
+            return true
+        })
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 /**
@@ -219,17 +297,25 @@ export const evaluatorConfigsQueryStateAtom = atom<ListQueryState<Workflow>>((ge
 /**
  * Query atom for human evaluator workflows.
  * Calls `queryWorkflows` with `flags: { is_evaluator: true, is_human: true }`.
+ *
+ * Caches only thin references in TanStack Query.
  */
 export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
     return {
         queryKey: ["workflows", "evaluators", "human", "list", projectId],
-        queryFn: async (): Promise<WorkflowsResponse> => {
-            if (!projectId) return {count: 0, workflows: []}
-            return queryWorkflows({
+        queryFn: async (): Promise<WorkflowListRefsResponse> => {
+            if (!projectId) return {count: 0, refs: []}
+            const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: true, is_human: true},
             })
+            const workflows = response.workflows ?? []
+
+            return {
+                count: response.count ?? workflows.length,
+                refs: workflows.map(toWorkflowListRef),
+            }
         },
         enabled: get(sessionAtom) && !!projectId,
         staleTime: 30_000,
@@ -238,10 +324,14 @@ export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for human evaluator workflows list data.
+ * Resolves thin refs through the molecule for full Workflow objects.
  */
 export const humanEvaluatorsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(humanEvaluatorsListQueryAtom)
-    return query.data?.workflows ?? []
+    const refs = query.data?.refs ?? []
+    return refs
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 // ============================================================================
@@ -359,15 +449,36 @@ function settingsTemplateToJsonSchema(
 }
 
 /**
+ * Collect the set of keys marked as hidden in the raw settings_template.
+ * Used to exclude hidden fields from the merged schema even when the
+ * inspect endpoint returns them as visible properties.
+ */
+function collectHiddenKeys(settingsTemplate: Record<string, unknown>): Set<string> {
+    const hidden = new Set<string>()
+    for (const [key, value] of Object.entries(settingsTemplate)) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue
+        const meta = value as Record<string, unknown>
+        if (meta.type === "hidden") {
+            hidden.add(key)
+        }
+    }
+    return hidden
+}
+
+/**
  * Merge inspect-resolved schemas with template-derived UI hints.
  *
  * The inspect endpoint returns a JSON schema but may be missing fields from the
  * settings_template and lacks UI hints (e.g., x-parameters: {code: true}).
  * Template hints take priority, inspect provides base structure.
+ *
+ * Fields marked as `type: "hidden"` in the original settings_template are
+ * excluded from the merged result, even if the inspect endpoint includes them.
  */
 function mergeParameterSchemas(
     inspectSchema: Record<string, unknown> | null,
     templateSchema: Record<string, unknown>,
+    hiddenKeys?: Set<string>,
 ): Record<string, unknown> {
     const templateProps =
         (templateSchema.properties as Record<string, Record<string, unknown>>) ?? {}
@@ -384,6 +495,9 @@ function mergeParameterSchemas(
     const allKeys = new Set([...Object.keys(inspectProps), ...Object.keys(templateProps)])
 
     for (const key of allKeys) {
+        // Skip fields that the template explicitly marks as hidden
+        if (hiddenKeys?.has(key)) continue
+
         const inspectProp = inspectProps[key]
         const templateProp = templateProps[key]
         if (inspectProp && templateProp) {
@@ -401,6 +515,33 @@ function mergeParameterSchemas(
         ...(inspectSchema as Record<string, unknown>),
         properties: mergedProps,
     }
+}
+
+/**
+ * Dereference $ref pointers in catalog schemas.
+ * Catalog schemas may use JSON Schema `$defs` + `$ref` (e.g., the `llm`
+ * template has `$ref: "#/$defs/message"`). These must be resolved before
+ * the UI can render them.
+ */
+async function derefCatalogSchemas(
+    schemas: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+    const result: Record<string, unknown> = {}
+    for (const [key, schema] of Object.entries(schemas)) {
+        if (schema && typeof schema === "object" && !Array.isArray(schema)) {
+            try {
+                const {schema: resolved} = await dereferenceSchema(
+                    schema as Record<string, unknown>,
+                )
+                result[key] = resolved ?? schema
+            } catch {
+                result[key] = schema
+            }
+        } else {
+            result[key] = schema
+        }
+    }
+    return result
 }
 
 /**
@@ -425,8 +566,18 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
         return null
     }
 
-    const uri = buildWorkflowUri(template.key)
+    // Catalog provides uri directly; fall back to building it from the key
+    const uri = template.data?.uri ?? buildWorkflowUri(template.key)
     const localId = generateLocalId("local")
+
+    // Catalog provides schemas under data.schemas.
+    // Dereference $ref pointers — catalog schemas use JSON Schema $defs/$ref
+    // (e.g., the llm template has $ref: "#/$defs/message").
+    const rawCatalogSchemas = template.data?.schemas
+    const catalogSchemas = rawCatalogSchemas
+        ? await derefCatalogSchemas(rawCatalogSchemas)
+        : undefined
+    const parametersTemplate = catalogSchemas?.parameters as Record<string, unknown> | undefined
 
     // Resolve schemas from the inspect endpoint
     let schemas: {
@@ -434,14 +585,14 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
         outputs?: Record<string, unknown> | null
         parameters?: Record<string, unknown> | null
     } = {
-        inputs: null,
-        outputs: template.outputs_schema ?? null,
-        parameters: null,
+        inputs: catalogSchemas?.inputs ?? null,
+        outputs: catalogSchemas?.outputs ?? null,
+        parameters: catalogSchemas?.parameters ?? null,
     }
 
     try {
         const inspectData = await inspectWorkflow(uri, projectId)
-        const inspectSchemas = inspectData?.interface?.schemas
+        const inspectSchemas = inspectData?.revision?.schemas ?? inspectData?.interface?.schemas
         if (inspectSchemas) {
             schemas = {
                 inputs: inspectSchemas.inputs ?? null,
@@ -453,19 +604,35 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
         // If inspect fails, proceed without schemas — template fallback below
     }
 
-    // Merge inspect schema with template UI hints
-    if (template.settings_template) {
-        const templateSchema = settingsTemplateToJsonSchema(
-            template.settings_template as Record<string, unknown>,
-        )
+    // Determine if the catalog schema is proper JSON Schema or legacy settings_template.
+    // JSON Schema has `type: "object"` with `properties` containing sub-schemas.
+    // Settings_template has metadata like `{prompt_template: {type: "messages", label: "..."}}`.
+    const isJsonSchema =
+        parametersTemplate?.type === "object" && typeof parametersTemplate?.properties === "object"
+
+    let parameters: Record<string, unknown> = {}
+
+    if (isJsonSchema) {
+        // Canonical JSON Schema — use as-is, extract defaults from JSON Schema `default` keywords
+        schemas.parameters = parametersTemplate
+
+        const props = parametersTemplate!.properties as Record<string, Record<string, unknown>>
+        for (const [key, prop] of Object.entries(props)) {
+            if (prop?.default !== undefined) {
+                parameters[key] = prop.default
+            }
+        }
+    } else if (parametersTemplate) {
+        // Legacy settings_template — convert to JSON Schema and extract defaults
+        const hiddenKeys = collectHiddenKeys(parametersTemplate)
+        const templateSchema = settingsTemplateToJsonSchema(parametersTemplate)
         schemas.parameters = mergeParameterSchemas(
             schemas.parameters as Record<string, unknown> | null,
             templateSchema,
+            hiddenKeys,
         )
+        parameters = extractDefaultValues(parametersTemplate)
     }
-
-    // Extract flat default values from template metadata
-    const parameters = extractDefaultValues(template.settings_template as Record<string, unknown>)
 
     const workflow: Workflow = {
         id: localId,

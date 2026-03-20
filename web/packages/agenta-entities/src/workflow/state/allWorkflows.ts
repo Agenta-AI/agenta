@@ -20,8 +20,12 @@ import {atom} from "jotai"
 import type {ListQueryState} from "../../shared"
 import type {Workflow} from "../core"
 
-import {evaluatorsListQueryAtom} from "./evaluatorUtils"
-import {appWorkflowsListQueryAtom} from "./store"
+import {evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom} from "./evaluatorUtils"
+import {
+    appWorkflowsListQueryAtom,
+    nonArchivedAppWorkflowsAtom,
+    workflowBaseEntityAtomFamily,
+} from "./store"
 
 // ============================================================================
 // UNION ATOMS (app + evaluator)
@@ -29,22 +33,26 @@ import {appWorkflowsListQueryAtom} from "./store"
 
 /**
  * All workflows data (union of app + evaluator queries).
- * Replaces the old blanket `queryWorkflows({projectId})` call.
+ * Resolves thin refs through the molecule for full Workflow objects.
  */
 export const workflowsListDataAtom = atom<Workflow[]>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const evalQuery = get(evaluatorsListQueryAtom)
-    const apps = appQuery.data?.workflows ?? []
-    const evaluators = evalQuery.data?.workflows ?? []
-    return [...apps, ...evaluators]
+    const appRefs = appQuery.data?.refs ?? []
+    const evalRefs = evalQuery.data?.refs ?? []
+    return [...appRefs, ...evalRefs]
+        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+        .filter((w): w is Workflow => w !== null)
 })
 
 /**
  * All non-archived workflows (union of app + evaluator).
+ * Uses the already-filtered derived atoms to avoid double-filtering.
  */
 export const nonArchivedWorkflowsAtom = atom<Workflow[]>((get) => {
-    const workflows = get(workflowsListDataAtom)
-    return workflows.filter((w) => !w.deleted_at)
+    const apps = get(nonArchivedAppWorkflowsAtom)
+    const evaluators = get(nonArchivedEvaluatorsAtom)
+    return [...apps, ...evaluators]
 })
 
 /**
@@ -55,12 +63,10 @@ export const nonArchivedWorkflowsAtom = atom<Workflow[]>((get) => {
 export const workflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const evalQuery = get(evaluatorsListQueryAtom)
-
-    const apps = (appQuery.data?.workflows ?? []).filter((w) => !w.deleted_at)
-    const evaluators = (evalQuery.data?.workflows ?? []).filter((w) => !w.deleted_at)
+    const data = get(nonArchivedWorkflowsAtom)
 
     return {
-        data: [...apps, ...evaluators],
+        data,
         isPending: (appQuery.isPending ?? false) || (evalQuery.isPending ?? false),
         isError: (appQuery.isError ?? false) || (evalQuery.isError ?? false),
         error: appQuery.error ?? evalQuery.error ?? null,

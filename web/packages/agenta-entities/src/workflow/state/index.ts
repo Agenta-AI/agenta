@@ -26,13 +26,17 @@ export {
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
     workflowRevisionsQueryAtomFamily,
+    workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow (for 2-level hierarchy)
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowRevisionsByWorkflowListDataAtomFamily,
+    type WorkflowRevisionRef,
+    type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
     workflowDraftAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
@@ -150,6 +154,9 @@ export {
     evaluatorTemplatesMapAtom,
     // Template lookup
     evaluatorTemplateByKeyAtomFamily,
+    // Catalog presets
+    evaluatorCatalogPresetsQueryAtomFamily,
+    evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
     // Evaluator configs (non-human, non-custom)
