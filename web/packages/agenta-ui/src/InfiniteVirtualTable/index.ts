@@ -16,7 +16,11 @@ export {
 export * from "./columns/types"
 export {default as useInfiniteTablePagination} from "./hooks/useInfiniteTablePagination"
 export {useTableManager, shouldIgnoreRowClick} from "./hooks/useTableManager"
-export type {UseTableManagerConfig, UseTableManagerReturn} from "./hooks/useTableManager"
+export type {
+    UseTableManagerConfig,
+    UseTableManagerReturn,
+    TableSearchConfig,
+} from "./hooks/useTableManager"
 export {useTableActions} from "./hooks/useTableActions"
 export type {TableActionsConfig, TableActionsReturn} from "./hooks/useTableActions"
 export {
