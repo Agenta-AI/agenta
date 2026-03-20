@@ -1,7 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
-import {archiveWorkflow, invalidateWorkflowsListCache} from "@agenta/entities/workflow"
-import {createEvaluatorFromTemplate} from "@agenta/entities/workflow"
+import {
+    archiveWorkflow,
+    invalidateWorkflowsListCache,
+    createEvaluatorFromTemplate,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
@@ -16,7 +20,6 @@ import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
-import type {Evaluator} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
@@ -105,7 +108,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     }, [openHumanDrawer, refetchAll])
 
     const handleSelectTemplate = useCallback(
-        async (evaluator: Evaluator) => {
+        async (evaluator: EvaluatorCatalogTemplate) => {
             const templateKey = evaluator.key
             if (!templateKey) {
                 message.error("Unable to open evaluator template")
@@ -133,6 +136,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 openHumanDrawer({
                     mode: "edit",
                     workflowId: record.workflowId,
+                    revisionId: record.revisionId,
                     onSuccess: () => refetchAll(),
                 })
             } else {
@@ -196,6 +200,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 openHumanDrawer({
                     mode: "edit",
                     workflowId: record.workflowId,
+                    revisionId: record.revisionId,
                     onSuccess: () => refetchAll(),
                 })
             },

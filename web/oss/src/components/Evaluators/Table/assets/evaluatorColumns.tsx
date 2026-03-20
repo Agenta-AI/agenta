@@ -145,7 +145,7 @@ const AutomaticTagsCell = memo(({revisionId}: {revisionId: string}) => {
     const evaluatorKey = useDefaultStoreAtomValue(workflowKeyAtomFamily(revisionId))
 
     const template = evaluatorKey ? templates.find((t) => t.key === evaluatorKey) : null
-    const tags = template?.tags ?? []
+    const tags = template?.categories ?? []
 
     if (!tags.length) return null
 

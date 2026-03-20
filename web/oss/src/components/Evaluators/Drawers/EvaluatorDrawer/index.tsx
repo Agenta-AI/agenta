@@ -11,7 +11,7 @@
  * - "create": New ephemeral entity from template (via NewEvaluation modal)
  * - "view": Existing committed entity (via evaluators table row click)
  */
-import {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     workflowMolecule,
@@ -26,7 +26,7 @@ import {
 import {playgroundController} from "@agenta/playground"
 import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {EntitySelectorProvider} from "@agenta/playground-ui/components"
-import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
+import {ArrowsIn, ArrowsOut, PencilSimple} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -78,7 +78,7 @@ const DrawerHeader = ({onClose}: {onClose: () => void}) => {
         return nodes[0] ?? null
     }, [nodes])
 
-    // Read name from the current evaluator entity (updates when user switches via entity selector)
+    // Read + edit evaluator name
     const evaluatorEntityId = evaluatorNode?.entityId ?? null
     const entityData = useAtomValue(
         useMemo(
@@ -88,6 +88,14 @@ const DrawerHeader = ({onClose}: {onClose: () => void}) => {
         ),
     )
     const name = entityData?.name?.trim() || entityData?.slug?.trim() || "New Evaluator"
+    const dispatchUpdate = useSetAtom(workflowMolecule.actions.update)
+    const handleNameChange = useCallback(
+        (newName: string) => {
+            if (!evaluatorEntityId || !newName.trim()) return
+            dispatchUpdate(evaluatorEntityId, {name: newName.trim()})
+        },
+        [evaluatorEntityId, dispatchUpdate],
+    )
 
     const appWorkflowAdapter = useMemo(
         () =>
@@ -112,10 +120,67 @@ const DrawerHeader = ({onClose}: {onClose: () => void}) => {
         [connectApp, evaluatorNode],
     )
 
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [editName, setEditName] = useState(name)
+
+    // Sync editName when entity name changes externally
+    useEffect(() => {
+        if (!isEditingName) setEditName(name)
+    }, [name, isEditingName])
+
+    const handleNameBlur = useCallback(() => {
+        setIsEditingName(false)
+        if (editName.trim() && editName.trim() !== name) {
+            handleNameChange(editName.trim())
+        } else {
+            setEditName(name)
+        }
+    }, [editName, name, handleNameChange])
+
+    const handleNameKeyDown = useCallback(
+        (e: React.KeyboardEvent) => {
+            if (e.key === "Enter") {
+                ;(e.target as HTMLInputElement).blur()
+            } else if (e.key === "Escape") {
+                setEditName(name)
+                setIsEditingName(false)
+            }
+        },
+        [name],
+    )
+
     return (
-        <div className="flex items-center justify-between px-4 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
-            <Typography.Text className="text-base font-semibold">{name}</Typography.Text>
-            <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between px-4 py-2.5 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+            {isEditingName ? (
+                <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={handleNameBlur}
+                    onKeyDown={handleNameKeyDown}
+                    autoFocus
+                    className="text-[16px] leading-[24px] font-semibold tracking-normal bg-transparent border-0 outline-none p-0 m-0 min-w-[120px] max-w-[50%] font-[inherit]"
+                />
+            ) : (
+                <div
+                    className="flex items-center gap-1.5 cursor-text"
+                    onClick={() => setIsEditingName(true)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setIsEditingName(true)
+                    }}
+                >
+                    <span className="text-[16px] leading-[24px] font-semibold tracking-normal">
+                        {name}
+                    </span>
+                    <PencilSimple
+                        size={14}
+                        className="text-gray-400 flex-shrink-0"
+                        aria-hidden="true"
+                    />
+                </div>
+            )}
+            <div className="flex items-center gap-1">
                 {isExpanded && (
                     <>
                         <EntityPicker<WorkflowRevisionSelectionResult>
@@ -129,11 +194,13 @@ const DrawerHeader = ({onClose}: {onClose: () => void}) => {
                     </>
                 )}
                 <Button
+                    onClick={() => setExpanded(!isExpanded)}
                     type="text"
                     size="small"
                     icon={isExpanded ? <ArrowsIn size={16} /> : <ArrowsOut size={16} />}
-                    onClick={() => setExpanded(!isExpanded)}
-                />
+                >
+                    {isExpanded ? "Close Playground" : "Open in Playground"}
+                </Button>
                 <Button type="text" size="small" onClick={onClose}>
                     Close
                 </Button>

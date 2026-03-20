@@ -19,7 +19,7 @@ import {AnnotateDrawerSteps} from "@/oss/components/SharedDrawers/AnnotateDrawer
 import {
     closeHumanEvaluatorDrawerAtom,
     humanEvaluatorDrawerCallbackAtom,
-    humanEvaluatorDrawerWorkflowIdAtom,
+    humanEvaluatorDrawerRevisionIdAtom,
     humanEvaluatorDrawerModeAtom,
     humanEvaluatorDrawerOpenAtom,
 } from "./store"
@@ -31,9 +31,12 @@ const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/Anno
 const HumanEvaluatorDrawer = () => {
     const isOpen = useAtomValue(humanEvaluatorDrawerOpenAtom)
     const mode = useAtomValue(humanEvaluatorDrawerModeAtom)
-    const workflowId = useAtomValue(humanEvaluatorDrawerWorkflowIdAtom)
-    const workflowQuery = useAtomValue(workflowMolecule.atoms.query(workflowId ?? ""))
-    const evaluatorWorkflow = mode === "edit" && workflowId ? workflowQuery.data : null
+    const revisionId = useAtomValue(humanEvaluatorDrawerRevisionIdAtom)
+
+    // Read full entity data through the molecule using the revision ID
+    // passed directly by the caller (table row). No extra fetch needed.
+    const entityData = useAtomValue(workflowMolecule.selectors.data(revisionId ?? ""))
+    const evaluatorWorkflow = mode === "edit" && revisionId ? entityData : null
     const onSuccessCallback = useAtomValue(humanEvaluatorDrawerCallbackAtom)
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 

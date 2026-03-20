@@ -18,6 +18,8 @@ interface OpenHumanDrawerParams {
     mode: HumanDrawerMode
     /** Workflow ID of the evaluator to edit (only for mode="edit") */
     workflowId?: string
+    /** Latest revision ID — pass from the table to avoid a separate fetch */
+    revisionId?: string
     /** Callback after successful evaluator creation/edit */
     onSuccess?: (slug?: string) => void
 }
@@ -30,6 +32,8 @@ export const humanEvaluatorDrawerOpenAtom = atomWithReset<boolean>(false)
 export const humanEvaluatorDrawerModeAtom = atomWithReset<HumanDrawerMode>("create")
 /** Workflow ID of the evaluator being edited (null in create mode) */
 export const humanEvaluatorDrawerWorkflowIdAtom = atomWithReset<string | null>(null)
+/** Revision ID passed by the caller (avoids a separate latest-revision fetch) */
+export const humanEvaluatorDrawerRevisionIdAtom = atomWithReset<string | null>(null)
 export const humanEvaluatorDrawerCallbackAtom = atom<((slug?: string) => void) | undefined>(
     undefined,
 )
@@ -44,6 +48,7 @@ export const openHumanEvaluatorDrawerAtom = atom(
         set(humanEvaluatorDrawerOpenAtom, true)
         set(humanEvaluatorDrawerModeAtom, params.mode)
         set(humanEvaluatorDrawerWorkflowIdAtom, params.workflowId ?? null)
+        set(humanEvaluatorDrawerRevisionIdAtom, params.revisionId ?? null)
         set(humanEvaluatorDrawerCallbackAtom, params.onSuccess)
     },
 )
@@ -52,5 +57,6 @@ export const closeHumanEvaluatorDrawerAtom = atom(null, (_get, set) => {
     set(humanEvaluatorDrawerOpenAtom, RESET)
     set(humanEvaluatorDrawerModeAtom, RESET)
     set(humanEvaluatorDrawerWorkflowIdAtom, RESET)
+    set(humanEvaluatorDrawerRevisionIdAtom, RESET)
     set(humanEvaluatorDrawerCallbackAtom, undefined)
 })

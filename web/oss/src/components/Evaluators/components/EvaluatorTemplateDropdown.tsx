@@ -1,10 +1,14 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {evaluatorTemplatesDataAtom, evaluatorTemplatesQueryAtom} from "@agenta/entities/workflow"
+import {
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesQueryAtom,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
+import {cn, textColors, bgColors, borderColors} from "@agenta/ui"
 import {PlusOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Skeleton, Tabs, Tag, Typography} from "antd"
-import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {
@@ -14,11 +18,10 @@ import {
     filterEvaluatorsByTag,
     getEvaluatorTagClassName,
 } from "@/oss/components/Evaluators/assets/evaluatorFiltering"
-import type {Evaluator} from "@/oss/lib/Types"
 
 interface EvaluatorTemplateDropdownProps {
     /** Callback when an evaluator template is selected */
-    onSelect: (evaluator: Evaluator) => void
+    onSelect: (evaluator: EvaluatorCatalogTemplate) => void
     /** Custom trigger element (defaults to "Create new evaluator" button) */
     trigger?: React.ReactNode
     /** Additional class name for the trigger wrapper */
@@ -28,9 +31,6 @@ interface EvaluatorTemplateDropdownProps {
 /**
  * Dropdown component for selecting an evaluator template.
  * Shows a filterable list of enabled evaluator types with tab-based category filtering.
- *
- * This component reuses the same filtering logic as SelectEvaluatorModalContent
- * but in a compact dropdown format suitable for inline use in modals.
  */
 const EvaluatorTemplateDropdown = ({
     onSelect,
@@ -39,7 +39,7 @@ const EvaluatorTemplateDropdown = ({
 }: EvaluatorTemplateDropdownProps) => {
     const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_KEY)
     const [open, setOpen] = useState(false)
-    const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom) as unknown as Evaluator[]
+    const nonArchivedEvaluators = useAtomValue(evaluatorTemplatesDataAtom)
     const {isPending: isLoadingEvaluators} = useAtomValue(evaluatorTemplatesQueryAtom)
 
     const tabItems = useMemo(() => {
@@ -56,9 +56,9 @@ const EvaluatorTemplateDropdown = ({
     }, [])
 
     const handleTemplateSelect = useCallback(
-        (template: Evaluator) => {
+        (template: EvaluatorCatalogTemplate) => {
             setOpen(false)
-            setActiveTab(DEFAULT_TAB_KEY) // Reset tab for next open
+            setActiveTab(DEFAULT_TAB_KEY)
             onSelect(template)
         },
         [onSelect],
@@ -91,31 +91,39 @@ const EvaluatorTemplateDropdown = ({
             <div className="flex flex-col max-h-[320px] overflow-y-auto">
                 {filteredEvaluators.map((item) => {
                     const tagClassnames = getEvaluatorTagClassName(item)
-                    const itemKey = (item as any).id || item.key
 
                     return (
                         <div
-                            key={itemKey}
+                            key={item.key}
                             onClick={() => handleTemplateSelect(item)}
-                            className={clsx(
-                                "border-0 border-b border-solid border-gray-200 last:border-b-0",
+                            className={cn(
+                                "border-0 border-b border-solid last:border-b-0",
+                                borderColors.secondary,
                                 "min-h-[56px] flex flex-col justify-center gap-1 py-2 px-4",
-                                "cursor-pointer group hover:bg-gray-50 transition-colors",
+                                "cursor-pointer group transition-colors",
+                                bgColors.hoverState,
                             )}
                         >
                             <div className="flex items-center gap-2">
                                 <Tag
                                     variant="filled"
-                                    className={clsx("w-fit text-xs", tagClassnames)}
+                                    className={cn("w-fit text-xs", tagClassnames)}
                                 >
                                     {item.name}
                                 </Tag>
                                 <ArrowRight
                                     size={12}
-                                    className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-200 ease-in-out"
+                                    className={cn(
+                                        textColors.tertiary,
+                                        "opacity-0 group-hover:opacity-100",
+                                        "-translate-x-2 group-hover:translate-x-0",
+                                        "transition-all duration-200 ease-in-out",
+                                    )}
                                 />
                             </div>
-                            <Typography.Text className="text-xs text-gray-500 line-clamp-1">
+                            <Typography.Text
+                                className={cn("text-xs line-clamp-1", textColors.tertiary)}
+                            >
                                 {item.description}
                             </Typography.Text>
                         </div>
@@ -137,7 +145,12 @@ const EvaluatorTemplateDropdown = ({
                 activeKey={activeTab}
                 onChange={handleTabChange}
                 size="small"
-                className="[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0 [&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2 border-b border-gray-100"
+                className={cn(
+                    "[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0",
+                    "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
+                    "border-b",
+                    borderColors.secondary,
+                )}
             />
             {renderDropdownContent()}
         </div>
@@ -153,11 +166,7 @@ const EvaluatorTemplateDropdown = ({
             content={popoverContent}
             placement="bottomRight"
             arrow={false}
-            styles={{
-                container: {
-                    padding: 0,
-                },
-            }}
+            styles={{container: {padding: 0}}}
         >
             <span className={className}>{trigger || defaultTrigger}</span>
         </Popover>
