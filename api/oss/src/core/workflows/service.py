@@ -1181,7 +1181,17 @@ class SimpleWorkflowsService:
             updated_by_id=workflow.updated_by_id,
             deleted_by_id=workflow.deleted_by_id,
             #
-            flags=simple_workflow_flags,
+            flags=SimpleWorkflowFlags(
+                **(
+                    workflow_revision.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.flags
+                    else {}
+                )
+            ),
             meta=workflow.meta,
             tags=workflow.tags,
             #
@@ -1239,18 +1249,6 @@ class SimpleWorkflowsService:
         if workflow_revision is None:
             return None
 
-        simple_workflow_flags = SimpleWorkflowFlags(
-            **(
-                workflow.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                )
-                if workflow.flags
-                else {}
-            )
-        )
-
         simple_workflow = SimpleWorkflow(
             id=workflow.id,
             slug=workflow.slug,
@@ -1265,7 +1263,17 @@ class SimpleWorkflowsService:
             updated_by_id=workflow.updated_by_id,
             deleted_by_id=workflow.deleted_by_id,
             #
-            flags=simple_workflow_flags,
+            flags=SimpleWorkflowFlags(
+                **(
+                    workflow_revision.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.flags
+                    else {}
+                )
+            ),
             meta=workflow.meta,
             tags=workflow.tags,
             #

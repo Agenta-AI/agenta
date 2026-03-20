@@ -545,6 +545,10 @@ def infer_flags_from_data(
     is_match = key == "match"
     is_human = key == "trace"
 
+    # For managed URIs, infer URL from URI components if not explicitly provided
+    if not url and is_managed and kind and key and version:
+        url = f"/{kind}/{key}/{version}"
+
     # interface
     has_url = bool(url)
     has_handler = bool(handler)
