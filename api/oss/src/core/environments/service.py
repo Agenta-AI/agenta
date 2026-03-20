@@ -570,6 +570,110 @@ class EnvironmentsService:
 
         return environment_revision
 
+    async def retrieve_environment_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[EnvironmentRevision], Optional[ResolutionInfo]]:
+        """Retrieve the latest environment revision, resolving slug/id refs.
+
+        Uses fetch_environment to resolve the environment artifact (supports slug),
+        then fetches the default variant and latest revision.
+        Optionally resolves embedded references when resolve=True.
+        """
+        log.info(
+            "retrieve_environment_revision: environment_ref=%r environment_variant_ref=%r environment_revision_ref=%r resolve=%r",
+            environment_ref,
+            environment_variant_ref,
+            environment_revision_ref,
+            resolve,
+        )
+
+        if (
+            not environment_ref
+            and not environment_variant_ref
+            and not environment_revision_ref
+        ):
+            return None, None
+
+        # Resolve environment artifact → variant → revision
+        if (
+            environment_ref
+            and not environment_variant_ref
+            and not environment_revision_ref
+        ):
+            environment = await self.fetch_environment(
+                project_id=project_id,
+                environment_ref=environment_ref,
+            )
+            log.info(
+                "retrieve_environment_revision: environment=%r",
+                environment and environment.id,
+            )
+
+            if not environment:
+                return None, None
+
+            environment_variant = await self.fetch_environment_variant(
+                project_id=project_id,
+                environment_ref=Reference(id=environment.id),
+            )
+            log.info(
+                "retrieve_environment_revision: environment_variant=%r",
+                environment_variant and environment_variant.id,
+            )
+
+            if not environment_variant:
+                return None, None
+
+            environment_variant_ref = Reference(id=environment_variant.id)
+
+        revision = await self.environments_dao.fetch_revision(
+            project_id=project_id,
+            #
+            variant_ref=environment_variant_ref,
+            revision_ref=environment_revision_ref,
+        )
+        log.info("retrieve_environment_revision: revision=%r", revision and revision.id)
+
+        if not revision:
+            return None, None
+
+        environment_revision = EnvironmentRevision(**revision.model_dump(mode="json"))
+
+        if not resolve:
+            return environment_revision, None
+
+        # Resolve embeds in revision data
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        (
+            resolved_config,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=environment_revision.data.model_dump(mode="json")
+            if environment_revision.data
+            else {},
+        )
+
+        if environment_revision.data:
+            environment_revision.data = EnvironmentRevisionData(**resolved_config)
+
+        log.info(
+            "retrieve_environment_revision: resolved resolution_info=%r",
+            resolution_info,
+        )
+
+        return environment_revision, resolution_info
+
     async def edit_environment_revision(
         self,
         *,
@@ -900,7 +1004,6 @@ class EnvironmentsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         environment_ref: Optional[Reference] = None,
         environment_variant_ref: Optional[Reference] = None,

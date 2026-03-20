@@ -820,7 +820,6 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,

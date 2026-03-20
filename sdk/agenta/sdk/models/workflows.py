@@ -27,6 +27,7 @@ from agenta.sdk.models.shared import (
     Identifier,
     Slug,
     Reference,
+    Selector,
     Lifecycle,
     Header,
     Metadata,
@@ -157,7 +158,7 @@ class WorkflowRevisionData(BaseModel):
                 {
                     "loc": ("url",),
                     "msg": "Invalid HTTP(S) URL",
-                    "type": "value_error.url",
+                    "type": "value_error",
                     "ctx": {"error": "Invalid URL format"},
                     "input": self.url,
                 }
@@ -224,6 +225,8 @@ class WorkflowBaseRequest(Metadata):
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
     links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None
+
+    selector: Optional[Selector] = None
 
     secrets: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None

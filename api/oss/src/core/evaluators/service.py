@@ -821,7 +821,6 @@ class EvaluatorsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,

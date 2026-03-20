@@ -747,30 +747,18 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.fetch_environment_revision(
+        (
+            environment_revision,
+            resolution_info,
+        ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
             #
             environment_ref=environment_revision_retrieve_request.environment_ref,  # type: ignore
             environment_variant_ref=environment_revision_retrieve_request.environment_variant_ref,  # type: ignore
             environment_revision_ref=environment_revision_retrieve_request.environment_revision_ref,  # type: ignore
+            #
+            resolve=bool(environment_revision_retrieve_request.resolve),
         )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if environment_revision and environment_revision_retrieve_request.resolve:
-            embeds_service = self.environments_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=environment_revision.data.model_dump()
-                if environment_revision.data
-                else {},
-            )
-
-            if environment_revision.data:
-                environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
         environment_revision_response = EnvironmentRevisionResponse(
             count=1 if environment_revision else 0,

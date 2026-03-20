@@ -509,7 +509,13 @@ async def invoke_workflow(
     #
     **kwargs,
 ) -> Union[WorkflowBatchResponse, WorkflowStreamingResponse]:
-    return await workflow(
+    log.info(
+        "invoke_workflow: references=%r selector=%r data_uri=%r",
+        list(request.references.keys()) if request.references else None,
+        request.selector.model_dump() if request.selector else None,
+        request.data.revision if request.data else None,
+    )
+    wf = workflow(
         data=request.data,
         #
         revision=request.data.revision if request.data else None,
@@ -522,7 +528,9 @@ async def invoke_workflow(
         links=request.links,
         #
         **kwargs,
-    )().invoke(
+    )
+    log.info("invoke_workflow: wf.handler=%r wf.uri=%r", wf.handler, wf.uri)
+    return await wf.invoke(
         request=request,
         #
         secrets=secrets,
