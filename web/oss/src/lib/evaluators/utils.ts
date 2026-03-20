@@ -1,4 +1,4 @@
-import type {SimpleEvaluator} from "@/oss/lib/Types"
+import type {Workflow} from "@agenta/entities/workflow"
 
 const normalizeSlugBase = (value?: string | null) =>
     String(value ?? "")
@@ -33,22 +33,24 @@ export const extractEvaluatorKeyFromUri = (uri?: string | null): string | undefi
     return undefined
 }
 
-export const resolveEvaluatorKey = (
-    evaluator?: Partial<SimpleEvaluator> | null,
-): string | undefined => {
+/**
+ * Resolve the evaluator key from a workflow entity.
+ * Tries URI parsing first, then falls back to metadata fields.
+ */
+export const resolveEvaluatorKey = (evaluator?: Partial<Workflow> | null): string | undefined => {
     if (!evaluator) return undefined
 
+    const data = evaluator.data as Record<string, unknown> | undefined
+    const meta = evaluator.meta as Record<string, unknown> | undefined
+    const flags = evaluator.flags as Record<string, unknown> | undefined
+
     const candidate =
-        extractEvaluatorKeyFromUri(evaluator.data?.uri) ||
+        extractEvaluatorKeyFromUri(data?.uri as string | undefined) ||
         (typeof (evaluator as any)?.evaluator_key === "string"
             ? (evaluator as any).evaluator_key
             : undefined) ||
-        (typeof evaluator.meta?.evaluator_key === "string"
-            ? evaluator.meta.evaluator_key
-            : undefined) ||
-        (typeof evaluator.flags?.evaluator_key === "string"
-            ? evaluator.flags.evaluator_key
-            : undefined) ||
+        (typeof meta?.evaluator_key === "string" ? meta.evaluator_key : undefined) ||
+        (typeof flags?.evaluator_key === "string" ? flags.evaluator_key : undefined) ||
         (typeof (evaluator as any)?.key === "string" ? (evaluator as any).key : undefined)
 
     return candidate ? String(candidate).trim() : undefined
@@ -62,5 +64,5 @@ export const buildEvaluatorSlug = (name?: string | null) => {
     return `${trimmedBase}-${suffix}`
 }
 
-export const getEvaluatorParameters = (evaluator?: Partial<SimpleEvaluator> | null) =>
+export const getEvaluatorParameters = (evaluator?: Partial<Workflow> | null) =>
     (evaluator?.data?.parameters as Record<string, any>) || {}
