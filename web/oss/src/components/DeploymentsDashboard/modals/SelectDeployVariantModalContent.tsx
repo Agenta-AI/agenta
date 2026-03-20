@@ -11,7 +11,7 @@ import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
-import {Input, Typography} from "antd"
+import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -170,14 +170,12 @@ const SelectDeployVariantModalContent = ({
         version: number | null
     } | null
 }) => {
-    const [searchTerm, setSearchTerm] = useState("")
-
     const table = useTableManager<RegistryRevisionRow>({
         datasetStore: registryPaginatedStore.store as never,
         scopeId: "deploy-variant-selector",
         pageSize: 50,
-        searchDeps: [searchTerm],
         rowClassName: "variant-table-row",
+        search: {placeholder: "Search revisions...", className: "w-[300px]"},
     })
 
     const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS), [])
@@ -189,19 +187,6 @@ const SelectDeployVariantModalContent = ({
             onChange: (keys: React.Key[]) => setSelectedRowKeys(keys as (string | number)[]),
         }),
         [selectedRowKeys, setSelectedRowKeys],
-    )
-
-    const searchNode = useMemo(
-        () => (
-            <Input.Search
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search revisions..."
-                allowClear
-                className="w-[300px]"
-            />
-        ),
-        [searchTerm],
     )
 
     // Resolve selected revision details for the context panel + deploy action
@@ -271,7 +256,6 @@ const SelectDeployVariantModalContent = ({
                     {...table.shellProps}
                     columns={columns}
                     rowSelection={rowSelection}
-                    filters={searchNode}
                     enableExport={false}
                     autoHeight
                 />

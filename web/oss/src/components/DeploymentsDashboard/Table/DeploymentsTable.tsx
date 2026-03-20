@@ -3,6 +3,7 @@ import {useMemo} from "react"
 
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 
+import {deploymentSearchTermAtom} from "../store/deploymentFilterAtoms"
 import type {DeploymentRevisionRow} from "../store/deploymentStore"
 import {deploymentPaginatedStore} from "../store/deploymentStore"
 
@@ -11,8 +12,8 @@ import {createDeploymentColumns, type DeploymentColumnActions} from "./assets/de
 interface DeploymentsTableProps {
     onRowClick?: (record: DeploymentRevisionRow) => void
     actions: DeploymentColumnActions
+    /** Additional dependencies that should trigger pagination reset alongside search */
     searchDeps?: unknown[]
-    filters?: ReactNode
     primaryActions?: ReactNode
 }
 
@@ -20,7 +21,6 @@ const DeploymentsTable = ({
     onRowClick,
     actions,
     searchDeps = [],
-    filters,
     primaryActions,
 }: DeploymentsTableProps) => {
     const table = useTableManager<DeploymentRevisionRow>({
@@ -31,6 +31,7 @@ const DeploymentsTable = ({
         searchDeps,
         columnVisibilityStorageKey: "agenta:deployments:column-visibility",
         rowClassName: "variant-table-row",
+        search: {atom: deploymentSearchTermAtom},
     })
 
     const columns = useMemo(() => createDeploymentColumns(actions), [actions])
@@ -39,7 +40,6 @@ const DeploymentsTable = ({
         <InfiniteVirtualTableFeatureShell<DeploymentRevisionRow>
             {...table.shellProps}
             columns={columns}
-            filters={filters}
             primaryActions={primaryActions}
             autoHeight
         />

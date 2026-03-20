@@ -3,8 +3,8 @@ import {type FC, useCallback, useMemo} from "react"
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloudArrowUpIcon, CodeSimpleIcon} from "@phosphor-icons/react"
-import {Button, Input, Space} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {Button, Space} from "antd"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParamState} from "@/oss/state/appState"
@@ -14,7 +14,6 @@ import {
     openDeploymentConfirmationModalAtom,
     openSelectDeployVariantModalAtom,
 } from "./modals/store/deploymentModalsStore"
-import {deploymentSearchTermAtom} from "./store/deploymentFilterAtoms"
 import type {DeploymentRevisionRow} from "./store/deploymentStore"
 import type {DeploymentColumnActions} from "./Table/assets/deploymentColumns"
 import DeploymentsTable from "./Table/DeploymentsTable"
@@ -34,7 +33,6 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const {goToPlayground} = usePlaygroundNavigation()
 
-    const [searchTerm, setSearchTerm] = useAtom(deploymentSearchTermAtom)
     const [, setQueryVariant] = useQueryParamState("revisionId")
 
     const openDeploymentsDrawer = useSetAtom(openDeploymentsDrawerAtom)
@@ -126,19 +124,6 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
         ],
     )
 
-    const filtersNode = useMemo(
-        () => (
-            <Input.Search
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search"
-                allowClear
-                className="max-w-[320px]"
-            />
-        ),
-        [searchTerm, setSearchTerm],
-    )
-
     const actionsNode = useMemo(
         () => (
             <Space>
@@ -171,8 +156,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
             <DeploymentsTable
                 onRowClick={handleRowClick}
                 actions={columnActions}
-                searchDeps={[searchTerm, environmentId]}
-                filters={filtersNode}
+                searchDeps={[environmentId]}
                 primaryActions={actionsNode}
             />
         </div>
