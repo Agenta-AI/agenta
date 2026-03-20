@@ -1,6 +1,6 @@
 import type {Dispatch, HTMLProps, SetStateAction} from "react"
 
-import type {Workflow} from "@agenta/entities/workflow"
+import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
@@ -51,7 +51,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setEvaluationName: Dispatch<SetStateAction<string>>
     isOpen?: boolean
     testsets: testset[]
-    evaluators: Evaluator[] | EvaluatorDto<"response">[]
+    evaluators: EvaluatorCatalogTemplate[] | Evaluator[] | EvaluatorDto<"response">[]
     evaluatorConfigs: SimpleEvaluator[]
     advanceSettings: LLMRunRateLimitWithCorrectAnswer
     setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
@@ -61,7 +61,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     appSelectionDisabled?: boolean
     allowTestsetAutoAdvance?: boolean
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
-    onSelectTemplate?: (evaluator: Evaluator) => void
+    onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
     /** Callback when a new evaluator config is created via the inline drawer. Used to refresh the list and auto-select. */
     onEvaluatorCreated?: (configId?: string) => void
 }
@@ -97,7 +97,7 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     preview?: boolean
     selectedAppId?: string
     /** Callback when an evaluator template is selected from the dropdown (for inline creation) */
-    onSelectTemplate?: (evaluator: Evaluator) => void
+    onSelectTemplate?: (evaluator: EvaluatorCatalogTemplate) => void
     /** Callback when the "Create new" button is clicked in preview/human mode (for inline creation) */
     onCreateHumanEvaluator?: () => void
 }

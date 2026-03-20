@@ -1,7 +1,6 @@
-import {memo, useCallback, useMemo, useState} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
-import {Input} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -32,14 +31,12 @@ const SelectVariantSection = ({
     handlePanelChange,
     evaluationType,
 }: SelectVariantSectionProps) => {
-    const [searchTerm, setSearchTerm] = useState("")
-
     const table = useTableManager<RegistryRevisionRow>({
         datasetStore: registryPaginatedStore.store as never,
         scopeId: "evaluation-variant-selector",
         pageSize: 50,
-        searchDeps: [searchTerm],
         rowClassName: "variant-table-row",
+        search: {className: "w-[300px]"},
     })
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
@@ -98,14 +95,6 @@ const SelectVariantSection = ({
 
     return (
         <div className={clsx(className)}>
-            <div className="flex items-start justify-between mb-2 gap-4">
-                <Input.Search
-                    placeholder="Search"
-                    className="w-[300px] [&_input]:!py-[3.1px]"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
             <div className="h-[455px]">
                 <InfiniteVirtualTableFeatureShell<RegistryRevisionRow>
                     {...table.shellProps}

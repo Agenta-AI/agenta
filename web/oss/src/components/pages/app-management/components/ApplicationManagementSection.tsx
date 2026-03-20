@@ -2,7 +2,7 @@ import {type SetStateAction, useCallback, useMemo} from "react"
 
 import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
-import {Button, Input, Typography} from "antd"
+import {Button, Typography} from "antd"
 import {useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -31,7 +31,6 @@ const ApplicationManagementSection = ({
     const router = useRouter()
     const {baseAppURL} = useURL()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const setSearchTerm = useSetAtom(appWorkflowSearchTermAtom)
     const appCount = useAtomValue(appWorkflowCountAtom)
 
     const handleRowClick = useCallback(
@@ -63,21 +62,10 @@ const ApplicationManagementSection = ({
         onRowClick: handleRowClick,
         columnVisibilityStorageKey: "agenta:app-management:column-visibility",
         rowClassName: "cursor-pointer",
+        search: {atom: appWorkflowSearchTermAtom, className: "w-[400px]"},
     })
 
     const columns = useMemo(() => createAppWorkflowColumns(actions), [actions])
-
-    const filtersNode = useMemo(
-        () => (
-            <Input.Search
-                placeholder="Search"
-                className="w-[400px]"
-                allowClear
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
-        ),
-        [setSearchTerm],
-    )
 
     const primaryActionsNode = useMemo(
         () => (
@@ -102,7 +90,6 @@ const ApplicationManagementSection = ({
                 <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
                     {...table.shellProps}
                     columns={columns}
-                    filters={filtersNode}
                     primaryActions={primaryActionsNode}
                     paginationMode="paginated"
                     paginatedPageSize={10}
