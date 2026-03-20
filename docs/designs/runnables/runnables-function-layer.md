@@ -46,7 +46,7 @@ This document is derived from [plan.md](./plan.md).
   - `flags.evaluate`
   - `flags.chat`
   - `flags.verbose`
--  - `flags.remote`
+  - `flags.remote`
 - make `WorkflowServiceRequest.flags: WorkflowRequestFlags` explicit in the contract
 - make the SDK consume `flags.remote` as the remote-forwarding selector
 - ensure typed aliases for applications and evaluators inherit the new contract cleanly
