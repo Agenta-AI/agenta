@@ -46,7 +46,7 @@ def _reference_payload(
     if slug is not None:
         payload["slug"] = slug
     if version is not None:
-        payload["version"] = version
+        payload["version"] = str(version)
     return payload
 
 
@@ -91,6 +91,29 @@ def _flatten_revision_response(
         )
 
     return flattened
+
+
+def _empty_configuration_response(
+    *,
+    app_id: Optional[str] = None,
+    app_slug: Optional[str] = None,
+    variant_id: Optional[str] = None,
+    variant_slug: Optional[str] = None,
+) -> ConfigurationResponse:
+    return ConfigurationResponse(
+        app_id=app_id,
+        app_slug=app_slug,
+        variant_id=variant_id,
+        variant_slug=variant_slug,
+        variant_version=None,
+        committed_at=None,
+        committed_by=None,
+        committed_by_id=None,
+        deployed_at=None,
+        deployed_by=None,
+        deployed_by_id=None,
+        params={},
+    )
 
 
 class SharedManager:
@@ -355,7 +378,9 @@ class SharedManager:
         )
 
         request: Dict[str, Any] = {}
+        resolved_application_id = fetch_signatures["app_id"]
         resolved_application_slug = fetch_signatures["app_slug"]
+        resolved_variant_id = fetch_signatures["variant_id"]
         resolved_variant_slug = fetch_signatures["variant_slug"]
 
         if fetch_signatures["environment_id"] or fetch_signatures["environment_slug"]:
@@ -369,27 +394,30 @@ class SharedManager:
                 app_slug=fetch_signatures["app_slug"],
             )
         else:
-            if fetch_signatures["variant_id"] and not resolved_variant_slug:
+            if resolved_variant_id or resolved_variant_slug:
                 variant = cls._resolve_variant(
-                    app_id=fetch_signatures["app_id"],
-                    app_slug=fetch_signatures["app_slug"],
-                    variant_id=fetch_signatures["variant_id"],
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
                 )
-                resolved_variant_slug = variant.get("slug")
-
-            if fetch_signatures["app_id"] and not resolved_application_slug:
-                application = cls._query_simple_application(
-                    app_id=fetch_signatures["app_id"]
+                resolved_variant_id = variant.get(
+                    "application_variant_id"
+                ) or variant.get("id")
+                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
+                resolved_application_id = (
+                    resolved_application_id
+                    or variant.get("application_id")
+                    or variant.get("artifact_id")
                 )
-                resolved_application_slug = application.get("slug")
 
             request["application_ref"] = cls._build_application_ref(
-                app_id=fetch_signatures["app_id"],
-                app_slug=fetch_signatures["app_slug"],
+                app_id=resolved_application_id,
+                app_slug=resolved_application_slug,
             )
             request["application_variant_ref"] = cls._build_variant_ref(
-                variant_id=fetch_signatures["variant_id"],
-                variant_slug=fetch_signatures["variant_slug"],
+                variant_id=resolved_variant_id,
+                variant_slug=resolved_variant_slug,
             )
             request["application_revision_ref"] = cls._build_revision_ref(
                 variant_version=fetch_signatures["variant_version"],
@@ -404,7 +432,32 @@ class SharedManager:
 
         revision = response.json().get("application_revision")
         if not revision:
-            raise ValueError("Application revision not found.")
+            variant = None
+            if resolved_variant_id or resolved_variant_slug:
+                variant = cls._resolve_variant(
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
+                )
+                resolved_variant_id = (
+                    resolved_variant_id
+                    or variant.get("application_variant_id")
+                    or variant.get("id")
+                )
+                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
+                resolved_application_id = (
+                    resolved_application_id
+                    or variant.get("application_id")
+                    or variant.get("artifact_id")
+                )
+
+            return _empty_configuration_response(
+                app_id=resolved_application_id,
+                app_slug=resolved_application_slug,
+                variant_id=resolved_variant_id,
+                variant_slug=resolved_variant_slug,
+            )
 
         return ConfigurationResponse(
             **_flatten_revision_response(
@@ -440,7 +493,9 @@ class SharedManager:
         )
 
         request: Dict[str, Any] = {}
+        resolved_application_id = fetch_signatures["app_id"]
         resolved_application_slug = fetch_signatures["app_slug"]
+        resolved_variant_id = fetch_signatures["variant_id"]
         resolved_variant_slug = fetch_signatures["variant_slug"]
 
         if fetch_signatures["environment_id"] or fetch_signatures["environment_slug"]:
@@ -454,27 +509,30 @@ class SharedManager:
                 app_slug=fetch_signatures["app_slug"],
             )
         else:
-            if fetch_signatures["variant_id"] and not resolved_variant_slug:
+            if resolved_variant_id or resolved_variant_slug:
                 variant = await cls._aresolve_variant(
-                    app_id=fetch_signatures["app_id"],
-                    app_slug=fetch_signatures["app_slug"],
-                    variant_id=fetch_signatures["variant_id"],
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
                 )
-                resolved_variant_slug = variant.get("slug")
-
-            if fetch_signatures["app_id"] and not resolved_application_slug:
-                application = await cls._aquery_simple_application(
-                    app_id=fetch_signatures["app_id"]
+                resolved_variant_id = variant.get(
+                    "application_variant_id"
+                ) or variant.get("id")
+                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
+                resolved_application_id = (
+                    resolved_application_id
+                    or variant.get("application_id")
+                    or variant.get("artifact_id")
                 )
-                resolved_application_slug = application.get("slug")
 
             request["application_ref"] = cls._build_application_ref(
-                app_id=fetch_signatures["app_id"],
-                app_slug=fetch_signatures["app_slug"],
+                app_id=resolved_application_id,
+                app_slug=resolved_application_slug,
             )
             request["application_variant_ref"] = cls._build_variant_ref(
-                variant_id=fetch_signatures["variant_id"],
-                variant_slug=fetch_signatures["variant_slug"],
+                variant_id=resolved_variant_id,
+                variant_slug=resolved_variant_slug,
             )
             request["application_revision_ref"] = cls._build_revision_ref(
                 variant_version=fetch_signatures["variant_version"],
@@ -489,7 +547,32 @@ class SharedManager:
 
         revision = response.json().get("application_revision")
         if not revision:
-            raise ValueError("Application revision not found.")
+            variant = None
+            if resolved_variant_id or resolved_variant_slug:
+                variant = await cls._aresolve_variant(
+                    app_id=resolved_application_id,
+                    app_slug=resolved_application_slug,
+                    variant_id=resolved_variant_id,
+                    variant_slug=resolved_variant_slug,
+                )
+                resolved_variant_id = (
+                    resolved_variant_id
+                    or variant.get("application_variant_id")
+                    or variant.get("id")
+                )
+                resolved_variant_slug = resolved_variant_slug or variant.get("slug")
+                resolved_application_id = (
+                    resolved_application_id
+                    or variant.get("application_id")
+                    or variant.get("artifact_id")
+                )
+
+            return _empty_configuration_response(
+                app_id=resolved_application_id,
+                app_slug=resolved_application_slug,
+                variant_id=resolved_variant_id,
+                variant_slug=resolved_variant_slug,
+            )
 
         return ConfigurationResponse(
             **_flatten_revision_response(
