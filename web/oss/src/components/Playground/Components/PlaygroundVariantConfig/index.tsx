@@ -3,9 +3,15 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
-import {evaluatorTemplatesDataAtom} from "@agenta/entities/workflow"
-import {PlaygroundConfigSection, type EvaluatorPresetConfig} from "@agenta/entity-ui"
+import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
+import {
+    PlaygroundConfigSection,
+    LoadEvaluatorPresetModal,
+    type EvaluatorPresetConfig,
+    type ConfigViewMode,
+} from "@agenta/entity-ui"
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
+import {Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -42,23 +48,29 @@ const PlaygroundVariantConfig: React.FC<
     // Read evaluator template definitions (workflow-based)
     const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
 
-    // Determine if this is an evaluator workflow and get its presets
-    const evaluatorInfo = useMemo(() => {
+    // Determine if this is an evaluator workflow
+    const evaluatorKey = useMemo(() => {
         const uri = runnableData?.data?.uri as string | undefined
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
+        return parseEvaluatorKeyFromUri(uri)
+    }, [runnableData?.data?.uri])
 
-        const evaluatorKey = parseEvaluatorKeyFromUri(uri)
+    const evaluatorDef = useMemo(() => {
         if (!evaluatorKey) return null
+        return evaluatorDefinitions.find((e) => e.key === evaluatorKey) ?? null
+    }, [evaluatorKey, evaluatorDefinitions])
 
-        const evaluatorDef = evaluatorDefinitions.find((e) => e.key === evaluatorKey)
-        if (!evaluatorDef) return null
+    // Fetch presets from catalog API (lazy, only when evaluator is detected)
+    const catalogPresets = useAtomValue(evaluatorPresetsAtomFamily(evaluatorKey))
 
+    const evaluatorInfo = useMemo(() => {
+        if (!evaluatorKey || !evaluatorDef) return null
         return {
             key: evaluatorKey,
             label: evaluatorDef.name,
-            presets: (evaluatorDef.settings_presets ?? []) as EvaluatorPresetConfig[],
+            presets: catalogPresets as EvaluatorPresetConfig[],
         }
-    }, [runnableData?.data?.uri, evaluatorDefinitions])
+    }, [evaluatorKey, evaluatorDef, catalogPresets])
 
     // Handle loading a preset - apply preset values to the configuration
     const handleLoadPreset = useCallback(
@@ -80,6 +92,39 @@ const PlaygroundVariantConfig: React.FC<
         setRefinePromptKey(null)
     }, [])
 
+    // Preset modal state (lifted from PlaygroundConfigSection to header)
+    const [isPresetModalOpen, setIsPresetModalOpen] = useState(false)
+    const hasPresets = (evaluatorInfo?.presets?.length ?? 0) > 0
+
+    const handlePresetSelect = useCallback(
+        (preset: EvaluatorPresetConfig) => {
+            setIsPresetModalOpen(false)
+            handleLoadPreset(preset)
+        },
+        [handleLoadPreset],
+    )
+
+    // View mode for config section (form/json/yaml)
+    const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
+
+    const viewModeSelector = useMemo(
+        () => (
+            <Select
+                size="small"
+                variant="borderless"
+                value={viewMode}
+                onChange={setViewMode}
+                options={[
+                    {label: "Form", value: "form"},
+                    {label: "JSON", value: "json"},
+                    {label: "YAML", value: "yaml"},
+                ]}
+                className="w-[90px] [&_.ant-select-selector]:!px-1 text-xs"
+            />
+        ),
+        [viewMode],
+    )
+
     return (
         <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
             <PlaygroundVariantConfigHeader
@@ -87,6 +132,10 @@ const PlaygroundVariantConfig: React.FC<
                 embedded={embedded}
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
+                evaluatorLabel={evaluatorInfo?.label}
+                hasPresets={hasPresets}
+                onLoadPreset={() => setIsPresetModalOpen(true)}
+                extraActions={viewModeSelector}
             />
             {hasPendingHydration ? (
                 <div className="p-4 flex flex-col gap-3">
@@ -99,9 +148,7 @@ const PlaygroundVariantConfig: React.FC<
                     <PlaygroundConfigSection
                         revisionId={variantId}
                         onRefinePrompt={handleRefinePrompt}
-                        presets={evaluatorInfo?.presets}
-                        onLoadPreset={handleLoadPreset}
-                        evaluatorLabel={evaluatorInfo?.label}
+                        viewMode={viewMode}
                     />
                     {refinePromptKey && (
                         <RefinePromptModal
@@ -109,6 +156,14 @@ const PlaygroundVariantConfig: React.FC<
                             onClose={handleRefineClose}
                             revisionId={variantId}
                             promptKey={refinePromptKey}
+                        />
+                    )}
+                    {hasPresets && evaluatorInfo && (
+                        <LoadEvaluatorPresetModal
+                            open={isPresetModalOpen}
+                            onCancel={() => setIsPresetModalOpen(false)}
+                            presets={evaluatorInfo.presets}
+                            onLoadPreset={handlePresetSelect}
                         />
                     )}
                 </>

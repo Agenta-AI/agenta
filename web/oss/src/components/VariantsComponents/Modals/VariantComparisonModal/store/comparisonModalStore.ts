@@ -1,5 +1,6 @@
 import {
     workflowRevisionsByWorkflowListDataAtomFamily,
+    workflowMolecule,
     type Workflow,
 } from "@agenta/entities/workflow"
 import {atom, Atom} from "jotai"
@@ -115,16 +116,18 @@ function workflowToComparisonRevision(w: Workflow): ComparisonRevision {
     }
 }
 
-/** Convert a registry row to the comparison shape */
+/** Convert a registry row to the comparison shape.
+ *  Parameters and createdBy are resolved from the molecule (fetched on demand). */
 function registryRowToComparisonRevision(row: RegistryRevisionRow): ComparisonRevision {
+    const entity = workflowMolecule.get.data(row.revisionId)
     return {
         id: row.revisionId,
         name: row.variantName,
         variantName: row.variantName,
         revision: row.version ?? undefined,
-        parameters: row.parameters ?? undefined,
+        parameters: (entity?.data?.parameters as Record<string, unknown>) ?? undefined,
         createdAtTimestamp: row.createdAt ? new Date(row.createdAt).valueOf() : 0,
-        createdBy: row.createdById ?? undefined,
+        createdBy: entity?.created_by_id ?? undefined,
     }
 }
 

@@ -37,6 +37,10 @@ const PlaygroundVariantConfigHeader = ({
     embedded,
     variantNameOverride,
     revisionOverride,
+    evaluatorLabel,
+    hasPresets,
+    onLoadPreset,
+    extraActions,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
@@ -147,7 +151,7 @@ const PlaygroundVariantConfigHeader = ({
             className={`w-full h-[48px] flex items-center justify-between ${embedded ? "" : "sticky top-0 z-[10]"} ${classes.container} ${className ?? ""}`}
             {...divProps}
         >
-            <div className="flex items-center gap-2 grow">
+            <div className="flex items-center gap-2 grow min-w-0">
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
@@ -197,9 +201,20 @@ const PlaygroundVariantConfigHeader = ({
                         )}
                     </>
                 )}
+                {evaluatorLabel && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                        {evaluatorLabel}
+                    </span>
+                )}
             </div>
             {!embedded && (
                 <div className="flex items-center gap-2">
+                    {extraActions}
+                    {hasPresets && onLoadPreset && (
+                        <Button size="small" onClick={onLoadPreset}>
+                            Load Preset
+                        </Button>
+                    )}
                     {isLocalDraftVariant ? (
                         <>
                             <CommitVariantChangesButton

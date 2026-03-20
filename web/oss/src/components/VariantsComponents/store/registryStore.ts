@@ -34,20 +34,17 @@ export const registryWorkflowIdOverrideAtom = atom<string | null>(null)
 export interface RegistryRevisionRow {
     key: string
     __isSkeleton?: boolean
-    // Core IDs
+    // Core IDs — passed to molecule selectors by cells
     revisionId: string
     workflowId: string
     variantId: string
     variantName: string
-    // Display fields (pre-computed, no per-cell molecule reads)
+    // Bare fields needed for sorting/grouping only
     version: number | null
+    /** Pre-computed model name (scalar, extracted from parameters in transformRow) */
     model: string
-    commitMessage: string | null
+    /** Revision's own created_at — used for date sort */
     createdAt: string | null
-    updatedAt: string | null
-    createdById: string | null
-    updatedById: string | null
-    parameters: Record<string, unknown> | null
     [k: string]: unknown
 }
 
@@ -129,12 +126,7 @@ const skeletonDefaults: Partial<RegistryRevisionRow> = {
     variantName: "",
     version: null,
     model: "",
-    commitMessage: null,
     createdAt: null,
-    updatedAt: null,
-    createdById: null,
-    updatedById: null,
-    parameters: null,
     key: "",
 }
 
@@ -218,8 +210,6 @@ export const registryPaginatedStore = createPaginatedEntityStore<
         const variantId = apiRow.workflow_variant_id ?? apiRow.variant_id ?? ""
         const variantName = _variantNameCache?.map.get(variantId) ?? apiRow.name ?? variantId ?? "-"
 
-        const params = apiRow.data?.parameters ?? null
-
         return {
             key: apiRow.id,
             revisionId: apiRow.id,
@@ -227,13 +217,8 @@ export const registryPaginatedStore = createPaginatedEntityStore<
             variantId,
             variantName,
             version: apiRow.version ?? null,
-            model: pickModelFromParams(params),
-            commitMessage: apiRow.message ?? null,
+            model: pickModelFromParams(apiRow.data?.parameters ?? null),
             createdAt: apiRow.created_at ?? null,
-            updatedAt: apiRow.updated_at ?? null,
-            createdById: apiRow.created_by_id ?? null,
-            updatedById: apiRow.updated_by_id ?? null,
-            parameters: params as Record<string, unknown> | null,
         }
     },
     isEnabled: (meta) => Boolean(meta?.projectId) && Boolean(meta?.workflowId),

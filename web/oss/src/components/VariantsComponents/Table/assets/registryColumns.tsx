@@ -2,7 +2,7 @@ import {memo, useSyncExternalStore} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
-import {workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {SkeletonLine, createStandardColumns} from "@agenta/ui/table"
 import {
     ArrowSquareOut,
@@ -13,6 +13,8 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 import {Typography} from "antd"
+import {atom} from "jotai"
+import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
@@ -30,14 +32,38 @@ import type {RegistryRevisionRow} from "../../store/registryStore"
  * Needed because IVT cell renderers run inside an isolated Jotai Provider,
  * but entity atoms (sessionAtom, projectIdAtom) live in the default store.
  */
-function useDefaultStoreAtomValue<T>(atom: import("jotai").Atom<T>): T {
+function useDefaultStoreAtomValue<T>(atomArg: import("jotai").Atom<T>): T {
     const store = getDefaultStore()
     return useSyncExternalStore(
-        (cb) => store.sub(atom, cb),
-        () => store.get(atom),
-        () => store.get(atom),
+        (cb) => store.sub(atomArg, cb),
+        () => store.get(atomArg),
+        () => store.get(atomArg),
     )
 }
+
+// ============================================================================
+// SCALAR ATOM FAMILIES (molecule-backed, for cell renderers)
+// ============================================================================
+
+/**
+ * Read from the raw server query (workflowMolecule.atoms.query) instead of
+ * workflowMolecule.selectors.data to avoid subscribing to the inspect/OpenAPI
+ * schema resolution chain. Table cells only need scalar fields (message,
+ * created_by_id) that are on the revision response — no inspect needed.
+ */
+const revisionCommitMessageAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => {
+        const query = get(workflowMolecule.atoms.query(id))
+        return query.data?.message ?? null
+    }),
+)
+
+const revisionCreatedByIdAtomFamily = atomFamily((id: string) =>
+    atom<string | null>((get) => {
+        const query = get(workflowMolecule.atoms.query(id))
+        return query.data?.created_by_id ?? null
+    }),
+)
 
 // ============================================================================
 // CELL RENDERERS
@@ -71,8 +97,26 @@ const RegistryVariantNameCell = memo(({record}: {record: RegistryRevisionRow}) =
     )
 })
 
-const CommitMessageCell = memo(({record}: {record: RegistryRevisionRow}) => {
-    const msg = record.commitMessage
+const CreatedByCell = memo(({revisionId}: {revisionId: string}) => {
+    const createdById = useDefaultStoreAtomValue(revisionCreatedByIdAtomFamily(revisionId))
+    if (!createdById) {
+        return (
+            <Typography.Text type="secondary" className="h-full flex items-center">
+                —
+            </Typography.Text>
+        )
+    }
+    return (
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                <UserAuthorLabel userId={createdById} showPrefix={false} showAvatar showYouLabel />
+            </Typography.Text>
+        </div>
+    )
+})
+
+const CommitMessageCell = memo(({revisionId}: {revisionId: string}) => {
+    const msg = useDefaultStoreAtomValue(revisionCommitMessageAtomFamily(revisionId))
     if (!msg) return null
     return (
         <div className="h-full flex items-center" onClick={(e) => e.stopPropagation()}>
@@ -173,25 +217,7 @@ export function createRegistryColumns(
             width: 180,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="50%" />
-                if (!record.createdById) {
-                    return (
-                        <Typography.Text type="secondary" className="h-full flex items-center">
-                            —
-                        </Typography.Text>
-                    )
-                }
-                return (
-                    <div className="h-full flex items-center">
-                        <Typography.Text type="secondary" className="text-xs truncate block">
-                            <UserAuthorLabel
-                                userId={record.createdById}
-                                showPrefix={false}
-                                showAvatar
-                                showYouLabel
-                            />
-                        </Typography.Text>
-                    </div>
-                )
+                return <CreatedByCell revisionId={record.revisionId} />
             },
         },
         {
@@ -201,7 +227,7 @@ export function createRegistryColumns(
             width: 250,
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="40%" />
-                return <CommitMessageCell record={record} />
+                return <CommitMessageCell revisionId={record.revisionId} />
             },
         },
         {
