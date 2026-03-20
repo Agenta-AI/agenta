@@ -22,10 +22,6 @@ from oss.databases.postgres.migrations.tracing.utils import (
 
 from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
-from oss.src.services.legacy_adapter import (
-    configure_legacy_adapter,
-    configure_legacy_environments_adapter,
-)
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -128,18 +124,13 @@ from oss.src.apis.fastapi.tools.router import ToolsRouter
 
 from oss.src.routers import (
     admin_router,
-    app_router,
-    environment_router,
     user_profile,
-    variants_router,
-    configs_router,
     health_router,
     permissions_router,
     projects_router,
     api_key_router,
     organization_router,
     workspace_router,
-    container_router,
 )
 
 from oss.src.utils.env import env
@@ -362,17 +353,6 @@ simple_workflows_service = SimpleWorkflowsService(
 
 simple_environments_service = SimpleEnvironmentsService(
     environments_service=environments_service,
-)
-
-# Ensure legacy adapters reuse the same pre-wired services (including embeds_service).
-configure_legacy_adapter(
-    applications_service=applications_service,
-    simple_applications_service=simple_applications_service,
-)
-configure_legacy_environments_adapter(
-    environments_service=environments_service,
-    simple_environments_service=simple_environments_service,
-    applications_service=applications_service,
 )
 
 evaluations_service = EvaluationsService(
@@ -847,36 +827,6 @@ app.include_router(
 app.include_router(
     user_profile.router,
     prefix="/profile",
-)
-
-app.include_router(
-    app_router.router,
-    prefix="/apps",
-    tags=["Apps"],
-)
-
-app.include_router(
-    variants_router.router,
-    prefix="/variants",
-    tags=["Variants"],
-)
-
-app.include_router(
-    container_router.router,
-    prefix="/containers",
-    tags=["Containers"],
-)
-
-app.include_router(
-    environment_router.router,
-    prefix="/environments",
-    tags=["Environments"],
-)
-
-app.include_router(
-    configs_router.router,
-    prefix="/configs",
-    tags=["Configs"],
 )
 
 app.include_router(

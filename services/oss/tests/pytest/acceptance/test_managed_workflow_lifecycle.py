@@ -535,3 +535,870 @@ class TestManagedWorkflowLifecycle:
             ),
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
+
+    def test_invoke_by_env(self):
+        """POST /invoke with env ref + selector key — SDK resolves revision via retrieve."""
+        ctx = self._ctx
+        resp = self._mod_services_api(
+            "POST",
+            "/invoke",
+            json={
+                "references": {
+                    "environment": {"slug": ctx["environment_slug"]},
+                },
+                "selector": {
+                    "key": f"{ctx['workflow_slug']}.revision",
+                },
+                "data": {
+                    "inputs": ctx.get("inputs", {}),
+                    "outputs": ctx.get("outputs", ""),
+                },
+            },
+        )
+        _assert_invoke_response(resp, case_id=ctx["template_key"])
+
+    def test_output_has_success_field(self):
+        """Invoke returns an outputs dict with a boolean 'success' field."""
+        ctx = self._ctx
+        resp = self._mod_services_api(
+            "POST",
+            f"{ctx['service_path']}/invoke",
+            json=_invoke_body(ctx),
+        )
+        payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
+        outputs = payload["data"]["outputs"]
+        assert isinstance(outputs, dict), (
+            f"[{ctx['template_key']}] outputs should be a dict, got: {type(outputs)}"
+        )
+        assert "success" in outputs, (
+            f"[{ctx['template_key']}] outputs missing 'success': {outputs}"
+        )
+        assert isinstance(outputs["success"], bool), (
+            f"[{ctx['template_key']}] 'success' should be bool, got: {type(outputs['success'])}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Match-specific test class — exhaustive kind/mode/aggregation coverage
+# ---------------------------------------------------------------------------
+
+_MATCH_SERVICE_PATH = "/builtin/match/v0"
+_MATCH_URI = "agenta:builtin:match:v0"
+
+
+def _match_inline(services_api, matchers: list, inputs: dict = None, outputs=None):
+    """Helper: POST /invoke with match matchers inline (no DB lookup)."""
+    return services_api(
+        "POST",
+        "/invoke",
+        json={
+            "data": {
+                "inputs": inputs or {},
+                "outputs": outputs if outputs is not None else "",
+                "revision": {
+                    "data": {
+                        "uri": _MATCH_URI,
+                        "parameters": {"matchers": matchers},
+                    }
+                },
+            }
+        },
+    )
+
+
+def _match_direct(services_api, matchers: list, inputs: dict = None, outputs=None):
+    """Helper: POST /builtin/match/v0/invoke (direct mount)."""
+    return services_api(
+        "POST",
+        f"{_MATCH_SERVICE_PATH}/invoke",
+        json={
+            "data": {
+                "inputs": inputs or {},
+                "outputs": outputs if outputs is not None else "",
+                "parameters": {"matchers": matchers},
+            }
+        },
+    )
+
+
+def _assert_match_result(resp, *, expected_success: bool = None, min_results: int = 1):
+    """Assert the match response envelope and return the outputs dict."""
+    assert resp.status_code == 200, (
+        f"Expected 200, got {resp.status_code}: {resp.text[:500]}"
+    )
+    payload = resp.json()
+    assert "version" in payload, f"Missing 'version': {payload}"
+    assert "data" in payload, f"Missing 'data': {payload}"
+    outputs = payload["data"]["outputs"]
+    assert isinstance(outputs, dict), f"outputs should be dict, got: {outputs}"
+    assert "results" in outputs, f"Missing 'results' in outputs: {outputs}"
+    assert len(outputs["results"]) >= min_results, (
+        f"Expected >= {min_results} result(s), got: {outputs['results']}"
+    )
+    if expected_success is not None:
+        first = outputs["results"][0]
+        assert first.get("success") is expected_success, (
+            f"Expected success={expected_success}, got: {first}"
+        )
+    return outputs
+
+
+@pytest.mark.acceptance
+class TestMatchV0Kinds:
+    """Tests for match:v0 — kind=text and kind=json across all modes."""
+
+    # ------------------------------------------------------------------ text
+
+    def test_text_valid_non_empty_string(self, services_api):
+        """text/valid: non-empty string → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {"key": "m", "kind": "text", "mode": "valid", "path": "$.outputs"}
+            ],
+            outputs="Paris",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_exact_match(self, services_api):
+        """text/exact: identical string → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "exact",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                }
+            ],
+            outputs="Paris",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_exact_mismatch(self, services_api):
+        """text/exact: different string → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "exact",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                }
+            ],
+            outputs="London",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_starts_with_success(self, services_api):
+        """text/starts_with: output begins with prefix → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "starts_with",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_starts_with_failure(self, services_api):
+        """text/starts_with: output does not begin with prefix → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "starts_with",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                }
+            ],
+            outputs="The capital is Paris",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_ends_with_success(self, services_api):
+        """text/ends_with: output ends with suffix → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "ends_with",
+                    "path": "$.outputs",
+                    "reference": "France",
+                }
+            ],
+            outputs="Paris is the capital of France",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_ends_with_failure(self, services_api):
+        """text/ends_with: output does not end with suffix → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "ends_with",
+                    "path": "$.outputs",
+                    "reference": "France",
+                }
+            ],
+            outputs="France is where Paris is",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_contains_single_success(self, services_api):
+        """text/contains: substring present → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "reference": "capital",
+                }
+            ],
+            outputs="Paris is the capital of France",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_contains_single_failure(self, services_api):
+        """text/contains: substring absent → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "reference": "Berlin",
+                }
+            ],
+            outputs="Paris is the capital of France",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_contains_any_one_present(self, services_api):
+        """text/contains references match=any: one substring present → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "references": ["Paris", "Berlin", "Rome"],
+                    "match": "any",
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_contains_any_none_present(self, services_api):
+        """text/contains references match=any: none present → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "references": ["Berlin", "Rome", "Madrid"],
+                    "match": "any",
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_contains_all_all_present(self, services_api):
+        """text/contains references match=all: all substrings present → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "references": ["Paris", "France"],
+                    "match": "all",
+                }
+            ],
+            outputs="Paris is the capital of France",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_contains_all_one_missing(self, services_api):
+        """text/contains references match=all: one substring absent → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "references": ["Paris", "France"],
+                    "match": "all",
+                }
+            ],
+            outputs="Paris is a great city",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_regex_anchored_success(self, services_api):
+        """text/regex: anchored pattern matches start of output → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "regex",
+                    "path": "$.outputs",
+                    "reference": "^Paris",
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_regex_anchored_failure(self, services_api):
+        """text/regex: anchored pattern does not match → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "regex",
+                    "path": "$.outputs",
+                    "reference": "^Paris",
+                }
+            ],
+            outputs="The capital is Paris",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_text_regex_case_insensitive(self, services_api):
+        """text/regex: case_sensitive=False matches regardless of case."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "regex",
+                    "path": "$.outputs",
+                    "reference": "^paris",
+                    "case_sensitive": False,
+                }
+            ],
+            outputs="PARIS is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_text_similarity_levenshtein_exact(self, services_api):
+        """text/similarity levenshtein: identical strings → score=1.0, success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "similarity",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                    "distance": "levenshtein",
+                    "threshold": 0.8,
+                }
+            ],
+            outputs="Paris",
+        )
+        result = _assert_match_result(resp, expected_success=True)
+        assert result["results"][0].get("score") == pytest.approx(1.0)
+
+    def test_text_similarity_levenshtein_one_edit(self, services_api):
+        """text/similarity levenshtein: one edit apart → high score, success depends on threshold."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "similarity",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                    "distance": "levenshtein",
+                    "threshold": 0.5,
+                }
+            ],
+            outputs="Pariss",  # 1 insertion → distance=1, normalized ~0.83
+        )
+        result = _assert_match_result(resp, expected_success=True)
+        assert result["results"][0].get("score", 0) > 0.5
+
+    def test_text_similarity_jaccard_identical(self, services_api):
+        """text/similarity jaccard (SequenceMatcher): identical strings → score=1.0."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "similarity",
+                    "path": "$.outputs",
+                    "reference": "Paris is the capital",
+                    "distance": "jaccard",
+                    "threshold": 0.5,
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        result = _assert_match_result(resp, expected_success=True)
+        assert result["results"][0].get("score") == pytest.approx(1.0)
+
+    def test_text_similarity_jaccard_different(self, services_api):
+        """text/similarity jaccard: completely different strings → low score, success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "similarity",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                    "distance": "jaccard",
+                    "threshold": 0.9,
+                }
+            ],
+            outputs="Berlin",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    # ------------------------------------------------------------------ paths
+
+    def test_path_jsonpath_nested_input_reference(self, services_api):
+        """Path=$.outputs, reference=$.inputs.expected resolves from request inputs."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "exact",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.expected",
+                }
+            ],
+            inputs={"expected": "Paris"},
+            outputs="Paris",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_path_json_pointer(self, services_api):
+        """Path format: JSON Pointer (/outputs) resolves the output field."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "text",
+                    "mode": "regex",
+                    "path": "/outputs",
+                    "reference": "^Paris",
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    # ------------------------------------------------------------------ json
+
+    def test_json_valid_parseable_output(self, services_api):
+        """json/valid: parseable JSON string output → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+            ],
+            outputs='{"city": "Paris"}',
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_json_valid_unparseable_output(self, services_api):
+        """json/valid: non-JSON string output → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+            ],
+            outputs="not json",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_json_exact_match(self, services_api):
+        """json/exact: identical JSON objects → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "json",
+                    "mode": "exact",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.correct",
+                }
+            ],
+            inputs={"correct": '{"city": "Paris"}'},
+            outputs='{"city": "Paris"}',
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_json_exact_mismatch(self, services_api):
+        """json/exact: different JSON values → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "json",
+                    "mode": "exact",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.correct",
+                }
+            ],
+            inputs={"correct": '{"city": "Paris"}'},
+            outputs='{"city": "Berlin"}',
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_json_overlap_identical(self, services_api):
+        """json/overlap: identical JSON → score=1.0, success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "json",
+                    "mode": "overlap",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.correct",
+                    "threshold": 0.8,
+                }
+            ],
+            inputs={"correct": '{"city": "Paris", "country": "France"}'},
+            outputs='{"city": "Paris", "country": "France"}',
+        )
+        result = _assert_match_result(resp, expected_success=True)
+        assert result["results"][0].get("score") == pytest.approx(1.0)
+
+    def test_json_overlap_partial(self, services_api):
+        """json/overlap: half fields match → score=0.5, fails at threshold=0.8."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "json",
+                    "mode": "overlap",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.correct",
+                    "threshold": 0.8,
+                }
+            ],
+            inputs={"correct": '{"city": "Paris", "country": "France"}'},
+            outputs='{"city": "Paris", "country": "Germany"}',
+        )
+        result = _assert_match_result(resp, expected_success=False)
+        score = result["results"][0].get("score", 1.0)
+        assert score < 0.8
+
+    def test_json_overlap_schema_only(self, services_api):
+        """json/overlap use_schema_only=True: matching field types regardless of values → success=True."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m",
+                    "kind": "json",
+                    "mode": "overlap",
+                    "path": "$.outputs",
+                    "reference": "$.inputs.correct",
+                    "use_schema_only": True,
+                    "threshold": 0.9,
+                }
+            ],
+            inputs={"correct": '{"city": "Paris", "population": 2161000}'},
+            outputs='{"city": "Berlin", "population": 3677000}',
+        )
+        _assert_match_result(resp, expected_success=True)
+
+
+@pytest.mark.acceptance
+class TestMatchV0Aggregation:
+    """Tests for match:v0 aggregation strategies: all, any, weighted."""
+
+    def test_aggregate_all_both_pass(self, services_api):
+        """aggregate=all: both children succeed → success=True, score=avg(1.0,1.0)=1.0."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "all",
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                        },
+                        {
+                            "key": "has_france",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "France",
+                        },
+                    ],
+                }
+            ],
+            outputs="Paris is the capital of France",
+        )
+        result = _assert_match_result(resp, expected_success=True)
+        assert result["results"][0].get("score") == pytest.approx(1.0)
+
+    def test_aggregate_all_one_fails(self, services_api):
+        """aggregate=all: one child fails → success=False (AND semantics)."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "all",
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                        },
+                        {
+                            "key": "has_france",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "France",
+                        },
+                    ],
+                }
+            ],
+            outputs="Paris is a great city",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_aggregate_any_one_passes(self, services_api):
+        """aggregate=any: one child succeeds → success=True (OR semantics)."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "any",
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                        },
+                        {
+                            "key": "has_berlin",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Berlin",
+                        },
+                    ],
+                }
+            ],
+            outputs="Paris is the capital",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_aggregate_any_none_pass(self, services_api):
+        """aggregate=any: all children fail → success=False."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "any",
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                        },
+                        {
+                            "key": "has_berlin",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Berlin",
+                        },
+                    ],
+                }
+            ],
+            outputs="Madrid is the capital of Spain",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_aggregate_weighted_above_threshold(self, services_api):
+        """aggregate=weighted: weighted score above threshold → success=True."""
+        # m1 passes (weight=2, score=1.0), m2 fails (weight=1, score=0.0)
+        # weighted_score = (1.0*2 + 0.0*1) / 3 = 0.67 > threshold=0.5
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "weighted",
+                    "threshold": 0.5,
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                            "weight": 2.0,
+                        },
+                        {
+                            "key": "has_france",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "France",
+                            "weight": 1.0,
+                        },
+                    ],
+                }
+            ],
+            outputs="Paris is a great city",
+        )
+        _assert_match_result(resp, expected_success=True)
+
+    def test_aggregate_weighted_below_threshold(self, services_api):
+        """aggregate=weighted: weighted score below threshold → success=False."""
+        # both fail → score=0.0 < threshold=0.5
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "root",
+                    "kind": "text",
+                    "mode": "valid",
+                    "path": "$.outputs",
+                    "aggregate": "weighted",
+                    "threshold": 0.5,
+                    "matchers": [
+                        {
+                            "key": "has_paris",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "Paris",
+                            "weight": 1.0,
+                        },
+                        {
+                            "key": "has_france",
+                            "kind": "text",
+                            "mode": "contains",
+                            "path": "$.outputs",
+                            "reference": "France",
+                            "weight": 1.0,
+                        },
+                    ],
+                }
+            ],
+            outputs="Berlin is the capital of Germany",
+        )
+        _assert_match_result(resp, expected_success=False)
+
+    def test_multiple_top_level_matchers(self, services_api):
+        """Multiple top-level matchers produce one result per matcher."""
+        resp = _match_direct(
+            services_api,
+            matchers=[
+                {
+                    "key": "m1",
+                    "kind": "text",
+                    "mode": "contains",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                },
+                {
+                    "key": "m2",
+                    "kind": "text",
+                    "mode": "ends_with",
+                    "path": "$.outputs",
+                    "reference": "France",
+                },
+                {
+                    "key": "m3",
+                    "kind": "text",
+                    "mode": "starts_with",
+                    "path": "$.outputs",
+                    "reference": "Paris",
+                },
+            ],
+            outputs="Paris is the capital of France",
+        )
+        result = _assert_match_result(resp, min_results=3)
+        keys = [r["key"] for r in result["results"]]
+        assert "m1" in keys and "m2" in keys and "m3" in keys

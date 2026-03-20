@@ -1,5 +1,6 @@
 import os
 import uuid
+import json
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -21,7 +22,6 @@ from oss.src.services import user_service, analytics_service
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.services.json_importer_helper import get_json
 from oss.src.utils.helpers import get_slug_from_name_and_id
 
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
@@ -218,7 +218,15 @@ async def add_default_simple_testsets(
             continue
 
         try:
-            testcases_data = get_json(str(json_path))
+            testcases_data = None
+            with open(str(json_path)) as f:
+                try:
+                    testcases_data = json.loads(f.read())
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Could not parse JSON file: {json_path}") from e
+                except Exception as e:
+                    raise ValueError(f"Could not read JSON file: {json_path}") from e
+
             if not isinstance(testcases_data, list):
                 raise ValueError("Default testset must be a JSON array")
 
