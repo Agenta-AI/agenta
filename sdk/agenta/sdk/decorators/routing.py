@@ -146,13 +146,15 @@ def _set_common_headers(
     res: Response,
     response: WorkflowBaseResponse,
 ) -> Response:
-    res.headers.setdefault("x-ag-version", response.version or "unknown")
-
     if response.trace_id:
         res.headers.setdefault("x-ag-trace-id", response.trace_id)
 
     if response.span_id:
         res.headers.setdefault("x-ag-span-id", response.span_id)
+
+    if response.trace_id and response.span_id:
+        traceparent = f"00-{response.trace_id}-{response.span_id}-01"
+        res.headers.setdefault("traceparent", traceparent)
 
     return res
 

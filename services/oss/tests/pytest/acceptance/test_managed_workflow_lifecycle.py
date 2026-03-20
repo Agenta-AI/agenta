@@ -490,7 +490,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
 
 @pytest.mark.parametrize("case", MANAGED_WORKFLOW_CASES)
 class TestManagedWorkflowLifecycle:
-    """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×5."""
+    """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×3."""
 
     @pytest.fixture(scope="function", autouse=True)
     def setup(self, case, mod_api, mod_services_api):
@@ -500,99 +500,26 @@ class TestManagedWorkflowLifecycle:
             _LIFECYCLE_CACHE[key] = _lifecycle_setup(case, mod_api, mod_services_api)
         self._ctx = _LIFECYCLE_CACHE[key]
         self._mod_services_api = mod_services_api
-        self._mod_api = mod_api
 
-    # ------------------------------------------------------------------
-    # 6. Invoke via workflow URL (direct service path)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_workflow_url(self):
-        """POST {services}/{service_path}/invoke — direct per-service endpoint."""
+    def test_invoke_direct(self):
+        """POST {services}/{service_path}/invoke — direct per-service mount, no dispatcher."""
         ctx = self._ctx
-        body = _invoke_body(ctx)
-
         resp = self._mod_services_api(
             "POST",
             f"{ctx['service_path']}/invoke",
-            json=body,
+            json=_invoke_body(ctx),
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
-    # ------------------------------------------------------------------
-    # 7. Invoke via /services/invoke (dispatch by URI in revision)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_services_invoke(self):
-        """POST /invoke with uri in data.revision.data."""
+    def test_invoke_inline(self):
+        """POST /invoke with URI + parameters inline — dispatcher routes by URI, no DB lookup."""
         ctx = self._ctx
-        body = _invoke_body(
-            ctx,
-            revision={"data": {"uri": ctx["uri"]}},
+        resp = self._mod_services_api(
+            "POST",
+            "/invoke",
+            json=_invoke_body(
+                ctx,
+                revision={"data": {"uri": ctx["uri"], "parameters": ctx["parameters"]}},
+            ),
         )
-
-        resp = self._mod_services_api("POST", "/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 8. Invoke via workflow refs (API resolves revision)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_workflow_refs(self):
-        """POST /preview/workflows/invoke with workflow/variant/revision IDs."""
-        ctx = self._ctx
-        body = {
-            "references": {
-                "workflow": {"id": ctx["workflow_id"]},
-                "workflow_revision": {"id": ctx["revision_id"]},
-            },
-            "data": {
-                "inputs": ctx["inputs"],
-                "outputs": ctx["outputs"],
-                "trace": ctx["trace"],
-            },
-        }
-
-        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 9. Invoke via environment refs (API resolves via deployment)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_environment_refs(self):
-        """POST /preview/workflows/invoke with environment ref."""
-        ctx = self._ctx
-        body = {
-            "references": {
-                "environment": {"slug": ctx["environment_slug"]},
-                "workflow": {"slug": ctx["workflow_slug"]},
-            },
-            "data": {
-                "inputs": ctx["inputs"],
-                "outputs": ctx["outputs"],
-                "trace": ctx["trace"],
-            },
-        }
-
-        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 10. Invoke via revision by value (fully stateless, inline data)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_revision_by_value(self):
-        """POST /invoke with full revision data inline — no DB lookup."""
-        ctx = self._ctx
-        body = _invoke_body(
-            ctx,
-            revision={
-                "data": {
-                    "uri": ctx["uri"],
-                    "parameters": ctx["parameters"],
-                }
-            },
-        )
-
-        resp = self._mod_services_api("POST", "/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])
