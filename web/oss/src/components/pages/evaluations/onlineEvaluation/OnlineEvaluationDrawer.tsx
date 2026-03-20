@@ -21,8 +21,7 @@ import {v4 as uuidv4} from "uuid"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import type {Evaluator, Filter} from "@/oss/lib/Types"
+import type {Filter} from "@/oss/lib/Types"
 
 import {
     createSimpleEvaluation,
@@ -61,8 +60,7 @@ const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: 
 
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
     const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
-    const baseEvaluators = (useAtomValue(evaluatorTemplatesDataAtom) ??
-        []) as unknown as Evaluator[]
+    const baseEvaluators = useAtomValue(evaluatorTemplatesDataAtom) ?? []
     const queryClient = useAtomValue(queryClientAtom)
     const classes = useDrawerStyles()
     const [form] = Form.useForm()
@@ -74,10 +72,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const allEvaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
     const evaluators = useAtomValue(evaluatorConfigsListDataAtom)
     const previewEvaluators = useMemo(
-        () =>
-            (allEvaluatorsList || []).filter(
-                (e: any) => e.flags?.is_human !== true,
-            ) as EvaluatorPreviewDto[],
+        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_human !== true),
         [allEvaluatorsList],
     )
     const selectedEvaluatorId = Form.useWatch("evaluator", form)
@@ -136,7 +131,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     ])
 
     const evaluatorDetails = useEvaluatorDetails({
-        evaluator: matchedPreviewEvaluator as any,
+        evaluator: matchedPreviewEvaluator,
         config: selectedEvaluatorConfig,
         evaluatorTypeLookup,
     })

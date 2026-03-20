@@ -1,33 +1,29 @@
 import {useMemo} from "react"
 
+import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
+import {isOnlineCapableEvaluator, collectEvaluatorCandidates} from "@agenta/entities/workflow"
 import {SelectProps} from "antd"
 
 import {getEvaluatorParameters, resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import type {Evaluator, SimpleEvaluator} from "@/oss/lib/Types"
 
-import {
-    ALLOWED_ONLINE_EVALUATOR_KEYS,
-    EVALUATOR_CATEGORY_LABEL_MAP,
-    ENABLE_CORRECT_ANSWER_KEY_FILTER,
-} from "../constants"
-import {capitalize, collectEvaluatorCandidates} from "../utils/evaluatorDetails"
+import {EVALUATOR_CATEGORY_LABEL_MAP, ENABLE_CORRECT_ANSWER_KEY_FILTER} from "../constants"
+import {capitalize} from "../utils/evaluatorDetails"
 
 interface UseEvaluatorSelectionParams {
-    evaluators: SimpleEvaluator[]
+    evaluators: Workflow[]
     selectedEvaluatorId: string | undefined
-    previewEvaluators: EvaluatorPreviewDto[]
-    baseEvaluators: Evaluator[]
+    previewEvaluators: Workflow[]
+    baseEvaluators: EvaluatorCatalogTemplate[]
 }
 
 interface EvaluatorSelectionResult {
     evaluatorOptions: SelectProps["options"]
-    selectedEvaluatorConfig?: SimpleEvaluator
-    matchedPreviewEvaluator?: EvaluatorPreviewDto
+    selectedEvaluatorConfig?: Workflow
+    matchedPreviewEvaluator?: Workflow
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
 }
 
-const buildEvaluatorOptions = (configs: SimpleEvaluator[]): SelectProps["options"] =>
+const buildEvaluatorOptions = (configs: Workflow[]): SelectProps["options"] =>
     (configs || []).map((cfg: any) => {
         const iconSrc = (cfg?.icon_url && (cfg.icon_url.src || cfg.icon_url)) || undefined
         const displayName = cfg?.name || ""
@@ -59,14 +55,14 @@ const buildEvaluatorOptions = (configs: SimpleEvaluator[]): SelectProps["options
         }
     })
 
-const buildPreviewLookup = (previewEvaluators: EvaluatorPreviewDto[]) => {
-    const map = new Map<string, EvaluatorPreviewDto>()
+const buildPreviewLookup = (previewEvaluators: Workflow[]) => {
+    const map = new Map<string, Workflow>()
     previewEvaluators.forEach((evaluator) => {
         const rawKey =
-            resolveEvaluatorKey(evaluator as any) ||
+            resolveEvaluatorKey(evaluator) ||
             (evaluator as any)?.evaluator_key ||
-            (evaluator as any)?.flags?.evaluator_key ||
-            (evaluator as any)?.meta?.evaluator_key ||
+            (evaluator.flags as any)?.evaluator_key ||
+            (evaluator.meta as any)?.evaluator_key ||
             (evaluator as any)?.key
         if (!rawKey) return
         const normalized = String(rawKey).trim().toLowerCase()
@@ -76,19 +72,19 @@ const buildPreviewLookup = (previewEvaluators: EvaluatorPreviewDto[]) => {
     return map
 }
 
-const buildEvaluatorTypeLookup = (baseEvaluators: Evaluator[]) => {
+const buildEvaluatorTypeLookup = (baseEvaluators: EvaluatorCatalogTemplate[]) => {
     const map = new Map<string, {slug: string; label: string}>()
     baseEvaluators.forEach((evaluator) => {
-        const tags = Array.isArray(evaluator.tags) ? evaluator.tags : []
-        const matched = tags
-            .map((tag) => tag.toLowerCase())
-            .find((tag) => EVALUATOR_CATEGORY_LABEL_MAP[tag])
+        const categories = Array.isArray(evaluator.categories) ? evaluator.categories : []
+        const matched = categories
+            .map((cat) => cat.toLowerCase())
+            .find((cat) => EVALUATOR_CATEGORY_LABEL_MAP[cat])
         if (!matched) return
         const info = {
             slug: matched,
             label: EVALUATOR_CATEGORY_LABEL_MAP[matched] ?? capitalize(matched),
         }
-        collectEvaluatorCandidates(evaluator.key, evaluator.name, (evaluator as any)?.slug).forEach(
+        collectEvaluatorCandidates(evaluator.key, evaluator.name ?? undefined).forEach(
             (candidate) => map.set(candidate, info),
         )
     })
@@ -105,17 +101,21 @@ export const useEvaluatorSelection = ({
         if (!ENABLE_CORRECT_ANSWER_KEY_FILTER) return undefined
         const set = new Set<string>()
         ;(baseEvaluators || []).forEach((evaluator) => {
-            const template = evaluator?.settings_template || {}
-            const expectsCorrectAnswerKey = Object.entries(template).some(([fieldKey, field]) => {
-                if (!field) return false
-                const normalizedKey = fieldKey.toLowerCase()
-                const normalizedLabel = String(field.label || "").toLowerCase()
-                const matchesCorrectAnswerKey =
-                    normalizedKey.includes("correct_answer_key") ||
-                    normalizedLabel.includes("correct answer key")
-                if (!matchesCorrectAnswerKey) return false
-                return field.required !== false
-            })
+            const parametersSchema =
+                (evaluator?.data?.schemas?.parameters as Record<string, unknown>) || {}
+            const expectsCorrectAnswerKey = Object.entries(parametersSchema).some(
+                ([fieldKey, field]) => {
+                    if (!field || typeof field !== "object") return false
+                    const meta = field as Record<string, unknown>
+                    const normalizedKey = fieldKey.toLowerCase()
+                    const normalizedLabel = String(meta.label || "").toLowerCase()
+                    const matchesCorrectAnswerKey =
+                        normalizedKey.includes("correct_answer_key") ||
+                        normalizedLabel.includes("correct answer key")
+                    if (!matchesCorrectAnswerKey) return false
+                    return meta.required !== false
+                },
+            )
             if (expectsCorrectAnswerKey && evaluator?.key) {
                 set.add(evaluator.key)
             }
@@ -125,19 +125,9 @@ export const useEvaluatorSelection = ({
 
     const allowedEvaluators = useMemo(() => {
         if (!evaluators?.length) return []
-        return evaluators.filter((config: SimpleEvaluator) => {
+        return evaluators.filter((config) => {
             if (!config) return false
-            const evaluatorKey = resolveEvaluatorKey(config)
-            const candidates = collectEvaluatorCandidates(
-                evaluatorKey,
-                config?.slug,
-                config?.name,
-                (config as any)?.key,
-                config?.meta?.evaluator_key,
-                config?.meta?.key,
-            )
-            if (!candidates.length) return false
-            return candidates.some((candidate) => ALLOWED_ONLINE_EVALUATOR_KEYS.has(candidate))
+            return isOnlineCapableEvaluator(config as any)
         })
     }, [evaluators])
 
@@ -145,7 +135,7 @@ export const useEvaluatorSelection = ({
         if (!allowedEvaluators.length) return []
         if (!ENABLE_CORRECT_ANSWER_KEY_FILTER) return allowedEvaluators
         const requiringKey = evaluatorsRequiringCorrectAnswerKey ?? new Set<string>()
-        return allowedEvaluators.filter((config: SimpleEvaluator) => {
+        return allowedEvaluators.filter((config) => {
             if (!config) return false
             const evaluatorKey = resolveEvaluatorKey(config)
             if (evaluatorKey && requiringKey.has(evaluatorKey)) {
@@ -173,7 +163,7 @@ export const useEvaluatorSelection = ({
     )
 
     const selectedEvaluatorConfig = useMemo(
-        () => filteredEvaluators.find((item: any) => item.id === selectedEvaluatorId),
+        () => filteredEvaluators.find((item) => item.id === selectedEvaluatorId),
         [filteredEvaluators, selectedEvaluatorId],
     )
 

@@ -1,12 +1,11 @@
 import {useMemo} from "react"
 
-import {evaluatorConfigsListDataAtom} from "@agenta/entities/workflow"
+import {collectEvaluatorCandidates, evaluatorConfigsListDataAtom} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "../constants"
-import {collectEvaluatorCandidates} from "../utils/evaluatorDetails"
 
 export interface UseEvaluatorTypeFromConfigsParams {
     evaluator?: any | null
