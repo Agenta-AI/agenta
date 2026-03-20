@@ -335,6 +335,19 @@ export async function fetchWorkflowRevisionById(
  */
 export interface InspectWorkflowResponse {
     version?: string
+    /** New shape (feat/extend-runnables): revision contains the resolved data */
+    revision?: {
+        uri?: string
+        url?: string
+        headers?: Record<string, unknown>
+        schemas?: {
+            parameters?: Record<string, unknown>
+            inputs?: Record<string, unknown>
+            outputs?: Record<string, unknown>
+        }
+        parameters?: Record<string, unknown>
+    }
+    /** @deprecated Old shape — kept for backward compat during migration */
     interface?: {
         version?: string
         uri?: string
@@ -376,7 +389,7 @@ export async function inspectWorkflow(
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/inspect`,
         {
-            interface: {uri},
+            revision: {uri},
         },
         {params: {project_id: projectId}},
     )

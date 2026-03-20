@@ -55,9 +55,16 @@ export {
     type CreateAppFromTemplateResult,
 } from "./createFromTemplate"
 
-// Templates (evaluator-type workflow templates)
+// Templates (evaluator catalog)
 export {
     fetchEvaluatorTemplates,
+    fetchEvaluatorCatalogPresets,
+    type EvaluatorCatalogTemplate,
+    type EvaluatorCatalogTemplatesResponse,
+    type EvaluatorCatalogPreset,
+    type EvaluatorCatalogPresetsResponse,
+    /** @deprecated Use EvaluatorCatalogTemplate */
     type EvaluatorTemplate,
+    /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     type EvaluatorTemplatesResponse,
 } from "./templates"

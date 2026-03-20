@@ -37,6 +37,7 @@ import {
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
+    workflowBaseEntityAtomFamily,
 } from "./state/store"
 
 // ============================================================================
@@ -63,8 +64,13 @@ const revisionByWorkflowListAtomFamily = (workflowId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 
-        const revisions = query.data?.workflow_revisions ?? []
-        const data = [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        // Resolve thin refs to full entities through the molecule
+        const refs = query.data?.refs ?? []
+        const data = refs
+            .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+            .filter((w): w is Workflow => w !== null)
+            .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+
         const isPending = query.isPending ?? false
         const isError = query.isError ?? false
         const error = query.error ?? null

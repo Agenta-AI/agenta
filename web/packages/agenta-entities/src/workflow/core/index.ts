@@ -48,6 +48,8 @@ export {
     type EvaluatorColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
+    isOnlineCapableEvaluator,
+    collectEvaluatorCandidates,
     // Output schema utilities
     resolveOutputSchemaProperties,
 } from "./schema"

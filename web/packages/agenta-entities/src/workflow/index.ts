@@ -42,7 +42,7 @@ import "./snapshotAdapter"
 // MOLECULE (Primary API)
 // ============================================================================
 
-export {workflowMolecule, type WorkflowMolecule} from "./state/molecule"
+export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
 // ============================================================================
 // SCHEMAS & TYPES
@@ -86,6 +86,8 @@ export {
     type EvaluatorColor,
     parseEvaluatorKeyFromUri,
     buildEvaluatorUri,
+    isOnlineCapableEvaluator,
+    collectEvaluatorCandidates,
     // Output schema utilities
     resolveOutputSchemaProperties,
 } from "./core"
@@ -175,13 +177,17 @@ export {
     workflowVariantsQueryAtomFamily,
     workflowVariantsListDataAtomFamily,
     workflowRevisionsQueryAtomFamily,
+    workflowRevisionRefsByVariantAtomFamily,
     workflowRevisionsListDataAtomFamily,
     // Revision by workflow
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowRevisionsByWorkflowListDataAtomFamily,
+    type WorkflowRevisionRef,
+    type WorkflowListRef,
     // Single entity
     workflowQueryAtomFamily,
     workflowDraftAtomFamily,
+    workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
     workflowIsDirtyAtomFamily,
     // Mutations
@@ -257,6 +263,9 @@ export {
     evaluatorTemplatesMapAtom,
     // Template lookup
     evaluatorTemplateByKeyAtomFamily,
+    // Catalog presets
+    evaluatorCatalogPresetsQueryAtomFamily,
+    evaluatorPresetsAtomFamily,
     // Key map
     evaluatorKeyMapAtom,
     // Evaluator configs (non-human, non-custom)
@@ -287,7 +296,14 @@ export {
 
 export {
     fetchEvaluatorTemplates,
+    fetchEvaluatorCatalogPresets,
+    type EvaluatorCatalogTemplate,
+    type EvaluatorCatalogTemplatesResponse,
+    type EvaluatorCatalogPreset,
+    type EvaluatorCatalogPresetsResponse,
+    /** @deprecated Use EvaluatorCatalogTemplate */
     type EvaluatorTemplate,
+    /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     type EvaluatorTemplatesResponse,
 } from "./api"
 

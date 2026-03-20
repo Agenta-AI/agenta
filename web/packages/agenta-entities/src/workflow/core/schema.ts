@@ -57,15 +57,52 @@ export type JsonSchemas = z.infer<typeof jsonSchemasSchema>
 
 /**
  * WorkflowFlags — maps to backend `WorkflowFlags`.
- * All boolean flags with defaults. Used on create/edit operations.
+ *
+ * Three categories of flags, all derived at commit time by `infer_flags_from_data()`:
+ *
+ * **URI-derived** (from `provider:kind:key:version`):
+ * - `is_managed` — provider is "agenta" (managed platform workflow)
+ * - `is_custom` — kind is "custom" (user-deployed code on agenta platform)
+ * - `is_llm` — key is "llm" (LLM handler)
+ * - `is_hook` — key is "hook" (webhook handler)
+ * - `is_code` — key is "code" (script/code handler)
+ * - `is_match` — key is "match" (matcher evaluator)
+ * - `is_human` — key is "trace" (human annotation workflow)
+ *
+ * **Interface-derived** (from revision data presence):
+ * - `is_chat` — schema indicates chat/message semantics
+ * - `has_url` — revision has a webhook/service URL
+ * - `has_script` — revision has embedded script content
+ * - `has_handler` — revision has an in-process handler (SDK only)
+ *
+ * **User-defined role** (set at create/commit, table-driven defaults from URI):
+ * - `is_application` — can be used as an application
+ * - `is_evaluator` — can be used as an evaluator
+ * - `is_snippet` — reusable code snippet
+ *
+ * **Local-only** (never sent to backend):
+ * - `is_base` — ephemeral entity created from trace data
  */
 export const workflowFlagsSchema = z
     .object({
+        // URI-derived
+        is_managed: z.boolean().optional().default(false),
         is_custom: z.boolean().optional().default(false),
-        is_evaluator: z.boolean().optional().default(false),
+        is_llm: z.boolean().optional().default(false),
+        is_hook: z.boolean().optional().default(false),
+        is_code: z.boolean().optional().default(false),
+        is_match: z.boolean().optional().default(false),
         is_human: z.boolean().optional().default(false),
+        // Interface-derived
         is_chat: z.boolean().optional().default(false),
-        /** Local-only ephemeral entity created from trace data (not persisted on backend) */
+        has_url: z.boolean().optional().default(false),
+        has_script: z.boolean().optional().default(false),
+        has_handler: z.boolean().optional().default(false),
+        // User-defined role
+        is_application: z.boolean().optional().default(false),
+        is_evaluator: z.boolean().optional().default(false),
+        is_snippet: z.boolean().optional().default(false),
+        // Local-only (not persisted on backend)
         is_base: z.boolean().optional().default(false),
     })
     .nullable()
@@ -80,13 +117,27 @@ export type WorkflowFlags = z.infer<typeof workflowFlagsSchema>
  * Examples:
  * - `{ is_evaluator: true }` → returns only evaluator workflows
  * - `{ is_chat: true }` → returns only chat workflows
+ * - `{ is_managed: true, is_llm: true }` → returns managed LLM workflows
  * - `{}` or undefined → returns ALL workflows
  */
 export interface WorkflowQueryFlags {
+    // URI-derived
+    is_managed?: boolean
     is_custom?: boolean
-    is_evaluator?: boolean
+    is_llm?: boolean
+    is_hook?: boolean
+    is_code?: boolean
+    is_match?: boolean
     is_human?: boolean
+    // Interface-derived
     is_chat?: boolean
+    has_url?: boolean
+    has_script?: boolean
+    has_handler?: boolean
+    // User-defined role
+    is_application?: boolean
+    is_evaluator?: boolean
+    is_snippet?: boolean
 }
 
 // ============================================================================
@@ -201,10 +252,24 @@ export const workflowSchemas = createEntitySchemaSet({
         slug: null,
         description: null,
         flags: {
+            // URI-derived
+            is_managed: false,
             is_custom: false,
-            is_evaluator: false,
+            is_llm: false,
+            is_hook: false,
+            is_code: false,
+            is_match: false,
             is_human: false,
+            // Interface-derived
             is_chat: false,
+            has_url: false,
+            has_script: false,
+            has_handler: false,
+            // User-defined role
+            is_application: false,
+            is_evaluator: false,
+            is_snippet: false,
+            // Local-only
             is_base: false,
         },
         tags: null,
@@ -437,6 +502,99 @@ export const parseEvaluatorKeyFromUri = parseWorkflowKeyFromUri
  * @deprecated Use `buildWorkflowUri` instead.
  */
 export const buildEvaluatorUri = buildWorkflowUri
+
+// ============================================================================
+// EVALUATOR KEY NORMALIZATION
+// ============================================================================
+
+/**
+ * Normalize evaluator key strings into a set of lookup candidates.
+ *
+ * Given one or more raw key values (from URI, metadata, slug, name, etc.),
+ * produces a deduplicated list of normalized candidates for matching:
+ * - Lowercased original
+ * - `auto_` prefix stripped (e.g., `auto_exact_match` → also `exact_match`)
+ * - First hyphen segment extracted (e.g., `custom-code` → also `custom`)
+ *
+ * This is the canonical key normalization used across the evaluator system.
+ */
+export function collectEvaluatorCandidates(...values: (string | undefined | null)[]): string[] {
+    const set = new Set<string>()
+    for (const value of values) {
+        if (value == null) continue
+        const normalized = String(value).trim().toLowerCase()
+        if (!normalized) continue
+        set.add(normalized)
+        if (normalized.startsWith("auto_")) set.add(normalized.slice(5))
+        if (normalized.includes("-")) set.add(normalized.split("-")[0])
+    }
+    return Array.from(set)
+}
+
+// ============================================================================
+// ONLINE EVALUATION CAPABILITY
+// ============================================================================
+
+/**
+ * Legacy evaluator keys known to support online (real-time, trace-based) evaluation.
+ *
+ * Used as a fallback when workflow flags (`is_code`, `is_hook`, `is_llm`)
+ * are not populated (evaluators created before `infer_flags_from_data` was deployed).
+ *
+ * After the evaluator key consolidation (managed-workflows.md), the legacy keys
+ * will be retired. The canonical keys (`code`, `hook`, `prompt`) are included
+ * proactively for forward compatibility.
+ */
+const ONLINE_CAPABLE_KEYS = new Set([
+    // Legacy keys
+    "auto_regex_test",
+    "auto_custom_code_run",
+    "auto_webhook_test",
+    "auto_ai_critique",
+    // Bare keys (auto_ prefix stripped)
+    "regex_test",
+    "custom_code_run",
+    "webhook_test",
+    "ai_critique",
+    // Canonical family keys (post-consolidation)
+    "code",
+    "hook",
+    "prompt",
+])
+
+/**
+ * Determine whether an evaluator workflow supports online (real-time) evaluation.
+ *
+ * Uses a two-tier check:
+ * 1. **Flags** (preferred): `is_code`, `is_hook`, or `is_llm` — set by
+ *    `infer_flags_from_data()` at commit time. These map directly to the
+ *    canonical evaluator families that support online execution.
+ * 2. **Key fallback** (legacy): For evaluators created before the flags system
+ *    was deployed, falls back to matching the evaluator key against a known set.
+ *
+ * @param evaluator - Any object with optional `flags` and `data.uri` / `meta`
+ * @returns `true` if the evaluator can execute in real-time against traces
+ */
+export function isOnlineCapableEvaluator(evaluator: {
+    flags?: Record<string, unknown> | null
+    data?: {uri?: string | null} | null
+    meta?: Record<string, unknown> | null
+    slug?: string | null
+}): boolean {
+    const flags = evaluator.flags
+    if (flags?.is_code || flags?.is_hook || flags?.is_llm) {
+        return true
+    }
+
+    // Fallback: extract key from URI or metadata and check against known set
+    const uri = evaluator.data?.uri
+    const keyFromUri = typeof uri === "string" ? parseWorkflowKeyFromUri(uri) : null
+    const keyFromMeta =
+        (evaluator.meta?.evaluator_key as string) ?? (evaluator.meta?.key as string) ?? null
+
+    const candidates = collectEvaluatorCandidates(keyFromUri, keyFromMeta, evaluator.slug)
+    return candidates.some((c) => ONLINE_CAPABLE_KEYS.has(c))
+}
 
 // ============================================================================
 // SLUG UTILITIES
