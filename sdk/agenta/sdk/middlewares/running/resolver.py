@@ -122,6 +122,100 @@ async def resolve_handler(
     return handler
 
 
+async def resolve_references(
+    *,
+    request: WorkflowInvokeRequest,
+    credentials: Optional[str] = None,
+) -> Optional[WorkflowRevisionData]:
+    """Resolve environment/workflow references by calling the API retrieve endpoint.
+
+    When the request has references but no data.revision, calls
+    POST /preview/workflows/revisions/retrieve with resolve=True to hydrate
+    the revision data (including configuration and URI).
+
+    Args:
+        request: The invoke request containing references to resolve
+        credentials: API key for authentication
+
+    Returns:
+        Resolved WorkflowRevisionData, or None if resolution fails/not applicable
+    """
+    if not request.references:
+        return None
+
+    try:
+        if not ag.async_api:
+            log.warning("No backend client available - skipping reference resolution")
+            return None
+
+        api_url = ag.async_api._client_wrapper._base_url
+
+        headers = {}
+        if credentials:
+            headers["Authorization"] = credentials
+
+        refs = request.references
+
+        def _ref_dict(key: str) -> Optional[Dict[str, Any]]:
+            ref = refs.get(key)
+            if ref is None:
+                return None
+            if isinstance(ref, dict):
+                return {k: v for k, v in ref.items() if v is not None}
+            return ref.model_dump(exclude_none=True)
+
+        # Compute lookup key from workflow slug: "<slug>.revision"
+        workflow_ref = refs.get("workflow")
+        key = None
+        if workflow_ref:
+            slug = (
+                workflow_ref.slug
+                if hasattr(workflow_ref, "slug")
+                else (
+                    workflow_ref.get("slug") if isinstance(workflow_ref, dict) else None
+                )
+            )
+            if slug:
+                key = f"{slug}.revision"
+
+        body: Dict[str, Any] = {"resolve": True}
+        for field, ref_key in [
+            ("environment_ref", "environment"),
+            ("environment_variant_ref", "environment_variant"),
+            ("environment_revision_ref", "environment_revision"),
+            ("workflow_ref", "workflow"),
+            ("workflow_variant_ref", "workflow_variant"),
+            ("workflow_revision_ref", "workflow_revision"),
+        ]:
+            d = _ref_dict(ref_key)
+            if d is not None:
+                body[field] = d
+
+        if key:
+            body["key"] = key
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{api_url}/preview/workflows/revisions/retrieve",
+                headers=headers,
+                json=body,
+                timeout=30.0,
+            )
+
+            response.raise_for_status()
+            result = response.json()
+
+            revision = result.get("workflow_revision")
+            if revision and revision.get("data"):
+                return WorkflowRevisionData(**revision["data"])
+
+        return None
+
+    except Exception as e:
+        log.error(f"Failed to resolve references: {e}")
+        raise
+
+
 async def resolve_embeds(
     *,
     parameters: Dict[str, Any],
@@ -209,7 +303,15 @@ class ResolverMiddleware:
         request: WorkflowInvokeRequest,
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
+        ctx = RunningContext.get()
         revision = await resolve_revision(request=request)
+
+        # Resolve references (env/workflow refs → revision) if not already present
+        if revision is None and request.references:
+            revision = await resolve_references(
+                request=request,
+                credentials=ctx.credentials or request.credentials,
+            )
 
         # Resolve embeds in parameters if enabled (via flags.resolve)
         resolve_flag = (request.flags or {}).get("resolve", True)
@@ -223,7 +325,7 @@ class ResolverMiddleware:
                 log.info("Resolving embeds in configuration parameters")
                 resolved_params = await resolve_embeds(
                     parameters=revision.parameters,
-                    credentials=request.credentials,
+                    credentials=ctx.credentials or request.credentials,
                 )
                 revision.parameters = resolved_params
                 log.info("Embeds resolution completed successfully")
@@ -233,7 +335,6 @@ class ResolverMiddleware:
 
         handler = await resolve_handler(uri=(revision.uri if revision else None))
 
-        ctx = RunningContext.get()
         ctx.revision = (
             {"data": revision.model_dump(mode="json", exclude_none=True)}
             if revision

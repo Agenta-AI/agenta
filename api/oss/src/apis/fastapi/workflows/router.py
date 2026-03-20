@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, HTTPException, Depends
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache, invalidate_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -25,7 +25,6 @@ from oss.src.core.environments.dtos import (
 from oss.src.core.workflows.dtos import (
     WorkflowCatalogPreset,
     WorkflowCatalogTemplate,
-    WorkflowRevisionData,
 )
 from oss.src.core.embeds.dtos import ErrorPolicy
 
@@ -1501,97 +1500,29 @@ class WorkflowsRouter:
                     detail="Environment-backed workflow retrieve requires key.",
                 )
 
-            environment_revision = (
-                await self.environments_service.fetch_environment_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    environment_ref=environment_ref,
-                    environment_variant_ref=environment_variant_ref,
-                    environment_revision_ref=environment_revision_ref,
-                )
+        (
+            workflow_revision,
+            resolution_info,
+        ) = await self.workflows_service.retrieve_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+            #
+            resolve=workflow_revision_retrieve_request.resolve or False,
+        )
+
+        if environment_lookup_requested and not workflow_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision does not contain workflow references for the requested key.",
             )
-
-            references_by_key = (
-                environment_revision.data.references
-                if environment_revision and environment_revision.data
-                else None
-            )
-            workflow_references = (
-                references_by_key.get(key) if references_by_key else None
-            )
-
-            if not workflow_references:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=(
-                        "Environment revision does not contain workflow references for the requested key."
-                    ),
-                )
-
-            workflow_ref = workflow_references.get("workflow")
-            workflow_variant_ref = workflow_references.get("workflow_variant")
-            workflow_revision_ref = workflow_references.get("workflow_revision")
-
-            if not any(
-                (
-                    workflow_ref,
-                    workflow_variant_ref,
-                    workflow_revision_ref,
-                )
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment reference entry does not contain workflow refs.",
-                )
-
-        cache_key = {
-            "artifact_ref": workflow_ref,
-            "variant_ref": workflow_variant_ref,
-            "revision_ref": workflow_revision_ref,
-        }
-
-        workflow_revision = None
-        # workflow_revision = await get_cache(
-        #     namespace="workflows:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=WorkflowRevision,
-        # )
-
-        if not workflow_revision:
-            workflow_revision = await self.workflows_service.fetch_workflow_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                workflow_ref=workflow_ref,
-                workflow_variant_ref=workflow_variant_ref,
-                workflow_revision_ref=workflow_revision_ref,
-            )
-
-            await set_cache(
-                namespace="workflows:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=workflow_revision,
-            )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if workflow_revision and workflow_revision_retrieve_request.resolve:
-            embeds_service = self.workflows_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=workflow_revision.data.model_dump()
-                if workflow_revision.data
-                else {},
-            )
-
-            if workflow_revision.data:
-                workflow_revision.data = WorkflowRevisionData(**resolved_config)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,

@@ -75,6 +75,14 @@ async def services_inspect(req: Request, request: WorkflowInspectRequest):
 
 app = FastAPI()
 
+
+# Health check endpoint — registered before mounts so the catch-all "/" mount
+# does not intercept it before auth middleware runs.
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 app.mount("/chat", chat_app)
 app.mount("/completion", completion_app)
 #
@@ -104,12 +112,6 @@ app.mount("/builtin/auto_semantic_similarity/v0", builtin_auto_semantic_similari
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)
-
-
-# Health check endpoint
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
 
 
 @app.on_event("startup")

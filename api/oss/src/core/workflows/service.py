@@ -569,6 +569,68 @@ class WorkflowsService:
 
         return _workflow_revision
 
+    async def retrieve_workflow_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        workflow_ref: Optional[Reference] = None,
+        workflow_variant_ref: Optional[Reference] = None,
+        workflow_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[WorkflowRevision], Optional[ResolutionInfo]]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            if not self.environments_service:
+                return None, None
+
+            env_revision = await self.environments_service.fetch_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            workflow_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not workflow_references:
+                return None, None
+
+            workflow_ref = workflow_references.get("workflow")
+            workflow_variant_ref = workflow_references.get("workflow_variant")
+            workflow_revision_ref = workflow_references.get("workflow_revision")
+
+        if resolve:
+            return await self.resolve_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+
+        workflow_revision = await self.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+        return workflow_revision, None
+
     async def edit_workflow_revision(
         self,
         *,
@@ -801,32 +863,30 @@ class WorkflowsService:
 
         credentials = f"Secret {secret_token}"
 
-        # Resolve references → inject revision into request.data before dispatch
+        # Resolve references → inject revision into request.data before dispatch.
+        # This handles the /preview/workflows/invoke path where we have DB access.
+        # The SDK's ResolverMiddleware handles the same for /services/invoke callers.
         if request.references and not (request.data and request.data.revision):
             refs = request.references
+            workflow_ref = refs.get("workflow")
             workflow_revision = None
 
-            if "environment" in refs and self.environments_service:
-                env_revision = (
-                    await self.environments_service.fetch_environment_revision(
-                        project_id=project_id,
-                        environment_ref=refs["environment"],
-                    )
+            if "environment" in refs:
+                key = (
+                    f"{workflow_ref.slug}.revision"
+                    if workflow_ref and workflow_ref.slug
+                    else None
                 )
-                if env_revision and env_revision.data and env_revision.data.references:
-                    for _key, refs_dict in env_revision.data.references.items():
-                        wf_rev_ref = refs_dict.get("workflow_revision")
-                        if wf_rev_ref:
-                            workflow_revision = await self.fetch_workflow_revision(
-                                project_id=project_id,
-                                workflow_revision_ref=wf_rev_ref,
-                            )
-                            break
+                workflow_revision, _ = await self.retrieve_workflow_revision(
+                    project_id=project_id,
+                    environment_ref=refs["environment"],
+                    key=key,
+                )
 
             elif "workflow_revision" in refs or "workflow" in refs:
-                workflow_revision = await self.fetch_workflow_revision(
+                workflow_revision, _ = await self.retrieve_workflow_revision(
                     project_id=project_id,
-                    workflow_ref=refs.get("workflow"),
+                    workflow_ref=workflow_ref,
                     workflow_variant_ref=refs.get("workflow_variant"),
                     workflow_revision_ref=refs.get("workflow_revision"),
                 )

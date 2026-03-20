@@ -6,7 +6,7 @@ from fastapi import APIRouter, status, Request, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache, invalidate_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1208,91 +1208,33 @@ class ApplicationsRouter:
                     detail="Environment-backed application retrieve requires key.",
                 )
 
-            environment_revision = (
-                await self.environments_service.fetch_environment_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    environment_ref=environment_ref,
-                    environment_variant_ref=environment_variant_ref,
-                    environment_revision_ref=environment_revision_ref,
-                )
+        application_revision = (
+            await self.applications_service.retrieve_application_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+                key=key,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+        )
+
+        if environment_lookup_requested and not application_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision does not contain application references for the requested key.",
             )
 
-            references_by_key = (
-                environment_revision.data.references
-                if environment_revision and environment_revision.data
-                else None
-            )
-            application_references = (
-                references_by_key.get(key) if references_by_key else None
-            )
-
-            if not application_references:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=(
-                        "Environment revision does not contain application references for the requested key."
-                    ),
-                )
-
-            application_ref = application_references.get("application")
-            application_variant_ref = application_references.get("application_variant")
-            application_revision_ref = application_references.get(
-                "application_revision"
-            )
-
-            if not any(
-                (
-                    application_ref,
-                    application_variant_ref,
-                    application_revision_ref,
-                )
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment reference entry does not contain application refs.",
-                )
-
-        cache_key = {
-            "artifact_ref": application_ref,
-            "variant_ref": application_variant_ref,
-            "revision_ref": application_revision_ref,
-        }
-
-        application_revision = None
-        # application_revision = await get_cache(
-        #     namespace="applications:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=ApplicationRevision,
-        # )
-
-        if not application_revision:
-            application_revision = (
-                await self.applications_service.fetch_application_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    application_ref=application_ref,
-                    application_variant_ref=application_variant_ref,
-                    application_revision_ref=application_revision_ref,
-                )
-            )
-
-            log.info(
-                "[applications.revisions.retrieve] fetched project_id=%s revision_id=%s has_data=%s",
-                request.state.project_id,
-                getattr(application_revision, "id", None),
-                bool(application_revision and application_revision.data),
-            )
-
-            await set_cache(
-                namespace="applications:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=application_revision,
-            )
+        log.info(
+            "[applications.revisions.retrieve] fetched project_id=%s revision_id=%s has_data=%s",
+            request.state.project_id,
+            getattr(application_revision, "id", None),
+            bool(application_revision and application_revision.data),
+        )
 
         # Optionally resolve embeds if requested
         resolution_info = None

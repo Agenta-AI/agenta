@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, Depends, HTTPException
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache, invalidate_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1218,79 +1218,23 @@ class EvaluatorsRouter:
                     detail="Environment-backed evaluator retrieve requires key.",
                 )
 
-            environment_revision = (
-                await self.environments_service.fetch_environment_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    environment_ref=environment_ref,
-                    environment_variant_ref=environment_variant_ref,
-                    environment_revision_ref=environment_revision_ref,
-                )
-            )
+        evaluator_revision = await self.evaluators_service.retrieve_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+        )
 
-            references_by_key = (
-                environment_revision.data.references
-                if environment_revision and environment_revision.data
-                else None
-            )
-            evaluator_references = (
-                references_by_key.get(key) if references_by_key else None
-            )
-
-            if not evaluator_references:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=(
-                        "Environment revision does not contain evaluator references for the requested key."
-                    ),
-                )
-
-            evaluator_ref = evaluator_references.get("evaluator")
-            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
-            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
-
-            if not any(
-                (
-                    evaluator_ref,
-                    evaluator_variant_ref,
-                    evaluator_revision_ref,
-                )
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment reference entry does not contain evaluator refs.",
-                )
-
-        cache_key = {
-            "artifact_ref": evaluator_ref,
-            "variant_ref": evaluator_variant_ref,
-            "revision_ref": evaluator_revision_ref,
-        }
-
-        evaluator_revision = None
-        # evaluator_revision = await get_cache(
-        #     namespace="evaluators:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=EvaluatorRevision,
-        # )
-
-        if not evaluator_revision:
-            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                evaluator_ref=evaluator_ref,
-                evaluator_variant_ref=evaluator_variant_ref,
-                evaluator_revision_ref=evaluator_revision_ref,
-            )
-
-            await set_cache(
-                namespace="evaluators:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=evaluator_revision,
+        if environment_lookup_requested and not evaluator_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision does not contain evaluator references for the requested key.",
             )
 
         # Optionally resolve embeds if requested

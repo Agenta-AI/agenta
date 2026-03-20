@@ -557,6 +557,59 @@ class ApplicationsService:
 
         return application_revision
 
+    async def retrieve_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        application_revision_ref: Optional[Reference] = None,
+    ) -> Optional[ApplicationRevision]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None
+
+            env_revision = await environments_service.fetch_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            application_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not application_references:
+                return None
+
+            application_ref = application_references.get("application")
+            application_variant_ref = application_references.get("application_variant")
+            application_revision_ref = application_references.get(
+                "application_revision"
+            )
+
+        return await self.fetch_application_revision(
+            project_id=project_id,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+        )
+
     async def edit_application_revision(
         self,
         *,

@@ -194,7 +194,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_llm": True,
         },
         id="auto_semantic_similarity",
-        marks=pytest.mark.llm_required,
+        marks=[
+            pytest.mark.llm_required,
+            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -218,7 +221,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_llm": True,
         },
         id="auto_ai_critique",
-        marks=pytest.mark.llm_required,
+        marks=[
+            pytest.mark.llm_required,
+            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -235,7 +241,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_url": True,
         },
         id="auto_webhook_test",
-        marks=pytest.mark.webhook_required,
+        marks=[
+            pytest.mark.webhook_required,
+            pytest.mark.xfail(reason="requires live webhook URL", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -427,8 +436,8 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     assert resp.json().get("workflow"), f"No workflow in response: {resp.text}"
     workflow = resp.json()["workflow"]
     workflow_id = workflow["id"]
+    workflow_slug = workflow.get("slug")
     revision_id = workflow["revision_id"]
-    revision_slug = workflow.get("slug")
     revision_version = None
 
     # ------------------------------------------------------------------
@@ -465,8 +474,8 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "trace": case.get("trace", {}),
         #
         "workflow_id": workflow_id,
+        "workflow_slug": workflow_slug,
         "revision_id": revision_id,
-        "revision_slug": revision_slug,
         "revision_version": revision_version,
         #
         "environment_id": environment_id,
@@ -556,6 +565,7 @@ class TestManagedWorkflowLifecycle:
         body = {
             "references": {
                 "environment": {"slug": ctx["environment_slug"]},
+                "workflow": {"slug": ctx["workflow_slug"]},
             },
             "data": {
                 "inputs": ctx["inputs"],
