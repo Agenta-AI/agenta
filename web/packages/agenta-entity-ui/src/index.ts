@@ -53,6 +53,7 @@ export {
     PlaygroundConfigSection,
     useDrillIn,
     type PlaygroundConfigSectionProps,
+    type ConfigViewMode,
     type ConfigSectionMoleculeAdapter,
     type EvaluatorPresetConfig,
     // Types - Molecule Config

@@ -116,7 +116,10 @@ export function FieldItemContent({
     classNames,
     styles,
 }: FieldItemContentProps) {
-    const label = useMemo(() => formatLabel(item.key), [item.key])
+    const label = useMemo(
+        () => (schema?.title as string) ?? formatLabel(item.key),
+        [schema, item.key],
+    )
 
     const handleChange = useCallback(
         (value: unknown) => {
