@@ -196,7 +196,7 @@ MANAGED_WORKFLOW_CASES = [
         id="auto_semantic_similarity",
         marks=[
             pytest.mark.llm_required,
-            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+            # pytest.mark.xfail(reason="requires LLM API key", strict=False),
         ],
     ),
     pytest.param(
@@ -208,12 +208,24 @@ MANAGED_WORKFLOW_CASES = [
                 "prompt_template": [
                     {
                         "role": "system",
-                        "content": "Evaluate the following answer. Return a score between 0 and 1.",
+                        "content": "Evaluate the following answer. Respond with a JSON object containing a 'score' field (number between 0 and 1).",
                     },
                     {"role": "user", "content": "Answer: {output}"},
                 ],
                 "model": "gpt-4o-mini",
-                "response_type": "text",
+                "response_type": "json_schema",
+                "json_schema": {
+                    "name": "evaluation_result",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "score": {"type": "number"},
+                        },
+                        "required": ["score"],
+                        "additionalProperties": False,
+                    },
+                    "strict": True,
+                },
                 "threshold": 0.5,
             },
             "inputs": {},
@@ -223,7 +235,7 @@ MANAGED_WORKFLOW_CASES = [
         id="auto_ai_critique",
         marks=[
             pytest.mark.llm_required,
-            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+            # pytest.mark.xfail(reason="requires LLM API key", strict=False),
         ],
     ),
     pytest.param(
