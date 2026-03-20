@@ -1,12 +1,12 @@
-from typing import Optional, Union
-from uuid import UUID
+from typing import Optional
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache, invalidate_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -25,7 +25,6 @@ from oss.src.core.environments.dtos import (
 from oss.src.core.workflows.dtos import (
     WorkflowCatalogPreset,
     WorkflowCatalogTemplate,
-    WorkflowRevisionData,
 )
 from oss.src.core.embeds.dtos import ErrorPolicy
 
@@ -89,18 +88,6 @@ from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_template,
 )
 
-from agenta.sdk.models.workflows import (
-    WorkflowInvokeRequest,
-    WorkflowInspectRequest,
-    WorkflowBatchResponse,
-    WorkflowStreamingResponse,
-)
-from agenta.sdk.decorators.routing import (
-    handle_invoke_success,
-    handle_invoke_failure,
-    handle_inspect_success,
-    handle_inspect_failure,
-)
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -406,28 +393,6 @@ class WorkflowsRouter:
             operation_id="resolve_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResolveResponse,
-            response_model_exclude_none=True,
-        )
-
-        # WORKFLOW SERVICES ----------------------------------------------------
-
-        self.router.add_api_route(
-            "/invoke",
-            self.invoke_workflow,
-            methods=["POST"],
-            operation_id="invoke_workflow",
-            status_code=status.HTTP_200_OK,
-            response_model=Union[WorkflowBatchResponse, WorkflowStreamingResponse],
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/inspect",
-            self.inspect_workflow,
-            methods=["POST"],
-            operation_id="inspect_workflow",
-            status_code=status.HTTP_200_OK,
-            response_model=WorkflowInvokeRequest,
             response_model_exclude_none=True,
         )
 
@@ -1427,6 +1392,7 @@ class WorkflowsRouter:
             user_id=UUID(request.state.user_id),
             #
             environment_revision_commit=EnvironmentRevisionCommit(
+                slug=uuid4().hex[-12:],
                 environment_id=environment_id,
                 environment_variant_id=environment_variant_id,
                 message=workflow_deploy_request.message,
@@ -1527,97 +1493,29 @@ class WorkflowsRouter:
                     detail="Environment-backed workflow retrieve requires key.",
                 )
 
-            environment_revision = (
-                await self.environments_service.fetch_environment_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    environment_ref=environment_ref,
-                    environment_variant_ref=environment_variant_ref,
-                    environment_revision_ref=environment_revision_ref,
-                )
+        (
+            workflow_revision,
+            resolution_info,
+        ) = await self.workflows_service.retrieve_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+            #
+            resolve=workflow_revision_retrieve_request.resolve or False,
+        )
+
+        if environment_lookup_requested and not workflow_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision does not contain workflow references for the requested key.",
             )
-
-            references_by_key = (
-                environment_revision.data.references
-                if environment_revision and environment_revision.data
-                else None
-            )
-            workflow_references = (
-                references_by_key.get(key) if references_by_key else None
-            )
-
-            if not workflow_references:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=(
-                        "Environment revision does not contain workflow references for the requested key."
-                    ),
-                )
-
-            workflow_ref = workflow_references.get("workflow")
-            workflow_variant_ref = workflow_references.get("workflow_variant")
-            workflow_revision_ref = workflow_references.get("workflow_revision")
-
-            if not any(
-                (
-                    workflow_ref,
-                    workflow_variant_ref,
-                    workflow_revision_ref,
-                )
-            ):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Environment reference entry does not contain workflow refs.",
-                )
-
-        cache_key = {
-            "artifact_ref": workflow_ref,
-            "variant_ref": workflow_variant_ref,
-            "revision_ref": workflow_revision_ref,
-        }
-
-        workflow_revision = None
-        # workflow_revision = await get_cache(
-        #     namespace="workflows:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=WorkflowRevision,
-        # )
-
-        if not workflow_revision:
-            workflow_revision = await self.workflows_service.fetch_workflow_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                workflow_ref=workflow_ref,
-                workflow_variant_ref=workflow_variant_ref,
-                workflow_revision_ref=workflow_revision_ref,
-            )
-
-            await set_cache(
-                namespace="workflows:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=workflow_revision,
-            )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if workflow_revision and workflow_revision_retrieve_request.resolve:
-            embeds_service = self.workflows_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=workflow_revision.data.model_dump()
-                if workflow_revision.data
-                else {},
-            )
-
-            if workflow_revision.data:
-                workflow_revision.data = WorkflowRevisionData(**resolved_config)
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
@@ -1688,66 +1586,6 @@ class WorkflowsRouter:
         )
 
         return workflow_revision_resolve_response
-
-    # WORKFLOW SERVICES --------------------------------------------------------
-
-    @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowBatchResponse(), exclude=[HTTPException])
-    async def invoke_workflow(
-        self,
-        request: Request,
-        *,
-        workflow_service_request: WorkflowInvokeRequest,
-    ):
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.RUN_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        try:
-            response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                request=workflow_service_request,
-            )
-
-            return await handle_invoke_success(request, response)
-
-        except Exception as exception:
-            return await handle_invoke_failure(exception)
-
-    @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowInvokeRequest(), exclude=[HTTPException])
-    async def inspect_workflow(
-        self,
-        request: Request,
-        *,
-        workflow_service_request: WorkflowInspectRequest,
-    ):
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_WORKFLOWS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        try:
-            workflow_service_request = await self.workflows_service.inspect_workflow(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                request=workflow_service_request,
-            )
-
-            return await handle_inspect_success(workflow_service_request)
-
-        except Exception as exception:
-            return await handle_inspect_failure(exception)
 
 
 class SimpleWorkflowsRouter:

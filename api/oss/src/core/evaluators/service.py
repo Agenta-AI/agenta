@@ -560,6 +560,57 @@ class EvaluatorsService:
 
         return evaluator_revision
 
+    async def retrieve_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        evaluator_revision_ref: Optional[Reference] = None,
+    ) -> Optional[EvaluatorRevision]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None
+
+            env_revision = await environments_service.fetch_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            evaluator_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not evaluator_references:
+                return None
+
+            evaluator_ref = evaluator_references.get("evaluator")
+            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+        return await self.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+        )
+
     async def edit_evaluator_revision(
         self,
         *,

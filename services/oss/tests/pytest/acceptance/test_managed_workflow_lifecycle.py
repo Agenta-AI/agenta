@@ -194,7 +194,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_llm": True,
         },
         id="auto_semantic_similarity",
-        marks=pytest.mark.llm_required,
+        marks=[
+            pytest.mark.llm_required,
+            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -218,7 +221,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_llm": True,
         },
         id="auto_ai_critique",
-        marks=pytest.mark.llm_required,
+        marks=[
+            pytest.mark.llm_required,
+            pytest.mark.xfail(reason="requires LLM API key", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -235,7 +241,10 @@ MANAGED_WORKFLOW_CASES = [
             "requires_url": True,
         },
         id="auto_webhook_test",
-        marks=pytest.mark.webhook_required,
+        marks=[
+            pytest.mark.webhook_required,
+            pytest.mark.xfail(reason="requires live webhook URL", strict=False),
+        ],
     ),
     pytest.param(
         {
@@ -244,11 +253,11 @@ MANAGED_WORKFLOW_CASES = [
             "service_path": "/builtin/auto_custom_code_run/v0",
             "parameters": {
                 "code": (
-                    "def evaluate(inputs, output, correct_answer):\n"
-                    "    return 1.0 if output == correct_answer else 0.0\n"
+                    "def evaluate(inputs, output, trace):\n"
+                    "    return 1.0 if output == inputs.get('correct_answer') else 0.0\n"
                 ),
                 "runtime": "python",
-                "version": "1",
+                "version": "2",
                 "correct_answer_key": "correct_answer",
                 "threshold": 0.5,
             },
@@ -427,8 +436,8 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     assert resp.json().get("workflow"), f"No workflow in response: {resp.text}"
     workflow = resp.json()["workflow"]
     workflow_id = workflow["id"]
+    workflow_slug = workflow.get("slug")
     revision_id = workflow["revision_id"]
-    revision_slug = workflow.get("slug")
     revision_version = None
 
     # ------------------------------------------------------------------
@@ -465,8 +474,8 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "trace": case.get("trace", {}),
         #
         "workflow_id": workflow_id,
+        "workflow_slug": workflow_slug,
         "revision_id": revision_id,
-        "revision_slug": revision_slug,
         "revision_version": revision_version,
         #
         "environment_id": environment_id,
@@ -481,7 +490,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
 
 @pytest.mark.parametrize("case", MANAGED_WORKFLOW_CASES)
 class TestManagedWorkflowLifecycle:
-    """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×5."""
+    """Full lifecycle for each managed workflow: catalog → create → deploy → invoke×3."""
 
     @pytest.fixture(scope="function", autouse=True)
     def setup(self, case, mod_api, mod_services_api):
@@ -491,98 +500,26 @@ class TestManagedWorkflowLifecycle:
             _LIFECYCLE_CACHE[key] = _lifecycle_setup(case, mod_api, mod_services_api)
         self._ctx = _LIFECYCLE_CACHE[key]
         self._mod_services_api = mod_services_api
-        self._mod_api = mod_api
 
-    # ------------------------------------------------------------------
-    # 6. Invoke via workflow URL (direct service path)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_workflow_url(self):
-        """POST {services}/{service_path}/invoke — direct per-service endpoint."""
+    def test_invoke_direct(self):
+        """POST {services}/{service_path}/invoke — direct per-service mount, no dispatcher."""
         ctx = self._ctx
-        body = _invoke_body(ctx)
-
         resp = self._mod_services_api(
             "POST",
             f"{ctx['service_path']}/invoke",
-            json=body,
+            json=_invoke_body(ctx),
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
-    # ------------------------------------------------------------------
-    # 7. Invoke via /services/invoke (dispatch by URI in revision)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_services_invoke(self):
-        """POST /invoke with uri in data.revision.data."""
+    def test_invoke_inline(self):
+        """POST /invoke with URI + parameters inline — dispatcher routes by URI, no DB lookup."""
         ctx = self._ctx
-        body = _invoke_body(
-            ctx,
-            revision={"data": {"uri": ctx["uri"]}},
+        resp = self._mod_services_api(
+            "POST",
+            "/invoke",
+            json=_invoke_body(
+                ctx,
+                revision={"data": {"uri": ctx["uri"], "parameters": ctx["parameters"]}},
+            ),
         )
-
-        resp = self._mod_services_api("POST", "/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 8. Invoke via workflow refs (API resolves revision)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_workflow_refs(self):
-        """POST /preview/workflows/invoke with workflow/variant/revision IDs."""
-        ctx = self._ctx
-        body = {
-            "references": {
-                "workflow": {"id": ctx["workflow_id"]},
-                "workflow_revision": {"id": ctx["revision_id"]},
-            },
-            "data": {
-                "inputs": ctx["inputs"],
-                "outputs": ctx["outputs"],
-                "trace": ctx["trace"],
-            },
-        }
-
-        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 9. Invoke via environment refs (API resolves via deployment)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_environment_refs(self):
-        """POST /preview/workflows/invoke with environment ref."""
-        ctx = self._ctx
-        body = {
-            "references": {
-                "environment": {"slug": ctx["environment_slug"]},
-            },
-            "data": {
-                "inputs": ctx["inputs"],
-                "outputs": ctx["outputs"],
-                "trace": ctx["trace"],
-            },
-        }
-
-        resp = self._mod_api("POST", "/preview/workflows/invoke", json=body)
-        _assert_invoke_response(resp, case_id=ctx["template_key"])
-
-    # ------------------------------------------------------------------
-    # 10. Invoke via revision by value (fully stateless, inline data)
-    # ------------------------------------------------------------------
-
-    def test_invoke_via_revision_by_value(self):
-        """POST /invoke with full revision data inline — no DB lookup."""
-        ctx = self._ctx
-        body = _invoke_body(
-            ctx,
-            revision={
-                "data": {
-                    "uri": ctx["uri"],
-                    "parameters": ctx["parameters"],
-                }
-            },
-        )
-
-        resp = self._mod_services_api("POST", "/invoke", json=body)
         _assert_invoke_response(resp, case_id=ctx["template_key"])

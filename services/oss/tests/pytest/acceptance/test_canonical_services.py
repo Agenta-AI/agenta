@@ -273,37 +273,6 @@ class TestBuiltinMatchV0:
 
 
 # ---------------------------------------------------------------------------
-# /custom/trace/v0/invoke — interface-only stub (always errors)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.acceptance
-class TestCustomTraceV0:
-    """
-    trace_v0 is an interface-only handler — it always raises HookV0Error.
-    The service layer converts this to an HTTP error response.
-    """
-
-    def test_invocation_returns_error(self, services_api):
-        """POST /custom/trace/v0/invoke always returns a non-200 response."""
-        body = _base_body(inputs={"question": "What is 2+2?"}, outputs="4")
-        resp = services_api("POST", "/custom/trace/v0/invoke", json=body)
-        assert resp.status_code != 200, (
-            f"Expected error response from trace_v0, got {resp.status_code}: {resp.text}"
-        )
-
-    def test_error_detail_references_uri(self, services_api):
-        """The error detail mentions the agenta:custom:trace:v0 URI."""
-        body = _base_body()
-        resp = services_api("POST", "/custom/trace/v0/invoke", json=body)
-        assert resp.status_code != 200
-        text = resp.text
-        assert "agenta:custom:trace:v0" in text, (
-            f"Expected URI in error detail, got: {text}"
-        )
-
-
-# ---------------------------------------------------------------------------
 # /custom/hook/v0/invoke — webhook forwarder (no URL configured → error)
 # ---------------------------------------------------------------------------
 

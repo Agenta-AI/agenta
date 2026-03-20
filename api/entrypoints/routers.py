@@ -345,7 +345,8 @@ embeds_service = EmbedsService(
     evaluators_service=evaluators_service,
 )
 
-# Inject embeds_service into all services that need it
+# Inject cross-service dependencies
+workflows_service.environments_service = environments_service
 workflows_service.embeds_service = embeds_service
 environments_service.embeds_service = embeds_service
 applications_service.embeds_service = embeds_service
