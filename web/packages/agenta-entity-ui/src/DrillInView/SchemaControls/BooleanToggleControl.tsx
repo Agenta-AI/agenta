@@ -2,15 +2,17 @@
  * BooleanToggleControl
  *
  * Schema-driven toggle switch for boolean values.
- * Used for stream, json mode, and other boolean flags.
+ * Uses a horizontal layout: label left, switch right.
  */
 
 import {memo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
-import {LabeledField} from "@agenta/ui/components/presentational"
-import {cn} from "@agenta/ui/styles"
-import {Switch} from "antd"
+import {cn, textColors} from "@agenta/ui/styles"
+import {InfoCircleOutlined} from "@ant-design/icons"
+import {Switch, Tooltip, Typography} from "antd"
+
+const {Text} = Typography
 
 export interface BooleanToggleControlProps {
     /** The schema property (used for description) */
@@ -53,16 +55,30 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
 
     // Normalize value (treat null/undefined as false)
     const checked = value ?? false
+    const showTooltipIcon = withTooltip && !!tooltipText && !!label
 
     return (
-        <LabeledField
-            label={label}
-            description={tooltipText}
-            withTooltip={withTooltip}
-            direction="horizontal"
-            className={cn("justify-between", className)}
-        >
-            <Switch disabled={disabled} checked={checked} onChange={onChange} size="small" />
-        </LabeledField>
+        <div className={cn("flex items-center justify-between gap-3", className)}>
+            <div className="flex items-center gap-1">
+                {label && (
+                    <Text className={cn("font-medium text-xs", textColors.primary)}>{label}</Text>
+                )}
+                {showTooltipIcon && (
+                    <Tooltip title={tooltipText} placement="right">
+                        <InfoCircleOutlined
+                            className="text-gray-400 text-[11px] cursor-help"
+                            aria-hidden="true"
+                        />
+                    </Tooltip>
+                )}
+            </div>
+            <Switch
+                disabled={disabled}
+                checked={checked}
+                onChange={onChange}
+                size="small"
+                className="flex-shrink-0"
+            />
+        </div>
     )
 })

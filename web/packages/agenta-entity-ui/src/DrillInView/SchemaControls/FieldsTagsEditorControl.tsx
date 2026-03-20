@@ -136,7 +136,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                 )}
 
                 {/* Helper Text */}
-                <Text className="text-xs text-[var(--ant-color-text-secondary)]">
+                <Text type="secondary" className="text-xs">
                     Each field creates a column with value 0 (no match) or 1 (match)
                 </Text>
             </div>

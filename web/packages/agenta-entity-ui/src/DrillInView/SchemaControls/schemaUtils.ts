@@ -74,13 +74,20 @@ export function hasGroupedChoices(schema: SchemaProperty | null | undefined): bo
     if (!schema) return false
 
     const xParam = schema["x-parameter"] as string | undefined
+    const xAgType = (schema as Record<string, unknown>)["x-ag-type"] as string | undefined
     const choices = schema.choices as Record<string, string[]> | undefined
     const enumValues = schema.enum as unknown[] | undefined
     const title = ((schema.title as string | undefined) || "").toLowerCase()
 
-    // Check for x-parameter: "grouped_choice" or "choice" with choices object
+    // Check for x-parameter: "grouped_choice" or "choice" with choices object (legacy)
     if (xParam === "grouped_choice" || xParam === "choice") {
         return !!(choices && typeof choices === "object" && !Array.isArray(choices))
+    }
+
+    // Check for x-ag-type: "grouped_choice" (canonical — catalog schemas)
+    // These use x-ag-type-ref for dynamic option resolution
+    if (xAgType === "grouped_choice") {
+        return true
     }
 
     // Also check if choices exists as a grouped object (provider -> models)
@@ -166,14 +173,25 @@ export function shouldRenderObjectInline(schema: SchemaProperty | null | undefin
 
 /**
  * Get the LLM config schema from prompt schema.
- * Looks for llm_config or llmConfig property.
+ * Looks for llm_config, llmConfig, or llms[0] (canonical catalog schema).
  */
 export function getLLMConfigSchema(
     schema: SchemaProperty | null | undefined,
 ): SchemaProperty | null {
     if (!schema?.properties) return null
     const props = schema.properties as Record<string, SchemaProperty>
-    return props.llm_config || props.llmConfig || null
+
+    // Legacy: nested llm_config object
+    if (props.llm_config || props.llmConfig) {
+        return props.llm_config || props.llmConfig || null
+    }
+
+    // Canonical: llms array — use the items schema (shared across all entries)
+    if (props.llms?.type === "array" && props.llms.items) {
+        return props.llms.items as SchemaProperty
+    }
+
+    return null
 }
 
 /**
@@ -276,13 +294,28 @@ export function hasNestedLLMConfig(schema: SchemaProperty | null | undefined): b
 
 /**
  * Get the llm_config value from prompt value.
- * Handles both nested (llm_config/llmConfig) and root level.
+ * Handles nested (llm_config/llmConfig), canonical (llms[0]), and root level.
  */
 export function getLLMConfigValue(
     value: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
     if (!value) return {}
-    return (value.llm_config || value.llmConfig || value) as Record<string, unknown>
+
+    // Legacy: nested llm_config object
+    if (value.llm_config || value.llmConfig) {
+        return (value.llm_config || value.llmConfig) as Record<string, unknown>
+    }
+
+    // Canonical: llms array — use the first entry (primary LLM)
+    if (Array.isArray(value.llms) && value.llms.length > 0) {
+        const first = value.llms[0]
+        if (first && typeof first === "object" && !Array.isArray(first)) {
+            return first as Record<string, unknown>
+        }
+    }
+
+    // Fallback: root level (flat params)
+    return value
 }
 
 // ============================================================================

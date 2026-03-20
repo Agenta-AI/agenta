@@ -437,6 +437,7 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
                     }}
                     disabled={disabled}
                     className={className}
+                    entityId={entityId}
                 />
             )
 

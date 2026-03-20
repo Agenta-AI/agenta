@@ -192,11 +192,12 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
 
     // Render object properties inline
     const content = (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
             {propertyKeys.map((propertyKey) => {
                 const propertySchema = schema.properties![propertyKey]
                 const propertyValue = value?.[propertyKey]
-                const propertyLabel = formatLabel(propertyKey)
+                const propertyLabel =
+                    (propertySchema?.title as string | undefined) ?? formatLabel(propertyKey)
 
                 return (
                     <SchemaPropertyRenderer
@@ -208,7 +209,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         path={[...path, propertyKey]}
-                        className="pl-2 border-l-2 border-gray-100"
+                        className="pl-3"
                     />
                 )
             })}
@@ -220,9 +221,6 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
         const headerContent = (
             <div className="flex items-center gap-2 mb-2">
                 <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                <Typography.Text type="secondary" className="text-xs">
-                    ({propertyKeys.length} properties)
-                </Typography.Text>
             </div>
         )
 
@@ -265,28 +263,24 @@ export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
-    // Get property count for display
-    const propertyCount = schema?.properties ? Object.keys(schema.properties).length : 0
-
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
-            <Button
-                type="text"
-                className="flex items-center gap-2 px-0 h-auto"
-                onClick={() => setIsCollapsed(!isCollapsed)}
+            <Tooltip
+                title={tooltipText}
+                placement="right"
+                open={withTooltip && tooltipText ? undefined : false}
             >
-                {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-                <Tooltip
-                    title={tooltipText}
-                    placement="right"
-                    open={withTooltip ? undefined : false}
+                <Button
+                    type="text"
+                    className="flex items-center gap-1.5 px-0 h-auto"
+                    onClick={() => setIsCollapsed(!isCollapsed)}
                 >
+                    <span className="text-[rgba(5,23,41,0.45)] flex items-center">
+                        {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+                    </span>
                     <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                </Tooltip>
-                <Typography.Text type="secondary" className="text-xs">
-                    ({propertyCount} properties)
-                </Typography.Text>
-            </Button>
+                </Button>
+            </Tooltip>
 
             {!isCollapsed && (
                 <ObjectSchemaControl
