@@ -21,7 +21,8 @@ __all__ = [
     "MultipleChoiceParam",
     "GroupedMultipleChoiceParam",
     "TextParam",
-    "MessagesInput",
+    "Message",
+    "Messages",
     "FileInputURL",
     "BinaryParam",
     "Prompt",
@@ -58,12 +59,11 @@ from .utils.types import (  # noqa: E402
     MultipleChoiceParam,
     GroupedMultipleChoiceParam,
     TextParam,
-    MessagesInput,
+    Message,
+    Messages,
     FileInputURL,
     BinaryParam,
     Prompt,
-    AgentaNodeDto,  # noqa: F401
-    AgentaNodesResponse,  # noqa: F401
 )
 
 from .engines.tracing import Tracing, get_tracer

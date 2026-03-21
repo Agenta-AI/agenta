@@ -1,7 +1,4 @@
-from copy import deepcopy
-
 from agenta.sdk.models.workflows import WorkflowRevisionData
-from agenta.sdk.utils.types import PromptTemplate
 
 
 JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -120,63 +117,24 @@ MODEL_FIELD = ag_field(
     x_ag_type_ref=MODEL_CATALOG_REF,
 )
 
-MESSAGE_SCHEMA = obj(
-    title="Message",
-    properties={
-        "role": scalar(
-            jtype="string",
-            enum=["system", "user", "assistant", "tool", "function"],
-        ),
-        "content": {
-            "oneOf": [
-                scalar(jtype="string"),
-                arr(items={"type": "object"}),
-                scalar(jtype="null"),
-            ]
-        },
-        "name": scalar(jtype=["string", "null"]),
-        "tool_calls": arr(items={"type": "object"}),
-        "tool_call_id": scalar(jtype=["string", "null"]),
-    },
-    additional_properties=False,
-)
 
-LLM_MESSAGES_ARRAY = arr(
-    items={"$ref": "#/$defs/message"},
-    description="Ordered list of normalized chat messages.",
-    default=[],
-    **{"x-ag-messages": True},
-)
-
-
-def prompt_template_schema(*, default: dict | None = None) -> dict:
-    schema = deepcopy(PromptTemplate.model_json_schema())
-
-    # Normalize schema metadata for frontend consumers.
-    x_parameters = dict(schema.get("x-parameters") or {})
-    x_parameters["prompt"] = True
-    schema["x-parameters"] = x_parameters
-
-    messages = schema.get("properties", {}).get("messages")
-    if isinstance(messages, dict):
-        messages["x-ag-messages"] = True
-
-    # Reuse the canonical model selector metadata already used elsewhere.
-    llm_config = schema.get("properties", {}).get("llm_config")
-    if isinstance(llm_config, dict) and llm_config.get("$ref") == "#/$defs/ModelConfig":
-        model_field = (
-            schema.get("$defs", {})
-            .get("ModelConfig", {})
-            .get("properties", {})
-            .get("model")
-        )
-        if isinstance(model_field, dict):
-            model_field.clear()
-            model_field.update(deepcopy(MODEL_FIELD))
-
+def semantic_field(
+    *,
+    x_ag_type: str,
+    jtype: str | list[str] | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    default=None,
+) -> dict:
+    schema = {"x-ag-type": x_ag_type}
+    if jtype is not None:
+        schema["type"] = jtype
+    if title:
+        schema["title"] = title
+    if description:
+        schema["description"] = description
     if default is not None:
         schema["default"] = default
-
     return schema
 
 
@@ -184,7 +142,13 @@ def single_prompt_parameters_schema(*, title: str, prompt_default: dict) -> dict
     return obj(
         title=title,
         properties={
-            "prompt": prompt_template_schema(default=prompt_default),
+            "prompt": semantic_field(
+                x_ag_type="prompt-template",
+                jtype="object",
+                title="PromptTemplate",
+                description="A template for generating prompts with formatting capabilities",
+                default=prompt_default,
+            ),
         },
         additional_properties=True,
     )
@@ -192,17 +156,19 @@ def single_prompt_parameters_schema(*, title: str, prompt_default: dict) -> dict
 
 def llm_inputs_schema(*, title: str, include_messages: bool) -> dict:
     properties = {}
-    defs = None
 
     if include_messages:
-        properties["messages"] = LLM_MESSAGES_ARRAY
-        defs = {"message": MESSAGE_SCHEMA}
+        properties["messages"] = semantic_field(
+            x_ag_type="messages",
+            jtype="array",
+            title="Messages",
+            description="Ordered list of normalized chat messages.",
+        )
 
     return obj(
         title=title,
         properties=properties,
-        additional_properties={"type": "string"},
-        defs=defs,
+        additional_properties=True,
     )
 
 
@@ -376,7 +342,13 @@ llm_v0_interface = WorkflowRevisionData(
                     },
                     additional_properties=False,
                 ),
-                "messages": LLM_MESSAGES_ARRAY,
+                "messages": semantic_field(
+                    x_ag_type="messages",
+                    jtype="array",
+                    title="Messages",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
+                ),
                 "context": obj(additional_properties=True, **{"x-ag-context": True}),
                 "consent": obj(additional_properties=True, **{"x-ag-consent": True}),
                 "response": obj(
@@ -393,18 +365,22 @@ llm_v0_interface = WorkflowRevisionData(
                 ),
             },
             additional_properties=False,
-            defs={"message": MESSAGE_SCHEMA},
         ),
         inputs=obj(
             title="LLM Inputs",
             description="Canonical runtime inputs for llm_v0 handlers.",
             properties={
-                "messages": LLM_MESSAGES_ARRAY,
-                "message": obj(
-                    properties=MESSAGE_SCHEMA["properties"],
-                    required=["role"],
-                    additional_properties=False,
-                    **{"x-ag-message": True},
+                "messages": semantic_field(
+                    x_ag_type="messages",
+                    jtype="array",
+                    title="Messages",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
+                ),
+                "message": semantic_field(
+                    x_ag_type="message",
+                    jtype="object",
+                    title="Message",
                 ),
                 "content": arr(items={"type": "object"}, **{"x-ag-content": True}),
                 "context": obj(additional_properties=True, **{"x-ag-context": True}),
@@ -414,7 +390,6 @@ llm_v0_interface = WorkflowRevisionData(
                 ),
             },
             additional_properties=True,
-            defs={"message": MESSAGE_SCHEMA},
         ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -477,15 +452,7 @@ chat_v0_interface = WorkflowRevisionData(
             "type": "object",
             "title": "Chat App Outputs",
             "description": "Final chat message returned by the workflow.",
-            "properties": {
-                "role": {
-                    "type": "string",
-                    "description": "Role of the message sender.",
-                },
-                "content": {"type": "string", "description": "Content of the message."},
-            },
-            "required": ["role", "content"],
-            "additionalProperties": True,  # allows OpenAI-style message fields like tool_calls
+            "x-ag-type": "message",
         },
     ),
 )
@@ -730,7 +697,14 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
             title="AI Critique Parameters",
             properties={
                 "prompt_template": ag_field(
-                    base=LLM_MESSAGES_ARRAY, x_ag_type="messages"
+                    base=semantic_field(
+                        x_ag_type="messages",
+                        jtype="array",
+                        title="Messages",
+                        description="Ordered list of normalized chat messages.",
+                        default=[],
+                    ),
+                    x_ag_type="messages",
                 ),
                 "correct_answer_key": ag_field(
                     base=scalar(jtype="string", default="correct_answer"),
@@ -762,7 +736,6 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
             },
             required=["prompt_template"],
             additional_properties=False,
-            defs={"message": MESSAGE_SCHEMA},
         ),
         inputs=GENERIC_EVALUATOR_INPUTS_SCHEMA,
         outputs={

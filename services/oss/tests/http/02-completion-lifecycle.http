@@ -20,6 +20,12 @@ GET {{api_url}}/preview/workflows/catalog/templates/
 Authorization: {{authorization}}
 
 ###
+# 1.x. Inspect the chat template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/workflows/catalog/templates/chat
+Authorization: {{authorization}}
+
+###
 # 1. Inspect the completion template (schema + uri)
 # @name get_template
 GET {{api_url}}/preview/workflows/catalog/templates/completion

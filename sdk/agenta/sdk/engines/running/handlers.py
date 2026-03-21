@@ -24,7 +24,7 @@ from agenta.sdk.utils.lazy import (
 )
 
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.utils.types import PromptTemplate, Message
+from agenta.sdk.utils.types import PromptTemplate, Message, Messages  # noqa: F401
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
@@ -1703,7 +1703,9 @@ async def llm_v0(
             path="llms", expected="non-empty list", got=llms
         )
 
-    param_messages: List[Dict] = list(parameters.get("messages") or [])
+    param_messages: List[Dict] = Messages.model_validate(
+        parameters.get("messages") or []
+    ).model_dump(exclude_none=True)
     template_format = str(parameters.get("template_format") or "curly")
     loop_config: Optional[Dict] = parameters.get("loop")
     tools_config: Optional[Dict] = parameters.get("tools")
@@ -1715,7 +1717,9 @@ async def llm_v0(
     if inputs is not None and not isinstance(inputs, dict):
         raise InvalidInputsV0Error(expected="dict", got=inputs)
 
-    input_messages: List[Dict] = list(run_inputs.get("messages") or [])
+    input_messages: List[Dict] = Messages.model_validate(
+        run_inputs.get("messages") or []
+    ).model_dump(exclude_none=True)
     variables: Dict = dict(run_inputs.get("variables") or {})
     input_context: Dict = dict(run_inputs.get("context") or {})
     input_consent: Optional[Dict] = run_inputs.get("consent")
@@ -1888,15 +1892,15 @@ async def llm_v0(
 @instrument(ignore_inputs=["parameters"])
 async def chat_v0(
     parameters: Data,
-    inputs: Optional[Dict[str, str]] = None,
-    messages: Optional[List[Message]] = None,
+    inputs: Dict[str, Any],
+    messages: Optional[Messages] = None,
 ):
     params: Dict[str, Any] = {**(parameters or {})}
 
     config = SinglePromptConfig(**params)
     if config.prompt.input_keys is not None:
         required_keys = set(config.prompt.input_keys)
-        provided_keys = set(inputs.keys()) if inputs is not None else set()
+        provided_keys = set(inputs.keys())
 
         if required_keys != provided_keys:
             raise InvalidInputsV0Error(
@@ -1904,14 +1908,11 @@ async def chat_v0(
                 got=sorted(provided_keys),
             )
 
-    if inputs is not None:
-        formatted_prompt = config.prompt.format(**inputs)
-    else:
-        formatted_prompt = config.prompt
+    formatted_prompt = config.prompt.format(**inputs)
     openai_kwargs = formatted_prompt.to_openai_kwargs()
 
     if messages is not None:
-        openai_kwargs["messages"].extend(messages)
+        openai_kwargs["messages"].extend(messages.model_dump(exclude_none=True))
 
     await SecretsManager.ensure_secrets_in_workflow()
 
@@ -1943,7 +1944,7 @@ async def chat_v0(
 @instrument(ignore_inputs=["parameters"])
 async def completion_v0(
     parameters: Data,
-    inputs: Dict[str, str],
+    inputs: Dict[str, Any],
 ) -> Any:
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)

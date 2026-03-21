@@ -40,7 +40,8 @@ from .sdk.utils.types import (
     GroupedMultipleChoiceParam,  # noqa: F401
     IntParam,  # noqa: F401
     MCField,  # noqa: F401
-    MessagesInput,  # noqa: F401
+    Message,  # noqa: F401
+    Messages,  # noqa: F401
     MultipleChoice,  # noqa: F401
     MultipleChoiceParam,  # noqa: F401
     Prompt,  # noqa: F401

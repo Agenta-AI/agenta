@@ -1,10 +1,10 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
 import agenta as ag
 from agenta.sdk.engines.running.handlers import chat_v0
-from agenta.sdk.types import Message, PromptTemplate
+from agenta.sdk.types import Messages, PromptTemplate
 
 
 # Create isolated chat app with its own OpenAPI schema
@@ -21,12 +21,12 @@ class ChatConfig(BaseModel):
 
 @ag.route("/", app=chat_app, flags={"is_chat": True})
 async def chat(
-    inputs: Optional[Dict[str, str]] = None,
-    messages: Optional[List[Message]] = None,
+    inputs: Dict[str, Any],
+    messages: Optional[Messages] = None,
     parameters: Optional[Dict] = None,
 ):
     if messages is None:
-        messages = []
+        messages = Messages()
 
     config = ChatConfig(**(parameters or {}))
 
