@@ -92,18 +92,6 @@ class TestFernImports:
 class TestSDKLocalTypes:
     """Test that SDK-internal types can be imported."""
 
-    def test_agenta_node_dto_import(self):
-        """Test that AgentaNodeDto SDK-internal type can be imported."""
-        from agenta.sdk.types import AgentaNodeDto
-
-        assert AgentaNodeDto is not None
-
-    def test_agenta_nodes_response_import(self):
-        """Test that AgentaNodesResponse SDK-internal type can be imported."""
-        from agenta.sdk.types import AgentaNodesResponse
-
-        assert AgentaNodesResponse is not None
-
     def test_configuration_response_import(self):
         """Test that ConfigurationResponse SDK type can be imported."""
         from agenta.sdk.types import ConfigurationResponse

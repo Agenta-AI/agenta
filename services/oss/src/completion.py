@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ class CompletionConfig(BaseModel):
 
 @ag.route("/", app=completion_app)
 async def completion(
-    inputs: Dict[str, str],
+    inputs: Dict[str, Any],
     parameters: Optional[Dict] = None,
 ):
     config = CompletionConfig(**(parameters or {}))

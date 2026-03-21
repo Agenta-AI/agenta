@@ -218,8 +218,16 @@ def completion_lifecycle(mod_api, mod_services_api):
             "uri": "agenta:builtin:completion:v0",
             "parameters": {
                 "prompt": {
-                    "system_prompt": "You are an expert in geography.",
-                    "user_prompt": "What is the capital of {{country}}?",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert in geography.",
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of {{country}}?",
+                        },
+                    ],
                     "llm_config": {"model": "gpt-4o-mini"},
                 }
             },

@@ -1,39 +1,13 @@
 import json
 from dataclasses import dataclass
-from typing import List, Union, Optional, Dict, Literal, Any
+from typing import Annotated, List, Union, Optional, Dict, Literal, Any
 
-from pydantic import ConfigDict, BaseModel, HttpUrl
+from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
-
-from starlette.responses import StreamingResponse
 
 
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
-
-
-# SDK-internal types for inline trace responses.
-# These are defined locally since they are SDK-internal models not exposed by the API.
-
-
-class AgentaNodeDto(BaseModel):
-    """SDK-internal type for inline trace node representation.
-
-    This type accepts arbitrary fields via extra="allow" since it's
-    constructed from span dictionaries with dynamic keys.
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-
-class AgentaNodesResponse(BaseModel):
-    """SDK-internal type for inline trace response."""
-
-    version: str
-    nodes: List[AgentaNodeDto] = []
-    count: Optional[int] = None
-
-    model_config = ConfigDict(extra="allow")
 
 
 @dataclass
@@ -49,11 +23,11 @@ def MCField(  # pylint: disable=invalid-name
     if isinstance(choices, dict):
         json_extra = {
             "choices": choices,
-            "x-parameter": "grouped_choice",
+            "x-ag-type": "grouped_choice",
             "x-model-metadata": model_metadata,
         }
     elif isinstance(choices, list):
-        json_extra = {"choices": choices, "x-parameter": "choice"}
+        json_extra = {"choices": choices, "x-ag-type": "choice"}
     else:
         json_extra = {}
 
@@ -70,54 +44,6 @@ class LLMTokenUsage(BaseModel):
     total_tokens: int
 
 
-class BaseResponse(BaseModel):
-    version: Optional[str] = "3.0"
-    data: Optional[Union[str, Dict[str, Any]]] = None
-    content_type: Optional[str] = "string"
-    tree: Optional[AgentaNodesResponse] = None
-    tree_id: Optional[str] = None
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
-
-    model_config = ConfigDict(use_enum_values=True, exclude_none=True)
-
-
-class StreamResponse(StreamingResponse):
-    def __init__(
-        self,
-        content,
-        media_type: str = "text/event-stream",
-        *,
-        version: Optional[str] = "3.0",
-        tree_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
-        content_type: Optional[str] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        status_code: int = 200,
-        background=None,
-    ):
-        headers = dict(extra_headers or {})
-        if version is not None:
-            headers["x-ag-version"] = version
-        if content_type:
-            headers["x-ag-content-type"] = content_type
-        if tree_id:
-            headers["x-ag-tree-id"] = tree_id
-        if trace_id:
-            headers["x-ag-trace-id"] = trace_id
-        if span_id:
-            headers["x-ag-span-id"] = span_id
-
-        super().__init__(
-            content=content,
-            media_type=media_type,
-            status_code=status_code,
-            headers=headers,
-            background=background,
-        )
-
-
 class DictInput(dict):
     def __new__(cls, default_keys: Optional[List[str]] = None):
         instance = super().__new__(cls, default_keys)
@@ -128,13 +54,13 @@ class DictInput(dict):
 
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "dict"}
+        return {"x-ag-type": "dict"}
 
 
 class TextParam(str):
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "text", "type": "string"}
+        return {"x-ag-type": "text", "type": "string"}
 
 
 class BinaryParam(int):
@@ -146,7 +72,7 @@ class BinaryParam(int):
     @classmethod
     def __schema_type_properties__(cls) -> dict:
         return {
-            "x-parameter": "bool",
+            "x-ag-type": "bool",
             "type": "boolean",
         }
 
@@ -160,7 +86,7 @@ class IntParam(int):
 
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "int", "type": "integer"}
+        return {"x-ag-type": "int", "type": "integer"}
 
 
 class FloatParam(float):
@@ -173,7 +99,7 @@ class FloatParam(float):
 
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "float", "type": "number"}
+        return {"x-ag-type": "float", "type": "number"}
 
 
 class MultipleChoiceParam(str):
@@ -201,7 +127,7 @@ class MultipleChoiceParam(str):
 
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "choice", "type": "string", "enum": []}
+        return {"x-ag-type": "choice", "type": "string", "enum": []}
 
 
 class GroupedMultipleChoiceParam(str):
@@ -239,31 +165,9 @@ class GroupedMultipleChoiceParam(str):
     @classmethod
     def __schema_type_properties__(cls) -> dict:
         return {
-            "x-parameter": "grouped_choice",
+            "x-ag-type": "grouped_choice",
             "type": "string",
         }
-
-
-class MessagesInput(list):
-    """Messages Input for Chat-completion.
-
-    Args:
-        messages (List[Dict[str, str]]): The list of messages inputs.
-        Required. Each message should be a dictionary with "role" and "content" keys.
-
-    Raises:
-        ValueError: If `messages` is not specified or empty.
-
-    """
-
-    def __new__(cls, messages: List[Dict[str, str]] = []):
-        instance = super().__new__(cls)
-        instance.default = messages  # type: ignore
-        return instance
-
-    @classmethod
-    def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "messages", "type": "array"}
 
 
 class FileInputURL(HttpUrl):
@@ -274,7 +178,7 @@ class FileInputURL(HttpUrl):
 
     @classmethod
     def __schema_type_properties__(cls) -> dict:
-        return {"x-parameter": "file_url", "type": "string"}
+        return {"x-ag-type": "file_url", "type": "string"}
 
 
 class Context(BaseModel):
@@ -342,10 +246,15 @@ class Prompt(BaseModel):
 # -----------------------------------------------------
 
 
+class ToolFunction(BaseModel):
+    name: str
+    arguments: str  # JSON string
+
+
 class ToolCall(BaseModel):
     id: str
     type: Literal["function"] = "function"
-    function: Dict[str, str]
+    function: ToolFunction
 
 
 class ImageURL(BaseModel):
@@ -374,8 +283,20 @@ class FileInput(BaseModel):
         alias="file_data",
         validation_alias=AliasChoices("file_data", "fileData"),
     )
-    filename: Optional[str] = None
+    file_url: Optional[str] = Field(
+        default=None,
+        alias="file_url",
+        validation_alias=AliasChoices("file_url", "fileUrl"),
+    )
+    file_name: Optional[str] = Field(
+        default=None,
+        alias="file_name",
+        validation_alias=AliasChoices("file_name", "fileName", "filename"),
+    )
+
     format: Optional[str] = None
+
+    mime_type: Optional[str] = None
 
     model_config = {"populate_by_name": True}
 
@@ -385,15 +306,43 @@ class ContentPartFile(BaseModel):
     file: FileInput
 
 
-ContentPart = Union[ContentPartText, ContentPartImage, ContentPartFile]
+ContentPart = Annotated[
+    Union[
+        ContentPartText,
+        ContentPartImage,
+        ContentPartFile,
+    ],
+    Field(discriminator="type"),
+]
 
 
-class Message(BaseModel):
-    role: Literal["system", "user", "assistant", "tool", "function"]
+class BaseAgMessage(BaseModel):
+    model_config = {"json_schema_extra": {"x-ag-type": "message"}}
+
+
+class Message(BaseAgMessage):
+    role: Literal["developer", "system", "user", "assistant", "tool", "function"]
     content: Optional[Union[str, List[ContentPart]]] = None
     name: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
+
+
+class BaseAgMessages(BaseModel):
+    model_config = {"json_schema_extra": {"x-ag-type": "messages"}}
+
+
+class Messages(BaseAgMessages, RootModel[List[Message]]):
+    root: List[Message] = Field(default_factory=list)
+
+    def __iter__(self):
+        return iter(self.root)
+
+    def __len__(self):
+        return len(self.root)
+
+    def __getitem__(self, item):
+        return self.root[item]
 
 
 class ResponseFormatText(BaseModel):
@@ -475,7 +424,7 @@ class ModelConfig(BaseModel):
         default=None,
         description="Controls the reasoning effort for thinking models. Options: 'none' (cost-optimized, 0 tokens), 'low' (1024 tokens), 'medium' (2048 tokens), 'high' (4096 tokens)",
         json_schema_extra={
-            "x-parameter": "choice",
+            "x-ag-type": "choice",
             "enum": ["none", "low", "medium", "high"],
         },
     )
@@ -520,7 +469,7 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-from typing import Any, Dict, Iterable, Tuple, Optional  # noqa: E402
+from typing import Iterable, Tuple  # noqa: E402
 
 from agenta.sdk.utils.lazy import _load_jinja2, _load_jsonpath  # noqa: E402
 
@@ -646,11 +595,11 @@ def missing_lib_hints(unreplaced: set) -> Optional[str]:
 class PromptTemplate(BaseModel):
     """A template for generating prompts with formatting capabilities"""
 
-    messages: List[Message] = Field(
-        default=[Message(role="system", content=""), Message(role="user", content="")]
+    messages: Messages = Field(
+        default_factory=lambda: Messages(
+            [Message(role="system", content=""), Message(role="user", content="")]
+        )
     )
-    system_prompt: Optional[str] = None
-    user_prompt: Optional[str] = None
     template_format: Literal["fstring", "jinja2", "curly"] = Field(
         default="curly",
         description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
@@ -666,9 +615,7 @@ class PromptTemplate(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "x-parameters": {
-                "prompt": "true",
-            }
+            "x-ag-type": "prompt-template",
         }
     }
 

@@ -20,6 +20,12 @@ GET {{api_url}}/preview/workflows/catalog/templates/
 Authorization: {{authorization}}
 
 ###
+# 1.x. Inspect the chat template (schema + uri)
+# @name get_template
+GET {{api_url}}/preview/workflows/catalog/templates/chat
+Authorization: {{authorization}}
+
+###
 # 1. Inspect the completion template (schema + uri)
 # @name get_template
 GET {{api_url}}/preview/workflows/catalog/templates/completion
@@ -43,8 +49,10 @@ Authorization: {{authorization}}
       "uri": "agenta:builtin:completion:v0",
       "parameters": {
         "prompt": {
-          "system_prompt": "You are an expert in geography",
-          "user_prompt": "What is the capital of {{country}}?",
+          "messages": [
+            { "role": "system", "content": "You are an expert in geography" },
+            { "role": "user", "content": "What is the capital of {{country}}?" }
+          ],
           "llm_config": {
             "model": "gpt-4o-mini"
           }
@@ -108,8 +116,10 @@ Authorization: {{authorization}}
     "inputs": { "country": "France" },
     "parameters": {
       "prompt": {
-        "system_prompt": "You are an expert in geography",
-        "user_prompt": "What is the capital of {{country}}?",
+        "messages": [
+          { "role": "system", "content": "You are an expert in geography" },
+          { "role": "user", "content": "What is the capital of {{country}}?" }
+        ],
         "llm_config": { "model": "gpt-4o-mini" }
       }
     }
@@ -131,8 +141,10 @@ Authorization: {{authorization}}
         "uri": "agenta:builtin:completion:v0",
         "parameters": {
           "prompt": {
-            "system_prompt": "You are an expert in geography",
-            "user_prompt": "What is the capital of {{country}}?",
+            "messages": [
+              { "role": "system", "content": "You are an expert in geography" },
+              { "role": "user", "content": "What is the capital of {{country}}?" }
+            ],
             "llm_config": { "model": "gpt-4o-mini" }
           }
         }
@@ -172,8 +184,10 @@ Authorization: {{authorization}}
     "inputs": { "country": "France" },
     "parameters": {
       "prompt": {
-        "system_prompt": "You are an expert in geography",
-        "user_prompt": "What is the capital of {{country}}?",
+        "messages": [
+          { "role": "system", "content": "You are an expert in geography" },
+          { "role": "user", "content": "What is the capital of {{country}}?" }
+        ],
         "llm_config": { "model": "gpt-4o-mini" }
       }
     }
@@ -192,8 +206,10 @@ Authorization: {{authorization}}
     "inputs": { "country": "France" },
     "parameters": {
       "prompt": {
-        "system_prompt": "You are an expert in geography",
-        "user_prompt": "What is the population of {{country}}?",
+        "messages": [
+          { "role": "system", "content": "You are an expert in geography" },
+          { "role": "user", "content": "What is the population of {{country}}?" }
+        ],
         "llm_config": { "model": "gpt-4o-mini" }
       }
     }

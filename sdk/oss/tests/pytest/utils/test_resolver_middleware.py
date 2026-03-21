@@ -104,9 +104,10 @@ class TestHasEmbedMarkers:
     def test_plain_config_no_embeds(self):
         config = {
             "parameters": {
-                "system_prompt": "You are helpful.",
-                "temperature": 0.7,
-                "model": "gpt-4",
+                "prompt": {
+                    "messages": [{"role": "system", "content": "You are helpful."}],
+                    "llm_config": {"temperature": 0.7, "model": "gpt-4"},
+                }
             }
         }
         assert _has_embed_markers(config) is False
