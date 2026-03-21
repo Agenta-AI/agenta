@@ -565,6 +565,7 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
+    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
 
     blocked_emails: set = {
         e.strip().lower()

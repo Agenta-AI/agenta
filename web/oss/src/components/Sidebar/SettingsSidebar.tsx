@@ -17,7 +17,7 @@ import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
-import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -40,7 +40,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const {user} = useProfileData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
-    const canShowBilling = isEE() && isOwner
+    const canShowBilling = isEE() && isBillingEnabled() && isOwner
     const canShowTools = isToolsEnabled()
 
     useEffect(() => {

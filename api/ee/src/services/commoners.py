@@ -30,10 +30,10 @@ from ee.src.services.email_helper import (
 from oss.src.core.auth.service import AuthService
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.core.subscriptions.service import SubscriptionsService
+from ee.src.core.subscriptions.types import get_default_plan
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
 from ee.src.utils.entitlements import check_entitlements, Gauge
-
 
 log = get_module_logger(__name__)
 
@@ -119,7 +119,6 @@ async def add_user_to_demos(user_id: str) -> None:
 async def create_accounts(
     payload: dict,
     organization_name: Optional[str] = None,
-    use_reverse_trial: bool = True,
 ):
     """Creates a user account and an associated organization based on the
     provided payload.
@@ -127,7 +126,6 @@ async def create_accounts(
     Arguments:
         payload (dict): The required payload. It consists of; user_id and user_email
         organization_name (str): Optional name override for the organization.
-        use_reverse_trial (bool): Use reverse trial (True) or hobby plan (False). Default: True
     """
 
     # Only keep fields expected by UserDB to avoid TypeErrors (e.g., organization_id)
@@ -179,12 +177,11 @@ async def create_accounts(
 
                 # Create organization with workspace and subscription
                 resolved_org_name = organization_name or user_dict["username"]
-                await create_organization_with_subscription(
+                await create_organization_for_signup(
                     user_id=UUID(str(user.id)),
                     organization_email=user_dict["email"],
                     organization_name=resolved_org_name,
                     organization_description="Default Organization",
-                    use_reverse_trial=use_reverse_trial,
                 )
             except Exception:
                 # Setup failed - delete the user to avoid orphaned state
@@ -246,24 +243,17 @@ async def create_accounts(
             log.warn("[scopes] account creation lock already expired")
 
 
-async def create_organization_with_subscription(
+async def create_organization_for_signup(
     user_id: UUID,
     organization_email: str,
     organization_name: Optional[str] = None,
     organization_description: Optional[str] = None,
-    use_reverse_trial: bool = False,
 ) -> OrganizationDB:
-    """Create an organization with workspace and subscription for an existing user.
+    """Create an organization for a newly signed-up user.
 
-    Args:
-        user_id: The user's UUID
-        organization_email: The user's email for subscription
-        organization_name: Name for the organization
-        organization_description: Optional description
-        use_reverse_trial: Use reverse trial (True) or hobby plan (False)
-
-    Returns:
-        OrganizationDB: The created organization
+    Uses the signup subscription policy:
+    - Cloud (Stripe enabled): reverse trial
+    - Self-hosted (no Stripe): default plan
     """
     # Get user object
     user = await db_manager.get_user(str(user_id))
@@ -286,28 +276,72 @@ async def create_organization_with_subscription(
 
     log.info("[scopes] Organization [%s] created", organization.id)
 
-    # Start subscription based on type
+    # Provision the initial signup subscription for the organization
     try:
-        if use_reverse_trial:
-            await subscription_service.start_reverse_trial(
-                organization_id=str(organization.id),
-                organization_name=organization.name,
-                organization_email=organization_email,
-            )
-        else:
-            # Start hobby/free plan
-            await subscription_service.start_free_plan(
-                organization_id=str(organization.id),
-            )
+        await subscription_service.provision_signup_subscription(
+            organization_id=str(organization.id),
+            organization_name=organization.name,
+            organization_email=organization_email,
+        )
     except Exception as exc:
         log.error(
             "[scopes] Failed to create subscription for organization [%s]: %s",
             organization.id,
             exc,
         )
-        raise exc
+        raise
 
     # Check entitlements
+    await check_entitlements(
+        organization_id=str(organization.id),
+        key=Gauge.USERS,
+        delta=1,
+    )
+
+    return organization
+
+
+async def create_organization_for_user(
+    user_id: UUID,
+    organization_name: Optional[str] = None,
+    organization_description: Optional[str] = None,
+) -> OrganizationDB:
+    """Create an organization for an existing user.
+
+    Uses the default plan directly, no trial.
+    This is the entry point for explicit org creation (POST /organizations/).
+    """
+    user = await db_manager.get_user(str(user_id))
+    if not user:
+        raise ValueError(f"User {user_id} not found")
+
+    create_org_payload = CreateOrganization(
+        name=organization_name,
+        description=organization_description,
+        is_demo=False,
+        owner_id=user_id,
+    )
+
+    organization = await create_organization(
+        payload=create_org_payload,
+        user=user,
+    )
+
+    log.info("[scopes] Organization [%s] created", organization.id)
+
+    try:
+        await subscription_service.start_plan(
+            organization_id=str(organization.id),
+            plan=get_default_plan(),
+        )
+    except Exception as exc:
+        log.error(
+            "[scopes] Failed to create subscription for organization [%s]: %s",
+            organization.id,
+            exc,
+        )
+        raise
+
     await check_entitlements(
         organization_id=str(organization.id),
         key=Gauge.USERS,

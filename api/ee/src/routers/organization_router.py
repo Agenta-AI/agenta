@@ -42,7 +42,7 @@ from ee.src.services.organization_service import (
     get_organization_details,
     transfer_organization_ownership as transfer_ownership_service,
 )
-from ee.src.services.commoners import create_organization_with_subscription
+from ee.src.services.commoners import create_organization_for_user
 from ee.src.services.organization_service import OrganizationProvidersService
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.core.organizations.types import (
@@ -401,12 +401,10 @@ async def create_organization(
                 status_code=404,
             )
 
-        organization = await create_organization_with_subscription(
+        organization = await create_organization_for_user(
             user_id=UUID(str(user.id)),
-            organization_email=user.email,
             organization_name=payload.name,
             organization_description=payload.description,
-            use_reverse_trial=False,  # Use hobby plan instead
         )
 
         return JSONResponse(
