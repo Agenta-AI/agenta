@@ -220,11 +220,76 @@ snippet_v0_interface = WorkflowRevisionData(
 match_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:match:v0",
     schemas=dict(  # type: ignore
-        parameters=obj(
-            title="Match Parameters",
-            description="Matcher configuration payload.",
-            additional_properties=True,
-        ),
+        parameters={
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "title": "Match Parameters",
+            "description": "Matcher configuration payload.",
+            "properties": {
+                "matchers": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/matcher"},
+                    "description": "Recursive list of matcher nodes to execute.",
+                }
+            },
+            "required": ["matchers"],
+            "$defs": {
+                "matcher": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "path": {"type": "string"},
+                        "kind": {
+                            "type": "string",
+                            "enum": ["text", "json"],
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": [
+                                "valid",
+                                "exact",
+                                "starts_with",
+                                "ends_with",
+                                "contains",
+                                "regex",
+                                "similarity",
+                                "overlap",
+                            ],
+                        },
+                        "reference": True,
+                        "references": {
+                            "type": "array",
+                            "items": True,
+                        },
+                        "match": {
+                            "type": "string",
+                            "enum": ["all", "any"],
+                        },
+                        "case_sensitive": {"type": "boolean"},
+                        "threshold": {"type": "number"},
+                        "distance": {
+                            "type": "string",
+                            "enum": ["jaccard", "levenshtein", "cosine"],
+                        },
+                        "embedding_model": {"type": "string"},
+                        "use_schema_only": {"type": "boolean"},
+                        "include_unexpected_keys": {"type": "boolean"},
+                        "aggregate": {
+                            "type": "string",
+                            "enum": ["all", "any", "weighted"],
+                        },
+                        "weight": {"type": "number"},
+                        "matchers": {
+                            "type": "array",
+                            "items": {"$ref": "#/$defs/matcher"},
+                        },
+                    },
+                    "required": ["path"],
+                    "additionalProperties": True,
+                }
+            },
+            "additionalProperties": True,
+        },
         inputs=obj(
             title="Match Inputs",
             additional_properties=True,
