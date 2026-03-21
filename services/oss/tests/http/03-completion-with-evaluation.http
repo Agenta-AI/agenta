@@ -29,8 +29,13 @@ Authorization: {{authorization}}
       "uri": "agenta:builtin:completion:v0",
       "parameters": {
         "prompt": {
-          "system_prompt": "You are an expert in geography. Answer in the form of 'The capital of {country} is {capital}.'",
-          "user_prompt": "What is the capital of {{country}}?",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography. Answer in the form of 'The capital of {country} is {capital}.'"
+            },
+            { "role": "user", "content": "What is the capital of {{country}}?" }
+          ],
           "llm_config": { "model": "gpt-4o-mini" }
         }
       }
