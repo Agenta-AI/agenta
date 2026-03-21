@@ -649,8 +649,6 @@ class PromptTemplate(BaseModel):
     messages: List[Message] = Field(
         default=[Message(role="system", content=""), Message(role="user", content="")]
     )
-    system_prompt: Optional[str] = None
-    user_prompt: Optional[str] = None
     template_format: Literal["fstring", "jinja2", "curly"] = Field(
         default="curly",
         description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",

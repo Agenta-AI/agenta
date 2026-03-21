@@ -1,4 +1,7 @@
+from copy import deepcopy
+
 from agenta.sdk.models.workflows import WorkflowRevisionData
+from agenta.sdk.utils.types import PromptTemplate
 
 
 JSON_SCHEMA = "https://json-schema.org/draft/2020-12/schema"
@@ -144,6 +147,64 @@ LLM_MESSAGES_ARRAY = arr(
     default=[],
     **{"x-ag-messages": True},
 )
+
+
+def prompt_template_schema(*, default: dict | None = None) -> dict:
+    schema = deepcopy(PromptTemplate.model_json_schema())
+
+    # Normalize schema metadata for frontend consumers.
+    x_parameters = dict(schema.get("x-parameters") or {})
+    x_parameters["prompt"] = True
+    schema["x-parameters"] = x_parameters
+
+    messages = schema.get("properties", {}).get("messages")
+    if isinstance(messages, dict):
+        messages["x-ag-messages"] = True
+
+    # Reuse the canonical model selector metadata already used elsewhere.
+    llm_config = schema.get("properties", {}).get("llm_config")
+    if isinstance(llm_config, dict) and llm_config.get("$ref") == "#/$defs/ModelConfig":
+        model_field = (
+            schema.get("$defs", {})
+            .get("ModelConfig", {})
+            .get("properties", {})
+            .get("model")
+        )
+        if isinstance(model_field, dict):
+            model_field.clear()
+            model_field.update(deepcopy(MODEL_FIELD))
+
+    if default is not None:
+        schema["default"] = default
+
+    return schema
+
+
+def single_prompt_parameters_schema(*, title: str, prompt_default: dict) -> dict:
+    return obj(
+        title=title,
+        properties={
+            "prompt": prompt_template_schema(default=prompt_default),
+        },
+        additional_properties=True,
+    )
+
+
+def llm_inputs_schema(*, title: str, include_messages: bool) -> dict:
+    properties = {}
+    defs = None
+
+    if include_messages:
+        properties["messages"] = LLM_MESSAGES_ARRAY
+        defs = {"message": MESSAGE_SCHEMA}
+
+    return obj(
+        title=title,
+        properties=properties,
+        additional_properties={"type": "string"},
+        defs=defs,
+    )
+
 
 GENERIC_EVALUATOR_INPUTS_SCHEMA = obj(
     title="Evaluator Inputs",
@@ -389,25 +450,27 @@ llm_v0_interface = WorkflowRevisionData(
 chat_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:chat:v0",
     schemas=dict(  # type: ignore
-        parameters=obj(
-            title="Legacy Chat Parameters",
-            properties={
-                "model": MODEL_FIELD,
-                "temperature": scalar(jtype="number"),
-                "max_tokens": scalar(jtype="integer"),
-                "top_p": scalar(jtype="number"),
-                "frequency_penalty": scalar(jtype="number"),
-                "presence_penalty": scalar(jtype="number"),
-                "prompt_system": scalar(jtype="string"),
-                "prompt_user": scalar(jtype="string"),
+        parameters=single_prompt_parameters_schema(
+            title="Chat Parameters",
+            prompt_default={
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a helpful customer service chatbot. Please help "
+                            "the user with their query.\nUse the following context if "
+                            "available:\n<context>{{context}}</context>"
+                        ),
+                    }
+                ],
+                "template_format": "curly",
+                "input_keys": None,
+                "llm_config": {"model": "gpt-4o-mini"},
             },
-            additional_properties=True,
         ),
-        inputs=obj(
-            title="Legacy Chat Inputs",
-            properties={"messages": LLM_MESSAGES_ARRAY},
-            additional_properties=True,
-            defs={"message": MESSAGE_SCHEMA},
+        inputs=llm_inputs_schema(
+            title="Chat Inputs",
+            include_messages=True,
         ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -430,23 +493,27 @@ chat_v0_interface = WorkflowRevisionData(
 completion_v0_interface = WorkflowRevisionData(
     uri="agenta:builtin:completion:v0",
     schemas=dict(  # type: ignore
-        parameters=obj(
-            title="Legacy Completion Parameters",
-            properties={
-                "model": MODEL_FIELD,
-                "temperature": scalar(jtype="number"),
-                "max_tokens": scalar(jtype="integer"),
-                "top_p": scalar(jtype="number"),
-                "frequency_penalty": scalar(jtype="number"),
-                "presence_penalty": scalar(jtype="number"),
-                "prompt_system": scalar(jtype="string"),
-                "prompt_user": scalar(jtype="string"),
+        parameters=single_prompt_parameters_schema(
+            title="Completion Parameters",
+            prompt_default={
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an expert in geography",
+                    },
+                    {
+                        "role": "user",
+                        "content": "What is the capital of {{country}}?",
+                    },
+                ],
+                "template_format": "curly",
+                "input_keys": None,
+                "llm_config": {"model": "gpt-4o-mini"},
             },
-            additional_properties=True,
         ),
-        inputs=obj(
-            title="Legacy Completion Inputs",
-            additional_properties=True,
+        inputs=llm_inputs_schema(
+            title="Completion Inputs",
+            include_messages=False,
         ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
