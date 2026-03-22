@@ -140,9 +140,13 @@ export {
     StatusTag,
     getStatusColor,
     getStatusLabel,
+    EnvironmentTag,
+    environmentColors,
     type StatusTagProps,
     type QueryStatus,
     type ExecutionStatus,
+    type EnvironmentTagProps,
+    type EnvironmentName,
 } from "./status"
 
 // ============================================================================
@@ -166,7 +170,15 @@ export {SourceIndicator, type SourceIndicatorProps} from "./source-indicator"
 // INPUT COMPONENTS
 // ============================================================================
 
-export {SliderInput, LabeledField, type SliderInputProps, type LabeledFieldProps} from "./inputs"
+export {
+    SliderInput,
+    LabeledField,
+    CommitMessageInput,
+    COMMIT_MESSAGE_MAX_LENGTH,
+    type SliderInputProps,
+    type LabeledFieldProps,
+    type CommitMessageInputProps,
+} from "./inputs"
 
 // ============================================================================
 // SKELETON COMPONENTS

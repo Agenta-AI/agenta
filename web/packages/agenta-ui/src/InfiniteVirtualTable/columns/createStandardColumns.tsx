@@ -363,5 +363,5 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
     }
 }
 
-// Export individual column creators for custom use
-export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn}
+// Export individual column creators and utilities for custom use
+export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn, formatDateCell}
