@@ -115,7 +115,7 @@ export const createAppWithTemplate = async ({
     onStatusChange,
 }: {
     appName: string
-    templateKey: AppServiceType
+    templateKey: string
     serviceUrl?: string
     providerKey: LlmProvider[]
     folderId?: string | null
