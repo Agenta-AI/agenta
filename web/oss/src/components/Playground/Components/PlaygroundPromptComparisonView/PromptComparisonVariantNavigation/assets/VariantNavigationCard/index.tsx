@@ -8,6 +8,7 @@ import {
     playgroundController,
 } from "@agenta/playground"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import {VersionBadge} from "@agenta/ui"
 import {DraftTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
@@ -15,8 +16,6 @@ import {PlusCircle, Timer, X} from "@phosphor-icons/react"
 import {Button, Modal, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
-
-import Version from "../../../../../assets/Version"
 
 import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
@@ -181,7 +180,9 @@ const VariantNavigationCard = ({
                             // Regular revision: show name and version tag, with Draft tag if dirty
                             <>
                                 <Text>{variantName}</Text>
-                                {variantVersion != null && <Version revision={variantVersion} />}
+                                {variantVersion != null && (
+                                    <VersionBadge version={variantVersion} variant="chip" />
+                                )}
                                 {isDirty && <DraftTag />}
                             </>
                         )}

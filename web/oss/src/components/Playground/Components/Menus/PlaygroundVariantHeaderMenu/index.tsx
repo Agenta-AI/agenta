@@ -8,7 +8,6 @@ import {ArrowCounterClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {discardEntityDraft} from "../../../assets/entityHelpers"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"
@@ -33,7 +32,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         e?.domEvent?.stopPropagation()
         if (!variantId) return
         try {
-            discardEntityDraft(variantId)
+            workflowMolecule.set.discard(variantId)
             message.success("Draft changes discarded")
         } catch (err) {
             message.error("Failed to discard draft changes")

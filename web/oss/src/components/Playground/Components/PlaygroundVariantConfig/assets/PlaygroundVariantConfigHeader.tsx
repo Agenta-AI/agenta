@@ -18,7 +18,6 @@ import dynamic from "next/dynamic"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
-import {discardEntityDraft} from "../../../assets/entityHelpers"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -131,14 +130,14 @@ const PlaygroundVariantConfigHeader = ({
     const handleDiscardLocalDraft = useCallback(() => {
         if (!variantId || !isLocalDraftVariant) return
         removeEntity(variantId)
-        discardEntityDraft(variantId)
+        workflowMolecule.set.discard(variantId)
     }, [variantId, isLocalDraftVariant, removeEntity])
 
     // Discard handler for regular revisions (shown in DraftTag dropdown)
     const handleRevisionDiscardDraft = useCallback(() => {
         if (!_variantId) return
         try {
-            discardEntityDraft(_variantId as string)
+            workflowMolecule.set.discard(_variantId as string)
             message.success("Draft changes discarded")
         } catch (e) {
             message.error("Failed to discard draft changes")

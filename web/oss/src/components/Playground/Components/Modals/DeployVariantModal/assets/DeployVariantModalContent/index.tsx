@@ -1,11 +1,10 @@
 import {useMemo} from "react"
 
-import {CommitMessageInput, EnvironmentTag} from "@agenta/ui"
+import {CommitMessageInput, EnvironmentTag, VersionBadge} from "@agenta/ui"
 import {Typography, Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useAtomValue} from "jotai"
 
-import Version from "@/oss/components/Playground/assets/Version"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 
 import {deployNoteAtom, deploySelectedEnvAtom} from "../../store/deployVariantModalStore"
@@ -54,7 +53,9 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
         <section className="flex flex-col gap-4" data-tour="deploy-variant-modal">
             <Typography.Text>
                 Select an environment to deploy <span className="font-medium">{variantName}</span>{" "}
-                {typeof revision !== "undefined" && <Version revision={revision} />}
+                {typeof revision !== "undefined" && (
+                    <VersionBadge version={revision} variant="chip" />
+                )}
             </Typography.Text>
 
             <Table
