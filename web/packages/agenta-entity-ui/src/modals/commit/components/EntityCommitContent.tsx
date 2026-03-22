@@ -8,6 +8,7 @@
 import {useState, useEffect} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
+import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -28,11 +29,7 @@ import {
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
 // const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
 
-const {TextArea} = Input
 const {Text} = Typography
-
-/** Max length for commit messages */
-const COMMIT_MESSAGE_MAX_LENGTH = 500
 
 export interface CommitModeOption {
     id: string
@@ -265,21 +262,16 @@ export function EntityCommitContent({
                 {extraContent}
 
                 {/* Commit/Create message */}
-                <div className="flex flex-col gap-2">
-                    <label htmlFor="commit-message" className="font-medium text-gray-700">
-                        {actionLabel} message
-                    </label>
-                    <TextArea
-                        id="commit-message"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Describe your changes..."
-                        autoSize={{minRows: 3, maxRows: 6}}
-                        disabled={!canCommit}
-                        showCount
-                        maxLength={COMMIT_MESSAGE_MAX_LENGTH}
-                    />
-                </div>
+                <CommitMessageInput
+                    value={message}
+                    onChange={setMessage}
+                    label={`${actionLabel} message`}
+                    showOptional={false}
+                    placeholder="Describe your changes..."
+                    minRows={3}
+                    maxRows={6}
+                    disabled={!canCommit}
+                />
 
                 {/* Error display */}
                 {error && (
