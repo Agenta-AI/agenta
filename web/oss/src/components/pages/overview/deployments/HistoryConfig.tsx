@@ -1,10 +1,11 @@
 import {useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
+import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 
 interface HistoryConfigProps {
     /** The workflow/app revision ID to display configuration for */
@@ -25,14 +26,13 @@ const HistoryConfig = ({revisionId, showOriginal}: HistoryConfigProps) => {
             <Typography.Text className="text-base font-medium">Configuration</Typography.Text>
 
             {hasParams ? (
-                <div className="flex flex-col gap-6 grow">
-                    <div className="flex flex-col gap-2 grow">
-                        <NewVariantParametersView
-                            revisionId={revisionId}
-                            showOriginal={showOriginal}
-                        />
-                    </div>
-                </div>
+                <OSSdrillInUIProvider>
+                    <PlaygroundConfigSection
+                        revisionId={revisionId}
+                        disabled={!!showOriginal}
+                        useServerData={!!showOriginal}
+                    />
+                </OSSdrillInUIProvider>
             ) : (
                 <Typography.Text type="secondary" className="font-medium text-center mt-12">
                     No Parameters

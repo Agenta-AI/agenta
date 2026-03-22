@@ -86,7 +86,7 @@ function getSharedConcurrencyLimiter(): <T>(fn: () => Promise<T>) => Promise<T> 
 /**
  * Injectable function that returns auth headers for worker HTTP requests.
  *
- * OSS sets this once in OSSPlaygroundEntityProvider.tsx with a function
+ * OSS sets this once in AppGlobalWrappers with a function
  * that calls `getJWT()` and returns `{Authorization: \`Bearer ${jwt}\`}`.
  *
  * @example

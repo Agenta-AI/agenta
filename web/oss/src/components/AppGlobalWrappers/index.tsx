@@ -1,14 +1,19 @@
 import {memo, useEffect} from "react"
 
 import {setUserAtoms} from "@agenta/entities/shared/user"
+import {executionItemController} from "@agenta/playground"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Router from "next/router"
 
+import {getJWT} from "@/oss/services/api"
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
+
+// Side-effect: registers selection callback and workflow commit/archive callbacks
+import "@/oss/state/newPlayground/workflowEntityBridge"
 
 // Initialize user atoms for @agenta/entities shared user resolution
 // This enables UserAuthorLabel and other user resolution features
@@ -57,8 +62,8 @@ const EditAppModalWrapper = dynamic(
     {ssr: false},
 )
 
-const VariantDrawerWrapper = dynamic(
-    () => import("@/oss/components/VariantsComponents/Drawers/VariantDrawer/VariantDrawerWrapper"),
+const WorkflowRevisionDrawerWrapper = dynamic(
+    () => import("@/oss/components/WorkflowRevisionDrawerWrapper"),
     {ssr: false},
 )
 
@@ -90,10 +95,7 @@ const CustomWorkflowModalMount = dynamic(
     {ssr: false},
 )
 
-const EvaluatorDrawersWrapper = dynamic(
-    () => import("@/oss/components/Evaluators/Drawers/EvaluatorDrawersWrapper"),
-    {ssr: false},
-)
+// EvaluatorDrawersWrapper replaced by WorkflowRevisionDrawerWrapper
 
 const OnboardingWidget = dynamic(
     () => import("@/oss/components/Onboarding/Widget/OnboardingWidget"),
@@ -183,8 +185,20 @@ const NavigationCommandListener = () => {
     return null
 }
 
+/** Stable ref: returns auth headers for worker HTTP requests */
+const getAuthHeaders = async () => {
+    const jwt = await getJWT()
+    return jwt ? {Authorization: `Bearer ${jwt}`} : {}
+}
+
 const AppGlobalWrappers = () => {
     useAtomValue(urlQuerySyncAtom)
+
+    // Register auth headers provider once globally for playground execution workers
+    const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)
+    useEffect(() => {
+        setHeaders(() => getAuthHeaders)
+    }, [setHeaders])
 
     return (
         <EntityModalsProvider>
@@ -193,7 +207,7 @@ const AppGlobalWrappers = () => {
             <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
-            <VariantDrawerWrapper />
+            <WorkflowRevisionDrawerWrapper />
             <VariantComparisonModalWrapper />
             <DeleteEvaluationModalWrapper />
             <DeployVariantModalWrapper />
@@ -202,7 +216,7 @@ const AppGlobalWrappers = () => {
             <DeploymentConfirmationModalWrapper />
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
-            <EvaluatorDrawersWrapper />
+            {/* EvaluatorDrawersWrapper merged into WorkflowRevisionDrawerWrapper */}
             <OnboardingWidget />
         </EntityModalsProvider>
     )

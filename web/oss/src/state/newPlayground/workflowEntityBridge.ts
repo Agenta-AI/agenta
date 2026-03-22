@@ -26,9 +26,12 @@ import {
     type WorkflowArchiveResult,
 } from "@agenta/entities/workflow"
 import {playgroundController, setOnSelectionChangeCallback} from "@agenta/playground"
+import {
+    workflowRevisionDrawerEntityIdAtom as drawerVariantIdAtom,
+    workflowRevisionDrawerExpandedAtom,
+} from "@agenta/playground-ui/workflow-revision-drawer"
 import {getDefaultStore} from "jotai"
 
-import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {
     registryPaginatedStore,
     clearRegistryVariantNameCache,
@@ -42,11 +45,20 @@ import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 // ============================================================================
 
 setOnSelectionChangeCallback((entityIds, _removed) => {
-    // Sync selection to URL
-    void writePlaygroundSelectionToQuery(entityIds)
+    const store = getDefaultStore()
+
+    // Skip URL sync when running inside the drawer's embedded playground.
+    // The drawer sets entity IDs via playgroundController but does NOT use
+    // URL-based state — writing the URL on a non-playground page causes
+    // cascading side effects and can freeze the page.
+    const isDrawerExpanded = store.get(workflowRevisionDrawerExpandedAtom)
+
+    if (!isDrawerExpanded) {
+        // Sync selection to URL (only on the actual playground page)
+        void writePlaygroundSelectionToQuery(entityIds)
+    }
 
     // Keep drawer selection consistent
-    const store = getDefaultStore()
     const currentDrawerId = store.get(drawerVariantIdAtom)
     if (!currentDrawerId || !entityIds.includes(currentDrawerId)) {
         store.set(drawerVariantIdAtom, entityIds[0] ?? null)

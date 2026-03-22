@@ -1,40 +1,51 @@
+import {
+    workflowRevisionDrawerOpenAtom,
+    workflowRevisionDrawerEntityIdAtom,
+    workflowRevisionDrawerContextAtom,
+    closeWorkflowRevisionDrawerAtom,
+    openWorkflowRevisionDrawerAtom,
+    type DrawerContext,
+} from "@agenta/playground-ui/workflow-revision-drawer"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
-import {
-    variantDrawerAtom,
-    drawerVariantIdAtom,
-} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
-
-import {isVariantSupportedRoute} from "./routeMatchers"
+import {isDrawerSupportedRoute} from "./routeMatchers"
 
 const isBrowser = typeof window !== "undefined"
 
 export const clearVariantDrawerState = () => {
     const store = getDefaultStore()
-    const current = store.get(variantDrawerAtom)
+    const isOpen = store.get(workflowRevisionDrawerOpenAtom)
 
-    if (current.open || current.selectedVariantId) {
-        store.set(variantDrawerAtom, (draft) => {
-            draft.open = false
-            draft.selectedVariantId = undefined
-            draft.type = "variant"
-        })
-        store.set(drawerVariantIdAtom, null)
+    if (isOpen) {
+        store.set(closeWorkflowRevisionDrawerAtom)
     }
 }
 
-const resolveDrawerTypeForPath = (
+const VALID_DRAWER_TYPES = new Set<DrawerContext>([
+    "variant",
+    "deployment",
+    "evaluator-view",
+    "evaluator-create",
+])
+
+const resolveDrawerContextForPath = (
     pathname: string,
     tab?: string | null,
-): "variant" | "deployment" => {
-    if (tab === "deployments") {
-        return "deployment"
+): DrawerContext => {
+    if (pathname.includes("/evaluators")) {
+        return "evaluator-view"
     }
-    if (pathname.includes("/deployments")) {
+    if (tab === "deployments" || pathname.includes("/deployments")) {
         return "deployment"
     }
     return "variant"
+}
+
+const sanitizeDrawerType = (value: string | null): DrawerContext | undefined => {
+    if (!value) return undefined
+    const normalized = value.trim().toLowerCase() as DrawerContext
+    return VALID_DRAWER_TYPES.has(normalized) ? normalized : undefined
 }
 
 export const syncVariantStateFromUrl = (nextUrl?: string) => {
@@ -47,21 +58,13 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
         const resolvedRevisionId = revisionParam?.trim() || undefined
         const drawerTypeParam = url.searchParams.get("drawerType")
         const tabParam = url.searchParams.get("tab")
-        const routeSupportsVariant = isVariantSupportedRoute(url.pathname)
-        const currentState = store.get(variantDrawerAtom)
-
-        const sanitizeDrawerType = (value: string | null): "variant" | "deployment" | undefined => {
-            if (!value) return undefined
-            const normalized = value.trim().toLowerCase()
-            if (normalized === "deployment") return "deployment"
-            if (normalized === "variant") return "variant"
-            return undefined
-        }
+        const routeSupportsDrawer = isDrawerSupportedRoute(url.pathname)
+        const currentEntityId = store.get(workflowRevisionDrawerEntityIdAtom)
+        const currentOpen = store.get(workflowRevisionDrawerOpenAtom)
+        const currentContext = store.get(workflowRevisionDrawerContextAtom)
 
         const ensureUrlClean = () => {
             let mutated = false
-            // Note: "revisions" param is owned by the playground URL sync
-            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
             if (url.searchParams.has("drawerType")) {
                 const sanitized = sanitizeDrawerType(url.searchParams.get("drawerType"))
                 if (!sanitized) {
@@ -75,60 +78,51 @@ export const syncVariantStateFromUrl = (nextUrl?: string) => {
             if (mutated) {
                 const newPath = `${url.pathname}${url.search}${url.hash}`
                 void Router.replace(newPath, undefined, {shallow: true}).catch((error) => {
-                    console.error("Failed to normalize variant drawer query params:", error)
+                    console.error("Failed to normalize drawer query params:", error)
                 })
             }
         }
 
-        if (!routeSupportsVariant) {
-            // Note: "revisions" param is owned by the playground URL sync
-            // (syncPlaygroundStateFromUrl), not the variant drawer. Don't touch it here.
+        if (!routeSupportsDrawer) {
             if ((revisionParam && revisionParam.trim()) || url.searchParams.has("drawerType")) {
                 url.searchParams.delete("revisionId")
                 url.searchParams.delete("drawerType")
                 const newPath = `${url.pathname}${url.search}${url.hash}`
                 void Router.replace(newPath, undefined, {shallow: true}).catch((error) => {
-                    console.error("Failed to remove unsupported variant query params:", error)
+                    console.error("Failed to remove unsupported drawer query params:", error)
                 })
             }
             clearVariantDrawerState()
-            store.set(drawerVariantIdAtom, null)
             return
         }
 
         if (!resolvedRevisionId) {
             ensureUrlClean()
-            if (currentState.open || currentState.selectedVariantId) {
+            if (currentOpen) {
                 clearVariantDrawerState()
             }
-            store.set(drawerVariantIdAtom, null)
             return
         }
 
         ensureUrlClean()
 
         const desiredType =
-            sanitizeDrawerType(drawerTypeParam) ?? resolveDrawerTypeForPath(url.pathname, tabParam)
+            sanitizeDrawerType(drawerTypeParam) ??
+            resolveDrawerContextForPath(url.pathname, tabParam)
 
         if (
-            currentState.selectedVariantId === resolvedRevisionId &&
-            currentState.open &&
-            currentState.type === desiredType
+            currentEntityId === resolvedRevisionId &&
+            currentOpen &&
+            currentContext === desiredType
         ) {
-            store.set(drawerVariantIdAtom, resolvedRevisionId)
             return
         }
 
-        store.set(variantDrawerAtom, (draft) => {
-            if (!draft.variantsAtom) {
-                draft.variantsAtom = undefined
-            }
-            draft.type = desiredType
-            draft.open = true
-            draft.selectedVariantId = resolvedRevisionId
+        store.set(openWorkflowRevisionDrawerAtom, {
+            entityId: resolvedRevisionId,
+            context: desiredType,
         })
-        store.set(drawerVariantIdAtom, resolvedRevisionId)
     } catch (err) {
-        console.error("Failed to sync variant drawer state from URL:", nextUrl, err)
+        console.error("Failed to sync drawer state from URL:", nextUrl, err)
     }
 }

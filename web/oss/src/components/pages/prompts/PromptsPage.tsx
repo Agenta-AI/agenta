@@ -13,7 +13,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {getTemplateKey, timeout} from "@/oss/components/pages/app-management/assets/helpers"
+import {timeout} from "@/oss/components/pages/app-management/assets/helpers"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import DeleteAppModal from "@/oss/components/pages/app-management/modals/DeleteAppModal"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
@@ -23,12 +23,10 @@ import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {Template} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
-import {ServiceType, createAppWithTemplate, updateAppFolder} from "@/oss/services/app-selector/api"
+import {createAppWithTemplate, updateAppFolder} from "@/oss/services/app-selector/api"
 import {createFolder, deleteFolder, editFolder} from "@/oss/services/folders"
 import {Folder, FolderKind} from "@/oss/services/folders/types"
-import {useTemplates} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useProfileData} from "@/oss/state/profile"
 import {getProjectValues} from "@/oss/state/project"
@@ -80,7 +78,6 @@ const PromptsPage = () => {
     const router = useRouter()
     const {baseAppURL} = useURL()
     const {user} = useProfileData()
-    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
@@ -105,8 +102,8 @@ const PromptsPage = () => {
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [deleteFolderId, setDeleteFolderId] = useState<string | null>(null)
     const [moveSelection, setMoveSelection] = useState<string | null>(null)
-    const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
-    const [newApp, setNewApp] = useState("")
+    const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
+    const [appName, setAppName] = useState("")
     const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const [moveEntity, setMoveEntity] = useState<{
         type: "folder" | "app"
@@ -233,11 +230,6 @@ const PromptsPage = () => {
         flattenedTableRows,
         getRowKey,
     })
-
-    const appNameExist = useMemo(
-        () => workflows.some((w) => (w.name || "").toLowerCase() === newApp.toLowerCase()),
-        [workflows, newApp],
-    )
 
     const moveDestinationName = useMemo(
         () => getMoveDestinationName(moveSelection),
@@ -383,7 +375,9 @@ const PromptsPage = () => {
         }
     }
 
-    const handleTemplateCardClick = async (template_id: string) => {
+    const handleTemplateCardClick = async (templateId: string, submittedAppName: string) => {
+        setAppName(submittedAppName)
+        setTemplateKey(templateId)
         setIsAddAppFromTemplatedModal(false)
         setStatusModalOpen(true)
         resetAppCreation()
@@ -391,8 +385,8 @@ const PromptsPage = () => {
         const apiKeys = secrets
 
         await createAppWithTemplate({
-            appName: newApp,
-            templateKey: template_id as ServiceType,
+            appName: submittedAppName,
+            templateKey: templateId,
             folderId: currentFolderId ?? null,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
@@ -422,7 +416,7 @@ const PromptsPage = () => {
             refetchWorkflows()
         }
         if (templateKey) {
-            await handleTemplateCardClick(templateKey as string)
+            await handleTemplateCardClick(templateKey, appName)
         }
     }
 
@@ -833,30 +827,12 @@ const PromptsPage = () => {
             <AddAppFromTemplatedModal
                 open={isAddAppFromTemplatedModal}
                 onCancel={() => setIsAddAppFromTemplatedModal(false)}
-                newApp={newApp}
-                templates={templates}
-                noTemplateMessage={noTemplateMessage}
-                templateKey={templateKey as ServiceType}
-                appNameExist={appNameExist}
-                setNewApp={setNewApp}
-                onCardClick={(template: Template) => {
-                    const selectedTemplateKey = getTemplateKey(template)
-
-                    if (selectedTemplateKey) {
-                        setTemplateKey(selectedTemplateKey)
-                    }
-                }}
                 handleTemplateCardClick={handleTemplateCardClick}
-                fetchingTemplate={!!fetchingTemplate}
-                afterClose={() => {
-                    setTemplateKey(undefined)
-                    setNewApp("")
-                }}
             />
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate || fetchingCustomWorkflow}
+                loading={fetchingCustomWorkflow}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {
@@ -864,7 +840,7 @@ const PromptsPage = () => {
                     resetAppCreation()
                 }}
                 statusData={statusData}
-                appName={newApp}
+                appName={appName}
             />
 
             <DeleteAppModal />
