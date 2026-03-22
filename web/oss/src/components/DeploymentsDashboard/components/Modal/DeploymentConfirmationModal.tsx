@@ -1,11 +1,10 @@
 import {ComponentProps, Dispatch, SetStateAction} from "react"
 
-import {EnhancedModal} from "@agenta/ui"
+import {CommitMessageInput, EnhancedModal} from "@agenta/ui"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Modal, Space, Typography} from "antd"
 
 import type {DeploymentVariantInfo} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
-import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 type DeploymentConfirmationModalProps = {
@@ -43,10 +42,10 @@ const DeploymentConfirmationModalContent = ({
                 )}
             </Space>
             {displayNote && (
-                <CommitNote
-                    note={note || ""}
-                    setNote={setNote || (() => {})}
-                    text={`${isDeploy ? "Deploy" : "Revert"} message`}
+                <CommitMessageInput
+                    value={note || ""}
+                    onChange={setNote || (() => {})}
+                    label={`${isDeploy ? "Deploy" : "Revert"} message`}
                 />
             )}
         </Space>

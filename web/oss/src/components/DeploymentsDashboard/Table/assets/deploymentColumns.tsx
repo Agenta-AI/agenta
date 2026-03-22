@@ -1,35 +1,15 @@
-import {memo, useSyncExternalStore} from "react"
+import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
-import {SkeletonLine, createStandardColumns} from "@agenta/ui/table"
+import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
 import {ArrowCounterClockwise, ArrowSquareOut, Eye, Lightning} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {getDefaultStore} from "jotai"
 
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {routerAppIdAtom} from "@/oss/state/app"
 
 import type {DeploymentRevisionRow} from "../../store/deploymentStore"
-
-// ============================================================================
-// DEFAULT STORE HOOK
-// ============================================================================
-
-/**
- * Reads an atom from Jotai's default store, bypassing any Provider scope.
- * Needed because IVT cell renderers run inside an isolated Jotai Provider,
- * but entity atoms (sessionAtom, projectIdAtom) live in the default store.
- */
-function useDefaultStoreAtomValue<T>(atom: import("jotai").Atom<T>): T {
-    const store = getDefaultStore()
-    return useSyncExternalStore(
-        (cb) => store.sub(atom, cb),
-        () => store.get(atom),
-        () => store.get(atom),
-    )
-}
 
 // ============================================================================
 // CELL RENDERERS
@@ -71,8 +51,10 @@ const CommitMessageCell = memo(({record}: {record: DeploymentRevisionRow}) => {
     const msg = record.commitMessage
     if (!msg) return null
     return (
-        <div onClick={(e) => e.stopPropagation()}>
-            <TruncatedTooltipTag width={560}>{msg}</TruncatedTooltipTag>
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                {msg}
+            </Typography.Text>
         </div>
     )
 })

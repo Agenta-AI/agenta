@@ -7,6 +7,7 @@ import {
     workflowVariantsListDataAtomFamily,
     workflowsListDataAtom,
 } from "@agenta/entities/workflow"
+import {CommitMessageInput} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {textColors} from "@agenta/ui/styles"
@@ -15,7 +16,6 @@ import {Typography} from "antd"
 import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import type {RegistryRevisionRow} from "@/oss/components/VariantsComponents/store/registryStore"
 import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/registryStore"
 import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
@@ -247,7 +247,7 @@ const SelectDeployVariantModalContent = ({
                     )}
                 </div>
 
-                <CommitNote note={note} setNote={setNote as any} text="Deploy message" />
+                <CommitMessageInput value={note} onChange={setNote} label="Deploy message" />
             </div>
 
             {/* Right: revision table — fixed height prevents infinite growth in modal */}

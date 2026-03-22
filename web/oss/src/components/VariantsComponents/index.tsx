@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {environmentsListQueryAtomFamily} from "@agenta/entities/environment"
 import type {Environment as EntityEnvironment} from "@agenta/entities/environment"
+import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
@@ -145,6 +146,20 @@ const VariantsDashboard = () => {
     useEffect(() => {
         recordWidgetEvent("registry_page_viewed")
     }, [recordWidgetEvent])
+
+    // Navigation: keep drawer prev/next list in sync with visible table rows.
+    // Uses an effect so navigation works even when the drawer is opened via URL.
+    const tableState = useAtomValue(registryPaginatedStore.selectors.state(CONTROLLER_PARAMS))
+    const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
+
+    useEffect(() => {
+        const navIds = tableState.rows
+            .map((r) => r.revisionId)
+            .filter((id): id is string => Boolean(id))
+        if (navIds.length > 0) {
+            setNavigationIds(navIds)
+        }
+    }, [tableState.rows, setNavigationIds])
 
     // Handlers
     const handleOpenDetails = useCallback(

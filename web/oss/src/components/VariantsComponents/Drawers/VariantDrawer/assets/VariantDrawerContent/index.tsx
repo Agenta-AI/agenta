@@ -4,7 +4,7 @@ import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
-import {FormattedDate} from "@agenta/ui"
+import {EnvironmentTag, FormattedDate} from "@agenta/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Switch, Tabs, TabsProps, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -12,7 +12,6 @@ import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
-import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
@@ -214,7 +213,7 @@ const VariantDrawerContent = ({
                         <Text className="font-medium">Deployment</Text>
                         <div className="flex flex-col gap-1">
                             {deployedIn.map((env, idx) => (
-                                <EnvironmentTagLabel key={idx} environment={env.name} />
+                                <EnvironmentTag key={idx} environment={env.name} />
                             ))}
                         </div>
                     </Space>

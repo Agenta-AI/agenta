@@ -28,7 +28,7 @@ const EnvironmentStatus: FC<{
             : fallbackDeployedIn) || []
 
     return (
-        <Space className={clsx(["environment-badges", className])}>
+        <Space className={clsx(["environment-badges ml-1", className])}>
             {deployedIn.map((env) => {
                 return (
                     <Tooltip key={env.name} title={env.name}>

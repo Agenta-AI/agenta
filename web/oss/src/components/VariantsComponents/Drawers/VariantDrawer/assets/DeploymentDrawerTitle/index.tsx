@@ -2,6 +2,7 @@ import {memo, useCallback} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable/deploy"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {EnvironmentTag} from "@agenta/ui"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
@@ -10,7 +11,6 @@ import {atomFamily} from "jotai/utils"
 
 import {deploymentsDrawerStateAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentDrawerStore"
 import {openDeploymentConfirmationModalAtom} from "@/oss/components/DeploymentsDashboard/modals/store/deploymentModalsStore"
-import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {appEnvironmentsAtom} from "@/oss/state/environment/appEnvironmentAtoms"
 
@@ -77,7 +77,7 @@ const DeploymentDrawerTitle = ({
 
                 <div className="flex items-center gap-2">
                     {/*TODO: update this with select variant deployment */}
-                    <EnvironmentTagLabel environment={envName || ""} />
+                    <EnvironmentTag environment={envName || ""} />
                     <Tag bordered={false} className="bg-[#0517290F]">
                         v{envRevisionVersion ?? selectedVariant?.version}
                     </Tag>

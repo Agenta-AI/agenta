@@ -1,9 +1,9 @@
-import {memo, useSyncExternalStore} from "react"
+import {memo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {SkeletonLine, createStandardColumns} from "@agenta/ui/table"
+import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
 import {
     ArrowSquareOut,
     CloudArrowUp,
@@ -15,31 +15,11 @@ import {
 import {Typography} from "antd"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 
-import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
 
 import type {RegistryRevisionRow} from "../../store/registryStore"
-
-// ============================================================================
-// DEFAULT STORE HOOK
-// ============================================================================
-
-/**
- * Reads an atom from Jotai's default store, bypassing any Provider scope.
- * Needed because IVT cell renderers run inside an isolated Jotai Provider,
- * but entity atoms (sessionAtom, projectIdAtom) live in the default store.
- */
-function useDefaultStoreAtomValue<T>(atomArg: import("jotai").Atom<T>): T {
-    const store = getDefaultStore()
-    return useSyncExternalStore(
-        (cb) => store.sub(atomArg, cb),
-        () => store.get(atomArg),
-        () => store.get(atomArg),
-    )
-}
 
 // ============================================================================
 // SCALAR ATOM FAMILIES (molecule-backed, for cell renderers)
@@ -119,8 +99,10 @@ const CommitMessageCell = memo(({revisionId}: {revisionId: string}) => {
     const msg = useDefaultStoreAtomValue(revisionCommitMessageAtomFamily(revisionId))
     if (!msg) return null
     return (
-        <div className="h-full flex items-center" onClick={(e) => e.stopPropagation()}>
-            <TruncatedTooltipTag width={560}>{msg}</TruncatedTooltipTag>
+        <div className="h-full flex items-center">
+            <Typography.Text type="secondary" className="text-xs truncate block">
+                {msg}
+            </Typography.Text>
         </div>
     )
 })
