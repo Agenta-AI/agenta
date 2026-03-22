@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
+import {ArrowLeft, Code, Rocket, Sparkle, TreeView} from "@phosphor-icons/react"
 import {Typography, Card, Button} from "antd"
 import {useRouter} from "next/router"
 
@@ -17,7 +17,11 @@ const {Title} = Typography
 
 type ViewState = "selection" | "trace" | "eval"
 
-const GetStarted = () => {
+interface GetStartedProps {
+    onSelectDemo?: () => void
+}
+
+const GetStarted = ({onSelectDemo}: GetStartedProps) => {
     const tracingClasses = useTracingStyles()
     const router = useRouter()
     const posthog = usePostHogAg()
@@ -195,6 +199,25 @@ const GetStarted = () => {
                     </div>
                 </Card>
             </div>
+
+            {onSelectDemo && (
+                <>
+                    <div className="flex items-center gap-4 w-full max-w-[600px] text-[var(--ant-color-text-tertiary)] text-sm">
+                        <div className="flex-1 h-px bg-[var(--ant-color-border-secondary)]" />
+                        <span>or</span>
+                        <div className="flex-1 h-px bg-[var(--ant-color-border-secondary)]" />
+                    </div>
+
+                    <button
+                        type="button"
+                        className="flex items-center gap-2 text-[var(--ant-color-text-secondary)] text-base cursor-pointer transition-colors duration-200 hover:text-[var(--ant-color-primary)] bg-transparent border-none p-0"
+                        onClick={onSelectDemo}
+                    >
+                        <Sparkle size={18} />
+                        <span>Explore demo workspace</span>
+                    </button>
+                </>
+            )}
 
             <Button type="link" onClick={navigateToDestination}>
                 Skip
