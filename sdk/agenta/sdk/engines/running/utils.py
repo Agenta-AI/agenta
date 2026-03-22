@@ -625,29 +625,21 @@ def infer_flags_from_data(
 _MATCH_RESULT_DEF: Dict[str, Any] = {
     "type": "object",
     "properties": {
-        "key": {"type": "string"},
-        "target": {"type": "string"},
         "success": {"type": "boolean"},
         "score": {"type": "number"},
-        "error": {"type": "boolean"},
-        "status": {"type": "string"},
-        "message": {"type": "string"},
+        "error": {"type": ["string", "null"]},
     },
-    "required": ["key", "success", "score", "error", "status"],
+    "required": ["success", "score"],
     "additionalProperties": {"$ref": "#/$defs/result"},
 }
 
 
 _MATCH_RESULT_BASE_PROPS: Dict[str, Any] = {
-    "key": {"type": "string"},
-    "target": {"type": "string"},
     "success": {"type": "boolean"},
     "score": {"type": "number"},
-    "error": {"type": "boolean"},
-    "status": {"type": "string"},
-    "message": {"type": "string"},
+    "error": {"type": ["string", "null"]},
 }
-_MATCH_RESULT_BASE_REQUIRED: List[str] = ["key", "success", "score", "error", "status"]
+_MATCH_RESULT_BASE_REQUIRED: List[str] = ["success", "score", "error"]
 
 
 def _build_match_result_schema(matcher: Dict[str, Any]) -> Dict[str, Any]:

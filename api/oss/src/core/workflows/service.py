@@ -12,6 +12,7 @@ from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
     infer_url_from_uri,
     infer_outputs_schema,
+    retrieve_interface,
 )
 
 from oss.src.core.git.interfaces import GitDAOInterface
@@ -742,19 +743,35 @@ class WorkflowsService:
                     update={"url": env.agenta.services_url.rstrip("/") + path}
                 )
 
-        if data and data.uri and data.parameters is not None:
-            inferred_outputs = infer_outputs_schema(
-                uri=data.uri,
-                parameters=data.parameters,
+        if data and data.uri:
+            interface = retrieve_interface(data.uri)
+            current_schemas = data.schemas or {}
+            schemas_dict = (
+                current_schemas
+                if isinstance(current_schemas, dict)
+                else current_schemas.model_dump(mode="json", exclude_none=True)
             )
-            if inferred_outputs is not None:
-                current_schemas = data.schemas or {}
-                schemas_dict = (
-                    current_schemas
-                    if isinstance(current_schemas, dict)
-                    else current_schemas.model_dump(mode="json", exclude_none=True)
+
+            if interface and interface.schemas:
+                iface_schemas = (
+                    interface.schemas
+                    if isinstance(interface.schemas, dict)
+                    else interface.schemas.model_dump(mode="json", exclude_none=True)
                 )
-                schemas_dict = {**schemas_dict, "outputs": inferred_outputs}
+                if "parameters" not in schemas_dict and "parameters" in iface_schemas:
+                    schemas_dict["parameters"] = iface_schemas["parameters"]
+                if "outputs" not in schemas_dict and "outputs" in iface_schemas:
+                    schemas_dict["outputs"] = iface_schemas["outputs"]
+
+            if data.parameters is not None:
+                inferred_outputs = infer_outputs_schema(
+                    uri=data.uri,
+                    parameters=data.parameters,
+                )
+                if inferred_outputs is not None:
+                    schemas_dict["outputs"] = inferred_outputs
+
+            if schemas_dict:
                 data = data.model_copy(update={"schemas": schemas_dict})
 
         workflow_revision_commit = workflow_revision_commit.model_copy(

@@ -694,12 +694,14 @@ def _assert_match_result(resp, *, expected_success: bool = None, min_results: in
     assert "data" in payload, f"Missing 'data': {payload}"
     outputs = payload["data"]["outputs"]
     assert isinstance(outputs, dict), f"outputs should be dict, got: {outputs}"
-    assert "results" in outputs, f"Missing 'results' in outputs: {outputs}"
-    assert len(outputs["results"]) >= min_results, (
-        f"Expected >= {min_results} result(s), got: {outputs['results']}"
+    assert "score" in outputs, f"Missing 'score' in outputs: {outputs}"
+    assert "success" in outputs, f"Missing 'success' in outputs: {outputs}"
+    matcher_nodes = {k: v for k, v in outputs.items() if k not in ("score", "success")}
+    assert len(matcher_nodes) >= min_results, (
+        f"Expected >= {min_results} matcher result(s), got: {matcher_nodes}"
     )
     if expected_success is not None:
-        first = outputs["results"][0]
+        first = next(iter(matcher_nodes.values()))
         assert first.get("success") is expected_success, (
             f"Expected success={expected_success}, got: {first}"
         )
@@ -1006,7 +1008,7 @@ class TestMatchV0Kinds:
             outputs="Paris",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_text_similarity_levenshtein_one_edit(self, services_api):
         """text/similarity levenshtein: one edit apart → high score, success depends on threshold."""
@@ -1026,7 +1028,7 @@ class TestMatchV0Kinds:
             outputs="Pariss",  # 1 insertion → distance=1, normalized ~0.83
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score", 0) > 0.5
+        assert result["m"].get("score", 0) > 0.5
 
     def test_text_similarity_jaccard_identical(self, services_api):
         """text/similarity jaccard (SequenceMatcher): identical strings → score=1.0."""
@@ -1046,7 +1048,7 @@ class TestMatchV0Kinds:
             outputs="Paris is the capital",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_text_similarity_jaccard_different(self, services_api):
         """text/similarity jaccard: completely different strings → low score, success=False."""
@@ -1192,7 +1194,7 @@ class TestMatchV0Kinds:
             outputs='{"city": "Paris", "country": "France"}',
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_json_overlap_partial(self, services_api):
         """json/overlap: half fields match → score=0.5, fails at threshold=0.8."""
@@ -1212,7 +1214,7 @@ class TestMatchV0Kinds:
             outputs='{"city": "Paris", "country": "Germany"}',
         )
         result = _assert_match_result(resp, expected_success=False)
-        score = result["results"][0].get("score", 1.0)
+        score = result["m"].get("score", 1.0)
         assert score < 0.8
 
     def test_json_overlap_schema_only(self, services_api):
@@ -1272,7 +1274,7 @@ class TestMatchV0Aggregation:
             outputs="Paris is the capital of France",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["root"].get("score") == pytest.approx(1.0)
 
     def test_aggregate_all_one_fails(self, services_api):
         """aggregate=all: one child fails → success=False (AND semantics)."""
@@ -1478,5 +1480,4 @@ class TestMatchV0Aggregation:
             outputs="Paris is the capital of France",
         )
         result = _assert_match_result(resp, min_results=3)
-        keys = [r["key"] for r in result["results"]]
-        assert "m1" in keys and "m2" in keys and "m3" in keys
+        assert "m1" in result and "m2" in result and "m3" in result

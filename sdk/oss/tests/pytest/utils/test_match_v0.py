@@ -636,8 +636,8 @@ class TestMatchRecursive:
             outputs={"name": "Alice", "age": "30"},
         )
         assert r["success"] is True
-        assert len(r["children"]) == 2
-        assert all(c["success"] for c in r["children"])
+        assert "name" in r and "age" in r
+        assert r["name"]["success"] and r["age"]["success"]
 
     def test_aggregate_all_one_fails(self):
         r = first_result(
@@ -1802,7 +1802,7 @@ class TestParityJsonMultiFieldMatch:
         )
         assert legacy["aggregate_score"] == pytest.approx(1.0)
         assert m["success"] is True
-        assert all(c["success"] for c in m["children"])
+        assert m["name"]["success"] and m["city"]["success"]
         # Both report full success
         assert (legacy["aggregate_score"] == 1.0) == m["success"]
 

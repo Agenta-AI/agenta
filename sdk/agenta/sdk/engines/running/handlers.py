@@ -448,25 +448,16 @@ def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:
 
 
 def _make_match_result(
-    key: str,
-    target: str,
     success: bool,
     score: float,
-    error: bool = False,
-    status: str = "ok",
-    message: Optional[str] = None,
+    error: Optional[str] = None,
     children: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
-        "key": key,
-        "target": target,
         "success": success,
         "score": score,
         "error": error,
-        "status": status,
     }
-    if message is not None:
-        result["message"] = message
     if children is not None:
         result.update(children)
     return result
@@ -771,7 +762,6 @@ async def _execute_match_node(
     request: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Execute a single matcher node, recursing into children when present."""
-    key = str(matcher.get("key", ""))
     target = str(matcher.get("target", ""))
     mode = str(matcher.get("mode", "text"))
     match_type = str(matcher.get("match", "valid"))
@@ -790,13 +780,9 @@ async def _execute_match_node(
         actual = resolve_any(target, request)
     except Exception as e:
         return _make_match_result(
-            key,
-            target,
             False,
             0.0,
-            error=True,
-            status="error",
-            message=f"Target resolution failed for '{target}': {e}",
+            error=f"Target resolution failed for '{target}': {e}",
             children=children or None,
         )
 
@@ -807,9 +793,7 @@ async def _execute_match_node(
         agg_success, agg_score = _aggregate_child_results(
             child_matchers, list(children.values()), score_agg, success_agg, threshold
         )
-        return _make_match_result(
-            key, target, agg_success, agg_score, children=children
-        )
+        return _make_match_result(agg_success, agg_score, children=children)
 
     # No children: execute own mode
     reference_expr = matcher.get("reference")
@@ -876,28 +860,12 @@ async def _execute_match_node(
                 message=f"Unknown match: {match_type!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'diff'."
             )
 
-        return _make_match_result(key, target, success, score)
+        return _make_match_result(success, score)
 
     except ErrorStatus as e:
-        return _make_match_result(
-            key,
-            target,
-            False,
-            0.0,
-            error=True,
-            status="error",
-            message=e.message,
-        )
+        return _make_match_result(False, 0.0, error=e.message)
     except Exception as e:
-        return _make_match_result(
-            key,
-            target,
-            False,
-            0.0,
-            error=True,
-            status="error",
-            message=str(e),
-        )
+        return _make_match_result(False, 0.0, error=str(e))
 
 
 def _apply_responses_bridge_if_needed(

@@ -335,21 +335,14 @@ match_v0_interface = WorkflowRevisionData(
                 "result": {
                     "type": "object",
                     "properties": {
-                        "key": {
-                            "type": "string",
-                            "description": "Matcher key copied onto the result node.",
-                        },
-                        "target": {
-                            "type": "string",
-                            "description": "Matcher target copied onto the result node.",
-                        },
                         "success": {"type": "boolean"},
                         "score": {"type": "number"},
-                        "error": {"type": "boolean"},
-                        "status": {"type": "string"},
-                        "message": {"type": "string"},
+                        "error": {
+                            "type": ["string", "null"],
+                            "description": "Error message if evaluation failed, null otherwise.",
+                        },
                     },
-                    "required": ["key", "success", "score", "error", "status"],
+                    "required": ["success", "score"],
                     "additionalProperties": {"$ref": "#/$defs/result"},
                 }
             },
