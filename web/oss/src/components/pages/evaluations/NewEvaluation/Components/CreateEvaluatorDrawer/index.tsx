@@ -26,14 +26,12 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
-import {EntitySelectorProvider} from "@agenta/playground-ui/components"
+import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {ArrowsIn, ArrowsOut} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {
@@ -44,7 +42,7 @@ import {
 } from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
-import {OSSPlaygroundEntityProvider} from "@/oss/components/Playground/OSSPlaygroundEntityProvider"
+import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 
 import {closeDrawerAtom, drawerEntityIdAtom, drawerExpandedAtom, drawerOpenAtom} from "./state"
@@ -235,24 +233,18 @@ const DrawerContent = ({
     )
 
     return (
-        <OSSPlaygroundEntityProvider>
-            <PlaygroundUIProvider providers={providers}>
-                <EntitySelectorProvider>
-                    <OSSdrillInUIProvider>
-                        <div className="flex flex-col w-full h-full overflow-hidden">
-                            <DrawerHeader entityId={entityId} onClose={onClose} />
-                            <PlaygroundMainView
-                                mode="evaluator"
-                                viewMode={isExpanded ? "full" : "configOnly"}
-                                configEntityIdsOverride={configEntityIds}
-                                runDisabled={!hasAppConnected}
-                                runDisabledContent={runDisabledContent}
-                            />
-                        </div>
-                    </OSSdrillInUIProvider>
-                </EntitySelectorProvider>
-            </PlaygroundUIProvider>
-        </OSSPlaygroundEntityProvider>
+        <OSSPlaygroundShell providers={providers}>
+            <div className="flex flex-col w-full h-full overflow-hidden">
+                <DrawerHeader entityId={entityId} onClose={onClose} />
+                <PlaygroundMainView
+                    mode="evaluator"
+                    viewMode={isExpanded ? "full" : "configOnly"}
+                    configEntityIdsOverride={configEntityIds}
+                    runDisabled={!hasAppConnected}
+                    runDisabledContent={runDisabledContent}
+                />
+            </div>
+        </OSSPlaygroundShell>
     )
 }
 

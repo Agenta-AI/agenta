@@ -6,6 +6,7 @@ import {
     createEvaluatorFromTemplate,
     type EvaluatorCatalogTemplate,
 } from "@agenta/entities/workflow"
+import {workflowRevisionDrawerNavigationIdsAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {PlusOutlined} from "@ant-design/icons"
@@ -20,6 +21,7 @@ import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
+import {useQueryParamState} from "@/oss/state/appState"
 import {getProjectValues} from "@/oss/state/project"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
@@ -51,9 +53,26 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const setSearchTerm = useSetAtom(evaluatorSearchTermAtom)
     const refreshStore = useSetAtom(evaluatorsPaginatedStore.actions.refresh)
 
-    // Global drawer actions
+    // URL-driven drawer (same pattern as variants registry)
+    const [, setQueryRevision] = useQueryParamState("revisionId")
     const openEvaluatorDrawer = useSetAtom(openEvaluatorDrawerAtom)
     const openHumanDrawer = useSetAtom(openHumanEvaluatorDrawerAtom)
+
+    // Navigation: keep drawer prev/next list in sync with visible table rows
+    const EVAL_CONTROLLER_PARAMS = useMemo(() => ({scopeId: "evaluators", pageSize: 50}), [])
+    const evalTableState = useAtomValue(
+        evaluatorsPaginatedStore.selectors.state(EVAL_CONTROLLER_PARAMS),
+    )
+    const setNavigationIds = useSetAtom(workflowRevisionDrawerNavigationIdsAtom)
+
+    useEffect(() => {
+        const navIds = evalTableState.rows
+            .map((r) => r.revisionId)
+            .filter((id): id is string => Boolean(id))
+        if (navIds.length > 0) {
+            setNavigationIds(navIds)
+        }
+    }, [evalTableState.rows, setNavigationIds])
 
     useEffect(() => {
         if (isValidEvaluatorTab(tabState)) {
@@ -141,13 +160,12 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 })
             } else {
                 const revisionId = record.revisionId || record.workflowId
-                openEvaluatorDrawer({
-                    entityId: revisionId,
-                    mode: "view",
-                })
+                if (revisionId) {
+                    setQueryRevision(revisionId, {shallow: true})
+                }
             }
         },
-        [activeTab, openEvaluatorDrawer, openHumanDrawer, refetchAll],
+        [activeTab, openHumanDrawer, refetchAll, setQueryRevision],
     )
 
     const handleConfirmDelete = useCallback(async () => {
@@ -191,10 +209,9 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
         () => ({
             handleConfigure: (record: EvaluatorTableRow) => {
                 const revisionId = record.revisionId || record.workflowId
-                openEvaluatorDrawer({
-                    entityId: revisionId,
-                    mode: "view",
-                })
+                if (revisionId) {
+                    setQueryRevision(revisionId, {shallow: true})
+                }
             },
             handleEdit: (record: EvaluatorTableRow) => {
                 openHumanDrawer({
@@ -211,7 +228,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 setIsDeleteModalOpen(true)
             },
         }),
-        [openEvaluatorDrawer, openHumanDrawer, refetchAll],
+        [setQueryRevision, openHumanDrawer, refetchAll],
     )
 
     const activeTabLabel = useMemo(() => {

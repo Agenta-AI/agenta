@@ -7,50 +7,19 @@ import {
     workflowMolecule,
     resolveOutputSchemaProperties,
 } from "@agenta/entities/workflow"
-import {SkeletonLine, createStandardColumns} from "@agenta/ui/table"
+import {
+    SkeletonLine,
+    createStandardColumns,
+    useDefaultStoreAtomValue,
+    formatDateCell,
+} from "@agenta/ui/table"
 import {Eye, GearSix, MinusCircle, PencilSimple, PlusCircle, Trash} from "@phosphor-icons/react"
 import {Tag, Typography} from "antd"
-import type {Atom} from "jotai"
-import {atom, useAtomValue} from "jotai"
+import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-import {getDefaultStore} from "jotai/vanilla"
 
 import type {EvaluatorCategory} from "../../assets/types"
 import type {EvaluatorTableRow} from "../../store/evaluatorsPaginatedStore"
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/** Matches the date format used by IVT's built-in date columns. */
-const formatDateDisplay = (value: string): string => {
-    try {
-        return new Intl.DateTimeFormat(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "numeric",
-        }).format(new Date(value))
-    } catch {
-        return value
-    }
-}
-
-// ============================================================================
-// DEFAULT STORE HOOK
-// ============================================================================
-
-const defaultStore = getDefaultStore()
-
-/**
- * Reads an atom from Jotai's default store, bypassing any Provider scope.
- * IVT cell renderers run inside an isolated Jotai Provider,
- * but entity atoms live in the default store.
- */
-function useDefaultStoreAtomValue<T>(atomArg: Atom<T>): T {
-    return useAtomValue(atomArg, {store: defaultStore})
-}
 
 // ============================================================================
 // SCALAR ATOM FAMILIES
@@ -118,21 +87,23 @@ const EvaluatorTypeCell = memo(({revisionId}: {revisionId: string}) => {
     const color = getEvaluatorColor(evaluatorKey)
 
     return (
-        <Tag
-            bordered
-            style={
-                color
-                    ? {
-                          backgroundColor: color.bg,
-                          color: color.text,
-                          borderColor: color.border,
-                      }
-                    : undefined
-            }
-            className="!m-0 capitalize"
-        >
-            {label}
-        </Tag>
+        <div className="h-full flex items-center">
+            <Tag
+                bordered
+                style={
+                    color
+                        ? {
+                              backgroundColor: color.bg,
+                              color: color.text,
+                              borderColor: color.border,
+                          }
+                        : undefined
+                }
+                className="!m-0 capitalize"
+            >
+                {label}
+            </Tag>
+        </div>
     )
 })
 
@@ -370,7 +341,7 @@ const DateCell = memo(({date}: {date: string | null}) => {
     return (
         <div className="h-full flex items-center">
             <Typography.Text type="secondary" className="text-xs">
-                {formatDateDisplay(date)}
+                {formatDateCell(date)}
             </Typography.Text>
         </div>
     )
@@ -385,7 +356,7 @@ const UpdatedAtCell = memo(({workflowId}: {workflowId: string}) => {
     return (
         <div className="h-full flex items-center">
             <Typography.Text type="secondary" className="text-xs">
-                {formatDateDisplay(updatedAt)}
+                {formatDateCell(updatedAt)}
             </Typography.Text>
         </div>
     )
@@ -400,7 +371,7 @@ const UpdatedAtRevisionCell = memo(({revisionId}: {revisionId: string}) => {
     return (
         <div className="h-full flex items-center">
             <Typography.Text type="secondary" className="text-xs">
-                {formatDateDisplay(updatedAt)}
+                {formatDateCell(updatedAt)}
             </Typography.Text>
         </div>
     )

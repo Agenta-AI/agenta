@@ -20,17 +20,15 @@ import {
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {PlaygroundUIProvider, type PlaygroundUIProviders} from "@agenta/playground-ui"
-import {EntitySelectorProvider} from "@agenta/playground-ui/components"
+import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
 import {Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
-import {OSSPlaygroundEntityProvider} from "@/oss/components/Playground/OSSPlaygroundEntityProvider"
+import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
 import {playgroundSyncAtom} from "@/oss/state/url/playground"
 
@@ -152,26 +150,20 @@ const ConfigureEvaluatorPageInner = () => {
     )
 
     return (
-        <OSSPlaygroundEntityProvider>
-            <PlaygroundUIProvider providers={providers}>
-                <EntitySelectorProvider>
-                    <OSSdrillInUIProvider>
-                        <div className="flex flex-col w-full h-full overflow-hidden">
-                            <EvaluatorPlaygroundHeader
-                                appWorkflowAdapter={appWorkflowAdapter}
-                                onAppSelect={handleAppSelect}
-                            />
-                            <PlaygroundMainView
-                                mode="evaluator"
-                                configEntityIdsOverride={configEntityIds}
-                                runDisabled={!hasAppConnected}
-                                runDisabledContent={runDisabledContent}
-                            />
-                        </div>
-                    </OSSdrillInUIProvider>
-                </EntitySelectorProvider>
-            </PlaygroundUIProvider>
-        </OSSPlaygroundEntityProvider>
+        <OSSPlaygroundShell providers={providers}>
+            <div className="flex flex-col w-full h-full overflow-hidden">
+                <EvaluatorPlaygroundHeader
+                    appWorkflowAdapter={appWorkflowAdapter}
+                    onAppSelect={handleAppSelect}
+                />
+                <PlaygroundMainView
+                    mode="evaluator"
+                    configEntityIdsOverride={configEntityIds}
+                    runDisabled={!hasAppConnected}
+                    runDisabledContent={runDisabledContent}
+                />
+            </div>
+        </OSSPlaygroundShell>
     )
 }
 
