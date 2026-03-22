@@ -33,6 +33,7 @@ export const PROVIDER_ICON_MAP: Record<string, string> = {
     lepton: "Lepton",
     replicate: "Replicate",
     xai: "xAI",
+    minimax: "MiniMax",
 }
 
 /**

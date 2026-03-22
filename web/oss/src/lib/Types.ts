@@ -302,6 +302,7 @@ export enum SecretDTOProvider {
     TOGETHERAI = "together_ai",
     OPENROUTER = "openrouter",
     GEMINI = "gemini",
+    MINIMAX = "minimax",
 }
 
 export const PROVIDER_LABELS: Record<string, string> = {
@@ -318,6 +319,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     together_ai: "Together AI",
     openrouter: "OpenRouter",
     gemini: "Google Gemini",
+    minimax: "MiniMax",
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",
     // sagemaker: "AWS SageMaker",

@@ -31,6 +31,7 @@ import Replicate from "./assets/Replicate"
 import Sagemaker from "./assets/Sagemaker"
 import Together from "./assets/Together"
 import Vertex from "./assets/Vertex"
+import MiniMax from "./assets/MiniMax"
 import XAI from "./assets/XAI"
 
 export type {IconProps} from "./assets/types"
@@ -60,6 +61,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
     Lepton: Lepton,
     Replicate: Replicate,
     xAI: XAI,
+    MiniMax: MiniMax,
 }
 
 // Export individual icons for direct use
@@ -82,6 +84,7 @@ export {
     Replicate,
     Sagemaker,
     Together,
+    MiniMax,
     Vertex,
     XAI,
 }

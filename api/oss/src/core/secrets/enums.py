@@ -22,6 +22,7 @@ class StandardProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
+    MINIMAX = "minimax"
 
 
 class CustomProviderKind(str, Enum):
@@ -43,3 +44,4 @@ class CustomProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
+    MINIMAX = "minimax"

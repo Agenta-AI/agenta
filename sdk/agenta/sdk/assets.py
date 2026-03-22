@@ -140,6 +140,12 @@ supported_llm_models = {
         "perplexity/sonar-reasoning",
         "perplexity/sonar-reasoning-pro",
     ],
+    "minimax": [
+        "minimax/MiniMax-M2.7",
+        "minimax/MiniMax-M2.7-highspeed",
+        "minimax/MiniMax-M2.5",
+        "minimax/MiniMax-M2.5-lightning",
+    ],
     "together_ai": [
         "together_ai/deepseek-ai/DeepSeek-R1",
         "together_ai/deepseek-ai/DeepSeek-V3",
