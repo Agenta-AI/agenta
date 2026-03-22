@@ -155,6 +155,14 @@ export {
     unarchiveWorkflow,
     // Batch
     fetchWorkflowsBatch,
+    // Schema
+    fetchAgTypeSchema,
+    // Catalog
+    fetchWorkflowCatalogTemplates,
+    type WorkflowCatalogTemplate,
+    type WorkflowCatalogPreset,
+    type WorkflowCatalogFlags,
+    type WorkflowCatalogTemplatesResponse,
 } from "./api"
 
 // ============================================================================

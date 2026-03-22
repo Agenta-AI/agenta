@@ -74,6 +74,7 @@ import {
     discardWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
+    agTypeSchemaAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -436,8 +437,40 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
         const storedSchema =
             (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
 
-        // For non-evaluators, return as-is
-        if (!entity?.flags?.is_evaluator) return storedSchema
+        // For non-evaluators, enrich any opaque x-ag-type properties with
+        // full sub-property schemas fetched from the ag-types endpoint
+        if (!entity?.flags?.is_evaluator) {
+            if (!storedSchema?.properties) return storedSchema
+
+            const properties = storedSchema.properties as Record<string, Record<string, unknown>>
+            let enriched = false
+            const enrichedProperties: Record<string, unknown> = {}
+
+            for (const [key, prop] of Object.entries(properties)) {
+                const agType = prop?.["x-ag-type"] as string | undefined
+                // Only enrich if the property has x-ag-type but no sub-properties
+                if (agType && !prop.properties) {
+                    const agTypeQuery = get(agTypeSchemaAtomFamily(agType))
+                    const agTypeSchema = agTypeQuery.data
+                    if (agTypeSchema?.properties) {
+                        enrichedProperties[key] = {
+                            ...prop,
+                            ...agTypeSchema,
+                            // Preserve the original x-ag-type and title
+                            "x-ag-type": agType,
+                            ...(prop.title ? {title: prop.title} : {}),
+                            ...(prop.default !== undefined ? {default: prop.default} : {}),
+                        }
+                        enriched = true
+                        continue
+                    }
+                }
+                enrichedProperties[key] = prop
+            }
+
+            if (!enriched) return storedSchema
+            return {...storedSchema, properties: enrichedProperties}
+        }
 
         // If stored schema is valid JSON Schema (has type + properties), return as-is.
         // Settings_template format has properties but no type — needs enrichment.

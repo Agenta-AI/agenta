@@ -28,6 +28,7 @@ import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchWorkflowAppOpenApiSchema,
+    fetchAgTypeSchema,
     fetchWorkflowsBatch,
     queryWorkflows,
     queryWorkflowVariants,
@@ -42,7 +43,7 @@ import type {
 } from "../core"
 import {buildWorkflowUri} from "../core/schema"
 
-import {resolveServiceTypeFromUrl} from "./helpers"
+import {resolveServiceTypeFromUrl, buildServiceUrlFromUri, isManagedServiceUrl} from "./helpers"
 
 // ============================================================================
 // HELPERS
@@ -407,27 +408,22 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for app (non-evaluator) workflows list data.
- * Resolves thin refs through the molecule for full Workflow objects.
+ * Returns workflow-level objects directly from the query cache.
  */
 export const appWorkflowsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs as Workflow[]
 })
 
 /**
  * Derived atom for non-archived app workflows.
- * Uses thin refs for filtering (avoids subscribing to full entity objects).
+ * Filters by deleted_at on the cached workflow-level refs.
  */
 export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
     const query = get(appWorkflowsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .filter((ref) => !ref.deleted_at)
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
 // ============================================================================
@@ -869,18 +865,43 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const storedUrl = serverData?.data?.url ?? null
         const derivedServiceType = storedUri ? null : resolveServiceTypeFromUrl(storedUrl)
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
-        const isEnabled = get(sessionAtom) && !!projectId && !!uri
+        // Service URL: prefer stored url, fall back to building from URI
+        const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
+        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl
 
         return {
-            queryKey: ["workflows", "inspect", revisionId, uri, projectId],
+            queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
             queryFn: async (): Promise<InspectWorkflowResponse | null> => {
-                if (!projectId || !uri) return null
-                return inspectWorkflow(uri, projectId)
+                if (!projectId || !uri || !serviceUrl) return null
+                return inspectWorkflow(uri, projectId, serviceUrl)
             },
             enabled: isEnabled,
             staleTime: 60_000,
         }
     }),
+)
+
+// ============================================================================
+// AG-TYPE SCHEMA QUERY (resolves opaque x-ag-type markers into full schemas)
+// ============================================================================
+
+/**
+ * Cached query atom for fetching the full dereferenced JSON Schema for an
+ * `x-ag-type` value (e.g. `"prompt-template"`).
+ *
+ * When the frontend encounters a schema property with `x-ag-type` but no
+ * sub-properties, it calls this to get the full schema from the backend.
+ * The schema is immutable per ag-type, so `staleTime: Infinity`.
+ */
+export const agTypeSchemaAtomFamily = atomFamily((agType: string) =>
+    atomWithQuery((_get) => ({
+        queryKey: ["workflows", "schemas", "ag-types", agType],
+        queryFn: async (): Promise<Record<string, unknown>> => {
+            return fetchAgTypeSchema(agType)
+        },
+        staleTime: Infinity,
+        refetchOnWindowFocus: false,
+    })),
 )
 
 // ============================================================================
@@ -909,10 +930,11 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const uri = serverData?.data?.uri ?? null
         const url = serverData?.data?.url ?? null
 
-        // Skip if URI exists (inspect handles it), if URL matches builtin
-        // service pattern (inspect derives URI), or if no URL at all.
-        const isBuiltinServiceUrl = !!resolveServiceTypeFromUrl(url)
-        const enabled = get(sessionAtom) && !!projectId && !!url && !uri && !isBuiltinServiceUrl
+        // Skip if URI exists (inspect handles it), if URL points to a managed
+        // agenta service (inspect handles it), or if no URL at all.
+        // Only custom user-hosted apps without URIs need OpenAPI fetching.
+        const enabled =
+            get(sessionAtom) && !!projectId && !!url && !uri && !isManagedServiceUrl(url)
 
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],
@@ -1122,7 +1144,7 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
 
         if (!draft) return merged
 
-        return {
+        let finalMerged = {
             ...merged,
             ...draft,
             data: {
@@ -1130,6 +1152,37 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
                 ...draft.data,
             },
         } as Workflow
+
+        // Re-apply evaluator nesting after draft merge.
+        // Config edits and presets write flat params to the draft, overwriting
+        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
+            const draftParams = finalMerged.data?.parameters as
+                | Record<string, unknown>
+                | undefined
+            const draftSchema = finalMerged.data?.schemas?.parameters as
+                | Record<string, unknown>
+                | undefined
+            if (draftParams) {
+                finalMerged = {
+                    ...finalMerged,
+                    data: {
+                        ...finalMerged.data,
+                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
+                        ...(draftSchema
+                            ? {
+                                  schemas: {
+                                      ...finalMerged.data?.schemas,
+                                      parameters: nestEvaluatorSchema(draftSchema),
+                                  },
+                              }
+                            : {}),
+                    },
+                } as Workflow
+            }
+        }
+
+        return finalMerged
     }),
 )
 
@@ -1334,7 +1387,7 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
 
         if (!draft) return merged
 
-        return {
+        let finalMerged = {
             ...merged,
             ...draft,
             data: {
@@ -1342,6 +1395,37 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
                 ...draft.data,
             },
         } as Workflow
+
+        // Re-apply evaluator nesting after draft merge.
+        // Config edits and presets write flat params to the draft, overwriting
+        // the nested structure. Re-nesting ensures the UI sees the correct format.
+        if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
+            const draftParams = finalMerged.data?.parameters as
+                | Record<string, unknown>
+                | undefined
+            const draftSchema = finalMerged.data?.schemas?.parameters as
+                | Record<string, unknown>
+                | undefined
+            if (draftParams) {
+                finalMerged = {
+                    ...finalMerged,
+                    data: {
+                        ...finalMerged.data,
+                        parameters: nestEvaluatorConfiguration(draftParams, draftSchema),
+                        ...(draftSchema
+                            ? {
+                                  schemas: {
+                                      ...finalMerged.data?.schemas,
+                                      parameters: nestEvaluatorSchema(draftSchema),
+                                  },
+                              }
+                            : {}),
+                    },
+                } as Workflow
+            }
+        }
+
+        return finalMerged
     }),
 )
 

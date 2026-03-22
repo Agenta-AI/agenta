@@ -25,7 +25,8 @@ export function resolveServiceTypeFromUri(uri: string | null | undefined): strin
 }
 
 /**
- * Extract service type from a URL path like "http://host/services/completion".
+ * Extract service type from a URL path like "http://host/services/completion"
+ * or "http://host/services/builtin/completion/v0".
  *
  * Used as a fallback when `uri` is missing (post-migration data where
  * `data.url` is correct but `data.uri` was not preserved).
@@ -34,8 +35,37 @@ export function resolveServiceTypeFromUri(uri: string | null | undefined): strin
  */
 export function resolveServiceTypeFromUrl(url: string | null | undefined): string | null {
     if (!url) return null
-    const match = url.match(/\/services\/(completion|chat)(?:[/?]|$)/)
+    // Match both old-style /services/completion and new-style /services/builtin/completion/v0
+    const match = url.match(/\/services\/(?:builtin\/)?(completion|chat)(?:[/?]|$|\/v\d+)/)
     return match ? match[1] : null
+}
+
+/**
+ * Check whether a URL points to any managed agenta service.
+ *
+ * Returns true for any `/services/...` URL — builtin, custom, evaluator, etc.
+ * Used to suppress the OpenAPI fallback for managed service URLs.
+ */
+export function isManagedServiceUrl(url: string | null | undefined): boolean {
+    if (!url) return false
+    return /\/services\//.test(url)
+}
+
+/**
+ * Build a service URL from an agenta URI.
+ *
+ * Converts `agenta:{kind}:{key}:{version}` → `{origin}/services/{kind}/{key}/{version}`
+ *
+ * @returns Service URL, or null if the URI is not an agenta URI
+ */
+export function buildServiceUrlFromUri(uri: string | null | undefined): string | null {
+    if (!uri || !uri.startsWith("agenta:")) return null
+    const apiUrl = getAgentaApiUrl()
+    if (!apiUrl) return null
+    const origin = apiUrl.replace(/\/api\/?$/, "")
+    // agenta:{kind}:{key}:{version} → {kind}/{key}/{version}
+    const path = uri.replace(/^agenta:/, "").replace(/:/g, "/")
+    return `${origin}/services/${path}`
 }
 
 /**

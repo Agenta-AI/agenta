@@ -369,25 +369,32 @@ export interface InspectWorkflowResponse {
  * Inspect a workflow to resolve the full interface schema (including inputs).
  *
  * Revision data from the query endpoint often lacks `schemas.inputs`.
- * The inspect endpoint resolves the full schema from the handler registered
- * for the given URI.
+ * The inspect endpoint on the service URL resolves the full schema from
+ * the handler registered for the given URI.
  *
- * Endpoint: `POST /preview/workflows/inspect`
+ * Calls `POST {serviceUrl}/inspect` directly on the service.
  *
  * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
  * @param projectId - Project ID
+ * @param serviceUrl - The service URL from `workflowRevision.data.url`
  * @returns Resolved interface with full schemas
  */
 export async function inspectWorkflow(
     uri: string,
     projectId: string,
+    serviceUrl?: string | null,
 ): Promise<InspectWorkflowResponse> {
     if (!projectId || !uri) {
         return {}
     }
 
+    const baseUrl = serviceUrl?.replace(/\/+$/, "")
+    if (!baseUrl) {
+        return {}
+    }
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/workflows/inspect`,
+        `${baseUrl}/inspect`,
         {
             revision: {uri},
         },
@@ -1151,4 +1158,92 @@ export async function fetchWorkflowRevisionsByIdsBatch(
     }
 
     return results
+}
+
+/**
+ * Fetch the full dereferenced JSON Schema for an x-ag-type value.
+ *
+ * Used to resolve opaque `x-ag-type` markers (e.g. "prompt-template") into
+ * rich sub-property schemas so the frontend can render proper config controls.
+ *
+ * @param agType - The ag-type key, e.g. "prompt-template"
+ * @returns The dereferenced JSON Schema for the ag-type
+ */
+export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/workflows/schemas/ag-types/${encodeURIComponent(agType)}`,
+    )
+    return response.data as Record<string, unknown>
+}
+
+// ============================================================================
+// WORKFLOW CATALOG
+// ============================================================================
+
+export interface WorkflowCatalogFlags {
+    is_archived?: boolean
+    is_recommended?: boolean
+    is_application?: boolean
+    is_evaluator?: boolean
+    is_snippet?: boolean
+}
+
+export interface WorkflowCatalogTemplate {
+    key: string
+    name?: string | null
+    description?: string | null
+    categories?: string[] | null
+    flags?: WorkflowCatalogFlags | null
+    data?: {
+        uri?: string
+        schemas?: {
+            parameters?: Record<string, unknown>
+            inputs?: Record<string, unknown>
+            outputs?: Record<string, unknown>
+        }
+    } | null
+    presets?: WorkflowCatalogPreset[] | null
+}
+
+export interface WorkflowCatalogPreset {
+    key: string
+    name?: string | null
+    description?: string | null
+    categories?: string[] | null
+    flags?: WorkflowCatalogFlags | null
+    data?: {
+        uri?: string
+        parameters?: Record<string, unknown>
+    } | null
+}
+
+export interface WorkflowCatalogTemplatesResponse {
+    count: number
+    templates: WorkflowCatalogTemplate[]
+}
+
+/**
+ * Fetch workflow catalog templates with optional flag filtering.
+ *
+ * @param params.isApplication - Filter for application templates (completion, chat, etc.)
+ * @param params.isEvaluator - Filter for evaluator templates
+ * @param params.isSnippet - Filter for snippet templates
+ */
+export async function fetchWorkflowCatalogTemplates(params?: {
+    isApplication?: boolean
+    isEvaluator?: boolean
+    isSnippet?: boolean
+    includeArchived?: boolean
+}): Promise<WorkflowCatalogTemplatesResponse> {
+    const queryParams: Record<string, unknown> = {}
+    if (params?.isApplication !== undefined) queryParams.is_application = params.isApplication
+    if (params?.isEvaluator !== undefined) queryParams.is_evaluator = params.isEvaluator
+    if (params?.isSnippet !== undefined) queryParams.is_snippet = params.isSnippet
+    if (params?.includeArchived !== undefined) queryParams.include_archived = params.includeArchived
+
+    const response = await axios.get<WorkflowCatalogTemplatesResponse>(
+        `${getAgentaApiUrl()}/workflows/catalog/templates`,
+        {params: queryParams},
+    )
+    return response.data ?? {count: 0, templates: []}
 }

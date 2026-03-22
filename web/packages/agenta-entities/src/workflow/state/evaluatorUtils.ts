@@ -27,10 +27,10 @@ import {fetchEvaluatorTemplates, fetchEvaluatorCatalogPresets} from "../api/temp
 import type {Workflow} from "../core"
 import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
+import {buildServiceUrlFromUri} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,
-    workflowBaseEntityAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     invalidateWorkflowsListCache,
     type WorkflowListRef,
@@ -76,27 +76,22 @@ export const evaluatorsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for evaluator-type workflows list data.
- * Resolves thin refs through the molecule for full Workflow objects.
+ * Returns workflow-level objects directly from the query cache.
  */
 export const evaluatorsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs as Workflow[]
 })
 
 /**
  * Derived atom for non-archived evaluator-type workflows.
- * Uses thin refs for filtering (avoids subscribing to full entity objects).
+ * Filters by deleted_at on the cached workflow-level refs.
  */
 export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .filter((ref) => !ref.deleted_at)
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
 /**
@@ -258,21 +253,17 @@ export const evaluatorPresetsAtomFamily = atomFamily((templateKey: string | null
 /**
  * Derived atom for evaluator config instances.
  * Filters out human and custom evaluators — returns only "automatic" evaluator workflows.
- * Uses thin refs for filtering, then resolves through molecule.
  */
 export const evaluatorConfigsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(evaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .filter((ref) => {
-            const flags = ref.flags
-            if (!flags) return true
-            if (flags.is_human) return false
-            if (flags.is_custom) return false
-            return true
-        })
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs.filter((ref) => {
+        const flags = ref.flags
+        if (!flags) return true
+        if (flags.is_human) return false
+        if (flags.is_custom) return false
+        return true
+    }) as Workflow[]
 })
 
 /**
@@ -324,14 +315,12 @@ export const humanEvaluatorsListQueryAtom = atomWithQuery((get) => {
 
 /**
  * Derived atom for human evaluator workflows list data.
- * Resolves thin refs through the molecule for full Workflow objects.
+ * Returns workflow-level objects directly from the query cache.
  */
 export const humanEvaluatorsListDataAtom = atom<Workflow[]>((get) => {
     const query = get(humanEvaluatorsListQueryAtom)
     const refs = query.data?.refs ?? []
-    return refs
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    return refs as Workflow[]
 })
 
 // ============================================================================
@@ -591,7 +580,8 @@ export async function createEvaluatorFromTemplate(templateKey: string): Promise<
     }
 
     try {
-        const inspectData = await inspectWorkflow(uri, projectId)
+        const serviceUrl = buildServiceUrlFromUri(uri)
+        const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
         const inspectSchemas = inspectData?.revision?.schemas ?? inspectData?.interface?.schemas
         if (inspectSchemas) {
             schemas = {

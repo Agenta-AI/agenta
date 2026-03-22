@@ -20,11 +20,15 @@ import {atom} from "jotai"
 import type {ListQueryState} from "../../shared"
 import type {Workflow} from "../core"
 
-import {evaluatorsListQueryAtom, nonArchivedEvaluatorsAtom} from "./evaluatorUtils"
 import {
+    evaluatorsListDataAtom,
+    evaluatorsListQueryAtom,
+    nonArchivedEvaluatorsAtom,
+} from "./evaluatorUtils"
+import {
+    appWorkflowsListDataAtom,
     appWorkflowsListQueryAtom,
     nonArchivedAppWorkflowsAtom,
-    workflowBaseEntityAtomFamily,
 } from "./store"
 
 // ============================================================================
@@ -33,16 +37,12 @@ import {
 
 /**
  * All workflows data (union of app + evaluator queries).
- * Resolves thin refs through the molecule for full Workflow objects.
+ * Returns workflow-level objects directly from the query caches.
  */
 export const workflowsListDataAtom = atom<Workflow[]>((get) => {
-    const appQuery = get(appWorkflowsListQueryAtom)
-    const evalQuery = get(evaluatorsListQueryAtom)
-    const appRefs = appQuery.data?.refs ?? []
-    const evalRefs = evalQuery.data?.refs ?? []
-    return [...appRefs, ...evalRefs]
-        .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
-        .filter((w): w is Workflow => w !== null)
+    const apps = get(appWorkflowsListDataAtom)
+    const evaluators = get(evaluatorsListDataAtom)
+    return [...apps, ...evaluators]
 })
 
 /**

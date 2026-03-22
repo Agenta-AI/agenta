@@ -45,6 +45,14 @@ export {
     // Batch
     fetchWorkflowsBatch,
     fetchWorkflowRevisionsByIdsBatch,
+    // Schema
+    fetchAgTypeSchema,
+    // Catalog
+    fetchWorkflowCatalogTemplates,
+    type WorkflowCatalogTemplate,
+    type WorkflowCatalogPreset,
+    type WorkflowCatalogFlags,
+    type WorkflowCatalogTemplatesResponse,
 } from "./api"
 
 // Create from template (legacy endpoint orchestration)
