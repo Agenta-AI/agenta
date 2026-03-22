@@ -16,8 +16,7 @@ export const isSessionSupportedRoute = (pathname: string) =>
     SESSION_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))
 
 /** @deprecated Use isDrawerSupportedRoute */
-export const isVariantSupportedRoute = (pathname: string) =>
-    isDrawerSupportedRoute(pathname)
+export const isVariantSupportedRoute = (pathname: string) => isDrawerSupportedRoute(pathname)
 
 export const isDrawerSupportedRoute = (pathname: string) =>
     DRAWER_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))

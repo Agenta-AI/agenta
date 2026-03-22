@@ -29,10 +29,7 @@ const VALID_DRAWER_TYPES = new Set<DrawerContext>([
     "evaluator-create",
 ])
 
-const resolveDrawerContextForPath = (
-    pathname: string,
-    tab?: string | null,
-): DrawerContext => {
+const resolveDrawerContextForPath = (pathname: string, tab?: string | null): DrawerContext => {
     if (pathname.includes("/evaluators")) {
         return "evaluator-view"
     }

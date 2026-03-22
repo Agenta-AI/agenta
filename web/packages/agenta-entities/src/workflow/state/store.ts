@@ -1157,9 +1157,7 @@ export const workflowBaseEntityAtomFamily = atomFamily((workflowId: string) =>
         // Config edits and presets write flat params to the draft, overwriting
         // the nested structure. Re-nesting ensures the UI sees the correct format.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
-            const draftParams = finalMerged.data?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
             const draftSchema = finalMerged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
@@ -1400,9 +1398,7 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
         // Config edits and presets write flat params to the draft, overwriting
         // the nested structure. Re-nesting ensures the UI sees the correct format.
         if (finalMerged.flags?.is_evaluator && draft.data?.parameters) {
-            const draftParams = finalMerged.data?.parameters as
-                | Record<string, unknown>
-                | undefined
+            const draftParams = finalMerged.data?.parameters as Record<string, unknown> | undefined
             const draftSchema = finalMerged.data?.schemas?.parameters as
                 | Record<string, unknown>
                 | undefined
