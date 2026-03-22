@@ -8,7 +8,7 @@ import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
-import {textColors} from "@agenta/ui"
+import {bgColors, textColors} from "@agenta/ui"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {CloseOutlined, DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Gavel, PencilSimple, Plus} from "@phosphor-icons/react"
@@ -26,7 +26,6 @@ import {workspaceMemberByIdFamily} from "@/oss/state/workspace/atoms/selectors"
 import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
-import {useStyles} from "./styles"
 
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
@@ -138,8 +137,6 @@ const EvaluatorTag: React.FC<{
 // PlaygroundHeader
 // ---------------------------------------------------------------------------
 const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
-    const classes = useStyles()
-
     // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
     const {displayedEntities} = usePlaygroundLayout()
 
@@ -245,7 +242,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
             <div
                 className={clsx(
                     "flex items-center justify-between gap-4 px-2.5 py-2",
-                    classes.header,
+                    bgColors.active,
                     className,
                 )}
                 {...divProps}
