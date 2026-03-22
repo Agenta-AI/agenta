@@ -74,7 +74,7 @@ def run(coro):
 
 
 def match(matchers: List[Dict], inputs=None, outputs=None, trace=None) -> Dict:
-    """Call _execute_match_node for each matcher and return the results dict."""
+    """Call _execute_match_node for each matcher and return the flat result dict."""
     request: Dict[str, Any] = {}
     if inputs is not None:
         request["inputs"] = inputs
@@ -83,20 +83,15 @@ def match(matchers: List[Dict], inputs=None, outputs=None, trace=None) -> Dict:
     if trace is not None:
         request["trace"] = trace
 
-    results = {
+    return {
         str(m.get("key", "")): run(_execute_match_node(m, request)) for m in matchers
     }
-    return {"results": results}
 
 
 def first_result(matchers, inputs=None, outputs=None, trace=None) -> Dict:
     """Convenience: run match() and return the first result node."""
     return next(
-        iter(
-            match(matchers, inputs=inputs, outputs=outputs, trace=trace)[
-                "results"
-            ].values()
-        )
+        iter(match(matchers, inputs=inputs, outputs=outputs, trace=trace).values())
     )
 
 
@@ -763,8 +758,8 @@ class TestMatchRecursive:
             ],
             outputs="hello world",
         )
-        assert len(results["results"]) == 2
-        assert all(r["success"] for r in results["results"].values())
+        assert len(results) == 2
+        assert all(r["success"] for r in results.values())
 
 
 # ---------------------------------------------------------------------------

@@ -468,7 +468,7 @@ def _make_match_result(
     if message is not None:
         result["message"] = message
     if children is not None:
-        result["children"] = children
+        result.update(children)
     return result
 
 
@@ -1237,7 +1237,7 @@ async def match_v0(
         trace:      trace data (accessible as $.trace.*)
 
     Returns:
-        {"results": {...}}  — recursive result tree mirroring the matcher tree
+        {key: result_node, ..., "score": float, "success": bool}  — flat result dict
     """
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
@@ -1270,7 +1270,7 @@ async def match_v0(
         results[str(matcher.get("key", ""))] = result
 
     if not results:
-        return {"results": results, "score": 1.0, "success": True}
+        return {"score": 1.0, "success": True}
 
     scores = [r["score"] for r in results.values()]
     if score_agg == "min":
@@ -1291,7 +1291,7 @@ async def match_v0(
         root_success = all(successes)
 
     return {
-        "results": results,
+        **results,
         "score": root_score,
         "success": root_success,
     }

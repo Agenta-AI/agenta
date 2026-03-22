@@ -8,7 +8,11 @@ if TYPE_CHECKING:
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 
-from agenta.sdk.engines.running.utils import infer_flags_from_data, infer_url_from_uri
+from agenta.sdk.engines.running.utils import (
+    infer_flags_from_data,
+    infer_url_from_uri,
+    infer_outputs_schema,
+)
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -737,6 +741,21 @@ class WorkflowsService:
                 data = data.model_copy(
                     update={"url": env.agenta.services_url.rstrip("/") + path}
                 )
+
+        if data and data.uri and data.parameters is not None:
+            inferred_outputs = infer_outputs_schema(
+                uri=data.uri,
+                parameters=data.parameters,
+            )
+            if inferred_outputs is not None:
+                current_schemas = data.schemas or {}
+                schemas_dict = (
+                    current_schemas
+                    if isinstance(current_schemas, dict)
+                    else current_schemas.model_dump(mode="json", exclude_none=True)
+                )
+                schemas_dict = {**schemas_dict, "outputs": inferred_outputs}
+                data = data.model_copy(update={"schemas": schemas_dict})
 
         workflow_revision_commit = workflow_revision_commit.model_copy(
             update={

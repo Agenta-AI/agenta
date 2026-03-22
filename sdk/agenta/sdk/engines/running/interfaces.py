@@ -322,20 +322,15 @@ match_v0_interface = WorkflowRevisionData(
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "type": "object",
             "title": "Match Outputs",
-            "description": "Recursive result tree mirroring the matcher tree.",
+            "description": "Flat result dict: root-level matcher keys plus score/success. Child matcher keys are merged directly into each parent result node.",
             "properties": {
-                "results": {
-                    "type": "object",
-                    "description": "Dict of matcher key → result node.",
-                    "additionalProperties": {"$ref": "#/$defs/result"},
-                },
                 "score": {
                     "type": "number",
                     "description": "Weighted mean score across all root-level matchers.",
                 },
                 "success": {"type": "boolean"},
             },
-            "required": ["results", "score", "success"],
+            "required": ["score", "success"],
             "$defs": {
                 "result": {
                     "type": "object",
@@ -353,17 +348,12 @@ match_v0_interface = WorkflowRevisionData(
                         "error": {"type": "boolean"},
                         "status": {"type": "string"},
                         "message": {"type": "string"},
-                        "children": {
-                            "type": "object",
-                            "description": "Dict of child matcher key → result node.",
-                            "additionalProperties": {"$ref": "#/$defs/result"},
-                        },
                     },
                     "required": ["key", "success", "score", "error", "status"],
-                    "additionalProperties": False,
+                    "additionalProperties": {"$ref": "#/$defs/result"},
                 }
             },
-            "additionalProperties": False,
+            "additionalProperties": {"$ref": "#/$defs/result"},
         },
     ),
 )
@@ -452,7 +442,7 @@ llm_v0_interface = WorkflowRevisionData(
                         "stream": scalar(jtype="boolean", default=False),
                         "format": scalar(
                             jtype="string",
-                            enum=["messages", "text", "json"],
+                            enum=["messages", "message", "text", "json"],
                             default="messages",
                         ),
                         "schema": obj(additional_properties=True),
