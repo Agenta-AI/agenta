@@ -1,5 +1,6 @@
 import {memo, useCallback, useRef, type ReactNode} from "react"
 
+import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
     executionController,
     executionItemController,
@@ -39,6 +40,12 @@ type MainLayoutProps = BaseContainerProps & {
     runDisabled?: boolean
     /** Custom content to render in the run-disabled placeholder. When omitted, a default message is shown. */
     runDisabledContent?: ReactNode
+    /** When true, hides entity selector and shows variant name inline. Used when rendering inside a drawer. */
+    embedded?: boolean
+    /** Externally controlled config view mode (form/json/yaml). */
+    configViewMode?: ConfigViewMode
+    /** Callback when config view mode changes. */
+    onConfigViewModeChange?: (mode: ConfigViewMode) => void
 }
 
 const SplitterPanel = Splitter.Panel
@@ -87,6 +94,9 @@ const PlaygroundMainView = ({
     configEntityIdsOverride,
     runDisabled = false,
     runDisabledContent,
+    embedded = false,
+    configViewMode,
+    onConfigViewModeChange,
     ...divProps
 }: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
@@ -171,9 +181,15 @@ const PlaygroundMainView = ({
                 className={clsx("flex flex-col grow h-full overflow-hidden", className)}
                 {...divProps}
             >
-                <div className="w-full h-full overflow-y-auto">
+                <div className="w-full h-full overflow-y-auto overflow-x-hidden">
                     {configEntityIds.map((variantId) => (
-                        <PlaygroundVariantConfig key={variantId} variantId={variantId} />
+                        <PlaygroundVariantConfig
+                            key={variantId}
+                            variantId={variantId}
+                            embedded={embedded}
+                            externalViewMode={configViewMode}
+                            onViewModeChange={onConfigViewModeChange}
+                        />
                     ))}
                 </div>
             </main>
@@ -230,7 +246,11 @@ const PlaygroundMainView = ({
                                                 variantRefs.current[index] = el
                                             }}
                                         >
-                                            <PlaygroundVariantConfig variantId={variantId} />
+                                            <PlaygroundVariantConfig
+                                                variantId={variantId}
+                                                externalViewMode={configViewMode}
+                                                onViewModeChange={onConfigViewModeChange}
+                                            />
                                         </div>
                                     ))
                                 ) : (

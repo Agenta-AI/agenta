@@ -31,8 +31,21 @@ const PlaygroundVariantConfig: React.FC<
         embedded?: boolean
         variantNameOverride?: string
         revisionOverride?: number | string | null
+        /** Externally controlled view mode (form/json/yaml). Falls back to internal state when omitted. */
+        externalViewMode?: ConfigViewMode
+        /** Callback when view mode changes (for external control). */
+        onViewModeChange?: (mode: ConfigViewMode) => void
     }
-> = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
+> = ({
+    variantId,
+    className,
+    embedded,
+    variantNameOverride,
+    revisionOverride,
+    externalViewMode,
+    onViewModeChange,
+    ...divProps
+}) => {
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
@@ -105,7 +118,10 @@ const PlaygroundVariantConfig: React.FC<
     )
 
     // View mode for config section (form/json/yaml)
-    const [viewMode, setViewMode] = useState<ConfigViewMode>("form")
+    // When controlled externally (e.g. from the drawer), use the provided props.
+    const [internalViewMode, setInternalViewMode] = useState<ConfigViewMode>("form")
+    const viewMode = externalViewMode ?? internalViewMode
+    const setViewMode = onViewModeChange ?? setInternalViewMode
 
     const viewModeSelector = useMemo(
         () => (
@@ -122,7 +138,7 @@ const PlaygroundVariantConfig: React.FC<
                 className="w-[90px] [&_.ant-select-selector]:!px-1 text-xs"
             />
         ),
-        [viewMode],
+        [viewMode, setViewMode],
     )
 
     return (

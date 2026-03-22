@@ -4,11 +4,11 @@ import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
 import {EntityCommitModal} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
+import {EnvironmentTag, environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Checkbox, Input, Select, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
-import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 import {
     evaluatorsPaginatedStore,
     clearEvaluatorWorkflowCache,
@@ -49,12 +49,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const environmentOptions = useMemo(
         () =>
-            (Object.keys(deploymentStatusColors) as (keyof typeof deploymentStatusColors)[]).map(
-                (env) => ({
-                    value: env,
-                    label: <EnvironmentTagLabel environment={env} />,
-                }),
-            ),
+            (Object.keys(environmentColors) as (keyof typeof environmentColors)[]).map((env) => ({
+                value: env,
+                label: <EnvironmentTag environment={env} />,
+            })),
         [],
     )
 

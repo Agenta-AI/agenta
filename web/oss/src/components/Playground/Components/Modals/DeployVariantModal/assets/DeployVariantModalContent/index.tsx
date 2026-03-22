@@ -1,11 +1,10 @@
 import {useMemo} from "react"
 
+import {CommitMessageInput, EnvironmentTag} from "@agenta/ui"
 import {Typography, Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useAtomValue} from "jotai"
 
-import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 
@@ -28,7 +27,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                     style: {minWidth: 160},
                 }),
                 render: (_, record) => {
-                    return <EnvironmentTagLabel environment={record.name} />
+                    return <EnvironmentTag environment={record.name} />
                 },
             },
             {
@@ -82,7 +81,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                 })}
             />
 
-            <CommitNote note={note} setNote={setNote} />
+            <CommitMessageInput value={note} onChange={setNote} />
         </section>
     )
 }

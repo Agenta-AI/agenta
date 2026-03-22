@@ -148,10 +148,10 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`w-full h-[48px] flex items-center justify-between ${embedded ? "" : "sticky top-0 z-[10]"} ${classes.container} ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} ${classes.container} ${className ?? ""}`}
             {...divProps}
         >
-            <div className="flex items-center gap-2 grow min-w-0">
+            <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
@@ -201,55 +201,53 @@ const PlaygroundVariantConfigHeader = ({
                         )}
                     </>
                 )}
-                {evaluatorLabel && (
+                {evaluatorLabel && !embedded && (
                     <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
                         {evaluatorLabel}
                     </span>
                 )}
             </div>
-            {!embedded && (
-                <div className="flex items-center gap-2">
-                    {extraActions}
-                    {hasPresets && onLoadPreset && (
-                        <Button size="small" onClick={onLoadPreset}>
-                            Load Preset
-                        </Button>
-                    )}
-                    {isLocalDraftVariant ? (
-                        <>
-                            <CommitVariantChangesButton
-                                variantId={variantId}
-                                label="Commit"
-                                type="primary"
+            <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
+                {extraActions}
+                {!embedded && hasPresets && onLoadPreset && (
+                    <Button size="small" onClick={onLoadPreset}>
+                        Load Preset
+                    </Button>
+                )}
+                {isLocalDraftVariant ? (
+                    <>
+                        <CommitVariantChangesButton
+                            variantId={variantId}
+                            label="Commit"
+                            type="primary"
+                            size="small"
+                        />
+                        <Tooltip title="Discard draft">
+                            <Button
+                                type="text"
                                 size="small"
+                                danger
+                                icon={<Trash size={16} />}
+                                onClick={handleDiscardLocalDraft}
                             />
-                            <Tooltip title="Discard draft">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<Trash size={16} />}
-                                    onClick={handleDiscardLocalDraft}
-                                />
-                            </Tooltip>
-                        </>
-                    ) : (
-                        <>
-                            <DeployVariantButton revisionId={variantId} />
+                        </Tooltip>
+                    </>
+                ) : (
+                    <>
+                        {!embedded && <DeployVariantButton revisionId={variantId} />}
 
-                            <CommitVariantChangesButton
-                                variantId={variantId}
-                                label="Commit"
-                                type="primary"
-                                size="small"
-                                data-tour="commit-button"
-                            />
+                        <CommitVariantChangesButton
+                            variantId={variantId}
+                            label="Commit"
+                            type="primary"
+                            size="small"
+                            data-tour="commit-button"
+                        />
 
-                            <PlaygroundVariantHeaderMenu variantId={variantId} />
-                        </>
-                    )}
-                </div>
-            )}
+                        {!embedded && <PlaygroundVariantHeaderMenu variantId={variantId} />}
+                    </>
+                )}
+            </div>
         </section>
     )
 }
