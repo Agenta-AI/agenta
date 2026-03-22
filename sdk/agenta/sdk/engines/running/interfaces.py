@@ -230,7 +230,24 @@ match_v0_interface = WorkflowRevisionData(
                     "type": "array",
                     "items": {"$ref": "#/$defs/matcher"},
                     "description": "Recursive list of matcher nodes to execute.",
-                }
+                },
+                "score": {
+                    "type": "string",
+                    "enum": ["weighted", "min", "max"],
+                    "default": "weighted",
+                    "description": "How root-level matcher scores are aggregated. 'weighted': weighted mean (uses weight per matcher, defaults to 1). 'min': minimum score. 'max': maximum score.",
+                },
+                "success": {
+                    "type": "string",
+                    "enum": ["all", "any", "threshold"],
+                    "default": "threshold",
+                    "description": "How root-level matcher successes are combined. 'all': all must pass. 'any': at least one must pass. 'threshold': aggregated score >= threshold.",
+                },
+                "threshold": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "Minimum score for success when success='threshold'.",
+                },
             },
             "required": ["matchers"],
             "$defs": {
@@ -238,12 +255,12 @@ match_v0_interface = WorkflowRevisionData(
                     "type": "object",
                     "properties": {
                         "key": {"type": "string"},
-                        "path": {"type": "string"},
-                        "kind": {
+                        "target": {"type": "string"},
+                        "mode": {
                             "type": "string",
                             "enum": ["text", "json"],
                         },
-                        "mode": {
+                        "match": {
                             "type": "string",
                             "enum": [
                                 "valid",
@@ -253,38 +270,45 @@ match_v0_interface = WorkflowRevisionData(
                                 "contains",
                                 "regex",
                                 "similarity",
-                                "overlap",
+                                "diff",
                             ],
                         },
-                        "reference": True,
+                        "reference": {"type": "string"},
                         "references": {
                             "type": "array",
-                            "items": True,
+                            "items": {"type": "string"},
                         },
-                        "match": {
+                        "contains": {
                             "type": "string",
                             "enum": ["all", "any"],
                         },
                         "case_sensitive": {"type": "boolean"},
-                        "threshold": {"type": "number"},
-                        "distance": {
+                        "similarity": {
                             "type": "string",
                             "enum": ["jaccard", "levenshtein", "cosine"],
                         },
-                        "embedding_model": {"type": "string"},
-                        "use_schema_only": {"type": "boolean"},
-                        "include_unexpected_keys": {"type": "boolean"},
-                        "aggregate": {
+                        "diff": {
                             "type": "string",
-                            "enum": ["all", "any", "weighted"],
+                            "enum": ["full", "schema", "strict"],
                         },
+                        "score": {
+                            "type": "string",
+                            "enum": ["weighted", "min", "max"],
+                            "description": "How child matcher scores are aggregated when this node has sub-matchers.",
+                        },
+                        "success": {
+                            "type": "string",
+                            "enum": ["all", "any", "threshold"],
+                            "description": "How child matcher successes are combined when this node has sub-matchers.",
+                        },
+                        "threshold": {"type": "number"},
                         "weight": {"type": "number"},
                         "matchers": {
                             "type": "array",
                             "items": {"$ref": "#/$defs/matcher"},
                         },
                     },
-                    "required": ["path"],
+                    "required": ["target"],
                     "additionalProperties": True,
                 }
             },
@@ -301,11 +325,17 @@ match_v0_interface = WorkflowRevisionData(
             "description": "Recursive result tree mirroring the matcher tree.",
             "properties": {
                 "results": {
-                    "type": "array",
-                    "items": {"$ref": "#/$defs/result"},
-                }
+                    "type": "object",
+                    "description": "Dict of matcher key → result node.",
+                    "additionalProperties": {"$ref": "#/$defs/result"},
+                },
+                "score": {
+                    "type": "number",
+                    "description": "Weighted mean score across all root-level matchers.",
+                },
+                "success": {"type": "boolean"},
             },
-            "required": ["results"],
+            "required": ["results", "score", "success"],
             "$defs": {
                 "result": {
                     "type": "object",
@@ -314,9 +344,9 @@ match_v0_interface = WorkflowRevisionData(
                             "type": "string",
                             "description": "Matcher key copied onto the result node.",
                         },
-                        "path": {
+                        "target": {
                             "type": "string",
-                            "description": "Matcher path copied onto the result node.",
+                            "description": "Matcher target copied onto the result node.",
                         },
                         "success": {"type": "boolean"},
                         "score": {"type": "number"},
@@ -324,8 +354,9 @@ match_v0_interface = WorkflowRevisionData(
                         "status": {"type": "string"},
                         "message": {"type": "string"},
                         "children": {
-                            "type": "array",
-                            "items": {"$ref": "#/$defs/result"},
+                            "type": "object",
+                            "description": "Dict of child matcher key → result node.",
+                            "additionalProperties": {"$ref": "#/$defs/result"},
                         },
                     },
                     "required": ["key", "success", "score", "error", "status"],

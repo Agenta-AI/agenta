@@ -449,17 +449,17 @@ def _resolve_reference_value(reference: Any, request: Dict[str, Any]) -> Any:
 
 def _make_match_result(
     key: str,
-    path: str,
+    target: str,
     success: bool,
     score: float,
     error: bool = False,
     status: str = "ok",
     message: Optional[str] = None,
-    children: Optional[List[Any]] = None,
+    children: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "key": key,
-        "path": path,
+        "target": target,
         "success": success,
         "score": score,
         "error": error,
@@ -472,11 +472,11 @@ def _make_match_result(
     return result
 
 
-def _execute_match_valid(actual: Any, kind: str) -> Tuple[bool, float]:
-    """mode=valid: check that the value at path conforms to kind."""
-    if kind == "text":
+def _execute_match_valid(actual: Any, mode: str) -> Tuple[bool, float]:
+    """match=valid: check that the value at target conforms to mode."""
+    if mode == "text":
         success = isinstance(actual, str)
-    elif kind == "json":
+    elif mode == "json":
         if isinstance(actual, (dict, list)):
             success = True
         elif isinstance(actual, str):
@@ -607,10 +607,10 @@ def _execute_match_regex(
 def _execute_match_similarity_sync(
     actual: Any,
     reference: Any,
-    distance: str,
+    similarity: str,
     case_sensitive: bool,
 ) -> float:
-    """mode=similarity for jaccard and levenshtein distances (synchronous)."""
+    """match=similarity for jaccard and levenshtein similarities (synchronous)."""
     actual_str = (
         actual if isinstance(actual, str) else json.dumps(actual, sort_keys=True)
     )
@@ -624,12 +624,12 @@ def _execute_match_similarity_sync(
         actual_str = actual_str.lower()
         ref_str = ref_str.lower()
 
-    if distance == "jaccard":
+    if similarity == "jaccard":
         # Design note: named "jaccard" but uses SequenceMatcher for legacy parity
         matcher = SequenceMatcher(None, actual_str, ref_str)
         return float(matcher.ratio())
 
-    elif distance == "levenshtein":
+    elif similarity == "levenshtein":
         if len(ref_str) == 0:
             dist = len(actual_str)
         else:
@@ -648,7 +648,7 @@ def _execute_match_similarity_sync(
 
     else:
         raise MatchV0Error(
-            message=f"Unknown distance metric: {distance!r}. Expected 'jaccard', 'levenshtein', or 'cosine'."
+            message=f"Unknown similarity metric: {similarity!r}. Expected 'jaccard', 'levenshtein', or 'cosine'."
         )
 
 
@@ -689,18 +689,17 @@ async def _execute_match_similarity_cosine(
     return float(_compute_similarity(output_embedding, reference_embedding))
 
 
-def _execute_match_overlap(
-    actual: Any,
+def _execute_match_diff(
+    target: Any,
     reference: Any,
-    use_schema_only: bool,
-    include_unexpected_keys: bool,
+    diff: str,
     case_sensitive: bool,
 ) -> float:
-    """mode=overlap: scored comparison over flattened JSON fields."""
+    """match=diff: scored comparison over flattened JSON fields."""
     # Parse JSON strings if needed
-    if isinstance(actual, str):
+    if isinstance(target, str):
         try:
-            actual = json.loads(actual)
+            target = json.loads(target)
         except json.JSONDecodeError:
             return 0.0
     if isinstance(reference, str):
@@ -709,17 +708,17 @@ def _execute_match_overlap(
         except json.JSONDecodeError:
             return 0.0
 
-    if not isinstance(actual, (dict, list)) or not isinstance(reference, (dict, list)):
+    if not isinstance(target, (dict, list)) or not isinstance(reference, (dict, list)):
         return 0.0
 
     settings = {
-        "compare_schema_only": use_schema_only,
-        "predict_keys": include_unexpected_keys,
+        "compare_schema_only": diff == "schema",
+        "predict_keys": diff == "strict",
         "case_insensitive_keys": not case_sensitive,
     }
     return _compare_jsons(
         ground_truth=reference,
-        app_output=actual,
+        app_output=target,
         settings_values=settings,
     )
 
@@ -727,30 +726,42 @@ def _execute_match_overlap(
 def _aggregate_child_results(
     child_matchers: List[Dict],
     child_results: List[Dict],
-    aggregate: str,
+    score: str,
+    success: str,
     threshold: float,
 ) -> Tuple[bool, float]:
-    """Aggregate child matcher results according to aggregate strategy."""
+    """Aggregate child matcher results.
+
+    Score aggregation (score):
+      - "weighted" → weighted mean (weight per matcher, defaults to 1)
+      - "min"      → minimum child score
+      - "max"      → maximum child score
+
+    Success aggregation (success):
+      - "all"       → all child successes must be True
+      - "any"       → at least one child success must be True
+      - "threshold" → aggregated score >= threshold
+    """
     if not child_results:
         return True, 1.0
 
-    successes = [r["success"] for r in child_results]
     scores = [r["score"] for r in child_results]
-
-    if aggregate == "all":
-        agg_success = all(successes)
-        agg_score = sum(scores) / len(scores)
-    elif aggregate == "any":
-        agg_success = any(successes)
-        agg_score = sum(scores) / len(scores)
-    elif aggregate == "weighted":
+    if score == "min":
+        agg_score = min(scores)
+    elif score == "max":
+        agg_score = max(scores)
+    else:  # "weighted" or default
         weights = [float(m.get("weight", 1.0)) for m in child_matchers]
         total_weight = sum(weights) if sum(weights) > 0 else 1.0
         agg_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+
+    successes = [r["success"] for r in child_results]
+    if success == "any":
+        agg_success = any(successes)
+    elif success == "threshold":
         agg_success = agg_score >= threshold
-    else:
+    else:  # "all" or default
         agg_success = all(successes)
-        agg_score = sum(scores) / len(scores)
 
     return agg_success, agg_score
 
@@ -761,41 +772,44 @@ async def _execute_match_node(
 ) -> Dict[str, Any]:
     """Execute a single matcher node, recursing into children when present."""
     key = str(matcher.get("key", ""))
-    path = str(matcher.get("path", ""))
-    kind = str(matcher.get("kind", "text"))
-    mode = str(matcher.get("mode", "valid"))
+    target = str(matcher.get("target", ""))
+    mode = str(matcher.get("mode", "text"))
+    match_type = str(matcher.get("match", "valid"))
     case_sensitive = matcher.get("case_sensitive", True) is True
-    threshold = float(matcher.get("threshold", 0.5))
+    threshold = float(matcher.get("threshold", 1.0))
 
     # Execute child matchers depth-first
     child_matchers: List[Dict] = matcher.get("matchers") or []
-    children: List[Dict[str, Any]] = []
+    children: Dict[str, Any] = {}
     for child in child_matchers:
         child_result = await _execute_match_node(child, request)
-        children.append(child_result)
+        children[str(child.get("key", ""))] = child_result
 
-    # Resolve the actual value at path
+    # Resolve the actual value at target path
     try:
-        actual = resolve_any(path, request)
+        actual = resolve_any(target, request)
     except Exception as e:
         return _make_match_result(
             key,
-            path,
+            target,
             False,
             0.0,
             error=True,
             status="error",
-            message=f"Path resolution failed for '{path}': {e}",
+            message=f"Target resolution failed for '{target}': {e}",
             children=children or None,
         )
 
     # If node has children, aggregate and return (own mode provides context only)
     if children:
-        aggregate = str(matcher.get("aggregate", "all"))
+        score_agg = str(matcher.get("score", "weighted"))
+        success_agg = str(matcher.get("success", "threshold"))
         agg_success, agg_score = _aggregate_child_results(
-            child_matchers, children, aggregate, threshold
+            child_matchers, list(children.values()), score_agg, success_agg, threshold
         )
-        return _make_match_result(key, path, agg_success, agg_score, children=children)
+        return _make_match_result(
+            key, target, agg_success, agg_score, children=children
+        )
 
     # No children: execute own mode
     reference_expr = matcher.get("reference")
@@ -803,77 +817,71 @@ async def _execute_match_node(
     if reference_expr is not None:
         reference = _resolve_reference_value(reference_expr, request)
 
-    # Resolve multi-value references list
+    # Resolve multi-value reference list
     references_exprs: Optional[List] = matcher.get("references")
     references: Optional[List[Any]] = None
     if references_exprs is not None:
-        references = [_resolve_reference_value(r, request) for r in references_exprs]
+        references = [_resolve_reference_value(s, request) for s in references_exprs]
 
-    match_mode = str(matcher.get("match", "all"))
+    contains_mode = str(matcher.get("contains", "all"))
 
     try:
-        if mode == "valid":
-            success, score = _execute_match_valid(actual, kind)
+        if match_type == "valid":
+            success, score = _execute_match_valid(actual, mode)
 
-        elif mode == "exact":
+        elif match_type == "exact":
             success, score = _execute_match_exact(actual, reference, case_sensitive)
 
-        elif mode == "starts_with":
+        elif match_type == "starts_with":
             success, score = _execute_match_starts_with(
                 actual, reference, case_sensitive
             )
 
-        elif mode == "ends_with":
+        elif match_type == "ends_with":
             success, score = _execute_match_ends_with(actual, reference, case_sensitive)
 
-        elif mode == "contains":
+        elif match_type == "contains":
             success, score = _execute_match_contains(
-                actual, reference, references, match_mode, case_sensitive
+                actual, reference, references, contains_mode, case_sensitive
             )
 
-        elif mode == "regex":
+        elif match_type == "regex":
             success, score = _execute_match_regex(actual, reference, case_sensitive)
 
-        elif mode == "similarity":
-            distance = str(matcher.get("distance", "jaccard"))
-            if distance == "cosine":
-                embedding_model = str(
-                    matcher.get("embedding_model", "text-embedding-3-small")
-                )
+        elif match_type == "similarity":
+            similarity = str(matcher.get("similarity", "jaccard"))
+            if similarity == "cosine":
+                embedding_model = "text-embedding-3-small"
                 score = await _execute_match_similarity_cosine(
                     actual, reference, embedding_model
                 )
             else:
                 score = _execute_match_similarity_sync(
-                    actual, reference, distance, case_sensitive
+                    actual, reference, similarity, case_sensitive
                 )
             success = score >= threshold
 
-        elif mode == "overlap":
-            use_schema_only = matcher.get("use_schema_only", False) is True
-            include_unexpected_keys = (
-                matcher.get("include_unexpected_keys", False) is True
-            )
-            score = _execute_match_overlap(
+        elif match_type == "diff":
+            diff_mode = str(matcher.get("diff", "full"))
+            score = _execute_match_diff(
                 actual,
                 reference,
-                use_schema_only,
-                include_unexpected_keys,
+                diff_mode,
                 case_sensitive,
             )
             success = score >= threshold
 
         else:
             raise MatchV0Error(
-                message=f"Unknown mode: {mode!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'overlap'."
+                message=f"Unknown match: {match_type!r}. Expected one of: 'valid', 'exact', 'starts_with', 'ends_with', 'contains', 'regex', 'similarity', 'diff'."
             )
 
-        return _make_match_result(key, path, success, score)
+        return _make_match_result(key, target, success, score)
 
     except ErrorStatus as e:
         return _make_match_result(
             key,
-            path,
+            target,
             False,
             0.0,
             error=True,
@@ -883,7 +891,7 @@ async def _execute_match_node(
     except Exception as e:
         return _make_match_result(
             key,
-            path,
+            target,
             False,
             0.0,
             error=True,
@@ -1207,20 +1215,20 @@ async def match_v0(
     Match evaluator with recursive matcher tree (agenta:builtin:match:v0).
 
     Consolidates the following legacy builtin evaluators:
-    - auto_exact_match     → kind="text", mode="regex", anchored+escaped reference
-    - auto_regex_test      → kind="text", mode="regex"
-    - auto_starts_with     → kind="text", mode="regex", reference="^PREFIX"
-    - auto_ends_with       → kind="text", mode="regex", reference="SUFFIX$"
-    - auto_contains        → kind="text", mode="regex", reference="SUBSTRING"
-    - auto_contains_any    → kind="text", mode="regex", reference="(OPT1|OPT2|...)"
-    - auto_contains_all    → kind="text", mode="regex", reference="(?=.*S1)(?=.*S2).*"
-    - auto_similarity_match    → kind="text", mode="similarity", distance="jaccard"
-    - auto_semantic_similarity → kind="text", mode="similarity", distance="cosine"
-    - auto_levenshtein_distance → kind="text", mode="similarity", distance="levenshtein"
-    - field_match_test     → kind="text", mode="regex", path="$.outputs.FIELD"
-    - json_multi_field_match → kind="json", mode="overlap" + child matchers
-    - auto_contains_json   → kind="json", mode="valid"
-    - auto_json_diff       → kind="json", mode="overlap"
+    - auto_exact_match     → mode="text", match="exact", string=ESCAPED_VALUE
+    - auto_regex_test      → mode="text", match="regex"
+    - auto_starts_with     → mode="text", match="regex", string="^PREFIX"
+    - auto_ends_with       → mode="text", match="regex", string="SUFFIX$"
+    - auto_contains        → mode="text", match="regex", string="SUBSTRING"
+    - auto_contains_any    → mode="text", match="regex", string="(OPT1|OPT2|...)"
+    - auto_contains_all    → mode="text", match="regex", string="(?=.*S1)(?=.*S2).*"
+    - auto_similarity_match    → mode="text", match="similarity", similarity="jaccard"
+    - auto_semantic_similarity → mode="text", match="similarity", similarity="cosine"
+    - auto_levenshtein_distance → mode="text", match="similarity", similarity="levenshtein"
+    - field_match_test     → mode="text", match="regex", target="$.outputs.FIELD"
+    - json_multi_field_match → mode="json", match="diff" + child matchers
+    - auto_contains_json   → mode="json", match="valid"
+    - auto_json_diff       → mode="json", match="diff"
 
     Parameters:
         parameters: {"matchers": [...]}  — recursive matcher tree
@@ -1229,7 +1237,7 @@ async def match_v0(
         trace:      trace data (accessible as $.trace.*)
 
     Returns:
-        {"results": [...]}  — recursive result tree mirroring the matcher tree
+        {"results": {...}}  — recursive result tree mirroring the matcher tree
     """
     if parameters is None or not isinstance(parameters, dict):
         raise InvalidConfigurationParametersV0Error(expected="dict", got=parameters)
@@ -1252,14 +1260,40 @@ async def match_v0(
     if trace is not None:
         request["trace"] = trace
 
-    results = []
+    score_agg = str(parameters.get("score", "weighted"))
+    success_agg = str(parameters.get("success", "threshold"))
+    threshold = float(parameters.get("threshold", 1.0))
+
+    results: Dict[str, Any] = {}
     for matcher in matchers:
         result = await _execute_match_node(matcher, request)
-        results.append(result)
+        results[str(matcher.get("key", ""))] = result
+
+    if not results:
+        return {"results": results, "score": 1.0, "success": True}
+
+    scores = [r["score"] for r in results.values()]
+    if score_agg == "min":
+        root_score = min(scores)
+    elif score_agg == "max":
+        root_score = max(scores)
+    else:  # "weighted"
+        weights = [float(m.get("weight", 1.0)) for m in matchers]
+        total_weight = sum(weights) if sum(weights) > 0 else 1.0
+        root_score = sum(s * w for s, w in zip(scores, weights)) / total_weight
+
+    successes = [r["success"] for r in results.values()]
+    if success_agg == "any":
+        root_success = any(successes)
+    elif success_agg == "threshold":
+        root_success = root_score >= threshold
+    else:  # "all"
+        root_success = all(successes)
 
     return {
         "results": results,
-        "success": all(result.get("success") is True for result in results),
+        "score": root_score,
+        "success": root_success,
     }
 
 

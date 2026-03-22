@@ -357,9 +357,9 @@ MANAGED_WORKFLOW_CASES = [
             "parameters": {
                 "matchers": [
                     {
-                        "kind": "text",
-                        "mode": "regex",
-                        "path": "$.outputs",
+                        "mode": "text",
+                        "match": "regex",
+                        "target": "$.outputs",
                         "reference": "^Paris",
                     }
                 ]
@@ -717,7 +717,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "text", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs="Paris",
         )
@@ -730,9 +735,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -747,9 +752,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -764,9 +769,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -781,9 +786,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -798,9 +803,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 }
             ],
@@ -815,9 +820,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 }
             ],
@@ -832,9 +837,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "capital",
                 }
             ],
@@ -849,9 +854,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "Berlin",
                 }
             ],
@@ -866,11 +871,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "Berlin", "Rome"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="Paris is the capital",
@@ -884,11 +889,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Berlin", "Rome", "Madrid"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="Paris is the capital",
@@ -902,11 +907,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "France"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="Paris is the capital of France",
@@ -920,11 +925,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "France"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="Paris is a great city",
@@ -938,9 +943,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -955,9 +960,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -972,9 +977,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^paris",
                     "case_sensitive": False,
                 }
@@ -990,11 +995,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.8,
                 }
             ],
@@ -1010,11 +1015,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.5,
                 }
             ],
@@ -1030,11 +1035,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris is the capital",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.5,
                 }
             ],
@@ -1050,11 +1055,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                 }
             ],
@@ -1071,9 +1076,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.expected",
                 }
             ],
@@ -1089,9 +1094,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "/outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "/outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -1106,7 +1111,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "json",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs='{"city": "Paris"}',
         )
@@ -1117,7 +1127,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "json",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs="not json",
         )
@@ -1130,9 +1145,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                 }
             ],
@@ -1148,9 +1163,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                 }
             ],
@@ -1166,9 +1181,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                     "threshold": 0.8,
                 }
@@ -1186,9 +1201,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                     "threshold": 0.8,
                 }
@@ -1207,11 +1222,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
-                    "use_schema_only": True,
+                    "diff": "schema",
                     "threshold": 0.9,
                 }
             ],
@@ -1232,23 +1247,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                         },
                     ],
@@ -1266,23 +1281,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                         },
                     ],
@@ -1299,23 +1314,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_berlin",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Berlin",
                         },
                     ],
@@ -1332,23 +1347,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_berlin",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Berlin",
                         },
                     ],
@@ -1367,25 +1382,25 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                             "weight": 2.0,
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                             "weight": 1.0,
                         },
@@ -1404,25 +1419,25 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                             "weight": 1.0,
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                             "weight": 1.0,
                         },
@@ -1440,23 +1455,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "m1",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 },
                 {
                     "key": "m2",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 },
                 {
                     "key": "m3",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 },
             ],

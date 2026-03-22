@@ -66,9 +66,9 @@ def test_match_v0_interface_exposes_recursive_matchers_parameters_schema():
     assert parameters["properties"]["matchers"]["items"] == {"$ref": "#/$defs/matcher"}
 
     matcher = parameters["$defs"]["matcher"]
-    assert matcher["required"] == ["path"]
-    assert matcher["properties"]["kind"]["enum"] == ["text", "json"]
-    assert matcher["properties"]["mode"]["enum"] == [
+    assert matcher["required"] == ["target"]
+    assert matcher["properties"]["mode"]["enum"] == ["text", "json"]
+    assert matcher["properties"]["match"]["enum"] == [
         "valid",
         "exact",
         "starts_with",
@@ -76,5 +76,14 @@ def test_match_v0_interface_exposes_recursive_matchers_parameters_schema():
         "contains",
         "regex",
         "similarity",
-        "overlap",
+        "diff",
     ]
+    assert matcher["properties"]["score"]["enum"] == ["weighted", "min", "max"]
+    assert matcher["properties"]["success"]["enum"] == ["all", "any", "threshold"]
+
+    root = parameters["properties"]
+    assert root["score"]["enum"] == ["weighted", "min", "max"]
+    assert root["score"]["default"] == "weighted"
+    assert root["success"]["enum"] == ["all", "any", "threshold"]
+    assert root["success"]["default"] == "threshold"
+    assert root["threshold"]["default"] == 1.0
