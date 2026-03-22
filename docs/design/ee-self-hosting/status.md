@@ -21,10 +21,49 @@
   - Updated `AGENTS.md` with environment config conventions
 - Updated `rfc-0.md` and `plan.md` to match final implementation, including note that frontend billing-enabled detection currently uses the simple web-container env approach and may need backend-sourced config in split deployments
 
+### 2026-03-22
+- Implemented PR 2 (RFC-1): Org creation restriction — **backend only**
+  - Backend: `AGENTA_ORG_CREATION_ALLOWLIST` env var in `env.agenta.org_creation_allowlist` (set of emails, or None when unset)
+  - Backend: `OrganizationCreationNotAllowedError` exception added to `core/organizations/exceptions.py`
+  - Backend: `can_create_organization(email)` guard function in `commoners.py`
+  - Backend: Guard enforced in `create_accounts()` (silent skip on signup) and `create_organization_for_user()` (raises exception)
+  - Backend: `POST /organizations/` catches exception → HTTP 403
+  - Frontend: **not handled** — see known limitation below
+
+### Known Limitation: Frontend does not handle restricted signup gracefully
+
+When `AGENTA_ORG_CREATION_ALLOWLIST` is set and a user who is not in the allowlist
+signs up **without** auto-join (domain-based) or an existing invitation, the frontend
+breaks. The user has a valid session but zero orgs/workspaces. The auth middleware
+returns 401 for `/profile` and `/organizations` (because it requires a resolvable
+workspace/project scope), which triggers the global axios 401 handler to sign the
+user out and redirect to `/auth`. On re-login the same cycle repeats.
+
+**Root cause:** The backend auth middleware (`auth_service.py`) assumes every
+authenticated user has at least one workspace/project. When default workspace
+resolution fails (no orgs), it raises `UnauthorizedException`. The frontend then
+cannot call any bootstrap endpoint (`/profile`, `/organizations`), so it cannot
+distinguish "no orgs, needs invitation" from "actually unauthorized."
+
+**Workaround for operators:**
+- Pre-invite users before they sign up (existing invitation flow).
+  This ensures the user has an org by the time they hit the app.
+
+**What would be needed to fix properly:**
+- Backend: allow a small set of bootstrap endpoints (`/profile`, `/organizations`)
+  to work with an authenticated session that has no workspace/project scope.
+- Backend: add `can_create_organizations` boolean to `/profile` response.
+- Frontend: support "signed in, zero orgs" as a valid app state (show a message
+  instead of entering the normal app shell).
+- This is a larger architectural change to the auth middleware and was deferred.
+
 ### Remaining TODOs
 
 - [ ] Review and finalize `doc-0.md` (self-hosted EE docs)
 - [ ] Review and finalize `doc-1.md` (org creation restriction docs)
 - [ ] QA PR 1: deploy EE without Stripe, verify full flow
 - [ ] QA PR 1: deploy EE with Stripe, verify cloud regression
-- [ ] Implement PR 2 (RFC-1): Org creation restriction — backend + frontend + docs
+- [x] Implement PR 2 (RFC-1): Org creation restriction — backend only
+- [ ] QA PR 2: deploy EE with `AGENTA_ORG_CREATION_ALLOWLIST` + pre-invited user, verify restricted user joins via invite
+- [ ] QA PR 2: deploy without allowlist, verify current behavior preserved
+- [ ] Future: frontend support for "signed in, zero orgs" state (see known limitation above)

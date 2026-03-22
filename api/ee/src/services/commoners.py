@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import acquire_lock, release_lock
+from oss.src.utils.common import env
 
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
@@ -34,6 +35,7 @@ from ee.src.core.subscriptions.types import get_default_plan
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.core.meters.service import MetersService
 from ee.src.utils.entitlements import check_entitlements, Gauge
+from ee.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
 
 log = get_module_logger(__name__)
 
@@ -46,6 +48,21 @@ subscription_service = SubscriptionsService(
 
 DEMOS = "AGENTA_DEMOS"
 DEMO_ROLE = "viewer"
+
+
+def can_create_organization(email: str) -> bool:
+    """Check if a user is allowed to create organizations.
+
+    When AGENTA_ORG_CREATION_ALLOWLIST is set, only listed emails can create orgs.
+    When not set (None), anyone can create orgs (default behavior).
+    """
+
+    allowlist = env.agenta.org_creation_allowlist
+
+    if allowlist is None:
+        return True
+
+    return email.strip().lower() in allowlist
 
 
 class Demo(BaseModel):
@@ -175,14 +192,20 @@ async def create_accounts(
                 # Add the user to demos
                 await add_user_to_demos(str(user.id))
 
-                # Create organization with workspace and subscription
-                resolved_org_name = organization_name or user_dict["username"]
-                await create_organization_for_signup(
-                    user_id=UUID(str(user.id)),
-                    organization_email=user_dict["email"],
-                    organization_name=resolved_org_name,
-                    organization_description="Default Organization",
-                )
+                # Create organization (unless restricted by allowlist)
+                if can_create_organization(email):
+                    resolved_org_name = organization_name or user_dict["username"]
+                    await create_organization_for_signup(
+                        user_id=UUID(str(user.id)),
+                        organization_email=user_dict["email"],
+                        organization_name=resolved_org_name,
+                        organization_description="Default Organization",
+                    )
+                else:
+                    log.info(
+                        "[scopes] User [%s] not in org creation allowlist, skipping org creation",
+                        user.id,
+                    )
             except Exception:
                 # Setup failed - delete the user to avoid orphaned state
                 log.error(
@@ -314,6 +337,9 @@ async def create_organization_for_user(
     user = await db_manager.get_user(str(user_id))
     if not user:
         raise ValueError(f"User {user_id} not found")
+
+    if not can_create_organization(user.email):
+        raise OrganizationCreationNotAllowedError(email=user.email)
 
     create_org_payload = CreateOrganization(
         name=organization_name,
