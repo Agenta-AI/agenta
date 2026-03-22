@@ -649,23 +649,31 @@ class BillingRouter:
         # Self-hosted / non-Stripe plans still need a subscription status shape
         # for the frontend. Fall back to locally computed periods when Stripe
         # is disabled.
-        if not env.stripe.enabled:
-            _subscription = None
-        elif not subscription.subscription_id:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={
-                    "status": "error",
-                    "message": "Subscription (Agenta) not found",
-                },
-            )
-        else:
+
+        _subscription = None
+
+        if env.stripe.enabled:
+            if not subscription.subscription_id:
+                return JSONResponse(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={
+                        "status": "error",
+                        "message": "Subscription (Agenta) not found",
+                    },
+                )
+
             try:
                 _subscription = stripe.Subscription.retrieve(
                     id=subscription.subscription_id,
                 )
             except Exception:
-                _subscription = None
+                return JSONResponse(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    content={
+                        "status": "error",
+                        "message": "Subscription (Stripe) not found",
+                    },
+                )
 
         if _subscription:
             # Get period dates from the first subscription item
