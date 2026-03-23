@@ -2,11 +2,10 @@ import {useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
 import {workflowRevisionsListDataAtomFamily} from "@agenta/entities/workflow"
+import {EnvironmentStatus} from "@agenta/entity-ui"
 import {PencilSimpleLine} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
-
-import {EnvironmentStatus} from "@agenta/entity-ui"
 
 interface VariantGroupTitleProps {
     parent: {

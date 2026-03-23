@@ -292,7 +292,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                         </div>
                     )}
                     <RunEvaluationButton />
-                    <Divider type="vertical" className="!mx-0 h-5" />
+                    <Divider orientation="vertical" className="!mx-0 h-5" />
                     <Tooltip title="Add evaluators to automatically score outputs in the playground.">
                         <span>
                             <EntityPicker<WorkflowRevisionSelectionResult>

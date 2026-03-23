@@ -630,11 +630,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         Include reasoning
                     </Typography.Text>
                     <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
-                        <Info
-                            size={12}
-                            className="text-gray-400 cursor-help"
-                            aria-hidden="true"
-                        />
+                        <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
                     </Tooltip>
                 </div>
                 <Switch

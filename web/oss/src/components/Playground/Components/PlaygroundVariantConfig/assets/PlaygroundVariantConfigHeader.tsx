@@ -208,7 +208,7 @@ const PlaygroundVariantConfigHeader = ({
             </div>
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
                 {extraActions}
-                {!embedded && hasPresets && onLoadPreset && (
+                {hasPresets && onLoadPreset && (
                     <Button size="small" onClick={onLoadPreset}>
                         Load Preset
                     </Button>
