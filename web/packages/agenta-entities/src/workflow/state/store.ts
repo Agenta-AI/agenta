@@ -1293,7 +1293,9 @@ export const workflowEntityAtomFamily = atomFamily((workflowId: string) =>
             }
             resolvedParams =
                 (inspectData.revision?.parameters as Record<string, unknown> | undefined) ??
-                (inspectData.configuration as Record<string, unknown> | undefined)?.parameters ??
+                ((inspectData.configuration as Record<string, unknown> | undefined)?.parameters as
+                    | Record<string, unknown>
+                    | undefined) ??
                 null
         }
 
@@ -1782,10 +1784,20 @@ export function createEphemeralWorkflow(params: CreateEphemeralWorkflowParams): 
         slug: null,
         version: null,
         flags: {
+            is_managed: false,
             is_custom: false,
-            is_evaluator: false,
+            is_llm: false,
+            is_hook: false,
+            is_code: false,
+            is_match: false,
             is_human: false,
             is_chat: isChat,
+            has_url: false,
+            has_script: false,
+            has_handler: false,
+            is_application: false,
+            is_evaluator: false,
+            is_snippet: false,
             is_base: true,
         },
         data: {
