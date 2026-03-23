@@ -15,7 +15,7 @@ import {memo, useCallback, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import {LabeledField} from "@agenta/ui/components/presentational"
-import {PlusOutlined} from "@ant-design/icons"
+import {Plus} from "@phosphor-icons/react"
 import {Button, Input, Tag, Tooltip, Typography} from "antd"
 
 const {Text} = Typography
@@ -126,7 +126,7 @@ export const FieldsTagsEditorControl = memo(function FieldsTagsEditorControl({
                             }
                         />
                         <Button
-                            icon={<PlusOutlined />}
+                            icon={<Plus size={14} />}
                             onClick={handleAddField}
                             disabled={!inputValue.trim()}
                         >

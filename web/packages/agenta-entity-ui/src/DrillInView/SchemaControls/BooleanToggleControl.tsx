@@ -9,7 +9,7 @@ import {memo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import {cn, textColors} from "@agenta/ui/styles"
-import {InfoCircleOutlined} from "@ant-design/icons"
+import {Info} from "@phosphor-icons/react"
 import {Switch, Tooltip, Typography} from "antd"
 
 const {Text} = Typography
@@ -65,10 +65,7 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
                 )}
                 {showTooltipIcon && (
                     <Tooltip title={tooltipText} placement="right">
-                        <InfoCircleOutlined
-                            className="text-gray-400 text-[11px] cursor-help"
-                            aria-hidden="true"
-                        />
+                        <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
                     </Tooltip>
                 )}
             </div>

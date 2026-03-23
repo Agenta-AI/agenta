@@ -12,7 +12,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
+import {Info, Plus, Trash} from "@phosphor-icons/react"
 import {Alert, Button, Input, InputNumber, Modal, Select, Switch, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
@@ -574,8 +574,9 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 Categories
                             </Typography.Text>
                             <Tooltip title="Define the possible category values for the evaluation">
-                                <InfoCircleOutlined
-                                    className="text-gray-400 text-[11px] cursor-help"
+                                <Info
+                                    size={12}
+                                    className="text-gray-400 cursor-help"
                                     aria-hidden="true"
                                 />
                             </Tooltip>
@@ -583,7 +584,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         <Button
                             size="small"
                             type="dashed"
-                            icon={<PlusOutlined />}
+                            icon={<Plus size={14} />}
                             onClick={addCategory}
                             disabled={disabled}
                         >
@@ -612,7 +613,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 <Button
                                     type="text"
                                     danger
-                                    icon={<DeleteOutlined />}
+                                    icon={<Trash size={14} />}
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
                                 />
@@ -629,8 +630,9 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         Include reasoning
                     </Typography.Text>
                     <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
-                        <InfoCircleOutlined
-                            className="text-gray-400 text-[11px] cursor-help"
+                        <Info
+                            size={12}
+                            className="text-gray-400 cursor-help"
                             aria-hidden="true"
                         />
                     </Tooltip>

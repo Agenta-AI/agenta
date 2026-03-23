@@ -16,11 +16,10 @@
 import {memo, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-
-import {formatLabel} from "../utils"
 
 // Forward declaration - actual component imported to avoid circular deps
 import type {SchemaPropertyRendererProps} from "./SchemaPropertyRenderer"

@@ -18,13 +18,12 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import type {SchemaProperty} from "@agenta/entities"
 import type {SimpleChatMessage} from "@agenta/shared/types"
 import {ChatMessageList} from "@agenta/ui/chat-message"
+import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Select} from "antd"
 import {v4 as uuidv4} from "uuid"
-
-import {useDrillInUI} from "../context"
 
 import {ResponseFormatControl, type ResponseFormatValue} from "./ResponseFormatControl"
 import {

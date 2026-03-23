@@ -15,10 +15,9 @@
 import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {Typography} from "antd"
 import clsx from "clsx"
-
-import {formatLabel} from "../utils"
 
 import {BooleanToggleControl} from "./BooleanToggleControl"
 import {CodeEditorControl} from "./CodeEditorControl"
