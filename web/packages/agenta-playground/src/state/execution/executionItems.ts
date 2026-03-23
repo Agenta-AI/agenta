@@ -1094,20 +1094,24 @@ function buildExecutionItem(
     const requestPayload = params.requestPayload || null
     const entityData = params.entityData || null
 
+    // When the entity provides a pre-built request body (e.g. workflow invoke),
+    // use it directly instead of building a legacy ag_config body.
+    const rawPayloadRecord = asRecord(requestPayload)
+    const isRawBody = !!rawPayloadRecord?.__rawBody
+
     const invocationUrlWithQuery = appendQueryParams(
         resolveInvocationUrl(params.invocationUrl, requestPayload, entityData),
         {
-            application_id: resolveApplicationId(requestPayload, entityData),
+            // __rawBody payloads (workflow invoke) don't need application_id query param —
+            // the backend resolves the handler from the request body interface/URI.
+            application_id: isRawBody
+                ? undefined
+                : resolveApplicationId(requestPayload, entityData),
             project_id: params.headers.Authorization
                 ? readString(params.projectId || undefined)
                 : undefined,
         },
     )
-
-    // When the entity provides a pre-built request body (e.g. workflow invoke),
-    // use it directly instead of building a legacy ag_config body.
-    const rawPayloadRecord = asRecord(requestPayload)
-    const isRawBody = !!rawPayloadRecord?.__rawBody
     const isAppWorkflow = !!rawPayloadRecord?.__appWorkflow
     const requestBody = isRawBody
         ? (() => {
@@ -1165,22 +1169,25 @@ function buildExecutionItem(
                       }
                   }
 
-                  // Build the invoke format
+                  // Build the invoke format — parameters go under data, not configuration
                   const {
                       __rawBody: _,
                       __appWorkflow: _aw,
                       __meta: _m,
                       ...baseBody
                   } = rawPayloadRecord
+                  const baseData = asRecord(baseBody.data)
                   const body: Record<string, unknown> = {
                       ...baseBody,
-                      configuration: legacyAgConfig
-                          ? {parameters: legacyAgConfig as Record<string, unknown>}
-                          : baseBody.configuration,
                       data: {
+                          ...baseData,
                           inputs: dataInputs,
+                          parameters: legacyAgConfig
+                              ? (legacyAgConfig as Record<string, unknown>)
+                              : baseData?.parameters,
                       },
                   }
+                  delete body.configuration
 
                   // Merge references from legacy body and raw payload
                   const refs = {
@@ -1209,7 +1216,7 @@ function buildExecutionItem(
                       },
                   )
                   // For workflow invoke payloads with nested `data` structure
-                  // (e.g. POST /preview/workflows/invoke), populate data.inputs
+                  // (e.g. POST {serviceUrl}/invoke), populate data.inputs
                   // with all input values and data.outputs with the upstream
                   // model output so the backend template engine can resolve
                   // {{inputs}} and {{outputs}} correctly.
