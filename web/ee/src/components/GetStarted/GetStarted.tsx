@@ -54,7 +54,7 @@ const GetStarted = () => {
         router,
     ])
 
-    return <OssGetStarted onSelectDemo={demoProject ? handleDemoSelection : undefined} />
+    return <OssGetStarted onSelectDemo={(demoProject || demoOrgId) ? handleDemoSelection : undefined} />
 }
 
 export default GetStarted
