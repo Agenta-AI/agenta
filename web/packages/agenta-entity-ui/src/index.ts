@@ -501,3 +501,17 @@ export {
     simpleQueueModalAdapter,
     variantModalAdapter,
 } from "./adapters"
+
+// ============================================================================
+// VARIANT DISPLAY COMPONENTS
+// ============================================================================
+
+export {
+    VariantNameCell,
+    VariantDetailsWithStatus,
+    EnvironmentStatus,
+    VariantDetails,
+    statusMap,
+    type VariantNameCellProps,
+    type VariantStatusInfo,
+} from "./variant"

@@ -16,7 +16,8 @@
         "./drill-in": "./src/DrillInView/index.ts",
         "./modals": "./src/modals/index.ts",
         "./selection": "./src/selection/index.ts",
-        "./testcase": "./src/testcase/index.ts"
+        "./testcase": "./src/testcase/index.ts",
+        "./variant": "./src/variant/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
