@@ -486,6 +486,7 @@ async def evaluate_live_query(
                 scenario_results_created = False
                 scenario_has_errors[idx] = 0
                 scenario_status[idx] = EvaluationStatus.SUCCESS
+                scenario_has_pending = False
 
                 scenario = scenarios[idx]
                 scenario_id = scenario_ids[idx]
@@ -522,9 +523,16 @@ async def evaluate_live_query(
                 # run evaluator revisions --------------------------------------
                 for jdx in range(nof_annotations):
                     annotation_step_key = annotation_steps_keys[jdx]
+                    annotation_step = annotation_steps[annotation_step_key]
 
                     step_has_errors = 0
                     step_status = EvaluationStatus.SUCCESS
+
+                    if annotation_step.origin in {"human", "custom"}:
+                        scenario_has_pending = True
+                        # Human/custom steps are not auto-invoked here.
+                        # Results are created later by the annotator or custom flow.
+                        continue
 
                     references: Dict[str, Any] = {
                         **evaluator_references[annotation_step_key],
@@ -760,11 +768,18 @@ async def evaluate_live_query(
                     any_results_created = True
                 # --------------------------------------------------------------
 
+                final_scenario_status = (
+                    EvaluationStatus.PENDING
+                    if scenario_status[idx] == EvaluationStatus.SUCCESS
+                    and scenario_has_pending
+                    else scenario_status[idx]
+                )
+
                 scenario_edit = EvaluationScenarioEdit(
                     id=scenario.id,
                     tags=scenario.tags,
                     meta=scenario.meta,
-                    status=scenario_status[idx],
+                    status=final_scenario_status,
                 )
 
                 scenario = await evaluations_service.edit_scenario(
