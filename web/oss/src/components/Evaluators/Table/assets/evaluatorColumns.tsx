@@ -7,6 +7,7 @@ import {
     workflowMolecule,
     resolveOutputSchemaProperties,
 } from "@agenta/entities/workflow"
+import type {GroupExpandState} from "@agenta/ui/table"
 import {
     SkeletonLine,
     createStandardColumns,
@@ -386,10 +387,8 @@ export interface EvaluatorColumnActions {
     handleDelete?: (record: EvaluatorTableRow) => void
 }
 
-export interface EvaluatorExpandState {
-    expandedRowKeys: string[]
-    handleExpand: (expanded: boolean, rowKey: string) => void
-}
+/** @deprecated Use GroupExpandState from @agenta/ui/table instead */
+export type EvaluatorExpandState = GroupExpandState
 
 export function createEvaluatorColumns(
     actions: EvaluatorColumnActions,
