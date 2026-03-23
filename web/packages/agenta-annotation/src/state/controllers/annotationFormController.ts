@@ -1155,58 +1155,87 @@ function buildSubmittedEntries({
  * These are best-effort — the link-based annotation fallback ensures data
  * is found even if these fail.
  */
-function firePostSubmitOps({
-    entries,
-    annotationSteps,
-    invocationStepKey,
-    projectId,
-    runId,
-    scenarioId,
-}: {
+interface PostSubmitOpsParams {
     entries: SubmittedEntry[]
     annotationSteps: EvaluationRunDataStep[]
     invocationStepKey: string
     projectId: string
     runId: string
     scenarioId: string
-}): Promise<PromiseSettledResult<void>[]> {
-    const stepKeyBySlug = new Map<string, string>()
+}
+
+function resolveStepKeyBySlug(annotationSteps: EvaluationRunDataStep[]): Map<string, string> {
+    const map = new Map<string, string>()
     for (const step of annotationSteps) {
         const evalSlug = step.references?.evaluator?.slug
         if (evalSlug && step.key) {
-            stepKeyBySlug.set(evalSlug, step.key)
+            map.set(evalSlug, step.key)
         }
     }
+    return map
+}
 
-    const promises: Promise<void>[] = []
+/**
+ * Await step result upserts — these link annotation trace_ids to the scenario
+ * so that step-based annotation resolution (path 1) works on subsequent loads.
+ */
+async function awaitStepResultUpserts({
+    entries,
+    annotationSteps,
+    invocationStepKey,
+    projectId,
+    runId,
+    scenarioId,
+}: PostSubmitOpsParams): Promise<void> {
+    const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
+
+    const promises = entries.map((entry) => {
+        const annotationStepKey =
+            stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
+
+        return upsertStepResultWithAnnotation({
+            projectId,
+            runId,
+            scenarioId,
+            stepKey: annotationStepKey,
+            annotationTraceId: entry.annotationTraceId,
+            annotationSpanId: entry.annotationSpanId,
+        })
+    })
+
+    const results = await Promise.allSettled(promises)
+    for (const result of results) {
+        if (result.status === "rejected") {
+            console.warn("[annotationForm] Step result upsert failed:", result.reason)
+        }
+    }
+}
+
+/**
+ * Fire-and-forget metric upserts — supplementary data, not critical for annotation resolution.
+ */
+function fireMetricUpserts({
+    entries,
+    annotationSteps,
+    invocationStepKey,
+    projectId,
+    runId,
+    scenarioId,
+}: PostSubmitOpsParams): void {
+    const stepKeyBySlug = resolveStepKeyBySlug(annotationSteps)
 
     for (const entry of entries) {
         const annotationStepKey =
             stepKeyBySlug.get(entry.slug) ?? `${invocationStepKey}.${entry.slug}`
 
-        promises.push(
-            upsertStepResultWithAnnotation({
-                projectId,
-                runId,
-                scenarioId,
-                stepKey: annotationStepKey,
-                annotationTraceId: entry.annotationTraceId,
-                annotationSpanId: entry.annotationSpanId,
-            }).catch((err) => console.warn("[annotationForm] Step result upsert failed:", err)),
-        )
-
-        promises.push(
-            upsertAnnotationMetrics({
-                projectId,
-                runId,
-                scenarioId,
-                outputs: entry.outputs,
-                stepKey: annotationStepKey,
-            }).catch((err) => console.warn("[annotationForm] Metric save failed:", err)),
-        )
+        upsertAnnotationMetrics({
+            projectId,
+            runId,
+            scenarioId,
+            outputs: entry.outputs,
+            stepKey: annotationStepKey,
+        }).catch((err) => console.warn("[annotationForm] Metric save failed:", err))
     }
-
-    return Promise.allSettled(promises)
 }
 
 // ============================================================================
@@ -1436,7 +1465,10 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             await (runId ? checkAndUpdateRunStatus(projectId, runId) : Promise.resolve())
         }
 
-        // Phase 6: Fire-and-forget post-submit ops (step results + metrics)
+        // Phase 6: Post-submit ops (step results + metrics)
+        // Step result upserts are AWAITED — they link annotations to the scenario
+        // so that path-1 (step-based) resolution finds them on next load.
+        // Metric upserts remain fire-and-forget (nice-to-have, not critical).
         if (runId && invocationStepKey) {
             const submittedEntries = buildSubmittedEntries({
                 metrics,
@@ -1449,16 +1481,26 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 evaluationRunMolecule.selectors.annotationSteps(runId),
             )
 
-            firePostSubmitOps({
+            await awaitStepResultUpserts({
                 entries: submittedEntries,
                 annotationSteps: currentAnnotationSteps,
                 invocationStepKey,
                 projectId,
                 runId,
                 scenarioId,
-            }).then(() => {
-                annotationSessionController.cache.invalidateScenarioAnnotations(scenarioId)
             })
+
+            // Fire-and-forget: metrics are supplementary
+            fireMetricUpserts({
+                entries: submittedEntries,
+                annotationSteps: currentAnnotationSteps,
+                invocationStepKey,
+                projectId,
+                runId,
+                scenarioId,
+            })
+
+            annotationSessionController.cache.invalidateScenarioAnnotations(scenarioId)
         } else {
             annotationSessionController.cache.invalidateScenarioAnnotations(scenarioId)
         }

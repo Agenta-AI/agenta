@@ -36,7 +36,7 @@
  */
 
 import type {Annotation} from "@agenta/entities/annotation"
-import {queryAnnotations, queryAnnotationsByInvocationLink} from "@agenta/entities/annotation"
+import {queryAnnotations} from "@agenta/entities/annotation"
 import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import type {QueueType} from "@agenta/entities/queue"
@@ -1091,38 +1091,6 @@ const scenarioAnnotationsQueryAtomFamily = atomFamily(
 )
 
 /**
- * Link-based annotation query — finds annotations by the invocation trace they reference.
- * This is the fallback path when annotation step results don't exist
- * (e.g., the step result upsert failed silently after annotation creation).
- */
-const scenarioAnnotationsByLinkQueryAtomFamily = atomFamily(
-    ({scenarioId, traceId}: {scenarioId: string; traceId: string}) =>
-        atomWithQuery(() => ({
-            queryKey: ["scenarioAnnotationsByLink", scenarioId, traceId],
-            queryFn: async (): Promise<Annotation[]> => {
-                const projectId = getStore().get(projectIdAtom)
-                if (!projectId || !traceId) return []
-                const response = await queryAnnotationsByInvocationLink({
-                    projectId,
-                    traceId,
-                })
-                return response.annotations ?? []
-            },
-            enabled: !!traceId,
-            retry: (failureCount: number, error: Error) => {
-                if (error?.message === "projectId not yet available" && failureCount < 5) {
-                    return true
-                }
-                return false
-            },
-            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-            staleTime: 30_000,
-        })),
-    (a: {scenarioId: string; traceId: string}, b: {scenarioId: string; traceId: string}) =>
-        a.scenarioId === b.scenarioId && a.traceId === b.traceId,
-)
-
-/**
  * Testcase-based annotation query — finds annotations by testcase reference.
  * This is the fallback for testcase-based queues where no trace_id exists.
  */
@@ -1160,12 +1128,23 @@ const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
 /**
  * Resolved annotations for a scenario.
  *
- * Uses three resolution paths:
- * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results
- * 2. **Link-based** (fallback): Query annotations whose `links` reference the invocation trace
- * 3. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues)
+ * Uses two resolution paths:
+ * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results.
+ *    This is the canonical path — step results are per-scenario and per-run, so they
+ *    always return the correct annotations.
+ * 2. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues).
  *
- * The fallback paths only fire when previous paths return empty.
+ * NOTE: A link-based fallback (query annotations by invocation trace_id) was previously
+ * used when step results were empty. This was removed because `queryAnnotationsByInvocationLink`
+ * finds ALL annotations linked to a trace_id — across all queues, all runs, all scenarios.
+ * When the same trace appears in multiple queues or scenarios, this caused:
+ * - Cross-queue bleed: annotations from queue A appearing in queue B
+ * - Cross-scenario bleed: annotations from scenario #2 appearing in scenario #3
+ * - 500 errors on submit: the form tried to UPDATE another queue's annotation instead of CREATE
+ *
+ * If the step result upsert fails (fire-and-forget in firePostSubmitOps), the annotation
+ * won't appear via path 1 until the next successful submit refreshes step results.
+ * This is an acceptable trade-off vs. showing/updating the wrong annotations.
  */
 const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
@@ -1175,25 +1154,12 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
             const annotationTraceIds = traceIds.join("|")
             const query = get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
             const stepAnnotations = query.data ?? []
-            // If step-based found results, use those (canonical path)
             if (stepAnnotations.length > 0) {
                 return stepAnnotations
             }
         }
 
-        // Path 2: Link-based resolution (fallback only when step-based is empty)
-        const traceRef = get(scenarioTraceRefAtomFamily(scenarioId))
-        if (traceRef.traceId) {
-            const linkQuery = get(
-                scenarioAnnotationsByLinkQueryAtomFamily({
-                    scenarioId,
-                    traceId: traceRef.traceId,
-                }),
-            )
-            return linkQuery.data ?? []
-        }
-
-        // Path 3: Testcase-based resolution (for testcase queues without trace_id)
+        // Path 2: Testcase-based resolution (for testcase queues without trace_id)
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             const testcaseQuery = get(
@@ -1764,24 +1730,6 @@ async function invalidateScenarioAnnotations(scenarioId: string) {
                 await query.refetch()
             } catch {
                 // Will fall through to link-based query
-            }
-        }
-    }
-
-    // Also refetch link-based annotation query (fallback path)
-    const traceRef = store.get(scenarioTraceRefAtomFamily(scenarioId))
-    if (traceRef.traceId) {
-        const linkQuery = store.get(
-            scenarioAnnotationsByLinkQueryAtomFamily({
-                scenarioId,
-                traceId: traceRef.traceId,
-            }),
-        )
-        if (linkQuery?.refetch) {
-            try {
-                await linkQuery.refetch()
-            } catch {
-                // Non-critical
             }
         }
     }
