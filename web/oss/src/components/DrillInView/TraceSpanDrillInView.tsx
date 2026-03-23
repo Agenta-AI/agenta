@@ -11,6 +11,7 @@ import {
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
 import {
+    CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
     DrillInProvider,
@@ -42,7 +43,6 @@ import yaml from "js-yaml"
 import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 
