@@ -1,19 +1,16 @@
 import {memo} from "react"
 
+import {bgColors} from "@agenta/ui"
 import {DownOutlined} from "@ant-design/icons"
 import {Flask, Plus} from "@phosphor-icons/react"
 import {Button, Space, Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import {useStyles as usePlaygroundHeaderStyles} from "@/oss/components/Playground/Components/PlaygroundHeader/styles"
-
 const PlaygroundLoadingShell = () => {
-    const classes = usePlaygroundHeaderStyles()
-
     return (
         <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
             <div
-                className={`flex items-center justify-between gap-4 px-2.5 py-2 ${classes.header}`}
+                className={`flex items-center justify-between gap-4 px-2.5 py-2 ${bgColors.active}`}
             >
                 <Typography className="text-[16px] leading-[18px] font-[600]">
                     Playground
