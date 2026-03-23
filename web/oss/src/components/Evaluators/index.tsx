@@ -22,13 +22,13 @@ import {
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
+import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 import {getProjectValues} from "@/oss/state/project"
 
 import {DEFAULT_EVALUATOR_TAB, EVALUATOR_TABS} from "./assets/constants"
 import type {EvaluatorCategory} from "./assets/types"
 import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
 import EvaluatorTemplateDropdown from "./components/EvaluatorTemplateDropdown"
-import {openEvaluatorDrawerAtom} from "./Drawers/EvaluatorDrawer/store/evaluatorDrawerStore"
 import {openHumanEvaluatorDrawerAtom} from "./Drawers/HumanEvaluatorDrawer/store"
 import {evaluatorCategoryAtom, evaluatorSearchTermAtom} from "./store/evaluatorFilterAtoms"
 import type {EvaluatorTableRow} from "./store/evaluatorsPaginatedStore"

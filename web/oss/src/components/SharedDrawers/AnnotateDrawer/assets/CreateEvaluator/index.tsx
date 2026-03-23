@@ -12,8 +12,8 @@ import {useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {AnnotateDrawerSteps} from "../enum"
 import {CreateEvaluatorProps} from "../types"

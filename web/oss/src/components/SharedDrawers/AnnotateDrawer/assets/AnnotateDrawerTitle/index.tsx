@@ -10,8 +10,8 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {useSWRConfig} from "swr"
 
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"

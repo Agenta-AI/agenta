@@ -9,10 +9,10 @@ import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {openEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/EvaluatorDrawer/store/evaluatorDrawerStore"
 import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import type {Evaluator} from "@/oss/lib/Types"
+import {openEvaluatorDrawerAtom} from "@/oss/state/evaluator/evaluatorDrawerStore"
 
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"

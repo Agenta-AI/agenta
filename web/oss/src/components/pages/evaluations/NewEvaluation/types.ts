@@ -3,8 +3,8 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {LLMRunRateLimit, Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 export interface NewEvaluationAppOption {
     label: string

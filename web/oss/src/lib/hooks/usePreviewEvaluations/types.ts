@@ -1,7 +1,7 @@
 import type {Workflow} from "@agenta/entities/workflow"
 
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 /**
  * Interface representing a single evaluation run as returned from the backend API.

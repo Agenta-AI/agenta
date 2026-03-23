@@ -12,8 +12,8 @@ import {
 import {getDefaultStore} from "jotai"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {slugify} from "@/oss/lib/utils/slugify"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateEvaluationRunInput, Testset} from "./types"

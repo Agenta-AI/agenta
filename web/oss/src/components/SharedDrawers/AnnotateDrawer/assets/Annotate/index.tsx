@@ -6,7 +6,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {
     getInitialMetricsFromAnnotations,
