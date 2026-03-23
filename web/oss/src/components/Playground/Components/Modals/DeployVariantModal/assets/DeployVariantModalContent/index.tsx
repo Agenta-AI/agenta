@@ -1,11 +1,10 @@
 import {useMemo} from "react"
 
+import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {CommitMessageInput, EnvironmentTag, VersionBadge} from "@agenta/ui"
 import {Typography, Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useAtomValue} from "jotai"
-
-import VariantNameCell from "@/oss/components/VariantNameCell"
 
 import {deployNoteAtom, deploySelectedEnvAtom} from "../../store/deployVariantModalStore"
 

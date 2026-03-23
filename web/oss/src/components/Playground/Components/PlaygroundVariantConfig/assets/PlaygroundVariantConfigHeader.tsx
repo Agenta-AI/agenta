@@ -7,6 +7,7 @@ import {
     createWorkflowRevisionAdapter,
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
@@ -15,7 +16,6 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
 import SelectVariant from "../../Menus/SelectVariant"
