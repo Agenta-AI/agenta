@@ -163,3 +163,15 @@ export type {
     UseEntityTableStateOptions,
     UseEntityTableStateResult,
 } from "./hooks/useEntityTableState"
+
+// ============================================================================
+// GROUPED TREE DATA
+// ============================================================================
+
+export {useGroupedTreeData} from "./hooks/useGroupedTreeData"
+export type {
+    GroupableRow,
+    GroupedTreeDataConfig,
+    GroupExpandState,
+    GroupedTreeDataResult,
+} from "./hooks/useGroupedTreeData"
