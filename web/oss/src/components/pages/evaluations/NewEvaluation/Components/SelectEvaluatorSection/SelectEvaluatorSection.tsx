@@ -1,7 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
-import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
+import {
+    InfiniteVirtualTableFeatureShell,
+    useTableManager,
+    useGroupedTreeData,
+} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Space} from "antd"
 import clsx from "clsx"
@@ -19,12 +23,10 @@ import {evaluatorsPaginatedStore} from "@/oss/components/Evaluators/store/evalua
 import {
     createEvaluatorColumns,
     type EvaluatorColumnActions,
-    type EvaluatorExpandState,
 } from "@/oss/components/Evaluators/Table/assets/evaluatorColumns"
 import useURL from "@/oss/hooks/useURL"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
-import {useGroupedTreeSelection} from "../hooks/useGroupedTreeSelection"
 
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
@@ -93,24 +95,13 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
 
-    const {
-        groupedDataSource,
-        treeExpandable,
-        resolveSelectableId,
-        toDisplayKeys,
-        expandedRowKeys,
-        handleExpand,
-    } = useGroupedTreeSelection({
-        rows: paginationRows,
-        getGroupKey: getEvaluatorGroupKey,
-        getSelectableId: getEvaluatorSelectableId,
-        groupKeyPrefix: "evaluator-group-",
-    })
-
-    const expandState: EvaluatorExpandState = useMemo(
-        () => ({expandedRowKeys, handleExpand}),
-        [expandedRowKeys, handleExpand],
-    )
+    const {groupedDataSource, treeExpandable, resolveSelectableId, toDisplayKeys, expandState} =
+        useGroupedTreeData({
+            rows: paginationRows,
+            getGroupKey: getEvaluatorGroupKey,
+            getSelectableId: getEvaluatorSelectableId,
+            groupKeyPrefix: "evaluator-group-",
+        })
 
     const columns = useMemo(
         () => createEvaluatorColumns(EMPTY_ACTIONS, category, expandState),

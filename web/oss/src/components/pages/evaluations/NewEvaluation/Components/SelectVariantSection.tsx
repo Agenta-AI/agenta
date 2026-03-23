@@ -1,6 +1,10 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {InfiniteVirtualTableFeatureShell, useTableManager} from "@agenta/ui/table"
+import {
+    InfiniteVirtualTableFeatureShell,
+    useTableManager,
+    useGroupedTreeData,
+} from "@agenta/ui/table"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -9,8 +13,6 @@ import {registryPaginatedStore} from "@/oss/components/VariantsComponents/store/
 import {createRegistryColumns} from "@/oss/components/VariantsComponents/Table/assets/registryColumns"
 
 import type {SelectVariantSectionProps} from "../types"
-
-import {useGroupedTreeSelection} from "./hooks/useGroupedTreeSelection"
 
 const NoResultsFound = dynamic(
     () => import("@/oss/components/Placeholders/NoResultsFound/NoResultsFound"),
@@ -41,24 +43,15 @@ const SelectVariantSection = ({
 
     const paginationRows = table.shellProps.pagination?.rows ?? []
 
-    const {
-        groupedDataSource,
-        treeExpandable,
-        resolveSelectableId,
-        toDisplayKeys,
-        expandedRowKeys,
-        handleExpand,
-    } = useGroupedTreeSelection({
-        rows: paginationRows,
-        getGroupKey: getVariantGroupKey,
-        getSelectableId: getVariantSelectableId,
-        groupKeyPrefix: "variant-group-",
-    })
+    const {groupedDataSource, treeExpandable, resolveSelectableId, toDisplayKeys, expandState} =
+        useGroupedTreeData({
+            rows: paginationRows,
+            getGroupKey: getVariantGroupKey,
+            getSelectableId: getVariantSelectableId,
+            groupKeyPrefix: "variant-group-",
+        })
 
-    const columns = useMemo(
-        () => createRegistryColumns(EMPTY_ACTIONS, {expandedRowKeys, handleExpand}),
-        [expandedRowKeys, handleExpand],
-    )
+    const columns = useMemo(() => createRegistryColumns(EMPTY_ACTIONS, expandState), [expandState])
 
     const onSelectVariant = useCallback(
         (selectedRowKeys: React.Key[]) => {
