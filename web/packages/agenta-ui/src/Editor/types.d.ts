@@ -84,6 +84,7 @@ export interface EditorPluginsProps {
     showMarkdownToggleButton?: boolean
     singleLine: boolean
     codeOnly: boolean
+    largeDocumentMode?: boolean
     autoFocus?: boolean
     debug: boolean
     language?: "json" | "yaml" | "code" | "python" | "javascript" | "typescript"
