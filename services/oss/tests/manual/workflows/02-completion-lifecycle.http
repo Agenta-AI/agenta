@@ -22,7 +22,7 @@ Authorization: {{authorization}}
 ###
 # 1.x. Inspect the chat template (schema + uri)
 # @name get_template
-GET {{api_url}}/preview/workflows/catalog/templates/chat
+GET {{api_url}}/preview/workflows/catalog/templates/match
 Authorization: {{authorization}}
 
 ###

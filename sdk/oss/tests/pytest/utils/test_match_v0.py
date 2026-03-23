@@ -3,8 +3,8 @@ Unit tests for the match_v0 evaluator (agenta:builtin:match:v0).
 
 Tests are organized into two categories:
 
-1. Standalone match_v0 mode tests — verify each mode (valid, regex, similarity,
-   overlap) and their options directly.
+1. Standalone match_v0 mode tests — verify each match (valid, regex, similarity,
+   diff) and their options directly.
 
 2. Legacy parity tests — for each legacy evaluator that collapses into match,
    run both the legacy handler and an equivalent match_v0 configuration on the
@@ -74,7 +74,7 @@ def run(coro):
 
 
 def match(matchers: List[Dict], inputs=None, outputs=None, trace=None) -> Dict:
-    """Call _execute_match_node for each matcher and return the results list."""
+    """Call _execute_match_node for each matcher and return the flat result dict."""
     request: Dict[str, Any] = {}
     if inputs is not None:
         request["inputs"] = inputs
@@ -83,13 +83,16 @@ def match(matchers: List[Dict], inputs=None, outputs=None, trace=None) -> Dict:
     if trace is not None:
         request["trace"] = trace
 
-    results = [run(_execute_match_node(m, request)) for m in matchers]
-    return {"results": results}
+    return {
+        str(m.get("key", "")): run(_execute_match_node(m, request)) for m in matchers
+    }
 
 
 def first_result(matchers, inputs=None, outputs=None, trace=None) -> Dict:
     """Convenience: run match() and return the first result node."""
-    return match(matchers, inputs=inputs, outputs=outputs, trace=trace)["results"][0]
+    return next(
+        iter(match(matchers, inputs=inputs, outputs=outputs, trace=trace).values())
+    )
 
 
 def escaped_exact(value: str) -> str:
@@ -105,7 +108,7 @@ def escaped_exact(value: str) -> str:
 class TestMatchValid:
     def test_text_valid_string(self):
         r = first_result(
-            [{"key": "k", "path": "$.outputs", "kind": "text", "mode": "valid"}],
+            [{"key": "k", "target": "$.outputs", "mode": "text", "match": "valid"}],
             outputs="hello",
         )
         assert r["success"] is True
@@ -114,7 +117,7 @@ class TestMatchValid:
 
     def test_text_invalid_non_string(self):
         r = first_result(
-            [{"key": "k", "path": "$.outputs", "kind": "text", "mode": "valid"}],
+            [{"key": "k", "target": "$.outputs", "mode": "text", "match": "valid"}],
             outputs={"key": "val"},
         )
         assert r["success"] is False
@@ -122,21 +125,21 @@ class TestMatchValid:
 
     def test_json_valid_dict(self):
         r = first_result(
-            [{"key": "k", "path": "$.outputs", "kind": "json", "mode": "valid"}],
+            [{"key": "k", "target": "$.outputs", "mode": "json", "match": "valid"}],
             outputs={"name": "Alice"},
         )
         assert r["success"] is True
 
     def test_json_valid_json_string(self):
         r = first_result(
-            [{"key": "k", "path": "$.outputs", "kind": "json", "mode": "valid"}],
+            [{"key": "k", "target": "$.outputs", "mode": "json", "match": "valid"}],
             outputs='{"name": "Alice"}',
         )
         assert r["success"] is True
 
     def test_json_invalid_plain_string(self):
         r = first_result(
-            [{"key": "k", "path": "$.outputs", "kind": "json", "mode": "valid"}],
+            [{"key": "k", "target": "$.outputs", "mode": "json", "match": "valid"}],
             outputs="not json",
         )
         assert r["success"] is False
@@ -153,9 +156,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^Paris$",
                 }
             ],
@@ -168,9 +171,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^Paris$",
                 }
             ],
@@ -183,9 +186,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^paris$",
                 }
             ],
@@ -198,9 +201,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^paris$",
                     "case_sensitive": False,
                 }
@@ -216,9 +219,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "$.inputs.correct_answer",
                 }
             ],
@@ -233,9 +236,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^Hello",
                 }
             ],
@@ -248,9 +251,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "world!$",
                 }
             ],
@@ -263,9 +266,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "foo",
                 }
             ],
@@ -278,9 +281,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "(apple|banana|cherry)",
                 }
             ],
@@ -293,9 +296,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "(?=.*apple)(?=.*banana).*",
                 }
             ],
@@ -308,9 +311,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "(?=.*apple)(?=.*banana).*",
                 }
             ],
@@ -323,9 +326,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs.name",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs.name",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^Alice$",
                 }
             ],
@@ -338,9 +341,9 @@ class TestMatchRegex:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs.nonexistent",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs.nonexistent",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "^x$",
                 }
             ],
@@ -362,11 +365,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "$.inputs.correct_answer",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                 }
             ],
@@ -381,11 +384,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "hello world",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                 }
             ],
@@ -399,11 +402,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "test string",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.8,
                 }
             ],
@@ -417,11 +420,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "abc",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.5,
                 }
             ],
@@ -435,11 +438,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.5,
                 }
             ],
@@ -452,11 +455,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "HELLO",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                     "case_sensitive": False,
                 }
@@ -471,11 +474,11 @@ class TestMatchSimilarity:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "abd",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": score,
                 }
             ],
@@ -485,20 +488,20 @@ class TestMatchSimilarity:
 
 
 # ---------------------------------------------------------------------------
-# 4. mode=overlap
+# 4. match=diff
 # ---------------------------------------------------------------------------
 
 
-class TestMatchOverlap:
+class TestMatchDiff:
     def test_identical_json(self):
         obj = {"name": "Alice", "age": 30}
         r = first_result(
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": "$.inputs.correct_answer",
                     "threshold": 0.9,
                 }
@@ -514,9 +517,9 @@ class TestMatchOverlap:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": {"name": "Alice", "age": 30},
                     "threshold": 0.4,
                 }
@@ -530,11 +533,11 @@ class TestMatchOverlap:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": {"count": 5},
-                    "use_schema_only": True,
+                    "diff": "schema",
                     "threshold": 0.9,
                 }
             ],
@@ -549,11 +552,11 @@ class TestMatchOverlap:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": {"name": "Alice"},
-                    "include_unexpected_keys": False,
+                    "diff": "full",
                     "threshold": 0.9,
                 }
             ],
@@ -567,11 +570,11 @@ class TestMatchOverlap:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": {"name": "Alice"},
-                    "include_unexpected_keys": True,
+                    "diff": "strict",
                     "threshold": 0.5,
                 }
             ],
@@ -585,9 +588,9 @@ class TestMatchOverlap:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": '{"x": 1}',
                     "threshold": 0.9,
                 }
@@ -608,23 +611,23 @@ class TestMatchRecursive:
             [
                 {
                     "key": "group",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "valid",
-                    "aggregate": "all",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "valid",
+                    "success": "all",
                     "matchers": [
                         {
                             "key": "name",
-                            "path": "$.outputs.name",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs.name",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^Alice$",
                         },
                         {
                             "key": "age",
-                            "path": "$.outputs.age",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs.age",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^30$",
                         },
                     ],
@@ -633,31 +636,31 @@ class TestMatchRecursive:
             outputs={"name": "Alice", "age": "30"},
         )
         assert r["success"] is True
-        assert len(r["children"]) == 2
-        assert all(c["success"] for c in r["children"])
+        assert "name" in r and "age" in r
+        assert r["name"]["success"] and r["age"]["success"]
 
     def test_aggregate_all_one_fails(self):
         r = first_result(
             [
                 {
                     "key": "group",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "valid",
-                    "aggregate": "all",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "valid",
+                    "success": "all",
                     "matchers": [
                         {
                             "key": "name",
-                            "path": "$.outputs.name",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs.name",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^Alice$",
                         },
                         {
                             "key": "age",
-                            "path": "$.outputs.age",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs.age",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^99$",  # fails
                         },
                     ],
@@ -672,23 +675,23 @@ class TestMatchRecursive:
             [
                 {
                     "key": "group",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "valid",
-                    "aggregate": "any",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "success": "any",
                     "matchers": [
                         {
                             "key": "a",
-                            "path": "$.outputs",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^NO$",
                         },
                         {
                             "key": "b",
-                            "path": "$.outputs",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "hello",
                         },
                     ],
@@ -703,25 +706,26 @@ class TestMatchRecursive:
             [
                 {
                     "key": "group",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "valid",
-                    "aggregate": "weighted",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "score": "weighted",
+                    "success": "threshold",
                     "threshold": 0.6,
                     "matchers": [
                         {
                             "key": "a",
-                            "path": "$.outputs",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^YES$",
                             "weight": 3,
                         },
                         {
                             "key": "b",
-                            "path": "$.outputs",
-                            "kind": "text",
-                            "mode": "regex",
+                            "target": "$.outputs",
+                            "mode": "text",
+                            "match": "regex",
                             "reference": "^NO$",
                             "weight": 1,
                         },
@@ -739,23 +743,23 @@ class TestMatchRecursive:
             [
                 {
                     "key": "a",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "hello",
                 },
                 {
                     "key": "b",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "regex",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
                     "reference": "world",
                 },
             ],
             outputs="hello world",
         )
-        assert len(results["results"]) == 2
-        assert all(r["success"] for r in results["results"])
+        assert len(results) == 2
+        assert all(r["success"] for r in results.values())
 
 
 # ---------------------------------------------------------------------------
@@ -769,9 +773,9 @@ class TestMatchExact:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "Paris",
                 }
             ],
@@ -785,9 +789,9 @@ class TestMatchExact:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "Paris",
                 }
             ],
@@ -801,9 +805,9 @@ class TestMatchExact:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "paris",
                     "case_sensitive": False,
                 }
@@ -817,9 +821,9 @@ class TestMatchExact:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "paris",
                 }
             ],
@@ -832,9 +836,9 @@ class TestMatchExact:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "$.inputs.correct_answer",
                 }
             ],
@@ -855,9 +859,9 @@ class TestMatchStartsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "starts_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
                     "reference": "Hello",
                 }
             ],
@@ -870,9 +874,9 @@ class TestMatchStartsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "starts_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
                     "reference": "World",
                 }
             ],
@@ -885,9 +889,9 @@ class TestMatchStartsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "starts_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
                     "reference": "hello",
                     "case_sensitive": False,
                 }
@@ -901,9 +905,9 @@ class TestMatchStartsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "starts_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
                     "reference": "hello",
                 }
             ],
@@ -923,9 +927,9 @@ class TestMatchEndsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "ends_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
                     "reference": "world!",
                 }
             ],
@@ -938,9 +942,9 @@ class TestMatchEndsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "ends_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
                     "reference": "Hello",
                 }
             ],
@@ -953,9 +957,9 @@ class TestMatchEndsWith:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "ends_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
                     "reference": "WORLD!",
                     "case_sensitive": False,
                 }
@@ -976,9 +980,9 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "reference": "quick",
                 }
             ],
@@ -991,9 +995,9 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "reference": "slow",
                 }
             ],
@@ -1006,9 +1010,9 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "reference": "QUICK",
                     "case_sensitive": False,
                 }
@@ -1022,11 +1026,11 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": ["apple", "banana"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="I love banana",
@@ -1038,11 +1042,11 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": ["apple", "banana"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="I love oranges",
@@ -1054,11 +1058,11 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": ["apple", "banana"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="I love apple and banana",
@@ -1070,11 +1074,11 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": ["apple", "banana"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="I only love apple",
@@ -1086,11 +1090,11 @@ class TestMatchContains:
             [
                 {
                     "key": "k",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": ["APPLE", "BANANA"],
-                    "match": "all",
+                    "contains": "all",
                     "case_sensitive": False,
                 }
             ],
@@ -1125,9 +1129,9 @@ class TestParityExactMatch:
             [
                 {
                     "key": "exact_match",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": correct,
                 }
             ],
@@ -1149,9 +1153,9 @@ class TestParityExactMatch:
             [
                 {
                     "key": "exact_match",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": serialized,
                 }
             ],
@@ -1195,9 +1199,9 @@ class TestParityRegexTest:
                 [
                     {
                         "key": "regex",
-                        "path": "$.outputs",
-                        "kind": "text",
-                        "mode": "regex",
+                        "target": "$.outputs",
+                        "mode": "text",
+                        "match": "regex",
                         "reference": pattern,
                         "case_sensitive": cs,
                     }
@@ -1234,9 +1238,9 @@ class TestParityStartsWith:
             [
                 {
                     "key": "starts_with",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "starts_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
                     "reference": prefix,
                     "case_sensitive": cs,
                 }
@@ -1271,9 +1275,9 @@ class TestParityEndsWith:
             [
                 {
                     "key": "ends_with",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "ends_with",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
                     "reference": suffix,
                     "case_sensitive": cs,
                 }
@@ -1308,9 +1312,9 @@ class TestParityContains:
             [
                 {
                     "key": "contains",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "reference": substring,
                     "case_sensitive": cs,
                 }
@@ -1344,11 +1348,11 @@ class TestParityContainsAny:
             [
                 {
                     "key": "contains_any",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": substrings,
-                    "match": "any",
+                    "contains": "any",
                     "case_sensitive": cs,
                 }
             ],
@@ -1381,11 +1385,11 @@ class TestParityContainsAll:
             [
                 {
                     "key": "contains_all",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "contains",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
                     "references": substrings,
-                    "match": "all",
+                    "contains": "all",
                     "case_sensitive": cs,
                 }
             ],
@@ -1422,11 +1426,11 @@ class TestParitySimilarityMatch:
             [
                 {
                     "key": "sim",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "$.inputs.correct_answer",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                     "case_sensitive": True,
                 }
@@ -1452,11 +1456,11 @@ class TestParitySimilarityMatch:
             [
                 {
                     "key": "sim",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "completely different",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.8,
                     "case_sensitive": True,
                 }
@@ -1488,11 +1492,11 @@ class TestParityLevenshtein:
             [
                 {
                     "key": "lev",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "$.inputs.correct_answer",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.8,
                     "case_sensitive": True,
                 }
@@ -1518,11 +1522,11 @@ class TestParityLevenshtein:
             [
                 {
                     "key": "lev",
-                    "path": "$.outputs",
-                    "kind": "text",
-                    "mode": "similarity",
+                    "target": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
                     "reference": "abc",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.5,
                     "case_sensitive": True,
                 }
@@ -1545,9 +1549,9 @@ class TestParityContainsJson:
             [
                 {
                     "key": "contains_json",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "valid",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "valid",
                 }
             ],
             outputs={"key": "value"},
@@ -1562,9 +1566,9 @@ class TestParityContainsJson:
             [
                 {
                     "key": "contains_json",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "valid",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "valid",
                 }
             ],
             outputs='{"x": 1}',
@@ -1579,9 +1583,9 @@ class TestParityContainsJson:
             [
                 {
                     "key": "contains_json",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "valid",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "valid",
                 }
             ],
             outputs="not json at all",
@@ -1614,13 +1618,12 @@ class TestParityJsonDiff:
             [
                 {
                     "key": "json_diff",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": "$.inputs.correct_answer",
                     "threshold": 0.5,
-                    "use_schema_only": False,
-                    "include_unexpected_keys": False,
+                    "diff": "full",
                     "case_sensitive": True,
                 }
             ],
@@ -1649,13 +1652,12 @@ class TestParityJsonDiff:
             [
                 {
                     "key": "json_diff",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": reference,
                     "threshold": 0.4,
-                    "use_schema_only": False,
-                    "include_unexpected_keys": False,
+                    "diff": "full",
                     "case_sensitive": True,
                 }
             ],
@@ -1682,13 +1684,12 @@ class TestParityJsonDiff:
             [
                 {
                     "key": "json_diff",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": reference,
                     "threshold": 0.9,
-                    "use_schema_only": True,
-                    "include_unexpected_keys": False,
+                    "diff": "schema",
                     "case_sensitive": True,
                 }
             ],
@@ -1715,9 +1716,9 @@ class TestParityFieldMatchTest:
             [
                 {
                     "key": "field_match",
-                    "path": "$.outputs.city",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs.city",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "$.inputs.correct_answer",
                 }
             ],
@@ -1738,9 +1739,9 @@ class TestParityFieldMatchTest:
             [
                 {
                     "key": "field_match",
-                    "path": "$.outputs.city",
-                    "kind": "text",
-                    "mode": "exact",
+                    "target": "$.outputs.city",
+                    "mode": "text",
+                    "match": "exact",
                     "reference": "London",
                 }
             ],
@@ -1773,25 +1774,25 @@ class TestParityJsonMultiFieldMatch:
             [
                 {
                     "key": "multi_field",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": reference,
                     "threshold": 0.9,
-                    "aggregate": "all",
+                    "success": "all",
                     "matchers": [
                         {
                             "key": "name",
-                            "path": "$.outputs.name",
-                            "kind": "text",
-                            "mode": "exact",
+                            "target": "$.outputs.name",
+                            "mode": "text",
+                            "match": "exact",
                             "reference": reference["name"],
                         },
                         {
                             "key": "city",
-                            "path": "$.outputs.city",
-                            "kind": "text",
-                            "mode": "exact",
+                            "target": "$.outputs.city",
+                            "mode": "text",
+                            "match": "exact",
                             "reference": reference["city"],
                         },
                     ],
@@ -1801,7 +1802,7 @@ class TestParityJsonMultiFieldMatch:
         )
         assert legacy["aggregate_score"] == pytest.approx(1.0)
         assert m["success"] is True
-        assert all(c["success"] for c in m["children"])
+        assert m["name"]["success"] and m["city"]["success"]
         # Both report full success
         assert (legacy["aggregate_score"] == 1.0) == m["success"]
 
@@ -1821,25 +1822,26 @@ class TestParityJsonMultiFieldMatch:
             [
                 {
                     "key": "multi_field",
-                    "path": "$.outputs",
-                    "kind": "json",
-                    "mode": "overlap",
+                    "target": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
                     "reference": reference,
+                    "score": "weighted",
+                    "success": "threshold",
                     "threshold": 0.4,
-                    "aggregate": "weighted",
                     "matchers": [
                         {
                             "key": "name",
-                            "path": "$.outputs.name",
-                            "kind": "text",
-                            "mode": "exact",
+                            "target": "$.outputs.name",
+                            "mode": "text",
+                            "match": "exact",
                             "reference": reference["name"],
                         },
                         {
                             "key": "city",
-                            "path": "$.outputs.city",
-                            "kind": "text",
-                            "mode": "exact",
+                            "target": "$.outputs.city",
+                            "mode": "text",
+                            "match": "exact",
                             "reference": reference["city"],
                         },
                     ],

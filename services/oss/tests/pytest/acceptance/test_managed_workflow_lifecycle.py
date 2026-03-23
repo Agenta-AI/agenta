@@ -1,11 +1,11 @@
 """
 Acceptance tests for the full managed-workflow lifecycle.
 
-For each managed workflow in the evaluator catalog the suite:
+For each managed workflow in the workflow or evaluator catalog the suite:
 
-  1.  Fetch catalog — GET /preview/evaluators/catalog/templates
+  1.  Fetch catalog template
   2.  Pick a template
-  3.  Pick a preset      — GET /preview/evaluators/catalog/templates/{key}/presets
+  3.  Pick a preset
   4.  Create workflow    — POST /preview/workflows/
                           POST /preview/workflows/variants/
                           POST /preview/workflows/revisions/commit
@@ -35,17 +35,45 @@ pytestmark = [pytest.mark.acceptance]
 # ---------------------------------------------------------------------------
 # Managed workflow test cases
 # Each entry describes:
-#   template_key  – key in the evaluator catalog
+#   template_key  – key in the workflow or evaluator catalog
 #   uri           – agenta: URI registered in the services app
 #   service_path  – mount path under {services_url}
 #   parameters    – runtime parameters to use (preset-independent fallback)
 #   inputs        – handler inputs dict
-#   outputs       – handler outputs value
+#   outputs       – handler outputs value (when applicable)
+#   messages      – chat message history (chat workflows)
 #   requires_llm  – skip if True (needs external LLM API key)
 #   requires_url  – skip if True (needs a live webhook URL)
 # ---------------------------------------------------------------------------
 
 MANAGED_WORKFLOW_CASES = [
+    pytest.param(
+        {
+            "template_key": "chat",
+            "catalog_root": "/preview/workflows/catalog/templates",
+            "uri": "agenta:builtin:chat:v0",
+            "flags": {"is_application": True, "is_chat": True},
+            "parameters": {
+                "prompt": {
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert in geography.",
+                        }
+                    ],
+                    "llm_config": {"model": "gpt-4o-mini"},
+                }
+            },
+            "inputs": {"context": "Focus on concise answers."},
+            "messages": [{"role": "user", "content": "What is the capital of France?"}],
+            "output_kind": "assistant_message",
+            "requires_llm": True,
+        },
+        id="chat",
+        marks=[
+            pytest.mark.llm_required,
+        ],
+    ),
     pytest.param(
         {
             "template_key": "auto_exact_match",
@@ -329,9 +357,9 @@ MANAGED_WORKFLOW_CASES = [
             "parameters": {
                 "matchers": [
                     {
-                        "kind": "text",
-                        "mode": "regex",
-                        "path": "$.outputs",
+                        "mode": "text",
+                        "match": "regex",
+                        "target": "$.outputs",
                         "reference": "^Paris",
                     }
                 ]
@@ -366,23 +394,59 @@ def _assert_invoke_response(resp, *, case_id: str) -> dict:
     return payload
 
 
+def _build_data_payload(case: Dict[str, Any]) -> dict:
+    data: dict = {}
+    if "inputs" in case:
+        data["inputs"] = case["inputs"]
+    if "messages" in case:
+        data["messages"] = case["messages"]
+    if "outputs" in case:
+        data["outputs"] = case["outputs"]
+    if "trace" in case:
+        data["trace"] = case["trace"]
+    if "parameters" in case:
+        data["parameters"] = case["parameters"]
+    return data
+
+
 def _invoke_body(
     case: Dict[str, Any],
     *,
     revision: dict | None = None,
 ) -> dict:
     """Build a /invoke request body for the given case."""
-    body: dict = {
-        "data": {
-            "inputs": case.get("inputs", {}),
-            "outputs": case.get("outputs", ""),
-            "trace": case.get("trace", {}),
-            "parameters": case.get("parameters", {}),
-        }
-    }
+    body: dict = {"data": _build_data_payload(case)}
     if revision is not None:
         body["data"]["revision"] = revision
     return body
+
+
+def _assert_case_outputs(payload: dict, *, case: Dict[str, Any]) -> None:
+    case_id = case["template_key"]
+    outputs = payload["data"]["outputs"]
+    output_kind = case.get("output_kind", "success_bool")
+
+    if output_kind == "assistant_message":
+        assert isinstance(outputs, dict), (
+            f"[{case_id}] outputs should be a dict, got: {type(outputs)}"
+        )
+        assert outputs.get("role") == "assistant", (
+            f"[{case_id}] expected assistant role, got: {outputs}"
+        )
+        content = outputs.get("content")
+        assert isinstance(content, str), (
+            f"[{case_id}] expected string content, got: {outputs}"
+        )
+        assert content.strip(), f"[{case_id}] expected non-empty content: {outputs}"
+        return
+
+    assert isinstance(outputs, dict), (
+        f"[{case_id}] outputs should be a dict, got: {type(outputs)}"
+    )
+    assert "success" in outputs, f"[{case_id}] outputs missing 'success': {outputs}"
+    assert isinstance(outputs["success"], bool), (
+        f"[{case_id}] 'success' should be bool, got: {type(outputs['success'])}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -402,11 +466,12 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     """
     template_key = case["template_key"]
     uri = case["uri"]
+    catalog_root = case.get("catalog_root", "/preview/evaluators/catalog/templates")
 
     # ------------------------------------------------------------------
     # 1. Fetch catalog template
     # ------------------------------------------------------------------
-    resp = mod_api("GET", f"/preview/evaluators/catalog/templates/{template_key}")
+    resp = mod_api("GET", f"{catalog_root}/{template_key}")
     # 404 means this template is not in the catalog — use case parameters directly
     template_data: Dict[str, Any] = {}
     if resp.status_code == 200:
@@ -417,9 +482,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     # 2. Fetch first preset (optional)
     # ------------------------------------------------------------------
     preset_parameters: Dict[str, Any] = {}
-    resp = mod_api(
-        "GET", f"/preview/evaluators/catalog/templates/{template_key}/presets"
-    )
+    resp = mod_api("GET", f"{catalog_root}/{template_key}/presets")
     if resp.status_code == 200:
         presets = resp.json().get("presets", [])
         if presets:
@@ -442,7 +505,14 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     resp = mod_api(
         "POST",
         "/preview/simple/workflows/",
-        json={"workflow": {"slug": slug, "name": name, "data": workflow_data}},
+        json={
+            "workflow": {
+                "slug": slug,
+                "name": name,
+                "flags": case.get("flags", {}),
+                "data": workflow_data,
+            }
+        },
     )
     assert resp.status_code == 200, f"Create simple workflow failed: {resp.text}"
     assert resp.json().get("workflow"), f"No workflow in response: {resp.text}"
@@ -482,8 +552,8 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "service_path": _uri_to_service_path(uri),
         "parameters": parameters,
         "inputs": case.get("inputs", {}),
-        "outputs": case.get("outputs", ""),
         "trace": case.get("trace", {}),
+        "output_kind": case.get("output_kind", "success_bool"),
         #
         "workflow_id": workflow_id,
         "workflow_slug": workflow_slug,
@@ -539,6 +609,11 @@ class TestManagedWorkflowLifecycle:
     def test_invoke_by_env(self):
         """POST /invoke with env ref + selector key — SDK resolves revision via retrieve."""
         ctx = self._ctx
+        data = {"inputs": ctx.get("inputs", {})}
+        if "messages" in ctx:
+            data["messages"] = ctx["messages"]
+        if "outputs" in ctx:
+            data["outputs"] = ctx["outputs"]
         resp = self._mod_services_api(
             "POST",
             "/invoke",
@@ -549,16 +624,13 @@ class TestManagedWorkflowLifecycle:
                 "selector": {
                     "key": f"{ctx['workflow_slug']}.revision",
                 },
-                "data": {
-                    "inputs": ctx.get("inputs", {}),
-                    "outputs": ctx.get("outputs", ""),
-                },
+                "data": data,
             },
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
 
-    def test_output_has_success_field(self):
-        """Invoke returns an outputs dict with a boolean 'success' field."""
+    def test_output_matches_expected_shape(self):
+        """Invoke returns the expected outputs envelope for the managed workflow."""
         ctx = self._ctx
         resp = self._mod_services_api(
             "POST",
@@ -566,16 +638,7 @@ class TestManagedWorkflowLifecycle:
             json=_invoke_body(ctx),
         )
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
-        outputs = payload["data"]["outputs"]
-        assert isinstance(outputs, dict), (
-            f"[{ctx['template_key']}] outputs should be a dict, got: {type(outputs)}"
-        )
-        assert "success" in outputs, (
-            f"[{ctx['template_key']}] outputs missing 'success': {outputs}"
-        )
-        assert isinstance(outputs["success"], bool), (
-            f"[{ctx['template_key']}] 'success' should be bool, got: {type(outputs['success'])}"
-        )
+        _assert_case_outputs(payload, case=ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -631,12 +694,14 @@ def _assert_match_result(resp, *, expected_success: bool = None, min_results: in
     assert "data" in payload, f"Missing 'data': {payload}"
     outputs = payload["data"]["outputs"]
     assert isinstance(outputs, dict), f"outputs should be dict, got: {outputs}"
-    assert "results" in outputs, f"Missing 'results' in outputs: {outputs}"
-    assert len(outputs["results"]) >= min_results, (
-        f"Expected >= {min_results} result(s), got: {outputs['results']}"
+    assert "score" in outputs, f"Missing 'score' in outputs: {outputs}"
+    assert "success" in outputs, f"Missing 'success' in outputs: {outputs}"
+    matcher_nodes = {k: v for k, v in outputs.items() if k not in ("score", "success")}
+    assert len(matcher_nodes) >= min_results, (
+        f"Expected >= {min_results} matcher result(s), got: {matcher_nodes}"
     )
     if expected_success is not None:
-        first = outputs["results"][0]
+        first = next(iter(matcher_nodes.values()))
         assert first.get("success") is expected_success, (
             f"Expected success={expected_success}, got: {first}"
         )
@@ -654,7 +719,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "text", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs="Paris",
         )
@@ -667,9 +737,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -684,9 +754,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -701,9 +771,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -718,9 +788,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ],
@@ -735,9 +805,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 }
             ],
@@ -752,9 +822,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 }
             ],
@@ -769,9 +839,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "capital",
                 }
             ],
@@ -786,9 +856,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "Berlin",
                 }
             ],
@@ -803,11 +873,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "Berlin", "Rome"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="Paris is the capital",
@@ -821,11 +891,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Berlin", "Rome", "Madrid"],
-                    "match": "any",
+                    "contains": "any",
                 }
             ],
             outputs="Paris is the capital",
@@ -839,11 +909,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "France"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="Paris is the capital of France",
@@ -857,11 +927,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "references": ["Paris", "France"],
-                    "match": "all",
+                    "contains": "all",
                 }
             ],
             outputs="Paris is a great city",
@@ -875,9 +945,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -892,9 +962,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -909,9 +979,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^paris",
                     "case_sensitive": False,
                 }
@@ -927,18 +997,18 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.8,
                 }
             ],
             outputs="Paris",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_text_similarity_levenshtein_one_edit(self, services_api):
         """text/similarity levenshtein: one edit apart → high score, success depends on threshold."""
@@ -947,18 +1017,18 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "levenshtein",
+                    "similarity": "levenshtein",
                     "threshold": 0.5,
                 }
             ],
             outputs="Pariss",  # 1 insertion → distance=1, normalized ~0.83
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score", 0) > 0.5
+        assert result["m"].get("score", 0) > 0.5
 
     def test_text_similarity_jaccard_identical(self, services_api):
         """text/similarity jaccard (SequenceMatcher): identical strings → score=1.0."""
@@ -967,18 +1037,18 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris is the capital",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.5,
                 }
             ],
             outputs="Paris is the capital",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_text_similarity_jaccard_different(self, services_api):
         """text/similarity jaccard: completely different strings → low score, success=False."""
@@ -987,11 +1057,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "similarity",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "similarity",
+                    "target": "$.outputs",
                     "reference": "Paris",
-                    "distance": "jaccard",
+                    "similarity": "jaccard",
                     "threshold": 0.9,
                 }
             ],
@@ -1008,9 +1078,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.expected",
                 }
             ],
@@ -1026,9 +1096,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "/outputs",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "/outputs",
                     "reference": "^Paris",
                 }
             ],
@@ -1043,7 +1113,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "json",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs='{"city": "Paris"}',
         )
@@ -1054,7 +1129,12 @@ class TestMatchV0Kinds:
         resp = _match_direct(
             services_api,
             matchers=[
-                {"key": "m", "kind": "json", "mode": "valid", "path": "$.outputs"}
+                {
+                    "key": "m",
+                    "mode": "json",
+                    "match": "valid",
+                    "target": "$.outputs",
+                }
             ],
             outputs="not json",
         )
@@ -1067,9 +1147,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                 }
             ],
@@ -1085,9 +1165,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "exact",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "exact",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                 }
             ],
@@ -1103,9 +1183,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                     "threshold": 0.8,
                 }
@@ -1114,7 +1194,7 @@ class TestMatchV0Kinds:
             outputs='{"city": "Paris", "country": "France"}',
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["m"].get("score") == pytest.approx(1.0)
 
     def test_json_overlap_partial(self, services_api):
         """json/overlap: half fields match → score=0.5, fails at threshold=0.8."""
@@ -1123,9 +1203,9 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
                     "threshold": 0.8,
                 }
@@ -1134,7 +1214,7 @@ class TestMatchV0Kinds:
             outputs='{"city": "Paris", "country": "Germany"}',
         )
         result = _assert_match_result(resp, expected_success=False)
-        score = result["results"][0].get("score", 1.0)
+        score = result["m"].get("score", 1.0)
         assert score < 0.8
 
     def test_json_overlap_schema_only(self, services_api):
@@ -1144,11 +1224,11 @@ class TestMatchV0Kinds:
             matchers=[
                 {
                     "key": "m",
-                    "kind": "json",
-                    "mode": "overlap",
-                    "path": "$.outputs",
+                    "mode": "json",
+                    "match": "diff",
+                    "target": "$.outputs",
                     "reference": "$.inputs.correct",
-                    "use_schema_only": True,
+                    "diff": "schema",
                     "threshold": 0.9,
                 }
             ],
@@ -1169,23 +1249,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                         },
                     ],
@@ -1194,7 +1274,7 @@ class TestMatchV0Aggregation:
             outputs="Paris is the capital of France",
         )
         result = _assert_match_result(resp, expected_success=True)
-        assert result["results"][0].get("score") == pytest.approx(1.0)
+        assert result["root"].get("score") == pytest.approx(1.0)
 
     def test_aggregate_all_one_fails(self, services_api):
         """aggregate=all: one child fails → success=False (AND semantics)."""
@@ -1203,23 +1283,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                         },
                     ],
@@ -1236,23 +1316,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_berlin",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Berlin",
                         },
                     ],
@@ -1269,23 +1349,23 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                         },
                         {
                             "key": "has_berlin",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Berlin",
                         },
                     ],
@@ -1304,25 +1384,25 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                             "weight": 2.0,
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                             "weight": 1.0,
                         },
@@ -1341,25 +1421,25 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "root",
-                    "kind": "text",
-                    "mode": "valid",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "valid",
+                    "target": "$.outputs",
                     "aggregate": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {
                             "key": "has_paris",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "Paris",
                             "weight": 1.0,
                         },
                         {
                             "key": "has_france",
-                            "kind": "text",
-                            "mode": "contains",
-                            "path": "$.outputs",
+                            "mode": "text",
+                            "match": "contains",
+                            "target": "$.outputs",
                             "reference": "France",
                             "weight": 1.0,
                         },
@@ -1377,28 +1457,27 @@ class TestMatchV0Aggregation:
             matchers=[
                 {
                     "key": "m1",
-                    "kind": "text",
-                    "mode": "contains",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "contains",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 },
                 {
                     "key": "m2",
-                    "kind": "text",
-                    "mode": "ends_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "ends_with",
+                    "target": "$.outputs",
                     "reference": "France",
                 },
                 {
                     "key": "m3",
-                    "kind": "text",
-                    "mode": "starts_with",
-                    "path": "$.outputs",
+                    "mode": "text",
+                    "match": "starts_with",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 },
             ],
             outputs="Paris is the capital of France",
         )
         result = _assert_match_result(resp, min_results=3)
-        keys = [r["key"] for r in result["results"]]
-        assert "m1" in keys and "m2" in keys and "m3" in keys
+        assert "m1" in result and "m2" in result and "m3" in result

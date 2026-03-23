@@ -1,6 +1,6 @@
 # /agenta/sdk/workflows/utils.py
 
-from typing import Optional, Tuple, Callable
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from agenta.sdk.models.workflows import (
     WorkflowFlags,
@@ -616,3 +616,138 @@ def infer_flags_from_data(
         is_application=is_application,
         is_snippet=is_snippet,
     )
+
+
+# ---------------------------------------------------------------------------
+# Outputs schema inference
+# ---------------------------------------------------------------------------
+
+_MATCH_RESULT_DEF: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "success": {"type": "boolean"},
+        "score": {"type": "number"},
+        "error": {"type": ["string", "null"]},
+    },
+    "required": ["success", "score"],
+    "additionalProperties": {"$ref": "#/$defs/result"},
+}
+
+
+_MATCH_RESULT_BASE_PROPS: Dict[str, Any] = {
+    "success": {"type": "boolean"},
+    "score": {"type": "number"},
+    "error": {"type": ["string", "null"]},
+}
+_MATCH_RESULT_BASE_REQUIRED: List[str] = ["success", "score", "error"]
+
+
+def _build_match_result_schema(matcher: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a typed result schema for a single matcher node.
+
+    Leaf nodes reference the generic result def. Parent nodes enumerate
+    their child keys directly as properties (children are merged in, not nested).
+    """
+    child_matchers: List[Dict[str, Any]] = matcher.get("matchers") or []
+    if not child_matchers:
+        return {"$ref": "#/$defs/result"}
+
+    extra_props: Dict[str, Any] = {}
+    extra_required: List[str] = []
+    for child in child_matchers:
+        child_key = str(child.get("key", ""))
+        if child_key:
+            extra_props[child_key] = _build_match_result_schema(child)
+            extra_required.append(child_key)
+
+    return {
+        "type": "object",
+        "properties": {**_MATCH_RESULT_BASE_PROPS, **extra_props},
+        "required": [*_MATCH_RESULT_BASE_REQUIRED, *extra_required],
+        "additionalProperties": False,
+    }
+
+
+def _infer_match_v0_outputs(
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    matchers: List[Dict[str, Any]] = (parameters or {}).get("matchers") or []
+    if not matchers:
+        return None
+
+    # Root-level: score/success + one property per top-level matcher key
+    props: Dict[str, Any] = {
+        "score": {
+            "type": "number",
+            "description": "Weighted mean score across all root-level matchers.",
+        },
+        "success": {"type": "boolean"},
+    }
+    required: List[str] = ["score", "success"]
+    for matcher in matchers:
+        key = str(matcher.get("key", ""))
+        if key:
+            props[key] = _build_match_result_schema(matcher)
+            required.append(key)
+
+    return {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "title": "Match Outputs",
+        "description": "Flat result dict: root-level matcher keys plus score/success.",
+        "properties": props,
+        "required": required,
+        "$defs": {"result": _MATCH_RESULT_DEF},
+        "additionalProperties": False,
+    }
+
+
+def _infer_llm_v0_outputs(
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    response = (parameters or {}).get("response") or {}
+    if response.get("format") != "json":
+        return None
+    schema = response.get("schema")
+    if not schema or not isinstance(schema, dict):
+        return None
+    return schema
+
+
+def _infer_completion_v0_outputs(
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    prompt = (parameters or {}).get("prompt") or {}
+    llm_config = prompt.get("llm_config") or {}
+    response_format = llm_config.get("response_format") or {}
+    if response_format.get("type") != "json_schema":
+        return None
+    json_schema = response_format.get("json_schema") or {}
+    schema = json_schema.get("schema")
+    if not schema or not isinstance(schema, dict):
+        return None
+    return schema
+
+
+_OUTPUTS_INFERRERS: Dict[str, Callable] = {
+    "agenta:builtin:match:v0": _infer_match_v0_outputs,
+    "agenta:builtin:llm:v0": _infer_llm_v0_outputs,
+    "agenta:builtin:completion:v0": _infer_completion_v0_outputs,
+}
+
+
+def infer_outputs_schema(
+    uri: Optional[str],
+    parameters: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """Infer a concrete outputs schema from a URI and its parameters.
+
+    Returns a JSON Schema dict when inference succeeds, or None to fall back
+    to the generic interface schema.
+    """
+    if not uri:
+        return None
+    inferrer = _OUTPUTS_INFERRERS.get(uri)
+    if not inferrer:
+        return None
+    return inferrer(parameters)

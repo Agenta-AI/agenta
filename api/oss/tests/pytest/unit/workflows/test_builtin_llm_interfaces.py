@@ -1,6 +1,7 @@
 from agenta.sdk.engines.running.interfaces import (
     chat_v0_interface,
     completion_v0_interface,
+    match_v0_interface,
 )
 
 
@@ -56,3 +57,33 @@ def test_chat_v0_interface_outputs_use_message_semantic_type():
 
     assert outputs["x-ag-type"] == "message"
     assert outputs["type"] == "object"
+
+
+def test_match_v0_interface_exposes_recursive_matchers_parameters_schema():
+    parameters = match_v0_interface.schemas.parameters
+
+    assert parameters["required"] == ["matchers"]
+    assert parameters["properties"]["matchers"]["items"] == {"$ref": "#/$defs/matcher"}
+
+    matcher = parameters["$defs"]["matcher"]
+    assert matcher["required"] == ["target"]
+    assert matcher["properties"]["mode"]["enum"] == ["text", "json"]
+    assert matcher["properties"]["match"]["enum"] == [
+        "valid",
+        "exact",
+        "starts_with",
+        "ends_with",
+        "contains",
+        "regex",
+        "similarity",
+        "diff",
+    ]
+    assert matcher["properties"]["score"]["enum"] == ["weighted", "min", "max"]
+    assert matcher["properties"]["success"]["enum"] == ["all", "any", "threshold"]
+
+    root = parameters["properties"]
+    assert root["score"]["enum"] == ["weighted", "min", "max"]
+    assert root["score"]["default"] == "weighted"
+    assert root["success"]["enum"] == ["all", "any", "threshold"]
+    assert root["success"]["default"] == "threshold"
+    assert root["threshold"]["default"] == 1.0

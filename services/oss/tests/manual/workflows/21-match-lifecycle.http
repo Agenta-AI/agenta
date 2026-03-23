@@ -16,13 +16,14 @@ Authorization: Access {{token}}
 # ============================================================
 # match:v0 — Generic rule-based matcher
 #
-# Supports two kinds:   text | json
-# Supports eight modes: valid | exact | starts_with | ends_with |
-#                       contains | regex | similarity | overlap(json only)
-# Path formats:         JSONPath ($.outputs) | JSON Pointer (/outputs)
+# Supports two modes:   text | json
+# Supports eight match: valid | exact | starts_with | ends_with |
+#                       contains | regex | similarity | diff(json only)
+# Target formats:       JSONPath ($.outputs) | JSON Pointer (/outputs)
 # Reference formats:    literal value | JSONPath ref | JSON Pointer ref
 # Aggregation:          all (AND) | any (OR) | weighted (threshold-gated)
-# Similarity distances: jaccard | levenshtein | cosine (cosine requires LLM)
+# Similarity metrics:   jaccard | levenshtein | cosine (cosine requires LLM)
+# Diff modes:           full (default) | schema (type-only) | strict (penalise extra keys)
 # ============================================================
 
 ###
@@ -56,9 +57,9 @@ Authorization: {{authorization}}
         "matchers": [
           {
             "key": "exact_output",
-            "kind": "text",
-            "mode": "regex",
-            "path": "$.outputs",
+            "mode": "text",
+            "match": "regex",
+            "target": "$.outputs",
             "reference": "^Paris"
           }
         ]
@@ -146,7 +147,7 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "regex", "path": "$.outputs", "reference": "^Paris" }
+        { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
       ]
     }
   }
@@ -154,7 +155,7 @@ Authorization: {{authorization}}
 
 ###
 # ============================================================
-# KIND: text — all modes (inline invocations, no DB lookup)
+# MODE: text — all match values (inline invocations, no DB lookup)
 # ============================================================
 
 ###
@@ -170,7 +171,7 @@ Authorization: {{authorization}}
     "outputs": "Paris",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "valid", "path": "$.outputs" }
+        { "key": "m1", "mode": "text", "match": "valid", "target": "$.outputs" }
       ]
     }
   }
@@ -189,7 +190,7 @@ Authorization: {{authorization}}
     "outputs": "Paris",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "exact", "path": "$.outputs", "reference": "Paris" }
+        { "key": "m1", "mode": "text", "match": "exact", "target": "$.outputs", "reference": "Paris" }
       ]
     }
   }
@@ -208,7 +209,7 @@ Authorization: {{authorization}}
     "outputs": "Paris",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "exact", "path": "$.outputs", "reference": "London" }
+        { "key": "m1", "mode": "text", "match": "exact", "target": "$.outputs", "reference": "London" }
       ]
     }
   }
@@ -227,7 +228,7 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital of France",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "starts_with", "path": "$.outputs", "reference": "Paris" }
+        { "key": "m1", "mode": "text", "match": "starts_with", "target": "$.outputs", "reference": "Paris" }
       ]
     }
   }
@@ -246,7 +247,7 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital of France",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "ends_with", "path": "$.outputs", "reference": "France" }
+        { "key": "m1", "mode": "text", "match": "ends_with", "target": "$.outputs", "reference": "France" }
       ]
     }
   }
@@ -265,7 +266,7 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital of France",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "capital" }
+        { "key": "m1", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "capital" }
       ]
     }
   }
@@ -286,11 +287,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "contains",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "contains",
+          "target": "$.outputs",
           "references": ["Paris", "Berlin", "Rome"],
-          "match": "any"
+          "contains": "any"
         }
       ]
     }
@@ -312,11 +313,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "contains",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "contains",
+          "target": "$.outputs",
           "references": ["Paris", "France"],
-          "match": "all"
+          "contains": "all"
         }
       ]
     }
@@ -336,7 +337,7 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "regex", "path": "$.outputs", "reference": "^Paris" }
+        { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
       ]
     }
   }
@@ -357,9 +358,9 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "regex",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "regex",
+          "target": "$.outputs",
           "reference": "paris",
           "case_sensitive": false
         }
@@ -383,11 +384,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "similarity",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "similarity",
+          "target": "$.outputs",
           "reference": "Paris",
-          "distance": "levenshtein",
+          "similarity": "levenshtein",
           "threshold": 0.8
         }
       ]
@@ -410,11 +411,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "similarity",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "similarity",
+          "target": "$.outputs",
           "reference": "Paris is the capital of France",
-          "distance": "jaccard",
+          "similarity": "jaccard",
           "threshold": 0.5
         }
       ]
@@ -424,7 +425,7 @@ Authorization: {{authorization}}
 
 ###
 # ============================================================
-# PATH VARIANTS — JSONPath vs JSON Pointer vs dot notation
+# TARGET VARIANTS — JSONPath vs JSON Pointer vs dot notation
 # ============================================================
 
 ###
@@ -442,9 +443,9 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "text",
-          "mode": "exact",
-          "path": "$.outputs",
+          "mode": "text",
+          "match": "exact",
+          "target": "$.outputs",
           "reference": "$.inputs.expected"
         }
       ]
@@ -465,7 +466,7 @@ Authorization: {{authorization}}
     "outputs": "Paris",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "text", "mode": "regex", "path": "/outputs", "reference": "^Paris" }
+        { "key": "m1", "mode": "text", "match": "regex", "target": "/outputs", "reference": "^Paris" }
       ]
     }
   }
@@ -473,7 +474,7 @@ Authorization: {{authorization}}
 
 ###
 # ============================================================
-# KIND: json — modes valid, exact, overlap
+# MODE: json — match values valid, exact, diff
 # ============================================================
 
 ###
@@ -489,7 +490,7 @@ Authorization: {{authorization}}
     "outputs": "{\"city\": \"Paris\"}",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "json", "mode": "valid", "path": "$.outputs" }
+        { "key": "m1", "mode": "json", "match": "valid", "target": "$.outputs" }
       ]
     }
   }
@@ -508,7 +509,7 @@ Authorization: {{authorization}}
     "outputs": "not json",
     "parameters": {
       "matchers": [
-        { "key": "m1", "kind": "json", "mode": "valid", "path": "$.outputs" }
+        { "key": "m1", "mode": "json", "match": "valid", "target": "$.outputs" }
       ]
     }
   }
@@ -529,9 +530,9 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "json",
-          "mode": "exact",
-          "path": "$.outputs",
+          "mode": "json",
+          "match": "exact",
+          "target": "$.outputs",
           "reference": "$.inputs.expected"
         }
       ]
@@ -540,7 +541,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# json/overlap — field-by-field comparison, default options
+# json/diff — field-by-field comparison, default options (diff=full)
 # identical JSON → expect score=1.0
 # @name json_overlap_identical
 POST {{services_url}}/builtin/match/v0/invoke
@@ -555,9 +556,9 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "json",
-          "mode": "overlap",
-          "path": "$.outputs",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
           "reference": "$.inputs.correct",
           "threshold": 0.8
         }
@@ -567,7 +568,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# json/overlap — partial match (one field correct, one wrong)
+# json/diff — partial match (one field correct, one wrong)
 # Expect score=0.5, success=false (threshold=0.8)
 # @name json_overlap_partial
 POST {{services_url}}/builtin/match/v0/invoke
@@ -582,9 +583,9 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "json",
-          "mode": "overlap",
-          "path": "$.outputs",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
           "reference": "$.inputs.correct",
           "threshold": 0.8
         }
@@ -594,7 +595,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# json/overlap — use_schema_only=true: compare field types, not values
+# json/diff — diff="schema": compare field types, not values
 # Both have "city" as string and "population" as number → score=1.0
 # @name json_overlap_schema_only
 POST {{services_url}}/builtin/match/v0/invoke
@@ -609,11 +610,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "json",
-          "mode": "overlap",
-          "path": "$.outputs",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
           "reference": "$.inputs.correct",
-          "use_schema_only": true,
+          "diff": "schema",
           "threshold": 0.9
         }
       ]
@@ -622,7 +623,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# json/overlap — include_unexpected_keys=true: penalize extra keys in output
+# json/diff — diff="strict": penalize extra keys in output
 # Output has an extra "region" key not in reference → score penalized
 # @name json_overlap_unexpected_keys
 POST {{services_url}}/builtin/match/v0/invoke
@@ -637,11 +638,11 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "m1",
-          "kind": "json",
-          "mode": "overlap",
-          "path": "$.outputs",
+          "mode": "json",
+          "match": "diff",
+          "target": "$.outputs",
           "reference": "$.inputs.correct",
-          "include_unexpected_keys": true,
+          "diff": "strict",
           "threshold": 0.8
         }
       ]
@@ -651,12 +652,12 @@ Authorization: {{authorization}}
 
 ###
 # ============================================================
-# AGGREGATION STRATEGIES
+# AGGREGATION — score: weighted|min|max  /  success: all|any|threshold
 # ============================================================
 
 ###
-# all — AND logic: both matchers must succeed
-# city=Paris (passes) AND country=France (passes) → aggregate success=true
+# success=all — all children must pass
+# has_paris (passes) AND has_france (passes) → success=true, score=1.0
 # @name aggregate_all_success
 POST {{services_url}}/builtin/match/v0/invoke
 Content-Type: application/json
@@ -670,13 +671,13 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "root",
-          "kind": "text",
-          "mode": "valid",
-          "path": "$.outputs",
-          "aggregate": "all",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "all",
           "matchers": [
-            { "key": "has_paris", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Paris" },
-            { "key": "has_france", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "France" }
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
           ]
         }
       ]
@@ -685,7 +686,8 @@ Authorization: {{authorization}}
 }
 
 ###
-# all — AND logic: one fails → aggregate success=false
+# success=all — one child fails → success=false
+# has_paris (passes), has_france (fails) → success=false, score=0.5
 # @name aggregate_all_failure
 POST {{services_url}}/builtin/match/v0/invoke
 Content-Type: application/json
@@ -699,13 +701,13 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "root",
-          "kind": "text",
-          "mode": "valid",
-          "path": "$.outputs",
-          "aggregate": "all",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "all",
           "matchers": [
-            { "key": "has_paris", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Paris" },
-            { "key": "has_france", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "France" }
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
           ]
         }
       ]
@@ -714,8 +716,8 @@ Authorization: {{authorization}}
 }
 
 ###
-# any — OR logic: at least one must succeed
-# has "Paris" (passes), doesn't have "Berlin" (fails) → aggregate success=true
+# success=any — at least one child must pass
+# has_paris (passes), has_berlin (fails) → success=true, score=0.5
 # @name aggregate_any_success
 POST {{services_url}}/builtin/match/v0/invoke
 Content-Type: application/json
@@ -729,13 +731,13 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "root",
-          "kind": "text",
-          "mode": "valid",
-          "path": "$.outputs",
-          "aggregate": "any",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "success": "any",
           "matchers": [
-            { "key": "has_paris", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Paris" },
-            { "key": "has_berlin", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Berlin" }
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_berlin", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Berlin" }
           ]
         }
       ]
@@ -744,9 +746,9 @@ Authorization: {{authorization}}
 }
 
 ###
-# weighted — weighted average with threshold
-# m1 passes (1.0, weight=2), m2 fails (0.0, weight=1) → score=0.67, threshold=0.5 → success=true
-# @name aggregate_weighted_success
+# score=weighted, success=threshold — weighted mean >= threshold → success=true
+# has_paris (1.0, weight=2), has_france (0.0, weight=1) → score=0.67, threshold=0.5 → success=true
+# @name aggregate_weighted_threshold_success
 POST {{services_url}}/builtin/match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
@@ -759,14 +761,15 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "root",
-          "kind": "text",
-          "mode": "valid",
-          "path": "$.outputs",
-          "aggregate": "weighted",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "weighted",
+          "success": "threshold",
           "threshold": 0.5,
           "matchers": [
-            { "key": "has_paris", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Paris", "weight": 2.0 },
-            { "key": "has_france", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "France", "weight": 1.0 }
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris",  "weight": 2.0 },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France", "weight": 1.0 }
           ]
         }
       ]
@@ -775,9 +778,9 @@ Authorization: {{authorization}}
 }
 
 ###
-# weighted — score below threshold → success=false
-# m1 fails (0.0, weight=1), m2 fails (0.0, weight=1) → score=0.0, threshold=0.5 → success=false
-# @name aggregate_weighted_failure
+# score=weighted, success=threshold — score below threshold → success=false
+# both fail → score=0.0, threshold=0.5 → success=false
+# @name aggregate_weighted_threshold_failure
 POST {{services_url}}/builtin/match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
@@ -790,14 +793,79 @@ Authorization: {{authorization}}
       "matchers": [
         {
           "key": "root",
-          "kind": "text",
-          "mode": "valid",
-          "path": "$.outputs",
-          "aggregate": "weighted",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "weighted",
+          "success": "threshold",
           "threshold": 0.5,
           "matchers": [
-            { "key": "has_paris", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "Paris", "weight": 1.0 },
-            { "key": "has_france", "kind": "text", "mode": "contains", "path": "$.outputs", "reference": "France", "weight": 1.0 }
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris",  "weight": 1.0 },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France", "weight": 1.0 }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=min — worst child score propagates up
+# has_paris (1.0), has_france (0.0) → score=min(1.0, 0.0)=0.0, success=threshold(1.0) → false
+# @name aggregate_min_score
+POST {{services_url}}/builtin/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "min",
+          "success": "threshold",
+          "threshold": 0.9,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+###
+# score=max — best child score propagates up
+# has_paris (1.0), has_france (0.0) → score=max(1.0, 0.0)=1.0, threshold=0.5 → success=true
+# @name aggregate_max_score
+POST {{services_url}}/builtin/match/v0/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "data": {
+    "inputs":  {},
+    "outputs": "Paris is the capital",
+    "parameters": {
+      "matchers": [
+        {
+          "key": "root",
+          "mode": "text",
+          "match": "valid",
+          "target": "$.outputs",
+          "score": "max",
+          "success": "threshold",
+          "threshold": 0.5,
+          "matchers": [
+            { "key": "has_paris",  "mode": "text", "match": "contains", "target": "$.outputs", "reference": "Paris" },
+            { "key": "has_france", "mode": "text", "match": "contains", "target": "$.outputs", "reference": "France" }
           ]
         }
       ]
@@ -823,9 +891,9 @@ Authorization: {{authorization}}
     "outputs": "Paris is the capital of France",
     "parameters": {
       "matchers": [
-        { "key": "exact_check",   "kind": "text", "mode": "exact",    "path": "$.outputs",       "reference": "$.inputs.expected" },
-        { "key": "contains_check","kind": "text", "mode": "contains", "path": "$.outputs",       "reference": "Paris" },
-        { "key": "ends_check",    "kind": "text", "mode": "ends_with","path": "$.outputs",       "reference": "France" }
+        { "key": "exact_check",   "mode": "text", "match": "exact",    "target": "$.outputs",       "reference": "$.inputs.expected" },
+        { "key": "contains_check","mode": "text", "match": "contains", "target": "$.outputs",       "reference": "Paris" },
+        { "key": "ends_check",    "mode": "text", "match": "ends_with","target": "$.outputs",       "reference": "France" }
       ]
     }
   }
@@ -852,7 +920,7 @@ Authorization: {{authorization}}
         "uri": "agenta:builtin:match:v0",
         "parameters": {
           "matchers": [
-            { "key": "m1", "kind": "text", "mode": "regex", "path": "$.outputs", "reference": "^Paris" }
+            { "key": "m1", "mode": "text", "match": "regex", "target": "$.outputs", "reference": "^Paris" }
           ]
         }
       }
@@ -861,7 +929,7 @@ Authorization: {{authorization}}
 }
 
 ###
-# Invoke inline — json/overlap via dispatcher
+# Invoke inline — json/diff via dispatcher
 # @name invoke_inline_json_overlap
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -878,9 +946,9 @@ Authorization: {{authorization}}
           "matchers": [
             {
               "key": "m1",
-              "kind": "json",
-              "mode": "overlap",
-              "path": "$.outputs",
+              "mode": "json",
+              "match": "diff",
+              "target": "$.outputs",
               "reference": "$.inputs.correct",
               "threshold": 0.8
             }
