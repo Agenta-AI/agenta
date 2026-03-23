@@ -2,11 +2,11 @@ import {SetStateAction, useMemo, useState} from "react"
 
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import type {Workflow} from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {CaretRight} from "@phosphor-icons/react"
 import {Input, Modal, Table, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import type {JSSTheme} from "@/oss/lib/Types"

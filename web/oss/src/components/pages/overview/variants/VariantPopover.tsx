@@ -1,11 +1,11 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
+import {VariantNameCell} from "@agenta/entity-ui/variant"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 

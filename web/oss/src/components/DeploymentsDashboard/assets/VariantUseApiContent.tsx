@@ -6,6 +6,7 @@ import {
     workflowRevisionsListDataAtomFamily,
     workflowRevisionsByWorkflowListDataAtomFamily,
 } from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs, Typography} from "antd"
@@ -20,7 +21,6 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import SelectVariant from "@/oss/components/Playground/Components/Menus/SelectVariant"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {currentAppAtom} from "@/oss/state/app"
 

@@ -2,11 +2,11 @@ import {memo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
 import {ArrowCounterClockwise, ArrowSquareOut, Eye, Lightning} from "@phosphor-icons/react"
 import {Typography} from "antd"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {routerAppIdAtom} from "@/oss/state/app"
 
 import type {DeploymentRevisionRow} from "../../store/deploymentStore"

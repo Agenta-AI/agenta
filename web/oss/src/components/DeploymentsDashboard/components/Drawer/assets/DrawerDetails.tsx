@@ -2,12 +2,11 @@ import {useMemo} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus, type VariantStatusInfo} from "@agenta/entity-ui/variant"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
 interface DrawerDetailsProps {

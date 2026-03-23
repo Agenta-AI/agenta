@@ -6,6 +6,7 @@ import {
     type EnvironmentRevision,
 } from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
+import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button, Card, Divider, Space, Typography, notification} from "antd"
 import dayjs from "dayjs"
@@ -16,7 +17,6 @@ import {createUseStyles} from "react-jss"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
 import type {JSSTheme} from "@/oss/lib/Types"
 
 dayjs.extend(relativeTime)
@@ -407,9 +407,11 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({environmentSlug, a
 
                         {selectedItem?.appRevisionId ? (
                             <Card title="Configuration" style={{margin: 30}}>
-                                <NewVariantParametersView
+                                <PlaygroundConfigSection
                                     revisionId={selectedItem.appRevisionId}
-                                    showOriginal
+                                    useServerData
+                                    viewMode="json"
+                                    disabled
                                 />
                             </Card>
                         ) : (
