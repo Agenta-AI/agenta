@@ -7,7 +7,8 @@
 
 import React, {useMemo, useCallback} from "react"
 
-import {Modal, Tabs} from "antd"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {resolveAdapter} from "../adapters/createAdapter"
@@ -166,7 +167,7 @@ export function EntitySelectorModal({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             open={isOpen}
             title={title}
             onCancel={handleCancel}
@@ -177,7 +178,6 @@ export function EntitySelectorModal({
             centered={centered}
             className={className}
             footer={footer}
-            destroyOnHidden
         >
             {tabItems.length > 1 ? (
                 <Tabs
@@ -188,7 +188,7 @@ export function EntitySelectorModal({
             ) : tabItems.length === 1 ? (
                 tabItems[0].children
             ) : null}
-        </Modal>
+        </EnhancedModal>
     )
 }
 
