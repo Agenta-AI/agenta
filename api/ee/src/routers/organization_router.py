@@ -51,7 +51,10 @@ from ee.src.core.organizations.types import (
     OrganizationProviderUpdate,
     OrganizationUpdate as OrganizationUpdateDTO,
 )
-from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+from ee.src.core.organizations.exceptions import (
+    OrganizationSlugConflictError,
+    OrganizationCreationNotAllowedError,
+)
 
 from ee.src.services.organization_service import (
     OrganizationDomainsService,
@@ -415,6 +418,12 @@ async def create_organization(
             },
             status_code=201,
         )
+
+    except OrganizationCreationNotAllowedError as e:
+        raise HTTPException(
+            status_code=403,
+            detail=e.message,
+        ) from e
 
     except Exception:
         log.error(
