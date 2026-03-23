@@ -14,9 +14,12 @@ import {useRouter} from "next/router"
 import AnnotationTestcaseContent from "@/oss/components/Annotations/AnnotationTestcaseContent"
 import AnnotationTraceContent from "@/oss/components/Annotations/AnnotationTraceContent"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
-import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {
+    openTraceDrawerAtom,
+    setTraceDrawerActiveSpanAtom,
+} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import useURL from "@/oss/hooks/useURL"
+import {useAppNavigation, useQueryParamState} from "@/oss/state/appState"
 
 const isSessionView = (value: string | undefined): value is SessionView => {
     return value === "list" || value === "annotate" || value === "configuration"
@@ -43,29 +46,40 @@ const AnnotationSessionPage = () => {
     const router = useRouter()
     const {projectURL} = useURL()
     const queueId = router.query.queue_id as string | undefined
+    const appNavigation = useAppNavigation()
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [viewParam, setViewParam] = useQueryParam("view", "annotate", "replace")
-    const [scenarioIdParam, setScenarioIdParam] = useQueryParam("scenarioId", undefined, "replace")
-    const activeView = isSessionView(viewParam) ? viewParam : "annotate"
+    const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
+    const [viewParam, setViewParam] = useQueryParamState("view", "annotate")
+    const [scenarioIdParam, setScenarioIdParam] = useQueryParamState("scenarioId")
+    const normalizedViewParam = Array.isArray(viewParam) ? viewParam[0] : viewParam
+    const activeView = isSessionView(normalizedViewParam) ? normalizedViewParam : "annotate"
     const activeScenarioId = Array.isArray(scenarioIdParam) ? scenarioIdParam[0] : scenarioIdParam
     const handleActiveViewChange = useCallback(
         (view: SessionView) => {
-            setViewParam(view)
+            setViewParam(view, {method: "replace"})
         },
         [setViewParam],
     )
     const handleScenarioChange = useCallback(
         (scenarioId: string) => {
-            setScenarioIdParam(scenarioId)
+            setScenarioIdParam(scenarioId, {method: "replace"})
         },
         [setScenarioIdParam],
     )
 
     const handleOpenTraceDetail = useCallback(
-        (traceId: string, spanId?: string) => {
-            openTraceDrawer({traceId, activeSpanId: spanId ?? null})
+        ({traceId, spanId}: {traceId: string; spanId?: string | null}) => {
+            const activeSpanId = spanId ?? null
+            openTraceDrawer({traceId, activeSpanId})
+            setTraceDrawerActiveSpan(activeSpanId)
+            appNavigation.setQueryParam("trace", traceId, {shallow: true})
+            if (activeSpanId) {
+                appNavigation.setQueryParam("span", activeSpanId, {shallow: true})
+            } else {
+                appNavigation.removeQueryParam("span", {shallow: true})
+            }
         },
-        [openTraceDrawer],
+        [appNavigation, openTraceDrawer, setTraceDrawerActiveSpan],
     )
 
     const navigation = useMemo<AnnotationUINavigation>(
@@ -90,6 +104,14 @@ const AnnotationSessionPage = () => {
         }
     }, [handleScenarioChange])
 
+    const routeState = useMemo(
+        () => ({
+            view: activeView,
+            scenarioId: activeScenarioId,
+        }),
+        [activeScenarioId, activeView],
+    )
+
     if (!queueId) return null
 
     return (
@@ -101,10 +123,7 @@ const AnnotationSessionPage = () => {
         >
             <AnnotationSession
                 queueId={queueId}
-                routeState={{
-                    view: activeView,
-                    scenarioId: activeScenarioId,
-                }}
+                routeState={routeState}
                 onActiveViewChange={handleActiveViewChange}
             />
         </AnnotationUIProvider>

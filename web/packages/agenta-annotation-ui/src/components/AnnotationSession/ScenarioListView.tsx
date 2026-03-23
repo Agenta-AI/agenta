@@ -941,7 +941,10 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
 
     const handleViewTrace = useCallback(() => {
         if (effectiveTraceId && navigation.openTraceDetail) {
-            navigation.openTraceDetail(effectiveTraceId, rootSpan?.span_id)
+            navigation.openTraceDetail({
+                traceId: effectiveTraceId,
+                spanId: rootSpan?.span_id ?? null,
+            })
         }
     }, [effectiveTraceId, rootSpan?.span_id, navigation])
 

@@ -57,7 +57,10 @@ const SessionNavigation = () => {
 
     const handleViewTrace = useCallback(() => {
         if (traceRef.traceId && navigation.openTraceDetail) {
-            navigation.openTraceDetail(traceRef.traceId, rootSpan?.span_id)
+            navigation.openTraceDetail({
+                traceId: traceRef.traceId,
+                spanId: rootSpan?.span_id ?? null,
+            })
         }
     }, [traceRef.traceId, rootSpan?.span_id, navigation])
 
