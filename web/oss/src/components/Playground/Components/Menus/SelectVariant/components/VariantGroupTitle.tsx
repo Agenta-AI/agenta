@@ -6,7 +6,7 @@ import {PencilSimpleLine} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 
-import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
+import {EnvironmentStatus} from "@agenta/entity-ui"
 
 interface VariantGroupTitleProps {
     parent: {
