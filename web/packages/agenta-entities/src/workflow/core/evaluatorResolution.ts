@@ -11,7 +11,9 @@
  * @packageDocumentation
  */
 
-import {resolveOutputSchemaProperties} from "./schema"
+import {resolveSchemaRef} from "../../runnable/portHelpers"
+
+import {resolveOutputSchema, resolveOutputSchemaProperties} from "./schema"
 
 // ============================================================================
 // TYPES
@@ -119,9 +121,15 @@ export const extractMetrics = (evaluator: {
     id: string
     data?: Record<string, unknown> | null
 }): MetricColumnDefinition[] => {
+    const outputSchema = resolveOutputSchema(evaluator?.data)
     const properties = resolveOutputSchemaProperties(evaluator?.data) ?? {}
+    const defs = (outputSchema?.$defs ?? outputSchema?.definitions) as
+        | Record<string, unknown>
+        | undefined
+
     return Object.entries(properties).map(([key, _schema]) => {
-        const schema = _schema as Record<string, unknown>
+        // Resolve $ref pointers (e.g., match evaluator matcher keys reference $defs/result)
+        const schema = resolveSchemaRef(_schema, defs)
         return {
             name: key,
             kind: "metric" as const,
