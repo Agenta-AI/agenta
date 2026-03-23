@@ -1024,24 +1024,70 @@ const scenarioRootSpanAtomFamily = atomFamily((scenarioId: string) =>
 const scenarioAnnotationTraceIdsAtomFamily = atomFamily((scenarioId: string) =>
     atom<string[]>((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return []
+        if (!runId || !scenarioId) {
+            console.log(`[annot-debug] traceIds(${scenarioId?.slice(0, 8)}): no runId or scenarioId`)
+            return []
+        }
 
-        // Get annotation step keys from the run definition
+        // Get annotation step info from the run definition
         const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        if (annotationSteps.length === 0) {
+            console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): no annotation steps in run definition`)
+            return []
+        }
+
+        // Build matchers for step result keys.
+        // Step results can be keyed as:
+        //   - The annotation step's own key (e.g., "evaluator-dcd4d73d6fab")
+        //   - Or "{invocationStepKey}.{idSuffix}" (e.g., "query-direct.dcd4d73d6fab")
+        // The id suffix can be the evaluator slug ("quality-rating"), the short hash
+        // ("dcd4d73d6fab"), or the suffix from the annotation step key itself.
         const annotationStepKeys = new Set(annotationSteps.map((s) => s.key))
-        if (annotationStepKeys.size === 0) return []
+        const suffixMatchers = new Set<string>()
+        for (const step of annotationSteps) {
+            // Add evaluator slug (e.g., "quality-rating")
+            const slug = step.references?.evaluator?.slug
+            if (slug) suffixMatchers.add(slug)
+            // Add suffix from the annotation step key itself (e.g., "dcd4d73d6fab" from "evaluator-dcd4d73d6fab")
+            if (step.key) {
+                const dashIdx = step.key.indexOf("-")
+                if (dashIdx >= 0) suffixMatchers.add(step.key.slice(dashIdx + 1))
+            }
+        }
 
         // Get scenario step results (evaluation results)
         const stepsQuery = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
         const steps = stepsQuery.data ?? []
 
+        console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): stepKeys=[${[...annotationStepKeys]}], suffixes=[${[...suffixMatchers]}], isPending=${stepsQuery.isPending}, steps=`, steps.map((s) => ({step_key: s.step_key, trace_id: s.trace_id?.slice(0, 8)})))
+
         // Extract trace_ids from annotation step results
         const traceIds: string[] = []
         for (const step of steps) {
-            if (step.step_key && annotationStepKeys.has(step.step_key) && step.trace_id) {
+            if (!step.step_key || !step.trace_id) continue
+
+            // Match by exact annotation step key
+            if (annotationStepKeys.has(step.step_key)) {
+                console.log(`[annot-debug]   matched exact: ${step.step_key} → ${step.trace_id.slice(0, 8)}`)
                 traceIds.push(step.trace_id)
+                continue
+            }
+
+            // Match by "{anything}.{suffix}" where suffix is evaluator slug or ID hash
+            const dotIdx = step.step_key.lastIndexOf(".")
+            if (dotIdx >= 0) {
+                const suffix = step.step_key.slice(dotIdx + 1)
+                if (suffixMatchers.has(suffix)) {
+                    console.log(`[annot-debug]   matched suffix: ${step.step_key} (suffix=${suffix}) → ${step.trace_id.slice(0, 8)}`)
+                    traceIds.push(step.trace_id)
+                } else {
+                    console.log(`[annot-debug]   no match: ${step.step_key} (suffix=${suffix} not in [${[...suffixMatchers]}])`)
+                }
+            } else {
+                console.log(`[annot-debug]   no match: ${step.step_key} (no dot, not in stepKeys)`)
             }
         }
+        console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): result=[${traceIds.map((t) => t.slice(0, 8))}]`)
         return traceIds
     }),
 )
@@ -1134,17 +1180,10 @@ const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
  *    always return the correct annotations.
  * 2. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues).
  *
- * NOTE: A link-based fallback (query annotations by invocation trace_id) was previously
- * used when step results were empty. This was removed because `queryAnnotationsByInvocationLink`
- * finds ALL annotations linked to a trace_id — across all queues, all runs, all scenarios.
- * When the same trace appears in multiple queues or scenarios, this caused:
- * - Cross-queue bleed: annotations from queue A appearing in queue B
- * - Cross-scenario bleed: annotations from scenario #2 appearing in scenario #3
- * - 500 errors on submit: the form tried to UPDATE another queue's annotation instead of CREATE
- *
- * If the step result upsert fails (fire-and-forget in firePostSubmitOps), the annotation
- * won't appear via path 1 until the next successful submit refreshes step results.
- * This is an acceptable trade-off vs. showing/updating the wrong annotations.
+ * Link-based resolution (query by invocation trace_id) was intentionally removed because
+ * it finds ALL annotations linked to a trace across all queues/runs/scenarios, causing
+ * cross-queue bleed, cross-scenario bleed, and 500 errors on submit.
+ * Step result upserts are now awaited (not fire-and-forget) to ensure path 1 always works.
  */
 const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
@@ -1153,10 +1192,7 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
         if (traceIds.length > 0) {
             const annotationTraceIds = traceIds.join("|")
             const query = get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
-            const stepAnnotations = query.data ?? []
-            if (stepAnnotations.length > 0) {
-                return stepAnnotations
-            }
+            return query.data ?? []
         }
 
         // Path 2: Testcase-based resolution (for testcase queues without trace_id)
