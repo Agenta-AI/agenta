@@ -5,6 +5,7 @@ import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus, type VariantStatusInfo} from "@agenta/entity-ui/variant"
 import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
+import type {GroupExpandState} from "@agenta/ui/table"
 import {
     ArrowSquareOut,
     CloudArrowUp,
@@ -116,14 +117,9 @@ export interface RegistryColumnActions {
     handleDelete?: (record: RegistryRevisionRow) => void
 }
 
-export interface RegistryExpandState {
-    expandedRowKeys: string[]
-    handleExpand: (expanded: boolean, record: RegistryRevisionRow) => void
-}
-
 export function createRegistryColumns(
     actions: RegistryColumnActions,
-    expandState?: RegistryExpandState,
+    expandState?: GroupExpandState,
 ) {
     return createStandardColumns<RegistryRevisionRow>([
         {
@@ -141,14 +137,15 @@ export function createRegistryColumns(
 
                 // Grouped parent row — expand icon + variant details
                 if (isGroupParent && expandState) {
-                    const isExpanded = expandState.expandedRowKeys.includes(String(record.key))
+                    const rowKey = String(record.key)
+                    const isExpanded = expandState.expandedRowKeys.includes(rowKey)
                     return (
                         <div className="flex items-center gap-2 h-full min-w-0">
                             <span
                                 className="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors shrink-0 leading-[1]"
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    expandState.handleExpand(!isExpanded, record)
+                                    expandState.handleExpand(!isExpanded, rowKey)
                                 }}
                             >
                                 {isExpanded ? <MinusCircle size={16} /> : <PlusCircle size={16} />}
