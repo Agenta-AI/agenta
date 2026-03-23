@@ -853,7 +853,7 @@ export const workflowMolecule = {
         serverConfiguration: serverConfigurationAtomFamily,
         /** Execution mode: "chat" | "completion" from flags */
         executionMode: runnableExecutionModeAtomFamily,
-        /** Resolved invocation URL (for playground execution via /preview/workflows/invoke) */
+        /** Resolved invocation URL (for playground execution via {serviceUrl}/invoke) */
         invocationUrl: runnableInvocationUrlAtomFamily,
         /** Deployment URL (for code snippets — user-facing /run endpoint) */
         deploymentUrl: runnableDeploymentUrlAtomFamily,

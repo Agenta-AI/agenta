@@ -21,10 +21,8 @@
  *
  * ## Workflow Invocation
  *
- * Workflows can be invoked via:
- * - Custom URL: `data.url` (webhook/custom endpoint)
- * - Native: `POST /preview/workflows/invoke` (uses URI from data.uri)
- * - Evaluator legacy: `POST /evaluators/{key}/run/` (if flags.is_evaluator && uri)
+ * All workflow types (apps and evaluators) are invoked via:
+ * - `POST {serviceUrl}/invoke` (service URL from data.url or built from data.uri)
  *
  * @packageDocumentation
  */
@@ -40,11 +38,12 @@ import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {StoreOptions} from "../../shared"
 import {parseRevisionUri} from "../../shared"
 
-import {resolveBuiltinAppServiceUrl} from "./helpers"
+import {buildServiceUrlFromUri, resolveBuiltinAppServiceUrl} from "./helpers"
 import {
     workflowAppSchemaAtomFamily,
     workflowBaseEntityAtomFamily,
     workflowEntityAtomFamily,
+    workflowIsDirtyAtomFamily,
 } from "./store"
 
 // Re-export for external consumers
@@ -135,28 +134,23 @@ export const appOpenApiSchemaAtomFamily = atomFamily((workflowId: string) =>
 /**
  * Invocation URL for workflow execution.
  *
- * All workflow types use the unified `POST /preview/workflows/invoke`
- * endpoint. The backend resolves the handler via the `interface` field
- * in the request body (uri or url).
+ * Calls `POST {serviceUrl}/invoke` directly on the service dispatcher,
+ * mirroring how `/inspect` works. The service URL is resolved from
+ * `data.url` (stored) or built from `data.uri` via `buildServiceUrlFromUri`.
  *
- * Exception: **Evaluator workflows** with `data.url` (webhook) return
- * the URL as-is for direct invocation.
+ * Unified for all workflow types (apps and evaluators).
  */
 export const invocationUrlAtomFamily = atomFamily((workflowId: string) =>
     atom<string | null>((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (!entity?.data) return null
 
-        const isEvaluator = entity.flags?.is_evaluator ?? false
+        // Resolve service URL: prefer stored url, fall back to building from URI
+        const serviceUrl =
+            entity.data.url?.replace(/\/+$/, "") ?? buildServiceUrlFromUri(entity.data.uri)
 
-        // Evaluator workflows with URL (webhook): return URL as-is
-        if (entity.data.url && isEvaluator) {
-            return entity.data.url
-        }
-
-        // All workflows with a URI or URL: unified invoke endpoint
-        if (entity.data.uri || entity.data.url) {
-            return `${getAgentaApiUrl()}/preview/workflows/invoke`
+        if (serviceUrl) {
+            return `${serviceUrl}/invoke`
         }
 
         return null
@@ -276,7 +270,7 @@ export const workflowUriAtomFamily = atomFamily((workflowId: string) =>
  * Request payload for workflow execution.
  *
  * - **Evaluator workflows** use the `{interface, configuration, data}` format
- *   (`__rawBody: true`) for `/preview/workflows/invoke`.
+ *   (`__rawBody: true`) for `{serviceUrl}/invoke`.
  * - **App workflows** use `__rawBody` with `__appWorkflow` marker.
  *   The execution pipeline builds inputs via `buildRequestBody()` then
  *   wraps them into the invoke format. Metadata needed for `buildRequestBody()`
@@ -368,11 +362,13 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
                 unknown
             >
             const parameters = flattenEvaluatorConfiguration(rawParams, null)
+
+            // Only include interface when invoking by URI (not when using data.url directly)
+            const iface = uri && !url ? {uri} : undefined
+
             return {
                 __rawBody: true,
-                interface: uri ? {uri} : {url},
-                configuration:
-                    parameters && Object.keys(parameters).length > 0 ? {parameters} : undefined,
+                ...(iface ? {interface: iface} : {}),
                 data: {
                     inputs: {},
                     outputs: {},
@@ -381,7 +377,7 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
             }
         }
 
-        // ── App workflows: __rawBody format for /preview/workflows/invoke ──
+        // ── App workflows: __rawBody format for {serviceUrl}/invoke ──
         const isChat = entity.flags?.is_chat ?? false
         const openApiSchema = get(appOpenApiSchemaAtomFamily(workflowId))
         const routePath = get(appRoutePathAtomFamily(workflowId))
@@ -409,32 +405,39 @@ export const requestPayloadAtomFamily = atomFamily((workflowId: string) =>
         }
 
         // Build references used by execution + tracing.
+        // Only include variant/revision refs when there are no local draft changes,
+        // since draft changes haven't been committed to the server yet.
         const appId = entity.workflow_id ?? null
-        const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+        const isDirty = get(workflowIsDirtyAtomFamily(workflowId))
         const references: Record<string, Record<string, string | undefined>> = {}
         if (appId) {
             references.application = {id: appId}
         }
-        if (variantId) {
-            references.application_variant = {id: variantId}
-        }
-        if (entity.id) {
-            references.application_revision = {id: entity.id}
+        if (!isDirty) {
+            const variantId = entity.workflow_variant_id ?? entity.variant_id ?? null
+            if (variantId) {
+                references.application_variant = {id: variantId}
+            }
+            if (entity.id) {
+                references.application_revision = {id: entity.id}
+            }
         }
 
-        // The interface field tells the backend which handler to resolve.
-        // Configuration carries the ag_config (prompt configs, LLM settings).
-        // data.inputs will be populated at execution time by buildExecutionItem.
+        // Only include interface when invoking by URI (not when using data.url directly,
+        // since the URL is already encoded in the invocation endpoint).
         const uri = entity.data.uri
         const url = entity.data.url
+        const iface = uri && !url ? {uri} : undefined
+
+        // Parameters go under data (not configuration).
+        // data.inputs will be populated at execution time by buildExecutionItem.
         return {
             __rawBody: true,
             __appWorkflow: true, // Marker for buildExecutionItem to apply app-specific transforms
-            interface: uri ? {uri} : url ? {url} : {},
-            configuration:
-                agConfig && Object.keys(agConfig).length > 0 ? {parameters: agConfig} : undefined,
+            ...(iface ? {interface: iface} : {}),
             data: {
                 inputs: {},
+                parameters: agConfig && Object.keys(agConfig).length > 0 ? agConfig : undefined,
             },
             references: Object.keys(references).length > 0 ? references : undefined,
             // Pass through metadata needed by execution pipeline

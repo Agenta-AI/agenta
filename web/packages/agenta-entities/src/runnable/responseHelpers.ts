@@ -14,7 +14,7 @@
  * - Invoke format: `{ data: { outputs: "..." | {...} }, trace_id, span_id, status }`
  * - Legacy format: `{ data: { outputs: {...} }, status: {...} }`
  *
- * The `/preview/workflows/invoke` endpoint serializes handler return values as
+ * The `{serviceUrl}/invoke` endpoint serializes handler return values as
  * JSON-encoded strings in `data.outputs`. This function decodes them to extract
  * the actual output value.
  *
