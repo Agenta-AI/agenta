@@ -85,6 +85,7 @@ from oss.src.apis.fastapi.environments.utils import (
 )
 from oss.src.resources.workflows.catalog import (
     get_all_workflow_catalog_templates,
+    get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
 )
 
@@ -147,6 +148,18 @@ class WorkflowsRouter:
             operation_id="fetch_workflow_catalog_preset",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowCatalogPresetResponse,
+            response_model_exclude_none=True,
+        )
+
+        # WORKFLOW SCHEMAS -----------------------------------------------------
+
+        self.router.add_api_route(
+            "/schemas/ag-types/{ag_type}",
+            self.fetch_ag_type_schema,
+            methods=["GET"],
+            operation_id="fetch_ag_type_schema",
+            status_code=status.HTTP_200_OK,
+            response_model=None,
             response_model_exclude_none=True,
         )
 
@@ -396,6 +409,26 @@ class WorkflowsRouter:
             response_model_exclude_none=True,
         )
 
+    # WORKFLOW SCHEMAS ---------------------------------------------------------
+
+    @intercept_exceptions()
+    async def fetch_ag_type_schema(
+        self,
+        *,
+        ag_type: str,
+    ) -> dict:
+        from agenta.sdk.engines.running.interfaces import AG_TYPE_SCHEMA_REGISTRY
+
+        schema = AG_TYPE_SCHEMA_REGISTRY.get(ag_type)
+
+        if schema is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Unknown ag-type: {ag_type}",
+            )
+
+        return schema
+
     # WORKFLOW CATALOG ---------------------------------------------------------
 
     @intercept_exceptions()
@@ -406,10 +439,19 @@ class WorkflowsRouter:
         self,
         *,
         include_archived: Optional[bool] = None,
+        is_application: Optional[bool] = None,
+        is_evaluator: Optional[bool] = None,
+        is_snippet: Optional[bool] = None,
     ) -> WorkflowCatalogTemplatesResponse:
+        entries = get_filtered_workflow_catalog_templates(
+            is_application=is_application,
+            is_evaluator=is_evaluator,
+            is_snippet=is_snippet,
+        )
+
         templates = [
             WorkflowCatalogTemplate(**entry)
-            for entry in get_all_workflow_catalog_templates()
+            for entry in entries
             if include_archived or not entry["flags"]["is_archived"]
         ]
 

@@ -968,3 +968,46 @@ auto_semantic_similarity_v0_interface = WorkflowRevisionData(
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
+
+
+# --- AG-TYPE SCHEMA REGISTRY ------------------------------------------------
+# Maps x-ag-type values to their full dereferenced JSON Schemas.
+# Used by the GET /workflows/schemas/ag-types/{ag_type} endpoint to let the
+# frontend resolve opaque x-ag-type markers into rich sub-property schemas.
+
+
+def _dereference_schema(schema: dict) -> dict:
+    """Inline all $ref pointers in a JSON Schema, removing the $defs block."""
+    defs = schema.get("$defs", {})
+    if not defs:
+        return schema
+
+    def _resolve(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                ref_path = node["$ref"]  # e.g. "#/$defs/Message"
+                ref_name = ref_path.rsplit("/", 1)[-1]
+                resolved = defs.get(ref_name, node)
+                return _resolve(resolved)
+            return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
+        if isinstance(node, list):
+            return [_resolve(item) for item in node]
+        return node
+
+    return _resolve(schema)
+
+
+def _build_ag_type_schema_registry() -> dict[str, dict]:
+    from agenta.sdk.utils.types import PromptTemplate
+
+    registry: dict[str, dict] = {}
+
+    # prompt-template: full PromptTemplate schema with messages, llm_config, etc.
+    registry["prompt-template"] = _dereference_schema(
+        PromptTemplate.model_json_schema()
+    )
+
+    return registry
+
+
+AG_TYPE_SCHEMA_REGISTRY: dict[str, dict] = _build_ag_type_schema_registry()
