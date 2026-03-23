@@ -18,6 +18,7 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
+import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
@@ -45,8 +46,6 @@ import DeployVariantButton from "@/oss/components/Playground/Components/Modals/D
 import PlaygroundTestcaseEditor from "@/oss/components/Playground/Components/PlaygroundTestcaseEditor"
 import {OSSPlaygroundShell} from "@/oss/components/Playground/OSSPlaygroundShell"
 import SharedGenerationResultUtils from "@/oss/components/SharedGenerationResultUtils"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParamState} from "@/oss/state/appState"
 

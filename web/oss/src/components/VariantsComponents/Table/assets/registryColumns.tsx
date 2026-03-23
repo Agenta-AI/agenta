@@ -3,6 +3,7 @@ import {memo} from "react"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowLatestRevisionIdAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {VariantDetailsWithStatus, type VariantStatusInfo} from "@agenta/entity-ui/variant"
 import {SkeletonLine, createStandardColumns, useDefaultStoreAtomValue} from "@agenta/ui/table"
 import {
     ArrowSquareOut,
@@ -15,9 +16,6 @@ import {
 import {Typography} from "antd"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import type {VariantStatusInfo} from "@/oss/components/VariantDetailsWithStatus/types"
 
 import type {RegistryRevisionRow} from "../../store/registryStore"
 

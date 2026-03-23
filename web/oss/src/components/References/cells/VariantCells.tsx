@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {Typography} from "antd"
 
 import {
@@ -11,7 +12,6 @@ import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTab
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 
 import usePreviewVariantConfig from "../hooks/usePreviewVariantConfig"
