@@ -90,6 +90,8 @@ export {
     extractInputPortsFromSchema,
     extractOutputPortsFromSchema,
     formatKeyAsName,
+    resolveSchemaRef,
+    resolveSchemaType,
 } from "./portHelpers"
 
 // Evaluator config transforms (standalone utilities)
