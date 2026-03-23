@@ -10,7 +10,7 @@ export interface AnnotationUINavigation {
     /** Navigate to observability page */
     navigateToObservability?: () => void
     /** Open the trace detail drawer for a given trace/span */
-    openTraceDetail?: (traceId: string, spanId?: string) => void
+    openTraceDetail?: (params: {traceId: string; spanId?: string | null}) => void
 }
 
 /**

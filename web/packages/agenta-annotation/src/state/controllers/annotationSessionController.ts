@@ -36,7 +36,7 @@
  */
 
 import type {Annotation} from "@agenta/entities/annotation"
-import {queryAnnotations, queryAnnotationsByInvocationLink} from "@agenta/entities/annotation"
+import {queryAnnotations} from "@agenta/entities/annotation"
 import {evaluationRunMolecule} from "@agenta/entities/evaluationRun"
 import type {QueueType} from "@agenta/entities/queue"
 import {registerQueueTypeHint, clearQueueTypeHint} from "@agenta/entities/queue"
@@ -1024,24 +1024,70 @@ const scenarioRootSpanAtomFamily = atomFamily((scenarioId: string) =>
 const scenarioAnnotationTraceIdsAtomFamily = atomFamily((scenarioId: string) =>
     atom<string[]>((get) => {
         const runId = get(activeRunIdAtom)
-        if (!runId || !scenarioId) return []
+        if (!runId || !scenarioId) {
+            console.log(`[annot-debug] traceIds(${scenarioId?.slice(0, 8)}): no runId or scenarioId`)
+            return []
+        }
 
-        // Get annotation step keys from the run definition
+        // Get annotation step info from the run definition
         const annotationSteps = get(evaluationRunMolecule.selectors.annotationSteps(runId))
+        if (annotationSteps.length === 0) {
+            console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): no annotation steps in run definition`)
+            return []
+        }
+
+        // Build matchers for step result keys.
+        // Step results can be keyed as:
+        //   - The annotation step's own key (e.g., "evaluator-dcd4d73d6fab")
+        //   - Or "{invocationStepKey}.{idSuffix}" (e.g., "query-direct.dcd4d73d6fab")
+        // The id suffix can be the evaluator slug ("quality-rating"), the short hash
+        // ("dcd4d73d6fab"), or the suffix from the annotation step key itself.
         const annotationStepKeys = new Set(annotationSteps.map((s) => s.key))
-        if (annotationStepKeys.size === 0) return []
+        const suffixMatchers = new Set<string>()
+        for (const step of annotationSteps) {
+            // Add evaluator slug (e.g., "quality-rating")
+            const slug = step.references?.evaluator?.slug
+            if (slug) suffixMatchers.add(slug)
+            // Add suffix from the annotation step key itself (e.g., "dcd4d73d6fab" from "evaluator-dcd4d73d6fab")
+            if (step.key) {
+                const dashIdx = step.key.indexOf("-")
+                if (dashIdx >= 0) suffixMatchers.add(step.key.slice(dashIdx + 1))
+            }
+        }
 
         // Get scenario step results (evaluation results)
         const stepsQuery = get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
         const steps = stepsQuery.data ?? []
 
+        console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): stepKeys=[${[...annotationStepKeys]}], suffixes=[${[...suffixMatchers]}], isPending=${stepsQuery.isPending}, steps=`, steps.map((s) => ({step_key: s.step_key, trace_id: s.trace_id?.slice(0, 8)})))
+
         // Extract trace_ids from annotation step results
         const traceIds: string[] = []
         for (const step of steps) {
-            if (step.step_key && annotationStepKeys.has(step.step_key) && step.trace_id) {
+            if (!step.step_key || !step.trace_id) continue
+
+            // Match by exact annotation step key
+            if (annotationStepKeys.has(step.step_key)) {
+                console.log(`[annot-debug]   matched exact: ${step.step_key} → ${step.trace_id.slice(0, 8)}`)
                 traceIds.push(step.trace_id)
+                continue
+            }
+
+            // Match by "{anything}.{suffix}" where suffix is evaluator slug or ID hash
+            const dotIdx = step.step_key.lastIndexOf(".")
+            if (dotIdx >= 0) {
+                const suffix = step.step_key.slice(dotIdx + 1)
+                if (suffixMatchers.has(suffix)) {
+                    console.log(`[annot-debug]   matched suffix: ${step.step_key} (suffix=${suffix}) → ${step.trace_id.slice(0, 8)}`)
+                    traceIds.push(step.trace_id)
+                } else {
+                    console.log(`[annot-debug]   no match: ${step.step_key} (suffix=${suffix} not in [${[...suffixMatchers]}])`)
+                }
+            } else {
+                console.log(`[annot-debug]   no match: ${step.step_key} (no dot, not in stepKeys)`)
             }
         }
+        console.log(`[annot-debug] traceIds(${scenarioId.slice(0, 8)}): result=[${traceIds.map((t) => t.slice(0, 8))}]`)
         return traceIds
     }),
 )
@@ -1091,38 +1137,6 @@ const scenarioAnnotationsQueryAtomFamily = atomFamily(
 )
 
 /**
- * Link-based annotation query — finds annotations by the invocation trace they reference.
- * This is the fallback path when annotation step results don't exist
- * (e.g., the step result upsert failed silently after annotation creation).
- */
-const scenarioAnnotationsByLinkQueryAtomFamily = atomFamily(
-    ({scenarioId, traceId}: {scenarioId: string; traceId: string}) =>
-        atomWithQuery(() => ({
-            queryKey: ["scenarioAnnotationsByLink", scenarioId, traceId],
-            queryFn: async (): Promise<Annotation[]> => {
-                const projectId = getStore().get(projectIdAtom)
-                if (!projectId || !traceId) return []
-                const response = await queryAnnotationsByInvocationLink({
-                    projectId,
-                    traceId,
-                })
-                return response.annotations ?? []
-            },
-            enabled: !!traceId,
-            retry: (failureCount: number, error: Error) => {
-                if (error?.message === "projectId not yet available" && failureCount < 5) {
-                    return true
-                }
-                return false
-            },
-            retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
-            staleTime: 30_000,
-        })),
-    (a: {scenarioId: string; traceId: string}, b: {scenarioId: string; traceId: string}) =>
-        a.scenarioId === b.scenarioId && a.traceId === b.traceId,
-)
-
-/**
  * Testcase-based annotation query — finds annotations by testcase reference.
  * This is the fallback for testcase-based queues where no trace_id exists.
  */
@@ -1160,12 +1174,16 @@ const scenarioAnnotationsByTestcaseQueryAtomFamily = atomFamily(
 /**
  * Resolved annotations for a scenario.
  *
- * Uses three resolution paths:
- * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results
- * 2. **Link-based** (fallback): Query annotations whose `links` reference the invocation trace
- * 3. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues)
+ * Uses two resolution paths:
+ * 1. **Step-based** (primary): Extract annotation trace_ids from evaluation run step results.
+ *    This is the canonical path — step results are per-scenario and per-run, so they
+ *    always return the correct annotations.
+ * 2. **Testcase-based** (fallback): Query annotations by testcase reference (for testcase queues).
  *
- * The fallback paths only fire when previous paths return empty.
+ * Link-based resolution (query by invocation trace_id) was intentionally removed because
+ * it finds ALL annotations linked to a trace across all queues/runs/scenarios, causing
+ * cross-queue bleed, cross-scenario bleed, and 500 errors on submit.
+ * Step result upserts are now awaited (not fire-and-forget) to ensure path 1 always works.
  */
 const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
     atom<Annotation[]>((get) => {
@@ -1174,26 +1192,10 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
         if (traceIds.length > 0) {
             const annotationTraceIds = traceIds.join("|")
             const query = get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
-            const stepAnnotations = query.data ?? []
-            // If step-based found results, use those (canonical path)
-            if (stepAnnotations.length > 0) {
-                return stepAnnotations
-            }
+            return query.data ?? []
         }
 
-        // Path 2: Link-based resolution (fallback only when step-based is empty)
-        const traceRef = get(scenarioTraceRefAtomFamily(scenarioId))
-        if (traceRef.traceId) {
-            const linkQuery = get(
-                scenarioAnnotationsByLinkQueryAtomFamily({
-                    scenarioId,
-                    traceId: traceRef.traceId,
-                }),
-            )
-            return linkQuery.data ?? []
-        }
-
-        // Path 3: Testcase-based resolution (for testcase queues without trace_id)
+        // Path 2: Testcase-based resolution (for testcase queues without trace_id)
         const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
         if (testcaseRef.testcaseId) {
             const testcaseQuery = get(
@@ -1764,24 +1766,6 @@ async function invalidateScenarioAnnotations(scenarioId: string) {
                 await query.refetch()
             } catch {
                 // Will fall through to link-based query
-            }
-        }
-    }
-
-    // Also refetch link-based annotation query (fallback path)
-    const traceRef = store.get(scenarioTraceRefAtomFamily(scenarioId))
-    if (traceRef.traceId) {
-        const linkQuery = store.get(
-            scenarioAnnotationsByLinkQueryAtomFamily({
-                scenarioId,
-                traceId: traceRef.traceId,
-            }),
-        )
-        if (linkQuery?.refetch) {
-            try {
-                await linkQuery.refetch()
-            } catch {
-                // Non-critical
             }
         }
     }
