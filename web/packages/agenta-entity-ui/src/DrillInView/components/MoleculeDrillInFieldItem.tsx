@@ -14,11 +14,14 @@ import {useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import {type PathItem, type DataPath, isExpandable, getChildCount} from "@agenta/shared/utils"
+import type {
+    FieldHeaderSlotProps,
+    FieldContentSlotProps,
+    FieldActionsSlotProps,
+} from "@agenta/ui/drill-in"
+import {buildClassName} from "@agenta/ui/drill-in"
 import {copyToClipboard} from "@agenta/ui/utils"
 import {atom, useAtomValue} from "jotai"
-
-import type {FieldHeaderSlotProps, FieldContentSlotProps, FieldActionsSlotProps} from "../types"
-import {buildClassName} from "../utils/classNames"
 
 import {FieldItemActions} from "./FieldItemActions"
 import {FieldItemContent} from "./FieldItemContent"

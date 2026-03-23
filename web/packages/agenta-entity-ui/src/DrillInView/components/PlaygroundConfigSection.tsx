@@ -23,6 +23,14 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import type {
+    FieldActionsSlotProps,
+    FieldContentSlotProps,
+    FieldHeaderSlotProps,
+    MoleculeDrillInAdapter,
+} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
@@ -33,7 +41,6 @@ import {atom} from "jotai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
-import {useDrillInUI} from "../context/DrillInUIContext"
 import {
     getModelSchema,
     getLLMConfigValue,
@@ -42,13 +49,6 @@ import {
 } from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {NumberSliderControl} from "../SchemaControls/NumberSliderControl"
-import type {
-    FieldActionsSlotProps,
-    FieldContentSlotProps,
-    FieldHeaderSlotProps,
-    MoleculeDrillInAdapter,
-} from "../types"
-import {formatLabel} from "../utils"
 
 import {MoleculeDrillInView} from "./MoleculeDrillInView"
 

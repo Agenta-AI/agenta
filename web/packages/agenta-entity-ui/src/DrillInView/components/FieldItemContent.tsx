@@ -11,12 +11,12 @@ import {useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
 import type {PathItem} from "@agenta/shared/utils"
+import {formatLabel} from "@agenta/ui/drill-in"
 
 import {isMessagesSchema} from "../SchemaControls/MessagesSchemaControl"
 import {isPromptSchema, isPromptValue} from "../SchemaControls/PromptSchemaControl"
 import {SchemaPropertyRenderer} from "../SchemaControls/SchemaPropertyRenderer"
 import {shouldRenderObjectInline} from "../SchemaControls/schemaUtils"
-import {formatLabel} from "../utils"
 
 // ============================================================================
 // TYPES
