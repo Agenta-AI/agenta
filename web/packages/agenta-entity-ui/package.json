@@ -24,7 +24,7 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "lodash": ">=4.17.23",
-        "lucide-react": "^0.475.0"
+        "lucide-react": "^0.479.0"
     },
     "devDependencies": {
         "@floating-ui/react": "^0.26.0",
