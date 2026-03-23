@@ -565,6 +565,14 @@ class AgentaConfig(BaseModel):
     ).lower() in _TRUTHY
 
     demos: str = os.getenv("AGENTA_DEMOS") or ""
+    default_plan: str | None = os.getenv("AGENTA_DEFAULT_PLAN") or None
+
+    # None when unset/empty = unrestricted; non-empty set = only these emails can create orgs
+    org_creation_allowlist: set | None = {
+        e.strip().lower()
+        for e in (os.getenv("AGENTA_ORG_CREATION_ALLOWLIST") or "").split(",")
+        if e.strip()
+    } or None
 
     blocked_emails: set = {
         e.strip().lower()

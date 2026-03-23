@@ -2,7 +2,12 @@ import {useMemo} from "react"
 
 import {useSubscriptionDataWrapper} from "./useSubscriptionDataWrapper"
 
-type Plan = "cloud_v0_hobby" | "cloud_v0_pro" | "cloud_v0_business" | "cloud_v0_enterprise"
+type Plan =
+    | "cloud_v0_hobby"
+    | "cloud_v0_pro"
+    | "cloud_v0_business"
+    | "cloud_v0_enterprise"
+    | "self_hosted_enterprise"
 
 export enum Feature {
     ACCESS = "access",
@@ -23,8 +28,12 @@ const isFeatureEntitled = (plan: Plan | undefined, feature: Feature): boolean =>
         return false
     }
 
-    // Business and Enterprise have access to all features
-    if (plan === "cloud_v0_business" || plan === "cloud_v0_enterprise") {
+    // Business, Enterprise, and self-hosted enterprise have access to all features
+    if (
+        plan === "cloud_v0_business" ||
+        plan === "cloud_v0_enterprise" ||
+        plan === "self_hosted_enterprise"
+    ) {
         return true
     }
 
