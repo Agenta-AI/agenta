@@ -198,13 +198,7 @@ async def update_organization(
 
         organization = await update_an_organization(
             organization_id,
-            OrganizationUpdateDTO(
-                slug=payload.slug,
-                name=payload.name,
-                description=payload.description,
-                flags=payload.flags,
-                updated_at=payload.updated_at,
-            ),
+            OrganizationUpdateDTO(**payload.model_dump(exclude_unset=True)),
         )
 
         return organization
