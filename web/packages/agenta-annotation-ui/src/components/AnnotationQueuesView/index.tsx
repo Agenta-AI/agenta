@@ -1,7 +1,9 @@
 import {useMemo, useCallback, useEffect, useRef, useState} from "react"
 
+import {userByIdFamily} from "@agenta/entities/shared"
 import {
     simpleQueuePaginatedStore,
+    simpleQueueMolecule,
     simpleQueueKindFilterAtom,
     simpleQueueSearchTermAtom,
     type SimpleQueueTableRow,
@@ -38,7 +40,72 @@ const kindColorMap: Record<string, string> = {
     testcases: "green",
 }
 
+const statusLabelMap: Record<string, string> = {
+    pending: "Pending",
+    queued: "Queued",
+    running: "Running",
+    success: "Completed",
+    failure: "Failed",
+    errors: "Errors",
+    cancelled: "Cancelled",
+}
+
 const ANNOTATION_QUEUES_DOCS_URL = "https://docs.agenta.ai"
+
+function formatQueueKind(kind: string | null | undefined) {
+    if (kind === "traces") return "Traces"
+    if (kind === "testcases") return "Test cases"
+    return ""
+}
+
+function resolveUserDisplayName(userId: string | null | undefined) {
+    if (!userId) return "—"
+
+    const user = getDefaultStore().get(userByIdFamily(userId))
+    const candidate = user?.username ?? user?.name ?? user?.email
+
+    return typeof candidate === "string" && candidate.trim().length > 0 ? candidate.trim() : "—"
+}
+
+function formatAssignments(assignments: string[][] | null | undefined) {
+    if (!assignments || !Array.isArray(assignments)) return "All"
+
+    const uniqueIds = new Set<string>()
+    for (const repeat of assignments) {
+        if (!Array.isArray(repeat)) continue
+        for (const userId of repeat) {
+            if (typeof userId === "string" && userId) {
+                uniqueIds.add(userId)
+            }
+        }
+    }
+
+    if (uniqueIds.size === 0) return "All"
+
+    return Array.from(uniqueIds)
+        .map((userId) => {
+            const user = getDefaultStore().get(userByIdFamily(userId))
+            const candidate = user?.username ?? user?.name ?? user?.email
+            return typeof candidate === "string" && candidate.trim().length > 0
+                ? candidate.trim()
+                : userId
+        })
+        .join(", ")
+}
+
+function formatReviewed(queueId: string) {
+    const progress = getDefaultStore().get(simpleQueueMolecule.selectors.scenarioProgress(queueId))
+    if (!progress) return ""
+    if (progress.total === 0) return "No items"
+    return `${progress.completed} out of ${progress.total}`
+}
+
+function formatQueueStatus(queueId: string, fallbackStatus: string | null | undefined) {
+    const resolvedStatus = getDefaultStore().get(simpleQueueMolecule.selectors.status(queueId))
+    const statusKey = (resolvedStatus ?? fallbackStatus ?? "pending").toLowerCase()
+
+    return statusLabelMap[statusKey] ?? statusKey.charAt(0).toUpperCase() + statusKey.slice(1)
+}
 
 function AnnotationQueuesEmptyState({onCreate}: {onCreate: () => void}) {
     return (
@@ -449,6 +516,30 @@ const AnnotationQueuesView = () => {
         [table.tableProps, emptyStateNode],
     )
 
+    const exportOptions = useMemo(
+        () => ({
+            filename: "annotation-queues.csv",
+            isColumnExportable: ({column}: {column: {key?: React.Key}}) => column.key !== "actions",
+            resolveValue: ({columnKey, row}: {columnKey: string; row: SimpleQueueTableRow}) => {
+                switch (columnKey) {
+                    case "kind":
+                        return formatQueueKind(row.data?.kind ?? null)
+                    case "reviewed":
+                        return formatReviewed(row.id)
+                    case "status":
+                        return formatQueueStatus(row.id, row.status ?? null)
+                    case "assignments":
+                        return formatAssignments(row.data?.assignments)
+                    case "created_by":
+                        return resolveUserDisplayName(row.created_by_id)
+                    default:
+                        return undefined
+                }
+            },
+        }),
+        [],
+    )
+
     return (
         <div className="flex flex-col h-full min-h-0 grow w-full">
             <InfiniteVirtualTableFeatureShell<SimpleQueueTableRow>
@@ -457,6 +548,7 @@ const AnnotationQueuesView = () => {
                 filters={filtersNode}
                 primaryActions={createButton}
                 tableProps={tableProps}
+                exportOptions={exportOptions}
                 autoHeight
                 store={getDefaultStore()}
             />
