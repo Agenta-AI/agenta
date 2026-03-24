@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.routers import (
@@ -124,7 +125,7 @@ def extend_app_schema(app: FastAPI):
     ]
     app.openapi()["servers"] = [
         {
-            "url": "https://cloud.agenta.ai/api",
+            "url": env.agenta.api_url,
         },
     ]
 
