@@ -3,7 +3,6 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     Index,
-    UniqueConstraint,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -28,9 +27,8 @@ class WorkflowArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             "project_id",
             "slug",
             unique=True,
-            postgresql_where=text("deleted_at IS NULL")
+            postgresql_where=text("deleted_at IS NULL"),
         ),
-
         ForeignKeyConstraint(
             ["project_id"],
             ["projects.id"],
@@ -61,13 +59,12 @@ class WorkflowVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             "project_id",
             "id",
         ),
-
         Index(
             "uq_workflow_variants_project_id_slug_active",
             "project_id",
             "slug",
             unique=True,
-            postgresql_where=text("deleted_at IS NULL")
+            postgresql_where=text("deleted_at IS NULL"),
         ),
         ForeignKeyConstraint(
             ["project_id"],
@@ -108,13 +105,12 @@ class WorkflowRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             "project_id",
             "id",
         ),
-
         Index(
             "uq_workflow_revisions_project_id_slug_active",
             "project_id",
             "slug",
             unique=True,
-            postgresql_where=text("deleted_at IS NULL")
+            postgresql_where=text("deleted_at IS NULL"),
         ),
         ForeignKeyConstraint(
             ["project_id"],

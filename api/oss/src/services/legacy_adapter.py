@@ -234,6 +234,36 @@ class LegacyApplicationsAdapter:
         )
         return self._application_to_update_output(application, uri=uri)
 
+    async def cascade_delete_app(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        app_id: UUID,
+    ) -> bool:
+        """Archive (soft delete) an app, its variants, and its revisions"""
+        deleted_app = await self.delete_app(
+            project_id=project_id, user_id=user_id, app_id=app_id
+        )
+        app_variants = await self.list_app_variants(
+            project_id=project_id, app_id=app_id
+        )
+
+        for variant in app_variants:
+            await self.mark_variant_hidden(
+                project_id=project_id, user_id=user_id, variant_id=variant.variant_id
+            )
+
+            variant_revisions = await self.list_variant_revisions(
+                project_id=project_id, variant_id=variant.variant_id
+            )
+            for revision in variant_revisions:
+                await self.archive_variant_revision(
+                    project_id=project_id, user_id=user_id, revision_id=revision.id
+                )
+
+        return deleted_app
+
     async def delete_app(
         self,
         *,
