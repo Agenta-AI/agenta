@@ -29,7 +29,6 @@ import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
-const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
@@ -94,6 +93,18 @@ const AutoRefreshControl: React.FC<{
     )
 }
 
+const resolveTraceId = (trace: any) =>
+    String(
+        trace?.trace_id ||
+            trace?.invocationIds?.trace_id ||
+            trace?.node?.trace_id ||
+            trace?.root?.id ||
+            trace?.traceId ||
+            trace?.trace?.id ||
+            trace?.span_id ||
+            "",
+    )
+
 const ObservabilityHeader = ({
     columns,
     componentType,
@@ -125,7 +136,6 @@ const ObservabilityHeader = ({
         selectedRowKeys,
         setSelectedRowKeys,
         setTestsetDrawerData,
-        setEditColumns,
         fetchAnnotations,
         fetchTraces,
         autoRefresh: hookAutoRefresh,
@@ -266,7 +276,11 @@ const ObservabilityHeader = ({
 
         const extractData = selectedRowKeys.map((key, idx) => {
             const node = getNodeById(traces, key as string)
-            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
+            return {
+                data: getAgData(node) as KeyValuePair,
+                key: node?.span_id ?? node?.key,
+                id: idx + 1,
+            }
         })
 
         if (extractData.length > 0) {
@@ -390,7 +404,8 @@ const ObservabilityHeader = ({
                 new Set(
                     traces
                         .filter((trace) => selectedRowKeys.includes(trace.span_id))
-                        .map((trace) => trace.trace_id),
+                        .map(resolveTraceId)
+                        .filter(Boolean),
                 ),
             ),
             onClose: () => {
@@ -399,6 +414,36 @@ const ObservabilityHeader = ({
             },
         })
     }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
+
+    const traceSecondaryActions =
+        componentType === "traces" ? (
+            <Space size="small">
+                <EnhancedButton
+                    type="text"
+                    aria-label={isExporting ? "Cancel export" : "Export traces"}
+                    icon={<ExportIcon size={14} className="mt-0.5" />}
+                    onClick={() => {
+                        if (isExporting) {
+                            exportAbortRef.current?.abort()
+                            return
+                        }
+
+                        onExport()
+                    }}
+                    disabled={!isExporting && traces.length === 0}
+                    tooltipProps={{title: isExporting ? "Cancel export" : "Export"}}
+                />
+                <EnhancedButton
+                    type="text"
+                    danger
+                    aria-label="Delete selected traces"
+                    icon={<TrashIcon size={14} />}
+                    onClick={onDelete}
+                    disabled={selectedRowKeys.length === 0}
+                    tooltipProps={{title: "Delete selected"}}
+                />
+            </Space>
+        ) : null
 
     return (
         <>
@@ -499,6 +544,7 @@ const ObservabilityHeader = ({
                             />
                         )}
                     </div>
+                    {isScrolled ? traceSecondaryActions : null}
                 </div>
                 {!isScrolled && componentType === "traces" ? (
                     <div className="w-full flex items-center justify-between">
@@ -510,37 +556,7 @@ const ObservabilityHeader = ({
                             </Radio.Group>
                         </Space>
                         <Space>
-                            <Button
-                                type="text"
-                                onClick={() => {
-                                    if (isExporting) {
-                                        exportAbortRef.current?.abort()
-                                        return
-                                    }
-
-                                    onExport()
-                                }}
-                                icon={<ExportIcon size={14} className="mt-0.5" />}
-                                disabled={!isExporting && traces.length === 0}
-                            >
-                                {isExporting ? "Cancel export" : "Export"}
-                            </Button>
-
-                            <EditColumns
-                                columns={columns}
-                                uniqueKey="observability-table-columns"
-                                onChange={(keys) => {
-                                    setEditColumns(keys)
-                                }}
-                            />
-                            <Button
-                                onClick={onDelete}
-                                icon={<TrashIcon size={14} />}
-                                disabled={selectedRowKeys.length === 0}
-                                danger
-                            >
-                                Delete
-                            </Button>
+                            {traceSecondaryActions}
                             <Button
                                 onClick={() => getTestsetTraceData()}
                                 icon={<DatabaseIcon size={14} />}

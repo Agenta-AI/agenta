@@ -1,21 +1,35 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {type Key, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Table, TableColumnType} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {Button, type TableProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
-import ResizableTitle from "@/oss/components/ResizableTitle"
+import {
+    InfiniteVirtualTable,
+    shouldIgnoreRowClick,
+    type ColumnVisibilityState,
+} from "@/oss/components/InfiniteVirtualTable"
+import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {type KeyValuePair} from "@/oss/lib/Types"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
-import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
-import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls"
+import {
+    annotationEvaluatorSlugsAtom,
+    getAgData,
+    useObservability,
+} from "@/oss/state/newObservability"
+import {
+    DEFAULT_OBSERVABILITY_HIDDEN_COLUMNS,
+    hasReceivedTracesAtom,
+} from "@/oss/state/newObservability/atoms/controls"
 
-import {getObservabilityColumns} from "../../assets/getObservabilityColumns"
+import {
+    getObservabilityColumns,
+    type ObservabilityTraceRow,
+} from "../../assets/getObservabilityColumns"
 import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 const ObservabilityHeader = dynamic(() => import("../ObservabilityHeader"), {ssr: false})
@@ -54,15 +68,27 @@ const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
     return Array.from(slugs)
 }
 
+const resolveTraceId = (record: TraceSpanNode) =>
+    String(
+        record.trace_id ||
+            (record as any)?.invocationIds?.trace_id ||
+            (record as any)?.node?.trace_id ||
+            (record as any)?.root?.id ||
+            (record as any)?.traceId ||
+            (record as any)?.trace?.id ||
+            record.span_id ||
+            "",
+    )
+
 const ObservabilityTable = () => {
     const {
         traces,
         isLoading,
-        traceTabs,
         fetchTraces,
         selectedTraceId,
         setSelectedTraceId,
         editColumns,
+        setEditColumns,
         selectedRowKeys,
         setSelectedRowKeys,
         testsetDrawerData,
@@ -77,6 +103,7 @@ const ObservabilityTable = () => {
         fetchAnnotations,
     } = useObservability()
     const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
+    const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
     const onboardingStorageUserId = useAtomValue(onboardingStorageUserIdAtom)
     const hasReceivedTraces = useAtomValue(hasReceivedTracesAtom)
@@ -112,16 +139,6 @@ const ObservabilityTable = () => {
         return [...ordered, ...remaining]
     }, [annotationEvaluatorSlugs, traceEvaluatorSlugs])
 
-    const initialColumns = useMemo(
-        () => getObservabilityColumns({evaluatorSlugs}),
-        [evaluatorSlugs],
-    )
-    const [columns, setColumns] = useState<ColumnsType<TraceSpanNode>>(initialColumns)
-
-    useEffect(() => {
-        setColumns(initialColumns)
-    }, [initialColumns])
-
     useEffect(() => {
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
@@ -149,11 +166,10 @@ const ObservabilityTable = () => {
         if (!selectedNode) {
             setSelectedNode(activeTrace?.span_id || "")
         }
-    }, [activeTrace, selectedNode])
+    }, [activeTrace, selectedNode, setSelectedNode])
 
     const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-    // Auto-refresh logic: refresh every 15 seconds when enabled
     const handleRefresh = useCallback(async () => {
         await Promise.all([fetchAnnotations(), fetchTraces()])
         setRefreshTrigger((prev) => prev + 1)
@@ -175,16 +191,6 @@ const ObservabilityTable = () => {
         fetchMoreTraces().catch((error) => console.error("Failed to fetch more traces", error))
     }, [fetchMoreTraces, hasMoreTraces, isFetchingMore])
 
-    const rowSelection = {
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys)
-        },
-        columnWidth: 48,
-        getCheckboxProps: (record: TraceSpanNode) => ({
-            "data-tour": record.span_id === traces[0]?.span_id ? "trace-checkbox" : undefined,
-        }),
-    }
-
     const showTableLoading = isLoading && traces.length === 0
     const isEmptyState = traces.length === 0 && !isLoading
     const showOnboarding = isNewUser && !hasReceivedTraces
@@ -195,27 +201,143 @@ const ObservabilityTable = () => {
         }
     }, [onboardingStorageUserId, traces.length, hasReceivedTraces, setHasReceivedTraces])
 
-    const handleResize =
-        (key: string) =>
-        (_: any, {size}: {size: {width: number}}) => {
-            setColumns((cols) => {
-                return cols.map((col) => ({
-                    ...col,
-                    width: col.key === key ? size.width : col.width,
+    const buildTestsetTraceData = useCallback(
+        (nodes: TraceSpanNode[]) =>
+            nodes
+                .map((node, idx) => ({
+                    data: getAgData(node) as KeyValuePair,
+                    key: node.span_id ?? "",
+                    id: idx + 1,
                 }))
-            })
-        }
+                .filter((item) => item.key),
+        [],
+    )
 
-    const mergedColumns = useMemo(() => {
-        return filterColumns(columns, editColumns).map((col) => ({
-            ...col,
-            width: col.width || 200,
-            onHeaderCell: (column: TableColumnType<TraceSpanNode[]>) => ({
-                width: column.width,
-                onResize: handleResize(column.key?.toString()!),
+    const handleAddTraceToTestset = useCallback(
+        (record: ObservabilityTraceRow) => {
+            const data = buildTestsetTraceData([record])
+            if (data.length > 0) {
+                setTestsetDrawerData(data)
+            }
+        },
+        [buildTestsetTraceData, setTestsetDrawerData],
+    )
+
+    const openTraceRecord = useCallback(
+        (record: TraceSpanNode) => {
+            setSelectedNode(record.span_id ?? "")
+
+            const targetTraceId = resolveTraceId(record)
+            const targetSpanId = String(record.span_id || "")
+
+            if (!targetTraceId) {
+                console.warn("TraceDrawer: unable to determine trace id for record", record)
+                return
+            }
+
+            setSelectedTraceId(targetTraceId)
+            setTraceDrawerActiveSpan(targetSpanId || null)
+            setTraceParam(targetTraceId)
+            if (targetSpanId) {
+                setSpanParam(targetSpanId)
+            } else {
+                setSpanParam(undefined)
+            }
+        },
+        [
+            setSelectedNode,
+            setSelectedTraceId,
+            setSpanParam,
+            setTraceDrawerActiveSpan,
+            setTraceParam,
+        ],
+    )
+
+    const handleDeleteTrace = useCallback(
+        (record: ObservabilityTraceRow) => {
+            const traceId = resolveTraceId(record)
+            if (!traceId) return
+
+            setDeleteModalState({
+                isOpen: true,
+                traceIds: [traceId],
+                onClose: () => {
+                    setSelectedRowKeys([])
+                    handleRefresh()
+                },
+            })
+        },
+        [handleRefresh, setDeleteModalState, setSelectedRowKeys],
+    )
+
+    const traceRows = useMemo<ObservabilityTraceRow[]>(
+        () =>
+            traces.map((trace, index) => ({
+                ...trace,
+                key: String(trace.span_id || trace.key || trace.trace_id || `trace-${index}`),
+                __isSkeleton: false,
+            })),
+        [traces],
+    )
+
+    const columns = useMemo(
+        () =>
+            getObservabilityColumns({
+                evaluatorSlugs,
+                onOpenTrace: openTraceRecord,
+                onDeleteTrace: handleDeleteTrace,
+                onAddToTestset: handleAddTraceToTestset,
             }),
-        }))
-    }, [columns, editColumns])
+        [evaluatorSlugs, handleAddTraceToTestset, handleDeleteTrace, openTraceRecord],
+    )
+
+    const handleColumnVisibilityStateChange = useCallback(
+        (state: ColumnVisibilityState<ObservabilityTraceRow>) => {
+            const nextHiddenKeys = state.hiddenKeys
+                .map((key) => String(key))
+                .filter((key) => key !== "actions")
+            if (nextHiddenKeys.join("|") === editColumns.join("|")) return
+            setEditColumns(nextHiddenKeys)
+        },
+        [editColumns, setEditColumns],
+    )
+
+    const rowSelection = useMemo(
+        () => ({
+            type: "checkbox" as const,
+            selectedRowKeys,
+            onChange: (keys: Key[]) => {
+                setSelectedRowKeys(keys)
+            },
+            columnWidth: 48,
+            getCheckboxProps: (record: ObservabilityTraceRow) => ({
+                "data-tour":
+                    record.span_id === traceRows[0]?.span_id ? "trace-checkbox" : undefined,
+            }),
+        }),
+        [selectedRowKeys, setSelectedRowKeys, traceRows],
+    )
+
+    const tableProps = useMemo<TableProps<ObservabilityTraceRow>>(
+        () => ({
+            loading: showTableLoading,
+            bordered: true,
+            sticky: {
+                offsetHeader: 0,
+                offsetScroll: 0,
+            },
+            tableLayout: "fixed",
+            onRow: (record, index) => ({
+                onClick: (event) => {
+                    if (shouldIgnoreRowClick(event)) return
+                    openTraceRecord(record)
+                },
+                style: {cursor: "pointer"},
+                "data-tour": index === 0 ? "trace-row" : undefined,
+            }),
+        }),
+        [openTraceRecord, showTableLoading],
+    )
 
     return (
         <div className="flex flex-col gap-6">
@@ -230,71 +352,23 @@ const ObservabilityTable = () => {
                 <EmptyObservability showOnboarding={showOnboarding} />
             ) : (
                 <div className="flex flex-col gap-2">
-                    <Table
-                        className="[&_.ant-table-tbody_.ant-table-cell]:align-top"
-                        rowSelection={{
-                            type: "checkbox",
-                            columnWidth: 48,
-                            selectedRowKeys,
-                            ...rowSelection,
+                    <InfiniteVirtualTable<ObservabilityTraceRow>
+                        columns={columns}
+                        dataSource={traceRows}
+                        rowKey={(record) => record.key}
+                        rowSelection={rowSelection}
+                        resizableColumns
+                        scopeId="observability-traces-table"
+                        tableClassName="[&_.ant-table-tbody_.ant-table-cell]:align-top"
+                        tableProps={tableProps}
+                        columnVisibility={{
+                            storageKey: "observability-table-columns",
+                            defaultHiddenKeys: [...DEFAULT_OBSERVABILITY_HIDDEN_COLUMNS],
+                            onStateChange: handleColumnVisibilityStateChange,
                         }}
-                        loading={showTableLoading}
-                        columns={mergedColumns as TableColumnType<TraceSpanNode>[]}
-                        dataSource={traces}
-                        bordered
-                        style={{cursor: "pointer"}}
-                        sticky={{
-                            offsetHeader: 0,
-                            offsetScroll: 0,
-                        }}
-                        onRow={(record, index) => ({
-                            onClick: () => {
-                                setSelectedNode(record.span_id)
-                                const isSpanView = traceTabs === "span"
-
-                                const targetTraceId = String(
-                                    record.trace_id ||
-                                        (record as any)?.invocationIds?.trace_id ||
-                                        (record as any)?.node?.trace_id ||
-                                        (record as any)?.root?.id ||
-                                        (record as any)?.traceId ||
-                                        (record as any)?.trace?.id ||
-                                        record.span_id ||
-                                        "",
-                                )
-
-                                const targetSpanId = isSpanView
-                                    ? String(record.span_id || "")
-                                    : String(record.span_id || "")
-
-                                if (!targetTraceId) {
-                                    console.warn(
-                                        "TraceDrawer: unable to determine trace id for record",
-                                        record,
-                                    )
-                                    return
-                                }
-
-                                setSelectedTraceId(targetTraceId)
-                                setTraceDrawerActiveSpan(targetSpanId || null)
-                                setTraceParam(targetTraceId)
-                                if (targetSpanId) {
-                                    setSpanParam(targetSpanId)
-                                } else {
-                                    setSpanParam(undefined)
-                                }
-                            },
-                            "data-tour": index === 0 ? "trace-row" : undefined,
-                        })}
-                        components={{
-                            header: {
-                                cell: ResizableTitle,
-                            },
-                        }}
-                        pagination={false}
-                        scroll={{x: "max-content"}}
                     />
-                    {hasMoreTraces && (
+
+                    {hasMoreTraces ? (
                         <Button
                             onClick={handleLoadMore}
                             disabled={isFetchingMore}
@@ -303,7 +377,7 @@ const ObservabilityTable = () => {
                         >
                             {isFetchingMore ? "Loading…" : "Click here to load more"}
                         </Button>
-                    )}
+                    ) : null}
                 </div>
             )}
 

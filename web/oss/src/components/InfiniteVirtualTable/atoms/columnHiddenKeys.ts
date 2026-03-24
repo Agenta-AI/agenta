@@ -81,17 +81,16 @@ const hiddenKeysAtomFamily = atomFamily(
         const storageAtom = atomWithStorage<Key[]>(storageKey, defaults)
 
         return atom(
-            (get, set) => {
+            (get) => {
                 const meta = get(metaAtom)
                 if (meta.version !== version) {
-                    set(storageAtom, defaults)
-                    set(metaAtom, {version, updatedAt: Date.now()})
                     return defaults
                 }
                 return get(storageAtom)
             },
             (get, set, next: Key[] | ((prev: Key[]) => Key[])) => {
-                const current = get(storageAtom)
+                const meta = get(metaAtom)
+                const current = meta.version !== version ? defaults : get(storageAtom)
                 const resolved = typeof next === "function" ? next(current) : next
                 set(storageAtom, resolved)
                 set(metaAtom, {version, updatedAt: Date.now()})

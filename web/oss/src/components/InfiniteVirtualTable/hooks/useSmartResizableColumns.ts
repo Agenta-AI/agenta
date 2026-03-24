@@ -334,7 +334,38 @@ export const useSmartResizableColumns = <RowType>({
                     key: colKey,
                     width,
                     minWidth: meta.minWidth,
-                    onHeaderCell: () => buildHeaderCellProps(colKey, width, meta.minWidth),
+                    onHeaderCell: (col) => {
+                        const existingHeaderProps =
+                            typeof column.onHeaderCell === "function"
+                                ? column.onHeaderCell(col)
+                                : undefined
+                        const resizeHeaderProps = buildHeaderCellProps(colKey, width, meta.minWidth)
+
+                        return {
+                            ...(existingHeaderProps ?? {}),
+                            ...resizeHeaderProps,
+                            style: {
+                                ...(existingHeaderProps?.style ?? {}),
+                                minWidth: meta.minWidth,
+                            },
+                        }
+                    },
+                    onCell: (record, index) => {
+                        const existingCellProps =
+                            typeof column.onCell === "function"
+                                ? column.onCell(record, index)
+                                : undefined
+
+                        return {
+                            ...(existingCellProps ?? {}),
+                            style: {
+                                ...(existingCellProps?.style ?? {}),
+                                width,
+                                minWidth: width,
+                                maxWidth: width,
+                            },
+                        }
+                    },
                 } as typeof colEntry
             }),
         [buildHeaderCellProps],

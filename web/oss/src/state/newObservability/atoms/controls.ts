@@ -182,8 +182,9 @@ export const filtersAtom = atom(
 // Table/UI controls -----------------------------------------------------------
 export const selectedTraceIdAtom = atom<string>("")
 export const selectedNodeAtom = atom<string>("")
+export const DEFAULT_OBSERVABILITY_HIDDEN_COLUMNS = ["span_type", "key", "tag"] as const
 export const editColumnsAtomFamily = atomFamily((_tab: ObservabilityTabInfo) =>
-    atom<string[]>(["span_type", "key", "usage", "tag"]),
+    atom<string[]>([...DEFAULT_OBSERVABILITY_HIDDEN_COLUMNS]),
 )
 export const editColumnsAtom = atom(
     (get) => get(editColumnsAtomFamily(get(observabilityTabAtom))),

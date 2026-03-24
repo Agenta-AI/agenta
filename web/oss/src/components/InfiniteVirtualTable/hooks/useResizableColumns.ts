@@ -165,8 +165,42 @@ export const useResizableColumns = <RowType>({
                         width,
                         minWidth: resolvedMinWidth,
                         children: nextChildren,
-                        onHeaderCell: () =>
-                            buildHeaderCellProps(colKey, width ?? undefined, resolvedMinWidth),
+                        onHeaderCell: (col) => {
+                            const existingHeaderProps =
+                                typeof column.onHeaderCell === "function"
+                                    ? column.onHeaderCell(col)
+                                    : undefined
+                            const resizeHeaderProps = buildHeaderCellProps(
+                                colKey,
+                                width ?? undefined,
+                                resolvedMinWidth,
+                            )
+
+                            return {
+                                ...(existingHeaderProps ?? {}),
+                                ...resizeHeaderProps,
+                                style: {
+                                    ...(existingHeaderProps?.style ?? {}),
+                                    minWidth: resolvedMinWidth,
+                                },
+                            }
+                        },
+                        onCell: (record, index) => {
+                            const existingCellProps =
+                                typeof column.onCell === "function"
+                                    ? column.onCell(record, index)
+                                    : undefined
+
+                            return {
+                                ...(existingCellProps ?? {}),
+                                style: {
+                                    ...(existingCellProps?.style ?? {}),
+                                    width,
+                                    minWidth: width,
+                                    maxWidth: width,
+                                },
+                            }
+                        },
                     } as typeof colEntry
                 }
 
@@ -193,7 +227,42 @@ export const useResizableColumns = <RowType>({
                     key: colKey,
                     width,
                     minWidth: resolvedMinWidth,
-                    onHeaderCell: () => buildHeaderCellProps(colKey, width, resolvedMinWidth),
+                    onHeaderCell: (col) => {
+                        const existingHeaderProps =
+                            typeof column.onHeaderCell === "function"
+                                ? column.onHeaderCell(col)
+                                : undefined
+                        const resizeHeaderProps = buildHeaderCellProps(
+                            colKey,
+                            width,
+                            resolvedMinWidth,
+                        )
+
+                        return {
+                            ...(existingHeaderProps ?? {}),
+                            ...resizeHeaderProps,
+                            style: {
+                                ...(existingHeaderProps?.style ?? {}),
+                                minWidth: resolvedMinWidth,
+                            },
+                        }
+                    },
+                    onCell: (record, index) => {
+                        const existingCellProps =
+                            typeof column.onCell === "function"
+                                ? column.onCell(record, index)
+                                : undefined
+
+                        return {
+                            ...(existingCellProps ?? {}),
+                            style: {
+                                ...(existingCellProps?.style ?? {}),
+                                width,
+                                minWidth: width,
+                                maxWidth: width,
+                            },
+                        }
+                    },
                 } as typeof colEntry
             }),
         [buildHeaderCellProps, columnWidths, minWidth],

@@ -1,8 +1,15 @@
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Tag} from "antd"
-import {ColumnsType} from "antd/es/table"
 
+import {
+    ColumnVisibilityMenuTrigger,
+    createActionsCell,
+    createComponentCell,
+    createTableColumns,
+    type InfiniteTableRowBase,
+    type TableColumnConfig,
+} from "@/oss/components/InfiniteVirtualTable"
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
@@ -18,185 +25,234 @@ import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
 import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
 import NodeNameCell from "../components/NodeNameCell"
+import ActionsCell from "../components/ObservabilityTable/components/ActionsCell"
 import StatusRenderer from "../components/StatusRenderer"
 import TimestampCell from "../components/TimestampCell"
 import UsageCell from "../components/UsageCell"
 
-interface ObservabilityColumnsProps {
-    evaluatorSlugs: string[]
+export interface ObservabilityTraceRow extends TraceSpanNode, InfiniteTableRowBase {
+    key: string
+    __isSkeleton: false
 }
 
-export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
-    const columns: ColumnsType<TraceSpanNode> = [
+interface ObservabilityColumnsProps {
+    evaluatorSlugs: string[]
+    onOpenTrace: (record: ObservabilityTraceRow) => void
+    onDeleteTrace: (record: ObservabilityTraceRow) => void
+    onAddToTestset: (record: ObservabilityTraceRow) => void
+}
+
+export const getObservabilityColumns = ({
+    evaluatorSlugs,
+    onOpenTrace,
+    onDeleteTrace,
+    onAddToTestset,
+}: ObservabilityColumnsProps) => {
+    const evaluatorColumns =
+        evaluatorSlugs.length <= 1
+            ? [
+                  {
+                      title: "Evaluators",
+                      key: "evaluators",
+                      width: 260,
+                      minWidth: 240,
+                      cell: createComponentCell<ObservabilityTraceRow>({
+                          render: (record) =>
+                              evaluatorSlugs[0] ? (
+                                  <EvaluatorMetricsCell
+                                      invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                                      evaluatorSlug={evaluatorSlugs[0]}
+                                  />
+                              ) : (
+                                  <span className="text-gray-500">-</span>
+                              ),
+                      }),
+                  } satisfies TableColumnConfig<ObservabilityTraceRow>,
+              ]
+            : [
+                  {
+                      title: "Evaluators",
+                      key: "evaluators",
+                      visibilityLabel: "Evaluators",
+                      children: evaluatorSlugs.map((evaluatorSlug) => ({
+                          title: evaluatorSlug,
+                          key: evaluatorSlug,
+                          width: 260,
+                          minWidth: 240,
+                          visibilityLabel: evaluatorSlug,
+                          cell: createComponentCell<ObservabilityTraceRow>({
+                              render: (record) => (
+                                  <EvaluatorMetricsCell
+                                      invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                                      evaluatorSlug={evaluatorSlug}
+                                  />
+                              ),
+                          }),
+                      })),
+                  } satisfies TableColumnConfig<ObservabilityTraceRow>,
+              ]
+
+    const columns: TableColumnConfig<ObservabilityTraceRow>[] = [
         {
             title: "ID",
-            dataIndex: ["span_id"],
             key: "key",
             width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
+            minWidth: 200,
             defaultHidden: true,
-            fixed: "left",
-            render: (_, record) => {
-                const spanId = record.span_id || ""
-                const shortId = spanId ? spanId.split("-")[0] : "-"
-                return (
-                    <TooltipWithCopyAction copyText={spanId || ""} title="Copy span id">
-                        <Tag className="font-mono bg-[#0517290F]" bordered={false}>
-                            # {shortId}
-                        </Tag>
-                    </TooltipWithCopyAction>
-                )
-            },
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => {
+                    const spanId = record.span_id || ""
+                    const shortId = spanId ? spanId.split("-")[0] : "-"
+
+                    return (
+                        <TooltipWithCopyAction copyText={spanId} title="Copy span id">
+                            <Tag className="font-mono bg-[#0517290F]" bordered={false}>
+                                # {shortId}
+                            </Tag>
+                        </TooltipWithCopyAction>
+                    )
+                },
+            }),
         },
         {
             title: "Name",
-            dataIndex: ["span_name"],
             key: "name",
-            ellipsis: true,
             width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            onCell: () => ({
-                style: {verticalAlign: "middle"},
-            }),
+            minWidth: 200,
+            ellipsis: true,
             fixed: "left",
-            render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => (
+                    <NodeNameCell name={record.span_name ?? ""} type={record.span_type} />
+                ),
+            }),
         },
         {
             title: "Span type",
             key: "span_type",
-            dataIndex: ["span_type"],
-            defaultHidden: true,
             width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
+            minWidth: 200,
+            defaultHidden: true,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => <div>{record.span_type ?? "-"}</div>,
             }),
-            render: (_, record) => {
-                return <div>{record.span_type}</div>
-            },
         },
         {
             title: "Inputs",
             key: "inputs",
             width: 400,
+            minWidth: 320,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
-            render: (_, record) => {
-                const inputs = getTraceInputs(record)
-                const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
-                return (
-                    <LastInputMessageCell
-                        value={sanitizedInputs}
-                        keyPrefix={`trace-input-${record.span_id}`}
-                        className="h-[112px] overflow-hidden"
-                    />
-                )
-            },
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => {
+                    const inputs = getTraceInputs(record)
+                    const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
+
+                    return (
+                        <LastInputMessageCell
+                            value={sanitizedInputs}
+                            keyPrefix={`trace-input-${record.span_id}`}
+                            className="h-[112px] overflow-hidden"
+                        />
+                    )
+                },
+            }),
         },
         {
             title: "Outputs",
             key: "outputs",
             width: 400,
+            minWidth: 320,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
-            render: (_, record) => {
-                const outputs = getTraceOutputs(record)
-                const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
-                return (
-                    <SmartCellContent
-                        value={sanitizedOutputs}
-                        keyPrefix={`trace-output-${record.span_id}`}
-                        maxLines={4}
-                        chatPreference="output"
-                        className="h-[112px] overflow-hidden"
-                    />
-                )
-            },
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => {
+                    const outputs = getTraceOutputs(record)
+                    const {data: sanitizedOutputs} = sanitizeDataWithBlobUrls(outputs)
+
+                    return (
+                        <SmartCellContent
+                            value={sanitizedOutputs}
+                            keyPrefix={`trace-output-${record.span_id}`}
+                            maxLines={4}
+                            chatPreference="output"
+                            className="h-[112px] overflow-hidden"
+                        />
+                    )
+                },
+            }),
         },
-        {
-            title: "Evaluators",
-            key: "evaluators",
-            align: "start",
-            children: evaluatorSlugs.map((evaluatorSlug) => ({
-                title: "",
-                key: evaluatorSlug,
-                onHeaderCell: () => ({
-                    style: {display: "none"},
-                }),
-                render: (_, record) => (
-                    <EvaluatorMetricsCell
-                        invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
-                        evaluatorSlug={evaluatorSlug}
-                    />
-                ),
-            })),
-        },
+        ...evaluatorColumns,
         {
             title: "Duration",
             key: "duration",
-            dataIndex: ["time", "span"],
             width: 90,
-            onHeaderCell: () => ({
-                style: {minWidth: 90},
+            minWidth: 90,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => <DurationCell ms={getLatency(record)} />,
             }),
-            render: (_, record) => {
-                const duration = getLatency(record)
-                return <DurationCell ms={duration} />
-            },
         },
         {
             title: "Cost",
             key: "cost",
-            dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
             width: 90,
-            onHeaderCell: () => ({
-                style: {minWidth: 90},
+            minWidth: 90,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => <CostCell cost={getCost(record)} />,
             }),
-            render: (_, record) => {
-                const cost = getCost(record)
-                return <CostCell cost={cost} />
-            },
         },
         {
             title: "Usage",
             key: "usage",
-            dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
             width: 90,
-            onHeaderCell: () => ({
-                style: {minWidth: 90},
+            minWidth: 90,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => <UsageCell tokens={getTokens(record)} />,
             }),
-            render: (_, record) => {
-                const tokens = getTokens(record)
-                return <UsageCell tokens={tokens} />
-            },
         },
         {
             title: "Timestamp",
             key: "timestamp",
-            dataIndex: ["created_at"],
             width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
+            minWidth: 200,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) => <TimestampCell timestamp={record.created_at} />,
             }),
-            render: (_, record) => <TimestampCell timestamp={record?.created_at} />,
         },
         {
             title: "Status",
             key: "status",
-            dataIndex: ["status_code"],
             width: 160,
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
+            minWidth: 160,
+            cell: createComponentCell<ObservabilityTraceRow>({
+                render: (record) =>
+                    StatusRenderer({
+                        status: record.status_code,
+                        message: record.status_message,
+                        showMore: true,
+                    }),
             }),
-            render: (_, record) =>
-                StatusRenderer({
-                    status: record.status_code,
-                    message: record.status_message,
-                    showMore: true,
-                }),
+        },
+        {
+            title: <ColumnVisibilityMenuTrigger variant="icon" />,
+            key: "actions",
+            width: 61,
+            minWidth: 56,
+            fixed: "right",
+            align: "center",
+            visibilityLocked: true,
+            exportEnabled: false,
+            cell: createActionsCell<ObservabilityTraceRow>({
+                render: (record) => (
+                    <ActionsCell
+                        record={record}
+                        onOpenTrace={onOpenTrace}
+                        onAddToTestset={onAddToTestset}
+                        onDeleteTrace={onDeleteTrace}
+                    />
+                ),
+            }),
         },
     ]
 
-    return columns
+    return createTableColumns<ObservabilityTraceRow>(columns)
 }

@@ -82,7 +82,7 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
     return (
         <section className="mx-auto flex flex-col gap-2 mt-4">
             <Typography.Text className=" font-medium">Choose your plan</Typography.Text>
-            <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex flex-col md:flex-row gap-4 p-1">
                 {plans?.map((plan) => (
                     <PricingCard
                         key={plan.title}
