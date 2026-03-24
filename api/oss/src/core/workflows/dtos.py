@@ -147,6 +147,7 @@ class WorkflowQueryFlags(BaseModel):
 class WorkflowCatalogFlags(BaseModel):
     is_archived: bool = False
     is_recommended: bool = False
+    #
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False

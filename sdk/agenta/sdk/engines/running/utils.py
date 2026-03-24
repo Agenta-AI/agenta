@@ -12,7 +12,7 @@ from agenta.sdk.engines.running.handlers import (
     trace_v0,
     hook_v0,
     code_v0,
-    snippet_v0,
+    config_v0,
     match_v0,
     llm_v0,
     # --- OLD URI
@@ -43,7 +43,7 @@ from agenta.sdk.engines.running.interfaces import (
     trace_v0_interface,
     hook_v0_interface,
     code_v0_interface,
-    snippet_v0_interface,
+    config_v0_interface,
     match_v0_interface,
     llm_v0_interface,
     # --- OLD URI
@@ -76,7 +76,7 @@ INTERFACE_REGISTRY: dict = dict(
             trace=dict(v0=trace_v0_interface),
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
-            snippet=dict(v0=snippet_v0_interface),
+            snippet=dict(v0=config_v0_interface),
         ),
         builtin=dict(
             # --- NEW URI
@@ -299,7 +299,7 @@ HANDLER_REGISTRY: dict = dict(
             # --- NEW URI
             trace=dict(v0=trace_v0),
             hook=dict(v0=hook_v0),
-            snippet=dict(v0=snippet_v0),
+            snippet=dict(v0=config_v0),
             code=dict(v0=code_v0),
         ),
         builtin=dict(

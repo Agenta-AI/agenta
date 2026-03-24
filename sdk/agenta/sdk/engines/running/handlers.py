@@ -1150,7 +1150,7 @@ async def code_v0(
 
 
 @instrument()
-async def snippet_v0(
+async def config_v0(
     request: Optional[Data] = None,
     revision: Optional[Data] = None,
     inputs: Optional[Data] = None,

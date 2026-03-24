@@ -33,6 +33,7 @@ from oss.src.managed import (
     builtin_match_app,
     custom_code_app,
     custom_hook_app,
+    custom_config_app,
 )
 from oss.src.chat import chat_app
 from oss.src.completion import completion_app
@@ -84,33 +85,32 @@ async def health():
 
 
 app.mount("/chat", chat_app)
-app.mount("/builtin/chat/v0", chat_app)
+app.mount("/chat/v0", chat_app)
 app.mount("/completion", completion_app)
-app.mount("/builtin/completion/v0", completion_app)
+app.mount("/completion/v0", completion_app)
 #
-app.mount("/custom/code/v0", custom_code_app)
-app.mount("/custom/hook/v0", custom_hook_app)
-app.mount("/builtin/match/v0", builtin_match_app)
-app.mount("/builtin/llm/v0", builtin_llm_app)
-app.mount("/builtin/auto_exact_match/v0", builtin_auto_exact_match_app)
-app.mount("/builtin/auto_regex_test/v0", builtin_auto_regex_test_app)
-app.mount("/builtin/field_match_test/v0", builtin_field_match_test_app)
-app.mount("/builtin/json_multi_field_match/v0", builtin_json_multi_field_match_app)
-app.mount("/builtin/auto_webhook_test/v0", builtin_auto_webhook_test_app)
-app.mount("/builtin/auto_custom_code_run/v0", builtin_auto_custom_code_run_app)
-app.mount("/builtin/auto_ai_critique/v0", builtin_auto_ai_critique_app)
-app.mount("/builtin/auto_starts_with/v0", builtin_auto_starts_with_app)
-app.mount("/builtin/auto_ends_with/v0", builtin_auto_ends_with_app)
-app.mount("/builtin/auto_contains/v0", builtin_auto_contains_app)
-app.mount("/builtin/auto_contains_any/v0", builtin_auto_contains_any_app)
-app.mount("/builtin/auto_contains_all/v0", builtin_auto_contains_all_app)
-app.mount("/builtin/auto_contains_json/v0", builtin_auto_contains_json_app)
-app.mount("/builtin/auto_json_diff/v0", builtin_auto_json_diff_app)
-app.mount(
-    "/builtin/auto_levenshtein_distance/v0", builtin_auto_levenshtein_distance_app
-)
-app.mount("/builtin/auto_similarity_match/v0", builtin_auto_similarity_match_app)
-app.mount("/builtin/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
+app.mount("/config/v0", custom_config_app)
+app.mount("/code/v0", custom_code_app)
+app.mount("/hook/v0", custom_hook_app)
+app.mount("/match/v0", builtin_match_app)
+app.mount("/llm/v0", builtin_llm_app)
+app.mount("/auto_exact_match/v0", builtin_auto_exact_match_app)
+app.mount("/auto_regex_test/v0", builtin_auto_regex_test_app)
+app.mount("/field_match_test/v0", builtin_field_match_test_app)
+app.mount("/json_multi_field_match/v0", builtin_json_multi_field_match_app)
+app.mount("/auto_webhook_test/v0", builtin_auto_webhook_test_app)
+app.mount("/auto_custom_code_run/v0", builtin_auto_custom_code_run_app)
+app.mount("/auto_ai_critique/v0", builtin_auto_ai_critique_app)
+app.mount("/auto_starts_with/v0", builtin_auto_starts_with_app)
+app.mount("/auto_ends_with/v0", builtin_auto_ends_with_app)
+app.mount("/auto_contains/v0", builtin_auto_contains_app)
+app.mount("/auto_contains_any/v0", builtin_auto_contains_any_app)
+app.mount("/auto_contains_all/v0", builtin_auto_contains_all_app)
+app.mount("/auto_contains_json/v0", builtin_auto_contains_json_app)
+app.mount("/auto_json_diff/v0", builtin_auto_json_diff_app)
+app.mount("/auto_levenshtein_distance/v0", builtin_auto_levenshtein_distance_app)
+app.mount("/auto_similarity_match/v0", builtin_auto_similarity_match_app)
+app.mount("/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)

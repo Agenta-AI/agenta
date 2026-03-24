@@ -24,6 +24,7 @@ from agenta.sdk.engines.running.handlers import (
     json_multi_field_match_v0,
     llm_v0,
     match_v0,
+    config_v0,
 )
 
 
@@ -38,6 +39,9 @@ def _create_managed_service(
     return service_app
 
 
+custom_config_app = _create_managed_service(
+    config_v0,
+)
 custom_code_app = _create_managed_service(
     code_v0,
 )
