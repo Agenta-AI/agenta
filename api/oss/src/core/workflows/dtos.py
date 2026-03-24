@@ -361,7 +361,7 @@ class SimpleWorkflowQuery(Metadata):
 class WorkflowCatalogType(Header):
     key: str
 
-    schema: dict
+    json_schema: Schema
 
 
 class WorkflowCatalogTemplate(Header):

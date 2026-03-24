@@ -22,11 +22,6 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionCommit,
     EnvironmentRevisionDelta,
 )
-from oss.src.core.workflows.dtos import (
-    WorkflowCatalogType,
-    WorkflowCatalogTemplate,
-    WorkflowCatalogPreset,
-)
 from oss.src.core.embeds.dtos import ErrorPolicy
 
 from oss.src.apis.fastapi.workflows.models import (
@@ -92,6 +87,8 @@ from oss.src.resources.workflows.catalog import (
     get_workflow_catalog_type,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
+    get_filtered_workflow_catalog_presets,
+    get_workflow_catalog_preset,
 )
 
 
@@ -132,7 +129,7 @@ class WorkflowsRouter:
             methods=["GET"],
             operation_id="fetch_workflow_catalog_type",
             status_code=status.HTTP_200_OK,
-            response_model=None,
+            response_model=WorkflowCatalogTypeResponse,
             response_model_exclude_none=True,
         )
 
@@ -428,10 +425,7 @@ class WorkflowsRouter:
     async def list_workflow_catalog_types(
         self,
     ) -> WorkflowCatalogTypesResponse:
-        types = [
-            WorkflowCatalogType(**type_data)
-            for type_data in get_workflow_catalog_types()
-        ]
+        types = get_workflow_catalog_types()
 
         return WorkflowCatalogTypesResponse(
             count=len(types),
@@ -443,16 +437,19 @@ class WorkflowsRouter:
         self,
         *,
         ag_type: str,
-    ) -> dict:
-        schema = get_workflow_catalog_type(ag_type=ag_type)
+    ) -> WorkflowCatalogTypeResponse:
+        workflow_type = get_workflow_catalog_type(ag_type=ag_type)
 
-        if schema is None:
+        if workflow_type is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Unknown ag-type: {ag_type}",
             )
 
-        return schema
+        return WorkflowCatalogTypeResponse(
+            count=1,
+            type=workflow_type,
+        )
 
     @intercept_exceptions()
     @suppress_exceptions(
@@ -473,9 +470,9 @@ class WorkflowsRouter:
         )
 
         templates = [
-            WorkflowCatalogTemplate(**entry)
-            for entry in entries
-            if include_archived or not entry["flags"]["is_archived"]
+            template
+            for template in entries
+            if include_archived or not (template.flags and template.flags.is_archived)
         ]
 
         return WorkflowCatalogTemplatesResponse(
@@ -492,8 +489,7 @@ class WorkflowsRouter:
         *,
         template_key: str,
     ) -> WorkflowCatalogTemplateResponse:
-        entry = get_workflow_catalog_template(template_key=template_key)
-        template = WorkflowCatalogTemplate(**entry) if entry else None
+        template = get_workflow_catalog_template(template_key=template_key)
 
         return WorkflowCatalogTemplateResponse(
             count=1 if template else 0,
@@ -510,14 +506,12 @@ class WorkflowsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> WorkflowCatalogPresetsResponse:
-        entry = get_workflow_catalog_template(template_key=template_key)
-        if not entry:
-            return WorkflowCatalogPresetsResponse()
-
         presets = [
-            WorkflowCatalogPreset(**preset)
-            for preset in entry.get("presets") or []
-            if include_archived or not preset["flags"]["is_archived"]
+            preset
+            for preset in get_filtered_workflow_catalog_presets(
+                template_key=template_key,
+            )
+            if include_archived or not (preset.flags and preset.flags.is_archived)
         ]
 
         return WorkflowCatalogPresetsResponse(
@@ -535,19 +529,10 @@ class WorkflowsRouter:
         template_key: str,
         preset_key: str,
     ) -> WorkflowCatalogPresetResponse:
-        entry = get_workflow_catalog_template(template_key=template_key)
-        if not entry:
-            return WorkflowCatalogPresetResponse()
-
-        raw_preset = next(
-            (
-                preset
-                for preset in (entry.get("presets") or [])
-                if preset.get("key") == preset_key
-            ),
-            None,
+        preset = get_workflow_catalog_preset(
+            template_key=template_key,
+            preset_key=preset_key,
         )
-        preset = WorkflowCatalogPreset(**raw_preset) if raw_preset else None
 
         return WorkflowCatalogPresetResponse(
             count=1 if preset else 0,

@@ -2,6 +2,11 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from oss.src.resources.evaluators.evaluators import evaluators as evaluator_catalog
+from oss.src.core.workflows.dtos import (
+    WorkflowCatalogType,
+    WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
+)
 from agenta.sdk.utils.types import CATALOG_TYPES
 from agenta.sdk.engines.running.catalog import (
     get_all_catalog_templates,
@@ -102,19 +107,25 @@ def _enrich_entry(
     return enriched
 
 
-def get_workflow_catalog_types() -> list[dict[str, Any]]:
+def get_workflow_catalog_types() -> list[WorkflowCatalogType]:
     return [
-        {
-            "key": key,
-            "schema": _clone(schema),
-        }
-        for key, schema in CATALOG_TYPES.items()
+        WorkflowCatalogType(
+            key=key,
+            json_schema=_clone(json_schema),
+        )
+        for key, json_schema in CATALOG_TYPES.items()
     ]
 
 
-def get_workflow_catalog_type(*, ag_type: str) -> Optional[dict[str, Any]]:
-    schema = CATALOG_TYPES.get(ag_type)
-    return _clone(schema) if schema is not None else None
+def get_workflow_catalog_type(*, ag_type: str) -> Optional[WorkflowCatalogType]:
+    json_schema = CATALOG_TYPES.get(ag_type)
+    if json_schema is None:
+        return None
+
+    return WorkflowCatalogType(
+        key=ag_type,
+        json_schema=_clone(json_schema),
+    )
 
 
 catalog = [
@@ -123,6 +134,28 @@ catalog = [
     )
     for entry in get_all_catalog_templates()
 ]
+
+
+def _get_workflow_catalog_template_entry(
+    *,
+    template_key: str,
+    is_application: Optional[bool] = None,
+    is_evaluator: Optional[bool] = None,
+    is_snippet: Optional[bool] = None,
+) -> Optional[dict[str, Any]]:
+    sdk_entry = get_catalog_template(
+        template_key=template_key,
+        is_application=is_application,
+        is_evaluator=is_evaluator,
+        is_snippet=is_snippet,
+    )
+    if not sdk_entry:
+        return None
+
+    return next(
+        (entry for entry in catalog if entry["key"] == sdk_entry["key"]),
+        None,
+    )
 
 
 def get_all_workflow_catalog_templates() -> list[dict[str, Any]]:
@@ -134,9 +167,9 @@ def get_filtered_workflow_catalog_templates(
     is_application: Optional[bool] = None,
     is_evaluator: Optional[bool] = None,
     is_snippet: Optional[bool] = None,
-) -> list[dict[str, Any]]:
+) -> list[WorkflowCatalogTemplate]:
     return [
-        entry
+        WorkflowCatalogTemplate(**entry)
         for entry in get_all_workflow_catalog_templates()
         if _matches_flags(
             entry,
@@ -153,19 +186,14 @@ def get_workflow_catalog_template(
     is_application: Optional[bool] = None,
     is_evaluator: Optional[bool] = None,
     is_snippet: Optional[bool] = None,
-) -> Optional[dict[str, Any]]:
-    sdk_entry = get_catalog_template(
+) -> Optional[WorkflowCatalogTemplate]:
+    entry = _get_workflow_catalog_template_entry(
         template_key=template_key,
         is_application=is_application,
         is_evaluator=is_evaluator,
         is_snippet=is_snippet,
     )
-    if not sdk_entry:
-        return None
-    return next(
-        (entry for entry in catalog if entry["key"] == sdk_entry["key"]),
-        None,
-    )
+    return WorkflowCatalogTemplate(**entry) if entry else None
 
 
 def get_filtered_workflow_catalog_presets(
@@ -174,8 +202,8 @@ def get_filtered_workflow_catalog_presets(
     is_application: Optional[bool] = None,
     is_evaluator: Optional[bool] = None,
     is_snippet: Optional[bool] = None,
-) -> list[dict[str, Any]]:
-    entry = get_workflow_catalog_template(
+) -> list[WorkflowCatalogPreset]:
+    entry = _get_workflow_catalog_template_entry(
         template_key=template_key,
         is_application=is_application,
         is_evaluator=is_evaluator,
@@ -184,7 +212,9 @@ def get_filtered_workflow_catalog_presets(
     if not entry:
         return []
 
-    return _clone(entry.get("presets") or [])
+    return [
+        WorkflowCatalogPreset(**preset) for preset in _clone(entry.get("presets") or [])
+    ]
 
 
 def get_workflow_catalog_preset(
@@ -194,7 +224,7 @@ def get_workflow_catalog_preset(
     is_application: Optional[bool] = None,
     is_evaluator: Optional[bool] = None,
     is_snippet: Optional[bool] = None,
-) -> Optional[dict[str, Any]]:
+) -> Optional[WorkflowCatalogPreset]:
     return next(
         (
             preset
@@ -204,7 +234,7 @@ def get_workflow_catalog_preset(
                 is_evaluator=is_evaluator,
                 is_snippet=is_snippet,
             )
-            if preset.get("key") == preset_key
+            if preset.key == preset_key
         ),
         None,
     )

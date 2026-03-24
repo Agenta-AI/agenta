@@ -12,7 +12,6 @@ from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import get_project_by_id
-from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
@@ -109,23 +108,6 @@ async def evaluate_batch_testset(
         )
         # ----------------------------------------------------------------------
 
-        # fetch secrets --------------------------------------------------------
-        _ = await get_llm_providers_secrets(
-            project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # prepare credentials --------------------------------------------------
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-        )
-
-        credentials = f"Secret {secret_token}"
-        # ----------------------------------------------------------------------
-
         # fetch run ------------------------------------------------------------
         run = await evaluations_service.fetch_run(
             project_id=project_id,
@@ -151,6 +133,15 @@ async def evaluate_batch_testset(
         annotation_steps_keys = [step.key for step in annotation_steps]
 
         nof_annotations = len(annotation_steps)
+
+        log.info(
+            "[STEPS]       ",
+            run_id=run_id,
+            invocation_step_keys=invocation_steps_keys,
+            annotation_step_keys=annotation_steps_keys,
+            annotation_origins=[step.origin for step in annotation_steps],
+            nof_annotations=nof_annotations,
+        )
 
         # extract references from run steps ------------------------------------
         input_steps = [step for step in steps if step.type == "input"]
@@ -281,51 +272,6 @@ async def evaluate_batch_testset(
             )
         # ----------------------------------------------------------------------
 
-        # prepare headers ------------------------------------------------------
-        headers = {}
-        if credentials:
-            headers = {"Authorization": credentials}
-        headers["ngrok-skip-browser-warning"] = "1"
-
-        openapi_parameters = None
-        openapi_is_chat = None
-        max_recursive_depth = 5
-        runtime_prefix = uri
-        route_path = ""
-
-        while max_recursive_depth > 0 and not openapi_parameters:
-            try:
-                (
-                    openapi_parameters,
-                    openapi_is_chat,
-                ) = await llm_apps_service.get_parameters_from_openapi(
-                    runtime_prefix + "/openapi.json",
-                    route_path,
-                    headers,
-                )
-            except Exception:  # pylint: disable=broad-exception-caught
-                openapi_parameters = None
-                openapi_is_chat = None
-
-            if not openapi_parameters:
-                max_recursive_depth -= 1
-                if not runtime_prefix.endswith("/"):
-                    route_path = "/" + runtime_prefix.split("/")[-1] + route_path
-                    runtime_prefix = "/".join(runtime_prefix.split("/")[:-1])
-                else:
-                    route_path = ""
-                    runtime_prefix = runtime_prefix[:-1]
-
-        (
-            openapi_parameters,
-            openapi_is_chat,
-        ) = await llm_apps_service.get_parameters_from_openapi(
-            runtime_prefix + "/openapi.json",
-            route_path,
-            headers,
-        )
-        # ----------------------------------------------------------------------
-
         # create scenarios -----------------------------------------------------
         scenarios_create = [
             EvaluationScenarioCreate(
@@ -392,6 +338,19 @@ async def evaluate_batch_testset(
             parameters=revision_parameters,  # type: ignore
             uri=uri,
             rate_limit_config=run_config,
+            schemas=(
+                application_revision.data.schemas.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+                if application_revision.data and application_revision.data.schemas
+                else None
+            ),
+            is_chat=(
+                application_revision.flags.is_chat
+                if application_revision.flags
+                else None
+            ),
             application_id=str(application.id),  # DO NOT REMOVE
             references={
                 "testset": {"id": str(testset_id)},
@@ -534,6 +493,13 @@ async def evaluate_batch_testset(
                     step_status = EvaluationStatus.SUCCESS
 
                     if annotation_step.origin in {"human", "custom"}:
+                        log.info(
+                            "[EVAL][SKIP]  ",
+                            scenario_id=scenario.id,
+                            step_key=annotation_step_key,
+                            origin=annotation_step.origin,
+                            reason="non-auto annotation step",
+                        )
                         scenario_has_pending = True
                         run_has_pending = True
                         # Human/custom steps are not auto-invoked here.
@@ -567,6 +533,24 @@ async def evaluate_batch_testset(
                         scenario_status = EvaluationStatus.ERRORS
                         run_status = EvaluationStatus.ERRORS
                         continue
+
+                    log.info(
+                        "[EVAL][STEP]  ",
+                        scenario_id=scenario.id,
+                        step_key=annotation_step_key,
+                        origin=annotation_step.origin,
+                        evaluator_revision_id=(
+                            str(evaluator_revision.id)
+                            if getattr(evaluator_revision, "id", None)
+                            else None
+                        ),
+                        evaluator_revision_slug=evaluator_revision.slug,
+                        evaluator_uri=(
+                            evaluator_revision.data.uri
+                            if evaluator_revision.data
+                            else None
+                        ),
+                    )
 
                     _revision = evaluator_revision.model_dump(
                         mode="json",
@@ -790,6 +774,16 @@ async def evaluate_batch_testset(
                         results=results_create,
                     )
 
+                    log.info(
+                        "[EVAL][WRITE] ",
+                        scenario_id=scenario.id,
+                        step_key=annotation_step_key,
+                        created_results=len(steps),
+                        status=step_status,
+                        trace_id=trace_id,
+                        has_error=bool(error),
+                    )
+
                     if len(steps) != 1:
                         raise ValueError(
                             f"Failed to create evaluation step for scenario with id {scenario.id}!"
@@ -952,12 +946,6 @@ async def evaluate_batch_invocation(
 
         # fetch project --------------------------------------------------------
         project = await get_project_by_id(
-            project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch secrets --------------------------------------------------------
-        _ = await get_llm_providers_secrets(
             project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
@@ -1164,6 +1152,19 @@ async def evaluate_batch_invocation(
             parameters=revision_parameters,  # type: ignore[arg-type]
             uri=uri,
             rate_limit_config=run_config,
+            schemas=(
+                application_revision.data.schemas.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+                if application_revision.data and application_revision.data.schemas
+                else None
+            ),
+            is_chat=(
+                application_revision.flags.is_chat
+                if application_revision.flags
+                else None
+            ),
             application_id=str(application.id),
             references={
                 "testset": {"id": str(testset.id)},

@@ -6,7 +6,7 @@ from oss.src.resources.workflows.catalog import (
 def test_catalog_types_include_message_messages_and_prompt_template():
     types = get_workflow_catalog_types()
 
-    by_key = {item["key"]: item["schema"] for item in types}
+    by_key = {item["key"]: item["json_schema"] for item in types}
 
     assert by_key["message"]["x-ag-type"] == "message"
     assert by_key["messages"]["x-ag-type"] == "messages"

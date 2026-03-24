@@ -7,10 +7,6 @@ from agenta.sdk.engines.running.handlers import chat_v0
 from agenta.sdk.types import Messages, PromptTemplate
 
 
-# Create isolated chat app with its own OpenAPI schema
-chat_app = ag.create_app()
-
-
 class ChatConfig(BaseModel):
     prompt: PromptTemplate = Field(
         default=PromptTemplate(
@@ -19,9 +15,7 @@ class ChatConfig(BaseModel):
     )
 
 
-@ag.route("/", app=chat_app, flags={"is_chat": True})
-@ag.workflow(uri="agenta:builtin:chat:v0")
-async def chat(
+async def _chat(
     inputs: Dict[str, Any],
     messages: Optional[Messages] = None,
     parameters: Optional[Dict] = None,
@@ -36,3 +30,14 @@ async def chat(
         inputs=inputs,
         messages=messages,
     )
+
+
+def create_chat_app():
+    app = ag.create_app()
+    routed = ag.workflow(uri="agenta:builtin:chat:v0")(_chat)
+    ag.route("/", app=app, flags={"is_chat": True})(routed)
+    return app
+
+
+chat_app = create_chat_app()
+chat_v0_app = create_chat_app()

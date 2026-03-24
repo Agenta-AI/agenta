@@ -420,7 +420,7 @@ class ApplicationsRouter:
         self,
     ) -> ApplicationCatalogTypesResponse:
         types = [
-            ApplicationCatalogType(**type_data)
+            ApplicationCatalogType(**type_data.model_dump())
             for type_data in get_workflow_catalog_types()
         ]
 
@@ -439,9 +439,9 @@ class ApplicationsRouter:
         include_archived: Optional[bool] = None,
     ) -> ApplicationCatalogTemplatesResponse:
         templates = [
-            ApplicationCatalogTemplate(**entry)
+            ApplicationCatalogTemplate(**entry.model_dump())
             for entry in get_filtered_workflow_catalog_templates(is_application=True)
-            if include_archived or not entry["flags"]["is_archived"]
+            if include_archived or not (entry.flags and entry.flags.is_archived)
         ]
 
         return ApplicationCatalogTemplatesResponse(
@@ -458,11 +458,15 @@ class ApplicationsRouter:
         *,
         template_key: str,
     ) -> ApplicationCatalogTemplateResponse:
-        entry = get_workflow_catalog_template(
+        template_data = get_workflow_catalog_template(
             template_key=template_key,
             is_application=True,
         )
-        template = ApplicationCatalogTemplate(**entry) if entry else None
+        template = (
+            ApplicationCatalogTemplate(**template_data.model_dump())
+            if template_data
+            else None
+        )
 
         return ApplicationCatalogTemplateResponse(
             count=1 if template else 0,
@@ -480,12 +484,12 @@ class ApplicationsRouter:
         include_archived: Optional[bool] = None,
     ) -> ApplicationCatalogPresetsResponse:
         presets = [
-            ApplicationCatalogPreset(**preset)
+            ApplicationCatalogPreset(**preset.model_dump())
             for preset in get_filtered_workflow_catalog_presets(
                 template_key=template_key,
                 is_application=True,
             )
-            if include_archived or not preset["flags"]["is_archived"]
+            if include_archived or not (preset.flags and preset.flags.is_archived)
         ]
 
         return ApplicationCatalogPresetsResponse(
@@ -503,12 +507,16 @@ class ApplicationsRouter:
         template_key: str,
         preset_key: str,
     ) -> ApplicationCatalogPresetResponse:
-        raw_preset = get_workflow_catalog_preset(
+        preset_data = get_workflow_catalog_preset(
             template_key=template_key,
             preset_key=preset_key,
             is_application=True,
         )
-        preset = ApplicationCatalogPreset(**raw_preset) if raw_preset else None
+        preset = (
+            ApplicationCatalogPreset(**preset_data.model_dump())
+            if preset_data
+            else None
+        )
 
         return ApplicationCatalogPresetResponse(
             count=1 if preset else 0,

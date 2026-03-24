@@ -83,6 +83,7 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorCatalogTemplate,
     EvaluatorCatalogPreset,
 )
+from oss.src.core.workflows.dtos import WorkflowCatalogTemplate
 from oss.src.apis.fastapi.evaluators.utils import (
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
@@ -119,8 +120,10 @@ def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) ->
     return RENAME_EVALUATORS_DISABLED_MESSAGE
 
 
-def _registry_entry_to_catalog_template(entry: dict) -> "EvaluatorCatalogTemplate":
-    return EvaluatorCatalogTemplate(**entry)
+def _registry_entry_to_catalog_template(
+    entry: "WorkflowCatalogTemplate",
+) -> "EvaluatorCatalogTemplate":
+    return EvaluatorCatalogTemplate(**entry.model_dump())
 
 
 class EvaluatorsRouter:
@@ -441,7 +444,7 @@ class EvaluatorsRouter:
         self,
     ) -> EvaluatorCatalogTypesResponse:
         types = [
-            EvaluatorCatalogType(**type_data)
+            EvaluatorCatalogType(**type_data.model_dump())
             for type_data in get_workflow_catalog_types()
         ]
 
@@ -462,7 +465,7 @@ class EvaluatorsRouter:
         templates = [
             _registry_entry_to_catalog_template(entry)
             for entry in get_filtered_workflow_catalog_templates(is_evaluator=True)
-            if include_archived or not entry["flags"]["is_archived"]
+            if include_archived or not (entry.flags and entry.flags.is_archived)
         ]
 
         return EvaluatorCatalogTemplatesResponse(
@@ -501,12 +504,12 @@ class EvaluatorsRouter:
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogPresetsResponse:
         presets = [
-            EvaluatorCatalogPreset(**preset)
+            EvaluatorCatalogPreset(**preset.model_dump())
             for preset in get_filtered_workflow_catalog_presets(
                 template_key=template_key,
                 is_evaluator=True,
             )
-            if include_archived or not preset["flags"]["is_archived"]
+            if include_archived or not (preset.flags and preset.flags.is_archived)
         ]
 
         return EvaluatorCatalogPresetsResponse(
@@ -524,12 +527,14 @@ class EvaluatorsRouter:
         template_key: str,
         preset_key: str,
     ) -> EvaluatorCatalogPresetResponse:
-        raw_preset = get_workflow_catalog_preset(
+        preset_data = get_workflow_catalog_preset(
             template_key=template_key,
             preset_key=preset_key,
             is_evaluator=True,
         )
-        preset = EvaluatorCatalogPreset(**raw_preset) if raw_preset else None
+        preset = (
+            EvaluatorCatalogPreset(**preset_data.model_dump()) if preset_data else None
+        )
 
         return EvaluatorCatalogPresetResponse(
             count=1 if preset else 0,

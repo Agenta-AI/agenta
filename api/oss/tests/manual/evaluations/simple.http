@@ -138,15 +138,15 @@ Authorization: {{authorization}}
         "name": "Simple Evaluation Test",
         "description": "Basic end-to-end simple evaluation call",
         "data": {
-            "testset_steps": [
-                "{{testset_revision_id}}"
-            ],
-            "application_steps": [
-                "{{application_revision_id}}"
-            ],
-            "evaluator_steps": [
-                "{{evaluator_revision_id}}"
-            ]
+            "testset_steps": {
+                "{{testset_revision_id}}": "auto"
+            },
+            "application_steps": {
+                "{{application_revision_id}}": "auto"
+            },
+            "evaluator_steps": {
+                "{{evaluator_revision_id}}": "auto"
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+# from starlette.routing import Mount
 
 import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
@@ -36,8 +37,8 @@ from oss.src.managed import (
     custom_hook_app,
     custom_config_app,
 )
-from oss.src.chat import chat_app
-from oss.src.completion import completion_app
+from oss.src.chat import chat_app, chat_v0_app
+from oss.src.completion import completion_app, completion_v0_app
 
 
 ag.init()
@@ -75,7 +76,11 @@ async def services_inspect(req: Request, request: WorkflowInspectRequest):
 # Main app — mounts all sub-apps
 # ---------------------------------------------------------------------------
 
-app = FastAPI()
+app = FastAPI(
+    openapi_url=None,
+    docs_url=None,
+    redoc_url=None,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,10 +104,28 @@ async def health():
     return {"status": "ok"}
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    response = await call_next(request)
+
+    if response.status_code >= 400:
+        log.warning(
+            "[HTTP] %s %s -> %s | path=%s root_path=%s raw_path=%s",
+            request.method,
+            request.url,
+            response.status_code,
+            request.scope.get("path"),
+            request.scope.get("root_path"),
+            request.scope.get("raw_path"),
+        )
+
+    return response
+
+
+app.mount("/chat/v0", chat_v0_app)
+app.mount("/completion/v0", completion_v0_app)
 app.mount("/chat", chat_app)
-app.mount("/chat/v0", chat_app)
 app.mount("/completion", completion_app)
-app.mount("/completion/v0", completion_app)
 #
 app.mount("/config/v0", custom_config_app)
 app.mount("/code/v0", custom_code_app)
@@ -143,7 +166,7 @@ async def print_routes():
                 log.info("  %-8s %s", "MOUNT", path or "/")
                 # sub_app = getattr(route, "app", None)
                 # sub_routes = getattr(sub_app, "routes", None)
-                # if sub_routes:
+                # if isinstance(route, Mount) and sub_routes:
                 #     _walk(sub_routes, prefix=path)
 
     log.info("Registered routes:")

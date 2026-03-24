@@ -930,10 +930,16 @@ class EvaluationsService:
             log.warning("run or run.data or run.data.steps not found")
             return []
 
+        refreshable_steps: List[EvaluationRunDataStep] = [
+            step for step in run.data.steps if step.type in METRICS_STEP_TYPES
+        ]
+
+        steps_by_key: Dict[str, EvaluationRunDataStep] = {
+            step.key: step for step in refreshable_steps
+        }
+
         step_types_by_key: Dict[str, str] = {
-            step.key: step.type
-            for step in run.data.steps
-            if step.type in METRICS_STEP_TYPES
+            step.key: step.type for step in refreshable_steps
         }
 
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {
@@ -961,8 +967,43 @@ class EvaluationsService:
             )
 
             if not results:
-                log.warning(f"No results found for step_key: {step_key}")
+                step = steps_by_key.get(step_key)
+
+                if (
+                    step
+                    and step.type == "annotation"
+                    and step.origin in {"human", "custom"}
+                ):
+                    log.info(
+                        "[METRICS][SKIP]",
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                        step_key=step_key,
+                        step_type=step.type,
+                        origin=step.origin,
+                        reason="annotation step has no results yet",
+                        timestamp=timestamp,
+                        interval=interval,
+                    )
+                else:
+                    log.warning(
+                        "No results found for step_key: %s",
+                        step_key,
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                        timestamp=timestamp,
+                        interval=interval,
+                    )
                 continue
+
+            log.info(
+                "[METRICS][STEP]",
+                run_id=run_id,
+                scenario_id=scenario_id,
+                step_key=step_key,
+                results_count=len(results),
+                trace_ids=[result.trace_id for result in results if result.trace_id],
+            )
 
             trace_ids: List[str] | None = [
                 result.trace_id for result in results if result.trace_id
@@ -977,10 +1018,7 @@ class EvaluationsService:
 
         inferred_metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
 
-        for step in run.data.steps:
-            if step.type not in METRICS_STEP_TYPES:
-                continue
-
+        for step in refreshable_steps:
             steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
