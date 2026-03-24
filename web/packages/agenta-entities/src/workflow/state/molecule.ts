@@ -40,7 +40,11 @@ import {
     nestEvaluatorConfiguration,
     flattenEvaluatorConfiguration,
 } from "../../runnable/evaluatorTransforms"
-import {extractInputPortsFromSchema, extractOutputPortsFromSchema} from "../../runnable/portHelpers"
+import {
+    extractInputPortsFromSchema,
+    extractOutputPortsFromSchema,
+    extractSystemFieldNames,
+} from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
@@ -624,13 +628,20 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             return []
         }
 
-        const schemaPorts = extractInputPortsFromSchema(entity.data?.schemas?.inputs)
+        const inputsSchema = entity.data?.schemas?.inputs
+        const schemaPorts = extractInputPortsFromSchema(inputsSchema)
         if (schemaPorts.length > 0) return schemaPorts
 
-        // Fallback: derive input variables from prompt templates in parameters
+        // Fallback: derive input variables from prompt templates in parameters.
+        // Filter out names that match system-level fields (x-ag-*) in the
+        // inputs schema — these are runtime-managed (e.g. context, consent)
+        // and should not appear as user-facing inputs.
         const params = entity.data?.parameters ?? entity.data?.configuration
         if (params) {
-            const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+            const systemFields = extractSystemFieldNames(inputsSchema)
+            const vars = extractVariablesFromConfig(params as Record<string, unknown>).filter(
+                (key) => !systemFields.has(key),
+            )
             if (vars.length > 0) {
                 return vars.map((key) => ({key, name: key, type: "string", required: true}))
             }
