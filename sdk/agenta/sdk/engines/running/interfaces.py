@@ -212,8 +212,8 @@ code_v0_interface = WorkflowRevisionData(
     schemas=None,
 )
 
-snippet_v0_interface = WorkflowRevisionData(
-    uri="agenta:custom:snippet:v0",
+config_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:config:v0",
     schemas=None,
 )
 
