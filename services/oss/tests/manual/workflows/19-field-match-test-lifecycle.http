@@ -93,8 +93,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # output.city == correct_answer → success=true
+# @name inspect_direct
+POST {{services_url}}/field_match_test/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# output.city == correct_answer → success=true
 # @name invoke_direct
-POST {{services_url}}/builtin/field_match_test/v0/invoke
+POST {{services_url}}/field_match_test/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -106,6 +116,24 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:field_match_test:v0",
+      "parameters": {
+        "json_field": "city",
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -128,6 +156,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -148,6 +193,24 @@ Authorization: {{authorization}}
 
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:field_match_test:v0",
+      "parameters": {
+        "json_field": "city",
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
 POST {{workflow_url}}/invoke
 Content-Type: application/json
@@ -163,8 +226,26 @@ Authorization: {{authorization}}
 
 ###
 # BONUS — field mismatch: output.city != correct_answer → success=false
+# @name inspect_mismatch
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:field_match_test:v0",
+      "parameters": {
+        "json_field": "city",
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# BONUS — field mismatch: output.city != correct_answer → success=false
 # @name invoke_mismatch
-POST {{services_url}}/builtin/field_match_test/v0/invoke
+POST {{services_url}}/field_match_test/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -178,8 +259,26 @@ Authorization: {{authorization}}
 
 ###
 # BONUS2 — nested field access using dot notation in json_field
+# @name inspect_nested_field
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:field_match_test:v0",
+      "parameters": {
+        "json_field": "location.city",
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# BONUS2 — nested field access using dot notation in json_field
 # @name invoke_nested_field
-POST {{services_url}}/builtin/field_match_test/v0/invoke
+POST {{services_url}}/field_match_test/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

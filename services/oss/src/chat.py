@@ -20,6 +20,7 @@ class ChatConfig(BaseModel):
 
 
 @ag.route("/", app=chat_app, flags={"is_chat": True})
+@ag.workflow(uri="agenta:builtin:chat:v0")
 async def chat(
     inputs: Dict[str, Any],
     messages: Optional[Messages] = None,

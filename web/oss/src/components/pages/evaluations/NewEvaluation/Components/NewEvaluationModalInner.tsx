@@ -550,7 +550,7 @@ const NewEvaluationModalInner = ({
                         testset_id: selectedTestsetId,
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
-                        evaluator_ids: selectedEvalConfigs,
+                        evaluator_revision_ids: selectedEvalConfigs,
                         rate_limit: rateLimitValues,
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,

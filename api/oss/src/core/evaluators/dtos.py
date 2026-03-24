@@ -17,8 +17,9 @@ from oss.src.core.workflows.dtos import (
     RevisionFork,
     #
     WorkflowCatalogFlags,
-    WorkflowCatalogPreset,
+    WorkflowCatalogType,
     WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
     #
     WorkflowFlags,
     WorkflowQueryFlags,
@@ -260,10 +261,6 @@ class EvaluatorFork(
         sync_alias("evaluator_revision", "revision", self)
 
 
-# evaluator services -----------------------------------------------------------
-
-# TODO: Implement ?
-
 # simple evaluators ------------------------------------------------------------
 
 
@@ -307,11 +304,15 @@ class SimpleEvaluatorQuery(Header, Metadata):
 # CATALOG ----------------------------------------------------------------------
 
 
-class EvaluatorCatalogPreset(WorkflowCatalogPreset):
-    flags: Optional[WorkflowCatalogFlags] = None
+class EvaluatorCatalogType(WorkflowCatalogType):
+    pass
 
 
 class EvaluatorCatalogTemplate(WorkflowCatalogTemplate):
+    flags: Optional[WorkflowCatalogFlags] = None
+
+
+class EvaluatorCatalogPreset(WorkflowCatalogPreset):
     flags: Optional[WorkflowCatalogFlags] = None
 
 

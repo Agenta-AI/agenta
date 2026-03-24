@@ -82,15 +82,45 @@ def _invoke_by_env(
     mod_services_api, *, environment_slug: str, workflow_slug: str, data: dict
 ) -> dict:
     """POST /invoke via environment ref + selector key and return response payload."""
-    resp = mod_services_api(
+    body = {
+        "references": {"environment": {"slug": environment_slug}},
+        "selector": {"key": f"{workflow_slug}.revision"},
+        "data": data,
+    }
+    inspect_resp = mod_services_api(
         "POST",
-        "/invoke",
+        "/inspect",
         json={
-            "references": {"environment": {"slug": environment_slug}},
-            "selector": {"key": f"{workflow_slug}.revision"},
-            "data": data,
+            "references": body["references"],
+            "selector": body["selector"],
         },
     )
+    assert inspect_resp.status_code == 200, (
+        f"Inspect failed ({inspect_resp.status_code}): {inspect_resp.text[:500]}"
+    )
+    resp = mod_services_api("POST", "/invoke", json=body)
+    assert resp.status_code == 200, (
+        f"Invoke failed ({resp.status_code}): {resp.text[:500]}"
+    )
+    return resp.json()
+
+
+def _invoke_with_inspect(mod_services_api, *, body: dict) -> dict:
+    inspect_body = {}
+    for key in ("version", "references", "selector", "flags", "tags", "meta"):
+        if key in body:
+            inspect_body[key] = body[key]
+
+    data = body.get("data")
+    if isinstance(data, dict) and "revision" in data:
+        inspect_body["revision"] = data["revision"]
+
+    inspect_resp = mod_services_api("POST", "/inspect", json=inspect_body)
+    assert inspect_resp.status_code == 200, (
+        f"Inspect failed ({inspect_resp.status_code}): {inspect_resp.text[:500]}"
+    )
+
+    resp = mod_services_api("POST", "/invoke", json=body)
     assert resp.status_code == 200, (
         f"Invoke failed ({resp.status_code}): {resp.text[:500]}"
     )
@@ -99,20 +129,16 @@ def _invoke_by_env(
 
 def _invoke_inline(mod_services_api, *, uri: str, parameters: dict, data: dict) -> dict:
     """POST /invoke with URI + parameters inline and return response payload."""
-    resp = mod_services_api(
-        "POST",
-        "/invoke",
-        json={
+    revision = {"data": {"uri": uri, "parameters": parameters}}
+    return _invoke_with_inspect(
+        mod_services_api,
+        body={
             "data": {
                 **data,
-                "revision": {"data": {"uri": uri, "parameters": parameters}},
+                "revision": revision,
             }
         },
     )
-    assert resp.status_code == 200, (
-        f"Invoke failed ({resp.status_code}): {resp.text[:500]}"
-    )
-    return resp.json()
 
 
 def _fetch_trace(
@@ -365,18 +391,15 @@ class TestEvaluatorLinkedToInvocation:
         assert trace_id_a and span_id_a, f"Step A missing trace/span: {payload_a}"
 
         # Step B — evaluator invocation linked to A
-        resp_b = mod_services_api(
-            "POST",
-            "/invoke",
-            json={
+        payload_b = _invoke_with_inspect(
+            mod_services_api,
+            body={
                 "references": {"environment": {"slug": ctx["environment_slug"]}},
                 "selector": {"key": f"{ctx['workflow_slug']}.revision"},
                 "links": {"invocation": {"trace_id": trace_id_a, "span_id": span_id_a}},
                 "data": {"inputs": {"correct_answer": "Paris"}, "outputs": "Paris"},
             },
         )
-        assert resp_b.status_code == 200, f"Linked invoke failed: {resp_b.text[:500]}"
-        payload_b = resp_b.json()
         trace_id_b = payload_b.get("trace_id")
         assert trace_id_b, f"Linked invoke missing trace_id: {payload_b}"
         assert trace_id_b != trace_id_a, "Linked invocation should produce a new trace"
@@ -396,17 +419,16 @@ class TestEvaluatorLinkedToInvocation:
         trace_id_a = payload_a["trace_id"]
         span_id_a = payload_a["span_id"]
 
-        resp_b = mod_services_api(
-            "POST",
-            "/invoke",
-            json={
+        payload_b = _invoke_with_inspect(
+            mod_services_api,
+            body={
                 "references": {"environment": {"slug": ctx["environment_slug"]}},
                 "selector": {"key": f"{ctx['workflow_slug']}.revision"},
                 "links": {"invocation": {"trace_id": trace_id_a, "span_id": span_id_a}},
                 "data": {"inputs": {"correct_answer": "Paris"}, "outputs": "Paris"},
             },
         )
-        trace_id_b = resp_b.json().get("trace_id")
+        trace_id_b = payload_b.get("trace_id")
         trace_b = _fetch_trace(mod_api, trace_id_b)
         assert trace_b is not None, f"Linked evaluator trace {trace_id_b} not found"
         _assert_trace_structure(trace_b, trace_id=trace_id_b)
@@ -568,10 +590,9 @@ class TestCompletionToEvaluatorChain:
         completion_output = completion_payload.get("data", {}).get("outputs", "")
 
         # Step 2 — evaluator (auto_contains: check LLM mentioned "Paris")
-        eval_resp = mod_services_api(
-            "POST",
-            "/invoke",
-            json={
+        eval_payload = _invoke_with_inspect(
+            mod_services_api,
+            body={
                 "data": {
                     "inputs": {},
                     "outputs": completion_output,
@@ -593,10 +614,6 @@ class TestCompletionToEvaluatorChain:
                 }
             },
         )
-        assert eval_resp.status_code == 200, (
-            f"Evaluator invoke failed: {eval_resp.text[:500]}"
-        )
-        eval_payload = eval_resp.json()
         eval_trace_id = eval_payload.get("trace_id")
 
         assert eval_trace_id, f"Evaluator missing trace_id: {eval_payload}"

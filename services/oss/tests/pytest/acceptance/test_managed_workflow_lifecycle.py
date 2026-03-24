@@ -78,7 +78,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_exact_match",
             "uri": "agenta:builtin:auto_exact_match:v0",
-            "service_path": "/builtin/auto_exact_match/v0",
+            "service_path": "/auto_exact_match/v0",
             "parameters": {"correct_answer_key": "correct_answer"},
             "inputs": {"correct_answer": "Paris"},
             "outputs": "Paris",
@@ -89,7 +89,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_contains",
             "uri": "agenta:builtin:auto_contains:v0",
-            "service_path": "/builtin/auto_contains/v0",
+            "service_path": "/auto_contains/v0",
             "parameters": {"substring": "Paris", "case_sensitive": True},
             "inputs": {},
             "outputs": "The capital of France is Paris",
@@ -100,7 +100,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_contains_any",
             "uri": "agenta:builtin:auto_contains_any:v0",
-            "service_path": "/builtin/auto_contains_any/v0",
+            "service_path": "/auto_contains_any/v0",
             "parameters": {"substrings": ["Paris", "London"], "case_sensitive": True},
             "inputs": {},
             "outputs": "Paris is the capital of France",
@@ -111,7 +111,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_contains_all",
             "uri": "agenta:builtin:auto_contains_all:v0",
-            "service_path": "/builtin/auto_contains_all/v0",
+            "service_path": "/auto_contains_all/v0",
             "parameters": {"substrings": ["Paris", "France"], "case_sensitive": True},
             "inputs": {},
             "outputs": "Paris is the capital of France",
@@ -122,7 +122,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_starts_with",
             "uri": "agenta:builtin:auto_starts_with:v0",
-            "service_path": "/builtin/auto_starts_with/v0",
+            "service_path": "/auto_starts_with/v0",
             "parameters": {"prefix": "Paris", "case_sensitive": True},
             "inputs": {},
             "outputs": "Paris is the capital of France",
@@ -133,7 +133,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_ends_with",
             "uri": "agenta:builtin:auto_ends_with:v0",
-            "service_path": "/builtin/auto_ends_with/v0",
+            "service_path": "/auto_ends_with/v0",
             "parameters": {"suffix": "France", "case_sensitive": True},
             "inputs": {},
             "outputs": "Paris is the capital of France",
@@ -144,7 +144,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_regex_test",
             "uri": "agenta:builtin:auto_regex_test:v0",
-            "service_path": "/builtin/auto_regex_test/v0",
+            "service_path": "/auto_regex_test/v0",
             "parameters": {
                 "regex_pattern": "^Paris",
                 "case_sensitive": True,
@@ -159,7 +159,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_contains_json",
             "uri": "agenta:builtin:auto_contains_json:v0",
-            "service_path": "/builtin/auto_contains_json/v0",
+            "service_path": "/auto_contains_json/v0",
             "parameters": {},
             "inputs": {},
             "outputs": '{"city": "Paris"}',
@@ -170,7 +170,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_json_diff",
             "uri": "agenta:builtin:auto_json_diff:v0",
-            "service_path": "/builtin/auto_json_diff/v0",
+            "service_path": "/auto_json_diff/v0",
             "parameters": {"correct_answer_key": "correct_answer", "threshold": 0.5},
             "inputs": {"correct_answer": '{"city": "Paris"}'},
             "outputs": '{"city": "Paris"}',
@@ -181,7 +181,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_levenshtein_distance",
             "uri": "agenta:builtin:auto_levenshtein_distance:v0",
-            "service_path": "/builtin/auto_levenshtein_distance/v0",
+            "service_path": "/auto_levenshtein_distance/v0",
             "parameters": {
                 "correct_answer_key": "correct_answer",
                 "case_sensitive": True,
@@ -196,7 +196,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_similarity_match",
             "uri": "agenta:builtin:auto_similarity_match:v0",
-            "service_path": "/builtin/auto_similarity_match/v0",
+            "service_path": "/auto_similarity_match/v0",
             "parameters": {
                 "correct_answer_key": "correct_answer",
                 "case_sensitive": True,
@@ -211,7 +211,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_semantic_similarity",
             "uri": "agenta:builtin:auto_semantic_similarity:v0",
-            "service_path": "/builtin/auto_semantic_similarity/v0",
+            "service_path": "/auto_semantic_similarity/v0",
             "parameters": {
                 "correct_answer_key": "correct_answer",
                 "embedding_model": "text-embedding-3-small",
@@ -231,7 +231,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_ai_critique",
             "uri": "agenta:builtin:auto_ai_critique:v0",
-            "service_path": "/builtin/auto_ai_critique/v0",
+            "service_path": "/auto_ai_critique/v0",
             "parameters": {
                 "prompt_template": [
                     {
@@ -270,7 +270,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_webhook_test",
             "uri": "agenta:builtin:auto_webhook_test:v0",
-            "service_path": "/builtin/auto_webhook_test/v0",
+            "service_path": "/auto_webhook_test/v0",
             "parameters": {
                 "webhook_url": "http://localhost:9999/webhook",
                 "correct_answer_key": "correct_answer",
@@ -290,7 +290,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "auto_custom_code_run",
             "uri": "agenta:builtin:auto_custom_code_run:v0",
-            "service_path": "/builtin/auto_custom_code_run/v0",
+            "service_path": "/auto_custom_code_run/v0",
             "parameters": {
                 "code": (
                     "def evaluate(inputs, output, trace):\n"
@@ -310,7 +310,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "custom_code",
             "uri": "agenta:custom:code:v0",
-            "service_path": "/custom/code/v0",
+            "service_path": "/code/v0",
             "parameters": {
                 "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
                 "runtime": "python",
@@ -325,7 +325,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "field_match_test",
             "uri": "agenta:builtin:field_match_test:v0",
-            "service_path": "/builtin/field_match_test/v0",
+            "service_path": "/field_match_test/v0",
             "parameters": {
                 "json_field": "city",
                 "correct_answer_key": "correct_answer",
@@ -339,7 +339,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "json_multi_field_match",
             "uri": "agenta:builtin:json_multi_field_match:v0",
-            "service_path": "/builtin/json_multi_field_match/v0",
+            "service_path": "/json_multi_field_match/v0",
             "parameters": {
                 "fields": ["city"],
                 "correct_answer_key": "correct_answer",
@@ -353,7 +353,7 @@ MANAGED_WORKFLOW_CASES = [
         {
             "template_key": "match",
             "uri": "agenta:builtin:match:v0",
-            "service_path": "/builtin/match/v0",
+            "service_path": "/match/v0",
             "parameters": {
                 "matchers": [
                     {
@@ -378,9 +378,9 @@ MANAGED_WORKFLOW_CASES = [
 
 
 def _uri_to_service_path(uri: str) -> str:
-    """'agenta:builtin:auto_exact_match:v0' → '/builtin/auto_exact_match/v0'"""
+    """'agenta:builtin:auto_exact_match:v0' → '/auto_exact_match/v0'"""
     parts = uri.split(":")
-    return "/" + "/".join(parts[1:])  # drop leading 'agenta'
+    return "/" + "/".join(parts[2:])  # drop leading 'agenta' and kind
 
 
 def _assert_invoke_response(resp, *, case_id: str) -> dict:
@@ -419,6 +419,51 @@ def _invoke_body(
     if revision is not None:
         body["data"]["revision"] = revision
     return body
+
+
+def _inspect_body(body: dict) -> dict:
+    inspect: dict = {}
+
+    for key in ("version", "references", "selector", "flags", "tags", "meta"):
+        if key in body:
+            inspect[key] = body[key]
+
+    if "revision" in body:
+        inspect["revision"] = body["revision"]
+
+    data = body.get("data")
+    if isinstance(data, dict) and "revision" in data:
+        inspect["revision"] = data["revision"]
+
+    return inspect
+
+
+def _post_invoke_with_inspect(
+    services_api,
+    path: str,
+    *,
+    json: dict,
+    inspect_json: dict | None = None,
+):
+    inspect_path = "/inspect"
+    if inspect_json is None:
+        if path == "/invoke":
+            inspect_json = _inspect_body(json)
+        else:
+            inspect_path = f"{path[: -len('/invoke')]}/inspect"
+            inspect_json = _inspect_body(json)
+    elif path == "/invoke":
+        inspect_path = "/inspect"
+
+    inspect_resp = services_api(
+        "POST",
+        inspect_path,
+        json=inspect_json,
+    )
+    assert inspect_resp.status_code == 200, (
+        f"Inspect failed for {inspect_path}: {inspect_resp.text[:500]}"
+    )
+    return services_api("POST", path, json=json)
 
 
 def _assert_case_outputs(payload: dict, *, case: Dict[str, Any]) -> None:
@@ -586,18 +631,38 @@ class TestManagedWorkflowLifecycle:
     def test_invoke_direct(self):
         """POST {services}/{service_path}/invoke — direct per-service mount, no dispatcher."""
         ctx = self._ctx
-        resp = self._mod_services_api(
-            "POST",
+        resp = _post_invoke_with_inspect(
+            self._mod_services_api,
             f"{ctx['service_path']}/invoke",
             json=_invoke_body(ctx),
+            inspect_json={
+                "revision": {
+                    "data": {
+                        "uri": ctx["uri"],
+                        "parameters": ctx["parameters"],
+                    }
+                }
+            },
         )
         _assert_invoke_response(resp, case_id=ctx["template_key"])
+
+    def test_inspect_direct_returns_canonical_revision(self):
+        """POST {services}/{service_path}/inspect — direct mount returns canonical URI."""
+        ctx = self._ctx
+        resp = self._mod_services_api(
+            "POST",
+            f"{ctx['service_path']}/inspect",
+            json={},
+        )
+        assert resp.status_code == 200, resp.text
+        payload = resp.json()
+        assert payload["data"]["revision"]["data"]["uri"] == ctx["uri"]
 
     def test_invoke_inline(self):
         """POST /invoke with URI + parameters inline — dispatcher routes by URI, no DB lookup."""
         ctx = self._ctx
-        resp = self._mod_services_api(
-            "POST",
+        resp = _post_invoke_with_inspect(
+            self._mod_services_api,
             "/invoke",
             json=_invoke_body(
                 ctx,
@@ -614,8 +679,8 @@ class TestManagedWorkflowLifecycle:
             data["messages"] = ctx["messages"]
         if "outputs" in ctx:
             data["outputs"] = ctx["outputs"]
-        resp = self._mod_services_api(
-            "POST",
+        resp = _post_invoke_with_inspect(
+            self._mod_services_api,
             "/invoke",
             json={
                 "references": {
@@ -632,10 +697,18 @@ class TestManagedWorkflowLifecycle:
     def test_output_matches_expected_shape(self):
         """Invoke returns the expected outputs envelope for the managed workflow."""
         ctx = self._ctx
-        resp = self._mod_services_api(
-            "POST",
+        resp = _post_invoke_with_inspect(
+            self._mod_services_api,
             f"{ctx['service_path']}/invoke",
             json=_invoke_body(ctx),
+            inspect_json={
+                "revision": {
+                    "data": {
+                        "uri": ctx["uri"],
+                        "parameters": ctx["parameters"],
+                    }
+                }
+            },
         )
         payload = _assert_invoke_response(resp, case_id=ctx["template_key"])
         _assert_case_outputs(payload, case=ctx)
@@ -645,14 +718,14 @@ class TestManagedWorkflowLifecycle:
 # Match-specific test class — exhaustive kind/mode/aggregation coverage
 # ---------------------------------------------------------------------------
 
-_MATCH_SERVICE_PATH = "/builtin/match/v0"
+_MATCH_SERVICE_PATH = "/match/v0"
 _MATCH_URI = "agenta:builtin:match:v0"
 
 
 def _match_inline(services_api, matchers: list, inputs: dict = None, outputs=None):
     """Helper: POST /invoke with match matchers inline (no DB lookup)."""
-    return services_api(
-        "POST",
+    return _post_invoke_with_inspect(
+        services_api,
         "/invoke",
         json={
             "data": {
@@ -670,15 +743,23 @@ def _match_inline(services_api, matchers: list, inputs: dict = None, outputs=Non
 
 
 def _match_direct(services_api, matchers: list, inputs: dict = None, outputs=None):
-    """Helper: POST /builtin/match/v0/invoke (direct mount)."""
-    return services_api(
-        "POST",
+    """Helper: POST /match/v0/invoke (direct mount)."""
+    return _post_invoke_with_inspect(
+        services_api,
         f"{_MATCH_SERVICE_PATH}/invoke",
         json={
             "data": {
                 "inputs": inputs or {},
                 "outputs": outputs if outputs is not None else "",
                 "parameters": {"matchers": matchers},
+            }
+        },
+        inspect_json={
+            "revision": {
+                "data": {
+                    "uri": _MATCH_URI,
+                    "parameters": {"matchers": matchers},
+                }
             }
         },
     )

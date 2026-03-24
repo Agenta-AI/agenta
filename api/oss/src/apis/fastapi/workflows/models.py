@@ -8,9 +8,11 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.workflows.dtos import (
     #
-    Workflow,
-    WorkflowCatalogPreset,
+    WorkflowCatalogType,
     WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
+    #
+    Workflow,
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
@@ -196,6 +198,19 @@ class WorkflowRevisionResolveResponse(BaseModel):
     count: int = 0
     workflow_revision: Optional[WorkflowRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+# WORKFLOW CATALOG -------------------------------------------------------------
+
+
+class WorkflowCatalogTypeResponse(BaseModel):
+    count: int = 0
+    type: Optional[WorkflowCatalogType] = None
+
+
+class WorkflowCatalogTypesResponse(BaseModel):
+    count: int = 0
+    types: List[WorkflowCatalogType] = []
 
 
 class WorkflowCatalogTemplateResponse(BaseModel):

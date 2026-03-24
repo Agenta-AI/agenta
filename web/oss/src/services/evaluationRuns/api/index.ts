@@ -13,7 +13,6 @@ import {getDefaultStore} from "jotai"
 
 import {getMetricsFromEvaluator} from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/transforms"
 import {slugify} from "@/oss/lib/utils/slugify"
-import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 
 import {CreateEvaluationRunInput, Testset} from "./types"
@@ -63,11 +62,11 @@ const extractColumnsFromTestset = (testset?: Testset): string[] => {
  * Resolve a server revision ID for invocation references.
  * Local drafts use non-UUID IDs, so we fall back to their source revision.
  */
-const resolveInvocationRevisionId = (revision: Workflow): string | undefined => {
-    if (isValidUUID(revision.id)) return revision.id
+const resolveWorkflowRevisionId = (workflow: Workflow): string | undefined => {
+    if (isValidUUID(workflow.id)) return workflow.id
 
-    const sourceRevisionId = isLocalDraftId(revision.id)
-        ? extractSourceIdFromDraft(revision.id)
+    const sourceRevisionId = isLocalDraftId(workflow.id)
+        ? extractSourceIdFromDraft(workflow.id)
         : null
 
     if (sourceRevisionId && isValidUUID(sourceRevisionId)) {
@@ -127,7 +126,7 @@ const buildInvocationStep = (revision: Workflow, inputKey: string) => {
     if (variantId && isValidUUID(variantId)) {
         references.application_variant = {id: variantId}
     }
-    const invocationRevisionId = resolveInvocationRevisionId(revision)
+    const invocationRevisionId = resolveWorkflowRevisionId(revision)
     if (invocationRevisionId) {
         references.application_revision = {id: invocationRevisionId}
     }
@@ -141,25 +140,30 @@ const buildInvocationStep = (revision: Workflow, inputKey: string) => {
 }
 
 /**
- * Constructs annotation steps for all evaluators.
- * Uses each evaluator's slug and id for references.
+ * Constructs annotation steps for evaluator revisions.
  */
 const buildAnnotationStepsFromEvaluators = (
-    evaluators: EvaluatorDto[] | undefined,
+    evaluators: Workflow[] | undefined,
     inputKey: string,
     invocationKey: string,
 ) => {
     if (!evaluators) return []
     return evaluators.map((evaluator) => {
         const references: Record<string, {id: string}> = {}
-        if (evaluator.slug !== undefined) {
-            references.evaluator = {id: evaluator.id}
+
+        if (evaluator.workflow_id && isValidUUID(evaluator.workflow_id)) {
+            references.evaluator = {id: evaluator.workflow_id}
         }
 
-        // TODO: Enable when we have this information
-        // if (evaluator.id !== undefined) {
-        //     references.evaluator_variant = {id: evaluator.id}
-        // }
+        if (evaluator.workflow_variant_id && isValidUUID(evaluator.workflow_variant_id)) {
+            references.evaluator_variant = {id: evaluator.workflow_variant_id}
+        }
+
+        const evaluatorRevisionId = resolveWorkflowRevisionId(evaluator)
+        if (evaluatorRevisionId) {
+            references.evaluator_revision = {id: evaluatorRevisionId}
+        }
+
         return {
             key: `${invocationKey}.${evaluator.slug}`,
             references,
@@ -183,7 +187,7 @@ const buildAnnotationStepsFromEvaluators = (
 const buildMappings = (
     revision: Workflow,
     correctAnswerColumn: string,
-    evaluators: EvaluatorDto[] | undefined,
+    evaluators: Workflow[] | undefined,
     testset?: Testset,
 ) => {
     const testsetKey = testset

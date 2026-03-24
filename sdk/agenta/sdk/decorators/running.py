@@ -25,6 +25,10 @@ from agenta.sdk.middlewares.running.normalizer import (
 )
 from agenta.sdk.middlewares.running.resolver import (
     ResolverMiddleware,
+    resolve_revision,
+    resolve_references,
+    resolve_embeds,
+    _has_embed_markers,
 )
 from agenta.sdk.middlewares.running.vault import (
     VaultMiddleware,
@@ -102,10 +106,11 @@ class workflow:
         id: Optional[UUID] = None,
         slug: Optional[str] = None,
         version: Optional[str] = None,
-        #
-        references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None,
         # -------------------------------------------------------------------- #
+        references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None,
         links: Optional[Dict[str, Union[Link, Dict[str, Any]]]] = None,
+        #
+        selector: Optional[Any] = None,
         # -------------------------------------------------------------------- #
         name: Optional[str] = None,
         description: Optional[str] = None,
@@ -131,10 +136,11 @@ class workflow:
         self.id = id
         self.slug = slug
         self.version = version
-        #
-        self.references = references  # FIX TYPING
         # -------------------------------------------------------------------- #
+        self.references = references
         self.links = links
+        #
+        self.selector = selector
         # -------------------------------------------------------------------- #
         self.name = name
         self.description = description
@@ -422,6 +428,8 @@ class workflow:
                         references=self.references,
                         links=self.links,
                         #
+                        selector=self.selector,
+                        #
                         flags=self.flags,
                         tags=self.tags,
                         meta=self.meta,
@@ -443,7 +451,55 @@ class workflow:
                         ),
                     )
 
-                return self.default_request
+                request = self.default_request.model_copy(deep=True)
+                revision = await resolve_revision(
+                    request=request,
+                    revision=(
+                        self.revision.data
+                        if (
+                            self.revision
+                            and self.revision.data
+                            and self.revision.data.model_dump(exclude_none=True)
+                        )
+                        else None
+                    ),
+                )
+
+                if revision is None and request.references:
+                    revision = await resolve_references(
+                        request=request,
+                        credentials=credentials,
+                    )
+
+                resolve_flag = (request.flags or {}).get("resolve", True)
+                if (
+                    resolve_flag
+                    and revision
+                    and revision.parameters
+                    and _has_embed_markers(revision.parameters)
+                ):
+                    revision.parameters = await resolve_embeds(
+                        parameters=revision.parameters,
+                        credentials=credentials,
+                    )
+
+                if revision:
+                    request.data = request.data or WorkflowRequestData()
+                    request.data.revision = WorkflowRevision(
+                        id=self.id,
+                        slug=self.slug,
+                        version=self.version,
+                        #
+                        name=self.name,
+                        description=self.description,
+                        #
+                        data=revision,
+                    ).model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+
+                return request
 
 
 def is_workflow(obj: Any) -> bool:
@@ -547,7 +603,7 @@ async def inspect_workflow(
     #
     **kwargs,
 ) -> WorkflowInvokeRequest:
-    return await workflow(
+    wf = workflow(
         revision=request.revision,
         #
         flags=request.flags,
@@ -555,7 +611,10 @@ async def inspect_workflow(
         meta=request.meta,
         #
         references=request.references,
-    )().inspect(
+        #
+        selector=request.selector,
+    )
+    return await wf.inspect(
         credentials=credentials,
         #
         **kwargs,
@@ -644,7 +703,7 @@ async def inspect_application(
     #
     **kwargs,
 ) -> WorkflowInvokeRequest:
-    return await application(
+    app = application(
         revision=request.revision,
         #
         flags=request.flags,
@@ -652,7 +711,10 @@ async def inspect_application(
         meta=request.meta,
         #
         references=request.references,
-    )().inspect(
+        #
+        selector=request.selector,
+    )
+    return await app.inspect(
         credentials=credentials,
         #
         **kwargs,
@@ -741,7 +803,7 @@ async def inspect_evaluator(
     #
     **kwargs,
 ) -> WorkflowInvokeRequest:
-    return await evaluator(
+    ev = evaluator(
         revision=request.revision,
         #
         flags=request.flags,
@@ -749,7 +811,10 @@ async def inspect_evaluator(
         meta=request.meta,
         #
         references=request.references,
-    )().inspect(
+        #
+        selector=request.selector,
+    )
+    return await ev.inspect(
         credentials=credentials,
         #
         **kwargs,

@@ -121,8 +121,19 @@ Authorization: {{authorization}}
 # 5a. Invoke — direct service mount, no dispatcher
 # Correct geography answer → LLM should score high
 # Requires: LLM API key
+# @name inspect_direct
+POST {{services_url}}/auto_ai_critique/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# Correct geography answer → LLM should score high
+# Requires: LLM API key
 # @name invoke_direct
-POST {{services_url}}/builtin/auto_ai_critique/v0/invoke
+POST {{services_url}}/auto_ai_critique/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -155,6 +166,51 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_ai_critique:v0",
+      "parameters": {
+        "prompt_template": [
+          {
+            "role": "system",
+            "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1)."
+          },
+          {
+            "role": "user",
+            "content": "Answer: {output}"
+          }
+        ],
+        "model": "gpt-4o-mini",
+        "response_type": "json_schema",
+        "json_schema": {
+          "name": "evaluation_result",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "score"
+            ],
+            "additionalProperties": false
+          },
+          "strict": true
+        },
+        "threshold": 0.5
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -198,6 +254,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -216,6 +289,51 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_ai_critique:v0",
+      "parameters": {
+        "prompt_template": [
+          {
+            "role": "system",
+            "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1)."
+          },
+          {
+            "role": "user",
+            "content": "Answer: {output}"
+          }
+        ],
+        "model": "gpt-4o-mini",
+        "response_type": "json_schema",
+        "json_schema": {
+          "name": "evaluation_result",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "score"
+            ],
+            "additionalProperties": false
+          },
+          "strict": true
+        },
+        "threshold": 0.5
+      }
+    }
+  }
+}
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
@@ -254,8 +372,53 @@ Authorization: {{authorization}}
 
 ###
 # BONUS — wrong answer: LLM should score low → success=false
+# @name inspect_wrong_answer
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_ai_critique:v0",
+      "parameters": {
+        "prompt_template": [
+          {
+            "role": "system",
+            "content": "Evaluate the following answer about geography. Respond with a JSON object containing a 'score' field (number between 0 and 1) indicating correctness."
+          },
+          {
+            "role": "user",
+            "content": "Answer: {output}"
+          }
+        ],
+        "model": "gpt-4o-mini",
+        "response_type": "json_schema",
+        "json_schema": {
+          "name": "evaluation_result",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "score"
+            ],
+            "additionalProperties": false
+          },
+          "strict": true
+        },
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS — wrong answer: LLM should score low → success=false
 # @name invoke_wrong_answer
-POST {{services_url}}/builtin/auto_ai_critique/v0/invoke
+POST {{services_url}}/auto_ai_critique/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

@@ -408,10 +408,24 @@ class route:
             credentials = req.state.auth.get("credentials")
 
             try:
-                result = await inspect_workflow(
-                    request=request,
-                    credentials=credentials,
-                )
+                if any(
+                    (
+                        request.revision,
+                        request.references,
+                        request.selector,
+                        request.flags,
+                        request.tags,
+                        request.meta,
+                    )
+                ):
+                    result = await inspect_workflow(
+                        request=request,
+                        credentials=credentials,
+                    )
+                else:
+                    result = await wf.inspect(
+                        credentials=credentials,
+                    )
 
                 return await handle_inspect_success(result)
 

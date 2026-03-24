@@ -94,8 +94,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # identical strings → expect score=1.0, success=true
+# @name inspect_direct
+POST {{services_url}}/auto_similarity_match/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# identical strings → expect score=1.0, success=true
 # @name invoke_direct
-POST {{services_url}}/builtin/auto_similarity_match/v0/invoke
+POST {{services_url}}/auto_similarity_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -107,6 +117,25 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_similarity_match:v0",
+      "parameters": {
+        "correct_answer_key": "correct_answer",
+        "case_sensitive": true,
+        "threshold": 0.5
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -129,6 +158,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key (SDK resolves via retrieve)
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key (SDK resolves via retrieve)
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -149,6 +195,25 @@ Authorization: {{authorization}}
 
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_similarity_match:v0",
+      "parameters": {
+        "correct_answer_key": "correct_answer",
+        "case_sensitive": true,
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
 POST {{workflow_url}}/invoke
 Content-Type: application/json
@@ -164,8 +229,27 @@ Authorization: {{authorization}}
 
 ###
 # BONUS — case_sensitive=false: "paris" vs "Paris" → both treated equal → score=1.0
+# @name inspect_case_insensitive
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_similarity_match:v0",
+      "parameters": {
+        "correct_answer_key": "correct_answer",
+        "case_sensitive": false,
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS — case_sensitive=false: "paris" vs "Paris" → both treated equal → score=1.0
 # @name invoke_case_insensitive
-POST {{services_url}}/builtin/auto_similarity_match/v0/invoke
+POST {{services_url}}/auto_similarity_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -179,8 +263,27 @@ Authorization: {{authorization}}
 
 ###
 # BONUS2 — completely different: expect score near 0.0, success=false
+# @name inspect_mismatch
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:auto_similarity_match:v0",
+      "parameters": {
+        "correct_answer_key": "correct_answer",
+        "case_sensitive": true,
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS2 — completely different: expect score near 0.0, success=false
 # @name invoke_mismatch
-POST {{services_url}}/builtin/auto_similarity_match/v0/invoke
+POST {{services_url}}/auto_similarity_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

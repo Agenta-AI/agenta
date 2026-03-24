@@ -1,6 +1,7 @@
 import json
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import Annotated, List, Union, Optional, Dict, Literal, Any
+from typing import Annotated, ClassVar, List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
@@ -8,6 +9,26 @@ from pydantic import Field, model_validator, AliasChoices
 
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import apply_replacements_with_tracking, _PLACEHOLDER_RE
+
+
+class AgSchemaMixin(BaseModel):
+    __ag_type__: ClassVar[Optional[str]] = None
+    __ag_type_ref__: ClassVar[Optional[Union[str, Dict[str, Any]]]] = None
+
+    @classmethod
+    def ag_type(cls) -> str:
+        if cls.__ag_type__ is None:
+            raise ValueError(f"{cls.__name__} does not define __ag_type__")
+        return cls.__ag_type__
+
+    @classmethod
+    def __get_pydantic_json_schema__(cls, core_schema, handler):
+        schema = handler(core_schema)
+        if cls.__ag_type__ is not None:
+            schema["x-ag-type"] = cls.__ag_type__
+        if cls.__ag_type_ref__ is not None:
+            schema["x-ag-type-ref"] = deepcopy(cls.__ag_type_ref__)
+        return schema
 
 
 @dataclass
@@ -316,11 +337,9 @@ ContentPart = Annotated[
 ]
 
 
-class BaseAgMessage(BaseModel):
-    model_config = {"json_schema_extra": {"x-ag-type": "message"}}
+class Message(AgSchemaMixin):
+    __ag_type__ = "message"
 
-
-class Message(BaseAgMessage):
     role: Literal["developer", "system", "user", "assistant", "tool", "function"]
     content: Optional[Union[str, List[ContentPart]]] = None
     name: Optional[str] = None
@@ -328,11 +347,9 @@ class Message(BaseAgMessage):
     tool_call_id: Optional[str] = None
 
 
-class BaseAgMessages(BaseModel):
-    model_config = {"json_schema_extra": {"x-ag-type": "messages"}}
+class Messages(AgSchemaMixin, RootModel[List[Message]]):
+    __ag_type__ = "messages"
 
-
-class Messages(BaseAgMessages, RootModel[List[Message]]):
     root: List[Message] = Field(default_factory=list)
 
     def __iter__(self):
@@ -592,7 +609,9 @@ def missing_lib_hints(unreplaced: set) -> Optional[str]:
     return None
 
 
-class PromptTemplate(BaseModel):
+class PromptTemplate(AgSchemaMixin):
+    __ag_type__ = "prompt-template"
+
     """A template for generating prompts with formatting capabilities"""
 
     messages: Messages = Field(
@@ -612,12 +631,6 @@ class PromptTemplate(BaseModel):
         default_factory=ModelConfig,
         description="Configuration for the model parameters",
     )
-
-    model_config = {
-        "json_schema_extra": {
-            "x-ag-type": "prompt-template",
-        }
-    }
 
     @model_validator(mode="before")
     def init_messages(cls, values):
@@ -817,3 +830,30 @@ class PromptTemplate(BaseModel):
                 kwargs["tool_choice"] = self.llm_config.tool_choice
 
         return kwargs
+
+
+def _dereference_schema(schema: dict) -> dict:
+    defs = schema.get("$defs", {})
+    if not defs:
+        return schema
+
+    def _resolve(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                ref_path = node["$ref"]
+                ref_name = ref_path.rsplit("/", 1)[-1]
+                resolved = defs.get(ref_name, node)
+                return _resolve(resolved)
+            return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
+        if isinstance(node, list):
+            return [_resolve(item) for item in node]
+        return node
+
+    return _resolve(schema)
+
+
+CATALOG_TYPES = {
+    Message.ag_type(): _dereference_schema(Message.model_json_schema()),
+    Messages.ag_type(): _dereference_schema(Messages.model_json_schema()),
+    PromptTemplate.ag_type(): _dereference_schema(PromptTemplate.model_json_schema()),
+}

@@ -106,8 +106,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # NOTE: requires a valid LLM API key configured in Agenta vault
+# @name inspect_direct
+POST {{services_url}}/completion/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# NOTE: requires a valid LLM API key configured in Agenta vault
 # @name invoke_direct
-POST {{services_url}}/builtin/completion/v0/invoke
+POST {{services_url}}/completion/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -126,6 +136,37 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:completion:v0",
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography"
+            },
+            {
+              "role": "user",
+              "content": "What is the capital of {{country}}?"
+            }
+          ],
+          "llm_config": {
+            "model": "gpt-4o-mini"
+          }
+        }
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -155,6 +196,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key (SDK resolves via retrieve)
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key (SDK resolves via retrieve)
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -172,6 +230,37 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:completion:v0",
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography"
+            },
+            {
+              "role": "user",
+              "content": "What is the capital of {{country}}?"
+            }
+          ],
+          "llm_config": {
+            "model": "gpt-4o-mini"
+          }
+        }
+      }
+    }
+  }
+}
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
@@ -196,8 +285,39 @@ Authorization: {{authorization}}
 
 ###
 # BONUS — different prompt: ask for population instead of capital
+# @name inspect_population
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:completion:v0",
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography"
+            },
+            {
+              "role": "user",
+              "content": "What is the population of {{country}}?"
+            }
+          ],
+          "llm_config": {
+            "model": "gpt-4o-mini"
+          }
+        }
+      }
+    }
+  }
+}
+###
+# BONUS — different prompt: ask for population instead of capital
 # @name invoke_population
-POST {{services_url}}/builtin/completion/v0/invoke
+POST {{services_url}}/completion/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

@@ -117,6 +117,28 @@ Authorization: {{authorization}}
 ###
 # 6. Invoke completion via /services/invoke — env ref + selector, SDK resolves revision
 # NOTE: requires a valid LLM API key configured in Agenta vault
+# @name inspect_completion
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "application": {
+      "id": "{{completion_id}}",
+      "slug": "{{completion_slug}}"
+    },
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{completion_slug}}.revision"
+  }
+}
+###
+# 6. Invoke completion via /services/invoke — env ref + selector, SDK resolves revision
+# NOTE: requires a valid LLM API key configured in Agenta vault
 # @name invoke_completion
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -139,6 +161,30 @@ Authorization: {{authorization}}
 @completion_trace_id = {{invoke_completion.response.body.trace_id}}
 @completion_span_id  = {{invoke_completion.response.body.span_id}}
 
+###
+# 7. Run auto_regex_test via /services/invoke — env ref + selector, links back to completion trace
+# - outputs: the raw LLM response from step 6
+# - links.invocation: ties this evaluator trace back to the completion trace
+# Expected score: 1.0 if the LLM answered "The capital of France is Paris."
+# @name inspect_evaluator
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "evaluator": {
+      "id": "{{evaluator_id}}",
+      "slug": "{{evaluator_slug}}"
+    },
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{evaluator_slug}}.revision"
+  }
+}
 ###
 # 7. Run auto_regex_test via /services/invoke — env ref + selector, links back to completion trace
 # - outputs: the raw LLM response from step 6

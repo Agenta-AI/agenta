@@ -17,12 +17,14 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from agenta.sdk.decorators.running import workflow
+from agenta.sdk.decorators.running import workflow, inspect_workflow
 from agenta.sdk.decorators.routing import handle_invoke_success
 from agenta.sdk.models.workflows import (
+    WorkflowInspectRequest,
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
+    WorkflowRevisionData,
 )
 
 
@@ -38,6 +40,13 @@ def _mock_request(accept: str = "") -> MagicMock:
         accept if key == "accept" and accept else default
     )
     return req
+
+
+async def _inspect_before_invoke(wf) -> None:
+    inspected = await wf.inspect()
+    assert isinstance(inspected, WorkflowServiceRequest)
+    assert inspected.data is not None
+    assert inspected.data.revision is not None
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +124,7 @@ class TestBatchHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_no_accept_returns_json(self, batch_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(batch_workflow)
         response = await batch_workflow.invoke(request=req)
         assert isinstance(response, WorkflowServiceBatchResponse)
 
@@ -125,6 +135,7 @@ class TestBatchHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_json_accept_returns_json(self, batch_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(batch_workflow)
         response = await batch_workflow.invoke(request=req)
 
         http = await handle_invoke_success(_mock_request("application/json"), response)
@@ -134,6 +145,7 @@ class TestBatchHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_sse_accept_returns_406(self, batch_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(batch_workflow)
         response = await batch_workflow.invoke(request=req)
 
         http = await handle_invoke_success(_mock_request("text/event-stream"), response)
@@ -145,6 +157,7 @@ class TestBatchHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_ndjson_accept_returns_406(self, batch_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(batch_workflow)
         response = await batch_workflow.invoke(request=req)
 
         http = await handle_invoke_success(
@@ -155,6 +168,7 @@ class TestBatchHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_jsonl_accept_returns_406(self, batch_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(batch_workflow)
         response = await batch_workflow.invoke(request=req)
 
         http = await handle_invoke_success(_mock_request("application/jsonl"), response)
@@ -170,6 +184,7 @@ class TestStreamHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_no_accept_returns_ndjson(self, stream_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(stream_workflow)
         response = await stream_workflow.invoke(request=req)
         assert isinstance(response, WorkflowServiceStreamResponse)
 
@@ -180,6 +195,7 @@ class TestStreamHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_sse_accept_returns_sse(self, stream_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(stream_workflow)
         response = await stream_workflow.invoke(request=req)
 
         http = await handle_invoke_success(_mock_request("text/event-stream"), response)
@@ -189,6 +205,7 @@ class TestStreamHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_ndjson_accept_returns_ndjson(self, stream_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(stream_workflow)
         response = await stream_workflow.invoke(request=req)
 
         http = await handle_invoke_success(
@@ -200,9 +217,38 @@ class TestStreamHandlerNegotiation:
     @pytest.mark.asyncio
     async def test_json_accept_returns_406(self, stream_workflow):
         req = WorkflowServiceRequest(data={"inputs": {"prompt": "hello"}})
+        await _inspect_before_invoke(stream_workflow)
         response = await stream_workflow.invoke(request=req)
 
         http = await handle_invoke_success(_mock_request("application/json"), response)
         assert http.status_code == 406
         body = json.loads(http.body)
         assert body["requested"] == "application/json"
+
+
+class TestInspectNegotiation:
+    @pytest.mark.asyncio
+    async def test_inspect_accepts_selector_and_resolves_references(self):
+        request = WorkflowInspectRequest(
+            references={"environment": {"slug": "prod"}},
+            selector={"key": "qa.revision"},
+        )
+
+        with patch(
+            "agenta.sdk.decorators.running.resolve_references",
+            return_value=WorkflowRevisionData(
+                uri="agenta:builtin:auto_exact_match:v0",
+                parameters={"correct_answer_key": "correct_answer"},
+            ),
+        ) as resolve_references:
+            inspected = await inspect_workflow(request=request)
+
+        resolve_references.assert_awaited_once()
+        assert inspected.selector is not None
+        assert inspected.selector.key == "qa.revision"
+        assert inspected.data is not None
+        assert inspected.data.revision is not None
+        assert (
+            inspected.data.revision["data"]["uri"]
+            == "agenta:builtin:auto_exact_match:v0"
+        )
