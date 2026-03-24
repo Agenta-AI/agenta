@@ -349,7 +349,11 @@ async def list_active_job_locks(
     async for raw_lock_key in caching.r_lock.scan_iter(
         match=_actual_lock_name(job_lock_pattern(run_id))
     ):
-        meta_key = raw_lock_key + b":meta" if isinstance(raw_lock_key, bytes) else f"{raw_lock_key}:meta"
+        meta_key = (
+            raw_lock_key + b":meta"
+            if isinstance(raw_lock_key, bytes)
+            else f"{raw_lock_key}:meta"
+        )
         raw_payload = await caching.r_lock.get(meta_key)
         if not raw_payload:
             continue
@@ -359,7 +363,9 @@ async def list_active_job_locks(
         except Exception:
             log.warning(
                 "[LOCK] Ignoring malformed job lock metadata",
-                lock_key=raw_lock_key.decode() if isinstance(raw_lock_key, bytes) else raw_lock_key,
+                lock_key=raw_lock_key.decode()
+                if isinstance(raw_lock_key, bytes)
+                else raw_lock_key,
             )
 
     return payloads
@@ -376,7 +382,9 @@ async def is_run_executing(
     *,
     run_id: str,
 ) -> bool:
-    async for _ in caching.r_lock.scan_iter(match=_actual_lock_name(job_lock_pattern(run_id))):
+    async for _ in caching.r_lock.scan_iter(
+        match=_actual_lock_name(job_lock_pattern(run_id))
+    ):
         return True
     return False
 

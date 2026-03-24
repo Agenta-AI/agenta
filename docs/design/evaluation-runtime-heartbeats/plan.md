@@ -43,7 +43,7 @@ Allowed `job_type` values: `api`, `web`, `sdk`
 {
   "job_type": "api",
   "job_id": "2e2d3c2e-3d79-45f8-bec5-fc9af9e6d223",
-  "job_token": "0b727a0d6ce34576a8f1b91fd6ab9d1b",
+  "job_token": "some-token",
   "created_at": "2026-03-24T09:30:00Z",
   "updated_at": "2026-03-24T09:30:30Z"
 }
@@ -55,7 +55,7 @@ For the run-level mutation lock:
 {
   "job_type": "sdk",
   "job_id": "3fdcc012-7e17-42ef-9f3d-985ffb15329d",
-  "job_token": "8ca4f4be34d14ce8bb122b6794f6f97e",
+  "job_token": "some-token",
   "created_at": "2026-03-24T09:30:00Z",
   "updated_at": "2026-03-24T09:30:30Z"
 }

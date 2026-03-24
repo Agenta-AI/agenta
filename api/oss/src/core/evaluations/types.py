@@ -83,6 +83,8 @@ class EvaluationRunFlags(BaseModel):
     is_active: bool = False  # Indicates if the run is currently active
     is_closed: bool = False  # Indicates if the run is modifiable
     is_queue: bool = False  # Indicates this run belongs to a simple annotation queue
+    is_cached: bool = False  # Indicates the run should reuse traces by hash
+    is_split: bool = False  # Indicates repeats fan out at the application step
     #
     has_queries: bool = False  # Indicates if the run has queries
     has_testsets: bool = False  # Indicates if the run has testsets
@@ -100,6 +102,8 @@ class EvaluationRunQueryFlags(BaseModel):
     is_queue: Optional[bool] = (
         None  # Indicates this run belongs to a simple annotation queue
     )
+    is_cached: Optional[bool] = None  # Indicates the run should reuse traces by hash
+    is_split: Optional[bool] = None  # Indicates repeats fan out at the application step
     #
     has_queries: Optional[bool] = None  # Indicates if the run has queries
     has_testsets: Optional[bool] = None  # Indicates if the run has testsets

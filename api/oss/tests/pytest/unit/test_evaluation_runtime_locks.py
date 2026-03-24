@@ -81,12 +81,16 @@ async def fake_redis():
             return False
         return bool(await client.delete(lock_key))
 
-    with patch("oss.src.utils.caching.r_lock", client), patch(
-        "oss.src.utils.caching.renew_lock",
-        _renew_lock_for_tests,
-    ), patch(
-        "oss.src.utils.caching.release_lock",
-        _release_lock_for_tests,
+    with (
+        patch("oss.src.utils.caching.r_lock", client),
+        patch(
+            "oss.src.utils.caching.renew_lock",
+            _renew_lock_for_tests,
+        ),
+        patch(
+            "oss.src.utils.caching.release_lock",
+            _release_lock_for_tests,
+        ),
     ):
         yield client
 
