@@ -313,6 +313,7 @@ class EvaluationsWorker:
                     #
                     run_id=run_id,
                     #
+                    tracing_service=self.tracing_service,
                     testsets_service=self.testsets_service,
                     applications_service=self.applications_service,
                     evaluations_service=self.evaluations_service,
@@ -383,6 +384,7 @@ class EvaluationsWorker:
                     run_id=run_id,
                     testcase_ids=testcase_ids,
                     #
+                    tracing_service=self.tracing_service,
                     testcases_service=self.testcases_service,
                     workflows_service=self.workflows_service,
                     evaluations_service=self.evaluations_service,

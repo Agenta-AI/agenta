@@ -304,6 +304,61 @@ def _parse_events_condition(condition: Condition) -> None:
             ) from e
 
 
+def _parse_hashes_condition(condition: Condition) -> None:
+    if condition.operator not in _L_OPS + _D_OPS + _E_OPS:
+        raise FilteringException(
+            "'hashes' only supports list, dict, and existence operators.",
+        )
+
+    if condition.operator in _E_OPS and condition.value is not None:
+        raise FilteringException(
+            "'hashes' value is not supported for existence operators.",
+        )
+
+    if condition.operator in _L_OPS:
+        if not isinstance(condition.value, list):
+            raise FilteringException(
+                "'hashes' value must be one or more hash ids or partial hashes.",
+            )
+
+        normalized_values = []
+        for value in condition.value:
+            if isinstance(value, str):
+                normalized_values.append({"id": value})
+            elif isinstance(value, dict):
+                normalized_value = {}
+                if value.get("id") is not None:
+                    normalized_value["id"] = str(value["id"])
+                if value.get("attributes") is not None:
+                    normalized_value["attributes"] = value["attributes"]
+                if normalized_value:
+                    normalized_values.append(normalized_value)
+            else:
+                raise FilteringException(
+                    "'hashes' value must be one or more hash ids or partial hashes.",
+                )
+
+        condition.value = normalized_values
+
+    elif condition.operator in _D_OPS:
+        if not isinstance(condition.key, str) or (
+            condition.key != "id" and not condition.key.startswith("attributes.")
+        ):
+            raise FilteringException(
+                "'hashes' key must be 'id' or dot notation under 'attributes'.",
+            )
+
+        if condition.key == "id" and condition.value is not None:
+            condition.value = str(condition.value)
+        elif condition.key.startswith("attributes."):
+            try:
+                unmarshall({condition.key: condition.value})
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                raise FilteringException(
+                    "'hashes' key must be a string in dot notation.",
+                ) from e
+
+
 def _parse_enum_field_condition(condition: Condition, enum: type) -> None:
     if condition.operator not in _C_OPS + _L_OPS:
         raise FilteringException(
@@ -457,6 +512,8 @@ def parse_condition(
         _parse_references_condition(condition)
     elif condition.field == Fields.EVENTS:
         _parse_events_condition(condition)
+    elif condition.field == Fields.HASHES:
+        _parse_hashes_condition(condition)
     elif condition.field == Fields.CREATED_AT:
         _parse_timestamp_field_condition(condition)
     elif condition.field == Fields.UPDATED_AT:
