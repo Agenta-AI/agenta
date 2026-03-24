@@ -272,6 +272,7 @@ export const commitWorkflowRevisionAtom = atom(
             // 5. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowCache(revisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             if (_commitCallbacks.onQueryInvalidate) {
@@ -428,6 +429,7 @@ export const createWorkflowVariantAtom = atom(
             // 6. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowCache(baseRevisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             if (_commitCallbacks.onQueryInvalidate) {
@@ -611,6 +613,7 @@ export const archiveWorkflowRevisionAtom = atom(
             }
 
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             invalidateWorkflowCache(revisionId)
 

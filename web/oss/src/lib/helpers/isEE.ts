@@ -21,3 +21,7 @@ export const isEmailInvitationsEnabled = () => {
 export const isToolsEnabled = () => {
     return getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
 }
+
+export const isBillingEnabled = () => {
+    return getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
+}

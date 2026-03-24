@@ -277,11 +277,15 @@ export function buildTestsetSyncPreview(params: BuildTestsetSyncPreviewParams): 
             continue
         }
 
-        const evaluatorColumnKeys = selected.map((entry) => entry.columnKey)
+        const evaluatorColumnKeys: string[] = []
         const data: Record<string, unknown> = {...(testcase.data ?? {})}
 
         for (const entry of selected) {
-            data[entry.columnKey] = entry.outputs
+            for (const [fieldKey, fieldValue] of Object.entries(entry.outputs)) {
+                const flatKey = `${entry.columnKey}.${fieldKey}`
+                data[flatKey] = fieldValue
+                evaluatorColumnKeys.push(flatKey)
+            }
         }
 
         rows.push({

@@ -9,7 +9,7 @@ import dynamic from "next/dynamic"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
+import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
@@ -57,7 +57,7 @@ const Settings: React.FC = () => {
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
-    const canShowBilling = isEE() && isOwner
+    const canShowBilling = isEE() && isBillingEnabled() && isOwner
     const canShowTools = isToolsEnabled()
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
