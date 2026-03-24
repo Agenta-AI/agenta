@@ -75,7 +75,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         () => (allEvaluatorsList || []).filter((e) => e.flags?.is_human !== true),
         [allEvaluatorsList],
     )
-    const selectedEvaluatorId = Form.useWatch("evaluator", form)
+    const selectedEvaluatorRevisionId = Form.useWatch("evaluator", form)
     const samplingRate = Form.useWatch("sampling_rate", form)
     const isHistorical = Form.useWatch("historical", form) ?? false
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -88,19 +88,19 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         evaluatorTypeLookup,
     } = useEvaluatorSelection({
         evaluators: evaluators || [],
-        selectedEvaluatorId,
+        selectedEvaluatorRevisionId,
         previewEvaluators,
         baseEvaluators,
     })
 
     // Auto-generate name when evaluator is selected
     useEffect(() => {
-        if (!selectedEvaluatorId) return
+        if (!selectedEvaluatorRevisionId) return
         const selectedOption = evaluatorOptions.find(
-            (option) => option?.value === selectedEvaluatorId,
+            (option) => option?.value === selectedEvaluatorRevisionId,
         )
         const fullEvaluator =
-            matchedPreviewEvaluator && matchedPreviewEvaluator.id === selectedEvaluatorId
+            matchedPreviewEvaluator && matchedPreviewEvaluator.id === selectedEvaluatorRevisionId
                 ? matchedPreviewEvaluator
                 : selectedEvaluatorConfig
 
@@ -117,13 +117,13 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
         }
 
         console.log("[OnlineEvaluationDrawer] Evaluator selected", {
-            evaluatorId: selectedEvaluatorId,
+            evaluatorRevisionId: selectedEvaluatorRevisionId,
             evaluatorLabel: selectedOption?.label,
             evaluatorOption: selectedOption,
             evaluatorConfig: fullEvaluator,
         })
     }, [
-        selectedEvaluatorId,
+        selectedEvaluatorRevisionId,
         evaluatorOptions,
         matchedPreviewEvaluator,
         selectedEvaluatorConfig,
@@ -323,13 +323,12 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 throw new Error("Unable to resolve query revision for online evaluation.")
             }
 
-            // Prefer preview evaluator artifact id; fall back to selected config id if preview not available
-            const evaluatorStepId =
-                selectedEvaluatorId ??
+            const evaluatorRevisionStepId =
+                selectedEvaluatorRevisionId ??
                 (selectedEvaluatorConfig as any)?.id ??
                 matchedPreviewEvaluator?.id
 
-            if (!evaluatorStepId) {
+            if (!evaluatorRevisionStepId) {
                 throw new Error("Please select an evaluator.")
             }
 
@@ -343,9 +342,9 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 },
                 data: {
                     status: "pending",
-                    // Per API docs, use arrays of IDs for steps
+                    // Step references use revision IDs directly.
                     query_steps: {[queryRevisionId]: "auto"},
-                    evaluator_steps: {[evaluatorStepId]: "auto"},
+                    evaluator_steps: {[evaluatorRevisionStepId]: "auto"},
                     repeats: 1,
                 },
             }
@@ -354,7 +353,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                 console.debug("[OnlineEvaluationDrawer] submission payload", {
                     queryPayload,
                     queryRevisionId,
-                    evaluatorStepId,
+                    evaluatorRevisionStepId,
                     evaluationPayload,
                     selectedEvaluatorConfig,
                     matchedPreviewEvaluator,

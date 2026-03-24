@@ -11,7 +11,7 @@ import {capitalize} from "../utils/evaluatorDetails"
 
 interface UseEvaluatorSelectionParams {
     evaluators: Workflow[]
-    selectedEvaluatorId: string | undefined
+    selectedEvaluatorRevisionId: string | undefined
     previewEvaluators: Workflow[]
     baseEvaluators: EvaluatorCatalogTemplate[]
 }
@@ -93,7 +93,7 @@ const buildEvaluatorTypeLookup = (baseEvaluators: EvaluatorCatalogTemplate[]) =>
 
 export const useEvaluatorSelection = ({
     evaluators,
-    selectedEvaluatorId,
+    selectedEvaluatorRevisionId,
     previewEvaluators,
     baseEvaluators,
 }: UseEvaluatorSelectionParams): EvaluatorSelectionResult => {
@@ -163,8 +163,8 @@ export const useEvaluatorSelection = ({
     )
 
     const selectedEvaluatorConfig = useMemo(
-        () => filteredEvaluators.find((item) => item.id === selectedEvaluatorId),
-        [filteredEvaluators, selectedEvaluatorId],
+        () => filteredEvaluators.find((item) => item.id === selectedEvaluatorRevisionId),
+        [filteredEvaluators, selectedEvaluatorRevisionId],
     )
 
     const previewLookup = useMemo(() => buildPreviewLookup(previewEvaluators), [previewEvaluators])

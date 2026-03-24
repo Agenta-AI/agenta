@@ -59,7 +59,7 @@ def _create_simple_evaluator(authed_api) -> dict:
 
 
 class TestSimpleEvaluationsWorkflowReferences:
-    def test_create_live_simple_evaluation_resolves_query_and_evaluator_ids_to_revisions(
+    def test_create_live_simple_evaluation_accepts_query_and_evaluator_revision_ids(
         self, authed_api
     ):
         query = _create_simple_query(authed_api)
@@ -75,8 +75,8 @@ class TestSimpleEvaluationsWorkflowReferences:
                         "is_live": True,
                     },
                     "data": {
-                        "query_steps": [query["id"]],
-                        "evaluator_steps": [evaluator["id"]],
+                        "query_steps": [query["revision_id"]],
+                        "evaluator_steps": [evaluator["revision_id"]],
                     },
                 }
             },

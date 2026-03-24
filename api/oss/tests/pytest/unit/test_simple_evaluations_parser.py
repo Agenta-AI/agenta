@@ -19,10 +19,10 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService  # noqa: E
 
 
 @pytest.mark.asyncio
-async def test_parse_evaluation_run_accepts_workflow_artifact_refs():
+async def test_parse_evaluation_run_prefers_workflow_revision_refs():
     query_id = uuid4()
     application_id = uuid4()
-    evaluator_id = uuid4()
+    evaluator_revision_id = uuid4()
 
     service = SimpleEvaluationsService(
         testsets_service=None,  # type: ignore[arg-type]
@@ -54,7 +54,9 @@ async def test_parse_evaluation_run_accepts_workflow_artifact_refs():
                     key="evaluator-step",
                     type="annotation",
                     origin="custom",
-                    references={"evaluator": Reference(id=evaluator_id)},
+                    references={
+                        "evaluator_revision": Reference(id=evaluator_revision_id)
+                    },
                 ),
             ]
         ),
@@ -66,4 +68,4 @@ async def test_parse_evaluation_run_accepts_workflow_artifact_refs():
     assert evaluation.data is not None
     assert set(evaluation.data.query_steps.keys()) == {query_id}
     assert set(evaluation.data.application_steps.keys()) == {application_id}
-    assert set(evaluation.data.evaluator_steps.keys()) == {evaluator_id}
+    assert set(evaluation.data.evaluator_steps.keys()) == {evaluator_revision_id}

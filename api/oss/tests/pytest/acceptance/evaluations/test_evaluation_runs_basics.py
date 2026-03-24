@@ -8,7 +8,7 @@ class TestEvaluationRunsBasics:
 
         application_id = str(uuid4())
 
-        evaluator_id = str(uuid4())
+        evaluator_revision_id = str(uuid4())
 
         steps = [
             {
@@ -35,7 +35,7 @@ class TestEvaluationRunsBasics:
                 "type": "annotation",
                 "origin": "auto",
                 "references": {
-                    "evaluator": {"id": evaluator_id},
+                    "evaluator_revision": {"id": evaluator_revision_id},
                 },
                 "inputs": [
                     {"key": "input"},
@@ -97,7 +97,7 @@ class TestEvaluationRunsBasics:
         response = authed_api(
             "POST",
             "/preview/evaluations/runs/",
-            json={"jit": False, "runs": runs},
+            json={"runs": runs},
         )
         # ----------------------------------------------------------------------
 
