@@ -409,7 +409,6 @@ services:
             - agenta-ee-gh-network
         ports:
             - "${TRAEFIK_PORT:-80}:80"
-            - "${TRAEFIK_UI_PORT:-8080}:8080"
         # === LIFECYCLE ============================================ #
         restart: always
 
