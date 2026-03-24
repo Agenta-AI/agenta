@@ -462,7 +462,7 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation_references,
+            references=annotation.references,
             links=annotation.links,
         )
 

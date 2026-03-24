@@ -84,7 +84,7 @@ from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
 )
 from oss.src.resources.workflows.catalog import (
-    get_all_workflow_catalog_templates,
+    # get_all_workflow_catalog_templates,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
 )
