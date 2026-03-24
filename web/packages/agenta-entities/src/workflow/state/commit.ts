@@ -27,6 +27,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom, getDefaultStore} from "jotai"
 
+import {invalidateEvaluatorsListCache} from "../../evaluator/state/store"
 import {
     commitWorkflowRevisionApi,
     createWorkflowVariantApi,
@@ -228,6 +229,7 @@ export const commitWorkflowRevisionAtom = atom(
             // 5. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowCache(revisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             if (_commitCallbacks.onQueryInvalidate) {
@@ -384,6 +386,7 @@ export const createWorkflowVariantAtom = atom(
             // 6. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowCache(baseRevisionId)
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             if (_commitCallbacks.onQueryInvalidate) {
@@ -474,6 +477,7 @@ export const archiveWorkflowRevisionAtom = atom(
 
             const _t3 = performance.now()
             invalidateWorkflowsListCache()
+            invalidateEvaluatorsListCache()
             invalidateWorkflowRevisionsByWorkflowCache(workflowId)
             invalidateWorkflowCache(revisionId)
             console.log(
