@@ -1,19 +1,5 @@
 import Papa from "papaparse"
 
-import {GenericObject} from "../Types"
-
-export const convertToCsv = (rows: GenericObject[], header: string[]) => {
-    return Papa.unparse(
-        {
-            fields: header.filter((item) => !!item),
-            data: rows,
-        },
-        {
-            escapeFormulae: true,
-        },
-    )
-}
-
 export const escapeNewlines = (value: string) => value.replace(/\n/g, "\\n")
 
 export const downloadCsv = (csvContent: string | BlobPart[], filename: string): void => {
