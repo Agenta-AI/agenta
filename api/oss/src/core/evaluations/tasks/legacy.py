@@ -96,6 +96,68 @@ def _build_trace_context(
     }
 
 
+async def _resolve_testset_input_specs(
+    *,
+    project_id: UUID,
+    input_steps: List[Any],
+    testsets_service: TestsetsService,
+) -> List[Dict[str, Any]]:
+    input_specs: List[Dict[str, Any]] = []
+
+    for input_step in input_steps:
+        input_refs = input_step.references or {}
+        testset_revision_ref = input_refs.get("testset_revision")
+
+        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
+            raise ValueError(
+                f"Evaluation input step {input_step.key} missing testset_revision reference."
+            )
+
+        testset_revision = await testsets_service.fetch_testset_revision(
+            project_id=project_id,
+            testset_revision_ref=testset_revision_ref,
+        )
+        if not testset_revision:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} not found!"
+            )
+        if not testset_revision.data or not testset_revision.data.testcases:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} has no testcases!"
+            )
+
+        testset_variant = await testsets_service.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=Reference(id=testset_revision.variant_id),
+        )
+        if not testset_variant:
+            raise ValueError(
+                f"Testset variant with id {testset_revision.variant_id} not found!"
+            )
+
+        testset = await testsets_service.fetch_testset(
+            project_id=project_id,
+            testset_ref=Reference(id=testset_variant.testset_id),
+        )
+        if not testset:
+            raise ValueError(f"Testset with id {testset_variant.testset_id} not found!")
+
+        testcases = testset_revision.data.testcases
+        input_specs.append(
+            {
+                "step_key": input_step.key,
+                "testset": testset,
+                "testset_revision": testset_revision,
+                "testcases": testcases,
+                "testcases_data": [
+                    {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+                ],
+            }
+        )
+
+    return input_specs
+
+
 async def evaluate_batch_testset(
     *,
     project_id: UUID,
@@ -192,12 +254,11 @@ async def evaluate_batch_testset(
         invocation_steps = [step for step in steps if step.type == "invocation"]
         annotation_steps = [step for step in steps if step.type == "annotation"]
 
-        if len(input_steps) != 1 or len(invocation_steps) != 1:
+        if not input_steps or len(invocation_steps) != 1:
             raise ValueError(
-                f"Evaluation run with id {run_id} must have exactly one input and one invocation step."
+                f"Evaluation run with id {run_id} must have at least one input and exactly one invocation step."
             )
 
-        input_step = input_steps[0]
         invocation_step = invocation_steps[0]
         invocation_step_key = invocation_step.key
         is_split = effective_is_split(
@@ -218,13 +279,6 @@ async def evaluate_batch_testset(
             has_evaluator_steps=bool(annotation_steps),
         )
 
-        # extract references from run steps ------------------------------------
-        testset_revision_ref = input_step.references.get("testset_revision")
-        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
-            raise ValueError(
-                f"Evaluation run with id {run_id} missing input.testset_revision reference."
-            )
-
         application_revision_ref = invocation_step.references.get(
             "application_revision"
         )
@@ -242,7 +296,16 @@ async def evaluate_batch_testset(
             "delay_between_batches": 5,
         }
 
-        log.info("[TESTSET]     ", run_id=run_id, ids=[str(testset_revision_ref.id)])
+        input_specs = await _resolve_testset_input_specs(
+            project_id=project_id,
+            input_steps=input_steps,
+            testsets_service=testsets_service,
+        )
+        testset_revision_ids = [
+            str(input_spec["testset_revision"].id) for input_spec in input_specs
+        ]
+
+        log.info("[TESTSET]     ", run_id=run_id, ids=testset_revision_ids)
         log.info(
             "[APPLICATION] ",
             run_id=run_id,
@@ -250,38 +313,22 @@ async def evaluate_batch_testset(
         )
         # ----------------------------------------------------------------------
 
-        # fetch testset --------------------------------------------------------
-        testset_revision = await testsets_service.fetch_testset_revision(
-            project_id=project_id,
-            testset_revision_ref=testset_revision_ref,
-        )
-
-        if testset_revision is None:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_ref.id} not found!"
+        # flatten scenario sources ---------------------------------------------
+        scenario_specs = [
+            {
+                "input_step_key": input_spec["step_key"],
+                "testset": input_spec["testset"],
+                "testset_revision": input_spec["testset_revision"],
+                "testcase": testcase,
+                "testcase_data": testcase_data,
+            }
+            for input_spec in input_specs
+            for testcase, testcase_data in zip(
+                input_spec["testcases"],
+                input_spec["testcases_data"],
             )
-
-        testset_ref = Reference(id=testset_revision.testset_id)
-
-        testset = await testsets_service.fetch_testset(
-            project_id=project_id,
-            testset_ref=testset_ref,
-        )
-
-        if testset is None:
-            raise ValueError(
-                f"Testset with id {testset_revision.testset_id} not found!"
-            )
-
-        testset_id = testset_revision.testset_id
-
-        testcases = testset_revision.data.testcases
-        testcases_data = [
-            {**testcase.data, "id": str(testcase.id)} for testcase in testcases
-        ]  # INEFFICIENT: might want to have testcase_id in testset data (caution with hashing)
-        nof_testcases = len(testcases)
-
-        testset_step_key = input_step.key
+        ]
+        nof_scenarios = len(scenario_specs)
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
@@ -360,7 +407,7 @@ async def evaluate_batch_testset(
                 #
                 status=EvaluationStatus.RUNNING,
             )
-            for _ in range(nof_testcases)
+            for _ in range(nof_scenarios)
         ]
 
         scenarios = await evaluations_service.create_scenarios(
@@ -370,7 +417,7 @@ async def evaluate_batch_testset(
             scenarios=scenarios_create,
         )
 
-        if len(scenarios) != nof_testcases:
+        if len(scenarios) != nof_scenarios:
             raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
@@ -379,12 +426,12 @@ async def evaluate_batch_testset(
             EvaluationResultCreate(
                 run_id=run_id,
                 scenario_id=scenario.id,
-                step_key=testset_step_key,
+                step_key=scenario_specs[idx]["input_step_key"],
                 repeat_idx=repeat_idx,
                 #
                 status=EvaluationStatus.SUCCESS,
                 #
-                testcase_id=testcases[idx].id,
+                testcase_id=scenario_specs[idx]["testcase"].id,
             )
             for idx, scenario in enumerate(scenarios)
             for repeat_idx in repeat_indices
@@ -397,17 +444,20 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        if len(steps) != nof_testcases * len(repeat_indices):
+        if len(steps) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # flatten testcases ----------------------------------------------------
-        _testcases = [testcase.model_dump(mode="json") for testcase in testcases]
+        _testcases = [
+            scenario_spec["testcase"].model_dump(mode="json")
+            for scenario_spec in scenario_specs
+        ]
 
         log.info(
             "[BATCH]     ",
             run_id=run_id,
-            ids=[str(testset_revision.id)],
+            ids=testset_revision_ids,
             count=len(_testcases),
             size=len(dumps(_testcases).encode("utf-8")),
         )
@@ -418,18 +468,22 @@ async def evaluate_batch_testset(
         run_status = EvaluationStatus.SUCCESS
 
         # run invocations / evaluators -----------------------------------------
-        for idx in range(nof_testcases):
+        for idx in range(nof_scenarios):
             scenario = scenarios[idx]
-            testcase = testcases[idx]
+            scenario_spec = scenario_specs[idx]
+            testcase = scenario_spec["testcase"]
+            testcase_data = scenario_spec["testcase_data"]
+            testset = scenario_spec["testset"]
+            testset_revision = scenario_spec["testset_revision"]
 
             scenario_has_errors = 0
             scenario_has_pending = False
             scenario_status = EvaluationStatus.SUCCESS
             application_references = {
-                "testset": {"id": str(testset_id)},
+                "testcase": {"id": str(testcase.id)},
+                "testset": {"id": str(testset.id)},
                 "testset_variant": {"id": str(testset_revision.variant_id)},
                 "testset_revision": {"id": str(testset_revision.id)},
-                "testcase": {"id": str(testcase.id)},
                 "application": {"id": str(application.id)},
                 "application_variant": {"id": str(application_variant.id)},
                 "application_revision": {"id": str(application_revision.id)},
@@ -470,7 +524,7 @@ async def evaluate_batch_testset(
                     project_id=str(project_id),
                     user_id=str(user_id),
                     testset_data=[
-                        testcases_data[idx] for _ in range(missing_application_count)
+                        testcase_data for _ in range(missing_application_count)
                     ],  # type: ignore[arg-type]
                     parameters=revision_parameters,  # type: ignore[arg-type]
                     uri=uri,
@@ -648,7 +702,8 @@ async def evaluate_batch_testset(
                 base_references: Dict[str, Any] = {
                     **evaluator_references[annotation_step_key],
                     "testcase": {"id": str(testcase.id)},
-                    "testset": {"id": str(testset_id)},
+                    "testset": {"id": str(testset.id)},
+                    "testset_variant": {"id": str(testset_revision.variant_id)},
                     "testset_revision": {"id": str(testset_revision.id)},
                 }
 
@@ -1137,14 +1192,12 @@ async def evaluate_batch_invocation(
         # ----------------------------------------------------------------------
 
         # prepare credentials --------------------------------------------------
-        secret_token = await sign_secret_token(
+        await sign_secret_token(
             user_id=str(user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
         )
-
-        credentials = f"Secret {secret_token}"
         # ----------------------------------------------------------------------
 
         # fetch run ------------------------------------------------------------
@@ -1177,21 +1230,13 @@ async def evaluate_batch_invocation(
                 f"Evaluation run with id {run_id} contains annotation steps; "
                 "use evaluate_batch_testset instead."
             )
-        if len(input_steps) != 1 or len(invocation_steps) != 1:
+        if not input_steps or len(invocation_steps) != 1:
             raise ValueError(
-                f"Evaluation run with id {run_id} must have exactly one input and one invocation step."
+                f"Evaluation run with id {run_id} must have at least one input and exactly one invocation step."
             )
 
-        input_step_key = input_steps[0].key
         invocation_step_key = invocation_steps[0].key
-        input_refs = input_steps[0].references or {}
         invocation_refs = invocation_steps[0].references or {}
-
-        testset_revision_ref = input_refs.get("testset_revision")
-        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
-            raise ValueError(
-                f"Evaluation run with id {run_id} missing input.testset_revision reference."
-            )
 
         application_revision_ref = invocation_refs.get("application_revision")
         if not application_revision_ref or not isinstance(
@@ -1202,43 +1247,26 @@ async def evaluate_batch_invocation(
             )
         # ----------------------------------------------------------------------
 
-        # fetch testset --------------------------------------------------------
-        testset_revision = await testsets_service.fetch_testset_revision(
+        input_specs = await _resolve_testset_input_specs(
             project_id=project_id,
-            testset_revision_ref=testset_revision_ref,
+            input_steps=input_steps,
+            testsets_service=testsets_service,
         )
-        if not testset_revision:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_ref.id} not found!"
+        scenario_specs = [
+            {
+                "input_step_key": input_spec["step_key"],
+                "testset": input_spec["testset"],
+                "testset_revision": input_spec["testset_revision"],
+                "testcase": testcase,
+                "testcase_data": testcase_data,
+            }
+            for input_spec in input_specs
+            for testcase, testcase_data in zip(
+                input_spec["testcases"],
+                input_spec["testcases_data"],
             )
-        if not testset_revision.data or not testset_revision.data.testcases:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_ref.id} has no testcases!"
-            )
-
-        testset_variant_ref = Reference(id=testset_revision.variant_id)
-        testset_variant = await testsets_service.fetch_testset_variant(
-            project_id=project_id,
-            testset_variant_ref=testset_variant_ref,
-        )
-        if not testset_variant:
-            raise ValueError(
-                f"Testset variant with id {testset_revision.variant_id} not found!"
-            )
-
-        testset_ref = Reference(id=testset_variant.testset_id)
-        testset = await testsets_service.fetch_testset(
-            project_id=project_id,
-            testset_ref=testset_ref,
-        )
-        if not testset:
-            raise ValueError(f"Testset with id {testset_ref.id} not found!")
-
-        testcases = testset_revision.data.testcases
-        testcases_data = [
-            {**testcase.data, "id": str(testcase.id)} for testcase in testcases
         ]
-        nof_testcases = len(testcases)
+        nof_scenarios = len(scenario_specs)
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
@@ -1303,10 +1331,10 @@ async def evaluate_batch_invocation(
                     run_id=run_id,
                     status=EvaluationStatus.RUNNING,
                 )
-                for _ in range(nof_testcases)
+                for _ in range(nof_scenarios)
             ],
         )
-        if len(scenarios) != nof_testcases:
+        if len(scenarios) != nof_scenarios:
             raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
@@ -1318,16 +1346,16 @@ async def evaluate_batch_invocation(
                 EvaluationResultCreate(
                     run_id=run_id,
                     scenario_id=scenario.id,
-                    step_key=input_step_key,
+                    step_key=scenario_specs[idx]["input_step_key"],
                     repeat_idx=repeat_idx,
                     status=EvaluationStatus.SUCCESS,
-                    testcase_id=testcases[idx].id,
+                    testcase_id=scenario_specs[idx]["testcase"].id,
                 )
                 for idx, scenario in enumerate(scenarios)
                 for repeat_idx in repeat_indices
             ],
         )
-        if len(input_results) != nof_testcases * len(repeat_indices):
+        if len(input_results) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create input results for run {run_id}!")
         # ----------------------------------------------------------------------
 
@@ -1338,17 +1366,18 @@ async def evaluate_batch_invocation(
             "retry_delay": 3,
             "delay_between_batches": 5,
         }
-        headers = {"Authorization": credentials} if credentials else {}
-        headers["ngrok-skip-browser-warning"] = "1"
-        _ = headers  # keep parity with legacy setup flow
-
         scenario_trace_ids: Dict[tuple[int, int], Optional[str]] = {}
-        invoke_slots = []
         for idx, scenario in enumerate(scenarios):
+            scenario_spec = scenario_specs[idx]
+            testcase = scenario_spec["testcase"]
+            testcase_data = scenario_spec["testcase_data"]
+            testset = scenario_spec["testset"]
+            testset_revision = scenario_spec["testset_revision"]
             references = {
+                "testcase": {"id": str(testcase.id)},
                 "testset": {"id": str(testset.id)},
+                "testset_variant": {"id": str(testset_revision.variant_id)},
                 "testset_revision": {"id": str(testset_revision.id)},
-                "testcase": {"id": str(testcases[idx].id)},
                 "application": {"id": str(application.id)},
                 "application_variant": {"id": str(application_variant.id)},
                 "application_revision": {"id": str(application_revision.id)},
@@ -1371,46 +1400,33 @@ async def evaluate_batch_invocation(
                     str(reusable_trace.trace_id) if reusable_trace.trace_id else None
                 )
 
-            for repeat_idx in repeat_indices[len(reusable_traces) :]:
-                invoke_slots.append(
-                    {
-                        "scenario_index": idx,
-                        "repeat_idx": repeat_idx,
-                        "scenario": scenario,
-                        "input_data": testcases_data[idx],
-                    }
+            missing_repeat_indices = repeat_indices[len(reusable_traces) :]
+            if missing_repeat_indices:
+                invocations = await llm_apps_service.batch_invoke(
+                    project_id=str(project_id),
+                    user_id=str(user_id),
+                    testset_data=[
+                        testcase_data for _ in range(len(missing_repeat_indices))
+                    ],  # type: ignore[arg-type]
+                    parameters=revision_parameters,  # type: ignore[arg-type]
+                    uri=uri,
+                    rate_limit_config=run_config,
+                    application_id=str(application.id),
+                    references=references,
+                    scenarios=[
+                        scenario.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        for _ in range(len(missing_repeat_indices))
+                    ],
                 )
-
-        if invoke_slots:
-            invocations = await llm_apps_service.batch_invoke(
-                project_id=str(project_id),
-                user_id=str(user_id),
-                testset_data=[slot["input_data"] for slot in invoke_slots],  # type: ignore[arg-type]
-                parameters=revision_parameters,  # type: ignore[arg-type]
-                uri=uri,
-                rate_limit_config=run_config,
-                application_id=str(application.id),
-                references={
-                    "testset": {"id": str(testset.id)},
-                    "testset_revision": {"id": str(testset_revision.id)},
-                    "application": {"id": str(application.id)},
-                    "application_variant": {"id": str(application_variant.id)},
-                    "application_revision": {"id": str(application_revision.id)},
-                },
-                scenarios=[
-                    slot["scenario"].model_dump(
-                        mode="json",
-                        exclude_none=True,
+                if len(invocations) != len(missing_repeat_indices):
+                    raise ValueError(
+                        f"Unexpected batch invocation count for scenario {scenario.id}!"
                     )
-                    for slot in invoke_slots
-                ],
-            )
-            if len(invocations) != len(invoke_slots):
-                raise ValueError(f"Unexpected batch invocation count for run {run_id}!")
-            for slot, invocation in zip(invoke_slots, invocations):
-                scenario_trace_ids[(slot["scenario_index"], slot["repeat_idx"])] = (
-                    invocation.trace_id
-                )
+                for repeat_idx, invocation in zip(missing_repeat_indices, invocations):
+                    scenario_trace_ids[(idx, repeat_idx)] = invocation.trace_id
         # ----------------------------------------------------------------------
 
         # create invocation results + finalize scenarios ------------------------
@@ -1435,7 +1451,7 @@ async def evaluate_batch_invocation(
                 for repeat_idx in repeat_indices
             ],
         )
-        if len(invocation_results) != nof_testcases * len(repeat_indices):
+        if len(invocation_results) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create invocation results for run {run_id}!")
 
         for idx, scenario in enumerate(scenarios):
