@@ -266,7 +266,7 @@ export interface ExpandableRowConfig<RecordType, ChildType = unknown> {
 export interface InfiniteVirtualTableProps<RecordType, ExpandedChildType = unknown> {
     columns: ColumnsType<RecordType>
     dataSource: RecordType[]
-    loadMore: () => void
+    loadMore?: () => void
     rowKey: TableProps<RecordType>["rowKey"]
     active?: boolean
     scrollThreshold?: number

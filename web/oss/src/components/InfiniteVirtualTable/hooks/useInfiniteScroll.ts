@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef} from "react"
 
 interface UseInfiniteScrollOptions {
-    loadMore: () => void
+    loadMore?: () => void
     scrollThreshold?: number
 }
 
@@ -31,7 +31,7 @@ const useInfiniteScroll = ({loadMore, scrollThreshold = 300}: UseInfiniteScrollO
                 const distanceToBottom =
                     target.scrollHeight - target.scrollTop - target.clientHeight
 
-                if (distanceToBottom < scrollThreshold) {
+                if (distanceToBottom < scrollThreshold && loadMore) {
                     loadMore()
                 }
             })

@@ -355,6 +355,7 @@ const ObservabilityTable = () => {
                     <InfiniteVirtualTable<ObservabilityTraceRow>
                         columns={columns}
                         dataSource={traceRows}
+                        loadMore={handleLoadMore}
                         rowKey={(record) => record.key}
                         rowSelection={rowSelection}
                         resizableColumns
