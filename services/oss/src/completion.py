@@ -7,10 +7,6 @@ from agenta.sdk.engines.running.handlers import completion_v0
 from agenta.sdk.types import PromptTemplate
 
 
-# Create isolated completion app with its own OpenAPI schema
-completion_app = ag.create_app()
-
-
 class CompletionConfig(BaseModel):
     prompt: PromptTemplate = Field(
         default=PromptTemplate(
@@ -20,9 +16,7 @@ class CompletionConfig(BaseModel):
     )
 
 
-@ag.route("/", app=completion_app)
-@ag.workflow(uri="agenta:builtin:completion:v0")
-async def completion(
+async def _completion(
     inputs: Dict[str, Any],
     parameters: Optional[Dict] = None,
 ):
@@ -32,3 +26,14 @@ async def completion(
         parameters=config.model_dump(mode="json", exclude_none=True),
         inputs=inputs,
     )
+
+
+def create_completion_app():
+    app = ag.create_app()
+    routed = ag.workflow(uri="agenta:builtin:completion:v0")(_completion)
+    ag.route("/", app=app)(routed)
+    return app
+
+
+completion_app = create_completion_app()
+completion_v0_app = create_completion_app()

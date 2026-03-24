@@ -1173,7 +1173,13 @@ export async function fetchAgTypeSchema(agType: string): Promise<Record<string, 
     const response = await axios.get(
         `${getAgentaApiUrl()}/workflows/catalog/types/${encodeURIComponent(agType)}`,
     )
-    return response.data as Record<string, unknown>
+    const jsonSchema = response.data?.type?.json_schema
+
+    if (!jsonSchema || typeof jsonSchema !== "object") {
+        throw new Error(`[fetchAgTypeSchema] Invalid catalog type response for agType=${agType}`)
+    }
+
+    return jsonSchema as Record<string, unknown>
 }
 
 // ============================================================================

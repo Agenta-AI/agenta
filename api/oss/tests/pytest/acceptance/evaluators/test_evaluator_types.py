@@ -13,5 +13,5 @@ class TestEvaluatorCatalogTypes:
         )
 
         assert prompt_template_type is not None
-        assert prompt_template_type["schema"]["x-ag-type"] == "prompt-template"
-        assert prompt_template_type["schema"]["type"] == "object"
+        assert prompt_template_type["json_schema"]["x-ag-type"] == "prompt-template"
+        assert prompt_template_type["json_schema"]["type"] == "object"

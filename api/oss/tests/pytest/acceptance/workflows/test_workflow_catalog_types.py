@@ -13,8 +13,8 @@ class TestWorkflowCatalogTypes:
         )
 
         assert prompt_template_type is not None
-        assert prompt_template_type["schema"]["x-ag-type"] == "prompt-template"
-        assert prompt_template_type["schema"]["type"] == "object"
+        assert prompt_template_type["json_schema"]["x-ag-type"] == "prompt-template"
+        assert prompt_template_type["json_schema"]["type"] == "object"
 
     def test_fetches_prompt_template_schema(self, authed_api):
         response = authed_api(
@@ -25,5 +25,7 @@ class TestWorkflowCatalogTypes:
         assert response.status_code == 200
         body = response.json()
 
-        assert body["type"] == "object"
-        assert body["x-ag-type"] == "prompt-template"
+        assert body["count"] == 1
+        assert body["type"]["key"] == "prompt-template"
+        assert body["type"]["json_schema"]["type"] == "object"
+        assert body["type"]["json_schema"]["x-ag-type"] == "prompt-template"

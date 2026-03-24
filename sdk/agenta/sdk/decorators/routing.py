@@ -55,6 +55,10 @@ def _validate_path(path: str) -> None:
 
 
 def create_app(**kwargs: Any) -> FastAPI:
+    kwargs.setdefault("openapi_url", None)
+    kwargs.setdefault("docs_url", None)
+    kwargs.setdefault("redoc_url", None)
+
     app = FastAPI(**kwargs)
 
     app.add_middleware(CORSMiddleware)
