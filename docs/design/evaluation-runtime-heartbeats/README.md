@@ -174,10 +174,8 @@ Value:
 ```json
 {
   "worker_id": "...",
-  "container_id": "...",
-  "hostname": "...",
-  "started_at": "...",
-  "last_heartbeat_at": "..."
+  "created_at": "...",
+  "updated_at": "..."
 }
 ```
 
