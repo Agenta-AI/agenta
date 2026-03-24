@@ -1,9 +1,9 @@
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
 from asyncio import create_task, CancelledError
 
-from taskiq import AsyncBroker
+from taskiq import AsyncBroker, Context, TaskiqDepends
 
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.testsets.service import TestsetsService
@@ -83,62 +83,82 @@ class EvaluationsWorker:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    async def _with_job_lock(run_id: UUID, job_type: str, coro):
+    async def _with_job_lock(
+        run_id: UUID,
+        *,
+        job_id: str,
+        job_type: str,
+        allow_concurrency: bool,
+        runner: Callable[[], Awaitable[Any]],
+    ) -> Any:
         """
-        Acquire a job lock for `run_id`, start a heartbeat, run `coro`, then
+        Acquire a job lock for `run_id`, start a heartbeat, run `runner`, then
         release the lock in a finally block.
 
-        In Phase 1 this is observability-only: if the mutation lock is present
-        we log a warning but still proceed. Blocking behaviour is introduced in
-        Phase 3.
+        Non-queue loops share a reserved singleton lock slot so concurrent
+        executions on the same run are skipped. Queue loops use their concrete
+        Taskiq job id as the lock id and may execute concurrently.
         """
         run_id_str = str(run_id)
-        job_id = str(uuid4())
+        lock_id = job_id if allow_concurrency else "singleton"
 
-        # Phase 1 observability: warn if a mutation lock is present
         if await has_mutation_lock(run_id=run_id_str):
             log.warning(
-                "[LOCK] Mutation lock detected before job start — proceeding (Phase 1)",
+                "[LOCK] Mutation lock detected before job start — skipping execution",
                 run_id=run_id_str,
+                job_id=job_id,
             )
+            return None
 
         payload = await acquire_job_lock(
             run_id=run_id_str,
             job_id=job_id,
+            lock_id=lock_id,
             job_type=job_type,  # type: ignore[arg-type]
         )
         if payload is None:
             log.warning(
-                "[LOCK] Could not acquire job lock — another job may own it; proceeding",
+                "[LOCK] Could not acquire job lock — skipping concurrent execution",
                 run_id=run_id_str,
                 job_id=job_id,
+                lock_id=lock_id,
             )
-            return await coro
+            return None
 
         heartbeat = create_task(
             run_job_heartbeat(
                 run_id=run_id_str,
                 job_id=job_id,
+                lock_id=lock_id,
                 job_token=payload.job_token,
             )
         )
         try:
-            return await coro
+            return await runner()
         finally:
             heartbeat.cancel()
             try:
                 await heartbeat
             except CancelledError:
                 pass
+            except Exception as exc:
+                log.warning(
+                    "[LOCK] Heartbeat teardown failed",
+                    run_id=run_id_str,
+                    job_id=job_id,
+                    error=str(exc),
+                )
             await release_job_lock(
                 run_id=run_id_str,
                 job_id=job_id,
+                lock_id=lock_id,
                 job_token=payload.job_token,
             )
             log.debug(
                 "[LOCK] Job lock released",
                 run_id=run_id_str,
                 job_id=job_id,
+                lock_id=lock_id,
             )
 
     def _register_tasks(self):
@@ -155,6 +175,7 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
@@ -165,8 +186,10 @@ class EvaluationsWorker:
 
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_batch_testset_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_batch_testset_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -198,6 +221,7 @@ class EvaluationsWorker:
             #
             newest: Optional[datetime] = None,
             oldest: Optional[datetime] = None,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """Live evaluation task - evaluates traces against evaluators."""
             log.info("[TASK] Starting evaluate_live_query")
@@ -209,8 +233,10 @@ class EvaluationsWorker:
 
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_live_query_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_live_query_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -234,14 +260,17 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """One-shot query evaluation task for non-live runs."""
             log.info("[TASK] Starting evaluate_batch_query")
 
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_live_query_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_live_query_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -267,12 +296,15 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_invocation")
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_batch_invocation_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_batch_invocation_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -298,12 +330,15 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             trace_ids: list[str],
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_traces")
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_batch_traces_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: evaluate_batch_traces_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #
@@ -330,12 +365,15 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             testcase_ids: list[UUID],
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_testcases")
             result = await self._with_job_lock(
                 run_id,
-                "api",
-                evaluate_batch_testcases_impl(
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: evaluate_batch_testcases_impl(
                     project_id=project_id,
                     user_id=user_id,
                     #

@@ -2,8 +2,8 @@
 Unit tests for evaluation runtime lock helpers.
 
 These tests use a real in-memory fakeredis instance so they run without an
-external Redis process.  Install `fakeredis[aioredis]` (or `fakeredis`) in the
-test environment to enable them.
+external Redis process. Install `fakeredis` in the test environment to enable
+them.
 
 Tests cover:
     - acquire_job_lock / acquire_mutation_lock
@@ -29,16 +29,64 @@ import pytest_asyncio
 
 @pytest_asyncio.fixture
 async def fake_redis():
-    """Return a fakeredis async client and patch it into the locks module."""
+    """Return a fakeredis async client and patch it into the caching lock client."""
     fakeredis = pytest.importorskip("fakeredis")
     aioredis = pytest.importorskip("fakeredis.aioredis")
+    from oss.src.utils import caching
 
     server = fakeredis.FakeServer()
     client = aioredis.FakeRedis(server=server, decode_responses=False)
 
-    with patch(
-        "oss.src.core.evaluations.runtime.locks._get_redis",
-        return_value=client,
+    async def _renew_lock_for_tests(
+        *,
+        namespace: str,
+        key=None,
+        project_id=None,
+        user_id=None,
+        ttl: int = caching.AGENTA_LOCK_TTL,
+        owner=None,
+    ) -> bool:
+        lock_key = caching._pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+        raw = await client.get(lock_key)
+        if raw is None:
+            return False
+        if owner is not None and raw != owner.encode():
+            return False
+        return bool(await client.expire(lock_key, ttl))
+
+    async def _release_lock_for_tests(
+        *,
+        namespace: str,
+        key=None,
+        project_id=None,
+        user_id=None,
+        owner=None,
+        strict: bool = False,
+    ) -> bool:
+        lock_key = caching._pack(
+            namespace=f"lock:{namespace}",
+            key=key,
+            project_id=project_id,
+            user_id=user_id,
+        )
+        raw = await client.get(lock_key)
+        if raw is None:
+            return False
+        if owner is not None and raw != owner.encode():
+            return False
+        return bool(await client.delete(lock_key))
+
+    with patch("oss.src.utils.caching.r_lock", client), patch(
+        "oss.src.utils.caching.renew_lock",
+        _renew_lock_for_tests,
+    ), patch(
+        "oss.src.utils.caching.release_lock",
+        _release_lock_for_tests,
     ):
         yield client
 
@@ -89,6 +137,27 @@ async def test_acquire_job_lock_returns_none_when_held(fake_redis):
     assert first is not None
 
     second = await acquire_job_lock(run_id=run_id, job_id=job_id)
+    assert second is None
+
+
+@pytest.mark.asyncio
+async def test_acquire_job_lock_returns_none_when_singleton_slot_is_held(fake_redis):
+    from oss.src.core.evaluations.runtime.locks import acquire_job_lock
+
+    run_id = _run_id()
+
+    first = await acquire_job_lock(
+        run_id=run_id,
+        job_id=_job_id(),
+        lock_id="singleton",
+    )
+    assert first is not None
+
+    second = await acquire_job_lock(
+        run_id=run_id,
+        job_id=_job_id(),
+        lock_id="singleton",
+    )
     assert second is None
 
 
@@ -332,6 +401,12 @@ async def test_with_job_lock_releases_on_exception(fake_redis):
         raise RuntimeError("task failed")
 
     with pytest.raises(RuntimeError, match="task failed"):
-        await EvaluationsWorker._with_job_lock(run_id, "api", _failing_coro())
+        await EvaluationsWorker._with_job_lock(
+            run_id,
+            job_id=_job_id(),
+            job_type="api",
+            allow_concurrency=False,
+            runner=_failing_coro,
+        )
 
     assert await is_run_executing(run_id=str(run_id)) is False

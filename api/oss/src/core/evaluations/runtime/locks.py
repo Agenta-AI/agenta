@@ -1,82 +1,32 @@
 """
 Evaluation runtime locking primitives.
 
-Key space:
-    eval:run:{run_id}:lock              — mutation lock (prevents concurrent run edits)
-    eval:run:{run_id}:job:{job_id}:lock — job execution lock (heartbeated by workers/SDK)
-    eval:worker:{worker_id}:heartbeat   — worker liveness signal
+Logical key suffixes:
+    eval:run:{run_id}:lock
+    eval:run:{run_id}:job:{lock_id}:lock
+    eval:worker:{worker_id}:heartbeat
 
-All locks use the volatile Redis instance and carry a JSON payload with an
-ownership token so that only the original acquirer can renew or release.
-
-Defaults:
-    heartbeat interval  30 s
-    lock TTL            5 min (expires if no heartbeat renewal)
+Implementation detail:
+    locks are stored through the existing caching lock helpers, so the actual
+    Redis key includes the standard cache prefix and lock namespace prefix:
+    cache:p:{project}:u:{user}:lock:{logical_suffix}
 """
 
-from typing import Literal, Optional
-from asyncio import sleep, CancelledError
+from asyncio import CancelledError, sleep
 from datetime import datetime, timezone
-from uuid import uuid4
+from typing import Literal, Optional
 
 import orjson
 from pydantic import BaseModel
-from redis.asyncio import Redis
 
+import oss.src.utils.caching as caching
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 
-EVAL_LOCK_HEARTBEAT_INTERVAL = 30  # seconds between heartbeats
-EVAL_LOCK_TTL = 5 * 60  # 5 minutes — lock expires if heartbeat stops
-
-# ---------------------------------------------------------------------------
-# Redis client (lazy-initialised, volatile instance)
-# ---------------------------------------------------------------------------
-
-_r: Optional[Redis] = None
-
-
-def _get_redis() -> Redis:
-    global _r
-    if _r is None:
-        _r = Redis.from_url(
-            url=env.redis.uri_volatile,
-            decode_responses=False,
-            socket_timeout=2.0,
-        )
-    return _r
-
-
-# ---------------------------------------------------------------------------
-# Key builders
-# ---------------------------------------------------------------------------
-
-
-def run_lock_key(run_id: str) -> str:
-    return f"eval:run:{run_id}:lock"
-
-
-def job_lock_key(run_id: str, job_id: str) -> str:
-    return f"eval:run:{run_id}:job:{job_id}:lock"
-
-
-def job_lock_pattern(run_id: str) -> str:
-    return f"eval:run:{run_id}:job:*:lock"
-
-
-def worker_heartbeat_key(worker_id: str) -> str:
-    return f"eval:worker:{worker_id}:heartbeat"
-
-
-# ---------------------------------------------------------------------------
-# Payload
-# ---------------------------------------------------------------------------
+EVAL_LOCK_HEARTBEAT_INTERVAL = 30
+EVAL_LOCK_TTL = 5 * 60
 
 JobType = Literal["api", "web", "sdk"]
 
@@ -89,51 +39,234 @@ class LockPayload(BaseModel):
     updated_at: str
 
 
+class WorkerHeartbeatPayload(BaseModel):
+    worker_id: str
+    created_at: str
+    updated_at: str
+
+
+def run_lock_key(run_id: str) -> str:
+    return f"eval:run:{run_id}:lock"
+
+
+def job_lock_key(run_id: str, lock_id: str) -> str:
+    return f"eval:run:{run_id}:job:{lock_id}:lock"
+
+
+def job_lock_pattern(run_id: str) -> str:
+    return f"eval:run:{run_id}:job:*:lock"
+
+
+def worker_heartbeat_key(worker_id: str) -> str:
+    return f"eval:worker:{worker_id}:heartbeat"
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _lock_args(lock_key: str) -> tuple[str, str]:
+    namespace, key = lock_key.split(":", 1)
+    return namespace, key
+
+
+def _actual_lock_name(lock_key: str) -> str:
+    return caching._pack(namespace="lock", key=lock_key)
+
+
+def _actual_meta_name(lock_key: str) -> str:
+    return f"{_actual_lock_name(lock_key)}:meta"
 
 
 def _make_payload(
     *,
     job_type: JobType,
     job_id: str,
+    job_token: str,
 ) -> LockPayload:
     now = _now_iso()
     return LockPayload(
         job_type=job_type,
         job_id=job_id,
-        job_token=str(uuid4()),
+        job_token=job_token,
         created_at=now,
         updated_at=now,
     )
 
 
-# ---------------------------------------------------------------------------
-# Core lock operations
-# ---------------------------------------------------------------------------
+async def _write_meta(
+    *,
+    lock_key: str,
+    payload: LockPayload,
+    ttl: int,
+) -> None:
+    await caching.r_lock.set(
+        _actual_meta_name(lock_key),
+        orjson.dumps(payload.model_dump(mode="json")),
+        ex=ttl,
+    )
+
+
+async def _touch_meta(
+    *,
+    lock_key: str,
+    ttl: int,
+) -> None:
+    meta_key = _actual_meta_name(lock_key)
+    raw = await caching.r_lock.get(meta_key)
+    if not raw:
+        return
+
+    try:
+        payload = LockPayload.model_validate(orjson.loads(raw))
+    except Exception:
+        log.warning("[LOCK] Ignoring malformed lock metadata", lock_key=lock_key)
+        return
+
+    payload.updated_at = _now_iso()
+    await caching.r_lock.set(
+        meta_key,
+        orjson.dumps(payload.model_dump(mode="json")),
+        ex=ttl,
+    )
+
+
+async def _read_meta_if_lock_exists(
+    *,
+    lock_key: str,
+) -> Optional[LockPayload]:
+    actual_lock_key = _actual_lock_name(lock_key)
+    if not await caching.r_lock.exists(actual_lock_key):
+        await caching.r_lock.delete(_actual_meta_name(lock_key))
+        return None
+
+    raw = await caching.r_lock.get(_actual_meta_name(lock_key))
+    if not raw:
+        return None
+
+    try:
+        return LockPayload.model_validate(orjson.loads(raw))
+    except Exception:
+        log.warning("[LOCK] Ignoring malformed lock metadata", lock_key=lock_key)
+        return None
+
+
+async def _acquire_lock(
+    *,
+    lock_key: str,
+    job_type: JobType,
+    job_id: str,
+    ttl: int,
+) -> Optional[LockPayload]:
+    namespace, key = _lock_args(lock_key)
+    job_token = await caching.acquire_lock(
+        namespace=namespace,
+        key=key,
+        ttl=ttl,
+        strict=True,
+    )
+    if job_token is None:
+        return None
+
+    payload = _make_payload(
+        job_type=job_type,
+        job_id=job_id,
+        job_token=job_token,
+    )
+    try:
+        await _write_meta(
+            lock_key=lock_key,
+            payload=payload,
+            ttl=ttl,
+        )
+    except Exception:
+        log.error(
+            "[LOCK] Failed to persist lock metadata; releasing lock",
+            lock_key=lock_key,
+            job_id=job_id,
+            exc_info=True,
+        )
+        await caching.release_lock(
+            namespace=namespace,
+            key=key,
+            owner=job_token,
+        )
+        return None
+
+    return payload
+
+
+async def _renew_lock(
+    *,
+    lock_key: str,
+    job_token: str,
+    ttl: int,
+) -> bool:
+    namespace, key = _lock_args(lock_key)
+    renewed = await caching.renew_lock(
+        namespace=namespace,
+        key=key,
+        ttl=ttl,
+        owner=job_token,
+    )
+    if not renewed:
+        return False
+
+    try:
+        await _touch_meta(
+            lock_key=lock_key,
+            ttl=ttl,
+        )
+    except Exception:
+        log.warning(
+            "[LOCK] Renewed lock but failed to refresh metadata",
+            lock_key=lock_key,
+            exc_info=True,
+        )
+
+    return True
+
+
+async def _release_lock(
+    *,
+    lock_key: str,
+    job_token: str,
+) -> bool:
+    namespace, key = _lock_args(lock_key)
+    released = await caching.release_lock(
+        namespace=namespace,
+        key=key,
+        owner=job_token,
+    )
+    if not released:
+        return False
+
+    try:
+        await caching.r_lock.delete(_actual_meta_name(lock_key))
+    except Exception:
+        log.warning(
+            "[LOCK] Released lock but failed to delete metadata",
+            lock_key=lock_key,
+            exc_info=True,
+        )
+
+    return True
 
 
 async def acquire_job_lock(
     *,
     run_id: str,
     job_id: str,
+    lock_id: Optional[str] = None,
     job_type: JobType = "api",
     ttl: int = EVAL_LOCK_TTL,
 ) -> Optional[LockPayload]:
-    """
-    Acquire eval:run:{run_id}:job:{job_id}:lock (SET NX).
-
-    Returns LockPayload (containing the ownership token) on success,
-    None if the key already exists.
-    """
-    r = _get_redis()
-    key = job_lock_key(run_id, job_id)
-    payload = _make_payload(job_type=job_type, job_id=job_id)
-    value = orjson.dumps(payload.model_dump())
-    acquired = await r.set(key, value, nx=True, ex=ttl)
-    if acquired:
-        return payload
-    return None
+    return await _acquire_lock(
+        lock_key=job_lock_key(run_id, lock_id or job_id),
+        job_type=job_type,
+        job_id=job_id,
+        ttl=ttl,
+    )
 
 
 async def acquire_mutation_lock(
@@ -143,47 +276,12 @@ async def acquire_mutation_lock(
     job_type: JobType = "api",
     ttl: int = EVAL_LOCK_TTL,
 ) -> Optional[LockPayload]:
-    """
-    Acquire eval:run:{run_id}:lock (mutation / edit-gating lock, SET NX).
-
-    Returns LockPayload on success, None if the key already exists.
-    """
-    r = _get_redis()
-    key = run_lock_key(run_id)
-    payload = _make_payload(job_type=job_type, job_id=job_id)
-    value = orjson.dumps(payload.model_dump())
-    acquired = await r.set(key, value, nx=True, ex=ttl)
-    if acquired:
-        return payload
-    return None
-
-
-async def _renew_lock(
-    *,
-    key: str,
-    job_token: str,
-    ttl: int = EVAL_LOCK_TTL,
-) -> bool:
-    """
-    Renew a lock's TTL when the provided token matches the stored token.
-
-    Returns True on success, False if the key is missing or token mismatches.
-    Non-atomic (GET → compare → SETEX) — acceptable for 5-minute TTLs with
-    30-second heartbeat windows.
-    """
-    r = _get_redis()
-    raw = await r.get(key)
-    if not raw:
-        return False
-    try:
-        stored = orjson.loads(raw)
-    except Exception:
-        return False
-    if stored.get("job_token") != job_token:
-        return False
-    stored["updated_at"] = _now_iso()
-    await r.setex(key, ttl, orjson.dumps(stored))
-    return True
+    return await _acquire_lock(
+        lock_key=run_lock_key(run_id),
+        job_type=job_type,
+        job_id=job_id,
+        ttl=ttl,
+    )
 
 
 async def renew_job_lock(
@@ -191,10 +289,11 @@ async def renew_job_lock(
     run_id: str,
     job_id: str,
     job_token: str,
+    lock_id: Optional[str] = None,
     ttl: int = EVAL_LOCK_TTL,
 ) -> bool:
     return await _renew_lock(
-        key=job_lock_key(run_id, job_id),
+        lock_key=job_lock_key(run_id, lock_id or job_id),
         job_token=job_token,
         ttl=ttl,
     )
@@ -207,34 +306,10 @@ async def renew_mutation_lock(
     ttl: int = EVAL_LOCK_TTL,
 ) -> bool:
     return await _renew_lock(
-        key=run_lock_key(run_id),
+        lock_key=run_lock_key(run_id),
         job_token=job_token,
         ttl=ttl,
     )
-
-
-async def _release_lock(
-    *,
-    key: str,
-    job_token: str,
-) -> bool:
-    """
-    Release a lock when the provided token matches the stored token.
-
-    Returns True on success, False if the key is missing or token mismatches.
-    """
-    r = _get_redis()
-    raw = await r.get(key)
-    if not raw:
-        return False
-    try:
-        stored = orjson.loads(raw)
-    except Exception:
-        return False
-    if stored.get("job_token") != job_token:
-        return False
-    await r.delete(key)
-    return True
 
 
 async def release_job_lock(
@@ -242,9 +317,10 @@ async def release_job_lock(
     run_id: str,
     job_id: str,
     job_token: str,
+    lock_id: Optional[str] = None,
 ) -> bool:
     return await _release_lock(
-        key=job_lock_key(run_id, job_id),
+        lock_key=job_lock_key(run_id, lock_id or job_id),
         job_token=job_token,
     )
 
@@ -255,14 +331,9 @@ async def release_mutation_lock(
     job_token: str,
 ) -> bool:
     return await _release_lock(
-        key=run_lock_key(run_id),
+        lock_key=run_lock_key(run_id),
         job_token=job_token,
     )
-
-
-# ---------------------------------------------------------------------------
-# Observability helpers
-# ---------------------------------------------------------------------------
 
 
 async def list_active_job_locks(
@@ -270,20 +341,27 @@ async def list_active_job_locks(
     run_id: str,
 ) -> list[LockPayload]:
     """
-    Return all active job-lock payloads for a run by scanning the key pattern.
+    Return active job lock payloads for a run.
 
-    Uses SCAN to avoid blocking Redis.
+    Wildcard discovery must use SCAN, never KEYS.
     """
-    r = _get_redis()
-    pattern = job_lock_pattern(run_id)
     payloads: list[LockPayload] = []
-    async for key in r.scan_iter(pattern):
-        raw = await r.get(key)
-        if raw:
-            try:
-                payloads.append(LockPayload(**orjson.loads(raw)))
-            except Exception:
-                pass
+    async for raw_lock_key in caching.r_lock.scan_iter(
+        match=_actual_lock_name(job_lock_pattern(run_id))
+    ):
+        meta_key = raw_lock_key + b":meta" if isinstance(raw_lock_key, bytes) else f"{raw_lock_key}:meta"
+        raw_payload = await caching.r_lock.get(meta_key)
+        if not raw_payload:
+            continue
+
+        try:
+            payloads.append(LockPayload.model_validate(orjson.loads(raw_payload)))
+        except Exception:
+            log.warning(
+                "[LOCK] Ignoring malformed job lock metadata",
+                lock_key=raw_lock_key.decode() if isinstance(raw_lock_key, bytes) else raw_lock_key,
+            )
+
     return payloads
 
 
@@ -291,48 +369,42 @@ async def get_mutation_lock(
     *,
     run_id: str,
 ) -> Optional[LockPayload]:
-    """Return the current mutation lock payload if present, else None."""
-    r = _get_redis()
-    raw = await r.get(run_lock_key(run_id))
-    if not raw:
-        return None
-    try:
-        return LockPayload(**orjson.loads(raw))
-    except Exception:
-        return None
+    return await _read_meta_if_lock_exists(lock_key=run_lock_key(run_id))
 
 
 async def is_run_executing(
     *,
     run_id: str,
 ) -> bool:
-    """Return True if any active job locks exist for this run."""
-    locks = await list_active_job_locks(run_id=run_id)
-    return len(locks) > 0
+    async for _ in caching.r_lock.scan_iter(match=_actual_lock_name(job_lock_pattern(run_id))):
+        return True
+    return False
 
 
 async def has_mutation_lock(
     *,
     run_id: str,
 ) -> bool:
-    """Return True if a mutation lock exists for this run."""
-    return await get_mutation_lock(run_id=run_id) is not None
+    return bool(await caching.r_lock.exists(_actual_lock_name(run_lock_key(run_id))))
 
 
-# ---------------------------------------------------------------------------
-# Worker heartbeat
-# ---------------------------------------------------------------------------
-
-
-async def set_worker_heartbeat(
+async def refresh_worker_heartbeat(
     *,
     worker_id: str,
     ttl: int = EVAL_LOCK_TTL,
-) -> None:
-    """Register or refresh the worker liveness key."""
-    r = _get_redis()
-    key = worker_heartbeat_key(worker_id)
-    await r.setex(key, ttl, _now_iso().encode())
+) -> WorkerHeartbeatPayload:
+    now = _now_iso()
+    payload = WorkerHeartbeatPayload(
+        worker_id=worker_id,
+        created_at=now,
+        updated_at=now,
+    )
+    await caching.r_lock.set(
+        _actual_lock_name(worker_heartbeat_key(worker_id)),
+        orjson.dumps(payload.model_dump(mode="json")),
+        ex=ttl,
+    )
+    return payload
 
 
 async def run_worker_heartbeat(
@@ -341,28 +413,22 @@ async def run_worker_heartbeat(
     interval: int = EVAL_LOCK_HEARTBEAT_INTERVAL,
     ttl: int = EVAL_LOCK_TTL,
 ) -> None:
-    """
-    Background coroutine: register the worker heartbeat key and refresh it
-    every `interval` seconds.  Start with asyncio.create_task() at worker boot.
-    """
-    try:
-        while True:
-            try:
-                await set_worker_heartbeat(worker_id=worker_id, ttl=ttl)
-            except Exception as exc:
-                log.warning(
-                    "[LOCK] Worker heartbeat failed",
-                    worker_id=worker_id,
-                    error=str(exc),
-                )
+    while True:
+        try:
+            await refresh_worker_heartbeat(
+                worker_id=worker_id,
+                ttl=ttl,
+            )
             await sleep(interval)
-    except CancelledError:
-        log.info("[LOCK] Worker heartbeat cancelled", worker_id=worker_id)
-
-
-# ---------------------------------------------------------------------------
-# Job heartbeat
-# ---------------------------------------------------------------------------
+        except CancelledError:
+            raise
+        except Exception:
+            log.warning(
+                "[LOCK] Worker heartbeat failed",
+                worker_id=worker_id,
+                exc_info=True,
+            )
+            await sleep(interval)
 
 
 async def run_job_heartbeat(
@@ -370,28 +436,36 @@ async def run_job_heartbeat(
     run_id: str,
     job_id: str,
     job_token: str,
+    lock_id: Optional[str] = None,
     interval: int = EVAL_LOCK_HEARTBEAT_INTERVAL,
     ttl: int = EVAL_LOCK_TTL,
 ) -> None:
-    """
-    Background coroutine: renew a job lock every `interval` seconds.
-    Start with asyncio.create_task() while the job is executing.
-    Cancel it (or let it be collected) when the job finishes.
-    """
-    try:
-        while True:
+    while True:
+        try:
             await sleep(interval)
-            ok = await renew_job_lock(
+            renewed = await renew_job_lock(
                 run_id=run_id,
                 job_id=job_id,
+                lock_id=lock_id,
                 job_token=job_token,
                 ttl=ttl,
             )
-            if not ok:
+            if not renewed:
                 log.warning(
-                    "[LOCK] Job lock renewal failed — lock may have expired",
+                    "[LOCK] Job heartbeat lost ownership; stopping heartbeat",
                     run_id=run_id,
                     job_id=job_id,
+                    lock_id=lock_id or job_id,
                 )
-    except CancelledError:
-        log.info("[LOCK] Job heartbeat cancelled", run_id=run_id, job_id=job_id)
+                return
+        except CancelledError:
+            raise
+        except Exception:
+            log.warning(
+                "[LOCK] Job heartbeat failed",
+                run_id=run_id,
+                job_id=job_id,
+                lock_id=lock_id or job_id,
+                exc_info=True,
+            )
+            await sleep(interval)

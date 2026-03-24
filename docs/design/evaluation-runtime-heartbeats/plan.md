@@ -23,6 +23,7 @@ This plan turns the design in [README.md](./README.md) into a concrete implement
 
 **Responsibilities:**
 
+- reuse the existing `oss.src.utils.caching` lock helpers and their Redis key prefix
 - build keys
   - `eval:run:{run_id}:lock`
   - `eval:run:{run_id}:job:{job_id}:lock`
@@ -36,13 +37,15 @@ This plan turns the design in [README.md](./README.md) into a concrete implement
 
 **Payloads:**
 
+Allowed `job_type` values: `api`, `web`, `sdk`
+
 ```json
 {
-  "job_type": "api" | "web" | "sdk",
-  "job_id": "...",
-  "job_token": "...",
-  "created_at": "...",
-  "updated_at": "..."
+  "job_type": "api",
+  "job_id": "2e2d3c2e-3d79-45f8-bec5-fc9af9e6d223",
+  "job_token": "0b727a0d6ce34576a8f1b91fd6ab9d1b",
+  "created_at": "2026-03-24T09:30:00Z",
+  "updated_at": "2026-03-24T09:30:30Z"
 }
 ```
 
@@ -50,11 +53,11 @@ For the run-level mutation lock:
 
 ```json
 {
-  "job_type": "api" | "web" | "sdk",
-  "job_id": "...",
-  "job_token": "...",
-  "created_at": "...",
-  "updated_at": "..."
+  "job_type": "sdk",
+  "job_id": "3fdcc012-7e17-42ef-9f3d-985ffb15329d",
+  "job_token": "8ca4f4be34d14ce8bb122b6794f6f97e",
+  "created_at": "2026-03-24T09:30:00Z",
+  "updated_at": "2026-03-24T09:30:30Z"
 }
 ```
 
@@ -91,6 +94,8 @@ For the run-level mutation lock:
   - run existing implementation
   - release lock in `finally`
 - check `eval:run:{run_id}:lock` before starting execution
+- non-queue loops use a reserved singleton job-lock slot per run so concurrent execution is skipped
+- queue loops keep distinct job-lock ids and may execute concurrently
 
 **Applies to:**
 
@@ -112,6 +117,7 @@ For the run-level mutation lock:
 
 - `is_run_executing(run_id)` by checking `eval:run:{run_id}:job:*:lock`
 - `has_run_mutation_lock(run_id)` by checking `eval:run:{run_id}:lock`
+- wildcard lock discovery must use Redis `SCAN` or a dedicated index/set, never `KEYS`
 
 ### 1.5 Tests
 
@@ -136,8 +142,8 @@ For the run-level mutation lock:
 
 **Endpoints:**
 
-- `POST /preview/simple/evaluations/{evaluation_id}/heartbeat`
-- `DELETE /preview/simple/evaluations/{evaluation_id}/heartbeat`
+- `POST /preview/simple/evaluations/{run_id}/heartbeat`
+- `DELETE /preview/simple/evaluations/{run_id}/heartbeat`
 
 **Behavior:**
 

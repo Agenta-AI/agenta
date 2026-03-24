@@ -147,6 +147,12 @@ Add Redis-based leases with heartbeats.
 
 Use leases, not a one-shot lock. The execution owner must refresh a TTL while work is still running.
 
+Implementation note:
+
+- runtime locks reuse the existing `oss.src.utils.caching` lock helpers
+- actual Redis keys therefore start with the existing cache lock prefix
+- the examples below show the logical suffix after `cache:p:{project}:u:{user}:lock:`
+
 Recommended Redis records:
 
 - worker heartbeat key
@@ -189,15 +195,17 @@ Key:
 eval:run:{run_id}:lock
 ```
 
-Value:
+Allowed `job_type` values: `api`, `web`, `sdk`
+
+Example value:
 
 ```json
 {
-  "job_type": "api" | "web" | "sdk",
-  "job_id": "...",
-  "job_token": "...",
-  "created_at": "...",
-  "updated_at": "..."
+  "job_type": "api",
+  "job_id": "2e2d3c2e-3d79-45f8-bec5-fc9af9e6d223",
+  "job_token": "0b727a0d6ce34576a8f1b91fd6ab9d1b",
+  "created_at": "2026-03-24T09:30:00Z",
+  "updated_at": "2026-03-24T09:30:30Z"
 }
 ```
 
@@ -215,15 +223,17 @@ Key:
 eval:run:{run_id}:job:{job_id}:lock
 ```
 
-Value:
+Allowed `job_type` values: `api`, `web`, `sdk`
+
+Example value:
 
 ```json
 {
-  "job_type": "api" | "web" | "sdk",
-  "job_id": "...",
-  "job_token": "...",
-  "created_at": "...",
-  "updated_at": "..."
+  "job_type": "sdk",
+  "job_id": "3fdcc012-7e17-42ef-9f3d-985ffb15329d",
+  "job_token": "8ca4f4be34d14ce8bb122b6794f6f97e",
+  "created_at": "2026-03-24T09:30:00Z",
+  "updated_at": "2026-03-24T09:30:30Z"
 }
 ```
 
@@ -235,7 +245,7 @@ Purpose:
 Meaning:
 
 - a run may have one or more active jobs
-- non-queue loops will usually have one active job at most
+- non-queue loops use a reserved singleton lock slot, so they have at most one active job
 - queue loops may have multiple active jobs at once
 
 ## Locking Semantics
@@ -252,6 +262,7 @@ Rules:
 - renew/delete should use compare-and-set semantics
 - use Lua or an equivalent atomic compare-and-renew / compare-and-delete operation
 - one lock belongs to exactly one run job
+- wildcard lock discovery must use Redis `SCAN` or a dedicated index/set, never `KEYS`
 
 ### Mutation lock semantics
 
@@ -309,8 +320,8 @@ Practical rule:
 
 Suggested endpoints:
 
-- `POST /preview/simple/evaluations/{evaluation_id}/heartbeat`
-- `DELETE /preview/simple/evaluations/{evaluation_id}/heartbeat`
+- `POST /preview/simple/evaluations/{run_id}/heartbeat`
+- `DELETE /preview/simple/evaluations/{run_id}/heartbeat`
 
 Behavior:
 
@@ -429,6 +440,7 @@ For API-owned Taskiq executions:
 
 - `job_type = "api"`
 - `job_id` should be the concrete Taskiq execution id
+- non-queue loops may still use a reserved singleton lock slot in the key while storing the concrete Taskiq execution id in the payload
 
 For SDK-owned executions:
 
