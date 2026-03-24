@@ -6,7 +6,7 @@ name: agenta-ee-gh
 #
 # EE images are private packages hosted at ghcr.io/agenta-ai/internal-ee-agenta-*.
 # Set image tags via environment variables (defaults to latest):
-#   AGENTA_API_IMAGE_TAG=a1b2c3d4 docker compose -f docker-compose.gh.yml up
+#   AGENTA_API_IMAGE_TAG=a1b2c3d4 docker compose --env-file ./.env.ee.gh -f docker-compose.gh.yml up
 # ================================================================== #
 
 services:
