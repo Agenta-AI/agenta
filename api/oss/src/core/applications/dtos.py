@@ -17,8 +17,9 @@ from oss.src.core.workflows.dtos import (
     RevisionFork,
     #
     WorkflowCatalogFlags,
-    WorkflowCatalogPreset,
+    WorkflowCatalogType,
     WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
     #
     WorkflowFlags,
     WorkflowQueryFlags,
@@ -264,14 +265,6 @@ class ApplicationFork(
         sync_alias("application_revision", "revision", self)
 
 
-class ApplicationCatalogPreset(WorkflowCatalogPreset):
-    flags: Optional[WorkflowCatalogFlags] = None
-
-
-class ApplicationCatalogTemplate(WorkflowCatalogTemplate):
-    flags: Optional[WorkflowCatalogFlags] = None
-
-
 # simple applications ----------------------------------------------------------
 
 
@@ -310,6 +303,21 @@ class SimpleApplicationEdit(Identifier, Header, Metadata):
 
 class SimpleApplicationQuery(Metadata):
     flags: Optional[SimpleApplicationQueryFlags] = None
+
+
+# APPLICATION CATALOG ----------------------------------------------------------
+
+
+class ApplicationCatalogType(WorkflowCatalogType):
+    pass
+
+
+class ApplicationCatalogTemplate(WorkflowCatalogTemplate):
+    flags: Optional[WorkflowCatalogFlags] = None
+
+
+class ApplicationCatalogPreset(WorkflowCatalogPreset):
+    flags: Optional[WorkflowCatalogFlags] = None
 
 
 # ------------------------------------------------------------------------------

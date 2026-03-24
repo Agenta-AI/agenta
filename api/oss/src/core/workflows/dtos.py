@@ -266,24 +266,6 @@ class WorkflowRevisionsLog(
         sync_alias("workflow_revision_id", "revision_id", self)
 
 
-class WorkflowCatalogPreset(Header):
-    key: str
-
-    categories: Optional[list[str]] = None
-
-    flags: Optional[WorkflowCatalogFlags] = None
-    data: Optional[WorkflowRevisionData] = None
-
-
-class WorkflowCatalogTemplate(Header):
-    key: str
-
-    categories: Optional[list[str]] = None
-
-    flags: Optional[WorkflowCatalogFlags] = None
-    data: Optional[WorkflowRevisionData] = None
-
-
 # forks ------------------------------------------------------------------------
 
 
@@ -371,3 +353,33 @@ class SimpleWorkflowEdit(Identifier, Header, Metadata):
 
 class SimpleWorkflowQuery(Metadata):
     flags: Optional[SimpleWorkflowQueryFlags] = None
+
+
+# WORKFLOW CATALOG -------------------------------------------------------------
+
+
+class WorkflowCatalogType(Header):
+    key: str
+
+    schema: dict
+
+
+class WorkflowCatalogTemplate(Header):
+    key: str
+
+    categories: Optional[list[str]] = None
+
+    flags: Optional[WorkflowCatalogFlags] = None
+    data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowCatalogPreset(Header):
+    key: str
+
+    categories: Optional[list[str]] = None
+
+    flags: Optional[WorkflowCatalogFlags] = None
+    data: Optional[WorkflowRevisionData] = None
+
+
+# ------------------------------------------------------------------------------

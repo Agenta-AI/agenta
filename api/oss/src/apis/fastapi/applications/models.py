@@ -8,8 +8,9 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.applications.dtos import (
     Application,
-    ApplicationCatalogPreset,
+    ApplicationCatalogType,
     ApplicationCatalogTemplate,
+    ApplicationCatalogPreset,
     ApplicationCreate,
     ApplicationEdit,
     ApplicationQuery,
@@ -217,6 +218,16 @@ class ApplicationRevisionResolveResponse(BaseModel):
     count: int = 0
     application_revision: Optional[ApplicationRevision] = None
     resolution_info: Optional[ResolutionInfo] = None
+
+
+class ApplicationCatalogTypeResponse(BaseModel):
+    count: int = 0
+    type: Optional[ApplicationCatalogType] = None
+
+
+class ApplicationCatalogTypesResponse(BaseModel):
+    count: int = 0
+    types: List[ApplicationCatalogType] = []
 
 
 class ApplicationCatalogTemplateResponse(BaseModel):

@@ -144,6 +144,18 @@ METRICS_STEP_TYPES = {"invocation", "annotation"}
 DEFAULT_REFRESH_INTERVAL = 1  # minute(s)
 
 
+def _first_reference_id(
+    references: dict[str, Reference],
+    *keys: str,
+) -> Optional[UUID]:
+    for key in keys:
+        reference = references.get(key)
+        if isinstance(reference, Reference) and reference.id:
+            return reference.id
+
+    return None
+
+
 class EvaluationsService:
     def __init__(
         self,
@@ -3018,31 +3030,40 @@ class SimpleEvaluationsService:
                 step_id = None
 
                 if step_type == "input":
-                    if "query_revision" in step_references:
-                        step_ref = step_references["query_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "query_revision",
+                        "query_variant",
+                        "query",
+                    )
+                    if step_id:
                         query_steps[step_id] = step_origin  # type: ignore
-                    elif "testset_revision" in step_references:
-                        step_ref = step_references["testset_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    else:
+                        step_id = _first_reference_id(
+                            step_references,
+                            "testset_revision",
+                            "testset_variant",
+                            "testset",
+                        )
+                    if step_id:
                         testset_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "invocation":
-                    if "application_revision" in step_references:
-                        step_ref = step_references["application_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "application_revision",
+                        "application_variant",
+                        "application",
+                    )
+                    if step_id:
                         application_steps[step_id] = step_origin  # type: ignore
                 elif step_type == "annotation":
-                    if "evaluator_revision" in step_references:
-                        step_ref = step_references["evaluator_revision"]
-                        if not isinstance(step_ref, Reference):
-                            continue
-                        step_id = step_ref.id
+                    step_id = _first_reference_id(
+                        step_references,
+                        "evaluator_revision",
+                        "evaluator_variant",
+                        "evaluator",
+                    )
+                    if step_id:
                         evaluator_steps[step_id] = step_origin  # type: ignore
 
             evaluation_flags = SimpleEvaluationFlags(**run.flags.model_dump())

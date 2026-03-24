@@ -2,6 +2,7 @@ from copy import deepcopy
 from typing import Any, Optional
 
 from oss.src.resources.evaluators.evaluators import evaluators as evaluator_catalog
+from agenta.sdk.utils.types import CATALOG_TYPES
 from agenta.sdk.engines.running.catalog import (
     get_all_catalog_templates,
     get_catalog_template,
@@ -101,6 +102,21 @@ def _enrich_entry(
     return enriched
 
 
+def get_workflow_catalog_types() -> list[dict[str, Any]]:
+    return [
+        {
+            "key": key,
+            "schema": _clone(schema),
+        }
+        for key, schema in CATALOG_TYPES.items()
+    ]
+
+
+def get_workflow_catalog_type(*, ag_type: str) -> Optional[dict[str, Any]]:
+    schema = CATALOG_TYPES.get(ag_type)
+    return _clone(schema) if schema is not None else None
+
+
 catalog = [
     _enrich_entry(
         entry, evaluator_metadata=_evaluator_metadata_by_key().get(entry["key"])
@@ -148,6 +164,48 @@ def get_workflow_catalog_template(
         return None
     return next(
         (entry for entry in catalog if entry["key"] == sdk_entry["key"]),
+        None,
+    )
+
+
+def get_filtered_workflow_catalog_presets(
+    *,
+    template_key: str,
+    is_application: Optional[bool] = None,
+    is_evaluator: Optional[bool] = None,
+    is_snippet: Optional[bool] = None,
+) -> list[dict[str, Any]]:
+    entry = get_workflow_catalog_template(
+        template_key=template_key,
+        is_application=is_application,
+        is_evaluator=is_evaluator,
+        is_snippet=is_snippet,
+    )
+    if not entry:
+        return []
+
+    return _clone(entry.get("presets") or [])
+
+
+def get_workflow_catalog_preset(
+    *,
+    template_key: str,
+    preset_key: str,
+    is_application: Optional[bool] = None,
+    is_evaluator: Optional[bool] = None,
+    is_snippet: Optional[bool] = None,
+) -> Optional[dict[str, Any]]:
+    return next(
+        (
+            preset
+            for preset in get_filtered_workflow_catalog_presets(
+                template_key=template_key,
+                is_application=is_application,
+                is_evaluator=is_evaluator,
+                is_snippet=is_snippet,
+            )
+            if preset.get("key") == preset_key
+        ),
         None,
     )
 

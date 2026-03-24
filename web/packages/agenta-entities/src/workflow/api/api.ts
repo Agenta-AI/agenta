@@ -1171,7 +1171,7 @@ export async function fetchWorkflowRevisionsByIdsBatch(
  */
 export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/workflows/schemas/ag-types/${encodeURIComponent(agType)}`,
+        `${getAgentaApiUrl()}/workflows/catalog/types/${encodeURIComponent(agType)}`,
     )
     return response.data as Record<string, unknown>
 }
@@ -1242,7 +1242,7 @@ export async function fetchWorkflowCatalogTemplates(params?: {
     if (params?.includeArchived !== undefined) queryParams.include_archived = params.includeArchived
 
     const response = await axios.get<WorkflowCatalogTemplatesResponse>(
-        `${getAgentaApiUrl()}/workflows/catalog/templates`,
+        `${getAgentaApiUrl()}/workflows/catalog/templates/`,
         {params: queryParams},
     )
     return response.data ?? {count: 0, templates: []}

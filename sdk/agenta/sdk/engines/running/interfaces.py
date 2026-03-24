@@ -80,7 +80,7 @@ def ag_field(
     *,
     base: dict,
     x_ag_type: str | None = None,
-    x_ag_type_ref: dict | None = None,
+    x_ag_type_ref: str | dict | None = None,
     x_ag_ui_advanced: bool | None = None,
 ) -> dict:
     field = dict(base)
@@ -120,13 +120,20 @@ MODEL_FIELD = ag_field(
 
 def semantic_field(
     *,
-    x_ag_type: str,
+    x_ag_type: str | None = None,
+    x_ag_type_ref: str | dict | None = None,
     jtype: str | list[str] | None = None,
     title: str | None = None,
     description: str | None = None,
     default=None,
 ) -> dict:
-    schema = {"x-ag-type": x_ag_type}
+    schema = {}
+    if x_ag_type is None and x_ag_type_ref is None:
+        raise ValueError("semantic_field requires x_ag_type or x_ag_type_ref")
+    if x_ag_type is not None:
+        schema["x-ag-type"] = x_ag_type
+    if x_ag_type_ref is not None:
+        schema["x-ag-type-ref"] = x_ag_type_ref
     if jtype is not None:
         schema["type"] = jtype
     if title:
@@ -143,7 +150,7 @@ def single_prompt_parameters_schema(*, title: str, prompt_default: dict) -> dict
         title=title,
         properties={
             "prompt": semantic_field(
-                x_ag_type="prompt-template",
+                x_ag_type_ref="prompt-template",
                 jtype="object",
                 title="PromptTemplate",
                 description="A template for generating prompts with formatting capabilities",
@@ -159,7 +166,7 @@ def llm_inputs_schema(*, title: str, include_messages: bool) -> dict:
 
     if include_messages:
         properties["messages"] = semantic_field(
-            x_ag_type="messages",
+            x_ag_type_ref="messages",
             jtype="array",
             title="Messages",
             description="Ordered list of normalized chat messages.",
@@ -422,7 +429,7 @@ llm_v0_interface = WorkflowRevisionData(
                     additional_properties=False,
                 ),
                 "messages": semantic_field(
-                    x_ag_type="messages",
+                    x_ag_type_ref="messages",
                     jtype="array",
                     title="Messages",
                     description="Ordered list of normalized chat messages.",
@@ -450,14 +457,14 @@ llm_v0_interface = WorkflowRevisionData(
             description="Canonical runtime inputs for llm_v0 handlers.",
             properties={
                 "messages": semantic_field(
-                    x_ag_type="messages",
+                    x_ag_type_ref="messages",
                     jtype="array",
                     title="Messages",
                     description="Ordered list of normalized chat messages.",
                     default=[],
                 ),
                 "message": semantic_field(
-                    x_ag_type="message",
+                    x_ag_type_ref="message",
                     jtype="object",
                     title="Message",
                 ),
@@ -485,10 +492,11 @@ llm_v0_interface = WorkflowRevisionData(
                     },
                     "required": ["code", "type", "message"],
                 },
-                "messages": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                },
+                "messages": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                    title="Messages",
+                ),
                 "context": {"type": "object"},
                 "consent": {"type": "object"},
                 "usage": {"type": "object"},
@@ -528,10 +536,12 @@ chat_v0_interface = WorkflowRevisionData(
         ),
         outputs={
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "title": "Chat App Outputs",
-            "description": "Final chat message returned by the workflow.",
-            "x-ag-type": "message",
+            **semantic_field(
+                x_ag_type_ref="message",
+                jtype="object",
+                title="Chat App Outputs",
+                description="Final chat message returned by the workflow.",
+            ),
         },
     ),
 )
@@ -775,15 +785,12 @@ auto_ai_critique_v0_interface = WorkflowRevisionData(
         parameters=obj(
             title="AI Critique Parameters",
             properties={
-                "prompt_template": ag_field(
-                    base=semantic_field(
-                        x_ag_type="messages",
-                        jtype="array",
-                        title="Messages",
-                        description="Ordered list of normalized chat messages.",
-                        default=[],
-                    ),
-                    x_ag_type="messages",
+                "prompt_template": semantic_field(
+                    x_ag_type_ref="messages",
+                    jtype="array",
+                    title="Messages",
+                    description="Ordered list of normalized chat messages.",
+                    default=[],
                 ),
                 "correct_answer_key": ag_field(
                     base=scalar(jtype="string", default="correct_answer"),
@@ -1047,46 +1054,3 @@ auto_semantic_similarity_v0_interface = WorkflowRevisionData(
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
-
-
-# --- AG-TYPE SCHEMA REGISTRY ------------------------------------------------
-# Maps x-ag-type values to their full dereferenced JSON Schemas.
-# Used by the GET /workflows/schemas/ag-types/{ag_type} endpoint to let the
-# frontend resolve opaque x-ag-type markers into rich sub-property schemas.
-
-
-def _dereference_schema(schema: dict) -> dict:
-    """Inline all $ref pointers in a JSON Schema, removing the $defs block."""
-    defs = schema.get("$defs", {})
-    if not defs:
-        return schema
-
-    def _resolve(node):
-        if isinstance(node, dict):
-            if "$ref" in node:
-                ref_path = node["$ref"]  # e.g. "#/$defs/Message"
-                ref_name = ref_path.rsplit("/", 1)[-1]
-                resolved = defs.get(ref_name, node)
-                return _resolve(resolved)
-            return {k: _resolve(v) for k, v in node.items() if k != "$defs"}
-        if isinstance(node, list):
-            return [_resolve(item) for item in node]
-        return node
-
-    return _resolve(schema)
-
-
-def _build_ag_type_schema_registry() -> dict[str, dict]:
-    from agenta.sdk.utils.types import PromptTemplate
-
-    registry: dict[str, dict] = {}
-
-    # prompt-template: full PromptTemplate schema with messages, llm_config, etc.
-    registry["prompt-template"] = _dereference_schema(
-        PromptTemplate.model_json_schema()
-    )
-
-    return registry
-
-
-AG_TYPE_SCHEMA_REGISTRY: dict[str, dict] = _build_ag_type_schema_registry()

@@ -1,0 +1,136 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+
+###
+# @name list_testsets
+POST {{api_url}}/preview/testsets/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@testset_id = {{list_testsets.response.body.testsets[0].id}}
+
+###
+# @name fetch_testset_revision
+POST {{api_url}}/preview/testsets/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_ref": {
+        "id": "{{testset_id}}"
+    }
+}
+
+###
+@testset_revision_id = {{fetch_testset_revision.response.body.testset_revision.id}}
+
+###
+# @name list_completion_applications
+POST {{api_url}}/preview/simple/applications/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "application": {
+        "flags": {
+            "is_chat": false
+        }
+    }
+}
+
+###
+@application_id = {{list_completion_applications.response.body.applications[0].id}}
+
+###
+# @name fetch_application_revision
+POST {{api_url}}/preview/simple/applications/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "application_ref": {
+        "id": "{{application_id}}"
+    }
+}
+
+###
+@application_revision_id = {{fetch_application_revision.response.body.application_revision.id}}
+
+###
+# @name fetch_exact_match_evaluator
+POST {{api_url}}/preview/simple/evaluators/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "slug": "auto_exact_match"
+    }
+}
+
+###
+@evaluator_id = {{fetch_exact_match_evaluator.response.body.evaluators[0].id}}
+
+###
+# @name create_evaluation
+POST {{api_url}}/preview/simple/evaluations/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluation": {
+        "name": "Simple Evaluation Test",
+        "description": "Basic end-to-end simple evaluation call",
+        "data": {
+            "testset_steps": [
+                "{{testset_revision_id}}"
+            ],
+            "application_steps": [
+                "{{application_revision_id}}"
+            ],
+            "evaluator_steps": [
+                "{{evaluator_id}}"
+            ]
+        }
+    },
+    "jit": true
+}
+
+###
+@evaluation_id = {{create_evaluation.response.body.evaluation.id}}
+
+###
+# @name fetch_evaluation
+GET {{api_url}}/preview/simple/evaluations/{{evaluation_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# @name start_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{evaluation_id}}/start
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# @name stop_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{evaluation_id}}/stop
+Content-Type: application/json
+Authorization: {{authorization}}

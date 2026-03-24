@@ -223,14 +223,14 @@ files = [
 
 [[package]]
 name = "anyio"
-version = "4.12.1"
+version = "4.13.0"
 description = "High-level concurrency and networking framework on top of asyncio or Trio"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "anyio-4.12.1-py3-none-any.whl", hash = "sha256:d405828884fc140aa80a3c667b8beed277f1dfedec42ba031bd6ac3db606ab6c"},
-    {file = "anyio-4.12.1.tar.gz", hash = "sha256:41cfcc3a4c85d3f05c932da7c26d0201ac36f72abd4435ba90d0464a3ffed703"},
+    {file = "anyio-4.13.0-py3-none-any.whl", hash = "sha256:08b310f9e24a9594186fd75b4f73f4a4152069e3853f1ed8bfbf58369f4ad708"},
+    {file = "anyio-4.13.0.tar.gz", hash = "sha256:334b70e641fd2221c1505b3890c69882fe4a2df910cba14d97019b90b24439dc"},
 ]
 
 [package.dependencies]
@@ -238,7 +238,7 @@ idna = ">=2.8"
 typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 
 [package.extras]
-trio = ["trio (>=0.31.0) ; python_version < \"3.10\"", "trio (>=0.32.0) ; python_version >= \"3.10\""]
+trio = ["trio (>=0.32.0)"]
 
 [[package]]
 name = "attrs"
@@ -266,18 +266,18 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.42.72"
+version = "1.42.74"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "boto3-1.42.72-py3-none-any.whl", hash = "sha256:2b5fdac4f202b2ccb9ed21f8b84229463b15573ea16941c2b1b8db1c69e08b63"},
-    {file = "boto3-1.42.72.tar.gz", hash = "sha256:932f023ea3b54fd85df453dcfff7d8c5a0f8be144c0ad57568943505c72c1e6a"},
+    {file = "boto3-1.42.74-py3-none-any.whl", hash = "sha256:4bf89c044d618fe4435af854ab820f09dd43569c0df15d7beb0398f50b9aa970"},
+    {file = "boto3-1.42.74.tar.gz", hash = "sha256:dbacd808cf2a3dadbf35f3dbd8de97b94dc9f78b1ebd439f38f552e0f9753577"},
 ]
 
 [package.dependencies]
-botocore = ">=1.42.72,<1.43.0"
+botocore = ">=1.42.74,<1.43.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.16.0,<0.17.0"
 
@@ -286,14 +286,14 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.42.72"
+version = "1.42.74"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "botocore-1.42.72-py3-none-any.whl", hash = "sha256:038f34553da68df2ce70edc729f170cc198678daaad43f98649727c59f6404d4"},
-    {file = "botocore-1.42.72.tar.gz", hash = "sha256:491b75eb41d46cf99cf8d6cab89f2e2c3602ce8e90d738a1da217a5fb6b2b7ef"},
+    {file = "botocore-1.42.74-py3-none-any.whl", hash = "sha256:3a76a8af08b5de82e51a0ae132394e226e15dbf21c8146ac3f7c1f881517a7a7"},
+    {file = "botocore-1.42.74.tar.gz", hash = "sha256:9cf5cdffc6c90ed87b0fe184676806182588be0d0df9b363e9fe3e2923ac8e80"},
 ]
 
 [package.dependencies]
@@ -658,19 +658,19 @@ testing = ["hatch", "pre-commit", "pytest", "tox"]
 
 [[package]]
 name = "fastapi"
-version = "0.135.1"
+version = "0.135.2"
 description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "fastapi-0.135.1-py3-none-any.whl", hash = "sha256:46e2fc5745924b7c840f71ddd277382af29ce1cdb7d5eab5bf697e3fb9999c9e"},
-    {file = "fastapi-0.135.1.tar.gz", hash = "sha256:d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd"},
+    {file = "fastapi-0.135.2-py3-none-any.whl", hash = "sha256:0af0447d541867e8db2a6a25c23a8c4bd80e2394ac5529bd87501bbb9e240ca5"},
+    {file = "fastapi-0.135.2.tar.gz", hash = "sha256:88a832095359755527b7f63bb4c6bc9edb8329a026189eed83d6c1afcf419d56"},
 ]
 
 [package.dependencies]
 annotated-doc = ">=0.0.2"
-pydantic = ">=2.7.0"
+pydantic = ">=2.9.0"
 starlette = ">=0.46.0"
 typing-extensions = ">=4.8.0"
 typing-inspection = ">=0.4.2"
@@ -1444,14 +1444,14 @@ files = [
 
 [[package]]
 name = "litellm"
-version = "1.82.4"
+version = "1.82.6"
 description = "Library to easily interface with LLM API providers"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "litellm-1.82.4-py3-none-any.whl", hash = "sha256:d37c34a847e7952a146ed0e2888a24d3edec7787955c6826337395e755ad5c4b"},
-    {file = "litellm-1.82.4.tar.gz", hash = "sha256:9c52b1c0762cb0593cdc97b26a8e05004e19b03f394ccd0f42fac82eff0d4980"},
+    {file = "litellm-1.82.6-py3-none-any.whl", hash = "sha256:164a3ef3e19f309e3cabc199bef3d2045212712fefdfa25fc7f75884a5b5b205"},
+    {file = "litellm-1.82.6.tar.gz", hash = "sha256:2aa1c2da21fe940c33613aa447119674a3ad4d2ad5eb064e4d5ce5ee42420136"},
 ]
 
 [package.dependencies]
@@ -1474,7 +1474,7 @@ extra-proxy = ["a2a-sdk (>=0.3.22,<0.4.0) ; python_version >= \"3.10\"", "azure-
 google = ["google-cloud-aiplatform (>=1.38.0)"]
 grpc = ["grpcio (>=1.62.3,<1.68.dev0 || >1.71.0,!=1.71.1,!=1.72.0,!=1.72.1,!=1.73.0) ; python_version < \"3.14\"", "grpcio (>=1.75.0) ; python_version >= \"3.14\""]
 mlflow = ["mlflow (>3.1.4) ; python_version >= \"3.10\""]
-proxy = ["PyJWT (>=2.12.0,<3.0.0) ; python_version >= \"3.9\"", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0) ; python_version >= \"3.9\"", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (>=1.40.76,<2.0.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (>=0.1.33,<0.2.0)", "litellm-proxy-extras (>=0.4.57,<0.5.0)", "mcp (>=1.25.0,<2.0.0) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0) ; python_version >= \"3.10\"", "pynacl (>=1.5.0,<2.0.0)", "pyroscope-io (>=0.8,<0.9) ; sys_platform != \"win32\"", "python-multipart (>=0.0.20)", "pyyaml (>=6.0.1,<7.0.0)", "rich (>=13.7.1,<14.0.0)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.32.1,<1.0.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=15.0.1,<16.0.0)"]
+proxy = ["PyJWT (>=2.12.0,<3.0.0) ; python_version >= \"3.9\"", "apscheduler (>=3.10.4,<4.0.0)", "azure-identity (>=1.15.0,<2.0.0) ; python_version >= \"3.9\"", "azure-storage-blob (>=12.25.1,<13.0.0)", "backoff", "boto3 (>=1.40.76,<2.0.0)", "cryptography", "fastapi (>=0.120.1)", "fastapi-sso (>=0.16.0,<0.17.0)", "gunicorn (>=23.0.0,<24.0.0)", "litellm-enterprise (==0.1.35)", "litellm-proxy-extras (>=0.4.60,<0.5.0)", "mcp (>=1.25.0,<2.0.0) ; python_version >= \"3.10\"", "orjson (>=3.9.7,<4.0.0)", "polars (>=1.31.0,<2.0.0) ; python_version >= \"3.10\"", "pynacl (>=1.5.0,<2.0.0)", "pyroscope-io (>=0.8,<0.9) ; sys_platform != \"win32\"", "python-multipart (>=0.0.20)", "pyyaml (>=6.0.1,<7.0.0)", "rich (>=13.7.1,<14.0.0)", "rq", "soundfile (>=0.12.1,<0.13.0)", "uvicorn (>=0.32.1,<1.0.0)", "uvloop (>=0.21.0,<0.22.0) ; sys_platform != \"win32\"", "websockets (>=15.0.1,<16.0.0)"]
 semantic-router = ["semantic-router (>=0.1.12) ; python_version >= \"3.9\" and python_version < \"3.14\""]
 utils = ["numpydoc"]
 
@@ -3267,14 +3267,14 @@ files = [
 
 [[package]]
 name = "starlette"
-version = "0.52.1"
+version = "1.0.0"
 description = "The little ASGI library that shines."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74"},
-    {file = "starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933"},
+    {file = "starlette-1.0.0-py3-none-any.whl", hash = "sha256:d3ec55e0bb321692d275455ddfd3df75fff145d009685eb40dc91fc66b03d38b"},
+    {file = "starlette-1.0.0.tar.gz", hash = "sha256:6a4beaf1f81bb472fd19ea9b918b50dc3a77a6f2e190a12954b25e6ed5eea149"},
 ]
 
 [package.dependencies]

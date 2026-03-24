@@ -23,8 +23,9 @@ from oss.src.core.environments.dtos import (
     EnvironmentRevisionDelta,
 )
 from oss.src.core.workflows.dtos import (
-    WorkflowCatalogPreset,
+    WorkflowCatalogType,
     WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
 )
 from oss.src.core.embeds.dtos import ErrorPolicy
 
@@ -54,11 +55,14 @@ from oss.src.apis.fastapi.workflows.models import (
     #
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
+    ResolutionInfo,
+    #
+    WorkflowCatalogTypeResponse,  # noqa: F401
+    WorkflowCatalogTypesResponse,
     WorkflowCatalogPresetResponse,
-    WorkflowCatalogPresetsResponse,
     WorkflowCatalogTemplateResponse,
     WorkflowCatalogTemplatesResponse,
-    ResolutionInfo,
+    WorkflowCatalogPresetsResponse,
     #
     SimpleWorkflowCreateRequest,
     SimpleWorkflowEditRequest,
@@ -84,7 +88,8 @@ from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
 )
 from oss.src.resources.workflows.catalog import (
-    # get_all_workflow_catalog_templates,
+    get_workflow_catalog_types,
+    get_workflow_catalog_type,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
 )
@@ -112,7 +117,27 @@ class WorkflowsRouter:
         # WORKFLOW CATALOG -----------------------------------------------------
 
         self.router.add_api_route(
-            "/catalog/templates",
+            "/catalog/types/",
+            self.list_workflow_catalog_types,
+            methods=["GET"],
+            operation_id="list_workflow_catalog_types",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowCatalogTypesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/types/{ag_type}",
+            self.fetch_workflow_catalog_type,
+            methods=["GET"],
+            operation_id="fetch_workflow_catalog_type",
+            status_code=status.HTTP_200_OK,
+            response_model=None,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/",
             self.list_workflow_catalog_templates,
             methods=["GET"],
             operation_id="list_workflow_catalog_templates",
@@ -132,7 +157,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/catalog/templates/{template_key}/presets",
+            "/catalog/templates/{template_key}/presets/",
             self.list_workflow_catalog_presets,
             methods=["GET"],
             operation_id="list_workflow_catalog_presets",
@@ -148,18 +173,6 @@ class WorkflowsRouter:
             operation_id="fetch_workflow_catalog_preset",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowCatalogPresetResponse,
-            response_model_exclude_none=True,
-        )
-
-        # WORKFLOW SCHEMAS -----------------------------------------------------
-
-        self.router.add_api_route(
-            "/schemas/ag-types/{ag_type}",
-            self.fetch_ag_type_schema,
-            methods=["GET"],
-            operation_id="fetch_ag_type_schema",
-            status_code=status.HTTP_200_OK,
-            response_model=None,
             response_model_exclude_none=True,
         )
 
@@ -409,17 +422,29 @@ class WorkflowsRouter:
             response_model_exclude_none=True,
         )
 
-    # WORKFLOW SCHEMAS ---------------------------------------------------------
+    # WORKFLOW CATALOG ---------------------------------------------------------
 
     @intercept_exceptions()
-    async def fetch_ag_type_schema(
+    async def list_workflow_catalog_types(
+        self,
+    ) -> WorkflowCatalogTypesResponse:
+        types = [
+            WorkflowCatalogType(**type_data)
+            for type_data in get_workflow_catalog_types()
+        ]
+
+        return WorkflowCatalogTypesResponse(
+            count=len(types),
+            types=types,
+        )
+
+    @intercept_exceptions()
+    async def fetch_workflow_catalog_type(
         self,
         *,
         ag_type: str,
     ) -> dict:
-        from agenta.sdk.engines.running.interfaces import AG_TYPE_SCHEMA_REGISTRY
-
-        schema = AG_TYPE_SCHEMA_REGISTRY.get(ag_type)
+        schema = get_workflow_catalog_type(ag_type=ag_type)
 
         if schema is None:
             raise HTTPException(
@@ -428,8 +453,6 @@ class WorkflowsRouter:
             )
 
         return schema
-
-    # WORKFLOW CATALOG ---------------------------------------------------------
 
     @intercept_exceptions()
     @suppress_exceptions(

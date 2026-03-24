@@ -71,12 +71,15 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorTemplate,
     EvaluatorTemplatesResponse,
     #
+    EvaluatorCatalogTypeResponse,  # noqa: F401
+    EvaluatorCatalogTypesResponse,
     EvaluatorCatalogTemplateResponse,
     EvaluatorCatalogTemplatesResponse,
     EvaluatorCatalogPresetResponse,
     EvaluatorCatalogPresetsResponse,
 )
 from oss.src.core.evaluators.dtos import (
+    EvaluatorCatalogType,
     EvaluatorCatalogTemplate,
     EvaluatorCatalogPreset,
 )
@@ -89,8 +92,11 @@ from oss.src.apis.fastapi.environments.utils import (
     ensure_environment_deploy_allowed,
 )
 from oss.src.resources.workflows.catalog import (
+    get_workflow_catalog_types,
     get_filtered_workflow_catalog_templates,
     get_workflow_catalog_template,
+    get_filtered_workflow_catalog_presets,
+    get_workflow_catalog_preset,
 )
 
 if is_ee():
@@ -113,21 +119,8 @@ def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) ->
     return RENAME_EVALUATORS_DISABLED_MESSAGE
 
 
-# CATALOG HELPERS --------------------------------------------------------------
-
-
-def _build_builtin_uri(key: str) -> str:
-    return f"agenta:builtin:{key}:v0"
-
-
 def _registry_entry_to_catalog_template(entry: dict) -> "EvaluatorCatalogTemplate":
     return EvaluatorCatalogTemplate(**entry)
-
-
-def _registry_preset_to_catalog_preset(
-    preset: dict, *, uri: str
-) -> "EvaluatorCatalogPreset":
-    return EvaluatorCatalogPreset(**preset)
 
 
 class EvaluatorsRouter:
@@ -146,7 +139,17 @@ class EvaluatorsRouter:
         # NOTE: Must be registered BEFORE /{evaluator_id} routes
 
         self.router.add_api_route(
-            "/catalog/templates",
+            "/catalog/types/",
+            self.list_evaluator_catalog_types,
+            methods=["GET"],
+            operation_id="list_evaluator_catalog_types",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogTypesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/",
             self.list_evaluator_catalog_templates,
             methods=["GET"],
             operation_id="list_evaluator_catalog_templates",
@@ -166,7 +169,7 @@ class EvaluatorsRouter:
         )
 
         self.router.add_api_route(
-            "/catalog/templates/{template_key}/presets",
+            "/catalog/templates/{template_key}/presets/",
             self.list_evaluator_catalog_presets,
             methods=["GET"],
             operation_id="list_evaluator_catalog_presets",
@@ -434,6 +437,20 @@ class EvaluatorsRouter:
     # EVALUATOR CATALOG --------------------------------------------------------
 
     @intercept_exceptions()
+    async def list_evaluator_catalog_types(
+        self,
+    ) -> EvaluatorCatalogTypesResponse:
+        types = [
+            EvaluatorCatalogType(**type_data)
+            for type_data in get_workflow_catalog_types()
+        ]
+
+        return EvaluatorCatalogTypesResponse(
+            count=len(types),
+            types=types,
+        )
+
+    @intercept_exceptions()
     @suppress_exceptions(
         default=EvaluatorCatalogTemplatesResponse(), exclude=[HTTPException]
     )
@@ -483,17 +500,13 @@ class EvaluatorsRouter:
         template_key: str,
         include_archived: Optional[bool] = None,
     ) -> EvaluatorCatalogPresetsResponse:
-        entry = get_workflow_catalog_template(
-            template_key=template_key,
-            is_evaluator=True,
-        )
-        if not entry:
-            return EvaluatorCatalogPresetsResponse()
-
         presets = [
-            _registry_preset_to_catalog_preset(p, uri="")
-            for p in entry.get("presets") or []
-            if include_archived or not p["flags"]["is_archived"]
+            EvaluatorCatalogPreset(**preset)
+            for preset in get_filtered_workflow_catalog_presets(
+                template_key=template_key,
+                is_evaluator=True,
+            )
+            if include_archived or not preset["flags"]["is_archived"]
         ]
 
         return EvaluatorCatalogPresetsResponse(
@@ -511,22 +524,12 @@ class EvaluatorsRouter:
         template_key: str,
         preset_key: str,
     ) -> EvaluatorCatalogPresetResponse:
-        entry = get_workflow_catalog_template(
+        raw_preset = get_workflow_catalog_preset(
             template_key=template_key,
+            preset_key=preset_key,
             is_evaluator=True,
         )
-        if not entry:
-            return EvaluatorCatalogPresetResponse()
-
-        raw_preset = next(
-            (p for p in (entry.get("presets") or []) if p.get("key") == preset_key),
-            None,
-        )
-        preset = (
-            _registry_preset_to_catalog_preset(raw_preset, uri="")
-            if raw_preset
-            else None
-        )
+        preset = EvaluatorCatalogPreset(**raw_preset) if raw_preset else None
 
         return EvaluatorCatalogPresetResponse(
             count=1 if preset else 0,
