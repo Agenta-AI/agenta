@@ -40,6 +40,7 @@ export interface AppWorkflowRow {
 const deriveAppType = (flags: Workflow["flags"]): string => {
     if (flags?.is_custom) return "custom"
     if (flags?.is_chat) return "chat"
+    if (flags?.is_llm) return "llm"
     return "completion"
 }
 

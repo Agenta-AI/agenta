@@ -13,6 +13,7 @@ import {
     evaluatorsListDataAtom,
     evaluatorsListQueryAtom,
     humanEvaluatorsListDataAtom,
+    humanEvaluatorsListQueryAtom,
     invalidateWorkflowsListCache,
     invalidateEvaluatorsListCache,
 } from "@agenta/entities/workflow"
@@ -122,6 +123,7 @@ const NewEvaluationModalInner = ({
 
     // Workflow-based evaluator list atoms (replace legacy useEvaluators hook)
     const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
+    const humanEvaluatorsQuery = useAtomValue(humanEvaluatorsListQueryAtom)
     const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
     const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
 

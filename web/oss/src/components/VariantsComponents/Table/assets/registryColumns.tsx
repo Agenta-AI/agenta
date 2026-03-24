@@ -132,7 +132,8 @@ export function createRegistryColumns(
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="70%" />
 
-                const isGroupParent = !!record.__isVariantGroup
+                const isGroupParent =
+                    !!record.__isVariantGroup || (record.__revisionCount as number) > 1
                 const isGroupChild = !!record.__isGroupChild
 
                 // Grouped parent row — expand icon + variant details
