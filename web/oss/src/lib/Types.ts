@@ -945,6 +945,7 @@ export enum Plan {
     Pro = "cloud_v0_pro",
     Business = "cloud_v0_business",
     Enterprise = "cloud_v0_enterprise",
+    SelfHostedEnterprise = "self_hosted_enterprise",
 }
 
 export interface DeploymentRevisionConfig {
