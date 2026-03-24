@@ -627,7 +627,14 @@ async def remove_app(
             delta=-1,
         )
 
-    await adapter.delete_app(
+    # TODO move cascading archive into legacy adapter so we can just make one call in the router
+    # await adapter.delete_app(
+    #     project_id=UUID(request.state.project_id),
+    #     user_id=UUID(request.state.user_id),
+    #     app_id=UUID(app_id),
+    # )
+
+    await adapter.cascade_delete_app(
         project_id=UUID(request.state.project_id),
         user_id=UUID(request.state.user_id),
         app_id=UUID(app_id),

@@ -9,6 +9,7 @@ from sqlalchemy import (
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA
 from oss.src.dbs.postgres.git.dbas import VariantDBA, RevisionDBA, ArtifactDBA
+from sqlalchemy import text
 
 
 CASCADE_ALL_DELETE = "all, delete-orphan"
@@ -22,10 +23,14 @@ class WorkflowArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             "project_id",
             "id",
         ),
-        UniqueConstraint(
+        Index(
+            "uq_workflow_artifacts_project_id_slug_active",
             "project_id",
             "slug",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL")
         ),
+
         ForeignKeyConstraint(
             ["project_id"],
             ["projects.id"],
@@ -56,9 +61,13 @@ class WorkflowVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             "project_id",
             "id",
         ),
-        UniqueConstraint(
+
+        Index(
+            "uq_workflow_variants_project_id_slug_active",
             "project_id",
             "slug",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL")
         ),
         ForeignKeyConstraint(
             ["project_id"],
@@ -99,9 +108,13 @@ class WorkflowRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             "project_id",
             "id",
         ),
-        UniqueConstraint(
+
+        Index(
+            "uq_workflow_revisions_project_id_slug_active",
             "project_id",
             "slug",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL")
         ),
         ForeignKeyConstraint(
             ["project_id"],
