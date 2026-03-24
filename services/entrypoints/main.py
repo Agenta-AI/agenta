@@ -97,29 +97,9 @@ app.add_middleware(
 )
 
 
-# Health check endpoint — registered before mounts so the catch-all "/" mount
-# does not intercept it before auth middleware runs.
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    response = await call_next(request)
-
-    if response.status_code >= 400:
-        log.warning(
-            "[HTTP] %s %s -> %s | path=%s root_path=%s raw_path=%s",
-            request.method,
-            request.url,
-            response.status_code,
-            request.scope.get("path"),
-            request.scope.get("root_path"),
-            request.scope.get("raw_path"),
-        )
-
-    return response
 
 
 app.mount("/chat/v0", chat_v0_app)
@@ -152,25 +132,6 @@ app.mount("/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)
-
-
-@app.on_event("startup")
-async def print_routes():
-    def _walk(routes, prefix=""):
-        for route in routes:
-            methods = getattr(route, "methods", None)
-            path = prefix + route.path
-            if methods:
-                log.info("  %-8s %s", ",".join(sorted(methods)), path)
-            else:
-                log.info("  %-8s %s", "MOUNT", path or "/")
-                # sub_app = getattr(route, "app", None)
-                # sub_routes = getattr(sub_app, "routes", None)
-                # if isinstance(route, Mount) and sub_routes:
-                #     _walk(sub_routes, prefix=path)
-
-    log.info("Registered routes:")
-    _walk(app.routes)
 
 
 if __name__ == "__main__":

@@ -134,15 +134,6 @@ async def evaluate_batch_testset(
 
         nof_annotations = len(annotation_steps)
 
-        log.info(
-            "[STEPS]       ",
-            run_id=run_id,
-            invocation_step_keys=invocation_steps_keys,
-            annotation_step_keys=annotation_steps_keys,
-            annotation_origins=[step.origin for step in annotation_steps],
-            nof_annotations=nof_annotations,
-        )
-
         # extract references from run steps ------------------------------------
         input_steps = [step for step in steps if step.type == "input"]
 
@@ -493,13 +484,6 @@ async def evaluate_batch_testset(
                     step_status = EvaluationStatus.SUCCESS
 
                     if annotation_step.origin in {"human", "custom"}:
-                        log.info(
-                            "[EVAL][SKIP]  ",
-                            scenario_id=scenario.id,
-                            step_key=annotation_step_key,
-                            origin=annotation_step.origin,
-                            reason="non-auto annotation step",
-                        )
                         scenario_has_pending = True
                         run_has_pending = True
                         # Human/custom steps are not auto-invoked here.
@@ -533,24 +517,6 @@ async def evaluate_batch_testset(
                         scenario_status = EvaluationStatus.ERRORS
                         run_status = EvaluationStatus.ERRORS
                         continue
-
-                    log.info(
-                        "[EVAL][STEP]  ",
-                        scenario_id=scenario.id,
-                        step_key=annotation_step_key,
-                        origin=annotation_step.origin,
-                        evaluator_revision_id=(
-                            str(evaluator_revision.id)
-                            if getattr(evaluator_revision, "id", None)
-                            else None
-                        ),
-                        evaluator_revision_slug=evaluator_revision.slug,
-                        evaluator_uri=(
-                            evaluator_revision.data.uri
-                            if evaluator_revision.data
-                            else None
-                        ),
-                    )
 
                     _revision = evaluator_revision.model_dump(
                         mode="json",
@@ -772,16 +738,6 @@ async def evaluate_batch_testset(
                         user_id=user_id,
                         #
                         results=results_create,
-                    )
-
-                    log.info(
-                        "[EVAL][WRITE] ",
-                        scenario_id=scenario.id,
-                        step_key=annotation_step_key,
-                        created_results=len(steps),
-                        status=step_status,
-                        trace_id=trace_id,
-                        has_error=bool(error),
                     )
 
                     if len(steps) != 1:

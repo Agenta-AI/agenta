@@ -394,21 +394,6 @@ async def invoke_app(
                 ),
                 url=url,
             )
-            log.info(
-                "Application request curl",
-                scenario_id=scenario_id,
-                testcase_id=(
-                    datapoint["testcase_id"] if "testcase_id" in datapoint else None
-                ),
-                curl=_format_curl_request(
-                    url=url,
-                    headers={
-                        **headers,
-                        "Content-Type": "application/json",
-                    },
-                    json_body=request_body,
-                ),
-            )
             response = await client.post(
                 url,
                 json=request_body,
@@ -457,7 +442,6 @@ async def invoke_app(
                 ),
                 url=url,
                 status_code=e.status,
-                response_body=app_response,
             )
             error_message, stacktrace = _extract_error_details(
                 app_response,
