@@ -4,6 +4,7 @@ import {atom} from "jotai"
 
 import {BannerConfig} from "@/oss/components/SidebarBanners/types"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {urlAtom, URLState} from "@/oss/state/url"
@@ -43,8 +44,8 @@ const getPlanDisplayName = (plan: string): string => {
  * Returns subscription-based banners only when running in demo/cloud mode.
  */
 export const eeBannersAtom = atom((get): BannerConfig[] => {
-    // Only show billing banners in cloud/demo environment
-    if (!isDemo()) {
+    // Only show billing banners when billing is enabled
+    if (!isDemo() || !isBillingEnabled()) {
         return []
     }
 
