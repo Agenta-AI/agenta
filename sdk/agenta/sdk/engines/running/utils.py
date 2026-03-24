@@ -481,7 +481,7 @@ def infer_url_from_uri(uri: Optional[str]) -> Optional[str]:
         return None
     provider, kind, key, version = parse_uri(uri)
     if provider == "agenta" and kind and key and version:
-        return f"/{kind}/{key}/{version}"
+        return f"/{key}/{version}"
     return None
 
 
