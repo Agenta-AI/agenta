@@ -49,6 +49,10 @@ import {
 } from "../SchemaControls"
 import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {NumberSliderControl} from "../SchemaControls/NumberSliderControl"
+import {
+    validateConfigAgainstSchema,
+    type SchemaValidationError,
+} from "../SchemaControls/schemaValidator"
 
 import {MoleculeDrillInView} from "./MoleculeDrillInView"
 
@@ -375,6 +379,7 @@ function PlaygroundConfigSection({
     const [internalViewMode] = useState<ConfigViewMode>("form")
     const viewMode = externalViewMode ?? internalViewMode
     const [rawEditorValue, setRawEditorValue] = useState("")
+    const [validationErrors, setValidationErrors] = useState<SchemaValidationError[]>([])
 
     // Write raw edits directly to the draft, bypassing evaluator flatten transform.
     const dispatchRawUpdate = useSetAtom(workflowMolecule.actions.update)
@@ -390,6 +395,8 @@ function PlaygroundConfigSection({
                 setRawEditorValue(JSON.stringify(parameters, null, 2))
             }
         }
+        // Clear validation errors when switching modes
+        setValidationErrors([])
     }, [viewMode]) // Only sync when toggling mode
 
     const handleRawEditorChange = useCallback(
@@ -402,12 +409,21 @@ function PlaygroundConfigSection({
                         : JSON.parse(newValue)
                 if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                     dispatchRawUpdate(revisionId, {data: {parameters: parsed}})
+
+                    // Validate against parameters schema
+                    console.log("[PlaygroundConfigSection] schema for validation:", schema)
+                    const result = validateConfigAgainstSchema(
+                        parsed as Record<string, unknown>,
+                        schema as Record<string, unknown> | null,
+                    )
+                    console.log("[PlaygroundConfigSection] validation result:", result)
+                    setValidationErrors(result.errors)
                 }
             } catch {
                 // Invalid syntax — don't emit
             }
         },
-        [dispatchRawUpdate, revisionId, viewMode],
+        [dispatchRawUpdate, revisionId, viewMode, schema],
     )
 
     // ========== COLLAPSE STATE ==========
@@ -851,7 +867,12 @@ function PlaygroundConfigSection({
         <div className={clsx("flex flex-col", className)}>
             {viewMode !== "form" ? (
                 <div className="px-3 pb-3">
-                    <div className="border border-solid border-gray-200 rounded overflow-hidden">
+                    <div
+                        className={clsx(
+                            "border border-solid rounded overflow-hidden",
+                            validationErrors.length > 0 ? "border-[#ff4d4f]" : "border-gray-200",
+                        )}
+                    >
                         <SharedEditor
                             editorType="border"
                             placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
@@ -866,6 +887,20 @@ function PlaygroundConfigSection({
                             syncWithInitialValueChanges={true}
                         />
                     </div>
+                    {validationErrors.length > 0 && (
+                        <div className="mt-1.5 flex flex-col gap-0.5">
+                            {validationErrors.map((err, i) => (
+                                <div
+                                    key={`${err.path}-${i}`}
+                                    className="text-xs text-[#ff4d4f] leading-tight"
+                                >
+                                    <span className="font-mono font-medium">{err.path}</span>
+                                    {": "}
+                                    {err.message}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             ) : (
                 <MoleculeDrillInView
