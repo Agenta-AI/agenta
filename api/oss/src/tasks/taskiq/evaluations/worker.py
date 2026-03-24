@@ -1,8 +1,9 @@
-from typing import Any, Optional
-from uuid import UUID
+from typing import Any, Awaitable, Callable, Optional
+from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
+from asyncio import create_task, CancelledError
 
-from taskiq import AsyncBroker
+from taskiq import AsyncBroker, Context, TaskiqDepends
 
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.testsets.service import TestsetsService
@@ -22,6 +23,12 @@ from oss.src.core.evaluations.tasks.legacy import (
 )
 from oss.src.core.evaluations.tasks.live import (
     evaluate_live_query as evaluate_live_query_impl,
+)
+from oss.src.core.evaluations.runtime.locks import (
+    acquire_job_lock,
+    release_job_lock,
+    has_mutation_lock,
+    run_job_heartbeat,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -71,6 +78,92 @@ class EvaluationsWorker:
 
         self._register_tasks()
 
+    # -----------------------------------------------------------------------
+    # Lock / heartbeat helpers
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    async def _with_job_lock(
+        run_id: UUID,
+        *,
+        job_id: str,
+        job_type: str,
+        allow_concurrency: bool,
+        runner: Callable[[], Awaitable[Any]],
+    ) -> Any:
+        """
+        Acquire a job lock for `run_id`, start a heartbeat, run `runner`, then
+        release the lock in a finally block.
+
+        Non-queue loops share a reserved singleton lock slot so concurrent
+        executions on the same run are skipped. Queue loops use their concrete
+        Taskiq job id as the lock id and may execute concurrently.
+        """
+        run_id_str = str(run_id)
+        lock_id = job_id if allow_concurrency else "singleton"
+
+        if await has_mutation_lock(run_id=run_id_str):
+            log.error(
+                "[LOCK] Mutation lock detected before job start — task failed, re-dispatch required",
+                run_id=run_id_str,
+                job_id=job_id,
+            )
+            raise RuntimeError(
+                f"Mutation lock present for run {run_id_str}: "
+                "execution blocked. Re-dispatch the job once the mutation completes."
+            )
+
+        payload = await acquire_job_lock(
+            run_id=run_id_str,
+            job_id=job_id,
+            lock_id=lock_id,
+            job_type=job_type,  # type: ignore[arg-type]
+        )
+        if payload is None:
+            log.warning(
+                "[LOCK] Could not acquire job lock — skipping concurrent execution",
+                run_id=run_id_str,
+                job_id=job_id,
+                lock_id=lock_id,
+            )
+            return None
+
+        heartbeat = create_task(
+            run_job_heartbeat(
+                run_id=run_id_str,
+                job_id=job_id,
+                lock_id=lock_id,
+                job_token=payload.job_token,
+            )
+        )
+        try:
+            return await runner()
+        finally:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except CancelledError:
+                pass
+            except Exception as exc:
+                log.warning(
+                    "[LOCK] Heartbeat teardown failed",
+                    run_id=run_id_str,
+                    job_id=job_id,
+                    error=str(exc),
+                )
+            await release_job_lock(
+                run_id=run_id_str,
+                job_id=job_id,
+                lock_id=lock_id,
+                job_token=payload.job_token,
+            )
+            log.debug(
+                "[LOCK] Job lock released",
+                run_id=run_id_str,
+                job_id=job_id,
+                lock_id=lock_id,
+            )
+
     def _register_tasks(self):
         """Register all evaluation tasks with the broker."""
 
@@ -85,6 +178,7 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """Legacy annotation task - wraps the existing annotate function."""
             log.info(
@@ -93,21 +187,26 @@ class EvaluationsWorker:
                 user_id=str(user_id),
             )
 
-            # Call the async annotate function directly
-            result = await evaluate_batch_testset_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                #
-                tracing_service=self.tracing_service,
-                testsets_service=self.testsets_service,
-                queries_service=self.queries_service,
-                workflows_service=self.workflows_service,
-                applications_service=self.applications_service,
-                evaluations_service=self.evaluations_service,
-                #
-                simple_evaluators_service=self.simple_evaluators_service,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_batch_testset_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    #
+                    tracing_service=self.tracing_service,
+                    testsets_service=self.testsets_service,
+                    queries_service=self.queries_service,
+                    workflows_service=self.workflows_service,
+                    applications_service=self.applications_service,
+                    evaluations_service=self.evaluations_service,
+                    #
+                    simple_evaluators_service=self.simple_evaluators_service,
+                ),
             )
             log.info("[TASK] Completed evaluate_batch_testset")
             return result
@@ -125,6 +224,7 @@ class EvaluationsWorker:
             #
             newest: Optional[datetime] = None,
             oldest: Optional[datetime] = None,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """Live evaluation task - evaluates traces against evaluators."""
             log.info("[TASK] Starting evaluate_live_query")
@@ -134,15 +234,20 @@ class EvaluationsWorker:
             if oldest is None:
                 oldest = newest - timedelta(minutes=1)
 
-            # Call the async evaluate function directly
-            result = await evaluate_live_query_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                #
-                newest=newest,
-                oldest=oldest,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_live_query_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    #
+                    newest=newest,
+                    oldest=oldest,
+                ),
             )
             log.info("[TASK] Completed evaluate_live_query")
             return result
@@ -158,20 +263,27 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             """One-shot query evaluation task for non-live runs."""
             log.info("[TASK] Starting evaluate_batch_query")
 
-            result = await evaluate_live_query_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                #
-                newest=None,
-                oldest=None,
-                #
-                use_windowing=True,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_live_query_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    #
+                    newest=None,
+                    oldest=None,
+                    #
+                    use_windowing=True,
+                ),
             )
             log.info("[TASK] Completed evaluate_batch_query")
             return result
@@ -187,17 +299,24 @@ class EvaluationsWorker:
             user_id: UUID,
             #
             run_id: UUID,
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_invocation")
-            result = await evaluate_batch_invocation_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                #
-                testsets_service=self.testsets_service,
-                applications_service=self.applications_service,
-                evaluations_service=self.evaluations_service,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=False,
+                runner=lambda: evaluate_batch_invocation_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    #
+                    testsets_service=self.testsets_service,
+                    applications_service=self.applications_service,
+                    evaluations_service=self.evaluations_service,
+                ),
             )
             log.info("[TASK] Completed evaluate_batch_invocation")
             return result
@@ -214,18 +333,25 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             trace_ids: list[str],
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_traces")
-            result = await evaluate_batch_traces_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                trace_ids=trace_ids,
-                #
-                tracing_service=self.tracing_service,
-                workflows_service=self.workflows_service,
-                evaluations_service=self.evaluations_service,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: evaluate_batch_traces_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    trace_ids=trace_ids,
+                    #
+                    tracing_service=self.tracing_service,
+                    workflows_service=self.workflows_service,
+                    evaluations_service=self.evaluations_service,
+                ),
             )
             log.info("[TASK] Completed evaluate_batch_traces")
             return result
@@ -242,18 +368,25 @@ class EvaluationsWorker:
             #
             run_id: UUID,
             testcase_ids: list[UUID],
+            context: Context = TaskiqDepends(),
         ) -> Any:
             log.info("[TASK] Starting evaluate_batch_testcases")
-            result = await evaluate_batch_testcases_impl(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                run_id=run_id,
-                testcase_ids=testcase_ids,
-                #
-                testcases_service=self.testcases_service,
-                workflows_service=self.workflows_service,
-                evaluations_service=self.evaluations_service,
+            result = await self._with_job_lock(
+                run_id,
+                job_id=context.message.task_id or str(uuid4()),
+                job_type="api",
+                allow_concurrency=True,
+                runner=lambda: evaluate_batch_testcases_impl(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    run_id=run_id,
+                    testcase_ids=testcase_ids,
+                    #
+                    testcases_service=self.testcases_service,
+                    workflows_service=self.workflows_service,
+                    evaluations_service=self.evaluations_service,
+                ),
             )
             log.info("[TASK] Completed evaluate_batch_testcases")
             return result

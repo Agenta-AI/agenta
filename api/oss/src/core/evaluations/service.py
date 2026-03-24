@@ -238,6 +238,40 @@ class EvaluationsService:
 
         return ext_runs
 
+    # - RUNTIME OBSERVABILITY --------------------------------------------------
+
+    async def is_run_executing(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if any active job locks exist for this run.
+
+        Checks Redis for eval:run:{run_id}:job:*:lock keys.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            is_run_executing as _is_run_executing,
+        )
+
+        return await _is_run_executing(run_id=str(run_id))
+
+    async def has_run_mutation_lock(
+        self,
+        *,
+        run_id: UUID,
+    ) -> bool:
+        """
+        Return True if a mutation lock exists for this run.
+
+        Checks Redis for eval:run:{run_id}:lock.
+        """
+        from oss.src.core.evaluations.runtime.locks import (
+            has_mutation_lock as _has_mutation_lock,
+        )
+
+        return await _has_mutation_lock(run_id=str(run_id))
+
     async def create_run(
         self,
         *,
