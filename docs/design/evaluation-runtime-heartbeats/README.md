@@ -321,6 +321,8 @@ Suggested endpoints:
 - `POST /preview/simple/evaluations/{run_id}/heartbeat`
 - `DELETE /preview/simple/evaluations/{run_id}/heartbeat`
 
+Note: `{run_id}` here is the evaluation run id (`run.id`). In `SimpleEvaluationsService` this is also referred to as `evaluation_id`.
+
 Behavior:
 
 - `POST` acquires or renews `eval:run:{run_id}:job:{job_id}:lock` with `job_type = "sdk"`
@@ -629,7 +631,7 @@ Edits should not mutate a run blindly just because `flags.is_active` is false or
 Recommended gating:
 
 - mutation must first acquire `eval:run:{run_id}:lock`
-- if any `eval:run:{run_id}:job:*:lock` exists for the run, treat the run as executing now
+- if any `eval:run:{run_id}:job:*:lock` exists for the run, treat the run as executing now (enumerate with Redis `SCAN` / `scan_iter` — never `KEYS` — to avoid blocking Redis under load)
 - for batch testset and batch query, block mutation or convert it to stop-and-restart
 - for live runs, allow plan mutation for future dispatches even while the run remains logically active
 - for queue runs, allow mutation if the semantics are "applies to future batches" or if the system can safely backfill all existing scenarios

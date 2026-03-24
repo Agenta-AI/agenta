@@ -103,12 +103,15 @@ class EvaluationsWorker:
         lock_id = job_id if allow_concurrency else "singleton"
 
         if await has_mutation_lock(run_id=run_id_str):
-            log.warning(
-                "[LOCK] Mutation lock detected before job start — skipping execution",
+            log.error(
+                "[LOCK] Mutation lock detected before job start — task failed, re-dispatch required",
                 run_id=run_id_str,
                 job_id=job_id,
             )
-            return None
+            raise RuntimeError(
+                f"Mutation lock present for run {run_id_str}: "
+                "execution blocked. Re-dispatch the job once the mutation completes."
+            )
 
         payload = await acquire_job_lock(
             run_id=run_id_str,

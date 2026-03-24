@@ -32,7 +32,7 @@ This plan turns the design in [README.md](./README.md) into a concrete implement
 - acquire job lock
 - renew lock with compare-and-renew semantics
 - release lock with compare-and-delete semantics
-- list active job locks for a run
+- list active job locks for a run (must use Redis `SCAN` / `scan_iter` — never `KEYS` — to avoid blocking Redis under load)
 - check whether a mutation lock exists
 
 **Payloads:**
