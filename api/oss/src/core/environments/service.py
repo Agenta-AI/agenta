@@ -769,6 +769,8 @@ class EnvironmentsService:
         environment_variant_refs: Optional[List[Reference]] = None,
         environment_revision_refs: Optional[List[Reference]] = None,
         #
+        application_refs: Optional[List[Reference]] = None,
+        #
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
@@ -791,6 +793,8 @@ class EnvironmentsService:
             artifact_refs=environment_refs,
             variant_refs=environment_variant_refs,
             revision_refs=environment_revision_refs,
+            #
+            application_refs=application_refs,
             #
             include_archived=include_archived,
             #

@@ -897,6 +897,7 @@ async def evaluate_batch_testset(
         meta=run.meta,
         #
         status=run_status,
+        flags=run.flags,
         #
         data=run.data,
     )
@@ -1261,6 +1262,7 @@ async def evaluate_batch_invocation(
             tags=run.tags,
             meta=run.meta,
             status=run_status,
+            flags=run.flags,
             data=run.data,
         ),
     )
@@ -1744,6 +1746,7 @@ async def _evaluate_batch_items(
             tags=run.tags,
             meta=run.meta,
             status=run_status,
+            flags=run.flags,
             data=run.data,
         ),
     )

@@ -78,6 +78,12 @@ export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
 export {SyncStateTag, type SyncState, type SyncStateTagProps} from "./SyncStateTag"
 
 // ============================================================================
+// LAYOUT COMPONENTS
+// ============================================================================
+
+export {default as PageLayout, type PageLayoutProps} from "./PageLayout"
+
+// ============================================================================
 // SCROLL COMPONENTS
 // ============================================================================
 

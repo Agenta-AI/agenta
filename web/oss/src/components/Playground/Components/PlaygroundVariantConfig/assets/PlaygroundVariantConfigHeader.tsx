@@ -1,9 +1,13 @@
 import {useCallback, useMemo} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
+import {
+    createWorkflowRevisionAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+} from "@agenta/entity-ui/selection"
+import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {DraftTag} from "@agenta/ui/components"
@@ -12,11 +16,8 @@ import {Button, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 
-import {discardEntityDraft} from "../../../assets/entityHelpers"
-import {useEvaluatorBrowseAdapter} from "../../../hooks/useEvaluatorBrowseAdapter"
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -35,6 +36,10 @@ const PlaygroundVariantConfigHeader = ({
     embedded,
     variantNameOverride,
     revisionOverride,
+    evaluatorLabel,
+    hasPresets,
+    onLoadPreset,
+    extraActions,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps & {embedded?: boolean}) => {
     const classes = useStyles()
@@ -44,15 +49,32 @@ const PlaygroundVariantConfigHeader = ({
     const appId = useAtomValue(routerAppIdAtom)
     const isProjectScoped = !appId
 
-    // Custom browse adapter with colored evaluator tags and human evaluator filtering
-    const evaluatorBrowseAdapter = useEvaluatorBrowseAdapter()
+    // Determine entity type from flags to pick the right browse adapter
+    const entityData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isEvaluatorEntity = Boolean(
+        (entityData as {flags?: {is_evaluator?: boolean} | null} | null)?.flags?.is_evaluator,
+    )
+
+    // Browse adapters: evaluator-only or app-only (non-evaluator, non-human)
+    const evaluatorOnlyAdapter = useEnrichedEvaluatorOnlyAdapter()
+    const appOnlyAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                skipVariantLevel: true,
+                excludeRevisionZero: true,
+                flags: {is_evaluator: false, is_human: false},
+            }),
+        [],
+    )
+
+    // Select the appropriate browse adapter based on entity type
+    const browseAdapter = isEvaluatorEntity ? evaluatorOnlyAdapter : appOnlyAdapter
 
     // Check if this is a local draft (browser-only clone)
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
-    // Use runnableBridge for entity-type-aware data access
-    const runnableData = useAtomValue(runnableBridge.data(variantId || ""))
-    const isDirty = useAtomValue(runnableBridge.isDirty(variantId || ""))
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
+    const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
 
     // Deployment info: look up which environments this revision is deployed to
     // Local drafts have no deployments
@@ -108,14 +130,14 @@ const PlaygroundVariantConfigHeader = ({
     const handleDiscardLocalDraft = useCallback(() => {
         if (!variantId || !isLocalDraftVariant) return
         removeEntity(variantId)
-        discardEntityDraft(variantId)
+        workflowMolecule.set.discard(variantId)
     }, [variantId, isLocalDraftVariant, removeEntity])
 
     // Discard handler for regular revisions (shown in DraftTag dropdown)
     const handleRevisionDiscardDraft = useCallback(() => {
         if (!_variantId) return
         try {
-            discardEntityDraft(_variantId as string)
+            workflowMolecule.set.discard(_variantId as string)
             message.success("Draft changes discarded")
         } catch (e) {
             message.error("Failed to discard draft changes")
@@ -125,14 +147,14 @@ const PlaygroundVariantConfigHeader = ({
 
     return (
         <section
-            className={`w-full h-[48px] flex items-center justify-between ${embedded ? "" : "sticky top-0 z-[10]"} ${classes.container} ${className ?? ""}`}
+            className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} ${classes.container} ${className ?? ""}`}
             {...divProps}
         >
-            <div className="flex items-center gap-2 grow">
+            <div className="flex items-center gap-2 grow min-w-0 overflow-hidden">
                 {!embedded && !isLocalDraftVariant && (
                     <SelectVariant
                         mode={isProjectScoped ? "browse" : "scoped"}
-                        customBrowseAdapter={isProjectScoped ? evaluatorBrowseAdapter : undefined}
+                        customBrowseAdapter={isProjectScoped ? browseAdapter : undefined}
                         onChange={(value) => handleSwitchVariant?.(value)}
                         value={_variantId ?? undefined}
                     />
@@ -178,44 +200,53 @@ const PlaygroundVariantConfigHeader = ({
                         )}
                     </>
                 )}
+                {evaluatorLabel && !embedded && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                        {evaluatorLabel}
+                    </span>
+                )}
             </div>
-            {!embedded && (
-                <div className="flex items-center gap-2">
-                    {isLocalDraftVariant ? (
-                        <>
-                            <CommitVariantChangesButton
-                                variantId={variantId}
-                                label="Commit"
-                                type="primary"
+            <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
+                {extraActions}
+                {hasPresets && onLoadPreset && (
+                    <Button size="small" onClick={onLoadPreset}>
+                        Load Preset
+                    </Button>
+                )}
+                {isLocalDraftVariant ? (
+                    <>
+                        <CommitVariantChangesButton
+                            variantId={variantId}
+                            label="Commit"
+                            type="primary"
+                            size="small"
+                        />
+                        <Tooltip title="Discard draft">
+                            <Button
+                                type="text"
                                 size="small"
+                                danger
+                                icon={<Trash size={16} />}
+                                onClick={handleDiscardLocalDraft}
                             />
-                            <Tooltip title="Discard draft">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<Trash size={16} />}
-                                    onClick={handleDiscardLocalDraft}
-                                />
-                            </Tooltip>
-                        </>
-                    ) : (
-                        <>
-                            <DeployVariantButton revisionId={variantId} />
+                        </Tooltip>
+                    </>
+                ) : (
+                    <>
+                        {!embedded && <DeployVariantButton revisionId={variantId} />}
 
-                            <CommitVariantChangesButton
-                                variantId={variantId}
-                                label="Commit"
-                                type="primary"
-                                size="small"
-                                data-tour="commit-button"
-                            />
+                        <CommitVariantChangesButton
+                            variantId={variantId}
+                            label="Commit"
+                            type="primary"
+                            size="small"
+                            data-tour="commit-button"
+                        />
 
-                            <PlaygroundVariantHeaderMenu variantId={variantId} />
-                        </>
-                    )}
-                </div>
-            )}
+                        {!embedded && <PlaygroundVariantHeaderMenu variantId={variantId} />}
+                    </>
+                )}
+            </div>
         </section>
     )
 }

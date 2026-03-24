@@ -9,6 +9,7 @@ import {
     type ReactNode,
 } from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {CloudServerOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, CodeIcon, ListChecksIcon} from "@phosphor-icons/react"
 import type {TabsProps} from "antd"
@@ -26,7 +27,6 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {ConcreteEvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
-import PageLayout from "../../PageLayout/PageLayout"
 
 type EvaluationScope = "app" | "project"
 type AppTabKey = EvaluationRunKind

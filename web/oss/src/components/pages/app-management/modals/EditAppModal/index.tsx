@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
 import {CheckOutlined} from "@ant-design/icons"
 import {Input, Modal, Typography} from "antd"
 import clsx from "clsx"
@@ -8,8 +9,8 @@ import {createUseStyles} from "react-jss"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
-import {updateAppName} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
+import {getProjectValues} from "@/oss/state/project"
 
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
@@ -26,25 +27,32 @@ const EditAppModal = () => {
     const closeModal = useSetAtom(closeEditAppModalAtom)
     const classes = useStyles()
     const {apps, isLoading, mutate} = useAppsData()
-    const [appNameInput, setAppNameInput] = useState(appDetails?.app_name || "")
+    const [appNameInput, setAppNameInput] = useState(appDetails?.name || "")
 
     useEffect(() => {
-        setAppNameInput(appDetails?.app_name)
+        setAppNameInput(appDetails?.name)
     }, [appDetails])
 
     const appNameExist = useMemo(
         () =>
             apps.some(
                 (app: GenericObject) =>
-                    app.app_name.toLowerCase() === appNameInput?.toLowerCase() &&
-                    app.app_name.toLowerCase() !== appDetails?.app_name.toLowerCase(),
+                    ((app?.name ?? app?.slug) || "").toLowerCase() ===
+                        appNameInput?.toLowerCase() &&
+                    ((app?.name ?? app?.slug) || "").toLowerCase() !==
+                        appDetails?.name.toLowerCase(),
             ),
-        [apps, appNameInput, appDetails?.app_name],
+        [apps, appNameInput, appDetails?.name],
     )
 
     const handleEditAppName = useCallback(async () => {
         try {
-            await updateAppName(appDetails?.app_id, appNameInput)
+            const {projectId} = getProjectValues()
+            await updateWorkflow(projectId, {
+                id: appDetails?.id,
+                name: appNameInput,
+            })
+            invalidateWorkflowsListCache()
             await mutate()
             closeModal()
         } catch (error) {

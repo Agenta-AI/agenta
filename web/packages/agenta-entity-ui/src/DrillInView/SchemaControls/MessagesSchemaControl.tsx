@@ -48,9 +48,10 @@ export interface MessagesSchemaControlProps {
 export function isMessagesSchema(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
-    // Check for x-parameter: "messages"
+    // Check for x-parameter: "messages" (legacy) or x-ag-messages: true (canonical)
     const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "messages") return true
+    if ((schema as Record<string, unknown>)["x-ag-messages"] === true) return true
 
     // Check for array with message-like items
     if (schema.type === "array" && schema.items) {

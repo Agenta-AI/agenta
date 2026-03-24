@@ -16,6 +16,7 @@ from ee.src.core.subscriptions.types import (
     FREE_PLAN,
     REVERSE_TRIAL_PLAN,
     REVERSE_TRIAL_DAYS,
+    get_default_plan,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
 from ee.src.core.entitlements.service import EntitlementsService
@@ -79,6 +80,9 @@ class SubscriptionsService:
         organization_name: str,
         organization_email: str,
     ) -> Optional[SubscriptionDTO]:
+        if not env.stripe.enabled:
+            raise EventException("Reverse trial requires Stripe to be enabled")
+
         now = datetime.now(tz=timezone.utc)
         anchor = now + timedelta(days=REVERSE_TRIAL_DAYS)
 
@@ -97,10 +101,6 @@ class SubscriptionsService:
         )
 
         if not subscription:
-            return None
-
-        if not env.stripe.enabled:
-            log.warn("✗ Stripe disabled")
             return None
 
         customer = stripe.Customer.create(
@@ -150,15 +150,17 @@ class SubscriptionsService:
 
         return subscription
 
-    async def start_free_plan(
+    async def start_plan(
         self,
         *,
         organization_id: str,
+        plan: Plan,
     ) -> Optional[SubscriptionDTO]:
-        """Start a free/hobby plan for an organization without trial.
+        """Start a specific plan for an organization.
 
         Args:
             organization_id: The organization ID
+            plan: The plan to assign
 
         Returns:
             SubscriptionDTO: The created subscription or None if already exists
@@ -173,15 +175,39 @@ class SubscriptionsService:
         subscription = await self.create(
             subscription=SubscriptionDTO(
                 organization_id=organization_id,
-                plan=FREE_PLAN,
+                plan=plan,
                 active=True,
                 anchor=now.day,
             )
         )
 
-        log.info("✓ Free plan started for organization %s", organization_id)
+        log.info("✓ Plan [%s] started for organization %s", plan.value, organization_id)
 
         return subscription
+
+    async def provision_signup_subscription(
+        self,
+        *,
+        organization_id: str,
+        organization_name: str,
+        organization_email: str,
+    ) -> Optional[SubscriptionDTO]:
+        """Provision the initial subscription for a newly signed-up organization.
+
+        Cloud signups use the reverse-trial flow. Self-hosted deployments start
+        directly on the configured default plan.
+        """
+        if env.stripe.enabled:
+            return await self.start_reverse_trial(
+                organization_id=organization_id,
+                organization_name=organization_name,
+                organization_email=organization_email,
+            )
+
+        return await self.start_plan(
+            organization_id=organization_id,
+            plan=get_default_plan(),
+        )
 
     async def process_event(
         self,

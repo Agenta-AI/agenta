@@ -136,7 +136,18 @@ export {
     type RunnableEntity,
     type LoadableEntity,
     type RunnableLoadableEntity,
+    // Entity meta capability
+    type EntityMetaFieldMap,
+    type EntityMetaAtoms,
+    type EntityMetaGetters,
+    type EntityMetaCapability,
+    type MetaEntity,
+    type RunnableMetaEntity,
+    type LoadableMetaEntity,
 } from "./types"
+
+// Entity meta capability mixin
+export {withEntityMeta} from "./withEntityMeta"
 
 // Re-export bridge types for public API (RunnablePort, LoadableRow, LoadableColumn)
 // These are the canonical definitions used by capability interfaces

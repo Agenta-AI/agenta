@@ -42,7 +42,7 @@ const useEvaluatorNavigation = () => {
             }
 
             return {
-                href: `${projectURL}/evaluators/configure/${encodeURIComponent(identifier)}`,
+                href: `${projectURL}/evaluators/playground?revisions=${encodeURIComponent(identifier)}`,
                 type: "auto",
             }
         },

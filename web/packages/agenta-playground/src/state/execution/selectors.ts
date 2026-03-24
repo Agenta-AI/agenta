@@ -8,8 +8,9 @@
  */
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
-import {loadableController, runnableBridge, type RunnablePort} from "@agenta/entities/runnable"
+import {loadableController, type RunnablePort} from "@agenta/entities/runnable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, type Getter} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
@@ -793,8 +794,7 @@ export const inputVariableNamesAtom = atom<string[]>((get) => {
     const seen = new Set<string>()
     const names: string[] = []
     for (const node of nodes) {
-        const scoped = runnableBridge.forType(node.entityType)
-        const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
+        const ports = get(workflowMolecule.selectors.inputPorts(node.entityId)) as RunnablePort[]
         for (const port of ports || []) {
             if (port.key && !seen.has(port.key)) {
                 seen.add(port.key)
@@ -817,8 +817,9 @@ export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?
         const nodes = get(playgroundNodesAtom).filter((n) => n.depth === 0)
         const map: Record<string, {type: string; schema?: unknown}> = {}
         for (const node of nodes) {
-            const scoped = runnableBridge.forType(node.entityType)
-            const ports = get(scoped.inputPorts(node.entityId)) as RunnablePort[]
+            const ports = get(
+                workflowMolecule.selectors.inputPorts(node.entityId),
+            ) as RunnablePort[]
             for (const port of ports || []) {
                 if (port.key && !(port.key in map)) {
                     map[port.key] = {type: port.type, schema: port.schema}
@@ -844,15 +845,14 @@ export const inputPortSchemaMapAtom = atom<Record<string, {type: string; schema?
 /**
  * App-level chat mode detection.
  *
- * Derives from the primary node's entity ID via `runnableBridge.executionMode`.
+ * Derives from the primary node's entity ID via `workflowMolecule.selectors.executionMode`.
  * Returns `true` for chat apps, `false` for completion apps, `undefined` while loading.
  *
  */
 export const isChatModeAtom = atom<boolean | undefined>((get) => {
     const rootNode = get(playgroundNodesAtom).find((n) => n.depth === 0)
     if (!rootNode) return undefined
-    const scoped = runnableBridge.forType(rootNode.entityType)
-    const mode = get(scoped.executionMode(rootNode.entityId))
+    const mode = get(workflowMolecule.selectors.executionMode(rootNode.entityId))
     return mode === "chat"
 })
 

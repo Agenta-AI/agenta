@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
@@ -75,6 +76,20 @@ async def services_inspect(req: Request, request: WorkflowInspectRequest):
 # ---------------------------------------------------------------------------
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://0.0.0.0:3000",
+        "http://0.0.0.0:3001",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # Health check endpoint — registered before mounts so the catch-all "/" mount

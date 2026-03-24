@@ -41,6 +41,13 @@ const buildQueryFromUrl = (url: URL): ParsedUrlQuery => {
     return query
 }
 
+/**
+ * Check if a URL path contains unresolved Next.js dynamic route parameters
+ * (e.g. "/w/[workspace_id]/p/[project_id]/annotations").
+ * These appear when Router.asPath hasn't hydrated yet.
+ */
+const containsRouteTemplate = (path: string): boolean => /\[[\w]+\]/.test(path)
+
 const syncAppLocation = (store: Store, nextUrl?: string) => {
     if (!isBrowser) return
     try {
@@ -54,6 +61,11 @@ const syncAppLocation = (store: Store, nextUrl?: string) => {
             asPath = `${url.pathname}${url.search}${url.hash}`
             query = buildQueryFromUrl(url)
         }
+
+        // Skip sync when asPath still contains Next.js template parameters
+        // (e.g. "[project_id]"). This happens before hydration completes
+        // and would overwrite the correct IDs set during eager initialization.
+        if (containsRouteTemplate(asPath)) return
 
         const parsed = parseRouterState({pathname, asPath, query})
         const signature = `${parsed.pathname}|${parsed.asPath}`

@@ -1,16 +1,17 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Button, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 import {useSWRConfig} from "swr"
 
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"
@@ -39,10 +40,7 @@ const AnnotateDrawerTitle = ({
     const [isSaving, setIsSaving] = useState(false)
     const queryClient = useQueryClient()
     const {mutate: mutateCache} = useSWRConfig()
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {

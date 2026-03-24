@@ -72,13 +72,24 @@ def query_run_references(
 
 def _make_run_flags(
     run: Optional[Union[EvaluationRun, EvaluationRunEdit]] = None,
+    *,
+    base_flags: Optional[EvaluationRunFlags] = None,
 ) -> Optional[EvaluationRunFlags]:
-    flags = EvaluationRunFlags()
+    if not run:
+        return base_flags.model_copy(deep=True) if base_flags else EvaluationRunFlags()
 
-    if not run or not run.data or not run.data.steps:
+    flags = base_flags.model_copy(deep=True) if base_flags else EvaluationRunFlags()
+
+    if run.flags:
+        explicit_updates = {
+            field_name: getattr(run.flags, field_name)
+            for field_name in run.flags.model_fields_set
+        }
+        if explicit_updates:
+            flags = flags.model_copy(update=explicit_updates)
+
+    if not run.data or not run.data.steps:
         return flags
-
-    flags = run.flags or EvaluationRunFlags()
 
     flags.has_queries = False
     flags.has_testsets = False
@@ -131,5 +142,7 @@ def create_run_flags(
 
 def edit_run_flags(
     run: Optional[EvaluationRunEdit] = None,
+    *,
+    base_flags: Optional[EvaluationRunFlags] = None,
 ) -> Optional[EvaluationRunFlags]:
-    return _make_run_flags(run)
+    return _make_run_flags(run, base_flags=base_flags)

@@ -5,6 +5,11 @@
 - If you make changes to the API or SDK, make sure to run `ruff format` and `ruff check --fix` within the SDK or API folder (run from the repo root: `ruff format` then `ruff check`; fix all errors before committing)
 - If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
+## Environment Config Conventions
+- For API configuration, add new environment variables to `api/oss/src/utils/env.py` and consume them via the shared `env` object.
+- Avoid calling `os.getenv(...)` directly in feature code when the value is part of application config.
+- Avoid local imports inside helper functions for configuration lookup; prefer module-level imports unless there is a proven circular dependency.
+
 
 ## Testing Instructions
 

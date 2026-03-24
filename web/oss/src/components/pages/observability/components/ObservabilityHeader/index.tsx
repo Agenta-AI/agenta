@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
-import {ArrowsClockwiseIcon, DatabaseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
+import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -10,6 +10,7 @@ import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {SortResult} from "@/oss/components/Filters/Sort"
+import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
 import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {downloadCsv} from "@/oss/lib/helpers/fileManipulations"
@@ -142,6 +143,17 @@ const ObservabilityHeader = ({
     const filterColumns = useMemo(
         () => getFilterColumns(attributeKeyOptions),
         [attributeKeyOptions],
+    )
+    const selectedTraceIds = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    selectedRowKeys
+                        .map((key) => getNodeById(traces, String(key))?.trace_id || "")
+                        .filter((traceId): traceId is string => Boolean(traceId)),
+                ),
+            ),
+        [traces, selectedRowKeys],
     )
 
     useEffect(() => {
@@ -281,8 +293,8 @@ const ObservabilityHeader = ({
             if (!traces.length) return
 
             const {currentApp} = getAppValues()
-            const appId = currentApp?.app_id || ""
-            const filename = `${currentApp?.app_name || ""}_observability.csv`
+            const appId = currentApp?.id || ""
+            const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
 
             const {
                 params,
@@ -400,6 +412,10 @@ const ObservabilityHeader = ({
         })
     }, [traces, selectedRowKeys, setDeleteModalState, setSelectedRowKeys, handleRefresh])
 
+    const handleQueueItemsAdded = useCallback(() => {
+        setSelectedRowKeys([])
+    }, [setSelectedRowKeys])
+
     return (
         <>
             <section
@@ -467,13 +483,21 @@ const ObservabilityHeader = ({
                                     </Radio.Group>
                                 </Space>
 
-                                <EnhancedButton
-                                    aria-label="Add selected traces to testset"
-                                    onClick={() => getTestsetTraceData()}
-                                    icon={<DatabaseIcon size={14} />}
-                                    disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to testset"}}
-                                    data-tour="create-testset-button"
+                                <AddActionsDropdown
+                                    size="small"
+                                    dataTour="create-testset-button"
+                                    testsetAction={{
+                                        onSelect: getTestsetTraceData,
+                                        disabled:
+                                            traces.length === 0 || selectedRowKeys.length === 0,
+                                    }}
+                                    queueAction={{
+                                        itemType: "traces",
+                                        itemIds: selectedTraceIds,
+                                        disabled:
+                                            traces.length === 0 || selectedTraceIds.length === 0,
+                                        onItemsAdded: handleQueueItemsAdded,
+                                    }}
                                 />
                             </>
                         ) : null}
@@ -541,14 +565,19 @@ const ObservabilityHeader = ({
                             >
                                 Delete
                             </Button>
-                            <Button
-                                onClick={() => getTestsetTraceData()}
-                                icon={<DatabaseIcon size={14} />}
-                                disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                data-tour="create-testset-button"
-                            >
-                                Add to testset
-                            </Button>
+                            <AddActionsDropdown
+                                dataTour="create-testset-button"
+                                testsetAction={{
+                                    onSelect: getTestsetTraceData,
+                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
+                                }}
+                                queueAction={{
+                                    itemType: "traces",
+                                    itemIds: selectedTraceIds,
+                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                                    onItemsAdded: handleQueueItemsAdded,
+                                }}
+                            />
                         </Space>
                     </div>
                 ) : null}

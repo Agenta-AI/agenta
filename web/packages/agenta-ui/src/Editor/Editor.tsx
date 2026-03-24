@@ -12,7 +12,7 @@ import {
 
 import {createLogger} from "@agenta/shared/utils"
 import {$createCodeNode, $isCodeNode} from "@lexical/code"
-import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
+import {$convertFromMarkdownString} from "@lexical/markdown"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {LexicalExtensionComposer} from "@lexical/react/LexicalExtensionComposer"
 import {mergeRegister} from "@lexical/utils"
@@ -55,7 +55,10 @@ import {ValidationExtension} from "./plugins/code/extensions/validationReact"
 import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 import {$getEditorCodeAsString} from "./plugins/code/utils/editorCodeUtils"
 import {$getLineCount} from "./plugins/code/utils/segmentUtils"
-import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
+import {
+    $convertToMarkdownStringCustom,
+    PLAYGROUND_TRANSFORMERS,
+} from "./plugins/markdown/assets/transformers"
 import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 import {stripBackslashEscapes} from "./plugins/markdown/utils/textCleanup"
 import {
@@ -108,7 +111,7 @@ function $getRichTextAsMarkdownString(): string {
         return firstChild.getTextContent()
     }
 
-    return $convertToMarkdownStringCustom(TRANSFORMERS, undefined, true)
+    return $convertToMarkdownStringCustom(PLAYGROUND_TRANSFORMERS, undefined, true)
 }
 
 // Re-export the useLexicalComposerContext hook for easier access
@@ -477,7 +480,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             } else {
                                 $convertFromMarkdownString(
                                     hydrateWithRemoteContent,
-                                    TRANSFORMERS,
+                                    PLAYGROUND_TRANSFORMERS,
                                     undefined,
                                     true,
                                 )

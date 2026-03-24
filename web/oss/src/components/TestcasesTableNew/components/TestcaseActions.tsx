@@ -1,5 +1,12 @@
 import {PlusOutlined, UploadOutlined} from "@ant-design/icons"
+import {ListChecks} from "@phosphor-icons/react"
 import {Button, Space, Tooltip} from "antd"
+import dynamic from "next/dynamic"
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
 
 /**
  * Props for TestcaseActions component
@@ -14,6 +21,10 @@ export interface TestcaseActionsProps {
     onImportCSV: () => void
     /** Whether this is a new testset (disables discard since there's no server state) */
     isNewTestset?: boolean
+    /** Selected row keys (testcase IDs) for bulk actions */
+    selectedRowKeys?: React.Key[]
+    /** All persisted testcase IDs in the current revision (excludes unsaved new rows) */
+    allTestcaseIds?: string[]
 }
 
 /**
@@ -39,7 +50,13 @@ export function TestcaseActions(props: TestcaseActionsProps) {
         onCommit,
         onImportCSV,
         isNewTestset = false,
+        selectedRowKeys = [],
+        allTestcaseIds = [],
     } = props
+
+    const selectedIds = selectedRowKeys.map(String).filter((id) => !id.startsWith("new-"))
+    const effectiveQueueIds = selectedIds.length > 0 ? selectedIds : allTestcaseIds
+    const isQueueActionDisabled = effectiveQueueIds.length === 0 || mode === "view"
 
     return (
         <Space>
@@ -58,8 +75,17 @@ export function TestcaseActions(props: TestcaseActionsProps) {
                 </Button>
             </Tooltip>
             <Button onClick={onAddTestcase} icon={<PlusOutlined />} disabled={mode === "view"}>
-                Row
+                Add row
             </Button>
+            <AddToQueuePopover
+                itemType="testcases"
+                itemIds={effectiveQueueIds}
+                disabled={isQueueActionDisabled}
+            >
+                <Button icon={<ListChecks size={14} />} disabled={isQueueActionDisabled}>
+                    Add annotation queue
+                </Button>
+            </AddToQueuePopover>
             <Button
                 type="primary"
                 onClick={onCommit}

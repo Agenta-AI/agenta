@@ -1,19 +1,27 @@
 /**
  * UserAuthorLabel Component
  *
- * A component for displaying author information with user ID resolution.
- * Uses the shared user atoms to resolve user IDs to display names.
+ * A component for displaying author information with optional user ID resolution.
+ * Supports two modes:
+ * - **ID mode**: Pass `userId` to resolve display name from workspace members
+ * - **Name mode**: Pass `name` directly for display without resolution
  *
  * @example
  * ```tsx
  * import {UserAuthorLabel} from '@agenta/entities/shared'
  *
+ * // Resolve from user ID
  * <UserAuthorLabel userId={authorId} />
- * <UserAuthorLabel userId={authorId} showYouLabel />
+ * <UserAuthorLabel userId={authorId} showYouLabel showAvatar />
+ *
+ * // Display name directly
+ * <UserAuthorLabel name="John Doe" showAvatar />
  * ```
  */
 
 import React from "react"
+
+import {InitialsAvatar} from "@agenta/ui"
 
 import {useUserDisplayName, useIsCurrentUser} from "./atoms"
 
@@ -23,9 +31,16 @@ import {useUserDisplayName, useIsCurrentUser} from "./atoms"
 
 export interface UserAuthorLabelProps {
     /**
-     * User ID to resolve and display
+     * User ID to resolve and display.
+     * When provided, the component resolves the display name from workspace members.
      */
-    userId: string | null | undefined
+    userId?: string | null | undefined
+
+    /**
+     * Display name to show directly (no resolution needed).
+     * Used as fallback when `userId` is also provided but cannot be resolved.
+     */
+    name?: string | null
 
     /**
      * Prefix text (e.g., "by")
@@ -35,18 +50,24 @@ export interface UserAuthorLabelProps {
 
     /**
      * Show prefix
-     * @default true
+     * @default false
      */
     showPrefix?: boolean
 
     /**
      * Show "(you)" label for current user
-     * @default true
+     * @default false
      */
     showYouLabel?: boolean
 
     /**
-     * Fallback text when user not found
+     * Show a colored initials avatar badge before the name
+     * @default false
+     */
+    showAvatar?: boolean
+
+    /**
+     * Fallback text when user not found and no name provided
      * @default null (renders nothing)
      */
     fallback?: string | null
@@ -62,21 +83,25 @@ export interface UserAuthorLabelProps {
 // ============================================================================
 
 /**
- * Displays author information with user ID resolution
+ * Displays author information with optional user ID resolution
  */
 export function UserAuthorLabel({
     userId,
+    name,
     prefix = "by",
-    showPrefix = true,
-    showYouLabel = true,
+    showPrefix = false,
+    showYouLabel = false,
+    showAvatar = false,
     fallback = null,
     className,
 }: UserAuthorLabelProps) {
-    const displayName = useUserDisplayName(userId)
-    const isCurrentUser = useIsCurrentUser(userId)
+    const resolvedName = useUserDisplayName(userId ?? undefined)
+    const isCurrentUser = useIsCurrentUser(userId ?? undefined)
 
-    // No user ID or user not found
-    if (!userId || !displayName) {
+    const displayName =
+        (resolvedName && resolvedName !== "-" ? resolvedName : undefined) || name || null
+
+    if (!displayName) {
         if (fallback) {
             return <span className={className}>{fallback}</span>
         }
@@ -86,7 +111,10 @@ export function UserAuthorLabel({
     const label = showYouLabel && isCurrentUser ? `${displayName} (you)` : displayName
 
     return (
-        <span className={className}>
+        <span
+            className={`inline-flex items-center gap-1.5 text-ellipsis overflow-hidden ${className ?? ""}`}
+        >
+            {showAvatar && <InitialsAvatar name={displayName} className="w-4 h-4 text-[9px]" />}
             {showPrefix && prefix && `${prefix} `}
             {label}
         </span>

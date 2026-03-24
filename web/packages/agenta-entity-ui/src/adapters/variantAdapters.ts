@@ -4,17 +4,11 @@
  * Registers the "variant" entity adapter for the unified modal system.
  * These adapters enable EntityCommitModal to work with playground variants.
  *
- * Commit context reads from runnableBridge, which routes to the correct
- * molecule (workflow, legacyAppRevision, etc.) based on entity type hints.
+ * Commit context reads from workflowMolecule selectors.
  * Commits are handled via the playground's onSubmit handler (workflow endpoint).
  */
-
-import {
-    legacyAppRevisionMolecule,
-    type LegacyAppRevisionData,
-} from "@agenta/entities/legacyAppRevision"
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
+import {workflowMolecule, type Workflow} from "@agenta/entities/workflow"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {atom} from "jotai"
 
@@ -29,12 +23,12 @@ import {
 // ============================================================================
 
 /**
- * OSS app revision data atom factory for modal adapter.
+ * Workflow revision data atom factory for modal adapter.
  * Reads from the molecule's data atom (includes draft changes).
  */
-const legacyAppRevisionDataAtom = (id: string) =>
+const workflowDataAtom = (id: string) =>
     atom((get) => {
-        return get(legacyAppRevisionMolecule.atoms.data(id))
+        return get(workflowMolecule.selectors.data(id))
     })
 
 // ============================================================================
@@ -56,7 +50,7 @@ function stableStringify(value: unknown): string {
 }
 
 /**
- * Build commit context for generic entities via runnableBridge.
+ * Build commit context for entities.
  * Compares server configuration vs current configuration as JSON.
  */
 function buildGenericCommitContext(
@@ -91,8 +85,6 @@ function buildGenericCommitContext(
                       description: descriptions.join(", "),
                   }
                 : undefined,
-        // Keep generic variant commits consistent with legacy commits: always
-        // provide the preview payload and let the UI render zero-change state.
         diffData: {original, modified, language: "json"},
     }
 }
@@ -101,23 +93,21 @@ function buildGenericCommitContext(
  * Commit context atom factory for variant.
  * Provides version info, changes summary, and diff data for the commit modal.
  *
- * Reads current and server configuration via runnableBridge, which routes
- * to the correct molecule (workflow, legacyAppRevision, etc.) based on
- * entity type hints.
+ * Reads current and server configuration via workflowMolecule selectors.
  */
 const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string, unknown>) =>
     atom((get): CommitContext | null => {
         const isLocalDraft = isLocalDraftId(revisionId)
-        const runnableData = get(runnableBridge.data(revisionId))
-        const currentConfig = get(runnableBridge.configuration(revisionId))
-        const serverConfig = get(runnableBridge.serverConfiguration(revisionId))
+        const workflowData = get(workflowMolecule.selectors.data(revisionId))
+        const currentConfig = get(workflowMolecule.selectors.configuration(revisionId))
+        const serverConfig = get(workflowMolecule.selectors.serverConfiguration(revisionId))
 
-        if (!runnableData) return null
+        if (!workflowData) return null
 
         return buildGenericCommitContext(
             currentConfig,
             serverConfig,
-            runnableData.version,
+            workflowData.version ?? undefined,
             isLocalDraft,
         )
     })
@@ -135,8 +125,6 @@ const variantCommitContextAtom = (revisionId: string, _metadata?: Record<string,
  * invalidation) that should stay in the playground layer.
  */
 const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise<void> => {
-    // Variant deletion requires complex orchestration (selection updates, query
-    // invalidation) that lives in the playground layer.
     throw new Error(
         "Variant deletion is not supported via the entity-ui adapter. " +
             "Use playground deleteVariantMutationAtom instead.",
@@ -148,59 +136,38 @@ const variantDeleteAtom = atom(null, async (_get, _set, _ids: string[]): Promise
 // ============================================================================
 
 /**
- * Variant (OSS app revision) modal adapter.
+ * Variant (workflow revision) modal adapter.
  *
- * This adapter enables the EntityCommitModal to work with OSS playground variants.
+ * This adapter enables the EntityCommitModal to work with playground variants.
  * Commits are handled via the playground's onSubmit handler which routes through
  * the workflow endpoint (POST /preview/workflows/revisions/commit).
  */
-export const variantModalAdapter: EntityModalAdapter<LegacyAppRevisionData> =
-    createAndRegisterEntityAdapter({
-        type: "variant",
-        getDisplayName: (entity) => {
-            if (!entity) return "Untitled Variant"
+export const variantModalAdapter: EntityModalAdapter<Workflow> = createAndRegisterEntityAdapter({
+    type: "variant",
+    getDisplayName: (entity) => {
+        if (!entity) return "Untitled Variant"
 
-            // Check if it's a local draft
-            if (entity.id && isLocalDraftId(entity.id)) {
-                const sourceRevision = (entity as Record<string, unknown>)._sourceRevision as
-                    | number
-                    | null
-                return formatLocalDraftLabel(sourceRevision)
-            }
+        // Check if it's a local draft
+        if (entity.id && isLocalDraftId(entity.id)) {
+            const sourceRevision = (entity as Record<string, unknown>)._sourceRevision as
+                | number
+                | null
+            return formatLocalDraftLabel(sourceRevision)
+        }
 
-            // Regular revision: show variant name and version
-            const name = entity.variantName || "Variant"
-            const version = entity.revision ?? 0
-            return `${name} ${getVersionLabel(version)}`
-        },
-        getDisplayLabel: (count) => (count === 1 ? "Variant" : "Variants"),
-        deleteAtom: variantDeleteAtom,
-        dataAtom: legacyAppRevisionDataAtom,
-        canDelete: () => true, // Actual check should happen in playground layer
-        getDeleteWarning: () => null,
-        // Commit context for display in EntityCommitModal
-        commitContextAtom: variantCommitContextAtom,
-        canCommit: (entity) => {
-            // Check if entity has unsaved changes
-            if (!entity) return false
-            // For display purposes - actual check uses molecule.isDirty
-            return true
-        },
-    })
-
-// ============================================================================
-// AUTO-REGISTRATION
-// ============================================================================
-
-/**
- * Adapters are registered when this module is imported.
- * The createAndRegisterEntityAdapter function handles registration.
- *
- * To ensure adapters are registered, import this module at app startup:
- *
- * @example
- * ```typescript
- * // In OSS app initialization
- * import '@agenta/entity-ui/adapters/legacyAppRevisionAdapters'
- * ```
- */
+        // Regular revision: show name and version
+        const name = entity.name || "Variant"
+        const version = entity.version ?? 0
+        return `${name} ${getVersionLabel(version)}`
+    },
+    getDisplayLabel: (count) => (count === 1 ? "Variant" : "Variants"),
+    deleteAtom: variantDeleteAtom,
+    dataAtom: workflowDataAtom,
+    canDelete: () => true,
+    getDeleteWarning: () => null,
+    commitContextAtom: variantCommitContextAtom,
+    canCommit: (entity) => {
+        if (!entity) return false
+        return true
+    },
+})

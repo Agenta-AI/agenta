@@ -1,5 +1,6 @@
 import {useEffect, useMemo} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Tabs} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import Router from "next/router"
@@ -8,7 +9,6 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
-import PageLayout from "../../PageLayout/PageLayout"
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -130,7 +130,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     return (
         <PageLayout
             className="!p-0 h-full min-h-0"
-            titleLevel={3}
             title={runDisplayName}
             headerTabs={
                 <PreviewEvalRunTabs

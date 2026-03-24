@@ -116,6 +116,8 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     environment_variant_refs: Optional[List[Reference]] = None
     environment_revision_refs: Optional[List[Reference]] = None
     #
+    application_refs: Optional[List[Reference]] = None
+    #
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None

@@ -1,13 +1,15 @@
+import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {ModalProps} from "antd"
 
-import {Environment} from "@/oss/lib/Types"
-
-export interface ExtendedEnvironment extends Environment {
-    revision?: {
-        id: string
-        revisionNumber: number
-        name: string
-    }
+export interface ExtendedEnvironment extends AppEnvironmentDeployment {
+    revision?:
+        | {
+              id: string
+              revisionNumber: number
+              name: string
+          }
+        | string
+        | null
 }
 export interface DeployVariantModalProps extends ModalProps {
     /** When deploying a whole variant (not a specific revision). Synonym: variantId. */

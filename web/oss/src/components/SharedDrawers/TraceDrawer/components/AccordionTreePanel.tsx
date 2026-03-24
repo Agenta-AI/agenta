@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
 import {
+    CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
     DrillInProvider,
@@ -25,7 +26,6 @@ import JSON5 from "json5"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"

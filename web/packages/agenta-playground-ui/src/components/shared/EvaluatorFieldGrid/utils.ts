@@ -65,7 +65,7 @@ export function buildSchemaMap(
 /**
  * Extract display entries from a fullResult's output.
  * Handles all response nesting patterns:
- *   - output.response.data.outputs (legacyEvaluator)
+ *   - output.response.data.outputs (nested outputs)
  *   - output.response.outputs (evaluatorRevision)
  *   - output.response (generic)
  * Returns [key, value] pairs with null/undefined values filtered out,

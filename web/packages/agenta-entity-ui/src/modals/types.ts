@@ -16,7 +16,13 @@ import type {Atom, WritableAtom} from "jotai"
 /**
  * Supported entity types for modal operations
  */
-export type EntityType = "testset" | "revision" | "variant" | "evaluator" | "application"
+export type EntityType =
+    | "testset"
+    | "revision"
+    | "variant"
+    | "evaluator"
+    | "application"
+    | "simpleQueue"
 
 /**
  * Reference to an entity for modal operations
@@ -276,6 +282,8 @@ export interface CommitSubmitParams {
     entity: EntityReference
     message: string
     mode?: string
+    /** The entity name (may have been edited by the user in the modal) */
+    entityName?: string
 }
 
 /**
@@ -401,6 +409,7 @@ export function getEntityTypeLabel(
         variant: ["Variant", "Variants"],
         evaluator: ["Evaluator", "Evaluators"],
         application: ["Application", "Applications"],
+        simpleQueue: ["Annotation queue", "Annotation queues"],
     }
 
     const [singular, plural] = labels[type]

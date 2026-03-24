@@ -1,6 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
+import {
+    evaluatorConfigsListDataAtom,
+    evaluatorsListDataAtom,
+    evaluatorsListQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesQueryAtom,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
 import dayjs from "dayjs"
@@ -13,12 +20,8 @@ import {v4 as uuidv4} from "uuid"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
-import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import type {Evaluator, Filter} from "@/oss/lib/Types"
+import type {Filter} from "@/oss/lib/Types"
 
 import {
     createSimpleEvaluation,
@@ -56,18 +59,22 @@ const {RangePicker} = DatePicker
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 
 const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawerProps) => {
-    const {evaluatorsSwr: baseEvaluatorsSwr} = useFetchEvaluatorsData({appId: ""})
+    const baseEvaluatorTemplatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
+    const baseEvaluators = useAtomValue(evaluatorTemplatesDataAtom) ?? []
     const queryClient = useAtomValue(queryClientAtom)
     const classes = useDrawerStyles()
     const [form] = Form.useForm()
     const filterColumns = useMemo(() => getFilterColumns(), [])
     const [filters, setFilters] = useAtom(onlineEvalFiltersAtom)
     const resetFilters = useSetAtom(resetOnlineEvalFiltersAtom)
-    // Load preview evaluators (with IDs) to map config URI key -> evaluator.id
-    const previewEvaluatorsSwr = useEvaluators({preview: true, queries: {is_human: false}})
-    const baseEvaluators = (baseEvaluatorsSwr.data as Evaluator[] | undefined) ?? []
-    const evaluators = useAtomValue(evaluatorConfigsAtom)
-    const previewEvaluators = (previewEvaluatorsSwr.data as EvaluatorPreviewDto[] | undefined) ?? []
+    // Load evaluators (with IDs) to map config URI key -> evaluator.id
+    const allEvaluatorsList = useAtomValue(evaluatorsListDataAtom)
+    const allEvaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
+    const evaluators = useAtomValue(evaluatorConfigsListDataAtom)
+    const previewEvaluators = useMemo(
+        () => (allEvaluatorsList || []).filter((e) => e.flags?.is_human !== true),
+        [allEvaluatorsList],
+    )
     const selectedEvaluatorId = Form.useWatch("evaluator", form)
     const samplingRate = Form.useWatch("sampling_rate", form)
     const isHistorical = Form.useWatch("historical", form) ?? false
@@ -124,7 +131,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     ])
 
     const evaluatorDetails = useEvaluatorDetails({
-        evaluator: matchedPreviewEvaluator as any,
+        evaluator: matchedPreviewEvaluator,
         config: selectedEvaluatorConfig,
         evaluatorTypeLookup,
     })
@@ -157,10 +164,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const hasPrompt = evaluatorDetails.promptSections.length > 0
     const hasOutputs = (evaluatorDetails.outputs?.length ?? 0) > 0
     const isLoadingEvaluators =
-        previewEvaluatorsSwr.isLoading ||
-        previewEvaluatorsSwr.isPending ||
-        baseEvaluatorsSwr.isLoading ||
-        baseEvaluatorsSwr.isPending
+        (allEvaluatorsQuery.isPending ?? false) || (baseEvaluatorTemplatesQuery.isPending ?? false)
     const hasEvaluatorOptions = evaluatorOptions.length > 0
     const workspaceId = useMemo(() => {
         const value = router.query.workspace_id

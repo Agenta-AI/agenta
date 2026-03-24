@@ -10,25 +10,19 @@ A **runnable** represents an executable entity that can process inputs and produ
 ## Quick Start
 
 ```typescript
-import { runnableBridge } from '@agenta/entities/runnable'
+import { workflowMolecule } from '@agenta/entities/workflow'
 import { useAtomValue } from 'jotai'
 
-// Get runnable data (flattened API)
-const data = useAtomValue(runnableBridge.data(revisionId))
-const inputPorts = useAtomValue(runnableBridge.inputPorts(revisionId))
-const outputPorts = useAtomValue(runnableBridge.outputPorts(revisionId))
-const config = useAtomValue(runnableBridge.config(revisionId))
-
-// Access evaluator-specific features
-const evalController = runnableBridge.runnable('evaluatorRevision')
-const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
+// Get revision data directly from the molecule
+const data = useAtomValue(workflowMolecule.selectors.data(revisionId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
+const outputPorts = useAtomValue(workflowMolecule.selectors.outputPorts(revisionId))
+const config = useAtomValue(workflowMolecule.selectors.configuration(revisionId))
 ```
 
 ## Architecture
 
-The runnable system uses a **bridge pattern** with clear abstraction layers:
-
-### Abstraction Layers
+UI components access entity data directly via `workflowMolecule`:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -38,140 +32,38 @@ The runnable system uses a **bridge pattern** with clear abstraction layers:
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      runnableBridge                              │
-│    High-level API: data, inputPorts, outputPorts, schemas...   │
-│    (Entity-agnostic interface for UI consumption)               │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      Entity Molecules                            │
-│       appRevisionMolecule, evaluatorRevisionMolecule...         │
-│   (Entity-specific data access, schema parsing, dirty tracking) │
+│                      workflowMolecule                            │
+│   Data access, schema parsing, dirty tracking, input ports      │
+│   (Entity-specific state management via Jotai atoms)            │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
-**Key principle:** UI components should use the highest-level API available (`runnableBridge`), not reach down to molecules directly. This enables:
-
-- **Unified API** across different runnable types (app revisions, evaluators, future types)
-- **Decoupled data layer** - UI doesn't know about entity implementation details
-- **Easy customization** - behavior differences handled at molecule level (e.g., evaluator presets)
-- **Reduced boilerplate** - common patterns like port extraction implemented once
 
 ### Layer Responsibilities
 
 1. **Types** (`types.ts`): Shared type definitions for execution, ports, mappings
-2. **Bridge** (`bridge.ts`): Connects molecule APIs to unified selectors with transformations
-3. **Factory** (`shared/createEntityBridge.ts`): Creates bridges with configurable runnable types
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    runnableBridge                               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐         │
-│  │ appRevision │    │ evaluator   │    │   future    │         │
-│  │   runnable  │    │  Revision   │    │  runnables  │         │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘         │
-│         │                  │                  │                 │
-│         ▼                  ▼                  ▼                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │              Unified Selectors                              ││
-│  │  data, query, isDirty, inputPorts, outputPorts, schemas    ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
+2. **Molecule** (`@agenta/entities/workflow`): Entity state management with selectors, actions, and cache
+3. **Integration utilities** (`bridge.ts`): Standalone helpers for loadable-runnable column derivation and drill-in navigation
 
 ## API Reference
 
-### Selectors
+### Molecule Selectors
+
+Access revision data via `workflowMolecule.selectors.*`:
 
 | Selector | Returns | Description |
 | -------- | ------- | ----------- |
-| `data(runnableId)` | `RunnableData \| null` | Runnable data |
-| `query(runnableId)` | `BridgeQueryState` | Query state with loading/error |
-| `isDirty(runnableId)` | `boolean` | Has unsaved changes |
-| `inputPorts(runnableId)` | `RunnablePort[]` | Input port definitions |
-| `outputPorts(runnableId)` | `RunnablePort[]` | Output port definitions |
-| `configuration(runnableId)` | `Record<string, unknown> \| null` | Configuration object |
-| `invocationUrl(runnableId)` | `string \| null` | URL for execution |
-| `schemas(runnableId)` | `{inputSchema, outputSchema} \| null` | JSON schemas |
-
-### Runnable-Specific Selectors
-
-Access runnable-type-specific features:
-
-```typescript
-// Evaluator-specific
-const evalController = runnableBridge.runnable('evaluatorRevision')
-const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
-const applyPreset = useSetAtom(evalController.actions.applyPreset)
-applyPreset(evaluatorId, presetId)
-```
-
-## Runnable Types
-
-### appRevision
-
-App revisions use `appRevisionMolecule` for:
-- Schema extraction (input/output ports)
-- Configuration management
-- Invocation URL resolution
-
-### evaluatorRevision
-
-Evaluator revisions use `evaluatorRevisionMolecule` for:
-- Preset management
-- Evaluation configuration
-- Custom schemas
-
-Note: `evaluatorRevisionMolecule` is a stub by default in OSS. Configure it via dependency injection for full functionality.
-
-## Custom Runnables
-
-Use `createRunnableBridge` to add custom runnable types:
-
-```typescript
-import { createRunnableBridge } from '@agenta/entities/runnable'
-import { myCustomMolecule } from './myModule'
-
-const customBridge = createRunnableBridge({
-    runnables: {
-        appRevision: { /* existing config */ },
-        evaluatorRevision: { /* existing config */ },
-        myCustomRunnable: {
-            molecule: myCustomMolecule,
-            toRunnable: (entity) => ({
-                id: entity.id,
-                name: entity.name,
-                configuration: entity.config,
-                schemas: entity.schemas,
-            }),
-            getInputPorts: (entity) => extractPorts(entity.schemas?.inputSchema),
-            getOutputPorts: (entity) => extractPorts(entity.schemas?.outputSchema),
-        },
-    },
-})
-```
+| `data(revisionId)` | `WorkflowData \| null` | Revision data |
+| `query(revisionId)` | `QueryState` | Query state with loading/error |
+| `isDirty(revisionId)` | `boolean` | Has unsaved changes |
+| `inputPorts(revisionId)` | `RunnablePort[]` | Input port definitions |
+| `outputPorts(revisionId)` | `RunnablePort[]` | Output port definitions |
+| `configuration(revisionId)` | `Record<string, unknown> \| null` | Configuration object |
 
 ## Types
 
 ### Core Types
 
 ```typescript
-interface RunnableData {
-    id: string
-    name?: string
-    version?: number
-    slug?: string
-    configuration?: Record<string, unknown>
-    invocationUrl?: string
-    schemas?: {
-        inputSchema?: unknown
-        outputSchema?: unknown
-    }
-}
-
 interface RunnablePort {
     key: string
     name: string
@@ -202,18 +94,11 @@ interface ExecutionResult {
 
 ### Invocation URL Resolution
 
-The invocation URL is **computed from the schema query**, not stored directly on entity data. This is because:
-
-- The URL depends on runtime prefix and route path from OpenAPI spec
-- The schema query fetches the OpenAPI spec and extracts URL components
+The invocation URL is **computed from the schema query**, not stored directly on entity data:
 
 ```typescript
-// ❌ WRONG - Don't read invocationUrl directly from entity data
-const data = useAtomValue(appRevisionMolecule.selectors.data(revisionId))
-const url = data?.invocationUrl // This doesn't exist on AppRevisionData!
-
 // ✅ CORRECT - Use the computed atom from molecule
-const url = useAtomValue(appRevisionMolecule.atoms.invocationUrl(revisionId))
+const url = useAtomValue(workflowMolecule.atoms.invocationUrl(revisionId))
 ```
 
 The computation flow:
@@ -282,7 +167,7 @@ Input ports are derived reactively from the revision's `agConfig`:
 
 ```typescript
 // The molecule computes inputPorts from agConfig template variables
-const inputPorts = useAtomValue(appRevisionMolecule.selectors.inputPorts(revisionId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
 
 // This extracts variables like {{topic}} from prompt templates
 // Returns: [{ key: "topic", name: "topic", type: "string", required: true }]
@@ -329,14 +214,13 @@ import { PlaygroundEntityProvider, usePlaygroundEntities } from '@agenta/playgro
 
 // Wrap your app with the provider
 <PlaygroundEntityProvider providers={{
-    appRevision: { selectors: appRevisionMolecule.selectors },
-    evaluatorRevision: { selectors: evalMolecule.selectors, actions: evalMolecule.actions },
+    appRevision: { selectors: workflowMolecule.selectors },
 }}>
     <App />
 </PlaygroundEntityProvider>
 
 // Access injected providers in components
-const { appRevision, evaluatorRevision } = usePlaygroundEntities()
+const { appRevision } = usePlaygroundEntities()
 ```
 
 The type definitions for providers are exported from this module:
@@ -353,6 +237,6 @@ runnable/
 ├── index.ts                          # Public exports
 ├── types.ts                          # Shared type definitions
 ├── providerTypes.ts                  # Provider interface types (for DI context)
-├── bridge.ts                         # Configured runnable bridge
+├── bridge.ts                         # Standalone integration utilities
 └── utils.ts                          # Execution utilities
 ```

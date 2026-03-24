@@ -158,7 +158,7 @@ export {
     getRevisionLabelInfo,
 } from "./revisionLabel"
 
-// Revision utilities (shared between appRevision and legacyAppRevision)
+// Revision utilities
 export {
     // Type guards
     isArray,

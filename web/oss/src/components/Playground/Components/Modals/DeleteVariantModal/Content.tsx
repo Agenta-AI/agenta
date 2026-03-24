@@ -1,26 +1,31 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
-    legacyAppRevisionMolecule,
-    revisionsListWithDraftsAtomFamily,
-    variantsListWithDraftsAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
-import {workflowMolecule} from "@agenta/entities/workflow"
+    archiveWorkflowVariant,
+    workflowMolecule,
+    workflowVariantsListDataAtomFamily,
+    workflowRevisionsListDataAtomFamily,
+} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
+import {projectIdAtom} from "@agenta/shared/state"
 import {EntityNameWithVersion} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {Trash} from "@phosphor-icons/react"
 import {Button, Spin, Typography} from "antd"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
+import {
+    registryPaginatedStore,
+    clearRegistryVariantNameCache,
+} from "@/oss/components/VariantsComponents/store/registryStore"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
-import {deleteSingleVariant} from "@/oss/services/playground/api"
 
 const {Text} = Typography
 
 interface Props {
     revisionIds: string[]
     forceVariantIds?: string[]
+    workflowId?: string | null
     onClose: () => void
 }
 
@@ -32,25 +37,23 @@ interface VariantGroup {
     deleteEntireVariant: boolean
 }
 
-const isVisibleServerRevision = (revision: any) => {
+const isVisibleWorkflowRevision = (revision: {id?: string | null; version?: number | null}) => {
     if (!revision?.id) return false
-    if (revision?.isLocalDraft) return false
-    return Number(revision?.revision ?? 0) > 0
+    return Number(revision?.version ?? 0) > 0
 }
 
 // Stable empty atom for when no entity ID is available
 const emptyWorkflowDataAtom = atom(() => null)
 
 // ============================================================================
-// WORKFLOW DELETE CONTENT
+// SINGLE DELETE CONTENT
 // ============================================================================
 
 /**
- * Simplified delete content for workflow entities.
- * Workflows use the archive API via playgroundController.actions.deleteRevision
- * rather than the legacy variant deletion flow.
+ * Simplified delete content for a single workflow revision.
+ * Uses the archive API via playgroundController.actions.deleteRevision.
  */
-const WorkflowDeleteContent = ({
+const SingleDeleteContent = ({
     revisionIds,
     onClose,
 }: {
@@ -58,6 +61,7 @@ const WorkflowDeleteContent = ({
     onClose: () => void
 }) => {
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
+    const refreshRegistry = useSetAtom(registryPaginatedStore.actions.refresh)
     const [isMutating, setIsMutating] = useState(false)
 
     const entityId = revisionIds[0]
@@ -71,8 +75,20 @@ const WorkflowDeleteContent = ({
     // Read workflow entity data
     const workflowData = useAtomValue(dataAtom ?? emptyWorkflowDataAtom)
 
-    // Extract name and version for display
-    const entityName = workflowData?.name || workflowData?.slug || "this workflow"
+    // Resolve variant display name from the variants list (same as registry store)
+    const variantId = workflowData?.workflow_variant_id ?? workflowData?.variant_id
+    const workflowId = workflowData?.workflow_id
+    const variantsListAtom = useMemo(
+        () =>
+            workflowId
+                ? workflowVariantsListDataAtomFamily(workflowId)
+                : atom<{id?: string; name?: string | null; slug?: string | null}[]>([]),
+        [workflowId],
+    )
+    const variants = useAtomValue(variantsListAtom)
+    const variantEntity = variants.find((v) => v.id === variantId)
+    const entityName =
+        variantEntity?.name || variantEntity?.slug || workflowData?.slug || "this revision"
     const entityVersion = workflowData?.version
 
     const onDelete = useCallback(async () => {
@@ -90,6 +106,10 @@ const WorkflowDeleteContent = ({
             // which runs inside deleteRevision. No need to call removeEntity
             // here — doing so would clear the selection before the replacement
             // is resolved, causing an empty playground flash.
+
+            // Refresh the registry paginated store so the table updates
+            clearRegistryVariantNameCache()
+            refreshRegistry()
 
             message.success("Deleted workflow successfully")
             onClose()
@@ -128,66 +148,80 @@ const WorkflowDeleteContent = ({
 }
 
 // ============================================================================
-// LEGACY DELETE CONTENT
+// BULK DELETE CONTENT
 // ============================================================================
 
-const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
+/**
+ * Bulk delete content for multiple workflow revisions/variants.
+ * Groups revisions by variant, checks deletion validity, and executes
+ * bulk deletion using variant deletion + revision archive APIs.
+ */
+const BulkDeleteContent = ({
+    revisionIds,
+    forceVariantIds = [],
+    workflowId: passedWorkflowId,
+    onClose,
+}: Props) => {
     const store = getDefaultStore()
     const deleteRevision = useSetAtom(playgroundController.actions.deleteRevision)
     const invalidatePlaygroundQueries = useSetAtom(playgroundController.actions.invalidateQueries)
+    const refreshRegistry = useSetAtom(registryPaginatedStore.actions.refresh)
 
     const [checking, setChecking] = useState(true)
     const [canDelete, setCanDelete] = useState<boolean | null>(null)
     const [isMutating, setIsMutating] = useState(false)
 
-    // Derive appId from the first revision's data (entity-scoped, not global)
-    const firstRevisionData = useMemo(() => {
+    // Derive workflowId — prefer passed-in value, fall back to molecule lookup
+    const workflowId = useMemo(() => {
+        if (passedWorkflowId) return passedWorkflowId
         const firstId = revisionIds[0]
         if (!firstId) return null
-        return store.get(legacyAppRevisionMolecule.atoms.data(firstId)) as {appId?: string} | null
-    }, [revisionIds, store])
-    const appId = firstRevisionData?.appId ?? null
+        const data = workflowMolecule.get.data(firstId)
+        return data?.workflow_id ?? null
+    }, [passedWorkflowId, revisionIds])
 
-    const emptyListAtom = useMemo(
-        () => atom({data: [], isPending: false, isError: false, error: null}),
-        [],
-    )
+    // Get variants list for the workflow
     const variantsListAtom = useMemo(
-        () => (appId ? variantsListWithDraftsAtomFamily(appId) : emptyListAtom),
-        [appId, emptyListAtom],
+        () =>
+            workflowId
+                ? workflowVariantsListDataAtomFamily(workflowId)
+                : atom<{id?: string; name?: string | null}[]>([]),
+        [workflowId],
     )
-    const variantsQuery = useAtomValue(variantsListAtom)
-    const variants = variantsQuery.data ?? []
+    const variants = useAtomValue(variantsListAtom)
 
     const uniqueRevisionIds = useMemo(
         () => Array.from(new Set([revisionIds].flat().filter(Boolean))) as string[],
         [revisionIds],
     )
 
+    // Resolve revision data from workflow molecule
     const resolvedRevisions = useMemo(
         () =>
             uniqueRevisionIds
-                // Use molecule-backed variant for single source of truth
-                .map((id) => store.get(legacyAppRevisionMolecule.atoms.data(id)))
-                .filter(Boolean) as any[],
-        [store, uniqueRevisionIds],
+                .map((id) => workflowMolecule.get.data(id))
+                .filter(Boolean) as NonNullable<ReturnType<typeof workflowMolecule.get.data>>[],
+        [uniqueRevisionIds],
     )
 
+    // Build variant name map
     const variantNameMap = useMemo(() => {
         const map: Record<string, string> = {}
-        variants.forEach((variant: any) => {
+        variants.forEach((variant) => {
             if (!variant?.id) return
-            map[variant.id] = (variant.name as string) || (variant.baseName as string) || variant.id
+            map[variant.id] = (variant.name as string) || variant.id
         })
         return map
     }, [variants])
 
+    // Group revisions by variant
     const variantGroups = useMemo(() => {
         const groups: Record<string, VariantGroup> = {}
         const forceVariantIdSet = new Set(forceVariantIds)
 
-        resolvedRevisions.forEach((rev: any) => {
-            const variantId = (rev?._parentVariant as string) || (rev?.variantId as string)
+        // Build groups from molecule-resolved revisions
+        resolvedRevisions.forEach((rev) => {
+            const variantId = rev.workflow_variant_id ?? rev.variant_id
             if (!variantId) return
 
             const existing = groups[variantId]
@@ -206,12 +240,27 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
             }
         })
 
+        // If forceVariantIds were provided but molecule didn't resolve any revisions,
+        // build groups directly from the passed-in data (registry table scenario)
+        for (const vid of forceVariantIds) {
+            if (!groups[vid]) {
+                groups[vid] = {
+                    variantId: vid,
+                    selectedIds: [...uniqueRevisionIds],
+                    totalIds: [],
+                    displayName: variantNameMap[vid] || vid,
+                    deleteEntireVariant: true,
+                }
+            }
+        }
+
+        // Determine total revision count per variant and whether to delete entire variant
         Object.values(groups).forEach((group) => {
-            const allRevisions = (store.get(revisionsListWithDraftsAtomFamily(group.variantId))
-                ?.data || []) as any[]
+            if (group.deleteEntireVariant) return // already marked
+            const allRevisions = store.get(workflowRevisionsListDataAtomFamily(group.variantId))
             const totalIds = allRevisions
-                .filter(isVisibleServerRevision)
-                .map((r: any) => r.id)
+                .filter(isVisibleWorkflowRevision)
+                .map((r) => r.id)
                 .filter(Boolean) as string[]
             group.totalIds = totalIds.length > 0 ? totalIds : group.selectedIds
             const selectedSet = new Set(group.selectedIds)
@@ -221,8 +270,9 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
         })
 
         return groups
-    }, [forceVariantIds, resolvedRevisions, store, variantNameMap])
+    }, [forceVariantIds, resolvedRevisions, store, variantNameMap, uniqueRevisionIds])
 
+    // Pre-check deletion validity
     useEffect(() => {
         let mounted = true
         const variantIds = Object.keys(variantGroups)
@@ -251,19 +301,20 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
         }
     }, [variantGroups])
 
+    // Build deletion plan
     const deletionPlan = useMemo(() => {
-        const variants: string[] = []
+        const variantsToDel: string[] = []
         const revisions = new Set<string>()
 
         Object.values(variantGroups).forEach((group) => {
             if (group.deleteEntireVariant) {
-                variants.push(group.variantId)
+                variantsToDel.push(group.variantId)
             } else {
                 group.selectedIds.forEach((id) => revisions.add(id))
             }
         })
 
-        return {variants, revisions: Array.from(revisions)}
+        return {variants: variantsToDel, revisions: Array.from(revisions)}
     }, [variantGroups])
 
     const targetVariantCount = Math.max(
@@ -276,8 +327,11 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
     const onDeleteVariant = useCallback(async () => {
         setIsMutating(true)
         try {
+            const currentProjectId = store.get(projectIdAtom)
+            if (!currentProjectId) throw new Error("No project ID available")
+
             for (const variantId of deletionPlan.variants) {
-                await deleteSingleVariant(variantId)
+                await archiveWorkflowVariant(currentProjectId, variantId)
             }
 
             for (const id of deletionPlan.revisions) {
@@ -287,8 +341,13 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
                 }
             }
 
-            // Always invalidate all related queries so registry and playground stay in sync.
-            await invalidatePlaygroundQueries()
+            // Refresh the registry paginated store so the table updates immediately
+            clearRegistryVariantNameCache()
+            refreshRegistry()
+
+            // Fire-and-forget: invalidate playground queries in the background
+            // so the playground stays in sync without blocking the modal close.
+            invalidatePlaygroundQueries()
 
             message.success(
                 deletionPlan.variants.length > 0
@@ -388,34 +447,22 @@ const LegacyDeleteContent = ({revisionIds, forceVariantIds = [], onClose}: Props
 }
 
 // ============================================================================
-// MAIN CONTENT (Routes to workflow or legacy)
+// MAIN CONTENT
 // ============================================================================
 
-const nodesAtom = playgroundController.selectors.nodes()
+const DeleteVariantContent = ({revisionIds, forceVariantIds = [], workflowId, onClose}: Props) => {
+    const isSingleDelete =
+        revisionIds.length === 1 && (!forceVariantIds || forceVariantIds.length === 0)
 
-const DeleteVariantContent = ({revisionIds, forceVariantIds = [], onClose}: Props) => {
-    const nodes = useAtomValue(nodesAtom)
-    const isWorkflowRef = useRef<boolean | null>(null)
-
-    if (isWorkflowRef.current === null) {
-        const idSet = new Set(revisionIds)
-        const hasWorkflowNode = nodes.some(
-            (n) => idSet.has(n.entityId) && n.entityType === "workflow",
-        )
-        const hasWorkflowEntity = revisionIds.some((id) => Boolean(workflowMolecule.get.data(id)))
-        isWorkflowRef.current = hasWorkflowNode || hasWorkflowEntity
-    }
-
-    const isWorkflow = isWorkflowRef.current
-
-    if (isWorkflow) {
-        return <WorkflowDeleteContent revisionIds={revisionIds} onClose={onClose} />
+    if (isSingleDelete) {
+        return <SingleDeleteContent revisionIds={revisionIds} onClose={onClose} />
     }
 
     return (
-        <LegacyDeleteContent
+        <BulkDeleteContent
             revisionIds={revisionIds}
             forceVariantIds={forceVariantIds}
+            workflowId={workflowId}
             onClose={onClose}
         />
     )

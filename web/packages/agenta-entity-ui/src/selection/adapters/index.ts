@@ -73,38 +73,10 @@ export type {
 export {testsetAdapter} from "./testsetRelationAdapter"
 export type {TestsetSelectionResult} from "./testsetRelationAdapter"
 
-// OSS App revision adapter (3-level: App → Variant → Revision)
-// Uses atoms and relations from @agenta/entities/legacyAppRevision (legacy API)
-// Also exports createLegacyAppRevisionAdapter for configurable 2-level mode
-export {
-    legacyAppRevisionAdapter,
-    createLegacyAppRevisionAdapter,
-} from "./legacyAppRevisionRelationAdapter"
-export type {
-    LegacyAppRevisionSelectionResult,
-    CreateLegacyAppRevisionAdapterOptions,
-} from "./legacyAppRevisionRelationAdapter"
-
 // Evaluator adapter (1-level: flat evaluator list)
 // Used in playground for chaining evaluators as downstream nodes
 export {evaluatorAdapter, setEvaluatorAtoms} from "./evaluatorAdapter"
 export type {EvaluatorSelectionResult} from "./evaluatorAdapter"
-
-// Legacy evaluator adapter (1-level: flat evaluator list)
-// Uses the SimpleEvaluator facade API (`/preview/simple/evaluators/`)
-export {legacyEvaluatorAdapter, setLegacyEvaluatorAtoms} from "./legacyEvaluatorAdapter"
-export type {LegacyEvaluatorSelectionResult} from "./legacyEvaluatorAdapter"
-
-// Evaluator revision adapter (3-level: Evaluator → Variant → Revision)
-// Uses legacy runtime configuration pattern (no evaluator relations yet)
-export {evaluatorRevisionAdapter, setEvaluatorRevisionAtoms} from "./evaluatorRevisionAdapter"
-export type {EvaluatorRevisionSelectionResult} from "./evaluatorRevisionAdapter"
-
-// Evaluator revision relation adapter (2-level: Evaluator → Revision, skips Variant)
-// Uses atoms and relations from @agenta/entities/evaluator
-// Designed for list-popover variant but works with cascading/breadcrumb too
-export {evaluatorRevisionRelationAdapter} from "./evaluatorRevisionRelationAdapter"
-export type {EvaluatorRevisionRelationSelectionResult} from "./evaluatorRevisionRelationAdapter"
 
 // Workflow revision adapter (3-level: Workflow → Variant → Revision)
 // Uses atoms and relations from @agenta/entities/workflow
@@ -117,3 +89,18 @@ export type {
     WorkflowRevisionSelectionResult,
     CreateWorkflowRevisionAdapterOptions,
 } from "./workflowRevisionRelationAdapter"
+
+// ============================================================================
+// ENRICHED EVALUATOR ADAPTERS
+// ============================================================================
+
+// Label utilities for evaluator workflow items (colored type tags)
+export {renderEvaluatorPickerLabelNode, buildEvaluatorPickerLabelNode} from "./evaluatorLabelUtils"
+
+// Enriched adapter hooks with auto-fetching evaluator template data
+export {
+    useEvaluatorEnrichedData,
+    useEnrichedEvaluatorBrowseAdapter,
+    useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedAnnotationEvaluatorAdapter,
+} from "./useEnrichedEvaluatorAdapter"

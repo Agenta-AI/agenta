@@ -4,7 +4,7 @@
  * Package-level hooks that provide evaluator-aware browse/select adapters
  * with colored type tags. Replaces the OSS-only `useEvaluatorBrowseAdapter.ts`.
  *
- * Data sources (all from `@agenta/entities/evaluator`):
+ * Data sources (all from `@agenta/entities/workflow`):
  * - `evaluatorKeyMapAtom` — Map<workflowId, evaluatorKey> derived from batch-fetched revisions
  * - `evaluatorTemplatesMapAtom` — Map<evaluatorKey, displayName> from template definitions
  *
@@ -15,7 +15,7 @@
 import type React from "react"
 import {useMemo, useRef} from "react"
 
-import {evaluatorKeyMapAtom, evaluatorTemplatesMapAtom} from "@agenta/entities/evaluator"
+import {evaluatorKeyMapAtom, evaluatorTemplatesMapAtom} from "@agenta/entities/workflow"
 import {workflowsListDataAtom} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 

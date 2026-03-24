@@ -12,8 +12,23 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {LabeledField} from "@agenta/ui/components/presentational"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {DeleteOutlined, InfoCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Alert, Button, Checkbox, Input, InputNumber, Modal, Select, Tooltip, Typography} from "antd"
+import {Info, Plus, Trash} from "@phosphor-icons/react"
+import {Alert, Button, Input, InputNumber, Modal, Select, Switch, Tooltip, Typography} from "antd"
+import {useAtomValue} from "jotai"
+import {atom} from "jotai"
+import {atomFamily} from "jotai-family"
+
+// ============================================================================
+// SHARED MODE STATE
+// ============================================================================
+
+/**
+ * Shared atom for feedback config mode per entity.
+ * Allows the section header to toggle advanced mode externally.
+ */
+export const feedbackConfigModeAtomFamily = atomFamily((_entityId: string) =>
+    atom<"basic" | "advanced">("basic"),
+)
 
 // ============================================================================
 // TYPES
@@ -62,6 +77,8 @@ export interface FeedbackConfigurationControlProps {
      * when regenerating the schema from UI changes.
      */
     originalValue?: unknown
+    /** Entity ID for shared mode state (used by section header to toggle advanced mode) */
+    entityId?: string
 }
 
 // ============================================================================
@@ -196,6 +213,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     disabled = false,
     className,
     originalValue,
+    entityId,
 }: FeedbackConfigurationControlProps) {
     // Parse value prop to config
     const parsedConfig = useMemo(() => parseJSONSchema(value), [value])
@@ -217,12 +235,17 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     )
 
     // Mode state: basic (form UI) or advanced (raw JSON editor)
-    const [mode, setMode] = useState<"basic" | "advanced">("basic")
+    // Shared atom — section header and this component both read/write
+    const modeAtom = useMemo(
+        () => feedbackConfigModeAtomFamily(entityId ?? "__default__"),
+        [entityId],
+    )
+    const mode = useAtomValue(modeAtom)
     const [rawSchema, setRawSchema] = useState<string>(() => {
         if (!value) return ""
         return typeof value === "string" ? value : JSON.stringify(value, null, 2)
     })
-    const [modal, contextHolder] = Modal.useModal()
+    const [, contextHolder] = Modal.useModal()
 
     // Track the previous value to detect external changes (e.g., discard)
     const prevValueRef = useRef(value)
@@ -405,70 +428,27 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
         [emitSchemaChange, responseFormat, includeReasoning, minimum, maximum, categories],
     )
 
-    // Check if current schema is compatible with basic mode
-    const isSchemaCompatibleWithBasicMode = useCallback((schemaValue: unknown): boolean => {
-        const config = parseJSONSchema(schemaValue)
-        if (!config) return false
-        // Regenerate and compare
-        const regenerated = generateJSONSchema(config)
-        const original = typeof schemaValue === "string" ? JSON.parse(schemaValue) : schemaValue
-        const originalSchema = original?.schema || original
-        const regeneratedSchema = regenerated.schema
-        // Simple comparison - if structures match, it's compatible
-        return JSON.stringify(originalSchema) === JSON.stringify(regeneratedSchema)
-    }, [])
+    // Sync state when mode changes (via section header toggle or internal)
+    const prevModeRef = useRef(mode)
+    useEffect(() => {
+        const prevMode = prevModeRef.current
+        prevModeRef.current = mode
 
-    // Handle mode switch
-    const handleModeSwitch = useCallback(
-        (newMode: "basic" | "advanced") => {
-            if (newMode === mode) return
-
-            if (newMode === "advanced") {
-                // Switching to advanced: sync raw schema from current config
-                const schema = generateJSONSchema(
-                    {
-                        responseFormat,
-                        includeReasoning,
-                        minimum: responseFormat === "continuous" ? minimum : undefined,
-                        maximum: responseFormat === "continuous" ? maximum : undefined,
-                        categories: responseFormat === "categorical" ? categories : undefined,
-                    },
-                    originalSchema,
-                )
-                setRawSchema(JSON.stringify(schema, null, 2))
-                setMode("advanced")
-                return
-            }
-
-            // Switching to basic
-            if (!isSchemaCompatibleWithBasicMode(rawSchema)) {
-                modal.confirm({
-                    title: "Switch to basic mode?",
-                    content:
-                        "Switching to basic mode will reset your advanced configuration. Are you sure?",
-                    okText: "Switch",
-                    cancelText: "Cancel",
-                    onOk: () => {
-                        const parsed = parseJSONSchema(rawSchema)
-                        if (parsed) {
-                            setResponseFormat(parsed.responseFormat)
-                            setIncludeReasoning(parsed.includeReasoning)
-                            setMinimum(parsed.minimum ?? 0)
-                            setMaximum(parsed.maximum ?? 10)
-                            setCategories(
-                                parsed.categories ?? [
-                                    {name: "good", description: "The response is good"},
-                                    {name: "bad", description: "The response is bad"},
-                                ],
-                            )
-                        }
-                        setMode("basic")
-                    },
-                })
-                return
-            }
-
-            // Compatible - just switch
+        if (prevMode === "basic" && mode === "advanced") {
+            // Switching to advanced: sync raw schema from current config
+            const schema = generateJSONSchema(
+                {
+                    responseFormat,
+                    includeReasoning,
+                    minimum: responseFormat === "continuous" ? minimum : undefined,
+                    maximum: responseFormat === "continuous" ? maximum : undefined,
+                    categories: responseFormat === "categorical" ? categories : undefined,
+                },
+                originalSchema,
+            )
+            setRawSchema(JSON.stringify(schema, null, 2))
+        } else if (prevMode === "advanced" && mode === "basic") {
+            // Switching to basic: parse raw schema back to form state
             const parsed = parseJSONSchema(rawSchema)
             if (parsed) {
                 setResponseFormat(parsed.responseFormat)
@@ -482,21 +462,8 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                     ],
                 )
             }
-            setMode("basic")
-        },
-        [
-            mode,
-            responseFormat,
-            includeReasoning,
-            minimum,
-            maximum,
-            categories,
-            rawSchema,
-            isSchemaCompatibleWithBasicMode,
-            modal,
-            originalSchema,
-        ],
-    )
+        }
+    }, [mode]) // Only react to mode changes
 
     // Handle raw schema change in advanced mode
     const handleRawSchemaChange = useCallback(
@@ -516,18 +483,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     if (mode === "advanced") {
         return (
             <div className={className}>
-                <div className="flex justify-between items-center mb-4">
-                    <Typography.Text strong>Configuration (Advanced Mode)</Typography.Text>
-                    <Tooltip title="Switch back to basic mode for a simplified form-based interface">
-                        <Button
-                            size="small"
-                            onClick={() => handleModeSwitch("basic")}
-                            disabled={disabled}
-                        >
-                            Basic Mode
-                        </Button>
-                    </Tooltip>
-                </div>
                 <div className="border border-solid border-gray-200 rounded overflow-hidden">
                     <SharedEditor
                         editorType="border"
@@ -562,6 +517,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         value={responseFormat}
                         onChange={handleResponseFormatChange}
                         disabled={disabled}
+                        size="small"
                         options={[
                             {label: "Boolean (True/False)", value: "boolean"},
                             {label: "Continuous (Numeric Range)", value: "continuous"},
@@ -574,7 +530,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Boolean info */}
             {responseFormat === "boolean" && (
                 <Alert
-                    message="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
+                    title="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
                     type="info"
                     showIcon
                     className="mb-4"
@@ -614,17 +570,21 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1">
-                            <Typography.Text strong className="text-sm">
+                            <Typography.Text className="font-medium text-xs">
                                 Categories
                             </Typography.Text>
                             <Tooltip title="Define the possible category values for the evaluation">
-                                <InfoCircleOutlined className="text-xs text-gray-400" />
+                                <Info
+                                    size={12}
+                                    className="text-gray-400 cursor-help"
+                                    aria-hidden="true"
+                                />
                             </Tooltip>
                         </div>
                         <Button
                             size="small"
                             type="dashed"
-                            icon={<PlusOutlined />}
+                            icon={<Plus size={14} />}
                             onClick={addCategory}
                             disabled={disabled}
                         >
@@ -653,7 +613,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 <Button
                                     type="text"
                                     danger
-                                    icon={<DeleteOutlined />}
+                                    icon={<Trash size={14} />}
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
                                 />
@@ -664,31 +624,24 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             )}
 
             {/* Include reasoning */}
-            <div className="flex items-center gap-2 mb-4">
-                <Checkbox
+            <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-1">
+                    <Typography.Text className="font-medium text-xs">
+                        Include reasoning
+                    </Typography.Text>
+                    <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
+                        <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
+                    </Tooltip>
+                </div>
+                <Switch
                     checked={includeReasoning}
-                    onChange={(e) => handleIncludeReasoningChange(e.target.checked)}
+                    onChange={(checked) => handleIncludeReasoningChange(checked)}
                     disabled={disabled}
-                >
-                    Include reasoning
-                </Checkbox>
-                <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
-                    <InfoCircleOutlined className="text-xs text-gray-400" />
-                </Tooltip>
+                    size="small"
+                    className="flex-shrink-0"
+                />
             </div>
 
-            {/* Advanced mode toggle */}
-            <div className="flex justify-end">
-                <Tooltip title="Switch to advanced mode to edit the raw JSON schema directly">
-                    <Button
-                        size="small"
-                        onClick={() => handleModeSwitch("advanced")}
-                        disabled={disabled}
-                    >
-                        Advanced Mode
-                    </Button>
-                </Tooltip>
-            </div>
             {contextHolder}
         </div>
     )

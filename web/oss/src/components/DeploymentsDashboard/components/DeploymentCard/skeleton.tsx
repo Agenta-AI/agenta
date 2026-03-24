@@ -1,6 +1,5 @@
+import {EnvironmentTag, environmentColors} from "@agenta/ui"
 import {Card, Skeleton, Space, Typography} from "antd"
-
-import EnvironmentTagLabel, {deploymentStatusColors} from "@/oss/components/EnvironmentTagLabel"
 
 import {useDeploymentCardStyles} from "./styles"
 
@@ -13,7 +12,8 @@ interface DeploymentCardSkeletonProps {
 
 const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonProps) => {
     const classes = useDeploymentCardStyles()
-    const borderColor = deploymentStatusColors[envName.toLowerCase()]?.textColor
+    const borderColor =
+        environmentColors[envName.toLowerCase() as keyof typeof environmentColors]?.textColor
 
     return (
         <Card
@@ -24,7 +24,7 @@ const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonPro
                 "--hover-border-color": borderColor,
             }}
         >
-            <EnvironmentTagLabel environment={envName} />
+            <EnvironmentTag environment={envName} />
 
             <Space className="justify-between">
                 <Typography.Text>Variant</Typography.Text>

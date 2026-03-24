@@ -8,11 +8,10 @@
  * Pattern: Button trigger → Popover → [Root Panel | Child Panel]
  */
 
-import React, {useCallback, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 
 import {EntityListItem, SearchInput, SearchablePopoverList} from "@agenta/ui/components/selection"
-import {DownOutlined} from "@ant-design/icons"
-import {Plus} from "@phosphor-icons/react"
+import {CaretDown, Plus} from "@phosphor-icons/react"
 import {Button, Empty, Popover, Spin} from "antd"
 
 import {useEntitySelectionCore} from "../../../hooks/useEntitySelectionCore"
@@ -33,6 +32,7 @@ function ChildPanelContent({
     parentId,
     childLevelConfig,
     onSelect,
+    selectedId,
     maxHeight,
     panelWidth,
     disabledIds,
@@ -41,6 +41,7 @@ function ChildPanelContent({
     parentId: string
     childLevelConfig: HierarchyLevel<unknown>
     onSelect: (child: unknown) => void
+    selectedId?: string | null
     maxHeight: number
     panelWidth: number
     disabledIds?: Set<string>
@@ -76,6 +77,7 @@ function ChildPanelContent({
     return (
         <SearchablePopoverList
             items={filteredItems}
+            selectedId={selectedId}
             onSelect={onSelect}
             getItemId={getItemId}
             getItemLabel={getItemLabel}
@@ -105,14 +107,18 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
     size = "small",
     placeholder = "Select...",
     icon,
+    showDropdownIcon = true,
     placement = "bottomLeft",
     panelMinWidth = 220,
     maxHeight = 340,
     popupFooter,
     onCreateNew,
     createNewLabel,
+    selectedParentId,
+    selectedChildId,
     disabledChildIds,
     disabledChildTooltip = "Already connected",
+    openChildOnHover = false,
 }: PopoverCascaderVariantProps<TSelection>) {
     const {hierarchyLevels, createSelection} = useEntitySelectionCore({
         adapter: adapterProp,
@@ -143,6 +149,17 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
         const term = searchTerm.toLowerCase()
         return rootItems.filter((item) => rootLevel.getLabel(item).toLowerCase().includes(term))
     }, [rootItems, searchTerm, rootLevel])
+
+    useEffect(() => {
+        if (!open || selectedRootId || !selectedParentId) return
+
+        const matchingRoot = rootItems.find((item) => rootLevel.getId(item) === selectedParentId)
+        if (!matchingRoot) return
+
+        setSelectedRootId(selectedParentId)
+        setSelectedRootEntity(matchingRoot)
+        hierarchyLevels[1]?.onBeforeLoad?.(selectedParentId)
+    }, [hierarchyLevels, open, rootItems, rootLevel, selectedParentId, selectedRootId])
 
     // Handle root item click
     const handleRootItemClick = useCallback(
@@ -243,16 +260,25 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                         filteredRootItems.map((item) => {
                             const id = rootLevel.getId(item)
                             return (
-                                <EntityListItem
+                                <div
                                     key={id}
-                                    label={rootLevel.getLabel(item)}
-                                    labelNode={rootLevel.getLabelNode?.(item)}
-                                    hasChildren={totalLevels > 1}
-                                    isSelectable={totalLevels <= 1}
-                                    isHovered={id === selectedRootId}
-                                    onClick={() => handleRootItemClick(item)}
-                                    onSelect={() => handleRootItemClick(item)}
-                                />
+                                    onMouseEnter={
+                                        openChildOnHover && totalLevels > 1
+                                            ? () => handleRootItemClick(item)
+                                            : undefined
+                                    }
+                                >
+                                    <EntityListItem
+                                        label={rootLevel.getLabel(item)}
+                                        labelNode={rootLevel.getLabelNode?.(item)}
+                                        hasChildren={totalLevels > 1}
+                                        isSelectable={totalLevels <= 1}
+                                        isSelected={id === selectedParentId}
+                                        isHovered={id === selectedRootId}
+                                        onClick={() => handleRootItemClick(item)}
+                                        onSelect={() => handleRootItemClick(item)}
+                                    />
+                                </div>
                             )
                         })
                     )}
@@ -287,6 +313,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
                         parentId={selectedRootId}
                         childLevelConfig={hierarchyLevels[1]}
                         onSelect={handleChildSelect}
+                        selectedId={selectedRootId === selectedParentId ? selectedChildId : null}
                         maxHeight={maxHeight}
                         panelWidth={panelMinWidth}
                         disabledIds={disabledChildIds}
@@ -318,7 +345,7 @@ export function PopoverCascaderVariant<TSelection = EntitySelectionResult>({
             >
                 {icon}
                 {placeholder}
-                <DownOutlined style={{fontSize: 10}} />
+                {showDropdownIcon ? <CaretDown size={10} /> : null}
             </Button>
         </Popover>
     )

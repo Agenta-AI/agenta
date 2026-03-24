@@ -1,3 +1,4 @@
+import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
@@ -6,7 +7,6 @@ import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"
-import {formatMetricDisplay} from "../utils/metricFormatter"
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 import {
     resolveGenericStepValueByPath,

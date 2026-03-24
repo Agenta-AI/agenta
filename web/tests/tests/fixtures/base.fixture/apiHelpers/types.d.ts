@@ -1,4 +1,13 @@
-import {ListAppsItem, testset, APP_TYPE} from "../../../../../oss/src/lib/Types"
+import {testset} from "../../../../../oss/src/lib/Types"
+
+type APP_TYPE = "completion" | "chat" | "custom"
+
+interface ListAppsItem {
+    app_id: string
+    app_name: string
+    app_type: APP_TYPE
+    [key: string]: any
+}
 
 export interface ApiHandlerOptions<T> {
     route: string | RegExp

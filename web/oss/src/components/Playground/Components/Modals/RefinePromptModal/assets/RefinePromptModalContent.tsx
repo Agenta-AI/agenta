@@ -11,7 +11,7 @@
 
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Switch, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -42,8 +42,11 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
     const promptVersion = useAtomValue(workingPromptVersionAtomFamily(promptKey))
     const [showDiff, setShowDiff] = useAtom(refineDiffViewAtomFamily(promptKey))
 
-    const dataAtom = useMemo(() => runnableBridge.data(revisionId), [revisionId])
-    const runnableData = useAtomValue(dataAtom)
+    const configurationAtom = useMemo(
+        () => workflowMolecule.selectors.configuration(revisionId),
+        [revisionId],
+    )
+    const configuration = useAtomValue(configurationAtom)
 
     const hasRefinedPrompt = workingPrompt !== null && iterations.length > 0
 
@@ -63,16 +66,16 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         return () => document.removeEventListener("keydown", handler, {capture: true})
     }, [])
 
-    const setUpdate = useSetAtom(runnableBridge.update)
+    const setUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
     const handleUseRefinedPrompt = useCallback(() => {
-        if (!workingPrompt || !runnableData) return
+        if (!workingPrompt || !configuration) return
 
-        const configuration = (runnableData.configuration ?? {}) as Record<string, unknown>
-        const currentPrompt = (configuration[promptKey] ?? {}) as Record<string, unknown>
+        const config = (configuration ?? {}) as Record<string, unknown>
+        const currentPrompt = (config[promptKey] ?? {}) as Record<string, unknown>
 
         setUpdate(revisionId, {
-            ...configuration,
+            ...config,
             [promptKey]: {
                 ...currentPrompt,
                 messages: workingPrompt.messages,
@@ -80,7 +83,7 @@ const RefinePromptModalContent: React.FC<RefinePromptModalContentProps> = ({
         })
 
         onClose()
-    }, [workingPrompt, runnableData, promptKey, revisionId, onClose, setUpdate])
+    }, [workingPrompt, configuration, promptKey, revisionId, onClose, setUpdate])
 
     return (
         <div className="flex h-full min-h-0 flex-1">

@@ -33,6 +33,9 @@ from oss.src.core.tracing.utils.traces import (
     first_link,
     parse_simple_trace,
 )
+from oss.src.core.tracing.dtos import (
+    SimpleTraceReferences,
+)
 from oss.src.core.annotations.types import (
     AnnotationOrigin,
     AnnotationKind,
@@ -397,10 +400,6 @@ class AnnotationsService:
             is_evaluation=annotation.kind == AnnotationKind.EVAL,
         )
 
-        annotation_references = AnnotationReferences(
-            **annotation.references.model_dump(),
-        )
-
         annotation_link = await self._edit_annotation(
             organization_id=organization_id,
             project_id=project_id,
@@ -414,8 +413,8 @@ class AnnotationsService:
             #
             data=annotation_edit.data,
             #
-            references=annotation_references,
-            links=annotation.links,
+            references=annotation_edit.references,
+            links=annotation_edit.links,
         )
 
         if annotation_link is None:
@@ -524,13 +523,7 @@ class AnnotationsService:
         annotation_tags = annotation.tags if annotation else None
         annotation_meta = annotation.meta if annotation else None
 
-        annotation_references = (
-            AnnotationReferences(
-                **annotation.references.model_dump(),
-            )
-            if annotation and annotation.references
-            else None
-        )
+        annotation_references = annotation.references if annotation else None
 
         _annotation_links = annotation.links if annotation else None
 
@@ -785,7 +778,7 @@ class AnnotationsService:
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
         #
-        references: Optional[AnnotationReferences] = None,
+        references: Optional[SimpleTraceReferences] = None,
         links: Optional[AnnotationLinks] = None,
         #
         annotation_links: Optional[List[Link]] = None,

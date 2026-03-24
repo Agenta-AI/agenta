@@ -1,7 +1,7 @@
-// @ts-nocheck
 import {useMemo, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {environmentMolecule} from "@agenta/entities/environment"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -16,6 +16,7 @@ import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography}
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -26,11 +27,11 @@ import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typ
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import type {Parameter} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
-import {useStyles} from "./assets/styles"
 import type {DeploymentDrawerProps} from "./types"
 
 const DeploymentHistoryModal = dynamic(
@@ -47,30 +48,49 @@ const DeploymentDrawer = ({
     setOpenChangeVariantModal,
     ...props
 }: DeploymentDrawerProps & DrawerProps) => {
-    const classes = useStyles()
+    const router = useRouter()
+    const appId = router.query.app_id as string
     const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const {goToPlayground} = usePlaygroundNavigation()
     const variant = useMemo(() => {
         return (
             (variants || []).find(
-                (variant) => variant?.variantId === selectedEnvironment?.deployed_app_variant_id,
+                (variant) => variant?.variantId === selectedEnvironment?.deployedVariantId,
             ) || null
         )
-    }, [variants, selectedEnvironment.deployed_app_variant_id])
+    }, [variants, selectedEnvironment.deployedVariantId])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    const deployedRevisionId = selectedEnvironment?.deployed_app_variant_revision_id || ""
+    const entityEnv = useAtomValue(
+        useMemo(
+            () => environmentMolecule.atoms.bySlug(selectedEnvironment?.name ?? ""),
+            [selectedEnvironment?.name],
+        ),
+    )
+
+    const deployedRevisionId = selectedEnvironment?.deployedRevisionId || ""
     const uri = useAtomValue(
-        useMemo(() => runnableBridge.invocationUrl(deployedRevisionId), [deployedRevisionId]),
+        useMemo(
+            () => workflowMolecule.selectors.deploymentUrl(deployedRevisionId),
+            [deployedRevisionId],
+        ),
     )
     const inputPorts = useAtomValue(
-        useMemo(() => runnableBridge.inputPorts(deployedRevisionId), [deployedRevisionId]),
+        useMemo(
+            () => workflowMolecule.selectors.inputPorts(deployedRevisionId),
+            [deployedRevisionId],
+        ),
     )
 
     const params = useMemo(() => {
-        const inputKeys = (inputPorts || []).map((p: any) => p.key as string)
-        const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
+        const inputKeys = (inputPorts || []).map((p) => p.key as string)
+        const synthesized: Parameter[] = inputKeys.map((name) => ({
+            name,
+            type: "string",
+            input: name === "messages",
+            required: true,
+        }))
 
         const built = createParams(
             synthesized,
@@ -84,15 +104,32 @@ const DeploymentDrawer = ({
     const invokeLlmUrl = (uri && uri.trim()) || ""
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        python: invokeLlmApppythonCode(invokeLlmUrl, params),
-        bash: invokeLlmAppcURLCode(invokeLlmUrl, params),
-        typescript: invokeLlmApptsCode(invokeLlmUrl, params),
+        python: invokeLlmApppythonCode(invokeLlmUrl, params, ""),
+        bash: invokeLlmAppcURLCode(invokeLlmUrl, params, ""),
+        typescript: invokeLlmApptsCode(invokeLlmUrl, params, ""),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(currentApp?.app_name!, selectedEnvironment?.name!),
-        bash: fetchConfigcURLCode(currentApp?.app_name!, selectedEnvironment?.name!),
-        typescript: fetchConfigtsCode(currentApp?.app_name!, selectedEnvironment?.name!),
+        python: fetchConfigpythonCode(
+            (currentApp?.name ?? currentApp?.slug)!,
+            selectedEnvironment?.name!,
+            "",
+        ),
+        bash: fetchConfigcURLCode(
+            (currentApp?.name ?? currentApp?.slug)!,
+            selectedEnvironment?.name!,
+            "",
+        ),
+        typescript: fetchConfigtsCode(
+            (currentApp?.name ?? currentApp?.slug)!,
+            selectedEnvironment?.name!,
+            "",
+        ),
+    }
+
+    const handleOpenSelectDeployVariantModal = () => {
+        setOpenChangeVariantModal(true)
+        setQueryEnv("")
     }
 
     return (
@@ -103,7 +140,7 @@ const DeploymentDrawer = ({
                 destroyOnHidden
                 closeIcon={null}
                 title={
-                    <Space className={classes.drawerTitleContainer}>
+                    <Space className="flex justify-between w-full [&_h1.ant-typography]:text-lg [&_h1.ant-typography]:font-medium [&_h1.ant-typography]:!mb-0">
                         <Space className="gap-3">
                             <Button
                                 onClick={() => props.onClose?.({} as any)}
@@ -113,8 +150,8 @@ const DeploymentDrawer = ({
                             <Title>{selectedEnvironment?.name} environment</Title>
                         </Space>
 
-                        {selectedEnvironment.deployed_variant_name && (
-                            <Space orientation="horizontal">
+                        {selectedEnvironment.deployedVariantName && (
+                            <Space>
                                 <Tooltip
                                     title={isDemo() ? "" : "History available in Cloud/EE only"}
                                 >
@@ -136,10 +173,7 @@ const DeploymentDrawer = ({
                                                 key: "change_variant",
                                                 label: "Change Variant",
                                                 icon: <Swap size={16} />,
-                                                onClick: () => {
-                                                    setOpenChangeVariantModal(true)
-                                                    setQueryEnv("")
-                                                },
+                                                onClick: handleOpenSelectDeployVariantModal,
                                             },
                                             {
                                                 key: "open_playground",
@@ -147,7 +181,8 @@ const DeploymentDrawer = ({
                                                 icon: <Rocket size={16} />,
                                                 onClick: () =>
                                                     goToPlayground(
-                                                        selectedEnvironment.deployed_app_variant_revision_id,
+                                                        selectedEnvironment.deployedRevisionId ??
+                                                            undefined,
                                                     ),
                                             },
                                         ],
@@ -160,7 +195,7 @@ const DeploymentDrawer = ({
                     </Space>
                 }
             >
-                {selectedEnvironment.deployed_variant_name ? (
+                {selectedEnvironment.deployedVariantName ? (
                     <div className="flex flex-col">
                         <div className="flex justify-between">
                             <Text className="font-[500]">Variant Deployed</Text>
@@ -168,7 +203,7 @@ const DeploymentDrawer = ({
                             {variant && (
                                 <VariantPopover
                                     env={selectedEnvironment}
-                                    selectedDeployedVariant={variant}
+                                    selectedDeployedVariant={variant as any}
                                 />
                             )}
                         </div>
@@ -193,6 +228,11 @@ const DeploymentDrawer = ({
                                                 fetchConfigCodeSnippet={fetchConfigCodeSnippet}
                                                 invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
                                                 selectedLang={selectedLang}
+                                                handleOpenSelectDeployVariantModal={
+                                                    handleOpenSelectDeployVariantModal
+                                                }
+                                                invokeLlmUrl={invokeLlmUrl}
+                                                showDeployOverlay={false}
                                             />
                                         ),
                                         icon: <PythonOutlined />,
@@ -205,6 +245,11 @@ const DeploymentDrawer = ({
                                                 fetchConfigCodeSnippet={fetchConfigCodeSnippet}
                                                 invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
                                                 selectedLang={selectedLang}
+                                                handleOpenSelectDeployVariantModal={
+                                                    handleOpenSelectDeployVariantModal
+                                                }
+                                                invokeLlmUrl={invokeLlmUrl}
+                                                showDeployOverlay={false}
                                             />
                                         ),
                                         icon: <FileTs size={14} />,
@@ -217,6 +262,11 @@ const DeploymentDrawer = ({
                                                 fetchConfigCodeSnippet={fetchConfigCodeSnippet}
                                                 invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
                                                 selectedLang={selectedLang}
+                                                handleOpenSelectDeployVariantModal={
+                                                    handleOpenSelectDeployVariantModal
+                                                }
+                                                invokeLlmUrl={invokeLlmUrl}
+                                                showDeployOverlay={false}
                                             />
                                         ),
                                         icon: <FileCode size={14} />,
@@ -227,7 +277,7 @@ const DeploymentDrawer = ({
                         </div>
                     </div>
                 ) : (
-                    <div className={classes.noDataContainer}>
+                    <div className="flex flex-col items-center justify-center gap-4 py-20">
                         <CloudWarning size={40} />
 
                         <Typography.Text>
@@ -236,10 +286,7 @@ const DeploymentDrawer = ({
 
                         <Button
                             className="flex items-center gap-2"
-                            onClick={() => {
-                                setOpenChangeVariantModal(true)
-                                setQueryEnv("")
-                            }}
+                            onClick={handleOpenSelectDeployVariantModal}
                         >
                             Deploy now <ArrowRight size={14} />
                         </Button>
@@ -251,8 +298,12 @@ const DeploymentDrawer = ({
                 open={isHistoryModalOpen}
                 onCancel={() => setIsHistoryModalOpen(false)}
                 setIsHistoryModalOpen={setIsHistoryModalOpen}
-                selectedEnvironment={selectedEnvironment}
-                variant={variant}
+                environmentId={entityEnv?.id ?? ""}
+                environmentName={selectedEnvironment.name}
+                environmentVariantId={entityEnv?.variant_id ?? null}
+                currentAppRevisionId={selectedEnvironment.deployedRevisionId ?? null}
+                appId={appId}
+                appSlug={currentApp?.slug ?? currentApp?.name ?? null}
             />
         </>
     )

@@ -1,8 +1,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {CaretDoubleRight, CaretDown, CaretUp, Copy} from "@phosphor-icons/react"
+import {CaretDoubleRight, CaretDown, CaretUp, Copy, ListChecks} from "@phosphor-icons/react"
 import {Alert, Button, Dropdown, Segmented, Skeleton, Space, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -13,6 +14,11 @@ import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"
 import TestcaseEditDrawerContent, {
     type TestcaseEditDrawerContentRef,
 } from "./TestcaseEditDrawer/index"
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
 
 type EditMode = "fields" | "json"
 
@@ -168,6 +174,9 @@ const TestcaseEditDrawer = ({
     }, [testcaseId])
 
     const title = useMemo(() => {
+        const queueItemIds =
+            testcaseId && !isNewRow && !testcaseId.startsWith("new-") ? [testcaseId] : []
+
         return (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-1">
@@ -226,6 +235,19 @@ const TestcaseEditDrawer = ({
 
                 {/* Edit mode toggle */}
                 <div className="flex items-center gap-2">
+                    <AddToQueuePopover
+                        itemType="testcases"
+                        itemIds={queueItemIds}
+                        disabled={queueItemIds.length === 0}
+                    >
+                        <Button
+                            size="small"
+                            icon={<ListChecks size={14} />}
+                            disabled={queueItemIds.length === 0}
+                        >
+                            Add to queue
+                        </Button>
+                    </AddToQueuePopover>
                     <Segmented
                         size="small"
                         value={editMode}
@@ -240,6 +262,7 @@ const TestcaseEditDrawer = ({
         )
     }, [
         testcaseId,
+        isNewRow,
         editMode,
         onPrevious,
         onNext,

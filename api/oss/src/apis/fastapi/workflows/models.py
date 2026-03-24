@@ -72,6 +72,7 @@ class WorkflowResponse(BaseModel):
 class WorkflowsResponse(BaseModel):
     count: int = 0
     workflows: List[Workflow] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW VARIANTS ------------------------------------------------------------
@@ -104,6 +105,7 @@ class WorkflowVariantResponse(BaseModel):
 class WorkflowVariantsResponse(BaseModel):
     count: int = 0
     workflow_variants: List[WorkflowVariant] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW REVISIONS -----------------------------------------------------------
@@ -172,6 +174,7 @@ class WorkflowRevisionResponse(BaseModel):
 class WorkflowRevisionsResponse(BaseModel):
     count: int = 0
     workflow_revisions: List[WorkflowRevision] = []
+    windowing: Optional[Windowing] = None
 
 
 # WORKFLOW REVISION RESOLUTION -------------------------------------------------

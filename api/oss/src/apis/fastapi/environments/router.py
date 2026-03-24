@@ -1027,6 +1027,8 @@ class EnvironmentsRouter:
             environment_variant_refs=environment_revision_query_request.environment_variant_refs,
             environment_revision_refs=environment_revision_query_request.environment_revision_refs,
             #
+            application_refs=environment_revision_query_request.application_refs,
+            #
             include_archived=environment_revision_query_request.include_archived,
             #
             windowing=environment_revision_query_request.windowing,

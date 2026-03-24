@@ -2,8 +2,15 @@
  * Atom for handling run invocation actions in evaluation scenarios.
  * This provides a global action that can be triggered from table cells
  * without needing to use hooks in each cell.
+ *
+ * Uses executeWorkflowRevision from @agenta/playground, which leverages
+ * the full playground runner (concurrency limiting, abort, URL/payload
+ * resolution via workflowMolecule) rather than a bespoke HTTP call.
  */
 
+import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import {executeWorkflowRevision} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {getDefaultStore} from "jotai"
@@ -12,8 +19,11 @@ import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRuns
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
-import {runInvocation} from "@/oss/services/evaluations/invocations/api"
-import {fetchVariantConfig} from "@/oss/services/variantConfigs/api"
+import {EvaluationStatus} from "@/oss/lib/Types"
+import {
+    upsertStepResultWithInvocation,
+    updateScenarioStatus,
+} from "@/oss/services/evaluations/invocations/api"
 import {getProjectValues} from "@/oss/state/project"
 
 import {
@@ -34,80 +44,6 @@ export interface RunInvocationActionParams {
 /** Track which scenarios are currently running */
 export const runningInvocationsAtom = atom<Set<string>>(new Set<string>())
 
-/**
- * Prepare the request body for an invocation.
- * The request body should have:
- * - ag_config: contains the prompt configuration (from precomputedParameters)
- * - inputs: contains the input values (from inputParametersDict, excluding non-input keys)
- */
-const prepareRequestBody = ({
-    inputParametersDict,
-    precomputedParameters,
-    appType,
-}: {
-    inputParametersDict: Record<string, any>
-    precomputedParameters?: Record<string, any>
-    appType?: string
-}): Record<string, any> => {
-    const isCustomVariant = !!appType && appType === "custom"
-    const rawMessages = inputParametersDict?.messages
-    let messages = Array.isArray(rawMessages) ? rawMessages : undefined
-    if (!messages && typeof rawMessages === "string") {
-        try {
-            const parsed = JSON.parse(rawMessages)
-            if (Array.isArray(parsed)) {
-                messages = parsed
-            }
-        } catch {
-            // Ignore invalid JSON and let the backend handle missing messages.
-        }
-    }
-
-    // Build the inputs object from inputParametersDict
-    // Filter out non-input keys like testcase_dedup_id, correct_answer, etc.
-    const inputKeys = precomputedParameters?.prompt?.input_keys ?? []
-    const inputs: Record<string, any> = {}
-
-    // Only include keys that are in input_keys (if defined) or all keys (if not defined)
-    Object.keys(inputParametersDict).forEach((key) => {
-        // Skip internal/metadata keys
-        if (key === "testcase_dedup_id" || key === "correct_answer") {
-            return
-        }
-        // If input_keys is defined, only include those keys
-        if (inputKeys.length > 0 && !inputKeys.includes(key)) {
-            return
-        }
-        inputs[key] = inputParametersDict[key]
-    })
-
-    // For custom variants, inputs go at top level
-    if (isCustomVariant) {
-        const requestBody = {
-            ag_config: precomputedParameters || {},
-            ...inputs,
-        }
-
-        if (messages && messages.length > 0) {
-            requestBody.messages = messages
-        }
-
-        return requestBody
-    }
-
-    // For standard variants, wrap config in ag_config and inputs under inputs key
-    const requestBody = {
-        ag_config: precomputedParameters || {},
-        inputs,
-    }
-
-    if (messages && messages.length > 0) {
-        requestBody.messages = messages
-    }
-
-    return requestBody
-}
-
 /** Action atom to run an invocation */
 export const triggerRunInvocationAtom = atom(
     null,
@@ -126,24 +62,12 @@ export const triggerRunInvocationAtom = atom(
         try {
             // Get run index for references
             const runIndex = get(evaluationRunIndexAtomFamily(runId))
-            console.log("[runInvocationAction] Run index:", {
-                runIndex,
-                invocationKeys: runIndex?.invocationKeys,
-                steps: runIndex?.steps,
-            })
-
             const invocationKeys = Array.from(runIndex?.invocationKeys ?? [])
             const primaryInvocationKey = invocationKeys[0]
             const invocationStepMeta = primaryInvocationKey
                 ? runIndex?.steps?.[primaryInvocationKey]
                 : undefined
             const refs = invocationStepMeta?.refs ?? {}
-
-            console.log("[runInvocationAction] Invocation step meta:", {
-                primaryInvocationKey,
-                invocationStepMeta,
-                refs,
-            })
 
             // Extract IDs from references
             const appId =
@@ -154,8 +78,6 @@ export const triggerRunInvocationAtom = atom(
                 refs.applicationRevision?.id ||
                 refs.revision?.id ||
                 ""
-
-            console.log("[runInvocationAction] Extracted IDs:", {appId, revisionId})
 
             if (!appId) {
                 console.error("[runInvocationAction] Application ID not found in refs:", refs)
@@ -169,63 +91,30 @@ export const triggerRunInvocationAtom = atom(
                 return {success: false, error: "Revision ID not found"}
             }
 
-            // Fetch variant config directly from API (includes params and URL)
             const {projectId} = getProjectValues()
             if (!projectId) {
                 message.error("Project ID not available")
                 return {success: false, error: "Project ID not available"}
             }
 
-            console.log("[runInvocationAction] Fetching variant config...", {
-                projectId,
-                appId,
-                revisionId,
-            })
-
-            const variantConfig = await fetchVariantConfig({
-                projectId,
-                application: {id: appId},
-                variant: {id: revisionId},
-            })
-
-            console.log("[runInvocationAction] Variant config:", variantConfig)
-
-            if (!variantConfig) {
+            // Fetch workflow revision and seed it into the default store so that
+            // workflowMolecule selectors resolve correctly inside executeWorkflowRevision
+            const workflow = await fetchWorkflowRevisionById(revisionId, projectId)
+            if (!workflow) {
                 message.error("Failed to fetch variant configuration")
                 return {success: false, error: "Variant config not available"}
             }
 
-            const appUrl = variantConfig.url
-            if (!appUrl) {
-                console.error("[runInvocationAction] App URL not in variant config:", variantConfig)
-                message.error("App URL not available in variant config")
-                return {success: false, error: "App URL not available"}
-            }
+            workflowMolecule.set.seedEntity(revisionId, workflow)
 
-            // Get stable parameters from variant config
-            const stableParams = variantConfig.params ?? {}
-            console.log("[runInvocationAction] Stable params from config:", stableParams)
-
-            // Get input data from the scenario's input step
+            // Get input data from the scenario's input step / testcase
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId}))
             const steps = stepsQuery.data?.steps ?? []
-            console.log("[runInvocationAction] Scenario steps:", {stepsQuery, steps})
-
-            // Find the input step and get the testcase ID
             const inputKeys = runIndex?.inputKeys ?? new Set()
-            console.log("[runInvocationAction] Looking for input step:", {
-                inputKeys: Array.from(inputKeys),
-                allStepKeys: steps.map((s: any) => s.stepKey),
-            })
             const inputStep = steps.find((step: any) => inputKeys.has(step.stepKey ?? ""))
             const testcaseId = inputStep?.testcaseId ?? inputStep?.testcase_id
-            console.log("[runInvocationAction] Input step found:", {
-                inputStep,
-                testcaseId,
-            })
 
-            // Fetch the testcase data using the testcase ID
-            let inputData: Record<string, any> = {}
+            let inputData: Record<string, unknown> = {}
             if (testcaseId) {
                 try {
                     const testcaseResponse = await axios.post(
@@ -236,25 +125,18 @@ export const triggerRunInvocationAtom = atom(
                     const testcases = testcaseResponse.data?.testcases ?? []
                     const testcase = testcases[0]
                     inputData = testcase?.data ?? testcase?.inputs ?? {}
-                    console.log("[runInvocationAction] Fetched testcase data:", {
-                        testcase,
-                        inputData,
-                    })
                 } catch (err) {
                     console.error("[runInvocationAction] Failed to fetch testcase:", err)
                 }
             } else {
-                // Fallback to step data if no testcase ID
                 inputData = inputStep?.data ?? inputStep?.inputs ?? {}
-                console.log("[runInvocationAction] Using step data as fallback:", inputData)
             }
 
-            // Build request body using the legacy prepareRequest logic
-            // Note: appType is not available here, but prepareRequestBody handles undefined gracefully
-            const requestBody = prepareRequestBody({
-                inputParametersDict: inputData,
-                precomputedParameters: stableParams,
-                appType: undefined,
+            // Run via the playground execution infrastructure
+            const result = await executeWorkflowRevision({
+                revisionId,
+                inputData,
+                projectId,
             })
 
             // Build references for the step result
@@ -272,18 +154,18 @@ export const triggerRunInvocationAtom = atom(
                       : undefined,
             }
 
-            // Run the invocation
-            const result = await runInvocation({
-                runId,
-                scenarioId,
-                stepKey,
-                appUrl,
-                appId,
-                requestBody,
-                references,
-            })
+            if (result.status === "success") {
+                // Update step result with trace/span from execution
+                await upsertStepResultWithInvocation({
+                    runId,
+                    scenarioId,
+                    stepKey,
+                    traceId: result.traceId ?? undefined,
+                    spanId: result.spanId ?? undefined,
+                    status: "success",
+                    references,
+                })
 
-            if (result.success) {
                 message.success("Invocation completed")
 
                 // Invalidate all relevant caches to force fresh data
@@ -291,66 +173,64 @@ export const triggerRunInvocationAtom = atom(
                 invalidateTraceBatcherCache()
                 invalidateMetricBatcherCache()
 
-                // Trigger metrics refresh for scenario-level and run-level metrics
                 await triggerMetricsRefresh({projectId, runId, scenarioId})
 
-                // Refetch the scenario steps and metrics to update the UI
                 const stepsQueryAtom = scenarioStepsQueryFamily({scenarioId, runId})
-                const stepsQuery = store.get(stepsQueryAtom)
-                await stepsQuery.refetch?.()
+                const latestStepsQuery = store.get(stepsQueryAtom)
+                await latestStepsQuery.refetch?.()
 
                 const metricQueryAtom = evaluationMetricQueryAtomFamily({scenarioId, runId})
                 const metricQuery = store.get(metricQueryAtom)
                 await metricQuery.refetch?.()
 
-                // Clear the preview runs cache and trigger a background refetch of the runs table
-                // This ensures the status update is reflected immediately in the runs table
                 clearPreviewRunsCache()
                 set(invalidateEvaluationRunsTableAtom)
                 await queryClient.refetchQueries({
                     predicate: (query) => {
                         const key = query.queryKey
                         if (!Array.isArray(key)) return false
-                        // Match evaluation-runs-table queries (for the runs list page)
                         if (key[0] === "evaluation-runs-table") return true
-                        // Match run metric stats queries
                         if (key[0] === "preview" && key[1] === "run-metric-stats") return true
-                        // Match eval-table scenarios queries (for the run details page)
                         if (key[0] === "eval-table" && key[1] === "scenarios") return true
                         return false
                     },
                 })
 
-                console.log("[runInvocationAction] Caches invalidated and data refetched")
+                return {success: true}
             } else {
-                // Show error with more details - use longer duration for readability
-                message.error({
-                    content: result.error || "Invocation failed",
-                    duration: 8,
+                // Record failure in step result
+                const errorMessage = result.error?.message ?? "Invocation failed"
+                await upsertStepResultWithInvocation({
+                    runId,
+                    scenarioId,
+                    stepKey,
+                    traceId: result.traceId ?? undefined,
+                    status: "failure",
+                    references,
+                    error: {message: errorMessage},
                 })
 
-                // Still need to refetch the runs table since scenario/run status may have been updated
+                await updateScenarioStatus(scenarioId, EvaluationStatus.FAILURE)
+
+                message.error({content: errorMessage, duration: 8})
+
                 clearPreviewRunsCache()
                 set(invalidateEvaluationRunsTableAtom)
                 await queryClient.refetchQueries({
                     predicate: (query) => {
                         const key = query.queryKey
                         if (!Array.isArray(key)) return false
-                        // Match evaluation-runs-table queries (for the runs list page)
                         if (key[0] === "evaluation-runs-table") return true
-                        // Match run metric stats queries
                         if (key[0] === "preview" && key[1] === "run-metric-stats") return true
-                        // Match eval-table scenarios queries (for the run details page)
                         if (key[0] === "eval-table" && key[1] === "scenarios") return true
                         return false
                     },
                 })
-            }
 
-            return result
+                return {success: false, error: errorMessage}
+            }
         } catch (error: any) {
             console.error("[runInvocationAction] Error:", error)
-            // Extract error message from various response formats
             const detail = error?.response?.data?.detail
             let errorMsg = "Unknown error"
             if (detail && typeof detail === "object" && detail.message) {
@@ -360,11 +240,8 @@ export const triggerRunInvocationAtom = atom(
             } else if (error?.message) {
                 errorMsg = error.message
             }
-            message.error({
-                content: errorMsg,
-                duration: 8,
-            })
-            return {success: false, error: error?.message || "Unknown error"}
+            message.error({content: errorMsg, duration: 8})
+            return {success: false, error: errorMsg}
         } finally {
             // Mark as not running
             set(runningInvocationsAtom, (prev: Set<string>) => {

@@ -1,33 +1,49 @@
-import {variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 
-import {CustomWorkflowModalProps} from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/types"
-import {appsAtom, currentAppAtom, selectedAppIdAtom} from "@/oss/state/app"
+import {appsAtom} from "@/oss/state/app"
 
-// Centralized state for the Custom Workflow Modal
-export const customWorkflowModalPropsAtom = atom<CustomWorkflowModalProps>({
-    customWorkflowAppValues: {appName: "", appUrl: "", appDesc: ""},
-    setCustomWorkflowAppValues: () => {},
-    handleCreateApp: () => {},
-    configureWorkflow: false,
-    variants: [],
-    allVariantsDataMutate: undefined,
-    appNameExist: false,
-    mutate: async () => {},
+// ---------------------------------------------------------------------------
+// Modal state — minimal: only what can't be derived
+// ---------------------------------------------------------------------------
+
+export interface CustomWorkflowModalState {
+    open: boolean
+    /** null / "" = create mode; non-empty string = configure mode (appId) */
+    appId: string | null
+    /** Called after a successful create or configure-save */
+    onSuccess?: () => Promise<void>
+    /** Called to trigger template creation flow (create mode only) */
+    onCreateApp?: () => void
+}
+
+export const customWorkflowModalStateAtom = atom<CustomWorkflowModalState>({
     open: false,
-    onCancel: () => {},
+    appId: null,
 })
 
-// Dedicated atom for live form values used inside the modal content
+/** Normalized key used to scope form values: appId or "new-app" */
+export const normalizeAppKey = (id?: string | null) => (id && id.trim().length ? id : "new-app")
+
+/** Whether the modal is in configure mode (vs create mode) */
+export const customWorkflowModeAtom = atom((get) => {
+    const {appId} = get(customWorkflowModalStateAtom)
+    return normalizeAppKey(appId) !== "new-app" ? ("configure" as const) : ("create" as const)
+})
+
+// ---------------------------------------------------------------------------
+// Form values — scoped by appId via atom family
+// ---------------------------------------------------------------------------
+
 export interface CustomWorkflowValues {
     appName: string
     appUrl: string
     appDesc: string
 }
-// Family of form atoms keyed by appId ("configure" mode when appId is provided; otherwise "create" mode)
-export const customWorkflowValuesAtomFamily = atomFamily((appId: string | null) =>
+
+export const customWorkflowValuesAtomFamily = atomFamily((_appKey: string | null) =>
     atomWithImmer<CustomWorkflowValues>({
         appName: "",
         appUrl: "",
@@ -35,84 +51,59 @@ export const customWorkflowValuesAtomFamily = atomFamily((appId: string | null) 
     }),
 )
 
-// Seed values from current app and first variant
-export const customWorkflowSeedAtom = atom((get) => {
-    const app: any = get(currentAppAtom)
-    const appId = get(selectedAppIdAtom)
-    const vars = appId ? get(variantsListAtomFamily(appId)) : []
-    const first = Array.isArray(vars) && vars.length > 0 ? vars[0] : null
-    return {
-        appName: (app?.app_name as string) || "",
-        appUrl: (first?.uri as string) || "",
-        appDesc: "",
-    } satisfies CustomWorkflowValues
-})
-
-export const setCustomWorkflowModalPropsAtom = atom(
-    null,
-    (get, set, props: Partial<CustomWorkflowModalProps>) => {
-        const prev = get(customWorkflowModalPropsAtom)
-        set(customWorkflowModalPropsAtom, {...prev, ...props})
-    },
-)
+// ---------------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------------
 
 export const openCustomWorkflowModalAtom = atom(
     null,
-    (get, set, props?: Partial<CustomWorkflowModalProps>) => {
-        const prev = get(customWorkflowModalPropsAtom)
-        // Normalize key: null/undefined/"" => "new-app" (create mode)
-        const normalizeKey = (id?: string) => (id && id.trim().length ? id : "new-app")
-        // Preferred signal is appId; fallback inference by currentApp presence (deprecated)
-        const appKeyFromProps = normalizeKey(props?.appId as any)
-        const inferredConfigure =
-            props?.appId !== undefined
-                ? appKeyFromProps !== "new-app"
-                : (props?.configureWorkflow ?? Boolean(get(currentAppAtom)))
-        const next = {
-            ...prev,
-            ...(props || {}),
-            configureWorkflow: inferredConfigure,
+    (
+        get,
+        set,
+        params: {
+            appId?: string | null
+            onSuccess?: () => Promise<void>
+            onCreateApp?: () => void
+        },
+    ) => {
+        const appKey = normalizeAppKey(params.appId)
+
+        set(customWorkflowModalStateAtom, {
             open: true,
-        }
-        set(customWorkflowModalPropsAtom, next)
-        // Seed the atom family instance for this modal by normalized key
-        const appKey = appKeyFromProps
+            appId: params.appId ?? null,
+            onSuccess: params.onSuccess,
+            onCreateApp: params.onCreateApp,
+        })
+
+        // Seed form values
         const valuesAtom = customWorkflowValuesAtomFamily(appKey)
-        // Explicit values take precedence ONLY if non-empty
-        const v = props?.customWorkflowAppValues
-        const hasExplicit = v && Boolean((v.appName || v.appUrl || v.appDesc || "").trim())
-        if (hasExplicit && v) {
-            set(valuesAtom, v as any)
-            return
-        }
 
         if (appKey !== "new-app") {
-            // Configure: hydrate from specific app id
+            // Configure mode: hydrate from app + latest revision
             const apps = get(appsAtom) as any[]
-            const app = Array.isArray(apps) ? apps.find((a) => a.app_id === appKey) : null
-            const providedVars: any[] = (props?.variants as any[]) || []
-            const entityVars = get(variantsListAtomFamily(appKey))
-            const globalVars: any[] = Array.isArray(entityVars) ? entityVars : []
-            const vars = providedVars.length ? providedVars : globalVars
-            const first = Array.isArray(vars) && vars.length > 0 ? (vars[0] as any) : null
+            const app = Array.isArray(apps) ? apps.find((a: any) => a.id === appKey) : null
+            const revisions = get(workflowRevisionsByWorkflowListDataAtomFamily(appKey))
+            const first = revisions.length > 0 ? revisions[0] : null
             set(valuesAtom, {
-                appName: (app?.app_name as string) || "",
-                appUrl: (first?.uri as string) || "",
+                appName: (app?.name as string) || (app?.slug as string) || "",
+                appUrl: (first?.data?.url as string) || "",
                 appDesc: "",
             })
         } else {
-            // Create: empty state
+            // Create mode: empty
             set(valuesAtom, {appName: "", appUrl: "", appDesc: ""})
         }
     },
 )
 
-export const closeCustomWorkflowModalAtom = atom(null, (get, set) => {
-    const prev = get(customWorkflowModalPropsAtom)
-    set(customWorkflowModalPropsAtom, {...prev, open: false})
+export const closeCustomWorkflowModalAtom = atom(null, (_get, set) => {
+    set(customWorkflowModalStateAtom, (prev) => ({...prev, open: false}))
 })
 
-// Ephemeral UI state atoms for the modal
+// ---------------------------------------------------------------------------
+// Ephemeral UI state
+// ---------------------------------------------------------------------------
+
 export interface TestConnectionStatus {
     success: boolean
     error: boolean
@@ -126,3 +117,10 @@ export const customWorkflowTestStatusAtom = atom<TestConnectionStatus>({
 })
 
 export const customWorkflowConfiguringAtom = atom<boolean>(false)
+
+// ---------------------------------------------------------------------------
+// Backward-compat re-exports (consumed by legacy code paths)
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use customWorkflowModalStateAtom instead */
+export const customWorkflowModalPropsAtom = customWorkflowModalStateAtom

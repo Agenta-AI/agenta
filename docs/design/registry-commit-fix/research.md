@@ -52,11 +52,9 @@ if (node?.entityType === "workflow") {
 
 Reads merged entity data from `workflowEntityAtomFamily(revisionId)`, calls `commitWorkflowRevisionApi` which hits `POST /preview/workflows/revisions/commit`.
 
-### 5b. Legacy commit (incorrect fallback)
+### 5b. Legacy commit (REMOVED)
 
-**File:** `web/packages/agenta-entities/src/legacyAppRevision/state/commit.ts:262`
-
-Calls `PUT /variants/{variantId}/parameters`. Requires a real variant UUID. When it receives the slug from Bug 2, the backend throws the UUID parse error.
+> The legacy commit path via `legacyAppRevision/state/commit.ts` has been removed. All commits now go through the workflow path.
 
 ## The entity type resolution system
 
