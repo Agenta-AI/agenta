@@ -3,10 +3,10 @@ Acceptance tests for canonical workflow handlers exposed via the /services HTTP 
 
 Covers:
 - GET  /health
-- POST /custom/code/v0/invoke   — Python code evaluator (happy path)
-- POST /builtin/match/v0/invoke — regex matcher (happy path)
-- POST /custom/trace/v0/invoke  — interface-only stub (expect error response)
-- POST /custom/hook/v0/invoke   — webhook forwarder without URL (expect error response)
+- POST /code/v0/invoke   — Python code evaluator (happy path)
+- POST /match/v0/invoke  — regex matcher (happy path)
+- POST /trace/v0/invoke  — interface-only stub (expect error response)
+- POST /hook/v0/invoke   — webhook forwarder without URL (expect error response)
 
 Requires a running services server reachable at AGENTA_SERVICES_URL
 (or derived from AGENTA_API_URL).  Auth is supplied via AGENTA_AUTH_KEY.
@@ -62,6 +62,59 @@ def _assert_base_response(payload: dict) -> None:
     assert "data" in payload, f"Missing 'data' in response: {payload}"
 
 
+def _inspect_body(body: dict) -> dict:
+    inspect: dict = {}
+
+    for key in ("version", "references", "selector", "flags", "tags", "meta"):
+        if key in body:
+            inspect[key] = body[key]
+
+    data = body.get("data")
+    if isinstance(data, dict) and "revision" in data:
+        inspect["revision"] = data["revision"]
+
+    return inspect
+
+
+def _direct_invoke_inspect(path: str, body: dict) -> dict | None:
+    uri_by_prefix = {
+        "/code/v0/invoke": "agenta:custom:code:v0",
+        "/hook/v0/invoke": "agenta:custom:hook:v0",
+        "/match/v0/invoke": "agenta:builtin:match:v0",
+    }
+    uri = uri_by_prefix.get(path)
+    if uri is None:
+        return None
+
+    parameters = {}
+    data = body.get("data")
+    if isinstance(data, dict) and isinstance(data.get("parameters"), dict):
+        parameters = data["parameters"]
+
+    return {"revision": {"data": {"uri": uri, "parameters": parameters}}}
+
+
+def _invoke_with_inspect(services_api, path: str, *, body: dict):
+    inspect_body = _direct_invoke_inspect(path, body) or _inspect_body(body)
+    inspect_path = "/inspect" if path != "/invoke" else "/inspect"
+    inspect_resp = services_api(
+        "POST",
+        inspect_path,
+        json=inspect_body,
+    )
+    assert inspect_resp.status_code == 200, (
+        f"Inspect failed for {path}: {inspect_resp.text[:500]}"
+    )
+    return services_api("POST", path, json=body)
+
+
+def _assert_direct_inspect_uri(services_api, path: str, *, expected_uri: str) -> None:
+    resp = services_api("POST", path, json={})
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["data"]["revision"]["data"]["uri"] == expected_uri
+
+
 # ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
@@ -75,14 +128,23 @@ def test_health(unauthed_services_api):
     assert resp.json() == {"status": "ok"}
 
 
+@pytest.mark.acceptance
+def test_match_direct_inspect_returns_canonical_uri(services_api):
+    _assert_direct_inspect_uri(
+        services_api,
+        "/match/v0/inspect",
+        expected_uri="agenta:builtin:match:v0",
+    )
+
+
 # ---------------------------------------------------------------------------
-# /custom/code/v0/invoke — Python code evaluator
+# /code/v0/invoke — Python code evaluator
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.acceptance
 class TestCustomCodeV0:
-    """HTTP acceptance tests for the custom/code/v0 canonical service."""
+    """HTTP acceptance tests for the /code/v0 canonical service."""
 
     def test_perfect_score_returns_success(self, services_api):
         """code_v0 with code returning 1.0 yields score=1.0 and success=True."""
@@ -92,7 +154,11 @@ class TestCustomCodeV0:
                 "runtime": "python",
             }
         )
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -111,7 +177,11 @@ class TestCustomCodeV0:
             inputs={"expected": "Paris"},
             outputs="Paris",
         )
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -129,7 +199,11 @@ class TestCustomCodeV0:
             inputs={"expected": "Paris"},
             outputs="London",
         )
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -142,7 +216,11 @@ class TestCustomCodeV0:
         body = (
             _base_body()
         )  # parameters={} — handler raises MissingConfigurationParameterV0Error
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code != 200, (
             f"Expected error for missing parameters, got 200: {resp.text}"
         )
@@ -157,7 +235,11 @@ class TestCustomCodeV0:
                 "threshold": 0.9,
             }
         )
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -173,19 +255,23 @@ class TestCustomCodeV0:
                 "runtime": "python",
             }
         )
-        resp = services_api("POST", "/custom/code/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/code/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         assert "version" in resp.json()
 
 
 # ---------------------------------------------------------------------------
-# /builtin/match/v0/invoke — rule-based matcher
+# /match/v0/invoke — rule-based matcher
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.acceptance
 class TestBuiltinMatchV0:
-    """HTTP acceptance tests for the builtin/match/v0 canonical service."""
+    """HTTP acceptance tests for the /match/v0 canonical service."""
 
     def _regex_body(self, reference: str, outputs=_SENTINEL, inputs=_SENTINEL):
         path = "$.outputs" if outputs is not _SENTINEL else "$.inputs.answer"
@@ -208,7 +294,11 @@ class TestBuiltinMatchV0:
         """An anchored regex matcher passes when output equals the reference."""
         reference = "^" + re.escape("Paris") + "$"
         body = self._regex_body(reference=reference, outputs="Paris")
-        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/match/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         payload = resp.json()
         _assert_base_response(payload)
@@ -221,7 +311,11 @@ class TestBuiltinMatchV0:
         """The same regex matcher returns success=False for a different output."""
         reference = "^" + re.escape("Paris") + "$"
         body = self._regex_body(reference=reference, outputs="London")
-        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/match/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
         assert result["results"][0]["success"] is False
@@ -229,7 +323,11 @@ class TestBuiltinMatchV0:
     def test_substring_match_success(self, services_api):
         """A plain substring regex passes when output contains the substring."""
         body = self._regex_body(reference="Paris", outputs="The capital is Paris.")
-        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/match/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
         assert result["results"][0]["success"] is True
@@ -254,7 +352,11 @@ class TestBuiltinMatchV0:
             parameters={"matchers": matchers},
             outputs="yes",
         )
-        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/match/v0/invoke",
+            body=body,
+        )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
         assert len(result["results"]) == 2
@@ -266,14 +368,18 @@ class TestBuiltinMatchV0:
         body = (
             _base_body()
         )  # parameters={} — handler raises MissingConfigurationParameterV0Error
-        resp = services_api("POST", "/builtin/match/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/match/v0/invoke",
+            body=body,
+        )
         assert resp.status_code != 200, (
             f"Expected error for missing parameters, got 200: {resp.text}"
         )
 
 
 # ---------------------------------------------------------------------------
-# /custom/hook/v0/invoke — webhook forwarder (no URL configured → error)
+# /hook/v0/invoke — webhook forwarder (no URL configured → error)
 # ---------------------------------------------------------------------------
 
 
@@ -285,9 +391,13 @@ class TestCustomHookV0:
     """
 
     def test_invocation_without_url_returns_error(self, services_api):
-        """POST /custom/hook/v0/invoke without a webhook URL returns a non-200 response."""
+        """POST /hook/v0/invoke without a webhook URL returns a non-200 response."""
         body = _base_body(inputs={"question": "What is 2+2?"}, outputs="4")
-        resp = services_api("POST", "/custom/hook/v0/invoke", json=body)
+        resp = _invoke_with_inspect(
+            services_api,
+            "/hook/v0/invoke",
+            body=body,
+        )
         assert resp.status_code != 200, (
             f"Expected error from hook_v0 (no URL), got {resp.status_code}: {resp.text}"
         )

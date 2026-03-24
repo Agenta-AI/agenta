@@ -32,7 +32,7 @@ def services_api(cls_account, ag_env):
     safe for pytest-xdist parallel execution.
 
     Usage:
-        resp = services_api("POST", "/custom/code/v0/test", json={...})
+        resp = services_api("POST", "/code/v0/test", json={...})
         resp = services_api("GET", "/health")
     """
     services_url = ag_env["services_url"]

@@ -91,8 +91,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount
 # NOTE: requires a valid LLM API key configured in Agenta vault
+# @name inspect_direct
+POST {{services_url}}/chat/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount
+# NOTE: requires a valid LLM API key configured in Agenta vault
 # @name invoke_direct
-POST {{services_url}}/builtin/chat/v0/invoke
+POST {{services_url}}/chat/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -123,6 +133,33 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — generic dispatcher with inline revision (URI + params)
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:chat:v0",
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography. Keep answers concise."
+            }
+          ],
+          "llm_config": {
+            "model": "gpt-4o-mini"
+          }
+        }
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — generic dispatcher with inline revision (URI + params)
 # @name invoke_inline
@@ -162,6 +199,23 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5c. Invoke — generic dispatcher with environment refs + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
 ###
 # 5c. Invoke — generic dispatcher with environment refs + selector key
 # @name invoke_by_env

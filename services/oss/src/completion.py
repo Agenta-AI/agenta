@@ -21,6 +21,7 @@ class CompletionConfig(BaseModel):
 
 
 @ag.route("/", app=completion_app)
+@ag.workflow(uri="agenta:builtin:completion:v0")
 async def completion(
     inputs: Dict[str, Any],
     parameters: Optional[Dict] = None,

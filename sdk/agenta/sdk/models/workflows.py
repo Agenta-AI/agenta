@@ -267,6 +267,8 @@ class WorkflowInspectRequest(Metadata):
 
     references: Optional[Dict[str, Union[Reference, Dict[str, Any]]]] = None
 
+    selector: Optional[Selector] = None
+
     @model_validator(mode="before")
     def _coerce_nested_models(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         if "references" in values and isinstance(values["references"], dict):

@@ -94,8 +94,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # evaluate() always returns 1.0 → score=1.0, success=true
+# @name inspect_direct
+POST {{services_url}}/code/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# evaluate() always returns 1.0 → score=1.0, success=true
 # @name invoke_direct
-POST {{services_url}}/custom/code/v0/invoke
+POST {{services_url}}/code/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -111,6 +121,25 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -137,6 +166,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -155,6 +201,25 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    return 1.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
@@ -177,8 +242,28 @@ Authorization: {{authorization}}
 ###
 # BONUS — code using inputs and outputs for custom logic
 # Returns length ratio as a score
+# @name inspect_custom_logic
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    expected = inputs.get('expected_length', 10)\n    return min(1.0, len(output) / expected)\n",
+        "runtime": "python",
+        "threshold": 0.8
+      }
+    }
+  }
+}
+###
+# BONUS — code using inputs and outputs for custom logic
+# Returns length ratio as a score
 # @name invoke_custom_logic
-POST {{services_url}}/custom/code/v0/invoke
+POST {{services_url}}/code/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -196,8 +281,27 @@ Authorization: {{authorization}}
 
 ###
 # BONUS2 — code accesses trace metadata
+# @name inspect_trace_access
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:custom:code:v0",
+      "parameters": {
+        "code": "def evaluate(inputs, output, trace):\n    latency = trace.get('latency', 0)\n    return 1.0 if latency < 1.0 else 0.0\n",
+        "runtime": "python",
+        "threshold": 0.5
+      }
+    }
+  }
+}
+###
+# BONUS2 — code accesses trace metadata
 # @name invoke_trace_access
-POST {{services_url}}/custom/code/v0/invoke
+POST {{services_url}}/code/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 

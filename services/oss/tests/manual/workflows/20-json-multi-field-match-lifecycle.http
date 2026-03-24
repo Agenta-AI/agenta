@@ -93,8 +93,18 @@ Authorization: {{authorization}}
 ###
 # 5a. Invoke — direct service mount, no dispatcher
 # both fields match → expect all field scores=1.0, aggregate score=1.0
+# @name inspect_direct
+POST {{services_url}}/json_multi_field_match/v0/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# 5a. Invoke — direct service mount, no dispatcher
+# both fields match → expect all field scores=1.0, aggregate score=1.0
 # @name invoke_direct
-POST {{services_url}}/builtin/json_multi_field_match/v0/invoke
+POST {{services_url}}/json_multi_field_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -106,6 +116,27 @@ Authorization: {{authorization}}
   }
 }
 
+###
+# 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
+# @name inspect_inline
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:json_multi_field_match:v0",
+      "parameters": {
+        "fields": [
+          "city",
+          "country"
+        ],
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
 ###
 # 5b. Invoke — /invoke with URI + parameters inline, zero DB calls
 # @name invoke_inline
@@ -128,6 +159,23 @@ Authorization: {{authorization}}
 
 ###
 # 5c. Invoke — /invoke with env ref + selector key
+# @name inspect_by_env
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{workflow_slug}}.revision"
+  }
+}
+###
+# 5c. Invoke — /invoke with env ref + selector key
 # @name invoke_by_env
 POST {{services_url}}/invoke
 Content-Type: application/json
@@ -148,6 +196,27 @@ Authorization: {{authorization}}
 
 ###
 # 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
+# @name inspect_by_url
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:json_multi_field_match:v0",
+      "parameters": {
+        "fields": [
+          "city",
+          "country"
+        ],
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# 5d. Invoke — via data.url inferred from URI (full URL, no dispatcher)
 # @name invoke_by_url
 POST {{workflow_url}}/invoke
 Content-Type: application/json
@@ -164,8 +233,30 @@ Authorization: {{authorization}}
 ###
 # BONUS — partial match: city correct, country wrong
 # Expect per-field: city=1.0, country=0.0 → aggregate score=0.5
+# @name inspect_partial_match
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:json_multi_field_match:v0",
+      "parameters": {
+        "fields": [
+          "city",
+          "country"
+        ],
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# BONUS — partial match: city correct, country wrong
+# Expect per-field: city=1.0, country=0.0 → aggregate score=0.5
 # @name invoke_partial_match
-POST {{services_url}}/builtin/json_multi_field_match/v0/invoke
+POST {{services_url}}/json_multi_field_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
@@ -179,8 +270,28 @@ Authorization: {{authorization}}
 
 ###
 # BONUS2 — single field only (subset of fields)
+# @name inspect_single_field
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "revision": {
+    "data": {
+      "uri": "agenta:builtin:json_multi_field_match:v0",
+      "parameters": {
+        "fields": [
+          "city"
+        ],
+        "correct_answer_key": "correct_answer"
+      }
+    }
+  }
+}
+###
+# BONUS2 — single field only (subset of fields)
 # @name invoke_single_field
-POST {{services_url}}/builtin/json_multi_field_match/v0/invoke
+POST {{services_url}}/json_multi_field_match/v0/invoke
 Content-Type: application/json
 Authorization: {{authorization}}
 
