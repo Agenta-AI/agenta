@@ -388,9 +388,6 @@ services:
             start_period: 5s
 
     traefik:
-        # === ACTIVATION =========================================== #
-        profiles:
-            - with-traefik
         # === IMAGE ================================================ #
         image: traefik:2
         # === EXECUTION ============================================ #
