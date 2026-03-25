@@ -157,6 +157,76 @@ type AnnotationWorkflowRevisionSelectionResult = WorkflowRevisionSelectionResult
 }
 
 /**
+ * Hook that returns an adapter for human evaluators only.
+ * Used by annotation queue creation so only human feedback schemas can be selected.
+ */
+export function useEnrichedHumanEvaluatorAdapter(
+    revisionLabelOverride?: (entity: unknown) => React.ReactNode,
+) {
+    const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
+    const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
+    const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
+    const revisionLabelOverrideRef = useRef(revisionLabelOverride)
+
+    evaluatorKeyMapRef.current = evaluatorKeyMap
+    evaluatorDefsByKeyRef.current = evaluatorDefsByKey
+    revisionLabelOverrideRef.current = revisionLabelOverride
+
+    const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
+
+    return useMemo(() => {
+        const getLabelNode = (entity: unknown): React.ReactNode =>
+            renderEvaluatorPickerLabelNode(
+                entity,
+                evaluatorKeyMapRef.current,
+                evaluatorDefsByKeyRef.current,
+            )
+
+        const options: Parameters<typeof createWorkflowRevisionAdapter>[0] = {
+            skipVariantLevel: true,
+            flags: {is_human: true},
+            excludeRevisionZero: true,
+            grandparentOverrides: {
+                getLabelNode,
+            },
+            toSelection: (path, leafEntity) => {
+                const revision = leafEntity as {id: string; version?: number}
+                const workflow = path[0]
+                const revisionItem = path[1]
+
+                const selection: AnnotationWorkflowRevisionSelectionResult = {
+                    type: "workflowRevision",
+                    id: revision.id,
+                    label: `${workflow?.label ?? "Evaluator"} / ${revisionItem?.label ?? `v${revision.version ?? 0}`}`,
+                    path,
+                    metadata: {
+                        workflowId: workflow?.id ?? "",
+                        workflowName: workflow?.label ?? "",
+                        variantId: "",
+                        variantName: "",
+                        revision: revision.version ?? 0,
+                        isHuman: true,
+                    },
+                }
+
+                return selection
+            },
+        }
+
+        if (hasRevisionLabelOverride) {
+            options.revisionOverrides = {
+                getLabelNode: (entity: unknown) =>
+                    revisionLabelOverrideRef.current
+                        ? revisionLabelOverrideRef.current(entity)
+                        : null,
+            }
+        }
+
+        return createWorkflowRevisionAdapter(options)
+    }, [hasRevisionLabelOverride])
+}
+
+/**
  * Hook that returns an adapter for annotation queues.
  * Includes both standard and human evaluators, with colored tags and runtime
  * metadata indicating whether the selected evaluator is human.
