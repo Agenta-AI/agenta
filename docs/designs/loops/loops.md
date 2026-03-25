@@ -143,7 +143,7 @@ Anything outside these shapes is not part of the supported worker topology today
 
 Primary runtime:
 
-- [`live.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/live.py)
+- [`live.py`](/api/oss/src/core/evaluations/tasks/live.py)
 
 Purpose:
 
@@ -189,8 +189,8 @@ Specificity:
 
 Primary dispatch:
 
-- [`service.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/service.py)
-- [`worker.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/tasks/taskiq/evaluations/worker.py)
+- [`service.py`](/api/oss/src/core/evaluations/service.py)
+- [`worker.py`](/api/oss/src/tasks/taskiq/evaluations/worker.py)
 
 Purpose:
 
@@ -232,7 +232,7 @@ Specificity:
 
 Primary runtime:
 
-- [`legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
 
 Purpose:
 
@@ -286,7 +286,7 @@ Important detail:
 
 Primary runtime:
 
-- [`legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
 
 Purpose:
 
@@ -331,8 +331,8 @@ Specificity:
 
 Primary runtime:
 
-- [`legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
-- [`service.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/service.py)
+- [`legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`service.py`](/api/oss/src/core/evaluations/service.py)
 
 Purpose:
 
@@ -375,8 +375,8 @@ Specificity:
 
 Primary runtime:
 
-- [`legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
-- [`service.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/service.py)
+- [`legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`service.py`](/api/oss/src/core/evaluations/service.py)
 
 Purpose:
 

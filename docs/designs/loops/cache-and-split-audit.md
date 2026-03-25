@@ -27,7 +27,7 @@ The target execution model is:
 
 ## Dispatch Topology
 
-Current non-live evaluation dispatch in [`api/oss/src/core/evaluations/service.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/service.py) recognizes these worker topologies:
+Current non-live evaluation dispatch in [`api/oss/src/core/evaluations/service.py`](/api/oss/src/core/evaluations/service.py) recognizes these worker topologies:
 
 - query steps + evaluator steps -> `evaluate_batch_query`
 - testset steps + application steps + evaluator steps -> `evaluate_batch_testset`
@@ -60,7 +60,7 @@ Important consequence:
 
 Primary file:
 
-- [`api/oss/src/core/evaluations/tasks/legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`api/oss/src/core/evaluations/tasks/legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
 
 Behavior:
 
@@ -103,7 +103,7 @@ Gaps:
 
 Primary file:
 
-- [`api/oss/src/core/evaluations/tasks/legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`api/oss/src/core/evaluations/tasks/legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
 
 Behavior:
 
@@ -130,8 +130,8 @@ Gaps:
 
 Primary files:
 
-- [`api/oss/src/core/evaluations/tasks/legacy.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/legacy.py)
-- [`api/oss/src/core/evaluations/service.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/service.py)
+- [`api/oss/src/core/evaluations/tasks/legacy.py`](/api/oss/src/core/evaluations/tasks/legacy.py)
+- [`api/oss/src/core/evaluations/service.py`](/api/oss/src/core/evaluations/service.py)
 
 Behavior:
 
@@ -170,7 +170,7 @@ Gaps:
 
 Primary file:
 
-- [`api/oss/src/core/evaluations/tasks/live.py`](/Users/junaway/Agenta/github/vibes.worktrees/feat-allow-trace-reuse/api/oss/src/core/evaluations/tasks/live.py)
+- [`api/oss/src/core/evaluations/tasks/live.py`](/api/oss/src/core/evaluations/tasks/live.py)
 
 Behavior:
 
