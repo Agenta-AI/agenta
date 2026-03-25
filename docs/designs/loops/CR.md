@@ -10,7 +10,7 @@ Base reviewed against: `origin/main`
 
 Head commit reviewed: `8d38e4174ba705d82dec17abcd1636d25a7dec13`
 
-Overall assessment: re-reviewed after follow-up fixes. All six code-level findings below are fixed on the current branch. One unresolved GitHub review thread still does not reproduce against the current tracing code path and remains a `Won't Fix` unless the reviewer has contrary runtime evidence. The owner-checked lock renew/release path is also already atomic through Lua-backed Redis `EVAL` in `api/oss/src/utils/caching.py`.
+Overall assessment: re-reviewed after follow-up fixes. All six code-level findings below are fixed on the current branch. PR `#4047` still shows four unresolved GitHub review threads as of 2026-03-25, but two of those threads are already outdated after the local fixes, one active thread is fixed locally and just needs manual resolution on GitHub, and one active thread still does not reproduce against the current tracing code path. The owner-checked lock renew/release path is also already atomic through Lua-backed Redis `EVAL` in `api/oss/src/utils/caching.py`.
 
 ## Scope
 
@@ -26,6 +26,8 @@ Overall assessment: re-reviewed after follow-up fixes. All six code-level findin
 Severity: High
 
 Status: Fixed
+
+GitHub Thread Status: Active, fixed locally, unresolved on GitHub
 
 Files:
 
@@ -49,6 +51,8 @@ Severity: Medium
 
 Status: Fixed
 
+GitHub Thread Status: Outdated unresolved thread
+
 Files:
 
 - `api/oss/src/core/evaluations/tasks/legacy.py`
@@ -68,6 +72,8 @@ Severity: Low
 
 Status: Fixed
 
+GitHub Thread Status: N/A
+
 Files:
 
 - `api/oss/src/core/evaluations/runtime/locks.py`
@@ -86,6 +92,8 @@ Re-review note:
 Severity: Medium
 
 Status: Fixed
+
+GitHub Thread Status: Active, fixed locally, unresolved on GitHub
 
 Files:
 
@@ -124,6 +132,8 @@ Severity: Low
 
 Status: Fixed
 
+GitHub Thread Status: Outdated unresolved thread
+
 Files:
 
 - `api/oss/src/core/evaluations/tasks/legacy.py`
@@ -159,6 +169,8 @@ Severity: Medium
 
 Status: Fixed
 
+GitHub Thread Status: Outdated unresolved thread
+
 Files:
 
 - `api/oss/src/tasks/taskiq/evaluations/worker.py`
@@ -191,9 +203,13 @@ Re-review note:
 ## Open GitHub Comments
 
 - I found 4 unresolved review threads on PR `#4047` as of 2026-03-25.
-- Three are addressed on the current branch and correspond to Findings 4, 5, and 6 above.
-- One unresolved thread does not reproduce as a code-level bug on the current branch:
+- 1 active unresolved thread is fixed locally and corresponds to Finding 4:
+  `https://github.com/Agenta-AI/agenta/pull/4047#discussion_r2986922384`
+- 1 active unresolved thread does not reproduce as a code-level bug on the current branch:
   `https://github.com/Agenta-AI/agenta/pull/4047#discussion_r2986922425`
+- 2 unresolved threads are already outdated after the local fixes and correspond to Findings 5 and 6:
+  `https://github.com/Agenta-AI/agenta/pull/4047#discussion_r2986922453`
+  `https://github.com/Agenta-AI/agenta/pull/4047#discussion_r2986922472`
 
 Non-reproduced thread assessment:
 
