@@ -73,29 +73,17 @@ const TraceDrawerContent = ({onClose, onToggleWidth, isExpanded}: TraceDrawerCon
         }
     }, [selected, traces, activeSpanId, getTraceById])
 
-    const activeId = selected || traces[0]?.span_id || ""
-    const activeTrace = getTraceById(activeId)
-
     useEffect(() => {
-        const activeTraceId =
-            traceId ||
-            activeTrace?.invocationIds?.trace_id ||
-            (activeTrace as any)?.trace_id ||
-            traces[0]?.invocationIds?.trace_id ||
-            (traces[0] as any)?.trace_id ||
-            undefined
-
-        if (activeTraceId) {
-            setTraceQueryParam(activeTraceId, {shallow: true})
-        }
-
         if (selected) {
             setActiveSpan(selected)
             setSpanQueryParam(selected, {shallow: true})
         } else {
             setSpanQueryParam(undefined, {shallow: true})
         }
-    }, [activeTrace, selected, traceId, traces])
+    }, [selected, setActiveSpan, setSpanQueryParam])
+
+    const activeId = selected || traces[0]?.span_id || ""
+    const activeTrace = getTraceById(activeId)
 
     return (
         <div className="h-full w-full flex flex-col" data-tour="trace-drawer">

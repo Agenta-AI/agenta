@@ -952,6 +952,18 @@ const listColumnDefsAtom = atom<ScenarioListColumnDef[]>((get) => {
  * Trace ref for a scenario — derived from evaluation run steps.
  * Resolves trace_id and span_id from the scenario's step results.
  */
+const scenarioStepsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
+    atom((get) => {
+        const runId = get(activeRunIdAtom)
+        if (!runId || !scenarioId) return null
+        return get(evaluationRunMolecule.selectors.scenarioSteps({runId, scenarioId}))
+    }),
+)
+
+/**
+ * Trace ref for a scenario — derived from evaluation run steps.
+ * Resolves trace_id and span_id from the scenario's step results.
+ */
 const scenarioTraceRefAtomFamily = atomFamily((scenarioId: string) =>
     atom((get) => {
         const records = get(scenarioRecordsAtom)
@@ -1223,6 +1235,28 @@ const scenarioAnnotationsAtomFamily = atomFamily((scenarioId: string) =>
         }
 
         return []
+    }),
+)
+
+const scenarioAnnotationsQueryStateAtomFamily = atomFamily((scenarioId: string) =>
+    atom((get) => {
+        const traceIds = get(scenarioAnnotationTraceIdsAtomFamily(scenarioId))
+        if (traceIds.length > 0) {
+            const annotationTraceIds = traceIds.join("|")
+            return get(scenarioAnnotationsQueryAtomFamily({scenarioId, annotationTraceIds}))
+        }
+
+        const testcaseRef = get(scenarioTestcaseRefAtomFamily(scenarioId))
+        if (testcaseRef.testcaseId) {
+            return get(
+                scenarioAnnotationsByTestcaseQueryAtomFamily({
+                    scenarioId,
+                    testcaseId: testcaseRef.testcaseId,
+                }),
+            )
+        }
+
+        return null
     }),
 )
 
@@ -2410,6 +2444,8 @@ export const annotationSessionController = {
         activeView: () => activeSessionViewAtom,
         /** Trace ref (traceId, spanId) for a scenario */
         scenarioTraceRef: scenarioTraceRefAtomFamily,
+        /** Full evaluation step-results query state for a scenario */
+        scenarioStepsQuery: scenarioStepsQueryStateAtomFamily,
         /** Testcase ref (testcaseId) for a scenario */
         scenarioTestcaseRef: scenarioTestcaseRefAtomFamily,
         /** Full trace query state for a scenario */
@@ -2418,8 +2454,12 @@ export const annotationSessionController = {
         scenarioRootSpan: scenarioRootSpanAtomFamily,
         /** Annotations for a scenario */
         scenarioAnnotations: scenarioAnnotationsAtomFamily,
+        /** Full annotations query state for a scenario */
+        scenarioAnnotationsQuery: scenarioAnnotationsQueryStateAtomFamily,
         /** Evaluation metrics for a scenario (from /evaluations/metrics/query) */
         scenarioMetrics: scenarioMetricsAtomFamily,
+        /** Full metrics query state for a scenario */
+        scenarioMetricsQuery: scenarioMetricsQueryAtomFamily,
         /** Find annotation for a specific evaluator in a scenario */
         scenarioAnnotationByEvaluator: scenarioAnnotationByEvaluatorAtomFamily,
         /** Full metric resolution (value + stats + annotation) for an evaluator in a scenario */
@@ -2496,14 +2536,20 @@ export const annotationSessionController = {
         activeView: () => getStore().get(activeSessionViewAtom),
         scenarioTraceRef: (scenarioId: string) =>
             getStore().get(scenarioTraceRefAtomFamily(scenarioId)),
+        scenarioStepsQuery: (scenarioId: string) =>
+            getStore().get(scenarioStepsQueryStateAtomFamily(scenarioId)),
         scenarioTestcaseRef: (scenarioId: string) =>
             getStore().get(scenarioTestcaseRefAtomFamily(scenarioId)),
         scenarioRootSpan: (scenarioId: string) =>
             getStore().get(scenarioRootSpanAtomFamily(scenarioId)),
         scenarioAnnotations: (scenarioId: string) =>
             getStore().get(scenarioAnnotationsAtomFamily(scenarioId)),
+        scenarioAnnotationsQuery: (scenarioId: string) =>
+            getStore().get(scenarioAnnotationsQueryStateAtomFamily(scenarioId)),
         scenarioMetrics: (scenarioId: string) =>
             getStore().get(scenarioMetricsAtomFamily(scenarioId)),
+        scenarioMetricsQuery: (scenarioId: string) =>
+            getStore().get(scenarioMetricsQueryAtomFamily(scenarioId)),
         scenarioAnnotationByEvaluator: (key: ScenarioEvaluatorKey) =>
             getStore().get(scenarioAnnotationByEvaluatorAtomFamily(key)),
         scenarioMetricForEvaluator: (key: ScenarioEvaluatorKey) =>
