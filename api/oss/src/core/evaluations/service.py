@@ -974,17 +974,7 @@ class EvaluationsService:
                     and step.type == "annotation"
                     and step.origin in {"human", "custom"}
                 ):
-                    log.info(
-                        "[METRICS][SKIP]",
-                        run_id=run_id,
-                        scenario_id=scenario_id,
-                        step_key=step_key,
-                        step_type=step.type,
-                        origin=step.origin,
-                        reason="annotation step has no results yet",
-                        timestamp=timestamp,
-                        interval=interval,
-                    )
+                    pass
                 else:
                     log.warning(
                         "No results found for step_key: %s",
@@ -995,15 +985,6 @@ class EvaluationsService:
                         interval=interval,
                     )
                 continue
-
-            log.info(
-                "[METRICS][STEP]",
-                run_id=run_id,
-                scenario_id=scenario_id,
-                step_key=step_key,
-                results_count=len(results),
-                trace_ids=[result.trace_id for result in results if result.trace_id],
-            )
 
             trace_ids: List[str] | None = [
                 result.trace_id for result in results if result.trace_id

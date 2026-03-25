@@ -169,12 +169,6 @@ async def resolve_references(
         if request.selector and request.selector.key:
             key = request.selector.key
 
-        log.info(
-            "resolve_references: key=%r refs=%r",
-            key,
-            list(refs.keys()) if refs else None,
-        )
-
         body: Dict[str, Any] = {"resolve": True}
         for field, ref_key in [
             ("environment_ref", "environment"),
@@ -201,7 +195,6 @@ async def resolve_references(
 
             response.raise_for_status()
             result = response.json()
-            log.info("resolve_references: retrieve response=%r", result)
 
             revision = result.get("workflow_revision")
             if revision and revision.get("data"):
@@ -303,12 +296,6 @@ class ResolverMiddleware:
     ):
         ctx = RunningContext.get()
         revision = await resolve_revision(request=request)
-        log.info(
-            "ResolverMiddleware: revision_from_context=%r references=%r selector=%r",
-            revision,
-            list(request.references.keys()) if request.references else None,
-            request.selector.model_dump() if request.selector else None,
-        )
 
         # Resolve references (env/workflow refs → revision) if not already present
         if revision is None and request.references:
@@ -316,7 +303,6 @@ class ResolverMiddleware:
                 request=request,
                 credentials=ctx.credentials or request.credentials,
             )
-            log.info("ResolverMiddleware: resolved revision=%r", revision)
 
         # Resolve embeds in parameters if enabled (via flags.resolve)
         resolve_flag = (request.flags or {}).get("resolve", True)
