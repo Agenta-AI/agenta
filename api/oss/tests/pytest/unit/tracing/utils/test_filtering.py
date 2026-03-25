@@ -123,6 +123,36 @@ def test_parse_condition_for_hashes_supports_string_and_partial_hash_values():
     assert hash_key.value == "hash-3"
 
 
+@pytest.mark.parametrize(
+    "condition,expected_message",
+    [
+        (
+            Condition(
+                field=Fields.HASHES,
+                key="id",
+                operator=ListOperator.IN,
+                value=["hash-1"],
+            ),
+            "'hashes' key is only supported for dict operators.",
+        ),
+        (
+            Condition(
+                field=Fields.HASHES,
+                key="id",
+                operator=ExistenceOperator.EXISTS,
+                value=None,
+            ),
+            "'hashes' key is only supported for dict operators.",
+        ),
+    ],
+)
+def test_parse_condition_for_hashes_rejects_invalid_key_operator_combinations(
+    condition, expected_message
+):
+    with pytest.raises(FilteringException, match=escape(expected_message)):
+        parse_condition(condition)
+
+
 def test_parse_condition_for_enum_timestamp_uuid_and_string_fields():
     trace_type = Condition(
         field=Fields.TRACE_TYPE,

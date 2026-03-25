@@ -35,6 +35,16 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+class JobLockSkippedError(RuntimeError):
+    def __init__(self, *, run_id: str, job_id: str, lock_id: str):
+        self.run_id = run_id
+        self.job_id = job_id
+        self.lock_id = lock_id
+        super().__init__(
+            f"Job lock not acquired for run {run_id}, job {job_id}, lock {lock_id}."
+        )
+
+
 class EvaluationsWorker:
     """
     Worker class for evaluation tasks.
@@ -126,7 +136,11 @@ class EvaluationsWorker:
                 job_id=job_id,
                 lock_id=lock_id,
             )
-            return None
+            raise JobLockSkippedError(
+                run_id=run_id_str,
+                job_id=job_id,
+                lock_id=lock_id,
+            )
 
         heartbeat = create_task(
             run_job_heartbeat(

@@ -16,6 +16,7 @@ Tests cover:
 """
 
 import asyncio
+from contextlib import ExitStack
 import sys
 import types
 from types import SimpleNamespace
@@ -119,7 +120,34 @@ def _genson_patch():
     class SchemaBuilder: ...
 
     module.SchemaBuilder = SchemaBuilder
-    return patch.dict(sys.modules, {"genson": module})
+    stack = ExitStack()
+    stack.enter_context(patch.dict(sys.modules, {"genson": module}))
+
+    try:
+        import agenta.sdk.models.workflows as workflow_models
+
+        if not hasattr(workflow_models, "WorkflowServiceInterface"):
+            stack.enter_context(
+                patch.object(
+                    workflow_models,
+                    "WorkflowServiceInterface",
+                    object,
+                    create=True,
+                )
+            )
+        if not hasattr(workflow_models, "WorkflowServiceConfiguration"):
+            stack.enter_context(
+                patch.object(
+                    workflow_models,
+                    "WorkflowServiceConfiguration",
+                    object,
+                    create=True,
+                )
+            )
+    except ImportError:
+        pass
+
+    return stack
 
 
 # ---------------------------------------------------------------------------
@@ -565,3 +593,39 @@ async def test_with_job_lock_cancels_runner_when_heartbeat_fails():
 
     assert runner_cancelled.is_set()
     release_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_with_job_lock_raises_specific_skip_error_when_lock_not_acquired():
+    with _genson_patch():
+        import oss.src.tasks.taskiq.evaluations.worker as worker_module
+
+    EvaluationsWorker = worker_module.EvaluationsWorker
+
+    run_id = uuid4()
+    job_id = _job_id()
+
+    with (
+        patch.object(
+            worker_module,
+            "has_mutation_lock",
+            AsyncMock(return_value=False),
+        ),
+        patch.object(
+            worker_module,
+            "acquire_job_lock",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        with pytest.raises(worker_module.JobLockSkippedError) as exc_info:
+            await EvaluationsWorker._with_job_lock(
+                run_id,
+                job_id=job_id,
+                job_type="api",
+                allow_concurrency=False,
+                runner=AsyncMock(),
+            )
+
+    assert exc_info.value.run_id == str(run_id)
+    assert exc_info.value.job_id == job_id
+    assert exc_info.value.lock_id == "singleton"

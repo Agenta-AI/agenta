@@ -8,7 +8,6 @@ from fastapi import Request
 from oss.src.utils.helpers import parse_url
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import get_project_by_id
@@ -217,15 +216,6 @@ async def evaluate_batch_testset(
         # fetch secrets --------------------------------------------------------
         _ = await get_llm_providers_secrets(
             project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # prepare credentials --------------------------------------------------
-        await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
         )
         # ----------------------------------------------------------------------
 
@@ -1188,15 +1178,6 @@ async def evaluate_batch_invocation(
         # fetch secrets --------------------------------------------------------
         _ = await get_llm_providers_secrets(
             project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # prepare credentials --------------------------------------------------
-        await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
         )
         # ----------------------------------------------------------------------
 

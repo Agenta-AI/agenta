@@ -310,6 +310,11 @@ def _parse_hashes_condition(condition: Condition) -> None:
             "'hashes' only supports list, dict, and existence operators.",
         )
 
+    if condition.operator in _L_OPS + _E_OPS and condition.key is not None:
+        raise FilteringException(
+            "'hashes' key is only supported for dict operators.",
+        )
+
     if condition.operator in _E_OPS and condition.value is not None:
         raise FilteringException(
             "'hashes' value is not supported for existence operators.",
