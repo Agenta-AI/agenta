@@ -290,18 +290,22 @@ const MetricPopoverContent = ({
 }) => {
     const isOnlineEvaluation = evaluationType === "online"
 
+    const normalizedPrefetchedStats = useMemo(
+        () => (prefetchedStats ? normalizeStatShape(prefetchedStats) : undefined),
+        [prefetchedStats],
+    )
     const prefetchedSelectionAtom = useMemo(
         () =>
-            prefetchedStats
+            normalizedPrefetchedStats
                 ? atom<RunLevelMetricSelection>({
                       state: "hasData",
-                      stats: prefetchedStats,
+                      stats: normalizedPrefetchedStats,
                       resolvedKey: metricKey ?? metricPath,
                   })
                 : null,
-        [prefetchedStats, metricKey, metricPath],
+        [normalizedPrefetchedStats, metricKey, metricPath],
     )
-    const effectiveShouldLoad = shouldLoad || Boolean(prefetchedStats)
+    const effectiveShouldLoad = shouldLoad || Boolean(normalizedPrefetchedStats)
     const selectionAtom = useMemo(() => {
         if (prefetchedSelectionAtom) {
             return prefetchedSelectionAtom
@@ -542,7 +546,7 @@ const MetricPopoverContent = ({
             </div>
         ) : null
 
-    if (!shouldLoad && !prefetchedStats) {
+    if (!shouldLoad && !normalizedPrefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
     }
 

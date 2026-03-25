@@ -17,6 +17,7 @@ import {
     Gavel,
     HouseIcon,
     RocketLaunch,
+    ListChecks,
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -85,6 +86,13 @@ export const useSidebarConfig = () => {
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
             icon: <Flask size={14} />,
+            disabled: !hasProjectURL,
+        },
+        {
+            key: "project-annotation-queues-link",
+            title: "Annotation Queues",
+            link: `${projectURL}/annotations`,
+            icon: <ListChecks size={14} />,
             disabled: !hasProjectURL,
         },
         {

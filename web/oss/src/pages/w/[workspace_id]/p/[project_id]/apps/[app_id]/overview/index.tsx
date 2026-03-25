@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {memo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple, Trash} from "@phosphor-icons/react"
 // TEMPORARY: Disabling name editing
@@ -9,7 +10,6 @@ import {Button, Dropdown, Space, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 // TEMPORARY: Disabling name editing

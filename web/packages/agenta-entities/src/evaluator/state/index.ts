@@ -26,6 +26,7 @@ export {
     evaluatorVariantsListDataAtomFamily,
     evaluatorRevisionsQueryAtomFamily,
     evaluatorRevisionsListDataAtomFamily,
+    evaluatorRevisionQueryAtomFamily,
     // Single entity
     evaluatorQueryAtomFamily,
     evaluatorDraftAtomFamily,
@@ -37,9 +38,6 @@ export {
     // Cache invalidation
     invalidateEvaluatorsListCache,
     invalidateEvaluatorCache,
-    // Enrichment maps
-    evaluatorKeyMapAtom,
-    evaluatorTemplatesMapAtom,
 } from "./store"
 
 // ============================================================================
@@ -66,6 +64,17 @@ export {
     evaluatorRevisionSelectionConfig,
     type EvaluatorRevisionSelectionConfig,
 } from "./selectionConfig"
+
+// ============================================================================
+// TEMPLATES & KEY MAP
+// ============================================================================
+
+export {
+    evaluatorTemplatesQueryAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesMapAtom,
+    evaluatorKeyMapAtom,
+} from "./templates"
 
 // ============================================================================
 // RUNNABLE EXTENSION

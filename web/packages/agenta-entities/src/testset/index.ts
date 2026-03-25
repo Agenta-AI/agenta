@@ -114,6 +114,8 @@ export {
     fetchRevision,
     fetchRevisionWithTestcases,
     fetchRevisionsList,
+    fetchLatestRevision,
+    fetchLatestRevisionsBatch,
     fetchRevisionsBatch,
     fetchTestsetsList,
     fetchTestsetDetail,

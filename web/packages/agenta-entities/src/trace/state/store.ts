@@ -615,3 +615,81 @@ export const traceEntityAtomFamily = atomFamily((traceId: string | null) =>
         }
     }),
 )
+
+// ============================================================================
+// DERIVED ATOM FAMILIES FOR TRACE-LEVEL DATA EXTRACTION
+// Convenience selectors: traceId → rootSpan / inputs / outputs
+// ============================================================================
+
+/**
+ * Find the root span (no parent) from a TracesApiResponse.
+ * Handles both dash and no-dash trace ID formats.
+ */
+const findRootSpanFromResponse = (
+    data: TracesApiResponse | null | undefined,
+    traceId: string,
+): TraceSpan | null => {
+    if (!data?.traces) return null
+
+    const traceIdNoDashes = traceId.replace(/-/g, "")
+    const traceEntry = data.traces[traceIdNoDashes] ?? data.traces[traceId]
+    if (!traceEntry?.spans) return null
+
+    const spans = Object.values(traceEntry.spans)
+    // Root span: no parent_span_id
+    const root = spans.find((s) => {
+        const parsed = traceSpanSchema.safeParse(s)
+        return parsed.success && !parsed.data.parent_id
+    })
+
+    if (root) {
+        const parsed = traceSpanSchema.safeParse(root)
+        return parsed.success ? parsed.data : null
+    }
+
+    // Fallback: first span if no explicit root found
+    if (spans.length > 0) {
+        const parsed = traceSpanSchema.safeParse(spans[0])
+        return parsed.success ? parsed.data : null
+    }
+
+    return null
+}
+
+/**
+ * Atom family to get the root span of a trace by traceId.
+ * Derives from traceEntityAtomFamily — no extra fetch.
+ *
+ * Usage: const rootSpan = useAtomValue(traceRootSpanAtomFamily(traceId))
+ */
+export const traceRootSpanAtomFamily = atomFamily((traceId: string | null) =>
+    atom((get): TraceSpan | null => {
+        if (!traceId) return null
+        const traceQuery = get(traceEntityAtomFamily(traceId))
+        return findRootSpanFromResponse(traceQuery.data, traceId)
+    }),
+)
+
+/**
+ * Atom family to extract inputs from the root span of a trace.
+ *
+ * Usage: const inputs = useAtomValue(traceInputsAtomFamily(traceId))
+ */
+export const traceInputsAtomFamily = atomFamily((traceId: string | null) =>
+    atom((get) => {
+        const rootSpan = get(traceRootSpanAtomFamily(traceId))
+        return extractInputs(rootSpan)
+    }),
+)
+
+/**
+ * Atom family to extract outputs from the root span of a trace.
+ *
+ * Usage: const outputs = useAtomValue(traceOutputsAtomFamily(traceId))
+ */
+export const traceOutputsAtomFamily = atomFamily((traceId: string | null) =>
+    atom((get) => {
+        const rootSpan = get(traceRootSpanAtomFamily(traceId))
+        return extractOutputs(rootSpan)
+    }),
+)

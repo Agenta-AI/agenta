@@ -8,6 +8,9 @@ const sanitizeId = (value: string | null | undefined): string | null => {
     if (value === undefined || value === null) return null
     const trimmed = String(value).trim()
     if (!trimmed || trimmed === "null" || trimmed === "undefined") return null
+    // Reject Next.js dynamic route parameter patterns (e.g. "[project_id]", "[workspace_id]")
+    // These can leak through Router.asPath before hydration completes
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) return null
     return trimmed
 }
 

@@ -59,7 +59,6 @@ const TraceTypeHeader = ({
     const setOpenInPlayground = useSetAtom(openTraceInPlaygroundAtom)
     const url = useAtomValue(urlAtom)
     const navigation = useAppNavigation()
-
     const spanIds = useMemo(() => {
         if (!activeTrace?.span_id) return []
         return [activeTrace.span_id]
@@ -105,6 +104,7 @@ const TraceTypeHeader = ({
     }, [activeTrace, setOpenInPlayground, url.projectURL, url.baseAppURL, navigation])
 
     const displayTrace = activeTrace || traces?.[0]
+
     return (
         <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
             <Tooltip
@@ -139,13 +139,11 @@ const TraceTypeHeader = ({
                     Playground
                 </Button>
                 <AddToTestsetButton
-                    className="flex items-center"
                     label="Add to testset"
                     size="small"
                     spanIds={spanIds}
                     disabled={!activeTrace?.span_id}
                 />
-
                 <AnnotateDrawerButton
                     label="Annotate"
                     size="small"

@@ -6,6 +6,7 @@ import {
     revisionsListQueryStateAtomFamily,
     invalidateEntityQueries,
 } from "@agenta/entities/legacyAppRevision"
+import {PageLayout} from "@agenta/ui"
 import {SwapOutlined} from "@ant-design/icons"
 import {CloudArrowUpIcon, CodeSimpleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Flex, Input, Radio, Space, Typography} from "antd"
@@ -13,7 +14,6 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import EnvironmentCardRow from "@/oss/components/DeploymentsDashboard/components/DeploymentCard/EnvironmentCardRow"
-import PageLayout from "@/oss/components/PageLayout/PageLayout"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
