@@ -487,7 +487,9 @@ const ScenarioAnnotationPanel = ({
                     </div>
                 ) : (
                     <Typography.Text type="secondary">
-                        To annotate, please generate output.
+                        {!hasInvocationOutput
+                            ? "Run the invocation to generate output before annotating."
+                            : "No evaluators configured for this run."}
                     </Typography.Text>
                 )}
             </Card>

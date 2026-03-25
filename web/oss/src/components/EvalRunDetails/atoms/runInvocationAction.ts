@@ -155,7 +155,7 @@ export const triggerRunInvocationAtom = atom(
             }
 
             if (result.status === "success") {
-                // Update step result with trace/span from execution
+                // Update step result with trace/span and output from execution
                 await upsertStepResultWithInvocation({
                     runId,
                     scenarioId,
@@ -164,6 +164,7 @@ export const triggerRunInvocationAtom = atom(
                     spanId: result.spanId ?? undefined,
                     status: "success",
                     references,
+                    outputs: result.output,
                 })
 
                 message.success("Invocation completed")
