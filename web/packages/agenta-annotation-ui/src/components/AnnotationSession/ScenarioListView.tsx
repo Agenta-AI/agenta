@@ -25,14 +25,17 @@ import {
     MetricValueDisplay,
     hasDistributionData,
     extractBasicStats,
+    type ChatExtractionPreference,
 } from "@agenta/ui/cell-renderers"
 import {
+    EXPORT_RESOLVE_SKIP,
     InfiniteVirtualTableFeatureShell,
     createActionsColumn,
     type TableScopeConfig,
+    type TableExportColumnContext,
 } from "@agenta/ui/table"
 import {ArrowSquareOut, CaretDown, CaretRight, Check, NotePencil, Eye} from "@phosphor-icons/react"
-import {Button, Drawer, Tag, Tooltip, Typography} from "antd"
+import {Button, Drawer, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -149,6 +152,74 @@ function extractTraceIdFromScenario(scenario: ScenarioRecord): string {
     if (meta?.trace_id && typeof meta.trace_id === "string") return meta.trace_id
 
     return ""
+}
+
+function getScenarioStatusLabel(status: string | null | undefined) {
+    const statusKey = (status ?? "pending").toLowerCase()
+    const tag = STATUS_TAG_MAP[statusKey] ?? DEFAULT_STATUS_TAG
+    return tag.label
+}
+
+function getNestedRecordValue(value: unknown, path: string) {
+    return path.split(".").reduce<unknown>((acc, key) => {
+        if (acc === null || acc === undefined || typeof acc !== "object") return undefined
+        return (acc as Record<string, unknown>)[key]
+    }, value)
+}
+
+function getTestcaseValue(
+    testcase: {data?: Record<string, unknown> | null} | null | undefined,
+    dataKey: string,
+) {
+    if (!testcase?.data) return null
+    return getNestedRecordValue(testcase.data, dataKey) ?? null
+}
+
+interface WaitResult<T> {
+    value: T
+    timedOut: boolean
+}
+
+async function waitForQueryState<T>(
+    atomToWatch: {read: (get: never) => T},
+    isReady: (value: T) => boolean,
+    timeoutMs = 5000,
+): Promise<WaitResult<T>> {
+    const store = getDefaultStore()
+    const current = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+    if (isReady(current)) return {value: current, timedOut: false}
+
+    return await new Promise<WaitResult<T>>((resolve) => {
+        const timeout = window.setTimeout(() => {
+            unsubscribe()
+            resolve({
+                value: store.get(atomToWatch as Parameters<typeof store.get>[0]) as T,
+                timedOut: true,
+            })
+        }, timeoutMs)
+
+        const unsubscribe = store.sub(atomToWatch as Parameters<typeof store.sub>[0], () => {
+            const next = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+            if (isReady(next)) {
+                window.clearTimeout(timeout)
+                unsubscribe()
+                resolve({value: next, timedOut: false})
+            }
+        })
+    })
+}
+
+const isQuerySettled = (value: QueryStateLike | null | undefined): boolean =>
+    Boolean(!value?.isPending && !value?.isFetching && (value?.data !== undefined || value?.error))
+
+const isQuerySettledOrNull = (value: QueryStateLike | null | undefined): boolean =>
+    !value || isQuerySettled(value)
+
+interface QueryStateLike {
+    isPending?: boolean
+    isFetching?: boolean
+    data?: unknown
+    error?: unknown
 }
 
 // ============================================================================
@@ -376,7 +447,7 @@ function useAnnotationCellFallback(
         }
     }
 
-    const chatPreference = fallbackDataKey
+    const chatPreference: ChatExtractionPreference | undefined = fallbackDataKey
         ? OUTPUT_KEYS.has(fallbackDataKey.toLowerCase())
             ? "output"
             : "input"
@@ -1004,6 +1075,269 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
 })
 
 // ============================================================================
+// EXPORT HELPERS
+// ============================================================================
+
+interface ExportColumnState {
+    defByKey: Map<string, ScenarioListColumnDef>
+    traceInputKeyByColumnKey: Map<string, string>
+    annotationOutputByColumnKey: Map<
+        string,
+        {def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>; outputKey: string}
+    >
+}
+
+function resolveExportColumnLabel(
+    column: {key?: React.Key},
+    state: ExportColumnState,
+): string | undefined {
+    const columnKey = String(column.key ?? "")
+    const store = getDefaultStore()
+    const def = state.defByKey.get(columnKey)
+
+    if (def) {
+        if (def.columnType === "annotation") {
+            const annotationDef = def.annotationDef
+            const name = annotationDef.evaluatorId
+                ? store.get(evaluatorMolecule.selectors.name(annotationDef.evaluatorId))
+                : null
+            const slug = annotationDef.evaluatorId
+                ? store.get(evaluatorMolecule.selectors.slug(annotationDef.evaluatorId))
+                : null
+            return (
+                name ||
+                slug ||
+                annotationDef.evaluatorSlug ||
+                annotationDef.columnName ||
+                annotationDef.stepKey
+            )
+        }
+        if (def.columnType === "trace-input-group" && def.inputKeys.length === 1) {
+            return def.inputKeys[0]
+        }
+        return def.title
+    }
+
+    const traceInputKey = state.traceInputKeyByColumnKey.get(columnKey)
+    if (traceInputKey) return traceInputKey
+
+    const annotationOutput = state.annotationOutputByColumnKey.get(columnKey)
+    if (annotationOutput) return annotationOutput.outputKey
+
+    return undefined
+}
+
+function resolveMetricValue(
+    store: ReturnType<typeof getDefaultStore>,
+    scenarioId: string,
+    evaluatorId: string,
+    evaluatorSlug: string,
+    path: string,
+    stepKey: string,
+): unknown {
+    const metric = store.get(
+        annotationSessionController.selectors.scenarioMetricForEvaluator({
+            scenarioId,
+            evaluatorId,
+            evaluatorSlug,
+            path,
+            stepKey,
+        }),
+    )
+    if (metric.value !== null && metric.value !== undefined) return metric.value
+    if (metric.stats !== null && metric.stats !== undefined) return metric.stats
+    return null
+}
+
+function resolveExportCellValue(
+    columnKey: string,
+    row: ScenarioTableRow,
+    state: ExportColumnState,
+): unknown {
+    const store = getDefaultStore()
+    const def = state.defByKey.get(columnKey)
+    const scenarioId = row.scenarioId
+
+    const directTraceId = extractTraceIdFromScenario(row.raw)
+    const traceRef = store.get(annotationSessionController.selectors.scenarioTraceRef(scenarioId))
+    const effectiveTraceId = directTraceId || traceRef.traceId || ""
+
+    const testcaseRef = store.get(
+        annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
+    )
+    const testcaseQuery = testcaseRef.testcaseId
+        ? store.get(annotationSessionController.selectors.testcaseData(testcaseRef.testcaseId))
+        : null
+    const testcase = testcaseQuery?.data ?? null
+
+    if (def) {
+        switch (def.columnType) {
+            case "index":
+                return row.scenarioIndex + 1
+            case "trace-name": {
+                if (!effectiveTraceId) return ""
+                return store.get(traceRootSpanAtomFamily(effectiveTraceId))?.span_name ?? ""
+            }
+            case "trace-input-group": {
+                if (!effectiveTraceId) return ""
+                const inputs = store.get(traceInputsAtomFamily(effectiveTraceId))
+                if (def.inputKeys.length === 1) return inputs?.[def.inputKeys[0]] ?? ""
+                return inputs ?? ""
+            }
+            case "trace-output":
+                return effectiveTraceId
+                    ? (store.get(traceOutputsAtomFamily(effectiveTraceId)) ?? "")
+                    : ""
+            case "testcase-input":
+            case "testcase-output":
+            case "testcase-expected":
+                return getTestcaseValue(testcase, def.dataKey) ?? ""
+            case "annotation": {
+                const resolved = resolveMetricValue(
+                    store,
+                    scenarioId,
+                    def.annotationDef.evaluatorId,
+                    def.annotationDef.evaluatorSlug,
+                    def.annotationDef.path,
+                    def.annotationDef.stepKey,
+                )
+                if (resolved !== null) return resolved
+                return def.fallbackDataKey
+                    ? (getTestcaseValue(testcase, def.fallbackDataKey) ?? "")
+                    : ""
+            }
+            case "status":
+                return getScenarioStatusLabel(row.status)
+            case "actions":
+                return EXPORT_RESOLVE_SKIP
+            default:
+                return EXPORT_RESOLVE_SKIP
+        }
+    }
+
+    // Expanded sub-columns for multi-key trace inputs
+    const traceInputKey = state.traceInputKeyByColumnKey.get(columnKey)
+    if (traceInputKey) {
+        if (!effectiveTraceId) return ""
+        return store.get(traceInputsAtomFamily(effectiveTraceId))?.[traceInputKey] ?? ""
+    }
+
+    // Expanded sub-columns for multi-key annotation outputs
+    const annotationOutput = state.annotationOutputByColumnKey.get(columnKey)
+    if (annotationOutput) {
+        const resolved = resolveMetricValue(
+            store,
+            scenarioId,
+            annotationOutput.def.annotationDef.evaluatorId,
+            annotationOutput.def.annotationDef.evaluatorSlug,
+            annotationOutput.outputKey,
+            annotationOutput.def.annotationDef.stepKey,
+        )
+        if (resolved !== null) return resolved
+        if (!annotationOutput.def.fallbackDataKey) return ""
+        const fallbackValue = getTestcaseValue(testcase, annotationOutput.def.fallbackDataKey)
+        return fallbackValue && typeof fallbackValue === "object" && !Array.isArray(fallbackValue)
+            ? ((fallbackValue as Record<string, unknown>)[annotationOutput.outputKey] ?? "")
+            : ""
+    }
+
+    return undefined
+}
+
+const EXPORT_BATCH_SIZE = 25
+
+async function awaitScenarioData(
+    rowsToExport: ScenarioTableRow[],
+    columnDefs: ScenarioListColumnDef[],
+): Promise<ScenarioTableRow[]> {
+    const store = getDefaultStore()
+
+    const needsTraceData = columnDefs.some(
+        (def) =>
+            def.columnType === "trace-name" ||
+            def.columnType === "trace-input-group" ||
+            def.columnType === "trace-output",
+    )
+    const needsTestcaseData = columnDefs.some(
+        (def) =>
+            def.columnType === "testcase-input" ||
+            def.columnType === "testcase-output" ||
+            def.columnType === "testcase-expected" ||
+            (def.columnType === "annotation" && Boolean(def.fallbackDataKey)),
+    )
+    const needsAnnotationData = columnDefs.some((def) => def.columnType === "annotation")
+    const needsScenarioSteps = needsTraceData || needsTestcaseData || needsAnnotationData
+
+    const validRows = rowsToExport.filter((row) => !row.__isSkeleton)
+    let hadTimeout = false
+
+    const awaitRow = async (row: ScenarioTableRow) => {
+        const scenarioId = row.scenarioId
+
+        if (needsScenarioSteps) {
+            const atom = annotationSessionController.selectors.scenarioStepsQuery(scenarioId)
+            if (atom) {
+                const result = await waitForQueryState(atom, isQuerySettledOrNull)
+                if (result.timedOut) hadTimeout = true
+            }
+        }
+
+        if (needsTraceData) {
+            const atom = annotationSessionController.selectors.scenarioTraceQuery(scenarioId)
+            if (store.get(atom)) {
+                const result = await waitForQueryState(atom, isQuerySettledOrNull)
+                if (result.timedOut) hadTimeout = true
+            }
+        }
+
+        if (needsTestcaseData) {
+            const testcaseRef = store.get(
+                annotationSessionController.selectors.scenarioTestcaseRef(scenarioId),
+            )
+            if (testcaseRef.testcaseId) {
+                const atom = annotationSessionController.selectors.testcaseData(
+                    testcaseRef.testcaseId,
+                )
+                const result = await waitForQueryState(atom, isQuerySettled)
+                if (result.timedOut) hadTimeout = true
+            }
+        }
+
+        if (needsAnnotationData) {
+            const metricsAtom =
+                annotationSessionController.selectors.scenarioMetricsQuery(scenarioId)
+            const metricsResult = await waitForQueryState(metricsAtom, isQuerySettled)
+            if (metricsResult.timedOut) hadTimeout = true
+
+            const annotationsAtom =
+                annotationSessionController.selectors.scenarioAnnotationsQuery(scenarioId)
+            if (annotationsAtom) {
+                const annotationsResult = await waitForQueryState(
+                    annotationsAtom,
+                    isQuerySettledOrNull,
+                    2500,
+                )
+                if (annotationsResult.timedOut) hadTimeout = true
+            }
+        }
+    }
+
+    // Process in batches to avoid overwhelming the browser
+    for (let i = 0; i < validRows.length; i += EXPORT_BATCH_SIZE) {
+        const batch = validRows.slice(i, i + EXPORT_BATCH_SIZE)
+        await Promise.all(batch.map(awaitRow))
+    }
+
+    if (hadTimeout) {
+        message.warning(
+            "Some data was still loading during export. Exported values may be incomplete.",
+        )
+    }
+
+    return rowsToExport
+}
+
+// ============================================================================
 // TABLE SCOPE CONFIG
 // ============================================================================
 
@@ -1092,6 +1426,31 @@ const ScenarioListView = memo(function ScenarioListView({
         toggleGroupCollapse,
     ])
 
+    const exportColumnState = useMemo(() => {
+        const defByKey = new Map<string, ScenarioListColumnDef>()
+        const traceInputKeyByColumnKey = new Map<string, string>()
+        const annotationOutputByColumnKey = new Map<
+            string,
+            {def: Extract<ScenarioListColumnDef, {columnType: "annotation"}>; outputKey: string}
+        >()
+
+        listColumnDefs.forEach((def) => {
+            defByKey.set(def.key, def)
+            if (def.columnType === "trace-input-group" && def.inputKeys.length > 1) {
+                def.inputKeys.forEach((inputKey) => {
+                    traceInputKeyByColumnKey.set(`__trace_input_${inputKey}`, inputKey)
+                })
+            }
+            if (def.columnType === "annotation" && def.outputKeys.length > 1) {
+                def.outputKeys.forEach((outputKey) => {
+                    annotationOutputByColumnKey.set(`${def.key}_${outputKey}`, {def, outputKey})
+                })
+            }
+        })
+
+        return {defByKey, traceInputKeyByColumnKey, annotationOutputByColumnKey}
+    }, [listColumnDefs])
+
     // Pagination (in-memory — all rows, no server pagination)
     const pagination = useMemo(
         () => ({
@@ -1128,6 +1487,23 @@ const ScenarioListView = memo(function ScenarioListView({
         [handleRowClick],
     )
 
+    const exportOptions = useMemo(
+        () => ({
+            filename: "annotation-queue-scenarios.csv",
+            isColumnExportable: ({column}: TableExportColumnContext<ScenarioTableRow>) =>
+                String(column.key ?? "") !== "actions",
+            resolveColumnLabel: ({column}: TableExportColumnContext<ScenarioTableRow>) =>
+                resolveExportColumnLabel(column, exportColumnState),
+            resolveValue: ({columnKey, row}: {columnKey: string; row: ScenarioTableRow}) => {
+                if (row.__isSkeleton) return EXPORT_RESOLVE_SKIP
+                return resolveExportCellValue(columnKey, row, exportColumnState)
+            },
+            beforeExport: (rowsToExport: ScenarioTableRow[]) =>
+                awaitScenarioData(rowsToExport, listColumnDefs),
+        }),
+        [exportColumnState, listColumnDefs],
+    )
+
     return (
         <div className="flex flex-col h-full w-full min-h-0">
             <InfiniteVirtualTableFeatureShell<ScenarioTableRow>
@@ -1141,6 +1517,7 @@ const ScenarioListView = memo(function ScenarioListView({
                 useSettingsDropdown
                 tableClassName="agenta-scenario-table"
                 className="flex-1 min-h-0"
+                exportOptions={exportOptions}
                 store={getDefaultStore()}
             />
 
