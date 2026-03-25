@@ -867,7 +867,15 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
-        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl
+
+        // Skip inspect when the revision already carries all schemas inline.
+        // The merge step (workflowEntityAtomFamily) gives server schemas
+        // precedence, so fetching inspect would be redundant.
+        const serverSchemas = serverData?.data?.schemas
+        const hasAllSchemas =
+            !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
+
+        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && !hasAllSchemas
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
@@ -930,11 +938,22 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const uri = serverData?.data?.uri ?? null
         const url = serverData?.data?.url ?? null
 
+        // Skip when the revision already carries all schemas inline.
+        const serverSchemas = serverData?.data?.schemas
+        const hasAllSchemas =
+            !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
+
         // Skip if URI exists (inspect handles it), if URL points to a managed
-        // agenta service (inspect handles it), or if no URL at all.
+        // agenta service (inspect handles it), if no URL at all, or if
+        // the revision already has all schemas populated.
         // Only custom user-hosted apps without URIs need OpenAPI fetching.
         const enabled =
-            get(sessionAtom) && !!projectId && !!url && !uri && !isManagedServiceUrl(url)
+            get(sessionAtom) &&
+            !!projectId &&
+            !!url &&
+            !uri &&
+            !isManagedServiceUrl(url) &&
+            !hasAllSchemas
 
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],

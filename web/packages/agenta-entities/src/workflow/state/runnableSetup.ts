@@ -90,12 +90,26 @@ function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>):
 
 /**
  * Execution mode for workflows.
- * Determined by `flags.is_chat`: true → "chat", false → "completion".
+ *
+ * Checks in order:
+ * 1. `flags.is_chat` — explicit flag from the backend
+ * 2. `data.schemas.inputs` — if the input schema has a `messages` property,
+ *    the workflow is a chat app (the flag may lag behind the schema data)
  */
 export const executionModeAtomFamily = atomFamily((workflowId: string) =>
     atom<"chat" | "completion">((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
-        return entity?.flags?.is_chat ? "chat" : "completion"
+        if (entity?.flags?.is_chat) return "chat"
+
+        // Fallback: detect chat mode from input schema
+        const inputSchema = entity?.data?.schemas?.inputs as
+            | Record<string, unknown>
+            | null
+            | undefined
+        const inputProps = inputSchema?.properties as Record<string, unknown> | null | undefined
+        if (inputProps?.messages) return "chat"
+
+        return "completion"
     }),
 )
 

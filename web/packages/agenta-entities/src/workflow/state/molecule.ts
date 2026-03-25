@@ -50,6 +50,10 @@ import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {Workflow} from "../core"
+import {
+    toEvaluatorDefinitionFromWorkflow,
+    type EvaluatorDefinition,
+} from "../core/evaluatorResolution"
 import {parseWorkflowKeyFromUri} from "../core/schema"
 
 import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
@@ -451,8 +455,10 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
             const enrichedProperties: Record<string, unknown> = {}
 
             for (const [key, prop] of Object.entries(properties)) {
-                const agType = prop?.["x-ag-type"] as string | undefined
-                // Only enrich if the property has x-ag-type but no sub-properties
+                const agType =
+                    (prop?.["x-ag-type"] as string | undefined) ??
+                    (prop?.["x-ag-type-ref"] as string | undefined)
+                // Only enrich if the property has x-ag-type/x-ag-type-ref but no sub-properties
                 if (agType && !prop.properties) {
                     const agTypeQuery = get(agTypeSchemaAtomFamily(agType))
                     const agTypeSchema = agTypeQuery.data
@@ -699,6 +705,23 @@ const ioSchemasAtomFamily = atomFamily((workflowId: string) =>
 )
 
 /**
+ * Evaluator definition selector.
+ *
+ * Builds a full `EvaluatorDefinition` (id, name, slug, metrics) from the
+ * workflow entity data. Metrics are extracted from `data.schemas.outputs`.
+ *
+ * Use this when you need the evaluator definition with metrics resolved from
+ * the entity's output schema (e.g., for annotation panels, metric columns).
+ */
+const evaluatorDefinitionAtomFamily = atomFamily((workflowId: string) =>
+    atom<EvaluatorDefinition | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity) return null
+        return toEvaluatorDefinitionFromWorkflow(entity)
+    }),
+)
+
+/**
  * Server data selector (pre-draft entity data for commit diff baselines).
  */
 const serverDataAtomFamily = atomFamily((workflowId: string) =>
@@ -858,6 +881,8 @@ export const workflowMolecule = {
         outputPorts: outputPortsAtomFamily,
         /** IO schemas as {inputSchema, outputSchema} tuple */
         ioSchemas: ioSchemasAtomFamily,
+        /** Evaluator definition (id, name, slug, metrics from output schema) */
+        evaluatorDefinition: evaluatorDefinitionAtomFamily,
         /** Server data before draft overlay (for commit diffs) */
         serverData: serverDataAtomFamily,
         /** Server configuration (flat params from server) */
