@@ -14,11 +14,11 @@ from agenta.sdk.models.workflows import (  # noqa: E402
 )
 from agenta.sdk.decorators.running import workflow  # noqa: E402
 from agenta.sdk.decorators.tracing import instrument  # noqa: E402
-from agenta.sdk.workflows import builtin  # noqa: E402
+from agenta.sdk.engines.running import builtin  # noqa: E402
 
 print("-----------------------------------------------------------------------")
 
-from agenta.sdk.workflows.handlers import echo_v0  # noqa: E402
+from agenta.sdk.engines.running.handlers import echo_v0  # noqa: E402
 
 
 @instrument(annotate=True)

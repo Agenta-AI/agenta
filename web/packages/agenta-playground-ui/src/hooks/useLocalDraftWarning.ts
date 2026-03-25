@@ -1,7 +1,7 @@
 import {useEffect, useMemo} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
 import {isLocalDraftId} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {playgroundController} from "@agenta/playground"
 import {atom, useAtomValue} from "jotai"
 
@@ -15,8 +15,7 @@ export const useLocalDraftWarning = () => {
                     .filter((n) => n.depth === 0)
                     .some((node) => {
                         if (isLocalDraftId(node.entityId)) return true
-                        const scoped = runnableBridge.forType(node.entityType)
-                        return get(scoped.isDirty(node.entityId))
+                        return get(workflowMolecule.selectors.isDirty(node.entityId))
                     }),
             ),
         [nodes],

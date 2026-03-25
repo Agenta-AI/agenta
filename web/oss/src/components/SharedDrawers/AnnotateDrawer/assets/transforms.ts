@@ -1,7 +1,7 @@
 import deepEqual from "fast-deep-equal"
 
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 import {NUMERIC_METRIC_TYPES, USEABLE_METRIC_TYPES} from "./constants"
 import {MetricFormData} from "./CreateEvaluator/assets/types"

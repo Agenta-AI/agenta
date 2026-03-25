@@ -2,33 +2,33 @@ import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {DeploymentRevisions} from "@/oss/lib/Types"
+import {deploymentNoteAtom} from "../../store/deploymentFilterAtoms"
 
-import {deploymentNoteAtom} from "../../atoms"
+/** Minimal variant info needed for deployment modals */
+export interface DeploymentVariantInfo {
+    name: string
+    version: number | null
+}
 
 // Select Deploy Variant Modal State
 export interface SelectDeployVariantState {
     open: boolean
-    variants: EnhancedVariant[]
-    envRevisions?: DeploymentRevisions
+    envName: string
     selectedRowKeys: (string | number)[]
 }
 
 export const selectDeployVariantStateAtom = atomWithImmer<SelectDeployVariantState>({
     open: false,
-    variants: [],
-    envRevisions: undefined,
+    envName: "",
     selectedRowKeys: [],
 })
 
 export const openSelectDeployVariantModalAtom = atom(
     null,
-    (get, set, payload: {variants: EnhancedVariant[]; envRevisions?: DeploymentRevisions}) => {
+    (get, set, payload: {envName: string}) => {
         set(selectDeployVariantStateAtom, (draft) => {
             draft.open = true
-            draft.variants = payload.variants
-            draft.envRevisions = payload.envRevisions
+            draft.envName = payload.envName
             draft.selectedRowKeys = []
         })
     },
@@ -47,16 +47,21 @@ export const setSelectedRowKeysAtom = atom(null, (get, set, keys: (string | numb
 })
 
 // Deployment Confirmation Modal State
+// NOTE: callbacks (onConfirm, onSuccess) are stored in a separate plain atom
+// because atomWithImmer freezes state via Immer's produce, which drops functions.
 export interface DeploymentConfirmationState {
     open: boolean
     actionType: "deploy" | "revert"
-    variant?: EnhancedVariant
+    variant?: DeploymentVariantInfo
     envName: string
     note: string
-    onConfirm?: (note: string) => Promise<void> | void
-    onSuccess?: () => void
     successMessage?: string
     okLoading?: boolean
+}
+
+interface DeploymentConfirmationCallbacks {
+    onConfirm?: (note: string) => Promise<void> | void
+    onSuccess?: () => void
 }
 
 export const deploymentConfirmationStateAtom = atomWithImmer<DeploymentConfirmationState>({
@@ -67,13 +72,16 @@ export const deploymentConfirmationStateAtom = atomWithImmer<DeploymentConfirmat
     okLoading: false,
 })
 
+/** Plain atom for callbacks — not frozen by Immer */
+const deploymentConfirmationCallbacksAtom = atom<DeploymentConfirmationCallbacks>({})
+
 export const openDeploymentConfirmationModalAtom = atom(
     null,
     (
         get,
         set,
         payload: {
-            variant?: EnhancedVariant
+            variant?: DeploymentVariantInfo
             envName: string
             actionType?: "deploy" | "revert"
             onConfirm?: (note: string) => Promise<void> | void
@@ -81,13 +89,15 @@ export const openDeploymentConfirmationModalAtom = atom(
             successMessage?: string
         },
     ) => {
+        set(deploymentConfirmationCallbacksAtom, {
+            onConfirm: payload.onConfirm,
+            onSuccess: payload.onSuccess,
+        })
         set(deploymentConfirmationStateAtom, (draft) => {
             draft.open = true
             draft.variant = payload.variant
             draft.envName = payload.envName
             draft.actionType = payload.actionType ?? "deploy"
-            draft.onConfirm = payload.onConfirm
-            draft.onSuccess = payload.onSuccess
             draft.successMessage = payload.successMessage
             draft.note = get(deploymentNoteAtom)
         })
@@ -100,6 +110,7 @@ export const closeDeploymentConfirmationModalAtom = atom(null, (get, set) => {
         draft.okLoading = false
         draft.note = ""
     })
+    set(deploymentConfirmationCallbacksAtom, {})
     set(deploymentNoteAtom, "")
 })
 
@@ -115,7 +126,8 @@ export const setDeploymentNoteAtom = atom(
 
 export const confirmDeploymentAtom = atom(null, async (get, set) => {
     const state = get(deploymentConfirmationStateAtom)
-    if (!state.onConfirm) {
+    const callbacks = get(deploymentConfirmationCallbacksAtom)
+    if (!callbacks.onConfirm) {
         set(deploymentConfirmationStateAtom, (draft) => {
             draft.open = false
         })
@@ -125,15 +137,16 @@ export const confirmDeploymentAtom = atom(null, async (get, set) => {
         set(deploymentConfirmationStateAtom, (draft) => {
             draft.okLoading = true
         })
-        await state.onConfirm(state.note)
+        await callbacks.onConfirm(state.note)
         const actionText = state.actionType === "revert" ? "Reverted" : "Deployed"
         const envText = state.envName ? ` in ${state.envName}` : ""
         message.success(state.successMessage || `${actionText}${envText} successfully`)
-        state.onSuccess?.()
+        callbacks.onSuccess?.()
         set(deploymentConfirmationStateAtom, (draft) => {
             draft.open = false
             draft.note = ""
         })
+        set(deploymentConfirmationCallbacksAtom, {})
         set(deploymentNoteAtom, "")
     } finally {
         set(deploymentConfirmationStateAtom, (draft) => {

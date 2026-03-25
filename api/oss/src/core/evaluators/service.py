@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 from uuid import UUID, uuid4
 
 from oss.src.core.workflows.dtos import (
@@ -50,7 +50,9 @@ from oss.src.core.evaluators.dtos import (
     EvaluatorRevisionQuery,
     EvaluatorRevisionData,
 )
-from oss.src.core.evaluators.utils import build_evaluator_data
+from oss.src.core.evaluators.utils import (
+    build_evaluator_data,
+)
 from oss.src.utils.logging import get_module_logger
 
 
@@ -558,6 +560,73 @@ class EvaluatorsService:
 
         return evaluator_revision
 
+    async def retrieve_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        evaluator_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[EvaluatorRevision], Optional[ResolutionInfo]]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None, None
+
+            (
+                env_revision,
+                _,
+            ) = await environments_service.retrieve_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            evaluator_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not evaluator_references:
+                return None, None
+
+            evaluator_ref = evaluator_references.get("evaluator")
+            evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+        if resolve:
+            result = await self.resolve_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            return result if result else (None, None)
+
+        evaluator_revision = await self.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+        )
+        return evaluator_revision, None
+
     async def edit_evaluator_revision(
         self,
         *,
@@ -768,7 +837,6 @@ class EvaluatorsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         evaluator_ref: Optional[Reference] = None,
         evaluator_variant_ref: Optional[Reference] = None,
@@ -836,10 +904,6 @@ class EvaluatorsService:
 
         return (revision, resolution_info)
 
-    # evaluator services -------------------------------------------------------
-
-    # TODO: Implement ?
-
     # --------------------------------------------------------------------------
 
 
@@ -881,49 +945,44 @@ class SimpleEvaluatorsService:
 
         return bool(simple_evaluator_data.schemas.get("outputs"))
 
-    def _ensure_builtin_evaluator_data(
+    def _normalize_evaluator_data(
         self,
         simple_evaluator_data: Optional[SimpleEvaluatorData],
     ) -> Optional[SimpleEvaluatorData]:
+        if not simple_evaluator_data:
+            return simple_evaluator_data
+
         evaluator_key = self._extract_builtin_evaluator_key(simple_evaluator_data)
 
-        if not evaluator_key:
-            return simple_evaluator_data
-
-        if self._has_outputs_schema(simple_evaluator_data):
-            return simple_evaluator_data
-
-        settings_values = (
-            simple_evaluator_data.parameters
-            if simple_evaluator_data
-            and isinstance(simple_evaluator_data.parameters, dict)
-            else None
-        )
-
-        hydrated_data = build_evaluator_data(
-            evaluator_key=evaluator_key,
-            settings_values=settings_values,
-        )
-
-        hydrated_data_dict = hydrated_data.model_dump(
+        existing_data_dict: Dict[str, Any] = simple_evaluator_data.model_dump(
             mode="json",
             exclude_none=True,
             exclude_unset=True,
         )
 
-        existing_data_dict = (
-            simple_evaluator_data.model_dump(
+        normalized_data_dict: Dict[str, Any] = {}
+
+        if evaluator_key and not self._has_outputs_schema(simple_evaluator_data):
+            settings_values = (
+                simple_evaluator_data.parameters
+                if isinstance(simple_evaluator_data.parameters, dict)
+                else None
+            )
+
+            hydrated_data = build_evaluator_data(
+                evaluator_key=evaluator_key,
+                settings_values=settings_values,
+            )
+
+            normalized_data_dict = hydrated_data.model_dump(
                 mode="json",
                 exclude_none=True,
                 exclude_unset=True,
             )
-            if simple_evaluator_data
-            else {}
-        )
 
         return SimpleEvaluatorData(
             **{
-                **hydrated_data_dict,
+                **normalized_data_dict,
                 **existing_data_dict,
             }
         )
@@ -1018,7 +1077,7 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
-        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
             simple_evaluator_create.data,
         )
 
@@ -1109,6 +1168,9 @@ class SimpleEvaluatorsService:
             flags=simple_evaluator_flags,
             tags=evaluator.tags,
             meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
             #
             data=simple_evaluator_data,
         )
@@ -1202,6 +1264,9 @@ class SimpleEvaluatorsService:
             flags=simple_evaluator_flags,
             tags=evaluator.tags,
             meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
             #
             data=simple_evaluator_data,
         )
@@ -1308,7 +1373,7 @@ class SimpleEvaluatorsService:
 
         evaluator_revision_slug = uuid4().hex[-12:]
 
-        hydrated_simple_evaluator_data = self._ensure_builtin_evaluator_data(
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
             simple_evaluator_edit.data,
         )
 
@@ -1369,6 +1434,9 @@ class SimpleEvaluatorsService:
             flags=simple_evaluator_flags,
             tags=evaluator.tags,
             meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
             #
             data=simple_evaluator_data,
         )

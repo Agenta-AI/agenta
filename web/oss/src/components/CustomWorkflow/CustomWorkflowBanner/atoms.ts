@@ -5,10 +5,8 @@
  * its OpenAPI schema endpoint. The banner is shown when the probe fails.
  */
 
-import {
-    fetchRevisionSchemaWithProbe,
-    variantsListAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
+import {fetchRevisionSchemaWithProbe} from "@agenta/entities/shared/openapi"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -26,27 +24,35 @@ interface UriState {
 const appUriStateQueryAtom = atomWithQuery<UriState | undefined>((get) => {
     const currentAppId = get(selectedAppIdAtom)
     const appId = typeof currentAppId === "string" ? currentAppId : ""
-    const variants = appId ? get(variantsListAtomFamily(appId)) : []
-    const firstUri = (variants[0] as any)?.uri as string | undefined
     const appType = get(currentAppContextAtom)?.appType || null
     const isCustomApp = appType === "custom"
 
     const appState = get(appStateSnapshotAtom)
     const isPlayground = appState.pathname?.includes("/playground")
     const isVariantDrawer = appState.pathname?.includes("/variants")
-    const shouldSkipLegacyFetch = isPlayground || isVariantDrawer
+    const isAppsPage = appState.pathname?.endsWith("/apps")
+    const shouldSkipLegacyFetch = isPlayground || isVariantDrawer || isAppsPage
+
+    // Only subscribe to the revisions atom when we actually need it.
+    // Reading it unconditionally causes an expensive query on every page.
+    const firstUrl =
+        appId && !shouldSkipLegacyFetch
+            ? (get(workflowRevisionsByWorkflowListDataAtomFamily(appId))[0]?.data?.url as
+                  | string
+                  | undefined)
+            : undefined
 
     return {
-        queryKey: ["appSpec", appId, firstUri ?? ""],
+        queryKey: ["appSpec", appId, firstUrl ?? ""],
         queryFn: async () => {
-            if (!firstUri) return undefined
-            const result = await fetchRevisionSchemaWithProbe(firstUri)
+            if (!firstUrl) return undefined
+            const result = await fetchRevisionSchemaWithProbe(firstUrl)
             if (!result) throw new Error("openapi.json not found")
             return result as UriState
         },
         staleTime: isCustomApp ? undefined : 1000 * 60 * 5,
         placeholderData: (previousData) => previousData,
-        enabled: !!firstUri && !shouldSkipLegacyFetch,
+        enabled: !!firstUrl && !shouldSkipLegacyFetch,
         refetchInterval: isCustomApp ? 1000 * 60 * 1 : false,
     }
 })
@@ -63,5 +69,5 @@ export const customWorkflowBannerVisibleAtom = atom((get) => {
     const currentApp = get(currentAppAtom)
     const isAppUp = get(appStatusAtom)
     const isLoading = get(appStatusLoadingAtom)
-    return currentApp?.app_type === "custom" && !isLoading && !isAppUp
+    return !!currentApp?.flags?.is_custom && !isLoading && !isAppUp
 })

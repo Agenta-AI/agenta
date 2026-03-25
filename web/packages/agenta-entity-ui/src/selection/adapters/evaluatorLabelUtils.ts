@@ -5,13 +5,13 @@
  * Moved from OSS `useEvaluatorBrowseAdapter.ts` to enable package-level reuse.
  *
  * Uses:
- * - `getEvaluatorColor` from `@agenta/entities/evaluator` for consistent color hashing
+ * - `getEvaluatorColor` from `@agenta/entities/workflow` for consistent color hashing
  * - `EntityListItemLabel` from `@agenta/ui` for the label + trailing tag layout
  */
 
 import React from "react"
 
-import {getEvaluatorColor} from "@agenta/entities/evaluator"
+import {getEvaluatorColor} from "@agenta/entities/workflow"
 import {EntityListItemLabel} from "@agenta/ui/components/presentational"
 
 // ============================================================================

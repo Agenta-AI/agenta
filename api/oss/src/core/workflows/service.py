@@ -1,11 +1,19 @@
 from typing import Optional, List, Union, TYPE_CHECKING
-from uuid import UUID
+from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
+
+from agenta.sdk.engines.running.utils import (
+    infer_flags_from_data,
+    infer_url_from_uri,
+    infer_outputs_schema,
+    retrieve_interface,
+)
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -26,6 +34,8 @@ from oss.src.core.git.dtos import (
     RevisionsLog,
 )
 from oss.src.core.workflows.dtos import (
+    WorkflowFlags,
+    #
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
@@ -44,6 +54,13 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
     WorkflowRevisionData,
+    #
+    SimpleWorkflow,
+    SimpleWorkflowFlags,
+    SimpleWorkflowData,
+    SimpleWorkflowCreate,
+    SimpleWorkflowEdit,
+    SimpleWorkflowQuery,
     #
     WorkflowServiceRequest,
     WorkflowServiceBatchResponse,
@@ -67,6 +84,7 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceRequest,  # noqa: F811
     WorkflowServiceBatchResponse,  # noqa: F811
     WorkflowServiceStreamResponse,  # noqa: F811
+    WorkflowRequestData,
 )
 
 log = get_module_logger(__name__)
@@ -557,6 +575,84 @@ class WorkflowsService:
 
         return _workflow_revision
 
+    async def retrieve_workflow_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        workflow_ref: Optional[Reference] = None,
+        workflow_variant_ref: Optional[Reference] = None,
+        workflow_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[WorkflowRevision], Optional[ResolutionInfo]]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            if not self.environments_service:
+                log.warning("retrieve_workflow_revision: no environments_service")
+                return None, None
+
+            (
+                env_revision,
+                _,
+            ) = await self.environments_service.retrieve_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+            log.info(
+                "retrieve_workflow_revision: env_revision=%r env_data=%r",
+                env_revision and env_revision.id,
+                env_revision and env_revision.data,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            workflow_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+            log.info(
+                "retrieve_workflow_revision: key=%r references_by_key keys=%r workflow_references=%r",
+                key,
+                list(references_by_key.keys()) if references_by_key else None,
+                workflow_references,
+            )
+
+            if not workflow_references:
+                return None, None
+
+            workflow_ref = workflow_references.get("workflow")
+            workflow_variant_ref = workflow_references.get("workflow_variant")
+            workflow_revision_ref = workflow_references.get("workflow_revision")
+
+        if resolve:
+            result = await self.resolve_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_ref,
+            )
+            return result if result else (None, None)
+
+        workflow_revision = await self.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+            workflow_variant_ref=workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_ref,
+        )
+        return workflow_revision, None
+
     async def edit_workflow_revision(
         self,
         *,
@@ -639,6 +735,55 @@ class WorkflowsService:
         #
         workflow_revision_commit: WorkflowRevisionCommit,
     ) -> Optional[WorkflowRevision]:
+        data = workflow_revision_commit.data
+        if data and data.uri and not data.url:
+            path = infer_url_from_uri(data.uri)
+            if path:
+                data = data.model_copy(
+                    update={"url": env.agenta.services_url.rstrip("/") + path}
+                )
+
+        if data and data.uri:
+            interface = retrieve_interface(data.uri)
+            current_schemas = data.schemas or {}
+            schemas_dict = (
+                current_schemas
+                if isinstance(current_schemas, dict)
+                else current_schemas.model_dump(mode="json", exclude_none=True)
+            )
+
+            if interface and interface.schemas:
+                iface_schemas = (
+                    interface.schemas
+                    if isinstance(interface.schemas, dict)
+                    else interface.schemas.model_dump(mode="json", exclude_none=True)
+                )
+                if "parameters" not in schemas_dict and "parameters" in iface_schemas:
+                    schemas_dict["parameters"] = iface_schemas["parameters"]
+                if "outputs" not in schemas_dict and "outputs" in iface_schemas:
+                    schemas_dict["outputs"] = iface_schemas["outputs"]
+
+            if data.parameters is not None:
+                inferred_outputs = infer_outputs_schema(
+                    uri=data.uri,
+                    parameters=data.parameters,
+                )
+                if inferred_outputs is not None:
+                    schemas_dict["outputs"] = inferred_outputs
+
+            if schemas_dict:
+                data = data.model_copy(update={"schemas": schemas_dict})
+
+        workflow_revision_commit = workflow_revision_commit.model_copy(
+            update={
+                "flags": infer_flags_from_data(
+                    flags=workflow_revision_commit.flags,
+                    data=data,
+                ),
+                "data": data,
+            }
+        )
+
         _revision_commit = RevisionCommit(
             **workflow_revision_commit.model_dump(mode="json", exclude_none=True),
         )
@@ -780,6 +925,41 @@ class WorkflowsService:
 
         credentials = f"Secret {secret_token}"
 
+        # Resolve references → inject revision into request.data before dispatch.
+        # This handles the /preview/workflows/invoke path where we have DB access.
+        # The SDK's ResolverMiddleware handles the same for /services/invoke callers.
+        if request.references and not (request.data and request.data.revision):
+            refs = request.references
+            workflow_ref = refs.get("workflow")
+            workflow_revision = None
+
+            if "environment" in refs:
+                key = (
+                    f"{workflow_ref.slug}.revision"
+                    if workflow_ref and workflow_ref.slug
+                    else None
+                )
+                workflow_revision, _ = await self.retrieve_workflow_revision(
+                    project_id=project_id,
+                    environment_ref=refs["environment"],
+                    key=key,
+                )
+
+            elif "workflow_revision" in refs or "workflow" in refs:
+                workflow_revision, _ = await self.retrieve_workflow_revision(
+                    project_id=project_id,
+                    workflow_ref=workflow_ref,
+                    workflow_variant_ref=refs.get("workflow_variant"),
+                    workflow_revision_ref=refs.get("workflow_revision"),
+                )
+
+            if workflow_revision and workflow_revision.data:
+                if not request.data:
+                    request.data = WorkflowRequestData()
+                request.data.revision = {
+                    "data": workflow_revision.data.model_dump(mode="json")
+                }
+
         return await _invoke_workflow(
             request=request,
             #
@@ -804,7 +984,6 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
@@ -897,5 +1076,525 @@ class WorkflowsService:
         revision.data = WorkflowRevisionData(**revision_data)
 
         return (revision, resolution_info)
+
+    # --------------------------------------------------------------------------
+
+
+def _build_simple_workflow_data(
+    revision_data: Optional[WorkflowRevisionData],
+) -> SimpleWorkflowData:
+    """Build SimpleWorkflowData, inferring url from uri if absent (on read)."""
+    if not revision_data:
+        return SimpleWorkflowData()
+    data_dict = revision_data.model_dump(mode="json", exclude_none=True)
+    if revision_data.uri and not revision_data.url:
+        path = infer_url_from_uri(revision_data.uri)
+        if path:
+            data_dict["url"] = env.agenta.services_url.rstrip("/") + path
+    return SimpleWorkflowData(**data_dict)
+
+
+class SimpleWorkflowsService:
+    def __init__(
+        self,
+        *,
+        workflows_service: WorkflowsService,
+    ):
+        self.workflows_service = workflows_service
+
+    # public -------------------------------------------------------------------
+
+    async def create(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_workflow_create: SimpleWorkflowCreate,
+        #
+        workflow_id: Optional[UUID] = None,
+    ) -> Optional[SimpleWorkflow]:
+        simple_workflow_flags = SimpleWorkflowFlags(
+            **(
+                simple_workflow_create.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if simple_workflow_create.flags
+                else {}
+            )
+        )
+
+        workflow_flags = WorkflowFlags(
+            **simple_workflow_flags.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            ),
+        )
+
+        workflow_create = WorkflowCreate(
+            slug=simple_workflow_create.slug,
+            #
+            name=simple_workflow_create.name,
+            description=simple_workflow_create.description,
+            #
+            flags=workflow_flags,
+            meta=simple_workflow_create.meta,
+            tags=simple_workflow_create.tags,
+        )
+
+        workflow: Optional[Workflow] = await self.workflows_service.create_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_create=workflow_create,
+            #
+            workflow_id=workflow_id,
+        )
+
+        if workflow is None:
+            return None
+
+        workflow_variant_slug = uuid4().hex[-12:]
+
+        workflow_variant_create = WorkflowVariantCreate(
+            slug=workflow_variant_slug,
+            #
+            name=workflow_create.name,
+            description=workflow_create.description,
+            #
+            flags=workflow_flags,
+            tags=workflow_create.tags,
+            meta=workflow_create.meta,
+            #
+            workflow_id=workflow.id,
+        )
+
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.create_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_create=workflow_variant_create,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        workflow_revision_slug = uuid4().hex[-12:]
+
+        workflow_revision_commit = WorkflowRevisionCommit(
+            slug=workflow_revision_slug,
+            #
+            name=workflow_create.name,
+            description=workflow_create.description,
+            #
+            flags=workflow_flags,
+            tags=workflow_create.tags,
+            meta=workflow_create.meta,
+            #
+            data=None,
+            #
+            message="Initial commit",
+            #
+            workflow_id=workflow.id,
+            workflow_variant_id=workflow_variant.id,
+        )
+
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.commit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_revision_commit=workflow_revision_commit,
+        )
+
+        if workflow_revision is None:
+            return None
+
+        workflow_revision_slug = uuid4().hex[-12:]
+
+        workflow_revision_commit = WorkflowRevisionCommit(
+            slug=workflow_revision_slug,
+            #
+            name=workflow_create.name,
+            description=workflow_create.description,
+            #
+            flags=workflow_flags,
+            tags=workflow_create.tags,
+            meta=workflow_create.meta,
+            #
+            data=simple_workflow_create.data,
+            #
+            workflow_id=workflow.id,
+            workflow_variant_id=workflow_variant.id,
+        )
+
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_revision_commit=workflow_revision_commit,
+        )
+
+        if workflow_revision is None:
+            return None
+
+        simple_workflow = SimpleWorkflow(
+            id=workflow.id,
+            slug=workflow.slug,
+            #
+            name=workflow.name,
+            description=workflow.description,
+            #
+            created_at=workflow.created_at,
+            updated_at=workflow.updated_at,
+            deleted_at=workflow.deleted_at,
+            created_by_id=workflow.created_by_id,
+            updated_by_id=workflow.updated_by_id,
+            deleted_by_id=workflow.deleted_by_id,
+            #
+            flags=SimpleWorkflowFlags(
+                **(
+                    workflow_revision.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.flags
+                    else {}
+                )
+            ),
+            meta=workflow.meta,
+            tags=workflow.tags,
+            #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
+            #
+            data=_build_simple_workflow_data(workflow_revision.data),
+        )
+
+        return simple_workflow
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_id: UUID,
+    ) -> Optional[SimpleWorkflow]:
+        workflow_ref = Reference(id=workflow_id)
+
+        workflow: Optional[Workflow] = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow is None:
+            return None
+
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_variant_ref=Reference(id=workflow_variant.id),
+        )
+
+        if workflow_revision is None:
+            return None
+
+        simple_workflow = SimpleWorkflow(
+            id=workflow.id,
+            slug=workflow.slug,
+            #
+            name=workflow.name,
+            description=workflow.description,
+            #
+            created_at=workflow.created_at,
+            updated_at=workflow.updated_at,
+            deleted_at=workflow.deleted_at,
+            created_by_id=workflow.created_by_id,
+            updated_by_id=workflow.updated_by_id,
+            deleted_by_id=workflow.deleted_by_id,
+            #
+            flags=SimpleWorkflowFlags(
+                **(
+                    workflow_revision.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.flags
+                    else {}
+                )
+            ),
+            meta=workflow.meta,
+            tags=workflow.tags,
+            #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
+            #
+            data=_build_simple_workflow_data(workflow_revision.data),
+        )
+
+        return simple_workflow
+
+    async def edit(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_workflow_edit: SimpleWorkflowEdit,
+    ) -> Optional[SimpleWorkflow]:
+        workflow_ref = Reference(id=simple_workflow_edit.id)
+
+        workflow: Optional[Workflow] = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow is None:
+            return None
+
+        workflow_edit = WorkflowEdit(
+            id=simple_workflow_edit.id,
+            #
+            name=simple_workflow_edit.name,
+            description=simple_workflow_edit.description,
+            #
+            flags=(
+                WorkflowFlags(
+                    **simple_workflow_edit.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    ),
+                )
+                if simple_workflow_edit.flags
+                else workflow.flags
+            ),
+            meta=simple_workflow_edit.meta
+            if simple_workflow_edit.meta is not None
+            else workflow.meta,
+            tags=simple_workflow_edit.tags
+            if simple_workflow_edit.tags is not None
+            else workflow.tags,
+        )
+
+        workflow = await self.workflows_service.edit_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_edit=workflow_edit,
+        )
+
+        if workflow is None:
+            return None
+
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=workflow_ref,
+        )
+
+        if workflow_variant is None:
+            return None
+
+        if simple_workflow_edit.data:
+            workflow_revision_slug = uuid4().hex[-12:]
+
+            workflow_revision_commit = WorkflowRevisionCommit(
+                slug=workflow_revision_slug,
+                #
+                name=workflow_edit.name,
+                description=workflow_edit.description,
+                #
+                flags=workflow_edit.flags,
+                tags=workflow_edit.tags,
+                meta=workflow_edit.meta,
+                #
+                data=WorkflowRevisionData(
+                    **simple_workflow_edit.data.model_dump(mode="json"),
+                ),
+                #
+                workflow_id=workflow.id,
+                workflow_variant_id=workflow_variant.id,
+            )
+
+            workflow_revision: Optional[
+                WorkflowRevision
+            ] = await self.workflows_service.commit_workflow_revision(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=workflow_revision_commit,
+            )
+        else:
+            workflow_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                #
+                workflow_variant_ref=Reference(id=workflow_variant.id),
+            )
+
+        if workflow_revision is None:
+            return None
+
+        simple_workflow_flags = SimpleWorkflowFlags(
+            **(
+                workflow.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if workflow.flags
+                else {}
+            )
+        )
+
+        simple_workflow = SimpleWorkflow(
+            id=workflow.id,
+            slug=workflow.slug,
+            #
+            name=workflow.name,
+            description=workflow.description,
+            #
+            created_at=workflow.created_at,
+            updated_at=workflow.updated_at,
+            deleted_at=workflow.deleted_at,
+            created_by_id=workflow.created_by_id,
+            updated_by_id=workflow.updated_by_id,
+            deleted_by_id=workflow.deleted_by_id,
+            #
+            flags=simple_workflow_flags,
+            meta=workflow.meta,
+            tags=workflow.tags,
+            #
+            variant_id=workflow_variant.id,
+            revision_id=workflow_revision.id,
+            #
+            data=SimpleWorkflowData(
+                **(
+                    workflow_revision.data.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    )
+                    if workflow_revision.data
+                    else {}
+                ),
+            ),
+        )
+
+        return simple_workflow
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_id: UUID,
+    ) -> Optional[SimpleWorkflow]:
+        workflow = await self.workflows_service.archive_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_id=workflow_id,
+        )
+
+        if workflow is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            workflow_id=workflow_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_id: UUID,
+    ) -> Optional[SimpleWorkflow]:
+        workflow = await self.workflows_service.unarchive_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_id=workflow_id,
+        )
+
+        if workflow is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            workflow_id=workflow_id,
+        )
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        #
+        simple_workflow_query: Optional[SimpleWorkflowQuery] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleWorkflow]:
+        query_data = (
+            simple_workflow_query.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_workflow_query
+            else {}
+        )
+        query_data.setdefault("flags", {})
+        workflow_query = WorkflowQuery(**query_data)
+
+        workflows = await self.workflows_service.query_workflows(
+            project_id=project_id,
+            #
+            workflow_query=workflow_query,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        simple_workflows = []
+
+        for workflow in workflows:
+            simple_workflow = await self.fetch(
+                project_id=project_id,
+                workflow_id=workflow.id,  # type: ignore
+            )
+
+            if simple_workflow:
+                simple_workflows.append(simple_workflow)
+
+        return simple_workflows
 
     # --------------------------------------------------------------------------

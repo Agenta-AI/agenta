@@ -1,9 +1,16 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    isSpansResponse,
+    isTracesResponse,
+    transformTracesResponseToTree,
+    transformTracingResponse,
+} from "@agenta/entities/trace"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {ArrowLeft, CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {
     setTraceDrawerTraceAtom,
@@ -11,12 +18,6 @@ import {
     traceDrawerIsLinkedViewAtom,
 } from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {fetchAllPreviewTraces} from "@/oss/services/tracing/api"
-import {
-    isSpansResponse,
-    isTracesResponse,
-    transformTracesResponseToTree,
-    transformTracingResponse,
-} from "@/oss/services/tracing/lib/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {useObservability} from "@/oss/state/newObservability"
@@ -24,6 +25,11 @@ import buildTraceQueryParams from "@/oss/state/newObservability/utils/buildTrace
 
 import {getNodeTimestamp, getSpanIdFromNode, getTraceIdFromNode, toISOString} from "./assets/helper"
 import {NavSource, NavState, TraceHeaderProps} from "./assets/types"
+
+const AddToQueuePopover = dynamic(
+    () => import("@agenta/annotation-ui/add-to-queue").then((m) => m.default),
+    {ssr: false},
+)
 
 const TraceHeader = ({
     activeTrace: propActiveTrace,
@@ -443,10 +449,11 @@ const TraceHeader = ({
     ])
 
     const displayTrace = propActiveTrace || drawerTraces?.[0]
+    const displayTraceId = getTraceIdFromNode(displayTrace) || ""
 
     return (
         <>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
                 <Space>
                     {backTarget && (
                         <Button
@@ -474,15 +481,21 @@ const TraceHeader = ({
                     )}
 
                     <Typography.Text className="text-sm font-medium">Trace</Typography.Text>
-                    <TooltipWithCopyAction
-                        copyText={getTraceIdFromNode(displayTrace) || ""}
-                        title="Copy trace id"
-                    >
+                    <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
                         <Tag className="font-mono bg-[#0517290F]" variant="filled">
-                            # {getTraceIdFromNode(displayTrace) || "-"}
+                            # {displayTraceId || "-"}
                         </Tag>
                     </TooltipWithCopyAction>
                 </Space>
+                <AddToQueuePopover
+                    itemType="traces"
+                    itemIds={activeTraceKey ? [activeTraceKey] : []}
+                    disabled={!activeTraceKey}
+                >
+                    <Button size="small" disabled={!activeTraceKey}>
+                        Add annotation queue
+                    </Button>
+                </AddToQueuePopover>
             </div>
         </>
     )

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo} from "react"
 
-import {probeEndpointPath, variantsListAtomFamily} from "@agenta/entities/legacyAppRevision"
+import {probeEndpointPath} from "@agenta/entities/shared/openapi"
+import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
+import {removeTrailingSlash} from "@agenta/shared/utils"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
@@ -8,40 +10,40 @@ import {Typography, Space, Button, notification} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {updateVariant} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
-import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {
+    normalizeAppKey,
     customWorkflowValuesAtomFamily,
     customWorkflowTestStatusAtom,
     customWorkflowConfiguringAtom,
 } from "@/oss/state/customWorkflow/modalAtoms"
 
 import {useStyles} from "../assets/styles"
-import {CustomWorkflowModalProps} from "../types"
 
 import CustomWorkflowModalFooter from "./CustomWorkflowModalFooter"
 
 const {Text} = Typography
 
+interface CustomWorkflowModalContentProps {
+    appId?: string | null
+    onCancel: () => void
+    onSuccess?: () => Promise<void>
+    onCreateApp?: () => void
+}
+
 const CustomWorkflowModalContent = ({
-    customWorkflowAppValues,
-    setCustomWorkflowAppValues,
-    handleCreateApp,
-    configureWorkflow = false,
-    variants,
-    allVariantsDataMutate,
-    appNameExist,
-    mutate,
-    ...props
-}: CustomWorkflowModalProps) => {
+    appId: propsAppId,
+    onCancel,
+    onSuccess,
+    onCreateApp,
+}: CustomWorkflowModalContentProps) => {
     const classes = useStyles()
     const [testConnectionStatus, setTestConnectionStatus] = useAtom(customWorkflowTestStatusAtom)
     const [isConfiguringWorkflow, setIsConfiguringWorkflow] = useAtom(customWorkflowConfiguringAtom)
 
-    const rawAppId = (props as any)?.appId ?? ""
-    const appKey = rawAppId && String(rawAppId).trim().length ? String(rawAppId) : "new-app"
+    const appKey = normalizeAppKey(propsAppId)
+    const configureWorkflow = appKey !== "new-app"
     const [values, setValues] = useAtom(customWorkflowValuesAtomFamily(appKey))
     const workflowUrlInput = values.appUrl
     const isUrlValid = useMemo(() => {
@@ -55,37 +57,19 @@ const CustomWorkflowModalContent = ({
         }
     }, [workflowUrlInput])
 
-    useEffect(() => {
-        // Only sync from props when creating a new app (unhydrated) AND values are explicitly provided
-        if (configureWorkflow) return
-        if (!customWorkflowAppValues) return
-        const hasExplicit = Boolean(
-            customWorkflowAppValues.appName ||
-            customWorkflowAppValues.appUrl ||
-            customWorkflowAppValues.appDesc,
-        )
-        if (!hasExplicit) return
-        setValues((draft) => {
-            draft.appName = customWorkflowAppValues.appName
-            draft.appUrl = customWorkflowAppValues.appUrl
-            draft.appDesc = customWorkflowAppValues.appDesc
-        })
-    }, [configureWorkflow, customWorkflowAppValues, setValues])
-
-    // Access current app and variants before seeding effect
     const {currentApp, apps} = useAppsData()
-    // Fetch variants as a fallback if not provided via props
-    const appId = useAtomValue(selectedAppIdAtom) || ""
-    const fetchedVariantsData = useAtomValue(useMemo(() => variantsListAtomFamily(appId), [appId]))
-    const effectiveVariants = variants?.length ? variants : fetchedVariantsData
-
-    // Seeding is handled on modal open via openCustomWorkflowModalAtom -> customWorkflowSeedAtom
+    const revisions = useAtomValue(
+        useMemo(
+            () => workflowRevisionsByWorkflowListDataAtomFamily(configureWorkflow ? appKey : ""),
+            [configureWorkflow, appKey],
+        ),
+    )
 
     // Fallback hydration: if modal opened before atoms resolved, hydrate missing fields once they arrive
     useEffect(() => {
         if (!configureWorkflow) return
-        const derivedName = (currentApp as any)?.app_name || ""
-        const derivedUrl = (effectiveVariants as any)?.[0]?.uri || ""
+        const derivedName = currentApp?.name ?? currentApp?.slug ?? ""
+        const derivedUrl = (revisions as any)?.[0]?.data?.url || ""
         if (!derivedName && !derivedUrl) return
         if (!values.appName && derivedName) {
             setValues((draft) => {
@@ -98,7 +82,7 @@ const CustomWorkflowModalContent = ({
             })
             setTestConnectionStatus({success: false, error: false, loading: false})
         }
-    }, [configureWorkflow, (currentApp as any)?.app_name, (effectiveVariants as any)?.[0]?.uri])
+    }, [configureWorkflow, currentApp?.name, currentApp?.slug, (revisions as any)?.[0]?.data?.url])
 
     // When URL changes, clear previous test status so user gets accurate hints
     useEffect(() => {
@@ -106,15 +90,15 @@ const CustomWorkflowModalContent = ({
     }, [workflowUrlInput])
 
     // Compute appNameExist locally based on current form values (applies to both create & configure)
-    const appNameExistComputed = useMemo(() => {
+    const appNameExist = useMemo(() => {
         if (!Array.isArray(apps)) return false
         const name = (values.appName || "").toLowerCase().trim()
         if (!name) return false
-        return apps.some((app: any) => (app?.app_name || "").toLowerCase() === name)
+        return apps.some((app: any) => ((app?.name ?? app?.slug) || "").toLowerCase() === name)
     }, [apps, values.appName])
 
     const handleEditCustomUrl = useCallback(async () => {
-        if (!effectiveVariants?.length) {
+        if (!revisions?.length) {
             notification.error({
                 message: "Custom workflow",
                 description: "No variants found to update.",
@@ -123,18 +107,12 @@ const CustomWorkflowModalContent = ({
             return
         }
 
-        // Deduplicate by effective target variant ID: parent id if present, else own id
+        // Deduplicate by variant ID
         const targetIds = new Set<string>()
-        for (const v of effectiveVariants) {
-            const parent = (v as any)._parentVariant
-            const parentId =
-                typeof parent === "string"
-                    ? parent
-                    : (parent?.id as string | undefined) ||
-                      (parent?.variantId as string | undefined)
-            const selfId = (v as any).id || (v as any).variantId
-            const resolved = parentId || selfId
-            if (resolved) targetIds.add(resolved)
+        for (const v of revisions) {
+            const variantId =
+                (v as any).workflow_variant_id || (v as any).variantId || (v as any).id
+            if (variantId) targetIds.add(variantId)
         }
 
         setIsConfiguringWorkflow(true)
@@ -147,18 +125,13 @@ const CustomWorkflowModalContent = ({
                     }),
                 ),
             )
-            await Promise.all([allVariantsDataMutate?.(), mutate()])
-            setCustomWorkflowAppValues?.((prev) => ({
-                ...prev,
-                appUrl: workflowUrlInput,
-            }))
+            await onSuccess?.()
             notification.success({
                 message: "Custom workflow",
                 description: "Workflow URL saved successfully.",
                 duration: 2,
             })
-            // Close only on success
-            props.onCancel?.({} as any)
+            onCancel()
         } catch (error) {
             console.error("Failed to update variants:", error)
             notification.error({
@@ -169,14 +142,7 @@ const CustomWorkflowModalContent = ({
         } finally {
             setIsConfiguringWorkflow(false)
         }
-    }, [
-        effectiveVariants,
-        workflowUrlInput,
-        allVariantsDataMutate,
-        mutate,
-        setCustomWorkflowAppValues,
-        props,
-    ])
+    }, [revisions, workflowUrlInput, onSuccess, onCancel])
 
     const runTestConnection = useCallback(async (delay = 0, url?: string) => {
         if (!url) return
@@ -202,18 +168,6 @@ const CustomWorkflowModalContent = ({
         }
     }, [workflowUrlInput, runTestConnection])
 
-    useEffect(() => {
-        if (props.open) {
-            setTestConnectionStatus({
-                error: false,
-                success: false,
-                loading: false,
-            })
-        }
-    }, [props.open])
-
-    // Footer rendered inline at the end to keep it bound to live local values
-
     return (
         <section className={classes.modal}>
             <div className="flex items-center justify-between">
@@ -236,11 +190,7 @@ const CustomWorkflowModalContent = ({
                             </Button>
                         </Typography.Link>
                     )}
-                    <Button
-                        onClick={() => props.onCancel?.({} as any)}
-                        type="text"
-                        icon={<CloseOutlined />}
-                    />
+                    <Button onClick={onCancel} type="text" icon={<CloseOutlined />} />
                 </Space>
             </div>
 
@@ -260,12 +210,11 @@ const CustomWorkflowModalContent = ({
                         setValues((draft) => {
                             draft.appName = value
                         })
-                        setCustomWorkflowAppValues?.((prev) => ({...prev, appName: value}))
                     }}
                     editorType="border"
                     placeholder="Enter app name"
                     editorClassName={`!border-none !shadow-none px-0 ${
-                        appNameExistComputed ||
+                        appNameExist ||
                         (values.appName.length > 0 && !isAppNameInputValid(values.appName))
                             ? "border-red-500 !border"
                             : ""
@@ -310,7 +259,6 @@ const CustomWorkflowModalContent = ({
                     setValues((draft) => {
                         draft.appUrl = value
                     })
-                    setCustomWorkflowAppValues?.((prev) => ({...prev, appUrl: value}))
                 }}
                 editorType="border"
                 placeholder="Enter workflow URL"
@@ -319,21 +267,19 @@ const CustomWorkflowModalContent = ({
                 useAntdInput
             />
 
-            {
-                <CustomWorkflowModalFooter
-                    handleCancelButton={() => props.onCancel?.({} as any)}
-                    handleCreateApp={handleCreateApp}
-                    handleEditCustomUrl={handleEditCustomUrl}
-                    isConfiguringWorkflow={isConfiguringWorkflow}
-                    configureWorkflow={configureWorkflow}
-                    customWorkflowAppValues={values}
-                    testConnectionStatus={testConnectionStatus}
-                    appNameExist={appNameExistComputed}
-                    runTestConnection={runTestConnection}
-                    isUrlValid={isUrlValid}
-                    variantsReady={Array.isArray(effectiveVariants) && effectiveVariants.length > 0}
-                />
-            }
+            <CustomWorkflowModalFooter
+                handleCancelButton={onCancel}
+                handleCreateApp={onCreateApp ?? (() => {})}
+                handleEditCustomUrl={handleEditCustomUrl}
+                isConfiguringWorkflow={isConfiguringWorkflow}
+                configureWorkflow={configureWorkflow}
+                customWorkflowAppValues={values}
+                testConnectionStatus={testConnectionStatus}
+                appNameExist={appNameExist}
+                runTestConnection={runTestConnection}
+                isUrlValid={isUrlValid}
+                variantsReady={Array.isArray(revisions) && revisions.length > 0}
+            />
         </section>
     )
 }

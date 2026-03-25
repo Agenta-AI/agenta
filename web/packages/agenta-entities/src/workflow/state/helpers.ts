@@ -12,20 +12,6 @@ import {getAgentaApiUrl} from "@agenta/shared/api"
 import type {Workflow} from "../core"
 
 /**
- * Resolve the correct service URL for a builtin (non-custom) app workflow.
- *
- * For builtin apps with URI like "agenta:builtin:completion:v0", the service
- * is hosted at a deterministic path: `{origin}/services/{serviceType}`.
- *
- * This handles stale `data.url` values pointing to old/migrated domains.
- *
- * TODO: Remove once backend migration patches all revision data.url values.
- * After migration, data.url will always be correct and this resolution
- * will be unnecessary for non-evaluator app workflows.
- *
- * @returns Corrected service URL, or null if not a builtin app
- */
-/**
  * Extract service type from a URI like "agenta:builtin:completion:v0".
  *
  * @returns "completion" | "chat" | null
@@ -39,7 +25,8 @@ export function resolveServiceTypeFromUri(uri: string | null | undefined): strin
 }
 
 /**
- * Extract service type from a URL path like "http://host/services/completion".
+ * Extract service type from a URL path like "http://host/services/completion"
+ * or "http://host/services/builtin/completion/v0".
  *
  * Used as a fallback when `uri` is missing (post-migration data where
  * `data.url` is correct but `data.uri` was not preserved).
@@ -48,10 +35,52 @@ export function resolveServiceTypeFromUri(uri: string | null | undefined): strin
  */
 export function resolveServiceTypeFromUrl(url: string | null | undefined): string | null {
     if (!url) return null
-    const match = url.match(/\/services\/(completion|chat)(?:[/?]|$)/)
+    // Match both old-style /services/completion and new-style /services/builtin/completion/v0
+    const match = url.match(/\/services\/(?:builtin\/)?(completion|chat)(?:[/?]|$|\/v\d+)/)
     return match ? match[1] : null
 }
 
+/**
+ * Check whether a URL points to any managed agenta service.
+ *
+ * Returns true for any `/services/...` URL — builtin, custom, evaluator, etc.
+ * Used to suppress the OpenAPI fallback for managed service URLs.
+ */
+export function isManagedServiceUrl(url: string | null | undefined): boolean {
+    if (!url) return false
+    return /\/services\//.test(url)
+}
+
+/**
+ * Build a service URL from an agenta URI.
+ *
+ * Converts `agenta:{kind}:{key}:{version}` → `{origin}/services/{kind}/{key}/{version}`
+ *
+ * @returns Service URL, or null if the URI is not an agenta URI
+ */
+export function buildServiceUrlFromUri(uri: string | null | undefined): string | null {
+    if (!uri || !uri.startsWith("agenta:")) return null
+    const apiUrl = getAgentaApiUrl()
+    if (!apiUrl) return null
+    const origin = apiUrl.replace(/\/api\/?$/, "")
+    // agenta:{kind}:{key}:{version} → {kind}/{key}/{version}
+    const path = uri.replace(/^agenta:/, "").replace(/:/g, "/")
+    return `${origin}/services/${path}`
+}
+
+/**
+ * Resolve the correct service URL for a builtin (non-custom) app workflow.
+ *
+ * For builtin apps with URI like "agenta:builtin:completion:v0", the service
+ * is hosted at a deterministic path: `{origin}/services/{serviceType}`.
+ * The URI is preferred because `data.url` may point to a stale/migrated domain.
+ *
+ * When the URI is missing (post-migration data corruption), falls back to
+ * `data.url` if it matches the builtin `/services/{type}` pattern — these
+ * revisions were created after the migration so their URL is already correct.
+ *
+ * @returns Corrected service URL, or null if not a builtin app
+ */
 export function resolveBuiltinAppServiceUrl(entity: Workflow): string | null {
     if (!entity.data) return null
     if (entity.flags?.is_evaluator) return null

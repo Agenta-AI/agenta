@@ -118,7 +118,7 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
     })
 
     // Create custom pagination hook that uses wrapped atoms (with client rows)
-    const usePagination = ({
+    const usePaginationWithClientRows = ({
         scopeId,
         pageSize,
         resetOnScopeChange,
@@ -135,18 +135,11 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
             resetOnScopeChange,
         })
 
-        // Always get wrapped atoms (even if not using them - to satisfy rules of hooks)
         const wrappedRowsAtom = rowsWithClientAtomFamily({scopeId, pageSize})
         const wrappedPaginationAtom = paginationWithClientAtomFamily({scopeId, pageSize})
 
-        // Always read from wrapped atoms (rules of hooks)
         const wrappedRows = useAtomValue(wrappedRowsAtom) as Row[]
         const wrappedPaginationInfo = useAtomValue(wrappedPaginationAtom)
-
-        // If no client rows, return base pagination as-is
-        if (!config.clientRowsAtom) {
-            return basePagination
-        }
 
         // Override with wrapped data
         return {
@@ -157,6 +150,31 @@ export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, Api
             paginationInfo: wrappedPaginationInfo,
         }
     }
+
+    // When no clientRowsAtom/excludeRowIdsAtom, use the base hook directly
+    // to avoid duplicate subscriptions to the same underlying query atoms.
+    const usePaginationBase = ({
+        scopeId,
+        pageSize,
+        resetOnScopeChange,
+    }: {
+        scopeId: string | null
+        pageSize: number
+        resetOnScopeChange?: boolean
+    }) => {
+        return useInfiniteTablePagination<Row>({
+            store: tableStore,
+            scopeId,
+            pageSize,
+            resetOnScopeChange,
+        })
+    }
+
+    // Select the appropriate hook at store creation time (not per-render)
+    const usePagination =
+        config.clientRowsAtom || config.excludeRowIdsAtom
+            ? usePaginationWithClientRows
+            : usePaginationBase
 
     const useRowSelection = ({scopeId}: ScopeParams) => useAtom(selectionAtomFamily({scopeId}))
 

@@ -6,7 +6,7 @@
  *
  * - testcase: @/oss/state/entities/testcase
  * - testset: @/oss/state/entities/testset
- * - trace: @/oss/state/entities/trace
+ * - trace: @agenta/entities/trace (migrated to package)
  *
  * Shared utilities can be imported from:
  * - @/oss/state/entities/shared

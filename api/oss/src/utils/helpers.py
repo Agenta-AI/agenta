@@ -3,6 +3,7 @@ from uuid import UUID
 import sys
 import unicodedata
 import re
+from urllib.parse import urlparse
 
 import click
 
@@ -80,16 +81,24 @@ def parse_url(url: str) -> str:
     """
 
     url = url.rstrip("/")
-
-    if "localhost" not in url and "0.0.0.0" not in url:
-        return url
-
+    parsed = urlparse(url)
+    hostname = parsed.hostname
     docker_network_mode = env.docker.network_mode
 
-    if (
+    is_bridge_mode = (
         not docker_network_mode
         or (docker_network_mode and docker_network_mode.lower()) == "bridge"
-    ):
+    )
+    is_local_runtime_host = hostname in {
+        "localhost",
+        "0.0.0.0",
+        "host.docker.internal",
+    }
+
+    if not is_local_runtime_host:
+        return url
+
+    if is_bridge_mode:
         return url.replace(
             "localhost",
             "host.docker.internal",

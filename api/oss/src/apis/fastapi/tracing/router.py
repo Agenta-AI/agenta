@@ -15,15 +15,11 @@ from oss.src.apis.fastapi.tracing.utils import (
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
-    LinkResponse,
-    LinksResponse,
     TraceIdResponse,
     TraceIdsResponse,
     OTelTracingRequest,
     TraceRequest,
     TracesRequest,
-    SpanRequest,
-    SpansRequest,
     OTelTracingResponse,
     TraceResponse,
     TracesResponse,
@@ -66,6 +62,7 @@ log = get_module_logger(__name__)
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 class TracingRouter:
@@ -198,6 +195,31 @@ class TracingRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            try:
+                delta = (
+                    len(spans_request.traces)
+                    if spans_request.traces
+                    else sum(
+                        1 for s in (spans_request.spans or []) if s.parent_id is None
+                    )
+                )
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=UUID(request.state.organization_id),
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=True,
+                    )
+                    if not allowed:
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail="You have reached your monthly quota limit.",
+                        )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         links = await self.service.ingest_spans(
             organization_id=UUID(request.state.organization_id),
@@ -389,7 +411,6 @@ class TracingRouter:
         self,
         request: Request,
         trace_request: OTelTracingRequest,
-        sync: bool = True,
     ) -> OTelLinksResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -398,6 +419,24 @@ class TracingRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            try:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    organization_id=UUID(request.state.organization_id),
+                    key=Counter.TRACES,  # type: ignore
+                    delta=1,
+                    use_cache=True,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
+
         try:
             links = await self.service.create_trace(
                 organization_id=UUID(request.state.organization_id),
@@ -405,7 +444,6 @@ class TracingRouter:
                 user_id=UUID(request.state.user_id),
                 spans=trace_request.spans,
                 traces=trace_request.traces,
-                sync=sync,
             )
         except ValueError as e:
             detail = str(e)
@@ -459,7 +497,6 @@ class TracingRouter:
         trace_request: OTelTracingRequest,
         #
         trace_id: str,
-        sync: bool = False,
     ) -> OTelLinksResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -468,6 +505,23 @@ class TracingRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            try:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    organization_id=UUID(request.state.organization_id),
+                    key=Counter.TRACES,  # type: ignore
+                    delta=1,
+                    use_cache=True,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         try:
             extracted_spans = TracingService._extract_single_trace_spans(
@@ -507,7 +561,6 @@ class TracingRouter:
                 user_id=UUID(request.state.user_id),
                 spans=trace_request.spans,
                 traces=trace_request.traces,
-                sync=sync,
             )
         except ValueError as e:
             detail = str(e)
@@ -669,32 +722,12 @@ class SpansRouter:
         )
 
         self.router.add_api_route(
-            "/ingest",
-            self.ingest_spans,
-            methods=["POST"],
-            operation_id="ingest_spans",
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=LinksResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
             "/{trace_id}/{span_id}",
             self.fetch_span,
             methods=["GET"],
             operation_id="fetch_span",
             status_code=status.HTTP_200_OK,
             response_model=SpanResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/",
-            self.create_span,
-            methods=["POST"],
-            operation_id="create_span",
-            status_code=status.HTTP_201_CREATED,
-            response_model=LinkResponse,
             response_model_exclude_none=True,
         )
 
@@ -736,79 +769,6 @@ class SpansRouter:
                 )
             )
         return links
-
-    @intercept_exceptions()
-    async def create_span(
-        self,
-        request: Request,
-        span_request: SpanRequest,
-        sync: bool = True,
-    ) -> LinkResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        if not span_request.span:
-            raise HTTPException(status_code=400, detail="Missing span")
-
-        try:
-            links = await self.service.ingest_spans(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                organization_id=UUID(request.state.organization_id),
-                spans=[span_request.span],
-                sync=sync,
-            )
-        except ValueError as e:
-            detail = str(e)
-            status_code = 429 if "quota exceeded" in detail.lower() else 400
-            raise HTTPException(status_code=status_code, detail=detail) from e
-
-        normalized_links = self._links_from_otel_links(links)
-        link = normalized_links[0] if normalized_links else None
-        return LinkResponse(
-            count=1 if link else 0,
-            link=link,
-        )
-
-    @intercept_exceptions()
-    async def ingest_spans(
-        self,
-        request: Request,
-        spans_request: SpansRequest,
-    ) -> LinksResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_SPANS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        if not spans_request.spans:
-            raise HTTPException(status_code=400, detail="Missing spans")
-
-        try:
-            links = await self.service.ingest_spans(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                organization_id=UUID(request.state.organization_id),
-                spans=spans_request.spans,
-            )
-        except ValueError as e:
-            detail = str(e)
-            status_code = 429 if "quota exceeded" in detail.lower() else 400
-            raise HTTPException(status_code=status_code, detail=detail) from e
-
-        normalized_links = self._links_from_otel_links(links)
-        return LinksResponse(
-            count=len(normalized_links),
-            links=normalized_links,
-        )
 
     @intercept_exceptions()
     @suppress_exceptions(default=SpansResponse(), exclude=[HTTPException])
@@ -1014,7 +974,17 @@ class TracesRouter:
             self.create_trace,
             methods=["POST"],
             operation_id="create_trace",
-            status_code=status.HTTP_201_CREATED,
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=TraceIdResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{trace_id}",
+            self.edit_trace,
+            methods=["PUT"],
+            operation_id="edit_trace",
+            status_code=status.HTTP_202_ACCEPTED,
             response_model=TraceIdResponse,
             response_model_exclude_none=True,
         )
@@ -1118,7 +1088,6 @@ class TracesRouter:
         self,
         request: Request,
         trace_request: TraceRequest,
-        sync: bool = True,
     ) -> TraceIdResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1127,6 +1096,23 @@ class TracesRouter:
                 permission=Permission.EDIT_SPANS,  # type: ignore
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            try:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    organization_id=UUID(request.state.organization_id),
+                    key=Counter.TRACES,  # type: ignore
+                    delta=1,
+                    use_cache=True,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
 
         traces = self._extract_single_trace_map(trace_request)
         if not traces:
@@ -1138,7 +1124,6 @@ class TracesRouter:
                 user_id=UUID(request.state.user_id),
                 organization_id=UUID(request.state.organization_id),
                 traces=traces,
-                sync=sync,
             )
         except ValueError as e:
             detail = str(e)
@@ -1166,6 +1151,25 @@ class TracesRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
+            try:
+                delta = len(traces_request.traces) if traces_request.traces else 0
+                if delta > 0:
+                    allowed, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=UUID(request.state.organization_id),
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=True,
+                    )
+                    if not allowed:
+                        raise HTTPException(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail="You have reached your monthly quota limit.",
+                        )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
+
         traces = self._extract_trace_map(traces_request)
         if not traces:
             raise HTTPException(status_code=400, detail="Missing traces")
@@ -1186,6 +1190,81 @@ class TracesRouter:
         return TraceIdsResponse(
             count=len(trace_ids),
             trace_ids=trace_ids,
+        )
+
+    @intercept_exceptions()
+    async def edit_trace(  # UPDATE
+        self,
+        request: Request,
+        trace_request: TraceRequest,
+        trace_id: str,
+    ) -> TraceIdResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_SPANS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+            try:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    organization_id=UUID(request.state.organization_id),
+                    key=Counter.TRACES,  # type: ignore
+                    delta=1,
+                    use_cache=True,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly quota limit.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                log.warning("[tracing] Soft quota check failed", exc_info=True)
+
+        traces = self._extract_single_trace_map(trace_request)
+        if not traces:
+            raise HTTPException(status_code=400, detail="Missing trace")
+
+        if len(traces) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Trace payload must contain exactly one trace_id.",
+            )
+
+        try:
+            normalized_path_trace_id = parse_trace_id_to_uuid(trace_id)
+            normalized_payload_trace_id = parse_trace_id_to_uuid(list(traces.keys())[0])
+        except (TypeError, ValueError) as e:
+            raise HTTPException(
+                status_code=400, detail="Invalid trace_id in path or payload."
+            ) from e
+
+        if normalized_path_trace_id != normalized_payload_trace_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Path trace_id '{trace_id}' does not match payload trace_id.",
+            )
+
+        try:
+            links = await self.service.edit_trace(
+                organization_id=UUID(request.state.organization_id),
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                traces=traces,
+            )
+        except ValueError as e:
+            detail = str(e)
+            status_code = 429 if "quota exceeded" in detail.lower() else 400
+            raise HTTPException(status_code=status_code, detail=detail) from e
+
+        trace_ids = self._trace_ids_from_links(links)
+        trace_id_out = trace_ids[0] if trace_ids else None
+        return TraceIdResponse(
+            count=1 if trace_id_out else 0,
+            trace_id=trace_id_out,
         )
 
     @intercept_exceptions()

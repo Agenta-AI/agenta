@@ -46,5 +46,3 @@ export type {
     UrlComponents,
     HydrateFromUrlResult,
 } from "./urlSnapshotController"
-
-export {setRunnableBridge, getRunnableBridge, resetRunnableBridge} from "./runnableBridgeAccess"

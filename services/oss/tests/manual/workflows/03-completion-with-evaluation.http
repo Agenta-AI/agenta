@@ -1,0 +1,231 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+@country       = France
+
+###
+# 1. Create completion workflow — instructs the LLM to answer in a structured format
+# @name create_completion
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-combo-completion",
+    "name": "test-combo-completion",
+    "flags": { "is_application": true },
+    "data": {
+      "uri": "agenta:builtin:completion:v0",
+      "parameters": {
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are an expert in geography. Answer in the form of 'The capital of {country} is {capital}.'"
+            },
+            { "role": "user", "content": "What is the capital of {{country}}?" }
+          ],
+          "llm_config": { "model": "gpt-4o-mini" }
+        }
+      }
+    }
+  }
+}
+
+###
+@completion_id          = {{create_completion.response.body.workflow.id}}
+@completion_revision_id = {{create_completion.response.body.workflow.revision_id}}
+@completion_slug        = {{create_completion.response.body.workflow.slug}}
+
+###
+# 2. Create auto_regex_test evaluator — verifies the structured format and correct answer
+# Regex: "The capital of France is Paris." (case-sensitive, must match)
+# @name create_evaluator
+POST {{api_url}}/preview/simple/workflows/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow": {
+    "slug": "test-combo-auto-regex-test",
+    "name": "test-combo-auto-regex-test",
+    "flags": { "is_evaluator": true },
+    "data": {
+      "uri": "agenta:builtin:auto_regex_test:v0",
+      "parameters": {
+        "regex_pattern": "The capital of France is Paris\\.",
+        "case_sensitive": true,
+        "regex_should_match": true
+      }
+    }
+  }
+}
+
+###
+@evaluator_id          = {{create_evaluator.response.body.workflow.id}}
+@evaluator_revision_id = {{create_evaluator.response.body.workflow.revision_id}}
+@evaluator_slug        = {{create_evaluator.response.body.workflow.slug}}
+
+###
+# 3. Query environments — find the default one
+# @name query_environments
+POST {{api_url}}/preview/environments/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@environment_id   = {{query_environments.response.body.environments[0].id}}
+@environment_slug = {{query_environments.response.body.environments[0].slug}}
+
+###
+# 4. Deploy completion to environment
+# @name deploy_completion
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{completion_revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 5. Deploy evaluator to environment
+# @name deploy_evaluator
+POST {{api_url}}/preview/workflows/revisions/deploy
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "workflow_revision_ref": { "id": "{{evaluator_revision_id}}" },
+  "environment_ref":       { "id": "{{environment_id}}" }
+}
+
+###
+# 6. Invoke completion via /services/invoke — env ref + selector, SDK resolves revision
+# NOTE: requires a valid LLM API key configured in Agenta vault
+# @name inspect_completion
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "application": {
+      "id": "{{completion_id}}",
+      "slug": "{{completion_slug}}"
+    },
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{completion_slug}}.revision"
+  }
+}
+###
+# 6. Invoke completion via /services/invoke — env ref + selector, SDK resolves revision
+# NOTE: requires a valid LLM API key configured in Agenta vault
+# @name invoke_completion
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "application": { "id": "{{completion_id}}", "slug": "{{completion_slug}}" },
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{completion_slug}}.revision"
+  },
+  "data": {
+    "inputs": { "country": "France" }
+  }
+}
+
+###
+@completion_trace_id = {{invoke_completion.response.body.trace_id}}
+@completion_span_id  = {{invoke_completion.response.body.span_id}}
+
+###
+# 7. Run auto_regex_test via /services/invoke — env ref + selector, links back to completion trace
+# - outputs: the raw LLM response from step 6
+# - links.invocation: ties this evaluator trace back to the completion trace
+# Expected score: 1.0 if the LLM answered "The capital of France is Paris."
+# @name inspect_evaluator
+POST {{services_url}}/inspect
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "evaluator": {
+      "id": "{{evaluator_id}}",
+      "slug": "{{evaluator_slug}}"
+    },
+    "environment": {
+      "slug": "{{environment_slug}}"
+    }
+  },
+  "selector": {
+    "key": "{{evaluator_slug}}.revision"
+  }
+}
+###
+# 7. Run auto_regex_test via /services/invoke — env ref + selector, links back to completion trace
+# - outputs: the raw LLM response from step 6
+# - links.invocation: ties this evaluator trace back to the completion trace
+# Expected score: 1.0 if the LLM answered "The capital of France is Paris."
+# @name invoke_evaluator
+POST {{services_url}}/invoke
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "references": {
+    "evaluator":   { "id": "{{evaluator_id}}", "slug": "{{evaluator_slug}}" },
+    "environment": { "slug": "{{environment_slug}}" }
+  },
+  "selector": {
+    "key": "{{evaluator_slug}}.revision"
+  },
+  "links": {
+    "invocation": {
+      "trace_id": "{{completion_trace_id}}",
+      "span_id":  "{{completion_span_id}}"
+    }
+  },
+  "data": {
+    "inputs":  {},
+    "outputs": "{{invoke_completion.response.body.data.outputs}}"
+  }
+}
+
+###
+@evaluator_trace_id = {{invoke_evaluator.response.body.trace_id}}
+
+###
+# 8. Fetch the completion trace
+# @name fetch_completion_trace
+GET {{api_url}}/tracing/traces/{{completion_trace_id}}
+Authorization: {{authorization}}
+
+###
+# 9. Fetch the evaluator trace
+# @name fetch_evaluator_trace
+GET {{api_url}}/tracing/traces/{{evaluator_trace_id}}
+Authorization: {{authorization}}

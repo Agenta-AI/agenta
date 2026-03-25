@@ -1,12 +1,12 @@
 from typing import Optional, List
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import set_cache
+from oss.src.utils.caching import invalidate_cache
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -27,6 +27,13 @@ from oss.src.core.evaluators.dtos import (
 from oss.src.core.evaluators.service import (
     SimpleEvaluatorsService,
     EvaluatorsService,
+)
+from oss.src.core.environments.service import (
+    EnvironmentsService,
+)
+from oss.src.core.environments.dtos import (
+    EnvironmentRevisionCommit,
+    EnvironmentRevisionDelta,
 )
 
 from oss.src.apis.fastapi.evaluators.models import (
@@ -49,6 +56,7 @@ from oss.src.apis.fastapi.evaluators.models import (
     EvaluatorRevisionQueryRequest,
     EvaluatorRevisionCommitRequest,
     EvaluatorRevisionRetrieveRequest,
+    EvaluatorRevisionDeployRequest,
     EvaluatorRevisionResponse,
     EvaluatorRevisionsResponse,
     EvaluatorRevisionResolveRequest,
@@ -62,11 +70,34 @@ from oss.src.apis.fastapi.evaluators.models import (
     #
     EvaluatorTemplate,
     EvaluatorTemplatesResponse,
+    #
+    EvaluatorCatalogTypeResponse,  # noqa: F401
+    EvaluatorCatalogTypesResponse,
+    EvaluatorCatalogTemplateResponse,
+    EvaluatorCatalogTemplatesResponse,
+    EvaluatorCatalogPresetResponse,
+    EvaluatorCatalogPresetsResponse,
 )
+from oss.src.core.evaluators.dtos import (
+    EvaluatorCatalogType,
+    EvaluatorCatalogTemplate,
+    EvaluatorCatalogPreset,
+)
+from oss.src.core.workflows.dtos import WorkflowCatalogTemplate
 from oss.src.apis.fastapi.evaluators.utils import (
     parse_evaluator_variant_query_request_from_params,
     parse_evaluator_variant_query_request_from_body,
     merge_evaluator_variant_query_requests,
+)
+from oss.src.apis.fastapi.environments.utils import (
+    ensure_environment_deploy_allowed,
+)
+from oss.src.resources.workflows.catalog import (
+    get_workflow_catalog_types,
+    get_filtered_workflow_catalog_templates,
+    get_workflow_catalog_template,
+    get_filtered_workflow_catalog_presets,
+    get_workflow_catalog_preset,
 )
 
 if is_ee():
@@ -89,15 +120,76 @@ def _build_rename_evaluators_disabled_detail(*, existing_name: Optional[str]) ->
     return RENAME_EVALUATORS_DISABLED_MESSAGE
 
 
+def _registry_entry_to_catalog_template(
+    entry: "WorkflowCatalogTemplate",
+) -> "EvaluatorCatalogTemplate":
+    return EvaluatorCatalogTemplate(**entry.model_dump())
+
+
 class EvaluatorsRouter:
     def __init__(
         self,
         *,
         evaluators_service: EvaluatorsService,
+        environments_service: EnvironmentsService,
     ):
         self.evaluators_service = evaluators_service
+        self.environments_service = environments_service
 
         self.router = APIRouter()
+
+        # EVALUATOR CATALOG ----------------------------------------------------
+        # NOTE: Must be registered BEFORE /{evaluator_id} routes
+
+        self.router.add_api_route(
+            "/catalog/types/",
+            self.list_evaluator_catalog_types,
+            methods=["GET"],
+            operation_id="list_evaluator_catalog_types",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogTypesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/",
+            self.list_evaluator_catalog_templates,
+            methods=["GET"],
+            operation_id="list_evaluator_catalog_templates",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogTemplatesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}",
+            self.fetch_evaluator_catalog_template,
+            methods=["GET"],
+            operation_id="fetch_evaluator_catalog_template",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogTemplateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets/",
+            self.list_evaluator_catalog_presets,
+            methods=["GET"],
+            operation_id="list_evaluator_catalog_presets",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogPresetsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/catalog/templates/{template_key}/presets/{preset_key}",
+            self.fetch_evaluator_catalog_preset,
+            methods=["GET"],
+            operation_id="fetch_evaluator_catalog_preset",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorCatalogPresetResponse,
+            response_model_exclude_none=True,
+        )
 
         # EVALUATORS -----------------------------------------------------------
 
@@ -246,6 +338,16 @@ class EvaluatorsRouter:
         )
 
         self.router.add_api_route(
+            "/revisions/deploy",
+            self.deploy_evaluator_revision,
+            methods=["POST"],
+            operation_id="deploy_evaluator_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=EvaluatorRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/revisions/",
             self.create_evaluator_revision,
             methods=["POST"],
@@ -333,6 +435,110 @@ class EvaluatorsRouter:
             status_code=status.HTTP_200_OK,
             response_model=EvaluatorRevisionResolveResponse,
             response_model_exclude_none=True,
+        )
+
+    # EVALUATOR CATALOG --------------------------------------------------------
+
+    @intercept_exceptions()
+    async def list_evaluator_catalog_types(
+        self,
+    ) -> EvaluatorCatalogTypesResponse:
+        types = [
+            EvaluatorCatalogType(**type_data.model_dump())
+            for type_data in get_workflow_catalog_types()
+        ]
+
+        return EvaluatorCatalogTypesResponse(
+            count=len(types),
+            types=types,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=EvaluatorCatalogTemplatesResponse(), exclude=[HTTPException]
+    )
+    async def list_evaluator_catalog_templates(
+        self,
+        *,
+        include_archived: Optional[bool] = None,
+    ) -> EvaluatorCatalogTemplatesResponse:
+        templates = [
+            _registry_entry_to_catalog_template(entry)
+            for entry in get_filtered_workflow_catalog_templates(is_evaluator=True)
+            if include_archived or not (entry.flags and entry.flags.is_archived)
+        ]
+
+        return EvaluatorCatalogTemplatesResponse(
+            count=len(templates),
+            templates=templates,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=EvaluatorCatalogTemplateResponse(), exclude=[HTTPException]
+    )
+    async def fetch_evaluator_catalog_template(
+        self,
+        *,
+        template_key: str,
+    ) -> EvaluatorCatalogTemplateResponse:
+        entry = get_workflow_catalog_template(
+            template_key=template_key,
+            is_evaluator=True,
+        )
+        template = _registry_entry_to_catalog_template(entry) if entry else None
+
+        return EvaluatorCatalogTemplateResponse(
+            count=1 if template else 0,
+            template=template,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=EvaluatorCatalogPresetsResponse(), exclude=[HTTPException]
+    )
+    async def list_evaluator_catalog_presets(
+        self,
+        *,
+        template_key: str,
+        include_archived: Optional[bool] = None,
+    ) -> EvaluatorCatalogPresetsResponse:
+        presets = [
+            EvaluatorCatalogPreset(**preset.model_dump())
+            for preset in get_filtered_workflow_catalog_presets(
+                template_key=template_key,
+                is_evaluator=True,
+            )
+            if include_archived or not (preset.flags and preset.flags.is_archived)
+        ]
+
+        return EvaluatorCatalogPresetsResponse(
+            count=len(presets),
+            presets=presets,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=EvaluatorCatalogPresetResponse(), exclude=[HTTPException]
+    )
+    async def fetch_evaluator_catalog_preset(
+        self,
+        *,
+        template_key: str,
+        preset_key: str,
+    ) -> EvaluatorCatalogPresetResponse:
+        preset_data = get_workflow_catalog_preset(
+            template_key=template_key,
+            preset_key=preset_key,
+            is_evaluator=True,
+        )
+        preset = (
+            EvaluatorCatalogPreset(**preset_data.model_dump()) if preset_data else None
+        )
+
+        return EvaluatorCatalogPresetResponse(
+            count=1 if preset else 0,
+            preset=preset,
         )
 
     # EVALUATORS ---------------------------------------------------------------
@@ -792,6 +998,158 @@ class EvaluatorsRouter:
     # EVALUATOR REVISIONS ------------------------------------------------------
 
     @intercept_exceptions()
+    async def deploy_evaluator_revision(
+        self,
+        request: Request,
+        *,
+        evaluator_deploy_request: EvaluatorRevisionDeployRequest,
+    ) -> EvaluatorRevisionResponse:
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATORS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_ENVIRONMENTS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not any(
+            (
+                evaluator_deploy_request.evaluator_ref,
+                evaluator_deploy_request.evaluator_variant_ref,
+                evaluator_deploy_request.evaluator_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator deploy requires evaluator refs.",
+            )
+
+        if not any(
+            (
+                evaluator_deploy_request.environment_ref,
+                evaluator_deploy_request.environment_variant_ref,
+                evaluator_deploy_request.environment_revision_ref,
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator deploy requires environment refs.",
+            )
+
+        evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            evaluator_ref=evaluator_deploy_request.evaluator_ref,
+            evaluator_variant_ref=evaluator_deploy_request.evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_deploy_request.evaluator_revision_ref,
+        )
+
+        if not evaluator_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Evaluator revision not found.",
+            )
+
+        target_environment_revision = await self.environments_service.fetch_environment_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=evaluator_deploy_request.environment_ref,
+            environment_variant_ref=evaluator_deploy_request.environment_variant_ref,
+            environment_revision_ref=evaluator_deploy_request.environment_revision_ref,
+        )
+
+        if not target_environment_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision not found.",
+            )
+
+        environment_id = (
+            target_environment_revision.environment_id
+            or target_environment_revision.artifact_id
+        )
+        environment_variant_id = (
+            target_environment_revision.environment_variant_id
+            or target_environment_revision.variant_id
+        )
+        evaluator_id = evaluator_revision.evaluator_id or evaluator_revision.artifact_id
+        evaluator_variant_id = (
+            evaluator_revision.evaluator_variant_id or evaluator_revision.variant_id
+        )
+        key = evaluator_deploy_request.key
+
+        if not environment_id or not environment_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Environment revision is missing environment ids.",
+            )
+
+        if not evaluator_id or not evaluator_variant_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Evaluator revision is missing evaluator ids.",
+            )
+
+        if key is None:
+            evaluator = await self.evaluators_service.fetch_evaluator(
+                project_id=UUID(request.state.project_id),
+                evaluator_ref=Reference(id=evaluator_id),
+            )
+
+            if not evaluator or not evaluator.slug:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Evaluator deploy could not derive key from evaluator slug.",
+                )
+
+            key = f"{evaluator.slug}.revision"
+
+        await ensure_environment_deploy_allowed(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            environment_id=environment_id,
+            environments_service=self.environments_service,
+        )
+
+        await self.environments_service.commit_environment_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            environment_revision_commit=EnvironmentRevisionCommit(
+                slug=uuid4().hex[-12:],
+                environment_id=environment_id,
+                environment_variant_id=environment_variant_id,
+                message=evaluator_deploy_request.message,
+                delta=EnvironmentRevisionDelta(
+                    set={
+                        key: {
+                            "evaluator": Reference(id=evaluator_id),
+                            "evaluator_variant": Reference(id=evaluator_variant_id),
+                            "evaluator_revision": Reference(
+                                id=evaluator_revision.id,
+                                slug=evaluator_revision.slug,
+                                version=evaluator_revision.version,
+                            ),
+                        }
+                    }
+                ),
+            ),
+        )
+
+        await invalidate_cache(project_id=request.state.project_id)
+
+        return EvaluatorRevisionResponse(
+            count=1 if evaluator_revision else 0,
+            evaluator_revision=evaluator_revision,
+        )
+
+    @intercept_exceptions()
     async def retrieve_evaluator_revision(
         self,
         request: Request,
@@ -806,54 +1164,91 @@ class EvaluatorsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        cache_key = {
-            "artifact_ref": evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
-            "variant_ref": evaluator_revision_retrieve_request.evaluator_variant_ref,  # type: ignore
-            "revision_ref": evaluator_revision_retrieve_request.evaluator_revision_ref,  # type: ignore
-        }
+        evaluator_ref = evaluator_revision_retrieve_request.evaluator_ref
+        evaluator_variant_ref = (
+            evaluator_revision_retrieve_request.evaluator_variant_ref
+        )
+        evaluator_revision_ref = (
+            evaluator_revision_retrieve_request.evaluator_revision_ref
+        )
 
-        evaluator_revision = None
-        # evaluator_revision = await get_cache(
-        #     namespace="evaluators:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=EvaluatorRevision,
-        # )
-
-        if not evaluator_revision:
-            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                evaluator_ref=evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
-                evaluator_variant_ref=evaluator_revision_retrieve_request.evaluator_variant_ref,  # type: ignore
-                evaluator_revision_ref=evaluator_revision_retrieve_request.evaluator_revision_ref,  # type: ignore
-            )
-
-            await set_cache(
-                namespace="evaluators:retrieve",
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                key=cache_key,
-                value=evaluator_revision,
-            )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if evaluator_revision and evaluator_revision_retrieve_request.resolve:
-            embeds_service = self.evaluators_service.embeds_service
+        evaluator_lookup_requested = any(
             (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=evaluator_revision.data.model_dump()
-                if evaluator_revision.data
-                else {},
+                evaluator_ref,
+                evaluator_variant_ref,
+                evaluator_revision_ref,
+            )
+        )
+        environment_ref = evaluator_revision_retrieve_request.environment_ref
+        environment_variant_ref = (
+            evaluator_revision_retrieve_request.environment_variant_ref
+        )
+        environment_revision_ref = (
+            evaluator_revision_retrieve_request.environment_revision_ref
+        )
+        key = evaluator_revision_retrieve_request.key
+
+        environment_refs_requested = any(
+            (
+                environment_ref,
+                environment_variant_ref,
+                environment_revision_ref,
+            )
+        )
+        environment_lookup_requested = environment_refs_requested or key is not None
+
+        if evaluator_lookup_requested and environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide either evaluator refs or environment refs with key, not both."
+                ),
             )
 
-            if evaluator_revision.data:
-                evaluator_revision.data = EvaluatorRevisionData(**resolved_config)
+        if not evaluator_lookup_requested and not environment_lookup_requested:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Provide evaluator refs or environment refs with key to retrieve an evaluator revision."
+                ),
+            )
+
+        if environment_lookup_requested:
+            if not environment_refs_requested:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed evaluator retrieve requires environment refs.",
+                )
+
+            if not key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Environment-backed evaluator retrieve requires key.",
+                )
+
+        (
+            evaluator_revision,
+            resolution_info,
+        ) = await self.evaluators_service.retrieve_evaluator_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            environment_ref=environment_ref,
+            environment_variant_ref=environment_variant_ref,
+            environment_revision_ref=environment_revision_ref,
+            key=key,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+            #
+            resolve=evaluator_revision_retrieve_request.resolve or False,
+        )
+
+        if environment_lookup_requested and not evaluator_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Environment revision does not contain evaluator references for the requested key.",
+            )
 
         evaluator_revision_response = EvaluatorRevisionResponse(
             count=1 if evaluator_revision else 0,
@@ -1129,7 +1524,6 @@ class EvaluatorsRouter:
 
         result = await self.evaluators_service.resolve_evaluator_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             evaluator_ref=evaluator_revision_resolve_request.evaluator_ref,
             evaluator_variant_ref=evaluator_revision_resolve_request.evaluator_variant_ref,
@@ -1588,15 +1982,7 @@ class SimpleEvaluatorsRouter:
             else None
         )
 
-        flags = EvaluatorQueryFlags(
-            is_custom=(
-                simple_evaluator_flags.is_custom if simple_evaluator_flags else None
-            ),
-            is_evaluator=True,
-            is_human=(
-                simple_evaluator_flags.is_human if simple_evaluator_flags else None
-            ),
-        )
+        flags = simple_evaluator_flags or EvaluatorQueryFlags()
 
         evaluator_query = EvaluatorQuery(
             flags=flags,

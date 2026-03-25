@@ -32,11 +32,12 @@ import type {ListQueryState} from "../shared/molecule/types"
 import {entityRelationRegistry} from "../shared/relations/registry"
 
 import type {Workflow, WorkflowVariant} from "./core"
+import {workflowsListQueryStateAtom} from "./state/allWorkflows"
 import {
-    workflowsListQueryAtom,
     workflowRevisionsByWorkflowQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
     workflowRevisionsListQueryStateAtomFamily,
+    workflowBaseEntityAtomFamily,
 } from "./state/store"
 
 // ============================================================================
@@ -44,26 +45,11 @@ import {
 // ============================================================================
 
 /**
- * Wraps the workflows query to provide a ListQueryState for the root level.
- * This is a static atom (no parent ID) since workflows are at the root.
- *
+ * All workflows (app + evaluator) as ListQueryState for the root level.
  * Filters out archived workflows for selection UI.
+ * Delegates to the union atom from allWorkflows.ts.
  */
-export const workflowsListAtom = atom<ListQueryState<Workflow>>((get) => {
-    const query = get(workflowsListQueryAtom)
-
-    const data = (query.data?.workflows ?? []).filter((w) => !w.deleted_at)
-    const isPending = query.isPending ?? false
-    const isError = query.isError ?? false
-    const error = query.error ?? null
-
-    return {
-        data,
-        isPending,
-        isError,
-        error,
-    }
-})
+export const workflowsListAtom = workflowsListQueryStateAtom
 
 // ============================================================================
 // WORKFLOW → REVISION RELATION (2-Level, skips Variant)
@@ -78,8 +64,13 @@ const revisionByWorkflowListAtomFamily = (workflowId: string) =>
     atom<ListQueryState<Workflow>>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
 
-        const revisions = query.data?.workflow_revisions ?? []
-        const data = [...revisions].sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+        // Resolve thin refs to full entities through the molecule
+        const refs = query.data?.refs ?? []
+        const data = refs
+            .map((ref) => get(workflowBaseEntityAtomFamily(ref.id)))
+            .filter((w): w is Workflow => w !== null)
+            .sort((a, b) => (b.version ?? 0) - (a.version ?? 0))
+
         const isPending = query.isPending ?? false
         const isError = query.isError ?? false
         const error = query.error ?? null

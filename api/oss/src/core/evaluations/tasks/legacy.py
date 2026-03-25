@@ -11,7 +11,6 @@ from oss.src.utils.common import is_ee
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import get_project_by_id
-from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
     from ee.src.utils.entitlements import check_entitlements, Counter
@@ -209,12 +208,6 @@ async def evaluate_batch_testset(
 
         # fetch project --------------------------------------------------------
         project = await get_project_by_id(
-            project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch secrets --------------------------------------------------------
-        _ = await get_llm_providers_secrets(
             project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
@@ -1116,6 +1109,7 @@ async def evaluate_batch_testset(
         meta=run.meta,
         #
         status=run_status,
+        flags=run.flags,
         #
         data=run.data,
     )
@@ -1171,12 +1165,6 @@ async def evaluate_batch_invocation(
 
         # fetch project --------------------------------------------------------
         project = await get_project_by_id(
-            project_id=str(project_id),
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch secrets --------------------------------------------------------
-        _ = await get_llm_providers_secrets(
             project_id=str(project_id),
         )
         # ----------------------------------------------------------------------
@@ -1513,6 +1501,7 @@ async def evaluate_batch_invocation(
             tags=run.tags,
             meta=run.meta,
             status=run_status,
+            flags=run.flags,
             data=run.data,
         ),
     )
@@ -2055,6 +2044,7 @@ async def _evaluate_batch_items(
             tags=run.tags,
             meta=run.meta,
             status=run_status,
+            flags=run.flags,
             data=run.data,
         ),
     )

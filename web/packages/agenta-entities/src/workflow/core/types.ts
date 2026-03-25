@@ -22,7 +22,19 @@ import type {WorkflowQueryFlags} from "./schema"
 export interface WorkflowListParams {
     projectId: string
     flags?: WorkflowQueryFlags
+    /**
+     * Filter by folder.
+     * - `undefined` (omitted): no folder filter — returns all workflows
+     * - `null`: root-level items only (folder_id IS NULL)
+     * - `string`: items in the specified folder
+     */
+    folderId?: string | null
     includeArchived?: boolean
+    windowing?: {
+        order?: "ascending" | "descending"
+        limit?: number
+        next?: string | null
+    }
 }
 
 /**

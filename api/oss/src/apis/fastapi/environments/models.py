@@ -116,10 +116,12 @@ class EnvironmentRevisionQueryRequest(BaseModel):
     environment_variant_refs: Optional[List[Reference]] = None
     environment_revision_refs: Optional[List[Reference]] = None
     #
+    application_refs: Optional[List[Reference]] = None
+    #
     include_archived: Optional[bool] = None
     #
     windowing: Optional[Windowing] = None
-    resolve: bool = False  # Optionally resolve embeds on query
+    resolve: Optional[bool] = None  # Optionally resolve embeds on query
 
 
 class EnvironmentRevisionCommitRequest(BaseModel):
@@ -130,7 +132,7 @@ class EnvironmentRevisionRetrieveRequest(BaseModel):
     environment_ref: Optional[Reference] = None
     environment_variant_ref: Optional[Reference] = None
     environment_revision_ref: Optional[Reference] = None
-    resolve: bool = False  # Optionally resolve embeds on retrieve
+    resolve: Optional[bool] = None  # Optionally resolve embeds on retrieve
 
 
 class EnvironmentRevisionsLogRequest(BaseModel):

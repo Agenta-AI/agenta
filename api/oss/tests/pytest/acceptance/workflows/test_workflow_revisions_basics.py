@@ -470,7 +470,7 @@ class TestWorkflowRevisionsBasics:
                         "meta3": "value3",
                     },
                     "message": message,
-                    "data": {"configuration": configuration},
+                    "data": {"parameters": configuration},
                     "workflow_id": mock_data["workflows"][0]["id"],
                     "workflow_variant_id": mock_data["workflow_variants"][0]["id"],
                 }
@@ -483,5 +483,5 @@ class TestWorkflowRevisionsBasics:
         response = response.json()
         assert response["count"] == 1
         assert response["workflow_revision"]["message"] == message
-        assert response["workflow_revision"]["data"]["configuration"] == configuration
+        assert response["workflow_revision"]["data"]["parameters"] == configuration
         # ----------------------------------------------------------------------

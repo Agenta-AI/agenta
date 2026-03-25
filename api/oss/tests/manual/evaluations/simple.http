@@ -1,0 +1,173 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@services_url = {{host}}/services
+
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+@country = France
+
+###
+@user_id = {{create_account.response.body.user.id}}
+
+###
+# 0. Fetch application catalog
+# @name fetch_application_catalog
+GET {{api_url}}/preview/applications/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 1. Inspect the completion application template (schema + uri)
+# @name get_application_template
+GET {{api_url}}/preview/applications/catalog/templates/completion
+Authorization: {{authorization}}
+
+###
+# 2. Fetch evaluator catalog
+# @name fetch_evaluator_catalog
+GET {{api_url}}/preview/evaluators/catalog/templates/
+Authorization: {{authorization}}
+
+###
+# 3. Inspect the auto_exact_match evaluator template (schema + uri)
+# @name get_evaluator_template
+GET {{api_url}}/preview/evaluators/catalog/templates/auto_exact_match
+Authorization: {{authorization}}
+
+###
+# @name list_testsets
+POST {{api_url}}/preview/testsets/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+@testset_id = {{list_testsets.response.body.testsets[0].id}}
+
+###
+# @name fetch_testset_revision
+POST {{api_url}}/preview/testsets/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset_ref": {
+        "id": "{{testset_id}}"
+    }
+}
+
+###
+@testset_revision_id = {{fetch_testset_revision.response.body.testset_revision.id}}
+
+###
+# @name create_application
+POST {{api_url}}/preview/simple/applications/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "application": {
+        "slug": "simple-evaluation-application-{{$guid}}",
+        "name": "Simple Evaluation Completion Application",
+        "description": "Completion application created from the catalog template for manual evaluation testing",
+        "data": {
+            "uri": "agenta:builtin:completion:v0",
+            "parameters": {
+                "prompt": {
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are an expert in geography"
+                        },
+                        {
+                            "role": "user",
+                            "content": "What is the capital of {{country}}?"
+                        }
+                    ],
+                    "llm_config": {
+                        "model": "gpt-4o-mini"
+                    }
+                }
+            }
+        }
+    }
+}
+
+###
+@application_revision_id = {{create_application.response.body.application.revision_id}}
+
+###
+# @name create_evaluator
+POST {{api_url}}/preview/simple/evaluators/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "slug": "simple-evaluation-evaluator-{{$guid}}",
+        "name": "Simple Evaluation Exact Match Evaluator",
+        "description": "Exact-match evaluator created from the catalog template for manual evaluation testing",
+        "data": {
+            "uri": "agenta:builtin:auto_exact_match:v0",
+            "parameters": {
+                "correct_answer_key": "correct_answer"
+            }
+        }
+    }
+}
+
+###
+@evaluator_revision_id = {{create_evaluator.response.body.evaluator.revision_id}}
+
+###
+# @name create_evaluation
+POST {{api_url}}/preview/simple/evaluations/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluation": {
+        "name": "Simple Evaluation Test",
+        "description": "Basic end-to-end simple evaluation call",
+        "data": {
+            "testset_steps": {
+                "{{testset_revision_id}}": "auto"
+            },
+            "application_steps": {
+                "{{application_revision_id}}": "auto"
+            },
+            "evaluator_steps": {
+                "{{evaluator_revision_id}}": "auto"
+            }
+        }
+    }
+}
+
+###
+@run_id = {{create_evaluation.response.body.evaluation.id}}
+
+###
+# @name fetch_evaluation
+GET {{api_url}}/preview/simple/evaluations/{{run_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# @name start_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{run_id}}/start
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# @name stop_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{run_id}}/stop
+Content-Type: application/json
+Authorization: {{authorization}}

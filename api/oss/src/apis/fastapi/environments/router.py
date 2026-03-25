@@ -65,6 +65,7 @@ from oss.src.apis.fastapi.environments.utils import (
     parse_environment_revision_query_request_from_params,
     parse_environment_revision_query_request_from_body,
     merge_environment_revision_query_requests,
+    ensure_environment_deploy_allowed,
 )
 
 if is_ee():
@@ -746,30 +747,18 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision = await self.environments_service.fetch_environment_revision(
+        (
+            environment_revision,
+            resolution_info,
+        ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
             #
             environment_ref=environment_revision_retrieve_request.environment_ref,  # type: ignore
             environment_variant_ref=environment_revision_retrieve_request.environment_variant_ref,  # type: ignore
             environment_revision_ref=environment_revision_retrieve_request.environment_revision_ref,  # type: ignore
+            #
+            resolve=bool(environment_revision_retrieve_request.resolve),
         )
-
-        # Optionally resolve embeds if requested
-        resolution_info = None
-        if environment_revision and environment_revision_retrieve_request.resolve:
-            embeds_service = self.environments_service.embeds_service
-            (
-                resolved_config,
-                resolution_info,
-            ) = await embeds_service.resolve_configuration(
-                project_id=UUID(request.state.project_id),
-                configuration=environment_revision.data.model_dump()
-                if environment_revision.data
-                else {},
-            )
-
-            if environment_revision.data:
-                environment_revision.data = EnvironmentRevisionData(**resolved_config)
 
         environment_revision_response = EnvironmentRevisionResponse(
             count=1 if environment_revision else 0,
@@ -805,7 +794,6 @@ class EnvironmentsRouter:
         # Resolve the environment revision
         result = await self.environments_service.resolve_environment_revision(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
             #
             environment_ref=environment_revision_resolve_request.environment_ref,
             environment_variant_ref=environment_revision_resolve_request.environment_variant_ref,
@@ -1039,6 +1027,8 @@ class EnvironmentsRouter:
             environment_variant_refs=environment_revision_query_request.environment_variant_refs,
             environment_revision_refs=environment_revision_query_request.environment_revision_refs,
             #
+            application_refs=environment_revision_query_request.application_refs,
+            #
             include_archived=environment_revision_query_request.include_archived,
             #
             windowing=environment_revision_query_request.windowing,
@@ -1083,25 +1073,23 @@ class EnvironmentsRouter:
 
         # If the environment is guarded, require DEPLOY_ENVIRONMENTS permission
         commit = environment_revision_commit_request.environment_revision_commit
-        if is_ee() and commit.environment_id:
-            environment = await self.environments_service.fetch_environment(
-                project_id=UUID(request.state.project_id),
-                environment_ref=Reference(id=commit.environment_id),
+        if commit.data and commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit, not both.",
             )
-            is_guarded = False
-            if environment and environment.flags:
-                flags = environment.flags
-                if isinstance(flags, EnvironmentFlags):
-                    is_guarded = bool(getattr(flags, "is_guarded", False))
-                elif isinstance(flags, dict):
-                    is_guarded = bool(flags.get("is_guarded", False))
-            if is_guarded:
-                if not await check_action_access(  # type: ignore
-                    user_uid=request.state.user_id,
-                    project_id=request.state.project_id,
-                    permission=Permission.DEPLOY_ENVIRONMENTS,  # type: ignore
-                ):
-                    raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not commit.data and not commit.delta:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either data or delta for a commit.",
+            )
+
+        await ensure_environment_deploy_allowed(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            environment_id=commit.environment_id,
+            environments_service=self.environments_service,
+        )
 
         environment_revision = await self.environments_service.commit_environment_revision(
             project_id=UUID(request.state.project_id),

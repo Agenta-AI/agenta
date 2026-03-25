@@ -1,6 +1,7 @@
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
+import type {Workflow} from "@agenta/entities/workflow"
+
 import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
+import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
 /**
  * Interface representing a single evaluation run as returned from the backend API.
@@ -79,6 +80,6 @@ export interface EnrichedEvaluationRun extends SnakeToCamelCaseKeys<EvaluationRu
     createdBy?: WorkspaceMember
     createdAtTimestamp?: number
     /** All distinct application revisions (variants) referenced */
-    variants?: EnhancedVariant[]
+    variants?: Workflow[]
     evaluators?: EvaluatorDto[]
 }

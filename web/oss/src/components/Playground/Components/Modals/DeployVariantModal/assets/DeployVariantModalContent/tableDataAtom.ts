@@ -1,7 +1,7 @@
 import deepEqual from "fast-deep-equal"
 import {selectAtom} from "jotai/utils"
 
-import {environmentsLoadableAtom} from "@/oss/state/environment/atoms/fetcher"
+import {appEnvironmentsLoadableAtom} from "@/oss/state/environment/appEnvironmentAtoms"
 
 // Row shape strictly needed by the table
 export interface DeployModalEnvRow {
@@ -16,8 +16,8 @@ const PLACEHOLDER_ROWS: DeployModalEnvRow[] = [{name: "dev"}, {name: "stage"}, {
 // - Only exposes fields used by the table
 // - Bakes in placeholders when environments are loading or empty
 export const deployModalEnvironmentsTableAtom = selectAtom(
-    environmentsLoadableAtom,
-    (loadable: any) => {
+    appEnvironmentsLoadableAtom,
+    (loadable) => {
         const isLoading = loadable?.isLoading ?? loadable?.isFetching
         const envs = loadable?.data ?? null
 
@@ -25,10 +25,10 @@ export const deployModalEnvironmentsTableAtom = selectAtom(
             return PLACEHOLDER_ROWS
         }
 
-        return (envs as any[]).map((e) => ({
-            name: e?.name,
-            deployedAppVariantRevisionId: e?.deployed_app_variant_revision_id ?? null,
-            deployedVariantName: e?.deployed_variant_name ?? null,
+        return envs.map((e) => ({
+            name: e.name,
+            deployedAppVariantRevisionId: e.deployedRevisionId ?? null,
+            deployedVariantName: e.deployedVariantName ?? null,
         })) as DeployModalEnvRow[]
     },
     deepEqual,

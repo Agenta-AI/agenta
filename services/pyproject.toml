@@ -16,7 +16,7 @@ build-backend = "poetry.core.masonry.api"
 python = "^3.11"
 
 # Agenta SDK
-agenta = ">=0.94.4"
+agenta = ">=0.94.8"
 
 # Server
 uvicorn = "^0.42"
@@ -37,3 +37,6 @@ orjson = "^3"
 watchdog = { extras = ["watchmedo"], version = "^3" }
 pytest = "^8"
 pytest-asyncio = "^0.21"
+pytest-xdist = "^3"
+requests = "^2"
+python-dotenv = "^1"

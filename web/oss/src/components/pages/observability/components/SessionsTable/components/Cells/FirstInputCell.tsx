@@ -1,7 +1,7 @@
+import {LastInputMessageCell} from "@agenta/ui/cell-renderers"
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import LastInputMessageCell from "@/oss/components/pages/observability/components/common/LastInputMessageCell"
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {
     sessionFirstInputAtomFamily,

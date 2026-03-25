@@ -1,8 +1,9 @@
+import type {Workflow} from "@agenta/entities/workflow"
+import {collectEvaluatorCandidates} from "@agenta/entities/workflow"
+
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
-import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {
-    EVALUATOR_CATEGORY_LABEL_MAP,
     MAX_PARAMETER_PREVIEW_LENGTH,
     PARAMETER_KEYS_TO_IGNORE,
     PROMPT_KEY_LOOKUP,
@@ -14,133 +15,43 @@ import type {
     PromptPreviewSection,
 } from "../types"
 
-export const collectEvaluatorCandidates = (...values: (string | undefined | null)[]): string[] => {
-    const set = new Set<string>()
-    values.forEach((value) => {
-        if (value == null) return
-        const normalized = String(value).trim().toLowerCase()
-        if (!normalized) return
-        set.add(normalized)
-        if (normalized.startsWith("auto_")) set.add(normalized.slice(5))
-        if (normalized.includes("-")) set.add(normalized.split("-")[0])
-    })
-    return Array.from(set)
-}
-
 export const capitalize = (value?: string) =>
     value ? value.charAt(0).toUpperCase() + value.slice(1) : undefined
 
+/**
+ * Resolve the evaluator type (category slug + display label) from a workflow entity.
+ *
+ * Uses a two-tier lookup:
+ * 1. **Catalog lookup** (preferred): match the evaluator key against the
+ *    pre-built lookup map derived from catalog template `categories`.
+ * 2. **Flag-based inference** (fallback): derive category from workflow flags
+ *    (`is_llm` → "ai_llm", `is_code` → "custom", `is_hook` → "custom").
+ */
 export const extractEvaluatorType = (
-    evaluator: EvaluatorPreviewDto | undefined,
+    evaluator: Workflow | undefined,
     lookup: Map<string, {slug: string; label: string}>,
 ): {slug?: string; label?: string} => {
     if (!evaluator) return {slug: undefined, label: undefined}
 
-    const normalizeTags = (source: any): string[] => {
-        const rawList: string[] = Array.isArray(source)
-            ? source
-            : source && typeof source === "object"
-              ? Object.values(source as Record<string, unknown>)
-              : typeof source === "string"
-                ? [source]
-                : []
-
-        const expanded = new Set<string>()
-        rawList.forEach((raw) => {
-            if (raw == null) return
-            const text = String(raw).trim()
-            if (!text) return
-
-            const lower = text.toLowerCase()
-            const slugified = lower
-                .replace(/[^a-z0-9]+/g, "_")
-                .replace(/_+/g, "_")
-                .replace(/^_|_$/g, "")
-
-            expanded.add(text)
-            expanded.add(lower)
-            expanded.add(slugified)
-        })
-
-        return Array.from(expanded).filter(Boolean)
-    }
-
-    const directTags = normalizeTags((evaluator as any)?.tags)
-    const metaTags = normalizeTags((evaluator as any)?.meta?.tags)
-    const allTags = [...directTags, ...metaTags]
-
-    const meta = (evaluator as any)?.meta ?? {}
-    const normalizeMetaValue = (value: unknown) =>
-        typeof value === "string" && value.trim()
-            ? value
-                  .trim()
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, "_")
-                  .replace(/_+/g, "_")
-                  .replace(/^_|_$/g, "")
-            : undefined
-    const metaCategory = normalizeMetaValue(meta.category ?? meta.slug ?? meta.type)
-    if (metaCategory && EVALUATOR_CATEGORY_LABEL_MAP[metaCategory]) {
-        return {
-            slug: metaCategory,
-            label: EVALUATOR_CATEGORY_LABEL_MAP[metaCategory],
-        }
-    }
-
-    const matchedCategory = allTags.find((tag) => EVALUATOR_CATEGORY_LABEL_MAP[tag])
-    if (matchedCategory) {
-        return {
-            slug: matchedCategory,
-            label: EVALUATOR_CATEGORY_LABEL_MAP[matchedCategory],
-        }
-    }
-
-    const flags = (evaluator as any)?.flags ?? {}
-    const normalizeCategory = (value: unknown) =>
-        typeof value === "string" && value.trim()
-            ? value
-                  .trim()
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, "_")
-                  .replace(/_+/g, "_")
-                  .replace(/^_|_$/g, "")
-            : undefined
-
-    const flagCategory = normalizeCategory(flags.category ?? flags.slug ?? flags.type)
-    if (flagCategory && EVALUATOR_CATEGORY_LABEL_MAP[flagCategory]) {
-        return {
-            slug: flagCategory,
-            label: EVALUATOR_CATEGORY_LABEL_MAP[flagCategory],
-        }
-    }
-
-    const requiresLlm =
-        flags.requires_llm_api_keys ??
-        meta?.requires_llm_api_keys ??
-        (evaluator as any)?.requires_llm_api_keys ??
-        false
-    if (requiresLlm === true && EVALUATOR_CATEGORY_LABEL_MAP["ai_llm"]) {
-        return {
-            slug: "ai_llm",
-            label: EVALUATOR_CATEGORY_LABEL_MAP["ai_llm"],
-        }
-    }
-
+    // 1. Try catalog lookup by evaluator key candidates
     const candidates = collectEvaluatorCandidates(
-        resolveEvaluatorKey(evaluator as any),
-        (evaluator as any)?.slug,
+        resolveEvaluatorKey(evaluator),
+        evaluator.slug ?? undefined,
         (evaluator as any)?.key,
-        (evaluator as any)?.name,
-        (evaluator as any)?.meta?.evaluator_key,
-        (evaluator as any)?.meta?.key,
-        (evaluator as any)?.meta?.slug,
-        (evaluator as any)?.flags?.evaluator_key,
+        (evaluator.meta as any)?.evaluator_key,
+        (evaluator.meta as any)?.key,
     )
 
     for (const candidate of candidates) {
         const match = lookup.get(candidate)
         if (match) return match
     }
+
+    // 2. Flag-based inference from workflow flags
+    const flags = evaluator.flags
+    if (flags?.is_llm) return {slug: "ai_llm", label: "AI / LLM"}
+    if (flags?.is_code) return {slug: "custom", label: "Custom Code"}
+    if (flags?.is_hook) return {slug: "custom", label: "Webhook"}
 
     return {slug: undefined, label: undefined}
 }
@@ -255,7 +166,7 @@ const formatParameterValue = (
     }
 }
 
-export const extractParameterList = (evaluator?: EvaluatorPreviewDto): ParameterPreviewItem[] => {
+export const extractParameterList = (evaluator?: Workflow): ParameterPreviewItem[] => {
     if (!evaluator) return []
 
     const summary = new Map<string, ParameterPreviewItem>()
@@ -325,7 +236,7 @@ export const extractParameterList = (evaluator?: EvaluatorPreviewDto): Parameter
     return Array.from(summary.values())
 }
 
-export const extractModelName = (evaluator?: EvaluatorPreviewDto) => {
+export const extractModelName = (evaluator?: Workflow) => {
     if (!evaluator) return ""
     const MODEL_KEYS = ["model", "model_name", "modelName", "llm_model", "llmModel"]
 
@@ -413,7 +324,7 @@ const parseOutputMetricsFromSchema = (schema: unknown): OutputMetric[] => {
         .filter(Boolean) as OutputMetric[]
 }
 
-export const extractOutputMetrics = (evaluator?: EvaluatorPreviewDto): OutputMetric[] => {
+export const extractOutputMetrics = (evaluator?: Workflow): OutputMetric[] => {
     if (!evaluator) return []
     const data = (evaluator as any)?.data ?? {}
 
@@ -659,7 +570,7 @@ const normalizeMessageContent = (
     return {text, attachments}
 }
 
-export const extractPromptSections = (evaluator?: EvaluatorPreviewDto): PromptPreviewSection[] => {
+export const extractPromptSections = (evaluator?: Workflow): PromptPreviewSection[] => {
     if (!evaluator) return []
     const data = (evaluator as any)?.data ?? {}
     const parameters = data?.parameters

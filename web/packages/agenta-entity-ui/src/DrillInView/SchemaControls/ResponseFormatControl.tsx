@@ -16,9 +16,10 @@
 import {memo, useCallback, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities"
+import {EnhancedModal, ModalFooter} from "@agenta/ui/components/modal"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Button, Modal, Select, Typography} from "antd"
+import {Button, Select, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, type PrimitiveAtom} from "jotai"
 import {atomWithReset} from "jotai/utils"
@@ -251,24 +252,27 @@ export const ResponseFormatControl = memo(function ResponseFormatControl({
 
             {/* JSON Schema Editor Modal */}
             {!disabled && (
-                <Modal
+                <EnhancedModal
                     title="Structured Output Schema"
                     open={isModalOpen}
                     onCancel={handleCancel}
-                    onOk={handleSave}
-                    okText="Save"
-                    cancelText="Cancel"
                     width={600}
-                    centered
+                    footer={
+                        <ModalFooter
+                            onCancel={handleCancel}
+                            onConfirm={handleSave}
+                            confirmLabel="Save"
+                        />
+                    }
                 >
                     <Typography.Text className="mb-2 block">
                         Define the JSON schema for the structured output. The model will return
                         responses that conform to this schema.
                     </Typography.Text>
-                    <div className="flex flex-col w-full gap-1 max-h-[60vh] overflow-y-auto [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
+                    <div className="flex flex-col w-full gap-1 [&_.agenta-shared-editor]:box-border [&_.agenta-shared-editor]:!overflow-y-auto [&_.agenta-rich-text-editor]:!min-h-0 [&_.editor-code]:!pt-0 [&_.editor-code]:!pb-0 [&_.code-segment:first-child>br]:hidden">
                         {editorContent}
                     </div>
-                </Modal>
+                </EnhancedModal>
             )}
         </div>
     )

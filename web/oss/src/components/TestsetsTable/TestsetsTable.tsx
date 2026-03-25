@@ -16,7 +16,7 @@ import {
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
-import {Button, Dropdown, Modal, Space, Tag, Typography} from "antd"
+import {Button, Dropdown, Modal, Space, Tag} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -27,7 +27,6 @@ import {
     useTableManager,
     useTableActions,
     createStandardColumns,
-    TableDescription,
 } from "@/oss/components/InfiniteVirtualTable"
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import TestsetsHeaderFilters from "@/oss/components/TestsetsTable/components/TestsetsHeaderFilters"
@@ -697,18 +696,6 @@ const TestsetsTable = ({
         table.columnsRef.current = columns
     }, [columns, table.columnsRef])
 
-    const headerTitle = useMemo(
-        () => (
-            <div className="flex flex-col gap-1">
-                <Typography.Title level={5} style={{margin: 0}}>
-                    Testsets
-                </Typography.Title>
-                <TableDescription>Manage your testsets for evaluations.</TableDescription>
-            </div>
-        ),
-        [],
-    )
-
     const filtersNode = useMemo(() => <TestsetsHeaderFilters />, [])
 
     const createButton = useMemo(
@@ -835,7 +822,7 @@ const TestsetsTable = ({
                 {...table.shellProps}
                 dataSource={rowsWithChildren}
                 columns={columns}
-                title={isManageMode ? headerTitle : undefined}
+                title={undefined}
                 filters={filtersNode}
                 primaryActions={isManageMode ? createButton : undefined}
                 rowSelection={rowSelection}

@@ -115,6 +115,11 @@ export const createInfiniteTableStore = <
 ): InfiniteTableStore<TableRow, ApiRow> => {
     const skeletonRowsCache = new Map<string, TableRow[]>()
 
+    // In-flight deduplication: prevent concurrent identical fetches.
+    // TanStack Query should handle this but experimental_prefetchInRender
+    // + React StrictMode can cause duplicate queryFn invocations.
+    const inflight = new Map<string, Promise<InfiniteTableFetchResult<ApiRow>>>()
+
     const makeCacheKey = ({scopeId, offset, limit, cursor, windowing}: TableRowAtomKey) =>
         `${options.key}:${scopeId ?? "scope"}:${offset}:${limit}:${cursor ?? "start"}:$${
             windowing?.next ?? ""
@@ -185,15 +190,25 @@ export const createInfiniteTableStore = <
                     placeholderData: (previousData: InfiniteTableFetchResult<ApiRow> | undefined) =>
                         previousData,
                     queryFn: async () => {
-                        return options.fetchPage({
-                            scopeId: params.scopeId,
-                            cursor: params.cursor,
-                            limit: params.limit,
-                            offset: params.offset,
-                            windowing: params.windowing ?? null,
-                            meta,
-                            get,
-                        })
+                        const fetchKey = `${makeCacheKey(params)}:${metaKey}`
+                        const existing = inflight.get(fetchKey)
+                        if (existing) return existing
+
+                        const promise = options
+                            .fetchPage({
+                                scopeId: params.scopeId,
+                                cursor: params.cursor,
+                                limit: params.limit,
+                                offset: params.offset,
+                                windowing: params.windowing ?? null,
+                                meta,
+                                get,
+                            })
+                            .finally(() => {
+                                inflight.delete(fetchKey)
+                            })
+                        inflight.set(fetchKey, promise)
+                        return promise
                     },
                 }
             }),

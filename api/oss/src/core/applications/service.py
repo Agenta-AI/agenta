@@ -557,6 +557,75 @@ class ApplicationsService:
 
         return application_revision
 
+    async def retrieve_application_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        application_ref: Optional[Reference] = None,
+        application_variant_ref: Optional[Reference] = None,
+        application_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[Optional[ApplicationRevision], Optional[ResolutionInfo]]:
+        if environment_ref or environment_variant_ref or environment_revision_ref:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None, None
+
+            (
+                env_revision,
+                _,
+            ) = await environments_service.retrieve_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                env_revision.data.references
+                if env_revision and env_revision.data
+                else None
+            )
+            application_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not application_references:
+                return None, None
+
+            application_ref = application_references.get("application")
+            application_variant_ref = application_references.get("application_variant")
+            application_revision_ref = application_references.get(
+                "application_revision"
+            )
+
+        if resolve:
+            result = await self.resolve_application_revision(
+                project_id=project_id,
+                #
+                application_ref=application_ref,
+                application_variant_ref=application_variant_ref,
+                application_revision_ref=application_revision_ref,
+            )
+            return result if result else (None, None)
+
+        application_revision = await self.fetch_application_revision(
+            project_id=project_id,
+            #
+            application_ref=application_ref,
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_revision_ref,
+        )
+        return application_revision, None
+
     async def edit_application_revision(
         self,
         *,
@@ -767,7 +836,6 @@ class ApplicationsService:
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
         #
         application_ref: Optional[Reference] = None,
         application_variant_ref: Optional[Reference] = None,
@@ -1014,6 +1082,9 @@ class SimpleApplicationsService:
             meta=application.meta,
             tags=application.tags,
             #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
+            #
             data=SimpleApplicationData(
                 **(
                     application_revision.data.model_dump(mode="json")
@@ -1090,6 +1161,9 @@ class SimpleApplicationsService:
             flags=simple_application_flags,
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(
@@ -1232,6 +1306,9 @@ class SimpleApplicationsService:
             flags=simple_application_flags,
             meta=application.meta,
             tags=application.tags,
+            #
+            variant_id=application_variant.id,
+            revision_id=application_revision.id,
             #
             data=SimpleApplicationData(
                 **(

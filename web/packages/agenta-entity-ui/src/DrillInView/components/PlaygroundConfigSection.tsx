@@ -2,52 +2,53 @@
  * PlaygroundConfigSection
  *
  * Schema-driven configuration renderer for playground entities.
- * Uses runnableBridge as the default data source, supporting all entity types
- * (legacyAppRevision, workflow, evaluator) through the unified bridge.
+ * Uses workflowMolecule as the default data source.
  *
  * Data wiring:
- * - Reads from runnableBridge (data, query, parametersSchema) by default
- * - Writes via runnableBridge.update (flat parameters) by default
+ * - Reads from workflowMolecule (configuration, query, parametersSchema) by default
+ * - Writes via workflowMolecule.actions.updateConfiguration by default
  * - Supports custom moleculeAdapter for specialized behavior
  * - Schema drives control selection via getSchemaAtPath
  * - Model config popover injected via fieldHeader slot
  */
 
-import {memo, useMemo, useCallback, useState} from "react"
+import {memo, useMemo, useCallback, useEffect, useState} from "react"
 
 import {
     type EntitySchema,
     type EntitySchemaProperty,
     getSchemaAtPath as getSchemaAtPathUtil,
-} from "@agenta/entities"
-import {runnableBridge} from "@agenta/entities/runnable"
+} from "@agenta/entities/shared"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import {getOptionsFromSchema, getValueAtPath, setValueAtPath} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import type {
+    FieldActionsSlotProps,
+    FieldContentSlotProps,
+    FieldHeaderSlotProps,
+    MoleculeDrillInAdapter,
+} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
+import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight, MagicWand} from "@phosphor-icons/react"
 import {Button, Popover, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import type {Atom, WritableAtom} from "jotai"
 import {atom} from "jotai"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import yaml from "js-yaml"
 
-import {LoadEvaluatorPresetModal} from "../../modals/preset"
-import {useDrillInUI} from "../context/DrillInUIContext"
 import {
     getModelSchema,
     getLLMConfigValue,
     getLLMConfigProperties,
     resolveAnyOfSchema,
 } from "../SchemaControls"
+import {feedbackConfigModeAtomFamily} from "../SchemaControls/FeedbackConfigurationControl"
 import {NumberSliderControl} from "../SchemaControls/NumberSliderControl"
-import type {
-    FieldActionsSlotProps,
-    FieldContentSlotProps,
-    FieldHeaderSlotProps,
-    MoleculeDrillInAdapter,
-} from "../types"
-import {formatLabel} from "../utils"
 
 import {MoleculeDrillInView} from "./MoleculeDrillInView"
 
@@ -72,7 +73,7 @@ function isEntitySchema(value: unknown): value is PathSchema {
 
 /**
  * Adapter interface for the data source that PlaygroundConfigSection reads from.
- * Defaults to runnableBridge (entity-type-agnostic) when not provided.
+ * Defaults to workflowMolecule when not provided.
  */
 export interface ConfigSectionMoleculeAdapter {
     atoms: {
@@ -132,43 +133,40 @@ function memoAtom<T>(factory: (id: string) => Atom<T>): (id: string) => Atom<T> 
 }
 
 // ============================================================================
-// DEFAULT ADAPTER (runnableBridge — entity-type-agnostic)
+// DEFAULT ADAPTER (workflowMolecule — direct molecule access)
 // ============================================================================
 
 /**
- * Build adapter backed by runnableBridge.
- * Works for all entity types (legacyAppRevision, workflow, evaluator, etc.)
- * via the unified bridge API.
+ * Build adapter backed by workflowMolecule.
  *
  * Data mapping:
- * - RunnableData.configuration → adapter's `parameters` (for UI display)
- * - runnableBridge.update(id, flatParams) → adapter's reducers.update
- * - runnableBridge.parametersSchema(id) → adapter's agConfigSchema
+ * - workflowMolecule.selectors.configuration(id) → adapter's `parameters` (for UI display)
+ * - workflowMolecule.actions.updateConfiguration → adapter's reducers.update
+ * - workflowMolecule.selectors.parametersSchema(id) → adapter's agConfigSchema
  */
-function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
+function buildWorkflowMoleculeAdapter(): ConfigSectionMoleculeAdapter {
     return {
         atoms: {
             data: memoAtom((id: string) =>
                 atom((get) => {
-                    const d = get(runnableBridge.data(id))
-                    if (!d) return null
-                    const params = (d.configuration ?? {}) as Record<string, unknown>
-                    return {parameters: params}
+                    const config = get(workflowMolecule.selectors.configuration(id))
+                    if (!config) return null
+                    return {parameters: config as Record<string, unknown>}
                 }),
             ),
             serverData: memoAtom((id: string) =>
                 atom((get) => {
-                    const d = get(runnableBridge.serverData(id))
-                    if (!d) return null
-                    return {parameters: (d.configuration ?? {}) as Record<string, unknown>}
+                    const config = get(workflowMolecule.selectors.serverConfiguration(id))
+                    if (!config) return null
+                    return {parameters: config as Record<string, unknown>}
                 }),
             ),
-            draft: (id: string) => runnableBridge.draft(id),
-            isDirty: (id: string) => runnableBridge.isDirty(id),
+            draft: (id: string) => workflowMolecule.atoms.draft(id),
+            isDirty: (id: string) => workflowMolecule.selectors.isDirty(id),
             schemaQuery: memoAtom((id: string) =>
                 atom((get) => {
-                    const q = get(runnableBridge.query(id))
-                    const rawSchema = get(runnableBridge.parametersSchema(id))
+                    const q = get(workflowMolecule.selectors.query(id))
+                    const rawSchema = get(workflowMolecule.selectors.parametersSchema(id))
                     const schema = isEntitySchema(rawSchema) ? rawSchema : null
                     return {
                         isPending: q.isPending,
@@ -180,19 +178,18 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
             ),
             agConfigSchema: memoAtom((id: string) =>
                 atom((get) => {
-                    const schema = get(runnableBridge.parametersSchema(id))
+                    const schema = get(workflowMolecule.selectors.parametersSchema(id))
                     return isEntitySchema(schema) ? schema : null
                 }),
             ),
         },
         reducers: {
-            // runnableBridge.update takes (id, flatParams) and wraps internally
-            update: runnableBridge.update as WritableAtom<
+            update: workflowMolecule.actions.updateConfiguration as WritableAtom<
                 unknown,
                 [id: string, changes: Record<string, unknown>],
                 void
             >,
-            discard: runnableBridge.discard,
+            discard: workflowMolecule.actions.discard,
         },
         drillIn: {
             getRootData: (data: unknown) => {
@@ -238,28 +235,41 @@ function buildRunnableBridgeAdapter(): ConfigSectionMoleculeAdapter {
 }
 
 /** Wrap schemaAtPath to work with the adapter's (id, path) → atom interface */
-const bridgeSchemaAtPathCache = new Map<string, Atom<unknown>>()
-function bridgeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
+const moleculeSchemaAtPathCache = new Map<string, Atom<unknown>>()
+function moleculeSchemaAtPath(params: {id: string; path: (string | number)[]}): Atom<unknown> {
     const key = `${params.id}:${params.path.join(".")}`
-    let cached = bridgeSchemaAtPathCache.get(key)
+    let cached = moleculeSchemaAtPathCache.get(key)
     if (!cached) {
         cached = atom((get) => {
-            const schema = get(runnableBridge.parametersSchema(params.id))
+            const schema = get(workflowMolecule.selectors.parametersSchema(params.id))
             if (!isEntitySchema(schema)) return null
-
-            return getSchemaAtPathUtil(schema, params.path) ?? null
+            const resolved = getSchemaAtPathUtil(schema, params.path) ?? null
+            if (params.path.length === 0) {
+                console.debug("[PlaygroundConfigSection] root schema", params.id.slice(0, 8), {
+                    schemaType: schema?.type,
+                    schemaHasProperties: !!schema?.properties,
+                    schemaPropertyKeys: schema?.properties
+                        ? Object.keys(schema.properties as Record<string, unknown>)
+                        : null,
+                    resolvedType: resolved?.type,
+                    resolvedPropertyKeys: resolved?.properties
+                        ? Object.keys(resolved.properties as Record<string, unknown>)
+                        : null,
+                })
+            }
+            return resolved
         })
-        bridgeSchemaAtPathCache.set(key, cached)
+        moleculeSchemaAtPathCache.set(key, cached)
     }
     return cached
 }
 
 function buildDefaultAdapter(): ConfigSectionMoleculeAdapter {
-    const base = buildRunnableBridgeAdapter()
+    const base = buildWorkflowMoleculeAdapter()
     return {
         ...base,
         selectors: {
-            schemaAtPath: bridgeSchemaAtPath,
+            schemaAtPath: moleculeSchemaAtPath,
         },
     }
 }
@@ -277,21 +287,19 @@ export interface EvaluatorPresetConfig {
     values: Record<string, unknown>
 }
 
+export type ConfigViewMode = "form" | "json" | "yaml"
+
 export interface PlaygroundConfigSectionProps {
     revisionId: string
     disabled?: boolean
     useServerData?: boolean
     className?: string
-    /** Optional molecule adapter — defaults to runnableBridge */
+    /** Optional molecule adapter — defaults to workflowMolecule */
     moleculeAdapter?: ConfigSectionMoleculeAdapter
     /** Called when the user clicks "Refine prompt with AI" on a prompt section header */
     onRefinePrompt?: (promptKey: string) => void
-    /** Evaluator presets for "Load Preset" functionality (evaluator workflows only) */
-    presets?: EvaluatorPresetConfig[]
-    /** Called when a preset is loaded */
-    onLoadPreset?: (preset: EvaluatorPresetConfig) => void
-    /** Evaluator name/label to show in header (evaluator workflows only) */
-    evaluatorLabel?: string
+    /** View mode controlled from parent (form/json/yaml) */
+    viewMode?: ConfigViewMode
 }
 
 function PlaygroundConfigSection({
@@ -301,13 +309,13 @@ function PlaygroundConfigSection({
     className,
     moleculeAdapter,
     onRefinePrompt,
-    presets,
-    onLoadPreset,
-    evaluatorLabel,
+    viewMode: externalViewMode,
 }: PlaygroundConfigSectionProps) {
-    // Preset modal state
-    const [isPresetModalOpen, setIsPresetModalOpen] = useState(false)
     const {llmProviderConfig} = useDrillInUI()
+
+    // Feedback config mode (shared with FeedbackConfigurationControl via atom)
+    const feedbackModeAtom = useMemo(() => feedbackConfigModeAtomFamily(revisionId), [revisionId])
+    const [feedbackMode, setFeedbackMode] = useAtom(feedbackModeAtom)
     const mol = moleculeAdapter ?? defaultAdapter
     const dispatchUpdate = useSetAtom(mol.reducers.update)
 
@@ -363,6 +371,45 @@ function PlaygroundConfigSection({
         [mol, revisionId, useServerData],
     )
 
+    // ========== VIEW MODE (Form / JSON / YAML) ==========
+    const [internalViewMode] = useState<ConfigViewMode>("form")
+    const viewMode = externalViewMode ?? internalViewMode
+    const [rawEditorValue, setRawEditorValue] = useState("")
+
+    // Write raw edits directly to the draft, bypassing evaluator flatten transform.
+    const dispatchRawUpdate = useSetAtom(workflowMolecule.actions.update)
+
+    // Sync editor value when switching to a raw mode
+    useEffect(() => {
+        if (viewMode === "json") {
+            setRawEditorValue(JSON.stringify(parameters, null, 2))
+        } else if (viewMode === "yaml") {
+            try {
+                setRawEditorValue(yaml.dump(parameters, {indent: 2, lineWidth: -1}))
+            } catch {
+                setRawEditorValue(JSON.stringify(parameters, null, 2))
+            }
+        }
+    }, [viewMode]) // Only sync when toggling mode
+
+    const handleRawEditorChange = useCallback(
+        (newValue: string) => {
+            setRawEditorValue(newValue)
+            try {
+                const parsed =
+                    viewMode === "yaml"
+                        ? (yaml.load(newValue) as Record<string, unknown>)
+                        : JSON.parse(newValue)
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                    dispatchRawUpdate(revisionId, {data: {parameters: parsed}})
+                }
+            } catch {
+                // Invalid syntax — don't emit
+            }
+        },
+        [dispatchRawUpdate, revisionId, viewMode],
+    )
+
     // ========== COLLAPSE STATE ==========
     const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
@@ -373,15 +420,32 @@ function PlaygroundConfigSection({
     // ========== MODEL CONFIG POPOVER ==========
     const [isModelConfigOpen, setIsModelConfigOpen] = useState(false)
 
-    // Extract model + LLM config info from prompt section
+    // Extract model + LLM config info from prompt section.
+    //
+    // Supports two schema shapes:
+    // - Legacy: parameters.prompt.{messages, llm_config.{model, temperature, ...}}
+    // - Canonical (llm catalog): parameters.{messages, llms[{model, temperature, ...}]}
+    //
+    // For the canonical shape, the root parameters object IS the prompt equivalent.
     const promptModelInfo = useMemo(() => {
-        const promptValue = parameters.prompt as Record<string, unknown> | null
+        const hasNestedPrompt = !!parameters.prompt
+        const hasRootMessages = Array.isArray(parameters.messages)
+
+        const promptValue = hasNestedPrompt
+            ? (parameters.prompt as Record<string, unknown>)
+            : hasRootMessages
+              ? parameters
+              : null
         if (!promptValue) return null
 
         const promptSchema = schema?.properties
-            ? ((schema.properties as Record<string, EntitySchemaProperty>).prompt ?? null)
+            ? hasNestedPrompt
+                ? ((schema.properties as Record<string, EntitySchemaProperty>).prompt ?? null)
+                : hasRootMessages
+                  ? schema
+                  : null
             : null
-        const modelSchema = getModelSchema(promptSchema)
+        const modelSchema = getModelSchema(promptSchema as EntitySchemaProperty | null)
         const optionsResult = getOptionsFromSchema(modelSchema)
         const modelOptions = optionsResult?.options ?? []
 
@@ -389,7 +453,7 @@ function PlaygroundConfigSection({
         const currentModel = llmConfigValue?.model as string | undefined
 
         // Extract LLM config property schemas for sliders
-        const llmConfigProps = getLLMConfigProperties(promptSchema)
+        const llmConfigProps = getLLMConfigProperties(promptSchema as EntitySchemaProperty | null)
 
         return {
             modelSchema,
@@ -398,14 +462,31 @@ function PlaygroundConfigSection({
             promptValue,
             llmConfigValue,
             llmConfigProps,
+            isRootLevel: !hasNestedPrompt && hasRootMessages,
         }
     }, [parameters, schema])
 
-    // Helper to update a key inside the prompt's llm_config (or root level)
+    // Helper to update a key inside the LLM config.
+    // Supports three structures:
+    // - Legacy nested: parameters.prompt.llm_config.{key}
+    // - Legacy flat: parameters.prompt.{key}
+    // - Canonical: parameters.llms[0].{key}
     const updatePromptLLMConfigKey = useCallback(
         (key: string, newValue: unknown) => {
             if (disabled || !activeData) return
 
+            // Canonical: llms array at root level
+            if (Array.isArray(parameters.llms)) {
+                const currentLlms = parameters.llms as Record<string, unknown>[]
+                const updatedFirst = {...(currentLlms[0] || {}), [key]: newValue}
+                dispatchUpdate(revisionId, {
+                    ...parameters,
+                    llms: [updatedFirst, ...currentLlms.slice(1)],
+                })
+                return
+            }
+
+            // Legacy: prompt.llm_config or prompt.{key}
             const currentPrompt = (parameters.prompt as Record<string, unknown>) || {}
             const hasNestedLLMConfig = currentPrompt.llm_config || currentPrompt.llmConfig
 
@@ -459,17 +540,38 @@ function PlaygroundConfigSection({
             const isTopLevel = props.path.length === 1
             if (!isTopLevel) return props.defaultRender()
 
-            // Show model popover on "prompt" section header
-            const isPromptWithPopover = fieldKey === "prompt" && !!promptModelInfo
+            // Hide llms header when handled by the model popover
+            if (fieldKey === "llms" && promptModelInfo?.isRootLevel) {
+                return null
+            }
+
+            // Simple scalar fields (string, boolean, number) don't need collapsible sections.
+            // Only objects/arrays get section headers. Check the value type.
+            const fieldValue = parameters[fieldKey]
+            if (fieldValue === null || fieldValue === undefined || typeof fieldValue !== "object") {
+                return null
+            }
+
+            // Show model popover on "prompt" section header.
+            // For canonical schemas (no prompt wrapper), show it on the "messages" section.
+            const isPromptWithPopover =
+                (fieldKey === "prompt" ||
+                    (fieldKey === "messages" && promptModelInfo?.isRootLevel)) &&
+                !!promptModelInfo
             const isCollapsed = !!collapsedSections[fieldKey]
 
             // Determine if this field has messages for the refine button
-            const fieldValue = parameters[fieldKey]
             const hasMessages =
                 !!fieldValue &&
                 typeof fieldValue === "object" &&
                 !Array.isArray(fieldValue) &&
                 Array.isArray((fieldValue as Record<string, unknown>).messages)
+
+            // Get display label from schema title if available, falling back to formatLabel
+            const fieldSchema = schema?.properties
+                ? (schema.properties as Record<string, Record<string, unknown>>)[fieldKey]
+                : null
+            const displayLabel = (fieldSchema?.title as string | undefined) ?? formatLabel(fieldKey)
 
             return (
                 <div
@@ -484,9 +586,7 @@ function PlaygroundConfigSection({
                                 <CaretDown size={14} weight="bold" />
                             )}
                         </span>
-                        <span className="capitalize font-medium text-sm">
-                            {formatLabel(fieldKey)}
-                        </span>
+                        <span className="capitalize font-medium text-sm">{displayLabel}</span>
                     </div>
 
                     {isPromptWithPopover && promptModelInfo && (
@@ -555,7 +655,6 @@ function PlaygroundConfigSection({
                                             </Button>
                                         </div>
                                         <SelectLLMProviderBase
-                                            showGroup
                                             options={[
                                                 ...(llmProviderConfig?.extraOptionGroups ?? []),
                                                 ...promptModelInfo.modelOptions,
@@ -642,6 +741,26 @@ function PlaygroundConfigSection({
                             </Popover>
                         </div>
                     )}
+
+                    {/* Feedback config: Advanced Mode toggle in section header */}
+                    {fieldKey === "feedback_config" && (
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center flex-shrink-0"
+                        >
+                            <Button
+                                size="small"
+                                type="text"
+                                onClick={() =>
+                                    setFeedbackMode(feedbackMode === "basic" ? "advanced" : "basic")
+                                }
+                                disabled={disabled}
+                                className="text-xs text-gray-500"
+                            >
+                                {feedbackMode === "basic" ? "Advanced" : "Basic"}
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )
         },
@@ -652,7 +771,10 @@ function PlaygroundConfigSection({
             isModelConfigOpen,
             disabled,
             parameters,
+            schema,
             revisionId,
+            feedbackMode,
+            setFeedbackMode,
             dispatchUpdate,
             llmProviderConfig,
             handleModelChange,
@@ -669,6 +791,19 @@ function PlaygroundConfigSection({
             if (!isTopLevel) return props.defaultRender()
 
             const fieldKey = String(props.field.key)
+
+            // Hide llms field when the model popover handles it
+            // (canonical schema — llms[0] is shown in the model popover on the messages header)
+            if (fieldKey === "llms" && promptModelInfo?.isRootLevel) {
+                return null
+            }
+
+            // Simple scalar fields render directly without HeightCollapse wrapper
+            const fieldValue = parameters[fieldKey]
+            if (fieldValue === null || fieldValue === undefined || typeof fieldValue !== "object") {
+                return <div className="px-4 py-1.5">{props.defaultRender()}</div>
+            }
+
             const isCollapsed = !!collapsedSections[fieldKey]
 
             return (
@@ -677,19 +812,8 @@ function PlaygroundConfigSection({
                 </HeightCollapse>
             )
         },
-        [collapsedSections],
+        [collapsedSections, parameters, promptModelInfo?.isRootLevel],
     )
-
-    // ========== PRESET HANDLER ==========
-    const handleLoadPreset = useCallback(
-        (preset: EvaluatorPresetConfig) => {
-            setIsPresetModalOpen(false)
-            onLoadPreset?.(preset)
-        },
-        [onLoadPreset],
-    )
-
-    const hasPresets = presets && presets.length > 0
 
     // ========== LOADING / EMPTY STATE ==========
     const isConfigLoading = schemaQuery.isPending && !hasParameters(activeData)
@@ -705,50 +829,57 @@ function PlaygroundConfigSection({
     }
 
     if (!hasParameters(activeData)) {
-        return null
+        return (
+            <div
+                className={clsx("flex flex-col items-center justify-center py-12 px-6", className)}
+            >
+                <div className="flex flex-col items-center gap-2 text-center max-w-[320px]">
+                    <span className="text-sm font-medium text-[rgba(5,23,41,0.65)]">
+                        No configuration needed
+                    </span>
+                    <span className="text-xs text-[rgba(5,23,41,0.45)]">
+                        This evaluator runs with default settings. You can use it directly without
+                        any additional configuration.
+                    </span>
+                </div>
+            </div>
+        )
     }
 
     // ========== RENDER ==========
     return (
         <div className={clsx("flex flex-col", className)}>
-            {/* Evaluator config header with Load Preset button */}
-            {hasPresets && (
-                <div className="h-[40px] px-4 flex items-center justify-between border-0 border-b border-solid border-gray-200 bg-[#FAFAFB] flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-800">Configuration</span>
-                        {evaluatorLabel && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                                {evaluatorLabel}
-                            </span>
-                        )}
+            {viewMode !== "form" ? (
+                <div className="px-3 pb-3">
+                    <div className="border border-solid border-gray-200 rounded overflow-hidden">
+                        <SharedEditor
+                            editorType="border"
+                            placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
+                            initialValue={rawEditorValue}
+                            value={rawEditorValue}
+                            handleChange={handleRawEditorChange}
+                            disabled={disabled || useServerData}
+                            editorProps={{
+                                codeOnly: true,
+                                language: viewMode === "yaml" ? "yaml" : "json",
+                            }}
+                            syncWithInitialValueChanges={true}
+                        />
                     </div>
-                    <Button size="small" onClick={() => setIsPresetModalOpen(true)}>
-                        Load Preset
-                    </Button>
                 </div>
-            )}
-
-            <MoleculeDrillInView
-                entityId={revisionId}
-                molecule={drillInAdapter}
-                editable={!disabled && !useServerData}
-                rootTitle="Configuration"
-                showBreadcrumb={false}
-                collapsible={false}
-                slots={{
-                    fieldHeader: fieldHeaderSlot,
-                    fieldActions: fieldActionsSlot,
-                    fieldContent: fieldContentSlot,
-                }}
-            />
-
-            {/* Load Preset Modal */}
-            {hasPresets && (
-                <LoadEvaluatorPresetModal
-                    open={isPresetModalOpen}
-                    onCancel={() => setIsPresetModalOpen(false)}
-                    presets={presets}
-                    onLoadPreset={handleLoadPreset}
+            ) : (
+                <MoleculeDrillInView
+                    entityId={revisionId}
+                    molecule={drillInAdapter}
+                    editable={!disabled && !useServerData}
+                    rootTitle="Configuration"
+                    showBreadcrumb={false}
+                    collapsible={false}
+                    slots={{
+                        fieldHeader: fieldHeaderSlot,
+                        fieldActions: fieldActionsSlot,
+                        fieldContent: fieldContentSlot,
+                    }}
                 />
             )}
         </div>

@@ -2,6 +2,7 @@
  * Column value resolvers for scenario table CSV export
  */
 
+import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {useStore} from "jotai"
 
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
@@ -12,7 +13,6 @@ import {
 } from "../atoms/scenarioColumnValues"
 import type {EvaluationTableColumn} from "../atoms/table"
 import type {PreviewTableRow} from "../atoms/tableRows"
-import {formatMetricDisplay} from "../utils/metricFormatter"
 
 import {formatExportValue, logExportAction} from "./helpers"
 import type {ScenarioColumnExportMetadata} from "./types"

@@ -1,14 +1,10 @@
 /**
  * Workflow Entity Bridge — Side Effects Only
  *
- * Registers workflow-specific CRUD callbacks with the playground:
- * 1. Commit callbacks (query invalidation, selection swap)
- * 2. Archive callbacks (query invalidation, selection cleanup)
- *
- * This module coexists with legacyEntityBridge.ts — the existing
- * selection change callback handles both entity types since
- * writePlaygroundSelectionToQuery is entity-agnostic and
- * isLocalDraftId guards prevent workflow IDs from being discarded.
+ * Registers playground-specific orchestration with the entity layer:
+ * 1. Selection change callback (URL sync, drawer state)
+ * 2. Commit callbacks (query invalidation, selection swap)
+ * 3. Archive callbacks (query invalidation, selection cleanup)
  *
  * This module has no exports — import it for side effects only:
  * ```typescript
@@ -16,7 +12,7 @@
  * ```
  */
 
-import {invalidateEntityQueries} from "@agenta/entities/legacyAppRevision"
+import {invalidateEntityQueries} from "@agenta/entities/shared/invalidation"
 import {
     registerWorkflowCommitCallbacks,
     registerWorkflowArchiveCallbacks,
@@ -29,11 +25,45 @@ import {
     type WorkflowCommitResult,
     type WorkflowArchiveResult,
 } from "@agenta/entities/workflow"
-import {playgroundController} from "@agenta/playground"
+import {playgroundController, setOnSelectionChangeCallback} from "@agenta/playground"
+import {
+    workflowRevisionDrawerEntityIdAtom as drawerVariantIdAtom,
+    workflowRevisionDrawerExpandedAtom,
+} from "@agenta/playground-ui/workflow-revision-drawer"
 import {getDefaultStore} from "jotai"
 
+import {
+    registryPaginatedStore,
+    clearRegistryVariantNameCache,
+} from "@/oss/components/VariantsComponents/store/registryStore"
 import {routerAppNavigationAtom} from "@/oss/state/app"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+
+// ============================================================================
+// SELECTION CHANGE CALLBACK
+// OSS-specific side-effects when playground selection changes
+// ============================================================================
+
+setOnSelectionChangeCallback((entityIds, _removed) => {
+    const store = getDefaultStore()
+
+    // Skip URL sync when running inside the drawer's embedded playground.
+    // The drawer sets entity IDs via playgroundController but does NOT use
+    // URL-based state — writing the URL on a non-playground page causes
+    // cascading side effects and can freeze the page.
+    const isDrawerExpanded = store.get(workflowRevisionDrawerExpandedAtom)
+
+    if (!isDrawerExpanded) {
+        // Sync selection to URL (only on the actual playground page)
+        void writePlaygroundSelectionToQuery(entityIds)
+    }
+
+    // Keep drawer selection consistent
+    const currentDrawerId = store.get(drawerVariantIdAtom)
+    if (!currentDrawerId || !entityIds.includes(currentDrawerId)) {
+        store.set(drawerVariantIdAtom, entityIds[0] ?? null)
+    }
+})
 
 const findAdjacentId = (ids: string[], targetId: string) => {
     const targetIndex = ids.findIndex((id) => id === targetId)
@@ -84,7 +114,7 @@ const resolveRemainingWorkflowRevisionId = async ({
 
         try {
             const refetched = await query.refetch()
-            return extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId)
+            return extractVisibleRevisionIds(refetched.data?.refs, revisionId)
         } catch (error) {
             console.warn(
                 "[workflowEntityBridge] Failed to refetch adjacent variant revisions:",
@@ -132,7 +162,7 @@ const resolveRemainingWorkflowRevisionId = async ({
             try {
                 const refetched = await variantRevisionsQuery.refetch()
                 const refetchedSiblingId = findAdjacentId(
-                    extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId),
+                    extractVisibleRevisionIds(refetched.data?.refs, revisionId),
                     revisionId,
                 )
                 if (refetchedSiblingId) return refetchedSiblingId
@@ -181,9 +211,7 @@ const resolveRemainingWorkflowRevisionId = async ({
 
     try {
         const refetched = await revisionsQuery.refetch()
-        return (
-            extractVisibleRevisionIds(refetched.data?.workflow_revisions, revisionId).at(0) ?? null
-        )
+        return extractVisibleRevisionIds(refetched.data?.refs, revisionId).at(0) ?? null
     } catch (error) {
         console.warn(
             "[workflowEntityBridge] Failed to refetch workflow revisions after delete:",
@@ -206,6 +234,11 @@ registerWorkflowCommitCallbacks({
         // Calling invalidateQueriesAtom here would redundantly refetch ALL
         // ["workflows"] queries including heavy per-revision schema queries.
         await invalidateEntityQueries()
+
+        // Refresh registry paginated store so registry/variant tables update
+        clearRegistryVariantNameCache()
+        const store = getDefaultStore()
+        store.set(registryPaginatedStore.actions.refresh)
     },
     onNewRevision: async (result: WorkflowCommitResult) => {
         const store = getDefaultStore()
@@ -232,6 +265,11 @@ registerWorkflowArchiveCallbacks({
         // Same as commit — only entity-level queries. Workflow-specific
         // invalidation is handled by archiveWorkflowRevisionAtom directly.
         await invalidateEntityQueries()
+
+        // Refresh registry paginated store so registry/variant tables update
+        clearRegistryVariantNameCache()
+        const store = getDefaultStore()
+        store.set(registryPaginatedStore.actions.refresh)
     },
     onRevisionDeleted: async (result: WorkflowArchiveResult) => {
         const store = getDefaultStore()

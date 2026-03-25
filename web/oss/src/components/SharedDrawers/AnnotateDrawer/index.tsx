@@ -1,11 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {humanEvaluatorsListDataAtom} from "@agenta/entities/workflow"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {getProjectValues} from "@/oss/state/project"
 
 import {AnnotateDrawerSteps} from "./assets/enum"
@@ -28,10 +29,7 @@ const AnnotateDrawer = ({
     ...props
 }: AnnotateDrawerProps) => {
     const {projectId} = getProjectValues()
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
     const evalLSKey = `${projectId}-evaluator`
 
     const [annotations, setAnnotations] = useState<AnnotationDto[]>([])

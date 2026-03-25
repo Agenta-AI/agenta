@@ -19,6 +19,8 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@agenta/annotation": "workspace:../packages/agenta-annotation",
+        "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",
@@ -67,7 +69,6 @@
         "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.17.23",
         "@types/papaparse": "^5.3.14",
-        "@types/promise-retry": "^1.1.6",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
         "@types/react-resizable": "^3.0.7",
@@ -102,7 +103,6 @@
         "postcss": "^8.5.6",
         "posthog-js": "^1.223.3",
         "prismjs": "^1.30.0",
-        "promise-retry": "^2.0.1",
         "rc-virtual-list": "^3.19.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",

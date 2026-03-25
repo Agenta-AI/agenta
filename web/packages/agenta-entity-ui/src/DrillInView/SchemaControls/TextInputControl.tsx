@@ -125,16 +125,13 @@ export const TextInputControl = memo(function TextInputControl({
         />
     )
 
-    // Use horizontal layout for single-line inputs, vertical for multiline
-    const layoutDirection = isMultiline ? "vertical" : "horizontal"
-
     return (
         <LabeledField
             label={label}
             description={tooltipText}
             withTooltip={withTooltip && !!label}
-            direction={layoutDirection}
-            className={cn(layoutDirection === "horizontal" ? "justify-between" : "", className)}
+            direction="vertical"
+            className={cn(className)}
         >
             {inputContent}
             {(maxLength || minLength) && (

@@ -1,4 +1,4 @@
-from typing import Optional, Union, Callable
+from typing import Optional
 from contextvars import ContextVar, Token
 from contextlib import contextmanager
 
@@ -22,8 +22,6 @@ class TracingContext(BaseModel):
     links: Optional[dict] = None
     #
     type: Optional[str] = None
-    aggregate: Optional[Union[bool, Callable]] = None  # stream to batch
-    annotate: Optional[bool] = None  # annotation vs invocation
     #
     link: Optional[dict] = None
 

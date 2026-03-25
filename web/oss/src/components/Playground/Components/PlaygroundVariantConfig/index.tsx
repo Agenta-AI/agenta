@@ -2,18 +2,20 @@
 
 import {memo, useCallback, useMemo, useState} from "react"
 
-import {parseEvaluatorKeyFromUri} from "@agenta/entities/evaluator"
-import {runnableBridge} from "@agenta/entities/runnable"
-import {PlaygroundConfigSection, type EvaluatorPresetConfig} from "@agenta/entity-ui"
-import {hasPendingHydrationAtomFamily, playgroundController} from "@agenta/playground"
+import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
+import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
+import {
+    PlaygroundConfigSection,
+    LoadEvaluatorPresetModal,
+    type EvaluatorPresetConfig,
+    type ConfigViewMode,
+} from "@agenta/entity-ui"
+import {hasPendingHydrationAtomFamily} from "@agenta/playground"
+import {Select} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-
-import BaseRunnableConfigSection from "./assets/BaseRunnableConfigSection"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -21,10 +23,7 @@ const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
- *
- * Routes to entity-type specific config sections:
- * - legacyAppRevision / workflow: PlaygroundConfigSection (schema-driven)
- * - baseRunnable: BaseRunnableConfigSection (read-only key-value display)
+ * All entity types (including ephemeral workflows from traces) go through PlaygroundConfigSection.
  */
 
 const PlaygroundVariantConfig: React.FC<
@@ -32,11 +31,21 @@ const PlaygroundVariantConfig: React.FC<
         embedded?: boolean
         variantNameOverride?: string
         revisionOverride?: number | string | null
+        /** Externally controlled view mode (form/json/yaml). Falls back to internal state when omitted. */
+        externalViewMode?: ConfigViewMode
+        /** Callback when view mode changes (for external control). */
+        onViewModeChange?: (mode: ConfigViewMode) => void
     }
-> = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
-    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
-    const entityType = nodes.find((n) => n.entityId === variantId)?.entityType
-
+> = ({
+    variantId,
+    className,
+    embedded,
+    variantNameOverride,
+    revisionOverride,
+    externalViewMode,
+    onViewModeChange,
+    ...divProps
+}) => {
     // Gate rendering until pending draft hydrations are applied.
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
@@ -45,31 +54,36 @@ const PlaygroundVariantConfig: React.FC<
     const [refineModalOpen, setRefineModalOpen] = useState(false)
     const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
 
-    // Get runnable data for evaluator detection
-    const runnableData = useAtomValue(runnableBridge.data(variantId))
-    const dispatchUpdate = useSetAtom(runnableBridge.update)
+    // Get workflow data for evaluator detection
+    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
+    const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
-    // Fetch evaluator definitions (with presets) - this populates evaluatorsAtom
-    useFetchEvaluatorsData()
-    const evaluatorDefinitions = useAtomValue(evaluatorsAtom)
+    // Read evaluator template definitions (workflow-based)
+    const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
 
-    // Determine if this is an evaluator workflow and get its presets
-    const evaluatorInfo = useMemo(() => {
-        const uri = runnableData?.uri as string | undefined
+    // Determine if this is an evaluator workflow
+    const evaluatorKey = useMemo(() => {
+        const uri = runnableData?.data?.uri as string | undefined
         if (!uri || !uri.startsWith("agenta:builtin:")) return null
+        return parseEvaluatorKeyFromUri(uri)
+    }, [runnableData?.data?.uri])
 
-        const evaluatorKey = parseEvaluatorKeyFromUri(uri)
+    const evaluatorDef = useMemo(() => {
         if (!evaluatorKey) return null
+        return evaluatorDefinitions.find((e) => e.key === evaluatorKey) ?? null
+    }, [evaluatorKey, evaluatorDefinitions])
 
-        const evaluatorDef = evaluatorDefinitions.find((e) => e.key === evaluatorKey)
-        if (!evaluatorDef) return null
+    // Fetch presets from catalog API (lazy, only when evaluator is detected)
+    const catalogPresets = useAtomValue(evaluatorPresetsAtomFamily(evaluatorKey))
 
+    const evaluatorInfo = useMemo(() => {
+        if (!evaluatorKey || !evaluatorDef) return null
         return {
             key: evaluatorKey,
             label: evaluatorDef.name,
-            presets: (evaluatorDef.settings_presets ?? []) as EvaluatorPresetConfig[],
+            presets: catalogPresets as EvaluatorPresetConfig[],
         }
-    }, [runnableData?.uri, evaluatorDefinitions])
+    }, [evaluatorKey, evaluatorDef, catalogPresets])
 
     // Handle loading a preset - apply preset values to the configuration
     const handleLoadPreset = useCallback(
@@ -91,13 +105,41 @@ const PlaygroundVariantConfig: React.FC<
         setRefinePromptKey(null)
     }, [])
 
-    if (entityType === "baseRunnable") {
-        return (
-            <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
-                <BaseRunnableConfigSection entityId={variantId} />
-            </div>
-        )
-    }
+    // Preset modal state (lifted from PlaygroundConfigSection to header)
+    const [isPresetModalOpen, setIsPresetModalOpen] = useState(false)
+    const hasPresets = (evaluatorInfo?.presets?.length ?? 0) > 0
+
+    const handlePresetSelect = useCallback(
+        (preset: EvaluatorPresetConfig) => {
+            setIsPresetModalOpen(false)
+            handleLoadPreset(preset)
+        },
+        [handleLoadPreset],
+    )
+
+    // View mode for config section (form/json/yaml)
+    // When controlled externally (e.g. from the drawer), use the provided props.
+    const [internalViewMode, setInternalViewMode] = useState<ConfigViewMode>("form")
+    const viewMode = externalViewMode ?? internalViewMode
+    const setViewMode = onViewModeChange ?? setInternalViewMode
+
+    const viewModeSelector = useMemo(
+        () => (
+            <Select
+                size="small"
+                variant="borderless"
+                value={viewMode}
+                onChange={setViewMode}
+                options={[
+                    {label: "Form", value: "form"},
+                    {label: "JSON", value: "json"},
+                    {label: "YAML", value: "yaml"},
+                ]}
+                className="w-[90px] [&_.ant-select-selector]:!px-1 text-xs"
+            />
+        ),
+        [viewMode, setViewMode],
+    )
 
     return (
         <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
@@ -106,6 +148,10 @@ const PlaygroundVariantConfig: React.FC<
                 embedded={embedded}
                 variantNameOverride={variantNameOverride}
                 revisionOverride={revisionOverride}
+                evaluatorLabel={evaluatorInfo?.label}
+                hasPresets={hasPresets}
+                onLoadPreset={() => setIsPresetModalOpen(true)}
+                extraActions={viewModeSelector}
             />
             {hasPendingHydration ? (
                 <div className="p-4 flex flex-col gap-3">
@@ -118,9 +164,7 @@ const PlaygroundVariantConfig: React.FC<
                     <PlaygroundConfigSection
                         revisionId={variantId}
                         onRefinePrompt={handleRefinePrompt}
-                        presets={evaluatorInfo?.presets}
-                        onLoadPreset={handleLoadPreset}
-                        evaluatorLabel={evaluatorInfo?.label}
+                        viewMode={viewMode}
                     />
                     {refinePromptKey && (
                         <RefinePromptModal
@@ -128,6 +172,14 @@ const PlaygroundVariantConfig: React.FC<
                             onClose={handleRefineClose}
                             revisionId={variantId}
                             promptKey={refinePromptKey}
+                        />
+                    )}
+                    {hasPresets && evaluatorInfo && (
+                        <LoadEvaluatorPresetModal
+                            open={isPresetModalOpen}
+                            onCancel={() => setIsPresetModalOpen(false)}
+                            presets={evaluatorInfo.presets}
+                            onLoadPreset={handlePresetSelect}
                         />
                     )}
                 </>

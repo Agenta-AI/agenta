@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs} from "antd"
@@ -14,8 +14,7 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/types"
-import {DeploymentRevisions} from "@/oss/lib/Types"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
@@ -24,56 +23,41 @@ const ApiKeyInput = dynamic(
     {ssr: false},
 )
 
-const INVOKE_LLM_URL_PLACEHOLDER = ""
-
 interface UseApiContentProps {
-    variants: EnhancedVariant[]
-    selectedEnvironment: DeploymentRevisions
+    envName: string
+    deployedRevisionId?: string | null
     revisionId?: string
     handleOpenSelectDeployVariantModal: () => void
 }
 
 const UseApiContent = ({
-    variants,
-    selectedEnvironment,
+    envName,
+    deployedRevisionId,
     revisionId,
     handleOpenSelectDeployVariantModal,
 }: UseApiContentProps) => {
     const currentApp = useAtomValue(currentAppAtom)
+    const appId = useAppId()
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    const latestRevisionId = useMemo(() => {
-        if (!Array.isArray(variants) || variants.length === 0) return ""
+    // Use workflow entity to get latest revision as fallback
+    const latestRevisionId = useAtomValue(workflowLatestRevisionIdAtomFamily(appId || ""))
 
-        const sorted = [...variants].sort((a, b) => {
-            const aTs = Number(
-                (a as any)?.updatedAtTimestamp ?? (a as any)?.createdAtTimestamp ?? 0,
-            )
-            const bTs = Number(
-                (b as any)?.updatedAtTimestamp ?? (b as any)?.createdAtTimestamp ?? 0,
-            )
-            return bTs - aTs
-        })
+    const effectiveRevisionId = revisionId || deployedRevisionId || latestRevisionId || ""
 
-        return (sorted[0] as any)?.id ?? ""
-    }, [variants])
-
-    const effectiveRevisionId =
-        revisionId ||
-        selectedEnvironment?.deployed_app_variant_revision_id ||
-        latestRevisionId ||
-        ""
     const uri = useAtomValue(
         useMemo(
-            () => runnableBridge.invocationUrl(effectiveRevisionId || ""),
+            () => workflowMolecule.selectors.deploymentUrl(effectiveRevisionId || ""),
             [effectiveRevisionId],
         ),
     )
-    const isLoading = false
 
     const inputPorts = useAtomValue(
-        useMemo(() => runnableBridge.inputPorts(effectiveRevisionId || ""), [effectiveRevisionId]),
+        useMemo(
+            () => workflowMolecule.selectors.inputPorts(effectiveRevisionId || ""),
+            [effectiveRevisionId],
+        ),
     ) as any[]
     const variableNames = useMemo(
         () => (inputPorts || []).map((p: any) => p.key) as string[],
@@ -83,15 +67,11 @@ const UseApiContent = ({
     const params = useMemo(() => {
         const synthesized = variableNames.map((name) => ({name, input: name === "messages"}))
 
-        return createParams(
-            synthesized,
-            selectedEnvironment?.name || "none",
-            "add_a_value",
-            currentApp,
-        )
-    }, [variableNames, selectedEnvironment?.name, currentApp])
+        return createParams(synthesized, envName || "none", "add_a_value", currentApp)
+    }, [variableNames, envName, currentApp])
 
-    const invokeLlmUrl = (uri && uri.trim()) || INVOKE_LLM_URL_PLACEHOLDER
+    // deploymentUrl resolves to /run (resolves config from the deployed environment).
+    const invokeLlmUrl = useMemo(() => uri?.trim() || "", [uri])
 
     const invokeLlmAppCodeSnippet = useMemo(
         () => ({
@@ -105,27 +85,27 @@ const UseApiContent = ({
     const fetchConfigCodeSnippet = useMemo(
         () => ({
             python: fetchConfigpythonCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                (currentApp?.name ?? currentApp?.slug)!,
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             bash: fetchConfigcURLCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                (currentApp?.name ?? currentApp?.slug)!,
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
             typescript: fetchConfigtsCode(
-                currentApp?.app_name!,
-                selectedEnvironment?.name!,
+                (currentApp?.name ?? currentApp?.slug)!,
+                envName!,
                 apiKeyValue || "x.xxxxxxxx",
             ),
         }),
-        [apiKeyValue, currentApp?.app_name, selectedEnvironment?.name],
+        [apiKeyValue, currentApp?.name, currentApp?.slug, envName],
     )
 
     const renderTabChildren = useCallback(() => {
         return (
-            <Spin spinning={isLoading}>
+            <Spin spinning={false}>
                 <LanguageCodeBlock
                     fetchConfigCodeSnippet={fetchConfigCodeSnippet}
                     invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
@@ -141,7 +121,6 @@ const UseApiContent = ({
         handleOpenSelectDeployVariantModal,
         invokeLlmAppCodeSnippet,
         invokeLlmUrl,
-        isLoading,
         selectedLang,
     ])
 

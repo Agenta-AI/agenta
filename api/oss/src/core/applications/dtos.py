@@ -16,6 +16,11 @@ from oss.src.core.workflows.dtos import (
     VariantFork,
     RevisionFork,
     #
+    WorkflowCatalogFlags,
+    WorkflowCatalogType,
+    WorkflowCatalogTemplate,
+    WorkflowCatalogPreset,
+    #
     WorkflowFlags,
     WorkflowQueryFlags,
     #
@@ -77,21 +82,19 @@ class ApplicationRevisionIdAlias(AliasConfig):
 
 
 class ApplicationFlags(WorkflowFlags):
-    """Application flags - is_evaluator=False means it's an application."""
+    """Application flags - is_application=True, is_evaluator=False."""
 
     def __init__(self, **data):
-        # Applications have is_evaluator=False (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
 
 
 class ApplicationQueryFlags(WorkflowQueryFlags):
-    """Application query flags - filter for is_evaluator=False."""
+    """Application query flags - filter for is_application=True, is_evaluator=False."""
 
     def __init__(self, **data):
-        # Query for non-evaluators (applications) (forced)
-        data["is_evaluator"] = False
+        data["is_application"] = True
 
         super().__init__(**data)
 
@@ -300,6 +303,21 @@ class SimpleApplicationEdit(Identifier, Header, Metadata):
 
 class SimpleApplicationQuery(Metadata):
     flags: Optional[SimpleApplicationQueryFlags] = None
+
+
+# APPLICATION CATALOG ----------------------------------------------------------
+
+
+class ApplicationCatalogType(WorkflowCatalogType):
+    pass
+
+
+class ApplicationCatalogTemplate(WorkflowCatalogTemplate):
+    flags: Optional[WorkflowCatalogFlags] = None
+
+
+class ApplicationCatalogPreset(WorkflowCatalogPreset):
+    flags: Optional[WorkflowCatalogFlags] = None
 
 
 # ------------------------------------------------------------------------------

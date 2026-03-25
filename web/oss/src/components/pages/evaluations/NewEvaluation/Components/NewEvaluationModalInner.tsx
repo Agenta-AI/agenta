@@ -1,21 +1,36 @@
 import {useCallback, memo, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 
-import {
-    appRevisionsWithDraftsAtomFamily,
-    variantsListWithDraftsAtomFamily,
-} from "@agenta/entities/legacyAppRevision"
 import {extractSourceIdFromDraft, isLocalDraftId, isValidUUID} from "@agenta/entities/shared"
+import {
+    workflowMolecule,
+    workflowRevisionsByWorkflowListDataAtomFamily,
+} from "@agenta/entities/workflow"
+import {
+    evaluatorConfigsListDataAtom,
+    evaluatorConfigsQueryStateAtom,
+    evaluatorTemplatesDataAtom,
+    evaluatorTemplatesQueryAtom,
+    evaluatorsListDataAtom,
+    evaluatorsListQueryAtom,
+    humanEvaluatorsListDataAtom,
+    invalidateWorkflowsListCache,
+    invalidateEvaluatorsListCache,
+} from "@agenta/entities/workflow"
 import {message} from "@agenta/ui/app-message"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {
+    clearEvaluatorWorkflowCache,
+    evaluatorsPaginatedStore,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import {FIRST_EVALUATION_TOUR_ID} from "@/oss/components/Onboarding/tours/firstEvaluationTour"
+import {registryWorkflowIdOverrideAtom} from "@/oss/components/VariantsComponents/store/registryStore"
 import useURL from "@/oss/hooks/useURL"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {resolveEvaluatorKey} from "@/oss/lib/evaluators/utils"
 import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
 import {activeTourIdAtom, currentStepStateAtom} from "@/oss/lib/onboarding"
 import {createEvaluation} from "@/oss/services/evaluations/api"
@@ -63,11 +78,25 @@ const NewEvaluationModalInner = ({
     const isAppScoped = Boolean(effectiveAppId)
     const {apps: availableApps = []} = useAppsData()
     const [selectedAppId, setSelectedAppId] = useState<string>(effectiveAppId)
+    const setRegistryWorkflowIdOverride = useSetAtom(registryWorkflowIdOverrideAtom)
+
+    // Sync the registry store's workflow ID override with the modal's selected app.
+    // This allows the variant table to work on project-level pages where routerAppIdAtom is null.
+    useEffect(() => {
+        setRegistryWorkflowIdOverride(selectedAppId || null)
+        return () => {
+            setRegistryWorkflowIdOverride(null)
+        }
+    }, [selectedAppId, setRegistryWorkflowIdOverride])
     const appOptions = useMemo(() => {
         const options = availableApps.map((app) => ({
-            label: app.app_name,
-            value: app.app_id,
-            type: app.app_type ?? null,
+            label: app.name ?? app.slug ?? "",
+            value: app.id,
+            type: app.flags?.is_custom
+                ? "custom"
+                : app.flags?.is_chat
+                  ? "chat"
+                  : ("completion" as string | null),
             createdAt: app.created_at ?? null,
             updatedAt: app.updated_at ?? null,
         }))
@@ -85,37 +114,47 @@ const NewEvaluationModalInner = ({
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
 
-    // Fetch evaluation data
-    const evaluationData = useFetchEvaluatorsData({
-        preview,
-        queries: {is_human: evaluationType === "human"},
-        appId: selectedAppId || null,
-    })
+    // Workflow-based evaluator data
+    const templatesData = useAtomValue(evaluatorTemplatesDataAtom)
+    const templatesQuery = useAtomValue(evaluatorTemplatesQueryAtom)
+    const configsData = useAtomValue(evaluatorConfigsListDataAtom)
+    const configsQueryState = useAtomValue(evaluatorConfigsQueryStateAtom)
 
-    // Use useMemo to derive evaluators, evaluatorConfigs, and loading flags based on preview flag
+    // Workflow-based evaluator list atoms (replace legacy useEvaluators hook)
+    const humanEvaluatorsList = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluatorsList = useAtomValue(evaluatorsListDataAtom)
+    const evaluatorsQuery = useAtomValue(evaluatorsListQueryAtom)
+
+    // Derive evaluators, evaluatorConfigs, and loading flags based on preview flag
     const {evaluators, evaluatorConfigs, loadingEvaluators, loadingEvaluatorConfigs} =
         useMemo(() => {
             if (preview) {
+                const data = evaluationType === "human" ? humanEvaluatorsList : evaluatorsList
                 return {
-                    evaluators: evaluationData.evaluatorsSwr?.data || [],
+                    evaluators: data || [],
                     evaluatorConfigs: [],
-                    loadingEvaluators: evaluationData.evaluatorsSwr?.isLoading ?? false,
+                    loadingEvaluators: evaluatorsQuery.isPending ?? false,
                     loadingEvaluatorConfigs: false,
                 }
             } else {
                 return {
-                    evaluators: [],
-                    evaluatorConfigs: evaluationData.evaluatorConfigsSwr?.data || [],
-                    loadingEvaluators: false,
-                    loadingEvaluatorConfigs: evaluationData.evaluatorConfigsSwr?.isLoading ?? false,
+                    evaluators: templatesData || [],
+                    evaluatorConfigs: configsData || [],
+                    loadingEvaluators: templatesQuery.isPending ?? false,
+                    loadingEvaluatorConfigs: configsQueryState.isPending ?? false,
                 }
             }
         }, [
             preview,
-            evaluationData.evaluatorsSwr?.data,
-            evaluationData.evaluatorsSwr?.isLoading,
-            evaluationData.evaluatorConfigsSwr?.data,
-            evaluationData.evaluatorConfigsSwr?.isLoading,
+            evaluationType,
+            humanEvaluatorsList,
+            humanEvaluatorsQuery,
+            evaluatorsList,
+            evaluatorsQuery,
+            templatesData,
+            configsData,
+            templatesQuery.isPending,
+            configsQueryState.isPending,
         ])
 
     const [selectedTestsetId, setSelectedTestsetId] = useAtom(selectedTestsetIdAtom)
@@ -125,6 +164,24 @@ const NewEvaluationModalInner = ({
     const [selectedTestsetName, setSelectedTestsetName] = useAtom(selectedTestsetNameAtom)
     const [selectedTestsetVersion, setSelectedTestsetVersion] = useAtom(selectedTestsetVersionAtom)
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useAtom(selectedEvalConfigsAtom)
+
+    // Read evaluator rows from the paginated store for revision ID → {id, slug} lookup
+    const evaluatorStoreState = useAtomValue(
+        evaluatorsPaginatedStore.selectors.state({
+            scopeId: "evaluation-evaluator-selector",
+            pageSize: 50,
+        }),
+    )
+    const evaluatorRowsByRevisionId = useMemo(() => {
+        const map = new Map<string, {id: string; slug: string; name: string}>()
+        for (const row of evaluatorStoreState.rows) {
+            if (!row.__isSkeleton && row.revisionId) {
+                // Backend resolves evaluator references by workflow (artifact) ID, not revision ID
+                map.set(row.revisionId, {id: row.workflowId, slug: row.slug, name: row.name})
+            }
+        }
+        return map
+    }, [evaluatorStoreState.rows])
 
     // Reset testset selection on mount to match previous local state behavior
     useEffect(() => {
@@ -204,16 +261,16 @@ const NewEvaluationModalInner = ({
         [selectedAppId],
     )
 
-    const appVariantRevisions = useAtomValue(
-        useMemo(() => appRevisionsWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
+    const workflowRevisions = useAtomValue(
+        useMemo(
+            () => workflowRevisionsByWorkflowListDataAtomFamily(selectedAppId || ""),
+            [selectedAppId],
+        ),
     )
-    const variantsLoading = useAtomValue(
-        useMemo(() => variantsListWithDraftsAtomFamily(selectedAppId || ""), [selectedAppId]),
-    ).isPending
     const filteredVariants = useMemo(() => {
         if (!selectedAppId) return []
-        return appVariantRevisions || []
-    }, [appVariantRevisions, selectedAppId])
+        return workflowRevisions || []
+    }, [workflowRevisions, selectedAppId])
 
     const {createNewRun: createPreviewEvaluationRun} = usePreviewEvaluations({
         appId: selectedAppId || appId,
@@ -230,18 +287,17 @@ const NewEvaluationModalInner = ({
     }, [])
 
     // Handler for when a new evaluator config is created via the inline drawer
-    const handleEvaluatorCreated = useCallback(
-        async (configId?: string) => {
-            // Refetch evaluator configs to get the newly created one
-            await evaluationData.refetchEvaluatorConfigs()
+    const handleEvaluatorCreated = useCallback(async (configId?: string) => {
+        // Refetch evaluator configs to get the newly created one
+        invalidateWorkflowsListCache()
+        invalidateEvaluatorsListCache()
+        clearEvaluatorWorkflowCache()
 
-            // Auto-select the newly created evaluator config
-            if (configId) {
-                setSelectedEvalConfigs((prev) => [...prev, configId])
-            }
-        },
-        [evaluationData],
-    )
+        // Auto-select the newly created evaluator config
+        if (configId) {
+            setSelectedEvalConfigs((prev) => [...prev, configId])
+        }
+    }, [])
 
     // Track focus on any input within modal to avoid overriding user typing
     useEffect(() => {
@@ -271,7 +327,7 @@ const NewEvaluationModalInner = ({
         }
         const variant = filteredVariants?.find((v) => selectedVariantRevisionIds.includes(v.id))
         if (!variant) return ""
-        return `${variant.variantName}-v${variant.revision}-${selectedTestsetName}`
+        return `${variant.name || "-"}-v${variant.version ?? 0}-${selectedTestsetName}`
     }, [selectedVariantRevisionIds, selectedTestsetName, filteredVariants])
 
     // Auto-generate / update evaluation name intelligently to avoid loops
@@ -363,7 +419,7 @@ const NewEvaluationModalInner = ({
             !preview &&
             selectedEvalConfigs.some(
                 (id) =>
-                    resolveEvaluatorKey(evaluatorConfigs.find((config) => config.id === id)) ===
+                    resolveEvaluatorKey(workflowMolecule.get.data(id) as any) ===
                     "auto_ai_critique",
             ) &&
             (await redirectIfNoLLMKeys({secrets}))
@@ -405,7 +461,6 @@ const NewEvaluationModalInner = ({
             const {correct_answer_column, ...rateLimitValues} = advanceSettings
 
             if (preview) {
-                const evalDataSource: any[] = (evaluators as any[]) || []
                 const selectedRevisions = revisions
                     ?.filter((rev) => selectedVariantRevisionIds.includes(rev.id))
                     .filter(Boolean)
@@ -440,7 +495,7 @@ const NewEvaluationModalInner = ({
                     revisions: selectedRevisions,
                     testset: selectionTestset,
                     evaluators: selectedEvalConfigs
-                        .map((id) => evalDataSource.find((config) => (config as any).id === id))
+                        .map((id) => evaluatorRowsByRevisionId.get(id))
                         .filter(Boolean),
                     rate_limit: rateLimitValues,
                     correctAnswerColumn: correct_answer_column,
@@ -469,7 +524,7 @@ const NewEvaluationModalInner = ({
                     return
                 }
 
-                const data = await createPreviewEvaluationRun(structuredClone(selectionData))
+                const data = await createPreviewEvaluationRun(structuredClone(selectionData) as any)
 
                 const runId = data.run.runs[0].id
                 const scope = isAppScoped ? "app" : "project"
@@ -493,7 +548,7 @@ const NewEvaluationModalInner = ({
                         testset_id: selectedTestsetId,
                         testset_revision_id: selectedTestsetRevisionId,
                         revisions_ids: selectedVariantRevisionIds,
-                        evaluator_ids: selectedEvalConfigs,
+                        evaluator_revision_ids: selectedEvalConfigs,
                         rate_limit: rateLimitValues,
                         correct_answer_column: correct_answer_column,
                         name: evaluationName,
@@ -597,13 +652,9 @@ const NewEvaluationModalInner = ({
             evaluationName={evaluationName}
             setEvaluationName={setEvaluationName}
             preview={preview}
-            isLoading={
-                loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading || variantsLoading
-            }
+            isLoading={loadingEvaluators || loadingEvaluatorConfigs || testsetsLoading}
             isOpen={true} // Always true since this component only renders when modal is open
             testsets={selectedAppId ? testsets || [] : []}
-            variants={filteredVariants}
-            variantsLoading={variantsLoading}
             evaluators={evaluators}
             evaluatorConfigs={evaluatorConfigs}
             advanceSettings={advanceSettings}

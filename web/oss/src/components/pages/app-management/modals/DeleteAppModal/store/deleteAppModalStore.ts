@@ -1,11 +1,15 @@
 import {atom} from "jotai"
 
-import type {ListAppsItem} from "@/oss/lib/Types"
+/** Minimal app details needed by the delete modal */
+export interface DeleteAppDetails {
+    id: string
+    name: string
+}
 
 // The shape of the modal state
 export interface DeleteAppModalState {
     open: boolean
-    appDetails: ListAppsItem | null
+    appDetails: DeleteAppDetails | null
     confirmLoading?: boolean
 }
 
@@ -21,7 +25,7 @@ export const isDeleteAppModalOpenAtom = atom((get) => get(deleteAppModalAtom).op
 export const deleteAppModalAppDetailsAtom = atom((get) => get(deleteAppModalAtom).appDetails)
 
 // Actions
-export const openDeleteAppModalAtom = atom(null, (get, set, appDetails: ListAppsItem) =>
+export const openDeleteAppModalAtom = atom(null, (get, set, appDetails: DeleteAppDetails) =>
     set(deleteAppModalAtom, {open: true, appDetails, confirmLoading: false}),
 )
 

@@ -15,7 +15,7 @@ async def afetch(
 ) -> Optional[EvaluationRun]:
     response = authed_api()(
         method="GET",
-        endpoint=f"/preview/evaluations/runs/{run_id}?jit=false",
+        endpoint=f"/preview/evaluations/runs/{run_id}",
     )
 
     try:
@@ -68,8 +68,6 @@ async def acreate(
                 repeats=repeats,
             ),
         ),
-        #
-        jit=False,
     )
 
     response = authed_api()(
@@ -102,7 +100,7 @@ async def aclose(
 ) -> Optional[EvaluationRun]:
     response = authed_api()(
         method="POST",
-        endpoint=f"/preview/evaluations/runs/{run_id}/close/{status}?jit=false",
+        endpoint=f"/preview/evaluations/runs/{run_id}/close/{status}",
     )
 
     try:

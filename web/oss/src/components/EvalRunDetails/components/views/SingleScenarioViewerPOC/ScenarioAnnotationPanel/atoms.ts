@@ -1,8 +1,7 @@
+import {uuidToSpanId} from "@agenta/shared/utils"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
-
-import {uuidToSpanId} from "@/oss/lib/traces/helpers"
 
 import type {
     AnnotationDto,

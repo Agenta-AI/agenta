@@ -162,12 +162,13 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
         dataIndex: def.key,
         key: def.key,
         width: def.width,
+        minWidth: def.width,
         fixed: def.fixed,
         render: def.render as ColumnType<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         onHeaderCell: () => ({
-            style: {minWidth: def.width || 220},
+            style: {minWidth: def.width},
         }),
     } as ColumnType<T>
 }
@@ -188,17 +189,19 @@ const formatDateCell = (value?: string | null) => {
 }
 
 function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
+    const width = def.width || 200
     return {
         title: def.title,
         dataIndex: def.key,
         key: def.key,
-        width: def.width || 200,
+        width,
+        minWidth: width,
         render: (date: string) => {
             const formatted = !date ? "—" : def.format ? def.format(date) : formatDateCell(date)
             return <div className="h-full flex items-center">{formatted}</div>
         },
         onHeaderCell: () => ({
-            style: {minWidth: def.width || 180},
+            style: {minWidth: width},
         }),
     }
 }
@@ -344,6 +347,7 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
         dataIndex: key,
         key,
         width,
+        minWidth: width,
         render: (value: string | null | undefined, record: T) => {
             if (record.__isSkeleton) return null
             const userId = getUserId ? getUserId(record) : value
@@ -359,5 +363,5 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
     }
 }
 
-// Export individual column creators for custom use
-export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn}
+// Export individual column creators and utilities for custom use
+export {createTextColumn, createDateColumn, createUserColumn, createActionsColumn, formatDateCell}

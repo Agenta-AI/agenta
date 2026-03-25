@@ -1,5 +1,6 @@
-import {memo, useCallback, useRef} from "react"
+import {memo, useCallback, useRef, type ReactNode} from "react"
 
+import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
     executionController,
     executionItemController,
@@ -28,7 +29,24 @@ const PlaygroundFocusDrawer = dynamic(
     {ssr: false},
 )
 
-type MainLayoutProps = BaseContainerProps
+type MainLayoutProps = BaseContainerProps & {
+    /** "app" (default) = standard app playground. "evaluator" = evaluator config playground. */
+    mode?: "app" | "evaluator"
+    /** "full" (default) = splitter with config + execution panels. "configOnly" = config panel only, no splitter/execution. */
+    viewMode?: "full" | "configOnly"
+    /** Override which entity IDs render config panels. When set, these IDs are used for the left panel instead of the depth-0 layout entity IDs. */
+    configEntityIdsOverride?: string[]
+    /** When true, the execution panel shows a placeholder instead of run controls. */
+    runDisabled?: boolean
+    /** Custom content to render in the run-disabled placeholder. When omitted, a default message is shown. */
+    runDisabledContent?: ReactNode
+    /** When true, hides entity selector and shows variant name inline. Used when rendering inside a drawer. */
+    embedded?: boolean
+    /** Externally controlled config view mode (form/json/yaml). */
+    configViewMode?: ConfigViewMode
+    /** Callback when config view mode changes. */
+    onConfigViewModeChange?: (mode: ConfigViewMode) => void
+}
 
 const SplitterPanel = Splitter.Panel
 
@@ -59,7 +77,28 @@ const GenerationComparisonRenderer = memo(() => {
     ))
 })
 
-const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
+const RunDisabledPlaceholder = memo(({children}: {children?: ReactNode}) => (
+    <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-4">
+        {children ?? (
+            <Typography.Text type="secondary" className="text-sm">
+                Select an app workflow to run the evaluator chain
+            </Typography.Text>
+        )}
+    </div>
+))
+
+const PlaygroundMainView = ({
+    className,
+    mode = "app",
+    viewMode = "full",
+    configEntityIdsOverride,
+    runDisabled = false,
+    runDisabledContent,
+    embedded = false,
+    configViewMode,
+    onConfigViewModeChange,
+    ...divProps
+}: MainLayoutProps) => {
     const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
     const displayedEntities = useAtomValue(playgroundController.selectors.displayedEntityIds())
     const status = useAtomValue(playgroundController.selectors.status())
@@ -67,16 +106,21 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const {open: openEntitySelector} = useEntitySelector()
     const setEntityIds = playgroundController.actions.setEntityIds
 
+    const isEvaluatorMode = mode === "evaluator"
     const layoutEntityIds = selectedEntityIds.length > 0 ? selectedEntityIds : displayedEntities
-    const isComparisonView = layoutEntityIds.length > 1
+    // In evaluator mode, comparison is always disabled
+    const isComparisonView = !isEvaluatorMode && layoutEntityIds.length > 1
     const hasAnyLayoutEntity = layoutEntityIds.length > 0
     const hasDisplayedEntities = displayedEntities.length > 0
     const isEmpty = status === "empty"
     // On project-level playground (no app in URL), show empty state instead of error
-    // when no entities are selected
+    // when no entities are selected. Evaluator mode always uses empty state (no URL app).
     const isProjectLevel = !urlAppId
-    const showEmptyState = isEmpty && isProjectLevel
-    const showErrorState = isEmpty && !isProjectLevel
+    const showEmptyState = isEmpty && (isProjectLevel || isEvaluatorMode)
+    const showErrorState = isEmpty && !isProjectLevel && !isEvaluatorMode
+
+    // Which entity IDs to render config panels for
+    const configEntityIds = configEntityIdsOverride ?? layoutEntityIds
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
@@ -86,7 +130,7 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
     const handleAddRunnable = useCallback(async () => {
         const selection = await openEntitySelector({
             title: "Add to Playground",
-            allowedTypes: ["legacyAppRevision"],
+            allowedTypes: ["workflow"],
         })
         if (selection) {
             // Add the selected entity to the playground
@@ -131,6 +175,27 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
         )
     }
 
+    if (viewMode === "configOnly") {
+        return (
+            <main
+                className={clsx("flex flex-col grow h-full overflow-hidden", className)}
+                {...divProps}
+            >
+                <div className="w-full h-full overflow-y-auto overflow-x-hidden">
+                    {configEntityIds.map((variantId) => (
+                        <PlaygroundVariantConfig
+                            key={variantId}
+                            variantId={variantId}
+                            embedded={embedded}
+                            externalViewMode={configViewMode}
+                            onViewModeChange={onConfigViewModeChange}
+                        />
+                    ))}
+                </div>
+            </main>
+        )
+    }
+
     return (
         <main
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
@@ -167,8 +232,8 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
                                         handleScroll={handleScroll}
                                     />
                                 )}
-                                {hasAnyLayoutEntity ? (
-                                    layoutEntityIds.map((variantId, index) => (
+                                {configEntityIds.length > 0 ? (
+                                    configEntityIds.map((variantId, index) => (
                                         <div
                                             key={`variant-config-${variantId}`}
                                             className={clsx([
@@ -181,7 +246,11 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
                                                 variantRefs.current[index] = el
                                             }}
                                         >
-                                            <PlaygroundVariantConfig variantId={variantId} />
+                                            <PlaygroundVariantConfig
+                                                variantId={variantId}
+                                                externalViewMode={configViewMode}
+                                                onViewModeChange={onConfigViewModeChange}
+                                            />
                                         </div>
                                     ))
                                 ) : (
@@ -231,7 +300,11 @@ const PlaygroundMainView = ({className, ...divProps}: MainLayoutProps) => {
                             {/* ATOM-LEVEL OPTIMIZATION: Execution-item components using focused atom subscriptions
                             Comparison view: Uses renderableExecutionRows for row grouping
                             Single view: Uses displayedEntities for per-execution panels */}
-                            {!hasAnyLayoutEntity ? (
+                            {runDisabled ? (
+                                <RunDisabledPlaceholder>
+                                    {runDisabledContent}
+                                </RunDisabledPlaceholder>
+                            ) : !hasAnyLayoutEntity ? (
                                 <GenerationPanelPlaceholder />
                             ) : isComparisonView && hasDisplayedEntities ? (
                                 <GenerationComparisonRenderer />

@@ -8,6 +8,7 @@
 import {useState, useEffect} from "react"
 
 import {formatCount} from "@agenta/shared/utils"
+import {CommitMessageInput} from "@agenta/ui/components/presentational"
 import {VersionBadge} from "@agenta/ui/components/presentational"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -20,17 +21,15 @@ import {
     commitModalErrorAtom,
     commitModalCanCommitAtom,
     commitModalContextAtom,
+    commitModalActionLabelAtom,
     setCommitMessageAtom,
+    setCommitEntityNameAtom,
 } from "../state"
 
 // Lazy load DiffView to avoid bundling Lexical editor in _app chunk
 // const DiffView = dynamic(() => import("@agenta/ui/editor").then((mod) => ({default: mod.DiffView})))
 
-const {TextArea} = Input
 const {Text} = Typography
-
-/** Max length for commit messages */
-const COMMIT_MESSAGE_MAX_LENGTH = 500
 
 export interface CommitModeOption {
     id: string
@@ -44,6 +43,8 @@ export interface EntityCommitContentProps {
     extraContent?: React.ReactNode
     /** Label for the target in the version display when a non-default mode is selected (e.g. new variant name) */
     modeLabel?: string
+    /** When true, shows the entity name as an editable input field (for Create flows) */
+    entityNameEditable?: boolean
 }
 
 /**
@@ -67,13 +68,16 @@ export function EntityCommitContent({
     onModeChange,
     extraContent,
     modeLabel,
+    entityNameEditable = false,
 }: EntityCommitContentProps) {
     const entityName = useAtomValue(commitModalEntityNameAtom)
     const message = useAtomValue(commitModalMessageAtom)
     const error = useAtomValue(commitModalErrorAtom)
     const canCommit = useAtomValue(commitModalCanCommitAtom)
     const context = useAtomValue(commitModalContextAtom)
+    const actionLabel = useAtomValue(commitModalActionLabelAtom)
     const setMessage = useSetAtom(setCommitMessageAtom)
+    const setEntityName = useSetAtom(setCommitEntityNameAtom)
 
     // Defer DiffView mounting until after the first paint so the modal
     // shell and form appear immediately without being blocked by Lexical
@@ -141,8 +145,9 @@ export function EntityCommitContent({
                     hasDiffData ? "w-[320px] shrink-0" : "w-full",
                 )}
             >
-                {/* Version info panel (if provided) */}
-                {context?.versionInfo && (
+                {/* Version info panel — hidden when actionLabel is not "Commit" (e.g., "Create")
+                    since there's no existing entity to show version transitions for */}
+                {context?.versionInfo && actionLabel === "Commit" && (
                     <div className="rounded-lg border border-zinc-2 bg-zinc-1 p-3">
                         <Text className={textColors.secondary}>
                             {selectedMode === "variant"
@@ -199,10 +204,27 @@ export function EntityCommitContent({
                     </div>
                 )}
 
-                {/* Simple entity info (if no version info) */}
-                {!context?.versionInfo && (
+                {/* Entity name — editable input for Create flows */}
+                {entityNameEditable && (
+                    <div className="flex flex-col gap-2">
+                        <label htmlFor="entity-name" className="font-medium text-gray-700">
+                            Name
+                        </label>
+                        <Input
+                            id="entity-name"
+                            value={entityName}
+                            onChange={(e) => setEntityName(e.target.value)}
+                            placeholder="Enter a name..."
+                            autoFocus
+                        />
+                    </div>
+                )}
+
+                {/* Simple entity info — shown when no version info and name is not editable */}
+                {!context?.versionInfo && !entityNameEditable && (
                     <p className="text-gray-600">
-                        Committing changes to <span className="font-medium">{entityName}</span>
+                        {actionLabel === "Commit" ? "Committing changes to" : `${actionLabel}`}{" "}
+                        <span className="font-medium">{entityName}</span>
                     </p>
                 )}
 
@@ -239,28 +261,23 @@ export function EntityCommitContent({
                 {/* Additional mode-specific UI injected by consumers */}
                 {extraContent}
 
-                {/* Commit message */}
-                <div className="flex flex-col gap-2">
-                    <label htmlFor="commit-message" className="font-medium text-gray-700">
-                        Commit message
-                    </label>
-                    <TextArea
-                        id="commit-message"
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Describe your changes..."
-                        autoSize={{minRows: 3, maxRows: 6}}
-                        disabled={!canCommit}
-                        showCount
-                        maxLength={COMMIT_MESSAGE_MAX_LENGTH}
-                    />
-                </div>
+                {/* Commit/Create message */}
+                <CommitMessageInput
+                    value={message}
+                    onChange={setMessage}
+                    label={`${actionLabel} message`}
+                    showOptional={false}
+                    placeholder="Describe your changes..."
+                    minRows={3}
+                    maxRows={6}
+                    disabled={!canCommit}
+                />
 
                 {/* Error display */}
                 {error && (
                     <Alert
                         type="error"
-                        title="Commit failed"
+                        title={`${actionLabel} failed`}
                         description={error.message}
                         showIcon
                     />
