@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type Key} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChartDonutIcon, ListChecksIcon} from "@phosphor-icons/react"
@@ -22,8 +23,6 @@ import {
 import {deleteEvaluatorConfig} from "@/oss/services/evaluations/api"
 import {deleteHumanEvaluator} from "@/oss/services/evaluators"
 import {useProjectData} from "@/oss/state/project/hooks"
-
-import PageLayout from "../PageLayout/PageLayout"
 
 import {
     DEFAULT_EVALUATOR_TAB,

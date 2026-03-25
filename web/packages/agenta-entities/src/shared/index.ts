@@ -224,6 +224,7 @@ export {
     // Atoms
     userByIdFamily,
     currentUserAtom,
+    workspaceMembersAtom,
     // Hooks
     useUserDisplayName,
     useIsCurrentUser,
@@ -232,6 +233,7 @@ export {
     // Types
     type UserAtomConfig,
     type UserInfo,
+    type WorkspaceMember,
     type UserAuthorLabelProps,
 } from "./user"
 

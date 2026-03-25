@@ -27,7 +27,7 @@ export interface UserInfo {
 /**
  * Workspace member structure (matches the app's WorkspaceMember type)
  */
-interface WorkspaceMember {
+export interface WorkspaceMember {
     user: {
         id?: string
         username?: string
@@ -95,6 +95,16 @@ export function setUserAtoms(config: UserAtomConfig): void {
 export const currentUserAtom = atom<UserInfo | null>((get) => {
     if (!atomConfig) return null
     return get(atomConfig.currentUserAtom)
+})
+
+/**
+ * Atom that provides the full list of workspace members.
+ * Reads from the configured membersAtom (set via setUserAtoms at app init).
+ * Returns [] when not configured.
+ */
+export const workspaceMembersAtom = atom<WorkspaceMember[]>((get) => {
+    if (!atomConfig) return []
+    return get(atomConfig.membersAtom)
 })
 
 /**

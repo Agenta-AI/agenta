@@ -43,7 +43,12 @@
         "./trace": "./src/trace/index.ts",
         "./testset": "./src/testset/index.ts",
         "./testcase": "./src/testcase/index.ts",
-        "./environment": "./src/environment/index.ts"
+        "./environment": "./src/environment/index.ts",
+        "./simpleQueue": "./src/simpleQueue/index.ts",
+        "./evaluationQueue": "./src/evaluationQueue/index.ts",
+        "./queue": "./src/queue/index.ts",
+        "./annotation": "./src/annotation/index.ts",
+        "./evaluationRun": "./src/evaluationRun/index.ts"
     },
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",

@@ -19,6 +19,8 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
+        "@agenta/annotation": "workspace:../packages/agenta-annotation",
+        "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",

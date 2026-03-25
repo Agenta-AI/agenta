@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {PageLayout} from "@agenta/ui"
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -11,8 +12,6 @@ import {
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
 import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
-
-import PageLayout from "../../PageLayout/PageLayout"
 
 import ObservabilityTable from "./components/ObservabilityTable"
 import SessionsTable from "./components/SessionsTable"

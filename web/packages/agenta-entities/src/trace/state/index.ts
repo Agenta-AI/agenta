@@ -22,6 +22,10 @@ export {
     TraceNotFoundError,
     // Trace-level query atom
     traceEntityAtomFamily,
+    // Trace-level derived atoms (convenience selectors)
+    traceRootSpanAtomFamily,
+    traceInputsAtomFamily,
+    traceOutputsAtomFamily,
     // Span query atom (used internally by molecule)
     spanQueryAtomFamily,
 } from "./store"

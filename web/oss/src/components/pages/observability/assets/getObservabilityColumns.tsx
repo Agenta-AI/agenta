@@ -1,4 +1,4 @@
-import {SmartCellContent} from "@agenta/ui/cell-renderers"
+import {LastInputMessageCell, SmartCellContent} from "@agenta/ui/cell-renderers"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -13,7 +13,6 @@ import {
     getTraceOutputs,
 } from "@/oss/state/newObservability"
 
-import LastInputMessageCell from "../components/common/LastInputMessageCell"
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
 import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
