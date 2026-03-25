@@ -1,7 +1,7 @@
 from typing import Any, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta, timezone
-from asyncio import create_task, CancelledError
+from asyncio import FIRST_COMPLETED, CancelledError, create_task, wait
 
 from taskiq import AsyncBroker, Context, TaskiqDepends
 
@@ -136,33 +136,76 @@ class EvaluationsWorker:
                 job_token=payload.job_token,
             )
         )
+        runner_task = create_task(runner())
         try:
-            return await runner()
-        finally:
-            heartbeat.cancel()
+            done, _ = await wait(
+                {runner_task, heartbeat},
+                return_when=FIRST_COMPLETED,
+            )
+
+            if runner_task in done:
+                return await runner_task
+
+            runner_task.cancel()
             try:
-                await heartbeat
+                await runner_task
             except CancelledError:
                 pass
             except Exception as exc:
                 log.warning(
-                    "[LOCK] Heartbeat teardown failed",
+                    "[LOCK] Runner raised while cancelling after heartbeat failure",
                     run_id=run_id_str,
                     job_id=job_id,
+                    lock_id=lock_id,
                     error=str(exc),
                 )
-            await release_job_lock(
+
+            await heartbeat
+            raise RuntimeError(
+                f"Heartbeat for run {run_id_str} and job {job_id} exited unexpectedly."
+            )
+        finally:
+            for task, task_name in (
+                (runner_task, "runner"),
+                (heartbeat, "heartbeat"),
+            ):
+                if task and not task.done():
+                    task.cancel()
+
+                try:
+                    await task
+                except CancelledError:
+                    pass
+                except Exception as exc:
+                    log.warning(
+                        "[LOCK] Task teardown failed",
+                        run_id=run_id_str,
+                        job_id=job_id,
+                        lock_id=lock_id,
+                        task_name=task_name,
+                        error=str(exc),
+                    )
+
+            released = await release_job_lock(
                 run_id=run_id_str,
                 job_id=job_id,
                 lock_id=lock_id,
                 job_token=payload.job_token,
             )
-            log.debug(
-                "[LOCK] Job lock released",
-                run_id=run_id_str,
-                job_id=job_id,
-                lock_id=lock_id,
-            )
+            if released:
+                log.debug(
+                    "[LOCK] Job lock released",
+                    run_id=run_id_str,
+                    job_id=job_id,
+                    lock_id=lock_id,
+                )
+            else:
+                log.warning(
+                    "[LOCK] Job lock release skipped or lost ownership",
+                    run_id=run_id_str,
+                    job_id=job_id,
+                    lock_id=lock_id,
+                )
 
     def _register_tasks(self):
         """Register all evaluation tasks with the broker."""

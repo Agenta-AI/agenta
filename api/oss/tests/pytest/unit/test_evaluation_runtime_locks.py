@@ -16,7 +16,10 @@ Tests cover:
 """
 
 import asyncio
-from unittest.mock import patch
+import sys
+import types
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -108,6 +111,15 @@ def _run_id() -> str:
 
 def _job_id() -> str:
     return str(uuid4())
+
+
+def _genson_patch():
+    module = types.ModuleType("genson")
+
+    class SchemaBuilder: ...
+
+    module.SchemaBuilder = SchemaBuilder
+    return patch.dict(sys.modules, {"genson": module})
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +409,9 @@ async def test_with_job_lock_releases_on_exception(fake_redis):
     wrapped coroutine raises an exception.
     """
     from oss.src.core.evaluations.runtime.locks import is_run_executing
-    from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+
+    with _genson_patch():
+        from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
 
     run_id = uuid4()
 
@@ -414,3 +428,140 @@ async def test_with_job_lock_releases_on_exception(fake_redis):
         )
 
     assert await is_run_executing(run_id=str(run_id)) is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_worker_heartbeat_preserves_created_at_without_fakeredis():
+    from oss.src.core.evaluations.runtime import locks
+
+    class DummyRedis:
+        def __init__(self):
+            self.values = {}
+
+        async def get(self, key):
+            return self.values.get(key)
+
+        async def set(self, key, value, ex=None):
+            self.values[key] = value
+            return True
+
+    dummy = DummyRedis()
+
+    with (
+        patch("oss.src.utils.caching.r_lock", dummy),
+        patch(
+            "oss.src.core.evaluations.runtime.locks._now_iso",
+            side_effect=["2026-03-25T10:00:00Z", "2026-03-25T10:01:00Z"],
+        ),
+    ):
+        first = await locks.refresh_worker_heartbeat(worker_id="worker-1")
+        second = await locks.refresh_worker_heartbeat(worker_id="worker-1")
+
+    assert first.created_at == "2026-03-25T10:00:00Z"
+    assert first.updated_at == "2026-03-25T10:00:00Z"
+    assert second.created_at == "2026-03-25T10:00:00Z"
+    assert second.updated_at == "2026-03-25T10:01:00Z"
+
+
+@pytest.mark.asyncio
+async def test_run_job_heartbeat_fails_after_missing_renew_deadline():
+    from oss.src.core.evaluations.runtime import locks
+
+    clock = {"now": 0.0}
+
+    async def _fake_sleep(seconds):
+        clock["now"] += seconds
+
+    async def _failing_renew(**kwargs):
+        raise RuntimeError("redis unavailable")
+
+    def _fake_monotonic():
+        return clock["now"]
+
+    with (
+        patch("oss.src.core.evaluations.runtime.locks.sleep", _fake_sleep),
+        patch("oss.src.core.evaluations.runtime.locks.monotonic", _fake_monotonic),
+        patch(
+            "oss.src.core.evaluations.runtime.locks.renew_job_lock",
+            _failing_renew,
+        ),
+    ):
+        with pytest.raises(
+            locks.JobLockLeaseLostError,
+            match="heartbeat renew deadline exceeded",
+        ):
+            await locks.run_job_heartbeat(
+                run_id="run-1",
+                job_id="job-1",
+                job_token="token-1",
+                interval=30,
+                ttl=300,
+                safety_margin=60,
+            )
+
+    assert clock["now"] == 240.0
+
+
+@pytest.mark.asyncio
+async def test_with_job_lock_cancels_runner_when_heartbeat_fails():
+    from oss.src.core.evaluations.runtime.locks import JobLockLeaseLostError
+
+    with _genson_patch():
+        import oss.src.tasks.taskiq.evaluations.worker as worker_module
+
+    EvaluationsWorker = worker_module.EvaluationsWorker
+
+    runner_cancelled = asyncio.Event()
+
+    async def _runner():
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            runner_cancelled.set()
+            raise
+
+    async def _heartbeat(**kwargs):
+        await asyncio.sleep(0)
+        raise JobLockLeaseLostError(
+            run_id=str(run_id),
+            job_id=job_id,
+            lock_id="singleton",
+            reason="heartbeat renew deadline exceeded",
+        )
+
+    run_id = uuid4()
+    job_id = _job_id()
+
+    with (
+        patch.object(
+            worker_module,
+            "has_mutation_lock",
+            AsyncMock(return_value=False),
+        ),
+        patch.object(
+            worker_module,
+            "acquire_job_lock",
+            AsyncMock(return_value=SimpleNamespace(job_token="token-1")),
+        ),
+        patch.object(
+            worker_module,
+            "release_job_lock",
+            AsyncMock(return_value=True),
+        ) as release_mock,
+        patch.object(
+            worker_module,
+            "run_job_heartbeat",
+            _heartbeat,
+        ),
+    ):
+        with pytest.raises(JobLockLeaseLostError):
+            await EvaluationsWorker._with_job_lock(
+                run_id,
+                job_id=job_id,
+                job_type="api",
+                allow_concurrency=False,
+                runner=_runner,
+            )
+
+    assert runner_cancelled.is_set()
+    release_mock.assert_awaited_once()

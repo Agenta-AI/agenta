@@ -1366,7 +1366,7 @@ async def evaluate_batch_invocation(
             "retry_delay": 3,
             "delay_between_batches": 5,
         }
-        scenario_trace_ids: Dict[tuple[int, int], Optional[str]] = {}
+        scenario_invocations: Dict[tuple[int, int], Dict[str, Any]] = {}
         for idx, scenario in enumerate(scenarios):
             scenario_spec = scenario_specs[idx]
             testcase = scenario_spec["testcase"]
@@ -1396,9 +1396,15 @@ async def evaluate_batch_invocation(
                 required_count=application_required_count,
             )
             for repeat_idx, reusable_trace in zip(repeat_indices, reusable_traces):
-                scenario_trace_ids[(idx, repeat_idx)] = (
-                    str(reusable_trace.trace_id) if reusable_trace.trace_id else None
-                )
+                scenario_invocations[(idx, repeat_idx)] = {
+                    "status": EvaluationStatus.SUCCESS,
+                    "trace_id": (
+                        str(reusable_trace.trace_id)
+                        if reusable_trace and reusable_trace.trace_id
+                        else None
+                    ),
+                    "error": None,
+                }
 
             missing_repeat_indices = repeat_indices[len(reusable_traces) :]
             if missing_repeat_indices:
@@ -1426,7 +1432,20 @@ async def evaluate_batch_invocation(
                         f"Unexpected batch invocation count for scenario {scenario.id}!"
                     )
                 for repeat_idx, invocation in zip(missing_repeat_indices, invocations):
-                    scenario_trace_ids[(idx, repeat_idx)] = invocation.trace_id
+                    invocation_error = (
+                        invocation.result.error.model_dump(mode="json")
+                        if invocation.result and invocation.result.error
+                        else None
+                    )
+                    scenario_invocations[(idx, repeat_idx)] = {
+                        "status": (
+                            EvaluationStatus.FAILURE
+                            if invocation_error
+                            else EvaluationStatus.SUCCESS
+                        ),
+                        "trace_id": invocation.trace_id,
+                        "error": invocation_error,
+                    }
         # ----------------------------------------------------------------------
 
         # create invocation results + finalize scenarios ------------------------
@@ -1441,11 +1460,13 @@ async def evaluate_batch_invocation(
                     step_key=invocation_step_key,
                     repeat_idx=repeat_idx,
                     status=(
-                        EvaluationStatus.SUCCESS
-                        if scenario_trace_ids.get((idx, repeat_idx))
-                        else EvaluationStatus.FAILURE
+                        scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                        or EvaluationStatus.FAILURE
                     ),
-                    trace_id=scenario_trace_ids.get((idx, repeat_idx)),
+                    trace_id=scenario_invocations.get((idx, repeat_idx), {}).get(
+                        "trace_id"
+                    ),
+                    error=scenario_invocations.get((idx, repeat_idx), {}).get("error"),
                 )
                 for idx, scenario in enumerate(scenarios)
                 for repeat_idx in repeat_indices
@@ -1458,13 +1479,15 @@ async def evaluate_batch_invocation(
             scenario_status = (
                 EvaluationStatus.SUCCESS
                 if all(
-                    scenario_trace_ids.get((idx, repeat_idx))
+                    scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                    == EvaluationStatus.SUCCESS
                     for repeat_idx in repeat_indices
                 )
                 else EvaluationStatus.ERRORS
             )
             if not all(
-                scenario_trace_ids.get((idx, repeat_idx))
+                scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                == EvaluationStatus.SUCCESS
                 for repeat_idx in repeat_indices
             ):
                 run_has_errors += 1

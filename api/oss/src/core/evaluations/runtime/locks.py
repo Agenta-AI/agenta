@@ -14,6 +14,7 @@ Implementation detail:
 
 from asyncio import CancelledError, sleep
 from datetime import datetime, timezone
+from time import monotonic
 from typing import Literal, Optional
 
 import orjson
@@ -27,6 +28,7 @@ log = get_module_logger(__name__)
 
 EVAL_LOCK_HEARTBEAT_INTERVAL = 30
 EVAL_LOCK_TTL = 5 * 60
+EVAL_LOCK_SAFETY_MARGIN = 60
 
 JobType = Literal["api", "web", "sdk"]
 
@@ -43,6 +45,25 @@ class WorkerHeartbeatPayload(BaseModel):
     worker_id: str
     created_at: str
     updated_at: str
+
+
+class JobLockLeaseLostError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        job_id: str,
+        lock_id: Optional[str] = None,
+        reason: str,
+    ) -> None:
+        self.run_id = run_id
+        self.job_id = job_id
+        self.lock_id = lock_id or job_id
+        self.reason = reason
+        super().__init__(
+            f"Evaluation job lease lost for run {run_id}, "
+            f"job {job_id}, lock {self.lock_id}: {reason}"
+        )
 
 
 def run_lock_key(run_id: str) -> str:
@@ -402,13 +423,27 @@ async def refresh_worker_heartbeat(
     ttl: int = EVAL_LOCK_TTL,
 ) -> WorkerHeartbeatPayload:
     now = _now_iso()
+    hb_key = _actual_lock_name(worker_heartbeat_key(worker_id))
+    raw = await caching.r_lock.get(hb_key)
+    created_at = now
+
+    if raw:
+        try:
+            existing = WorkerHeartbeatPayload.model_validate(orjson.loads(raw))
+            created_at = existing.created_at
+        except Exception:
+            log.warning(
+                "[LOCK] Ignoring malformed worker heartbeat payload",
+                worker_id=worker_id,
+            )
+
     payload = WorkerHeartbeatPayload(
         worker_id=worker_id,
-        created_at=now,
+        created_at=created_at,
         updated_at=now,
     )
     await caching.r_lock.set(
-        _actual_lock_name(worker_heartbeat_key(worker_id)),
+        hb_key,
         orjson.dumps(payload.model_dump(mode="json")),
         ex=ttl,
     )
@@ -447,7 +482,14 @@ async def run_job_heartbeat(
     lock_id: Optional[str] = None,
     interval: int = EVAL_LOCK_HEARTBEAT_INTERVAL,
     ttl: int = EVAL_LOCK_TTL,
+    safety_margin: int = EVAL_LOCK_SAFETY_MARGIN,
 ) -> None:
+    if safety_margin >= ttl:
+        raise ValueError("safety_margin must be smaller than ttl")
+
+    actual_lock_id = lock_id or job_id
+    last_successful_renew = monotonic()
+
     while True:
         try:
             await sleep(interval)
@@ -459,21 +501,52 @@ async def run_job_heartbeat(
                 ttl=ttl,
             )
             if not renewed:
-                log.warning(
-                    "[LOCK] Job heartbeat lost ownership; stopping heartbeat",
+                log.error(
+                    "[LOCK] Job heartbeat lost ownership; failing task",
                     run_id=run_id,
                     job_id=job_id,
-                    lock_id=lock_id or job_id,
+                    lock_id=actual_lock_id,
                 )
-                return
+                raise JobLockLeaseLostError(
+                    run_id=run_id,
+                    job_id=job_id,
+                    lock_id=actual_lock_id,
+                    reason="renew_job_lock returned false",
+                )
+            last_successful_renew = monotonic()
         except CancelledError:
             raise
+        except JobLockLeaseLostError:
+            raise
         except Exception:
-            log.warning(
-                "[LOCK] Job heartbeat failed",
+            now = monotonic()
+            critical_deadline = last_successful_renew + ttl - safety_margin
+            seconds_until_critical = max(0.0, critical_deadline - now)
+
+            if now < critical_deadline:
+                log.warning(
+                    "[LOCK] Job heartbeat renew failed; retaining lease until deadline",
+                    run_id=run_id,
+                    job_id=job_id,
+                    lock_id=actual_lock_id,
+                    seconds_until_critical=round(seconds_until_critical, 3),
+                    exc_info=True,
+                )
+                continue
+
+            log.error(
+                "[LOCK] Job heartbeat missed renew deadline; failing task",
                 run_id=run_id,
                 job_id=job_id,
-                lock_id=lock_id or job_id,
+                lock_id=actual_lock_id,
+                last_successful_renew_age=round(now - last_successful_renew, 3),
+                ttl=ttl,
+                safety_margin=safety_margin,
                 exc_info=True,
             )
-            await sleep(interval)
+            raise JobLockLeaseLostError(
+                run_id=run_id,
+                job_id=job_id,
+                lock_id=actual_lock_id,
+                reason="heartbeat renew deadline exceeded",
+            )
