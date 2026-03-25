@@ -199,6 +199,7 @@ export async function createAppFromTemplate({
         slug,
         name: appName,
         flags: {
+            is_application: true,
             is_chat: isChat,
             is_evaluator: false,
             is_custom: isCustomWorkflow || catalogKey === "CUSTOM",
