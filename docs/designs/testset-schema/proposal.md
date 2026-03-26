@@ -69,18 +69,98 @@ When `is_strict is False` or missing:
 
 - store the schema contract but do not reject rows
 
-### Why discuss richer mismatch handling anyway
+### Questions `is_strict` must answer
 
-Keeping `is_strict` does not remove the need to discuss alternatives such as warn-only behavior. Those discussions are still necessary to understand:
+The real policy work is not inventing a richer field. It is defining these cases:
 
-- what users mean by schema mismatch management
-- whether upload and commit should behave identically
-- how validation outcomes should be surfaced in the UI
+- Does `is_strict=false` stay completely permissive, or does it return warnings?
+- Do all write paths behave identically?
+- Are existing rows revalidated when schema changes in a new revision?
+- Does changing only schema still require validating the carried-forward rows?
+- Are uploads and delta commits allowed to succeed partially? Recommended answer: no.
 
-The distinction here is:
+### Recommended initial semantics
 
-- keep `is_strict` as the initial field
-- document richer policies as design context, not as mandatory v1 data-model expansion
+- `is_strict=true`
+  - reject the whole write if any candidate row mismatches schema
+- `is_strict=false`
+  - accept the write even if rows mismatch schema
+  - optionally return structured warnings, but do not fail the write
+
+I would keep warnings optional in the first backend cut, but the docs should reserve the behavior explicitly so callers know whether permissive mode is:
+
+- silent accept, or
+- accept-with-diagnostics
+
+## Schema Policy Matrix
+
+### Matrix by revision write path
+
+| Write path | Schema absent | Schema present + `is_strict=false` | Schema present + `is_strict=true` |
+|---|---|---|---|
+| Simple create | Accept | Accept; optionally emit warnings | Reject on any mismatch |
+| Simple edit | Accept | Accept; optionally emit warnings | Reject on any mismatch |
+| Revision commit | Accept | Accept; optionally emit warnings | Reject on any mismatch |
+| Revision upload | Accept | Accept; optionally emit warnings | Reject on any mismatch |
+| Delta commit | Accept | Accept; optionally emit warnings | Reject on any mismatch |
+
+### Shared rules across all write paths
+
+To avoid policy drift, all write paths should share these rules:
+
+1. Validate after request parsing and testcase normalization.
+2. Validate before blob persistence is finalized.
+3. Treat validation as revision-level, not row-level partial success.
+4. Return structured diagnostics with row and field context.
+5. Use the same mismatch semantics for upload and API commit.
+
+### Revalidation rules
+
+These need to be explicit in the design because they determine whether the schema on a revision is trustworthy.
+
+Recommended rules:
+
+1. New revision with new schema and existing rows:
+   - revalidate all carried-forward rows against the candidate schema
+2. New revision that changes only schema:
+   - still revalidate all carried-forward rows
+3. Delta commit under strict schema:
+   - apply the delta first, then validate the final candidate row set
+4. Upload replacing data on an existing strict testset:
+   - validate the uploaded candidate rows exactly the same way as a normal commit
+
+Without those rules, a strict schema can be attached to a revision that never actually satisfied it.
+
+### Failure semantics
+
+Recommended behavior:
+
+- no partial success
+- reject the entire revision-producing write when strict validation fails
+- return all collected validation issues, not just the first
+
+Recommended issue fields:
+
+- `row_index`
+- `testcase_id` when available
+- `path`
+- `message`
+- `validator` or keyword when useful
+
+### Non-blocking semantics
+
+`is_strict=false` still needs a documented output contract.
+
+Two acceptable models:
+
+1. Silent permissive mode
+   - always accept
+   - no mismatch payload returned
+2. Permissive mode with diagnostics
+   - always accept
+   - include warnings in response metadata or side-channel reporting
+
+I would not hard-code the second model unless the product already knows where those warnings will be surfaced. But the design should explicitly discuss it so the team does not treat permissive mode as undefined behavior.
 
 ### Unknown Agenta extension keys
 
@@ -185,6 +265,10 @@ Keep the file payload format backward compatible:
 
 If upload needs to set or override schema, send that separately as request metadata, not embedded into the existing file format. That avoids breaking current exporters and importers.
 
+Recommended upload rule:
+
+- uploaded rows should go through the same normalization, validation, and strictness semantics as non-file commit paths
+
 ## Downstream Usage Topics That Must Inform The Design
 
 These topics should remain in the design discussion because they influence how schema should be authored and stored, even if they are not part of the first delivery slice:
@@ -195,6 +279,22 @@ These topics should remain in the design discussion because they influence how s
 - schema-driven hints for prompt or mapping UIs
 
 The important boundary is implementation scope, not discussion scope.
+
+### How they inform the schema design now
+
+- Jinja2:
+  - pushes us to define a canonical field access model for testcase payloads
+  - influences whether nested objects are expected and encouraged
+- JSONPath:
+  - matters if nested testcase fields need a stable selector syntax in tooling or prompt authoring
+  - argues for preserving nested structure rather than flattening everything into top-level columns
+- `x-ag-type`:
+  - matters if schema is expected to inform prompt editors, mapping UIs, or rich field renderers later
+  - supports storing vendor extensions unchanged from day one
+- schema-driven hints:
+  - influence whether fields like `description`, `examples`, `enum`, `format`, and `required` should be treated as first-class UX inputs later
+
+So these are not implementation prerequisites, but they are design constraints on how minimal the stored schema can safely be.
 
 ## Web / UX Behavior
 

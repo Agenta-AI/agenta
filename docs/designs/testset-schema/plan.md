@@ -23,14 +23,21 @@
 ## Phase 2: Validation semantics on real write paths
 
 1. Validate schema document shape when a schema is provided.
-2. Define and implement `is_strict` semantics on:
+2. Write and approve an explicit policy matrix covering:
+   - schema absent/present
+   - `is_strict=false` / `is_strict=true`
+   - accept/reject behavior
+   - warnings vs errors
+   - revalidation rules on schema-only changes
+3. Define and implement `is_strict` semantics on:
    - simple create
    - simple edit
    - revision commit
    - revision upload
    - delta commit after expansion
-3. Ensure validation runs before blob creation is finalized.
-4. Return structured `422` errors from the router when rows do not validate.
+4. Ensure validation runs before blob creation is finalized.
+5. Return structured `422` errors from the router when rows do not validate.
+6. Decide whether permissive mode returns warnings or stays silent.
 
 ## Phase 3: Web support
 
@@ -67,6 +74,9 @@ These should be separate follow-up work, but they should stay explicitly documen
   - schema absent
   - `is_strict=false`
   - `is_strict=true`
+  - schema-only revision change with carried-forward rows
+  - delta commit under strict schema
+  - upload under strict schema
   - backward-compatible download behavior
 
 ### Web tests
@@ -83,6 +93,6 @@ These should be separate follow-up work, but they should stay explicitly documen
 These are the remaining questions worth deciding after the core design, not before it:
 
 1. Should V1 expose summary flags such as `has_schema` on testset/testset revision query responses?
-2. Should `is_strict=false` remain simple pass-through behavior, or should we surface structured warnings even before introducing a richer field?
+2. Should `is_strict=false` remain simple pass-through behavior, or should we surface structured warnings immediately?
 3. Should upload endpoints accept schema overrides in multipart form data from day one, or only reuse existing schema on the target testset?
 4. How much of the schema should the web UI expose initially: raw JSON only, or basic form-based editing for top-level properties?

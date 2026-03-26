@@ -12,6 +12,12 @@ This folder documents the recommended design for adding optional JSON Schema sup
   - delta commit after expansion
 - Start with **`is_strict`** as the initial enforcement control and use the design docs to clarify what mismatch handling should mean at ingestion and commit time.
 - Keep **Jinja2 / JSONPath / editor hints** in the design discussion because they influence how schema should be authored and consumed, even if they land after the core persistence work.
+- Document an explicit **policy matrix**:
+  - write path
+  - `schema` present/absent
+  - `is_strict` true/false
+  - accept/reject behavior
+  - warning/error payloads
 
 ## Documents
 
