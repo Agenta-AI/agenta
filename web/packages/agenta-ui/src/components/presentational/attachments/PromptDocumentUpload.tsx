@@ -65,10 +65,10 @@ const PromptDocumentUpload = ({
     const [error, setError] = useState("")
 
     useEffect(() => {
-        if (value === undefined || value === rawValue) return
-        setRawValue(value)
+        if (value === undefined) return
+        setRawValue((prev) => (prev === value ? prev : value))
         setError("")
-    }, [rawValue, value])
+    }, [value])
 
     const displayValue = useMemo(() => {
         if (!rawValue) return ""
