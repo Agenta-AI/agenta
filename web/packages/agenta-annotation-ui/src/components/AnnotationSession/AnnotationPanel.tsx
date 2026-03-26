@@ -18,7 +18,7 @@ import {annotationFormController, annotationSessionController} from "@agenta/ann
 import type {AnnotationMetricField} from "@agenta/annotation"
 import {Editor} from "@agenta/ui/editor"
 import {Info} from "@phosphor-icons/react"
-import {Alert, Button, Collapse, Popover, Typography} from "antd"
+import {Alert, Button, Collapse, Popover, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAnnotationFormState} from "../../hooks/useAnnotationFormState"
@@ -82,20 +82,9 @@ const EvaluatorSection = memo(function EvaluatorSection({
 interface AnnotationPanelProps {
     /** Current scenario ID */
     scenarioId: string
-    /** Queue ID for submission */
-    queueId: string
-    /** Callback after successful save */
-    onSaved?: () => void
-    /** Callback after successful complete & advance */
-    onCompleted?: (scenarioId: string) => void
 }
 
-const AnnotationPanel = memo(function AnnotationPanel({
-    scenarioId,
-    queueId,
-    onSaved,
-    onCompleted,
-}: AnnotationPanelProps) {
+const AnnotationPanel = memo(function AnnotationPanel({scenarioId}: AnnotationPanelProps) {
     // Annotations and trace ref from session controller
     const annotations = useAtomValue(
         annotationSessionController.selectors.scenarioAnnotations(scenarioId),
@@ -116,21 +105,12 @@ const AnnotationPanel = memo(function AnnotationPanel({
     })
 
     const evaluatorIds = useAtomValue(annotationSessionController.selectors.evaluatorIds())
-    const isSubmitting = useAtomValue(annotationFormController.selectors.isSubmitting(scenarioId))
-    const hasFilledMetrics = useAtomValue(
-        annotationFormController.selectors.hasFilledMetrics(scenarioId),
-    )
     const isCompleted = useAtomValue(annotationSessionController.selectors.isCurrentCompleted())
-    const submitAnnotations = useSetAtom(annotationFormController.actions.submitAnnotations)
 
     // Queue-level description shown in the helper popover
     const queueDescription = useAtomValue(annotationSessionController.selectors.queueDescription())
-    const [errors, setErrors] = useState<string[]>([])
-
-    // Reset errors when scenario changes
-    useEffect(() => {
-        setErrors([])
-    }, [scenarioId])
+    const submitError = useAtomValue(annotationFormController.selectors.submitError(scenarioId))
+    const clearSubmitError = useSetAtom(annotationFormController.actions.clearSubmitError)
 
     // Build collapse items from evaluators
     const evaluatorSlugs = useMemo(
@@ -153,16 +133,6 @@ const AnnotationPanel = memo(function AnnotationPanel({
         },
         [updateMetric],
     )
-
-    const handleCompleteAndAdvance = useCallback(async () => {
-        try {
-            setErrors([])
-            await submitAnnotations({scenarioId, queueId, markComplete: true})
-            onCompleted?.(scenarioId)
-        } catch (err) {
-            setErrors([(err as Error).message || "Failed to submit annotations"])
-        }
-    }, [submitAnnotations, scenarioId, queueId, onCompleted])
 
     const collapseItems = useMemo(() => {
         return evaluators
@@ -193,17 +163,16 @@ const AnnotationPanel = memo(function AnnotationPanel({
                         <EvaluatorSection
                             slug={slug}
                             metricFields={metricFields}
-                            disabled={isSubmitting}
                             readOnly={isCompleted}
                             onFieldChange={handleFieldChange}
                         />
                     ),
                 }
             })
-    }, [evaluators, metrics, isSubmitting, isCompleted, handleFieldChange])
+    }, [evaluators, metrics, isCompleted, handleFieldChange])
 
     const panelHeader = (
-        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[var(--ant-color-border-secondary)]">
+        <div className="flex items-center justify-between px-3 py-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
             <div className="flex items-center gap-1">
                 <Typography.Text className="font-medium">Annotations</Typography.Text>
                 {queueDescription && (
@@ -231,16 +200,24 @@ const AnnotationPanel = memo(function AnnotationPanel({
                             </div>
                         }
                     >
-                        <Button type="text" size="small" icon={<Info size={14} />} />
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={<Info size={14} />}
+                            className="!text-[#758391] !w-6 !h-6 !min-w-0 !p-0"
+                        />
                     </Popover>
                 )}
             </div>
+            <Tag color={isCompleted ? "green" : "orange"}>
+                {isCompleted ? "Completed" : "Incomplete"}
+            </Tag>
         </div>
     )
 
     if (evaluators.length === 0 && evaluatorIds.length > 0) {
         return (
-            <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
+            <div className="flex flex-col h-full">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
                     <Typography.Text type="secondary">Loading evaluators...</Typography.Text>
@@ -251,7 +228,7 @@ const AnnotationPanel = memo(function AnnotationPanel({
 
     if (evaluatorIds.length === 0) {
         return (
-            <div className="flex flex-col h-full border-l border-solid border-[var(--ant-color-border-secondary)]">
+            <div className="flex flex-col h-full">
                 {panelHeader}
                 <div className="flex-1 flex items-center justify-center p-4">
                     <Typography.Text type="secondary">
@@ -268,19 +245,18 @@ const AnnotationPanel = memo(function AnnotationPanel({
             {panelHeader}
 
             {/* Errors */}
-            {errors.map((err) => (
+            {submitError && (
                 <Alert
-                    key={err}
                     showIcon
                     closable
-                    message={err}
+                    message={submitError}
                     type="warning"
                     className="!rounded-none"
-                    onClose={() => setErrors((prev) => prev.filter((e) => e !== err))}
+                    onClose={() => clearSubmitError(scenarioId)}
                 />
-            ))}
+            )}
 
-            {/* Queue description helper + form fields */}
+            {/* Evaluator form fields */}
             <div className="flex-1 overflow-y-auto">
                 <Collapse
                     activeKey={activeKeys}
@@ -289,19 +265,6 @@ const AnnotationPanel = memo(function AnnotationPanel({
                     className="rounded-none [&_.ant-collapse-item]:!bg-white [&_.ant-collapse-header]:!bg-[#05172905] [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-content]:!bg-white [&_.ant-collapse-content]:p-3 [&_.playground-property-control]:!mb-0 [&_.ant-slider]:!mb-0 [&_.ant-slider]:!mt-1"
                     bordered={false}
                 />
-            </div>
-
-            {/* Annotate button */}
-            <div className="px-3 py-3 border-0 border-t border-solid border-[var(--ant-color-border-secondary)]">
-                <Button
-                    type="primary"
-                    block
-                    onClick={handleCompleteAndAdvance}
-                    disabled={isSubmitting || isCompleted || !hasFilledMetrics}
-                    loading={isSubmitting}
-                >
-                    {isCompleted ? "Completed" : "Annotate"}
-                </Button>
             </div>
         </div>
     )

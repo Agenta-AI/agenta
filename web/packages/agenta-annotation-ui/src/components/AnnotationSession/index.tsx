@@ -261,7 +261,8 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
             title={headerTitle}
             titleLevel={4}
             headerTabs={headerTabs}
-            className="h-full min-h-0"
+            className="!p-0 h-full min-h-0 !gap-2"
+            headerClassName="px-4"
         >
             {/* Content */}
             <div className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -283,7 +284,6 @@ const AnnotationSession = ({queueId, routeState, onActiveViewChange}: Annotation
                 ) : (
                     <FocusView
                         queueId={queueId}
-                        onSaved={handleSaved}
                         onCompleted={handleCompleted}
                         onViewChange={handleActiveViewChange}
                         onSyncToTestset={handleSyncToTestset}

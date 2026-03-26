@@ -768,6 +768,12 @@ const isSubmittingAtomFamily = atomFamily(
     (a, b) => a === b,
 )
 
+/** Submission error per scenario (null = no error) */
+const submitErrorAtomFamily = atomFamily(
+    (_scenarioId: string) => atom<string | null>(null),
+    (a, b) => a === b,
+)
+
 // ============================================================================
 // DERIVED ATOMS
 // ============================================================================
@@ -1258,6 +1264,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
     const spanId: string = traceSpan.spanId
 
     set(isSubmittingAtomFamily(scenarioId), true)
+    set(submitErrorAtomFamily(scenarioId), null)
 
     try {
         const metrics = get(effectiveMetricsAtomFamily(scenarioId))
@@ -1523,9 +1530,18 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
                 exact: false,
             }),
         ])
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to submit annotations"
+        set(submitErrorAtomFamily(scenarioId), message)
+        throw err
     } finally {
         set(isSubmittingAtomFamily(scenarioId), false)
     }
+})
+
+/** Clear the submit error for a scenario */
+const clearSubmitErrorAtom = atom(null, (_get, set, scenarioId: string) => {
+    set(submitErrorAtomFamily(scenarioId), null)
 })
 
 /** Clear all form state (call on session close) */
@@ -1564,6 +1580,8 @@ export const annotationFormController = {
         hasFilledMetrics: (scenarioId: string) => hasFilledMetricsAtomFamily(scenarioId),
         /** Whether a submission is in progress */
         isSubmitting: (scenarioId: string) => isSubmittingAtomFamily(scenarioId),
+        /** Current submission error message, or null if no error */
+        submitError: (scenarioId: string) => submitErrorAtomFamily(scenarioId),
         /** Evaluator IDs for the session */
         evaluatorIds: () => evaluatorIdsAtom,
         /** Resolved evaluators (derived from evaluatorIds + molecule) */
@@ -1585,6 +1603,8 @@ export const annotationFormController = {
         resetEdits: resetEditsAtom,
         /** Submit annotations (and optionally mark complete) */
         submitAnnotations: submitAnnotationsAtom,
+        /** Clear the submit error for a scenario */
+        clearSubmitError: clearSubmitErrorAtom,
         /** Clear all form state */
         clearFormState: clearFormStateAtom,
     },
@@ -1600,6 +1620,7 @@ export const annotationFormController = {
         hasFilledMetrics: (scenarioId: string) =>
             getStore().get(hasFilledMetricsAtomFamily(scenarioId)),
         isSubmitting: (scenarioId: string) => getStore().get(isSubmittingAtomFamily(scenarioId)),
+        submitError: (scenarioId: string) => getStore().get(submitErrorAtomFamily(scenarioId)),
         evaluatorIds: () => getStore().get(evaluatorIdsAtom),
         evaluators: (scenarioId: string) => getStore().get(evaluatorsAtomFamily(scenarioId)),
     },
@@ -1613,6 +1634,7 @@ export const annotationFormController = {
         resetEdits: (scenarioId: string) => getStore().set(resetEditsAtom, scenarioId),
         submitAnnotations: (payload: SubmitAnnotationsPayload) =>
             getStore().set(submitAnnotationsAtom, payload),
+        clearSubmitError: (scenarioId: string) => getStore().set(clearSubmitErrorAtom, scenarioId),
         clearFormState: () => getStore().set(clearFormStateAtom),
     },
 }

@@ -1060,13 +1060,8 @@ const AnnotationDrawer = memo(function AnnotationDrawer({
                     </div>
 
                     {/* Right panel: Annotation form */}
-                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[var(--ant-color-border-secondary)] rounded-lg overflow-hidden">
-                        <AnnotationPanel
-                            scenarioId={scenarioId}
-                            queueId={queueId}
-                            onSaved={onSaved}
-                            onCompleted={onCompleted}
-                        />
+                    <div className="w-[340px] min-w-[280px] shrink-0 border border-solid border-[rgba(5,23,41,0.06)] rounded-lg overflow-hidden bg-white">
+                        <AnnotationPanel scenarioId={scenarioId} />
                     </div>
                 </div>
             )}
