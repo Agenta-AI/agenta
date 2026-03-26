@@ -481,7 +481,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
 
     // Non-empty array of objects → render each item recursively
     if (
-        depth < MAX_RENDER_DEPTH &&
+        depth < maxDepth &&
         Array.isArray(value) &&
         value.length > 0 &&
         value.some((item) => item && typeof item === "object")
@@ -512,6 +512,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                                         value={simplified}
                                         keyPrefix={`${keyPrefix}-${i}`}
                                         depth={depth + 1}
+                                        maxDepth={maxDepth}
                                     />
                                 </div>
                             </div>
@@ -553,7 +554,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                     }
                     // Recurse for nested objects instead of stringifying (up to depth limit)
                     if (
-                        depth < MAX_RENDER_DEPTH &&
+                        depth < maxDepth &&
                         simplified &&
                         typeof simplified === "object" &&
                         !Array.isArray(simplified)
@@ -568,6 +569,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                                         value={simplified}
                                         keyPrefix={`${keyPrefix}-${k}`}
                                         depth={depth + 1}
+                                        maxDepth={maxDepth}
                                     />
                                 </div>
                             </div>
