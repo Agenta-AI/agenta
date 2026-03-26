@@ -2,7 +2,7 @@ import {useCallback} from "react"
 
 import {
     EntityPicker,
-    useEnrichedAnnotationEvaluatorAdapter,
+    useEnrichedHumanEvaluatorAdapter,
     type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui/selection"
 import {VersionBadge} from "@agenta/ui"
@@ -158,7 +158,7 @@ export function EntityEvaluatorSelector({
         )
     }, [])
 
-    const evaluatorAdapter = useEnrichedAnnotationEvaluatorAdapter(renderRevisionLabel)
+    const evaluatorAdapter = useEnrichedHumanEvaluatorAdapter(renderRevisionLabel)
 
     return (
         <div className="min-w-0 w-full">
