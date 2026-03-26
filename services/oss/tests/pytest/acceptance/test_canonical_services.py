@@ -274,12 +274,13 @@ class TestBuiltinMatchV0:
     """HTTP acceptance tests for the /match/v0 canonical service."""
 
     def _regex_body(self, reference: str, outputs=_SENTINEL, inputs=_SENTINEL):
-        path = "$.outputs" if outputs is not _SENTINEL else "$.inputs.answer"
+        target = "$.outputs" if outputs is not _SENTINEL else "$.inputs.answer"
         matchers = [
             {
-                "kind": "text",
-                "mode": "regex",
-                "path": path,
+                "key": "m0",
+                "mode": "text",
+                "match": "regex",
+                "target": target,
                 "reference": reference,
             }
         ]
@@ -303,9 +304,9 @@ class TestBuiltinMatchV0:
         payload = resp.json()
         _assert_base_response(payload)
         result = payload["data"]["outputs"]
-        assert "results" in result, f"Missing 'results' key: {result}"
-        assert len(result["results"]) == 1
-        assert result["results"][0]["success"] is True
+        assert "m0" in result, f"Missing 'm0' key: {result}"
+        assert result["m0"]["success"] is True
+        assert result["success"] is True
 
     def test_exact_match_failure(self, services_api):
         """The same regex matcher returns success=False for a different output."""
@@ -318,7 +319,8 @@ class TestBuiltinMatchV0:
         )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
-        assert result["results"][0]["success"] is False
+        assert result["m0"]["success"] is False
+        assert result["success"] is False
 
     def test_substring_match_success(self, services_api):
         """A plain substring regex passes when output contains the substring."""
@@ -330,21 +332,23 @@ class TestBuiltinMatchV0:
         )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
-        assert result["results"][0]["success"] is True
+        assert result["m0"]["success"] is True
 
     def test_multiple_matchers(self, services_api):
         """Multiple matchers produce one result per matcher."""
         matchers = [
             {
-                "kind": "text",
-                "mode": "regex",
-                "path": "$.outputs",
+                "key": "m0",
+                "mode": "text",
+                "match": "regex",
+                "target": "$.outputs",
                 "reference": "^" + re.escape("yes") + "$",
             },
             {
-                "kind": "text",
-                "mode": "regex",
-                "path": "$.outputs",
+                "key": "m1",
+                "mode": "text",
+                "match": "regex",
+                "target": "$.outputs",
                 "reference": "yes",
             },
         ]
@@ -359,9 +363,9 @@ class TestBuiltinMatchV0:
         )
         assert resp.status_code == 200, resp.text
         result = resp.json()["data"]["outputs"]
-        assert len(result["results"]) == 2
-        assert result["results"][0]["success"] is True
-        assert result["results"][1]["success"] is True
+        assert "m0" in result and "m1" in result
+        assert result["m0"]["success"] is True
+        assert result["m1"]["success"] is True
 
     def test_missing_parameters_returns_error(self, services_api):
         """match_v0 with parameters={} (missing 'matchers' key) returns a non-200 error."""

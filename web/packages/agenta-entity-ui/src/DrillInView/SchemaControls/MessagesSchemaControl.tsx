@@ -48,6 +48,10 @@ export interface MessagesSchemaControlProps {
 export function isMessagesSchema(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
+    const xAgTypeRef = (schema as Record<string, unknown>)["x-ag-type-ref"] as string | undefined
+
+    if (xAgTypeRef === "messages") return true
+
     // Check for x-parameter: "messages" (legacy) or x-ag-messages: true (canonical)
     const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "messages") return true

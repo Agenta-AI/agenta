@@ -882,14 +882,14 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
 )
 
 // ============================================================================
-// AG-TYPE SCHEMA QUERY (resolves opaque x-ag-type markers into full schemas)
+// AG-TYPE SCHEMA QUERY (resolves x-ag-type-ref targets into full schemas)
 // ============================================================================
 
 /**
  * Cached query atom for fetching the full dereferenced JSON Schema for an
- * `x-ag-type` value (e.g. `"prompt-template"`).
+ * `x-ag-type-ref` target (e.g. `"prompt-template"`).
  *
- * When the frontend encounters a schema property with `x-ag-type` but no
+ * When the frontend encounters a schema property with `x-ag-type-ref` but no
  * sub-properties, it calls this to get the full schema from the backend.
  * The schema is immutable per ag-type, so `staleTime: Infinity`.
  */

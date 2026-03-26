@@ -1071,19 +1071,22 @@ class EnvironmentsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        # If the environment is guarded, require DEPLOY_ENVIRONMENTS permission
         commit = environment_revision_commit_request.environment_revision_commit
-        if commit.data and commit.delta:
+        has_data = commit.data is not None
+        has_delta = commit.delta is not None
+
+        if has_data and has_delta:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Provide either data or delta for a commit, not both.",
             )
-        if not commit.data and not commit.delta:
+        if not has_data and not has_delta:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Provide either data or delta for a commit.",
             )
 
+        # If the environment is guarded, require DEPLOY_ENVIRONMENTS permission
         await ensure_environment_deploy_allowed(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
