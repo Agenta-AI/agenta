@@ -8,7 +8,6 @@ from fastapi import Request
 from oss.src.utils.helpers import parse_url
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import get_project_by_id
@@ -46,11 +45,115 @@ from oss.src.core.workflows.dtos import (
 
 
 from oss.src.core.evaluations.utils import (
+    build_repeat_indices,
+    effective_is_split,
+    fetch_traces_by_hash,
     fetch_trace,
+    make_hash,
+    plan_missing_traces,
+    required_traces_for_step,
+    select_traces_for_reuse,
 )
 
 
 log = get_module_logger(__name__)
+
+
+def _extract_root_span(trace: Optional[Any]) -> Optional[Any]:
+    if not trace or not isinstance(getattr(trace, "spans", None), dict):
+        return None
+
+    spans = trace.spans
+    if not spans:
+        return None
+
+    root_span = list(spans.values())[0]
+    if isinstance(root_span, list):
+        return None
+
+    return root_span
+
+
+def _build_trace_context(
+    *,
+    trace: Optional[Any],
+    error: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    root_span = _extract_root_span(trace)
+    trace_id = getattr(trace, "trace_id", None) if trace else None
+
+    if not root_span or not trace_id:
+        return None
+
+    return {
+        "trace": trace,
+        "trace_id": str(trace_id),
+        "span_id": getattr(root_span, "span_id", None),
+        "root_span": root_span,
+        "error": error,
+    }
+
+
+async def _resolve_testset_input_specs(
+    *,
+    project_id: UUID,
+    input_steps: List[Any],
+    testsets_service: TestsetsService,
+) -> List[Dict[str, Any]]:
+    input_specs: List[Dict[str, Any]] = []
+
+    for input_step in input_steps:
+        input_refs = input_step.references or {}
+        testset_revision_ref = input_refs.get("testset_revision")
+
+        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
+            raise ValueError(
+                f"Evaluation input step {input_step.key} missing testset_revision reference."
+            )
+
+        testset_revision = await testsets_service.fetch_testset_revision(
+            project_id=project_id,
+            testset_revision_ref=testset_revision_ref,
+        )
+        if not testset_revision:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} not found!"
+            )
+        if not testset_revision.data or not testset_revision.data.testcases:
+            raise ValueError(
+                f"Testset revision with id {testset_revision_ref.id} has no testcases!"
+            )
+
+        testset_variant = await testsets_service.fetch_testset_variant(
+            project_id=project_id,
+            testset_variant_ref=Reference(id=testset_revision.variant_id),
+        )
+        if not testset_variant:
+            raise ValueError(
+                f"Testset variant with id {testset_revision.variant_id} not found!"
+            )
+
+        testset = await testsets_service.fetch_testset(
+            project_id=project_id,
+            testset_ref=Reference(id=testset_variant.testset_id),
+        )
+        if not testset:
+            raise ValueError(f"Testset with id {testset_variant.testset_id} not found!")
+
+        testcases = testset_revision.data.testcases
+        input_specs.append(
+            {
+                "step_key": input_step.key,
+                "testset": testset,
+                "testset_revision": testset_revision,
+                "testcases": testcases,
+                "testcases_data": [
+                    {**testcase.data, "id": str(testcase.id)} for testcase in testcases
+                ],
+            }
+        )
+
+    return input_specs
 
 
 async def evaluate_batch_testset(
@@ -93,6 +196,7 @@ async def evaluate_batch_testset(
     request.state.project_id = str(project_id)
     request.state.user_id = str(user_id)
 
+    project = None
     run = None
 
     try:
@@ -125,28 +229,48 @@ async def evaluate_batch_testset(
             raise ValueError(f"Evaluation run with id {run_id} has no steps!")
 
         steps = run.data.steps
+        repeats = run.data.repeats or 1
+        repeat_indices = build_repeat_indices(repeats)
+        is_cached = bool(run.flags.is_cached) if run.flags else False
 
+        input_steps = [step for step in steps if step.type == "input"]
         invocation_steps = [step for step in steps if step.type == "invocation"]
         annotation_steps = [step for step in steps if step.type == "annotation"]
 
-        invocation_steps_keys = [step.key for step in invocation_steps]
-        annotation_steps_keys = [step.key for step in annotation_steps]
+        if not input_steps or len(invocation_steps) != 1:
+            raise ValueError(
+                f"Evaluation run with id {run_id} must have at least one input and exactly one invocation step."
+            )
 
-        nof_annotations = len(annotation_steps)
+        invocation_step = invocation_steps[0]
+        invocation_step_key = invocation_step.key
+        is_split = effective_is_split(
+            is_split=bool(run.flags.is_split) if run.flags else False,
+            has_application_steps=True,
+            has_evaluator_steps=bool(annotation_steps),
+        )
+        application_required_count = required_traces_for_step(
+            repeats=repeats,
+            is_split=is_split,
+            step_kind="application",
+            has_evaluator_steps=bool(annotation_steps),
+        )
+        evaluator_required_count = required_traces_for_step(
+            repeats=repeats,
+            is_split=is_split,
+            step_kind="evaluator",
+            has_evaluator_steps=bool(annotation_steps),
+        )
 
-        # extract references from run steps ------------------------------------
-        input_steps = [step for step in steps if step.type == "input"]
-
-        testset_revision_id = None
-        if input_steps and "testset_revision" in input_steps[0].references:
-            testset_revision_id = str(input_steps[0].references["testset_revision"].id)
-
-        revision_id = None
-        if (
-            invocation_steps
-            and "application_revision" in invocation_steps[0].references
+        application_revision_ref = invocation_step.references.get(
+            "application_revision"
+        )
+        if not application_revision_ref or not isinstance(
+            application_revision_ref.id, UUID
         ):
-            revision_id = str(invocation_steps[0].references["application_revision"].id)
+            raise ValueError(
+                f"Evaluation run with id {run_id} missing invocation.application_revision reference."
+            )
 
         run_config = {
             "batch_size": 10,
@@ -155,57 +279,51 @@ async def evaluate_batch_testset(
             "delay_between_batches": 5,
         }
 
-        log.info("[TESTSET]     ", run_id=run_id, ids=[testset_revision_id])
-        log.info("[APPLICATION] ", run_id=run_id, ids=[revision_id])
+        input_specs = await _resolve_testset_input_specs(
+            project_id=project_id,
+            input_steps=input_steps,
+            testsets_service=testsets_service,
+        )
+        testset_revision_ids = [
+            str(input_spec["testset_revision"].id) for input_spec in input_specs
+        ]
+
+        log.info("[TESTSET]     ", run_id=run_id, ids=testset_revision_ids)
+        log.info(
+            "[APPLICATION] ",
+            run_id=run_id,
+            ids=[str(application_revision_ref.id)],
+        )
         # ----------------------------------------------------------------------
 
-        # fetch testset --------------------------------------------------------
-        testset_revision_ref = Reference(id=UUID(testset_revision_id))
-
-        testset_revision = await testsets_service.fetch_testset_revision(
-            project_id=project_id,
-            testset_revision_ref=testset_revision_ref,
-        )
-
-        if testset_revision is None:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_id} not found!"
+        # flatten scenario sources ---------------------------------------------
+        scenario_specs = [
+            {
+                "input_step_key": input_spec["step_key"],
+                "testset": input_spec["testset"],
+                "testset_revision": input_spec["testset_revision"],
+                "testcase": testcase,
+                "testcase_data": testcase_data,
+            }
+            for input_spec in input_specs
+            for testcase, testcase_data in zip(
+                input_spec["testcases"],
+                input_spec["testcases_data"],
             )
-
-        testset_ref = Reference(id=testset_revision.testset_id)
-
-        testset = await testsets_service.fetch_testset(
-            project_id=project_id,
-            testset_ref=testset_ref,
-        )
-
-        if testset is None:
-            raise ValueError(
-                f"Testset with id {testset_revision.testset_id} not found!"
-            )
-
-        testset_id = testset_revision.testset_id
-
-        testcases = testset_revision.data.testcases
-        testcases_data = [
-            {**testcase.data, "id": str(testcase.id)} for testcase in testcases
-        ]  # INEFFICIENT: might want to have testcase_id in testset data (caution with hashing)
-        nof_testcases = len(testcases)
-
-        testset_step_key = testset_revision.slug
+        ]
+        nof_scenarios = len(scenario_specs)
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
-        if revision_id is None:
-            raise ValueError(f"App revision with id {revision_id} not found!")
-
         application_revision = await applications_service.fetch_application_revision(
             project_id=project_id,
-            application_revision_ref=Reference(id=UUID(revision_id)),
+            application_revision_ref=application_revision_ref,
         )
 
         if application_revision is None:
-            raise ValueError(f"App revision with id {revision_id} not found!")
+            raise ValueError(
+                f"App revision with id {application_revision_ref.id} not found!"
+            )
 
         application_variant = await applications_service.fetch_application_variant(
             project_id=project_id,
@@ -236,18 +354,20 @@ async def evaluate_batch_testset(
             )
 
         if not deployment_uri:
-            raise ValueError(f"No deployment URI found for revision {revision_id}!")
+            raise ValueError(
+                f"No deployment URI found for revision {application_revision_ref.id}!"
+            )
 
         uri = parse_url(url=deployment_uri)
         if uri is None:
-            raise ValueError(f"Invalid URI for revision {revision_id}!")
+            raise ValueError(f"Invalid URI for revision {application_revision_ref.id}!")
 
         revision_parameters = (
             application_revision.data.parameters if application_revision.data else None
         )
         if revision_parameters is None:
             raise ValueError(
-                f"Revision parameters for revision {revision_id} not found!"
+                f"Revision parameters for revision {application_revision_ref.id} not found!"
             )
         # ----------------------------------------------------------------------
 
@@ -270,7 +390,7 @@ async def evaluate_batch_testset(
                 #
                 status=EvaluationStatus.RUNNING,
             )
-            for _ in range(nof_testcases)
+            for _ in range(nof_scenarios)
         ]
 
         scenarios = await evaluations_service.create_scenarios(
@@ -280,7 +400,7 @@ async def evaluate_batch_testset(
             scenarios=scenarios_create,
         )
 
-        if len(scenarios) != nof_testcases:
+        if len(scenarios) != nof_scenarios:
             raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
@@ -289,13 +409,15 @@ async def evaluate_batch_testset(
             EvaluationResultCreate(
                 run_id=run_id,
                 scenario_id=scenario.id,
-                step_key=testset_step_key,
+                step_key=scenario_specs[idx]["input_step_key"],
+                repeat_idx=repeat_idx,
                 #
                 status=EvaluationStatus.SUCCESS,
                 #
-                testcase_id=testcases[idx].id,
+                testcase_id=scenario_specs[idx]["testcase"].id,
             )
             for idx, scenario in enumerate(scenarios)
+            for repeat_idx in repeat_indices
         ]
 
         steps = await evaluations_service.create_results(
@@ -305,452 +427,592 @@ async def evaluate_batch_testset(
             results=results_create,
         )
 
-        if len(steps) != nof_testcases:
+        if len(steps) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         # flatten testcases ----------------------------------------------------
-        _testcases = [testcase.model_dump(mode="json") for testcase in testcases]
+        _testcases = [
+            scenario_spec["testcase"].model_dump(mode="json")
+            for scenario_spec in scenario_specs
+        ]
 
         log.info(
             "[BATCH]     ",
             run_id=run_id,
-            ids=[testset_revision_id],
+            ids=testset_revision_ids,
             count=len(_testcases),
             size=len(dumps(_testcases).encode("utf-8")),
         )
-        # ----------------------------------------------------------------------
-
-        # invoke application ---------------------------------------------------
-        invocations: List[InvokationResult] = await llm_apps_service.batch_invoke(
-            project_id=str(project_id),
-            user_id=str(user_id),
-            testset_data=testcases_data,  # type: ignore
-            parameters=revision_parameters,  # type: ignore
-            uri=uri,
-            rate_limit_config=run_config,
-            schemas=(
-                application_revision.data.schemas.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
-                if application_revision.data and application_revision.data.schemas
-                else None
-            ),
-            is_chat=(
-                application_revision.flags.is_chat
-                if application_revision.flags
-                else None
-            ),
-            application_id=str(application.id),  # DO NOT REMOVE
-            references={
-                "testset": {"id": str(testset_id)},
-                "testset_revision": {"id": str(testset_revision_id)},
-                "application": {"id": str(application.id)},
-                "application_variant": {"id": str(application_variant.id)},
-                "application_revision": {"id": str(application_revision.id)},
-            },
-            scenarios=[
-                s.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
-                for s in scenarios
-            ],
-        )
-        # ----------------------------------------------------------------------
-
-        # create invocation results --------------------------------------------
-        results_create = [
-            EvaluationResultCreate(
-                run_id=run_id,
-                scenario_id=scenario.id,
-                step_key=invocation_steps_keys[0],
-                #
-                status=(
-                    EvaluationStatus.SUCCESS
-                    if not invocations[idx].result.error
-                    else EvaluationStatus.FAILURE
-                ),
-                #
-                trace_id=invocations[idx].trace_id,
-                error=(
-                    invocations[idx].result.error.model_dump(mode="json")
-                    if invocations[idx].result.error
-                    else None
-                ),
-            )
-            for idx, scenario in enumerate(scenarios)
-        ]
-
-        steps = await evaluations_service.create_results(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            results=results_create,
-        )
-
-        if len(steps) != nof_testcases:
-            raise ValueError(f"Failed to create evaluation steps for run {run_id}!")
         # ----------------------------------------------------------------------
 
         run_has_errors = 0
         run_has_pending = False
         run_status = EvaluationStatus.SUCCESS
 
-        # run evaluators -------------------------------------------------------
-        for idx in range(nof_testcases):
+        # run invocations / evaluators -----------------------------------------
+        for idx in range(nof_scenarios):
             scenario = scenarios[idx]
-            testcase = testcases[idx]
-            invocation = invocations[idx]
-            invocation_step_key = invocation_steps_keys[0]
+            scenario_spec = scenario_specs[idx]
+            testcase = scenario_spec["testcase"]
+            testcase_data = scenario_spec["testcase_data"]
+            testset = scenario_spec["testset"]
+            testset_revision = scenario_spec["testset_revision"]
 
             scenario_has_errors = 0
             scenario_has_pending = False
             scenario_status = EvaluationStatus.SUCCESS
+            application_references = {
+                "testcase": {"id": str(testcase.id)},
+                "testset": {"id": str(testset.id)},
+                "testset_variant": {"id": str(testset_revision.variant_id)},
+                "testset_revision": {"id": str(testset_revision.id)},
+                "application": {"id": str(application.id)},
+                "application_variant": {"id": str(application_variant.id)},
+                "application_revision": {"id": str(application_revision.id)},
+            }
 
-            # skip the iteration if error in the invocation --------------------
-            if invocation.result.error:
-                log.error(
-                    f"There is an error in invocation {invocation.trace_id} so we skip its evaluation"
+            application_hash_id = make_hash(
+                references=application_references,
+                links=None,
+            )
+            cached_application_traces = []
+            if is_cached and application_hash_id:
+                cached_application_traces = await fetch_traces_by_hash(
+                    tracing_service,
+                    project_id,
+                    hash_id=application_hash_id,
+                    limit=application_required_count,
                 )
 
-                scenario_has_errors += 1
-                run_has_errors += 1
-                scenario_status = EvaluationStatus.ERRORS
-                run_status = EvaluationStatus.ERRORS
+            cached_application_contexts = []
+            for reusable_trace in select_traces_for_reuse(
+                traces=cached_application_traces,
+                required_count=application_required_count,
+            ):
+                reusable_context = _build_trace_context(trace=reusable_trace)
+                if reusable_context:
+                    cached_application_contexts.append(reusable_context)
 
-                error = invocation.result.error.model_dump(mode="json")
-            # ------------------------------------------------------------------
+            missing_application_count = plan_missing_traces(
+                required_count=application_required_count,
+                reusable_count=len(cached_application_contexts),
+            )
 
-            # proceed with the evaluation otherwise ----------------------------
-            else:
-                if not invocation.trace_id:
-                    log.warn("invocation trace_id is missing.")
-                    scenario_has_errors += 1
-                    scenario_status = EvaluationStatus.ERRORS
-                    continue
-
-                trace = None
-                if invocation.trace_id:
-                    trace = await fetch_trace(
-                        tracing_service=tracing_service,
-                        project_id=project_id,
-                        trace_id=invocation.trace_id,
-                    )
-
-                if trace:
-                    log.info(
-                        "Trace found  ",
-                        scenario_id=scenario.id,
-                        step_key=invocation_step_key,
-                        trace_id=invocation.trace_id,
-                    )
-                else:
-                    log.warn(
-                        "Trace missing",
-                        scenario_id=scenario.id,
-                        step_key=invocation_step_key,
-                        trace_id=invocation.trace_id,
-                    )
-                    scenario_has_errors += 1
-                    scenario_status = EvaluationStatus.ERRORS
-                    continue
-
-                if not isinstance(trace.spans, dict):
-                    log.warn(
-                        f"Trace with id {invocation.trace_id} has no root spans",
-                    )
-                    scenario_has_errors += 1
-                    scenario_status = EvaluationStatus.ERRORS
-                    continue
-
-                root_span = list(trace.spans.values())[0]
-
-                if isinstance(root_span, list):
-                    log.warn(
-                        f"More than one root span for trace with id {invocation.trace_id}.",
-                    )
-                    scenario_has_errors += 1
-                    scenario_status = EvaluationStatus.ERRORS
-                    continue
-
-                # run the evaluators if no error in the invocation -------------
-                for jdx in range(nof_annotations):
-                    annotation_step_key = annotation_steps_keys[jdx]
-                    annotation_step = annotation_steps[jdx]
-
-                    step_has_errors = 0
-                    step_status = EvaluationStatus.SUCCESS
-
-                    if annotation_step.origin in {"human", "custom"}:
-                        scenario_has_pending = True
-                        run_has_pending = True
-                        # Human/custom steps are not auto-invoked here.
-                        # Results are created later by the annotator via the annotation submission flow.
-                        continue
-
-                    references: Dict[str, Any] = {
-                        **evaluator_references[annotation_step_key],
-                        "testcase": {"id": str(testcase.id)},
-                        "testset": {"id": str(testset_id)},
-                        "testset_revision": {"id": str(testset_revision_id)},
-                    }
-                    links: Dict[str, Any] = {
-                        invocation_steps_keys[0]: {
-                            "trace_id": invocation.trace_id,
-                            "span_id": invocation.span_id,
-                        }
-                    }
-
-                    # invoke annotation workflow -------------------------------
-                    evaluator_revision = evaluators[annotation_step_key]
-
-                    if not evaluator_revision:
-                        log.error(
-                            f"Evaluator revision for {annotation_step_key} not found!"
+            invoked_application_contexts = []
+            if missing_application_count > 0:
+                invocations: List[
+                    InvokationResult
+                ] = await llm_apps_service.batch_invoke(
+                    project_id=str(project_id),
+                    user_id=str(user_id),
+                    testset_data=[
+                        testcase_data for _ in range(missing_application_count)
+                    ],  # type: ignore[arg-type]
+                    parameters=revision_parameters,  # type: ignore[arg-type]
+                    uri=uri,
+                    rate_limit_config=run_config,
+                    application_id=str(application.id),
+                    references=application_references,
+                    scenarios=[
+                        scenario.model_dump(
+                            mode="json",
+                            exclude_none=True,
                         )
-                        step_has_errors += 1
-                        scenario_has_errors += 1
-                        run_has_errors += 1
-                        step_status = EvaluationStatus.FAILURE
-                        scenario_status = EvaluationStatus.ERRORS
-                        run_status = EvaluationStatus.ERRORS
-                        continue
+                        for _ in range(missing_application_count)
+                    ],
+                )
 
-                    _revision = evaluator_revision.model_dump(
+                if len(invocations) != missing_application_count:
+                    raise ValueError(
+                        f"Unexpected batch invocation count for scenario {scenario.id}!"
+                    )
+
+                for invocation in invocations:
+                    invocation_error = (
+                        invocation.result.error.model_dump(mode="json")
+                        if invocation.result and invocation.result.error
+                        else None
+                    )
+                    invoked_trace = None
+                    if not invocation_error and invocation.trace_id:
+                        invoked_trace = await fetch_trace(
+                            tracing_service=tracing_service,
+                            project_id=project_id,
+                            trace_id=invocation.trace_id,
+                        )
+
+                    invocation_context = (
+                        _build_trace_context(
+                            trace=invoked_trace,
+                            error=invocation_error,
+                        )
+                        if invoked_trace
+                        else None
+                    )
+                    if invocation_context:
+                        invoked_application_contexts.append(invocation_context)
+                    else:
+                        invoked_application_contexts.append(
+                            {
+                                "trace": invoked_trace,
+                                "trace_id": invocation.trace_id,
+                                "span_id": invocation.span_id,
+                                "root_span": None,
+                                "error": invocation_error
+                                or {
+                                    "message": "Invocation trace missing or malformed."
+                                },
+                            }
+                        )
+
+            application_contexts = (
+                cached_application_contexts + invoked_application_contexts
+            )
+            application_context_by_repeat: Dict[int, Dict[str, Any]] = {}
+            if is_split:
+                for repeat_idx, context in zip(repeat_indices, application_contexts):
+                    application_context_by_repeat[repeat_idx] = context
+            else:
+                shared_context = (
+                    application_contexts[0] if application_contexts else None
+                )
+                if shared_context:
+                    for repeat_idx in repeat_indices:
+                        application_context_by_repeat[repeat_idx] = shared_context
+
+            invocation_results_create = []
+            scenario_invocation_failed = False
+            for repeat_idx in repeat_indices:
+                application_context = application_context_by_repeat.get(repeat_idx)
+                application_error = (
+                    application_context.get("error")
+                    if application_context
+                    else {"message": "Invocation trace missing."}
+                )
+                has_invocation_error = not (
+                    application_context
+                    and application_context.get("trace_id")
+                    and application_context.get("root_span")
+                    and not application_error
+                )
+                if has_invocation_error:
+                    scenario_invocation_failed = True
+
+                invocation_results_create.append(
+                    EvaluationResultCreate(
+                        run_id=run_id,
+                        scenario_id=scenario.id,
+                        step_key=invocation_step_key,
+                        repeat_idx=repeat_idx,
+                        status=(
+                            EvaluationStatus.FAILURE
+                            if has_invocation_error
+                            else EvaluationStatus.SUCCESS
+                        ),
+                        trace_id=(
+                            application_context.get("trace_id")
+                            if application_context
+                            else None
+                        ),
+                        error=application_error if has_invocation_error else None,
+                    )
+                )
+
+            created_invocation_results = await evaluations_service.create_results(
+                project_id=project_id,
+                user_id=user_id,
+                results=invocation_results_create,
+            )
+            if len(created_invocation_results) != len(repeat_indices):
+                raise ValueError(
+                    f"Failed to create invocation results for scenario {scenario.id}!"
+                )
+
+            if scenario_invocation_failed:
+                scenario_has_errors += 1
+
+            for annotation_step in annotation_steps:
+                annotation_step_key = annotation_step.key
+
+                if annotation_step.origin in {"human", "custom"}:
+                    scenario_has_pending = True
+                    run_has_pending = True
+                    continue
+
+                evaluator_revision = evaluators.get(annotation_step_key)
+                if not evaluator_revision:
+                    log.error(
+                        f"Evaluator revision for {annotation_step_key} not found!"
+                    )
+                    scenario_has_errors += 1
+                    scenario_status = EvaluationStatus.ERRORS
+                    continue
+
+                _revision = evaluator_revision.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                )
+                interface = (
+                    dict(
+                        uri=evaluator_revision.data.uri,
+                        url=evaluator_revision.data.url,
+                        headers=evaluator_revision.data.headers,
+                        schemas=evaluator_revision.data.schemas,
+                    )
+                    if evaluator_revision.data
+                    else dict()
+                )
+                configuration = (
+                    dict(
+                        script=evaluator_revision.data.script,
+                        parameters=evaluator_revision.data.parameters,
+                    )
+                    if evaluator_revision.data
+                    else dict()
+                )
+                parameters = configuration.get("parameters")
+                flags = (
+                    evaluator_revision.flags.model_dump(
                         mode="json",
                         exclude_none=True,
+                        exclude_unset=True,
                     )
-                    interface = (
-                        dict(
-                            uri=evaluator_revision.data.uri,
-                            url=evaluator_revision.data.url,
-                            headers=evaluator_revision.data.headers,
-                            schemas=evaluator_revision.data.schemas,
-                        )
-                        if evaluator_revision.data
-                        else dict()
+                    if evaluator_revision.flags
+                    else None
+                )
+
+                base_references: Dict[str, Any] = {
+                    **evaluator_references[annotation_step_key],
+                    "testcase": {"id": str(testcase.id)},
+                    "testset": {"id": str(testset.id)},
+                    "testset_variant": {"id": str(testset_revision.variant_id)},
+                    "testset_revision": {"id": str(testset_revision.id)},
+                }
+
+                evaluator_results_create = []
+                if not is_split:
+                    shared_application_context = application_context_by_repeat.get(
+                        repeat_indices[0]
                     )
-                    configuration = (
-                        dict(
-                            script=evaluator_revision.data.script,
-                            parameters=evaluator_revision.data.parameters,
-                        )
-                        if evaluator_revision.data
-                        else dict()
-                    )
-                    parameters = configuration.get("parameters")
-
-                    _testcase = testcase.model_dump(mode="json")
-                    inputs = testcase.data
-                    if isinstance(inputs, dict):
-                        if "testcase_dedup_id" in inputs:
-                            del inputs["testcase_dedup_id"]
-
-                    _trace: Optional[dict] = (
-                        trace.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        )
-                        if trace
-                        else None
-                    )
-
-                    _root_span = root_span.model_dump(mode="json", exclude_none=True)
-                    testcase_data = testcase.data
-
-                    root_span_attributes: dict = _root_span.get("attributes") or {}
-                    root_span_attributes_ag: dict = root_span_attributes.get("ag") or {}
-                    root_span_attributes_ag_data: dict = (
-                        root_span_attributes_ag.get("data") or {}
-                    )
-                    root_span_attributes_ag_data_outputs = (
-                        root_span_attributes_ag_data.get("outputs")
-                    )
-                    root_span_attributes_ag_data_inputs = (
-                        root_span_attributes_ag_data.get("inputs")
-                    )
-
-                    outputs = root_span_attributes_ag_data_outputs
-                    inputs = testcase_data or root_span_attributes_ag_data_inputs
-
-                    workflow_service_request_data = WorkflowServiceRequestData(
-                        revision=_revision,
-                        parameters=parameters,
-                        #
-                        testcase=_testcase,
-                        inputs=inputs,
-                        #
-                        trace=_trace,
-                        outputs=outputs,
-                    )
-
-                    flags = (
-                        evaluator_revision.flags.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                            exclude_unset=True,
-                        )
-                        if evaluator_revision.flags
-                        else None
-                    )
-
-                    workflow_service_request = WorkflowServiceRequest(
-                        version="2025.07.14",
-                        #
-                        flags=flags,
-                        #
-                        interface=interface,
-                        configuration=configuration,
-                        #
-                        data=workflow_service_request_data,
-                        #
-                        references=references,
-                        links=links,
-                    )
-
-                    log.info(
-                        "Invoking evaluator...  ",
-                        scenario_id=scenario.id,
-                        testcase_id=testcase.id,
-                        trace_id=invocation.trace_id,
-                        uri=interface.get("uri"),
-                    )
-                    workflows_service_response = (
-                        await workflows_service.invoke_workflow(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            request=workflow_service_request,
-                            #
-                            annotate=True,
-                        )
-                    )
-                    log.info(
-                        "Invoked evaluator      ",
-                        scenario_id=scenario.id,
-                        trace_id=workflows_service_response.trace_id,
-                    )
-                    # ----------------------------------------------------------
-
-                    # run evaluator --------------------------------------------
-                    trace_id = workflows_service_response.trace_id
-
-                    error = None
-                    has_error = workflows_service_response.status.code != 200
-
-                    # if error in evaluator, no annotation, only step ----------
-                    if has_error:
-                        log.warn(
-                            f"There is an error in annotation {annotation_step_key} for invocation {invocation.trace_id}."
-                        )
-                        log.error(
-                            "[EVAL][ANNOTATION][ERROR]",
-                            scenario_id=scenario.id,
-                            invocation_trace_id=invocation.trace_id,
-                            evaluator_trace_id=workflows_service_response.trace_id,
-                            status=workflows_service_response.status.model_dump(
-                                mode="json"
-                            )
-                            if workflows_service_response.status
-                            else None,
-                            data=workflows_service_response.data.model_dump(
-                                mode="json", exclude_none=True
-                            )
-                            if workflows_service_response.data
-                            else None,
-                        )
-
-                        step_has_errors += 1
+                    if (
+                        not shared_application_context
+                        or not shared_application_context.get("root_span")
+                    ):
                         scenario_has_errors += 1
-                        run_has_errors += 1
-                        step_status = EvaluationStatus.FAILURE
                         scenario_status = EvaluationStatus.ERRORS
-                        run_status = EvaluationStatus.ERRORS
-
-                        error = workflows_service_response.status.model_dump(
-                            mode="json"
-                        )
-
-                    # ----------------------------------------------------------
-
-                    # else, first annotation, then step ------------------------
+                        evaluator_results_create = [
+                            EvaluationResultCreate(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                repeat_idx=repeat_idx,
+                                status=EvaluationStatus.FAILURE,
+                                error={
+                                    "message": "Evaluator skipped because invocation trace is missing."
+                                },
+                            )
+                            for repeat_idx in repeat_indices
+                        ]
                     else:
-                        outputs = (
-                            workflows_service_response.data.outputs
-                            if workflows_service_response.data
-                            else None
+                        shared_trace = shared_application_context["trace"]
+                        shared_root_span = shared_application_context["root_span"]
+                        shared_links = {
+                            invocation_step_key: {
+                                "trace_id": shared_application_context["trace_id"],
+                                "span_id": shared_application_context["span_id"],
+                            }
+                        }
+                        workflow_service_request_data = WorkflowServiceRequestData(
+                            revision=_revision,
+                            parameters=parameters,
+                            testcase=testcase.model_dump(mode="json"),
+                            inputs=testcase.data,
+                            trace=shared_trace.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            )
+                            if shared_trace
+                            else None,
+                            outputs=(
+                                (
+                                    shared_root_span.model_dump(
+                                        mode="json",
+                                        exclude_none=True,
+                                    )
+                                    .get("attributes", {})
+                                    .get("ag", {})
+                                    .get("data", {})
+                                ).get("outputs")
+                                if shared_root_span
+                                else None
+                            ),
+                        )
+                        workflow_service_request = WorkflowServiceRequest(
+                            version="2025.07.14",
+                            flags=flags,
+                            interface=interface,
+                            configuration=configuration,
+                            data=workflow_service_request_data,
+                            references=base_references,
+                            links=shared_links,
+                        )
+                        evaluator_hash_id = make_hash(
+                            references=base_references,
+                            links=shared_links,
+                        )
+                        cached_evaluator_traces = []
+                        if is_cached and evaluator_hash_id:
+                            cached_evaluator_traces = await fetch_traces_by_hash(
+                                tracing_service,
+                                project_id,
+                                hash_id=evaluator_hash_id,
+                                limit=evaluator_required_count,
+                            )
+
+                        reusable_evaluator_traces = select_traces_for_reuse(
+                            traces=cached_evaluator_traces,
+                            required_count=evaluator_required_count,
+                        )
+                        evaluator_results_create.extend(
+                            EvaluationResultCreate(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                repeat_idx=repeat_idx,
+                                status=EvaluationStatus.SUCCESS,
+                                trace_id=str(reusable_trace.trace_id),
+                            )
+                            for repeat_idx, reusable_trace in zip(
+                                repeat_indices,
+                                reusable_evaluator_traces,
+                            )
+                            if reusable_trace and reusable_trace.trace_id
                         )
 
-                        annotation = workflows_service_response
+                        for repeat_idx in repeat_indices[
+                            len(reusable_evaluator_traces) :
+                        ]:
+                            workflows_service_response = (
+                                await workflows_service.invoke_workflow(
+                                    project_id=project_id,
+                                    user_id=user_id,
+                                    request=workflow_service_request,
+                                    annotate=True,
+                                )
+                            )
+                            has_error = workflows_service_response.status.code != 200
+                            result_trace_id = workflows_service_response.trace_id
+                            result_error = None
+                            result_status = EvaluationStatus.SUCCESS
 
-                        trace_id = annotation.trace_id
+                            if has_error:
+                                result_status = EvaluationStatus.FAILURE
+                                result_error = (
+                                    workflows_service_response.status.model_dump(
+                                        mode="json",
+                                        exclude_none=True,
+                                    )
+                                )
+                                scenario_has_errors += 1
+                                scenario_status = EvaluationStatus.ERRORS
+                            elif result_trace_id:
+                                fetched_evaluator_trace = await fetch_trace(
+                                    tracing_service=tracing_service,
+                                    project_id=project_id,
+                                    trace_id=result_trace_id,
+                                )
+                                if not fetched_evaluator_trace:
+                                    result_status = EvaluationStatus.FAILURE
+                                    result_error = {
+                                        "message": "Evaluator trace missing after invocation."
+                                    }
+                                    scenario_has_errors += 1
+                                    scenario_status = EvaluationStatus.ERRORS
+                            else:
+                                result_status = EvaluationStatus.FAILURE
+                                result_error = {
+                                    "message": "Evaluator trace_id is missing."
+                                }
+                                scenario_has_errors += 1
+                                scenario_status = EvaluationStatus.ERRORS
 
-                        if not annotation.trace_id:
-                            log.warn("annotation trace_id is missing.")
+                            evaluator_results_create.append(
+                                EvaluationResultCreate(
+                                    run_id=run_id,
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    repeat_idx=repeat_idx,
+                                    status=result_status,
+                                    trace_id=result_trace_id,
+                                    error=result_error,
+                                )
+                            )
+                else:
+                    for repeat_idx in repeat_indices:
+                        application_context = application_context_by_repeat.get(
+                            repeat_idx
+                        )
+                        if not application_context or not application_context.get(
+                            "root_span"
+                        ):
                             scenario_has_errors += 1
                             scenario_status = EvaluationStatus.ERRORS
+                            evaluator_results_create.append(
+                                EvaluationResultCreate(
+                                    run_id=run_id,
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    repeat_idx=repeat_idx,
+                                    status=EvaluationStatus.FAILURE,
+                                    error={
+                                        "message": "Evaluator skipped because invocation trace is missing."
+                                    },
+                                )
+                            )
                             continue
 
-                        trace = None
-                        if annotation.trace_id:
-                            trace = await fetch_trace(
+                        application_trace = application_context["trace"]
+                        application_root_span = application_context["root_span"]
+                        application_root_span_data = (
+                            application_root_span.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            )
+                            .get("attributes", {})
+                            .get("ag", {})
+                            .get("data", {})
+                        )
+                        links = {
+                            invocation_step_key: {
+                                "trace_id": application_context["trace_id"],
+                                "span_id": application_context["span_id"],
+                            }
+                        }
+                        workflow_service_request = WorkflowServiceRequest(
+                            version="2025.07.14",
+                            flags=flags,
+                            interface=interface,
+                            configuration=configuration,
+                            data=WorkflowServiceRequestData(
+                                revision=_revision,
+                                parameters=parameters,
+                                testcase=testcase.model_dump(mode="json"),
+                                inputs=testcase.data,
+                                trace=application_trace.model_dump(
+                                    mode="json",
+                                    exclude_none=True,
+                                )
+                                if application_trace
+                                else None,
+                                outputs=application_root_span_data.get("outputs"),
+                            ),
+                            references=base_references,
+                            links=links,
+                        )
+                        evaluator_hash_id = make_hash(
+                            references=base_references,
+                            links=links,
+                        )
+                        cached_evaluator_trace = None
+                        if is_cached and evaluator_hash_id:
+                            cached_matches = await fetch_traces_by_hash(
+                                tracing_service,
+                                project_id,
+                                hash_id=evaluator_hash_id,
+                                limit=1,
+                            )
+                            reusable_match = select_traces_for_reuse(
+                                traces=cached_matches,
+                                required_count=1,
+                            )
+                            if reusable_match:
+                                cached_evaluator_trace = reusable_match[0]
+
+                        if cached_evaluator_trace and cached_evaluator_trace.trace_id:
+                            evaluator_results_create.append(
+                                EvaluationResultCreate(
+                                    run_id=run_id,
+                                    scenario_id=scenario.id,
+                                    step_key=annotation_step_key,
+                                    repeat_idx=repeat_idx,
+                                    status=EvaluationStatus.SUCCESS,
+                                    trace_id=str(cached_evaluator_trace.trace_id),
+                                )
+                            )
+                            continue
+
+                        workflows_service_response = (
+                            await workflows_service.invoke_workflow(
+                                project_id=project_id,
+                                user_id=user_id,
+                                request=workflow_service_request,
+                                annotate=True,
+                            )
+                        )
+
+                        result_trace_id = workflows_service_response.trace_id
+                        result_error = None
+                        result_status = EvaluationStatus.SUCCESS
+                        has_error = workflows_service_response.status.code != 200
+                        if has_error:
+                            result_status = EvaluationStatus.FAILURE
+                            result_error = workflows_service_response.status.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            )
+                            scenario_has_errors += 1
+                            scenario_status = EvaluationStatus.ERRORS
+                        elif result_trace_id:
+                            fetched_evaluator_trace = await fetch_trace(
                                 tracing_service=tracing_service,
                                 project_id=project_id,
-                                trace_id=annotation.trace_id,
+                                trace_id=result_trace_id,
                             )
-
-                        if trace:
-                            log.info(
-                                "Trace found  ",
-                                scenario_id=scenario.id,
-                                step_key=annotation_step_key,
-                                trace_id=annotation.trace_id,
-                            )
+                            if not fetched_evaluator_trace:
+                                result_status = EvaluationStatus.FAILURE
+                                result_error = {
+                                    "message": "Evaluator trace missing after invocation."
+                                }
+                                scenario_has_errors += 1
+                                scenario_status = EvaluationStatus.ERRORS
                         else:
-                            log.warn(
-                                "Trace missing",
-                                scenario_id=scenario.id,
-                                step_key=annotation_step_key,
-                                trace_id=annotation.trace_id,
-                            )
+                            result_status = EvaluationStatus.FAILURE
+                            result_error = {"message": "Evaluator trace_id is missing."}
                             scenario_has_errors += 1
                             scenario_status = EvaluationStatus.ERRORS
-                            continue
-                    # ----------------------------------------------------------
 
-                    results_create = [
-                        EvaluationResultCreate(
-                            run_id=run_id,
-                            scenario_id=scenario.id,
-                            step_key=annotation_step_key,
-                            #
-                            status=step_status,
-                            #
-                            trace_id=trace_id,
-                            error=error,
+                        evaluator_results_create.append(
+                            EvaluationResultCreate(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                repeat_idx=repeat_idx,
+                                status=result_status,
+                                trace_id=result_trace_id,
+                                error=result_error,
+                            )
                         )
-                    ]
 
-                    steps = await evaluations_service.create_results(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        results=results_create,
+                created_annotation_results = await evaluations_service.create_results(
+                    project_id=project_id,
+                    user_id=user_id,
+                    results=evaluator_results_create,
+                )
+
+                if len(created_annotation_results) != len(repeat_indices):
+                    raise ValueError(
+                        f"Failed to create evaluation results for scenario with id {scenario.id}!"
                     )
-
-                    if len(steps) != 1:
-                        raise ValueError(
-                            f"Failed to create evaluation step for scenario with id {scenario.id}!"
-                        )
-            # ------------------------------------------------------------------
 
             final_scenario_status = (
                 EvaluationStatus.PENDING
                 if scenario_status == EvaluationStatus.SUCCESS and scenario_has_pending
                 else scenario_status
             )
+
+            if final_scenario_status == EvaluationStatus.ERRORS:
+                run_has_errors += 1
 
             scenario_edit = EvaluationScenarioEdit(
                 id=scenario.id,
@@ -860,7 +1122,7 @@ async def evaluate_batch_testset(
     )
 
     # edit meters to avoid counting failed evaluations --------------------------
-    if run_status == EvaluationStatus.FAILURE:
+    if run_status == EvaluationStatus.FAILURE and project is not None:
         if is_ee():
             await check_entitlements(
                 organization_id=project.organization_id,
@@ -880,6 +1142,7 @@ async def evaluate_batch_invocation(
     #
     run_id: UUID,
     #
+    tracing_service: TracingService,
     testsets_service: TestsetsService,
     applications_service: ApplicationsService,
     evaluations_service: EvaluationsService,
@@ -906,17 +1169,6 @@ async def evaluate_batch_invocation(
         )
         # ----------------------------------------------------------------------
 
-        # prepare credentials --------------------------------------------------
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-        )
-
-        credentials = f"Secret {secret_token}"
-        # ----------------------------------------------------------------------
-
         # fetch run ------------------------------------------------------------
         run = await evaluations_service.fetch_run(
             project_id=project_id,
@@ -927,6 +1179,15 @@ async def evaluate_batch_invocation(
             raise ValueError(f"Evaluation run with id {run_id} not found!")
         if not run.data or not run.data.steps:
             raise ValueError(f"Evaluation run with id {run_id} has no steps!")
+        repeats = run.data.repeats or 1
+        repeat_indices = build_repeat_indices(repeats)
+        is_cached = bool(run.flags.is_cached) if run.flags else False
+        application_required_count = required_traces_for_step(
+            repeats=repeats,
+            is_split=False,
+            step_kind="application",
+            has_evaluator_steps=False,
+        )
 
         steps = run.data.steps
         input_steps = [step for step in steps if step.type == "input"]
@@ -938,21 +1199,13 @@ async def evaluate_batch_invocation(
                 f"Evaluation run with id {run_id} contains annotation steps; "
                 "use evaluate_batch_testset instead."
             )
-        if len(input_steps) != 1 or len(invocation_steps) != 1:
+        if not input_steps or len(invocation_steps) != 1:
             raise ValueError(
-                f"Evaluation run with id {run_id} must have exactly one input and one invocation step."
+                f"Evaluation run with id {run_id} must have at least one input and exactly one invocation step."
             )
 
-        input_step_key = input_steps[0].key
         invocation_step_key = invocation_steps[0].key
-        input_refs = input_steps[0].references or {}
         invocation_refs = invocation_steps[0].references or {}
-
-        testset_revision_ref = input_refs.get("testset_revision")
-        if not testset_revision_ref or not isinstance(testset_revision_ref.id, UUID):
-            raise ValueError(
-                f"Evaluation run with id {run_id} missing input.testset_revision reference."
-            )
 
         application_revision_ref = invocation_refs.get("application_revision")
         if not application_revision_ref or not isinstance(
@@ -963,43 +1216,26 @@ async def evaluate_batch_invocation(
             )
         # ----------------------------------------------------------------------
 
-        # fetch testset --------------------------------------------------------
-        testset_revision = await testsets_service.fetch_testset_revision(
+        input_specs = await _resolve_testset_input_specs(
             project_id=project_id,
-            testset_revision_ref=testset_revision_ref,
+            input_steps=input_steps,
+            testsets_service=testsets_service,
         )
-        if not testset_revision:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_ref.id} not found!"
+        scenario_specs = [
+            {
+                "input_step_key": input_spec["step_key"],
+                "testset": input_spec["testset"],
+                "testset_revision": input_spec["testset_revision"],
+                "testcase": testcase,
+                "testcase_data": testcase_data,
+            }
+            for input_spec in input_specs
+            for testcase, testcase_data in zip(
+                input_spec["testcases"],
+                input_spec["testcases_data"],
             )
-        if not testset_revision.data or not testset_revision.data.testcases:
-            raise ValueError(
-                f"Testset revision with id {testset_revision_ref.id} has no testcases!"
-            )
-
-        testset_variant_ref = Reference(id=testset_revision.variant_id)
-        testset_variant = await testsets_service.fetch_testset_variant(
-            project_id=project_id,
-            testset_variant_ref=testset_variant_ref,
-        )
-        if not testset_variant:
-            raise ValueError(
-                f"Testset variant with id {testset_revision.variant_id} not found!"
-            )
-
-        testset_ref = Reference(id=testset_variant.testset_id)
-        testset = await testsets_service.fetch_testset(
-            project_id=project_id,
-            testset_ref=testset_ref,
-        )
-        if not testset:
-            raise ValueError(f"Testset with id {testset_ref.id} not found!")
-
-        testcases = testset_revision.data.testcases
-        testcases_data = [
-            {**testcase.data, "id": str(testcase.id)} for testcase in testcases
         ]
-        nof_testcases = len(testcases)
+        nof_scenarios = len(scenario_specs)
         # ----------------------------------------------------------------------
 
         # fetch application ----------------------------------------------------
@@ -1064,10 +1300,10 @@ async def evaluate_batch_invocation(
                     run_id=run_id,
                     status=EvaluationStatus.RUNNING,
                 )
-                for _ in range(nof_testcases)
+                for _ in range(nof_scenarios)
             ],
         )
-        if len(scenarios) != nof_testcases:
+        if len(scenarios) != nof_scenarios:
             raise ValueError(f"Failed to create evaluation scenarios for run {run_id}!")
         # ----------------------------------------------------------------------
 
@@ -1079,66 +1315,106 @@ async def evaluate_batch_invocation(
                 EvaluationResultCreate(
                     run_id=run_id,
                     scenario_id=scenario.id,
-                    step_key=input_step_key,
+                    step_key=scenario_specs[idx]["input_step_key"],
+                    repeat_idx=repeat_idx,
                     status=EvaluationStatus.SUCCESS,
-                    testcase_id=testcases[idx].id,
+                    testcase_id=scenario_specs[idx]["testcase"].id,
                 )
                 for idx, scenario in enumerate(scenarios)
+                for repeat_idx in repeat_indices
             ],
         )
-        if len(input_results) != nof_testcases:
+        if len(input_results) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create input results for run {run_id}!")
         # ----------------------------------------------------------------------
 
-        # invoke application ---------------------------------------------------
+        # resolve cache / invoke application -----------------------------------
         run_config = {
             "batch_size": 10,
             "max_retries": 3,
             "retry_delay": 3,
             "delay_between_batches": 5,
         }
-        headers = {"Authorization": credentials} if credentials else {}
-        headers["ngrok-skip-browser-warning"] = "1"
-        _ = headers  # keep parity with legacy setup flow
-
-        invocations: List[InvokationResult] = await llm_apps_service.batch_invoke(
-            project_id=str(project_id),
-            user_id=str(user_id),
-            testset_data=testcases_data,  # type: ignore[arg-type]
-            parameters=revision_parameters,  # type: ignore[arg-type]
-            uri=uri,
-            rate_limit_config=run_config,
-            schemas=(
-                application_revision.data.schemas.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                )
-                if application_revision.data and application_revision.data.schemas
-                else None
-            ),
-            is_chat=(
-                application_revision.flags.is_chat
-                if application_revision.flags
-                else None
-            ),
-            application_id=str(application.id),
-            references={
+        scenario_invocations: Dict[tuple[int, int], Dict[str, Any]] = {}
+        for idx, scenario in enumerate(scenarios):
+            scenario_spec = scenario_specs[idx]
+            testcase = scenario_spec["testcase"]
+            testcase_data = scenario_spec["testcase_data"]
+            testset = scenario_spec["testset"]
+            testset_revision = scenario_spec["testset_revision"]
+            references = {
+                "testcase": {"id": str(testcase.id)},
                 "testset": {"id": str(testset.id)},
+                "testset_variant": {"id": str(testset_revision.variant_id)},
                 "testset_revision": {"id": str(testset_revision.id)},
                 "application": {"id": str(application.id)},
                 "application_variant": {"id": str(application_variant.id)},
                 "application_revision": {"id": str(application_revision.id)},
-            },
-            scenarios=[
-                s.model_dump(
-                    mode="json",
-                    exclude_none=True,
+            }
+            hash_id = make_hash(references=references, links=None)
+            cached_traces = []
+            if is_cached and hash_id:
+                cached_traces = await fetch_traces_by_hash(
+                    tracing_service,
+                    project_id,
+                    hash_id=hash_id,
+                    limit=application_required_count,
                 )
-                for s in scenarios
-            ],
-        )
-        if len(invocations) != nof_testcases:
-            raise ValueError(f"Unexpected batch invocation count for run {run_id}!")
+            reusable_traces = select_traces_for_reuse(
+                traces=cached_traces,
+                required_count=application_required_count,
+            )
+            for repeat_idx, reusable_trace in zip(repeat_indices, reusable_traces):
+                scenario_invocations[(idx, repeat_idx)] = {
+                    "status": EvaluationStatus.SUCCESS,
+                    "trace_id": (
+                        str(reusable_trace.trace_id)
+                        if reusable_trace and reusable_trace.trace_id
+                        else None
+                    ),
+                    "error": None,
+                }
+
+            missing_repeat_indices = repeat_indices[len(reusable_traces) :]
+            if missing_repeat_indices:
+                invocations = await llm_apps_service.batch_invoke(
+                    project_id=str(project_id),
+                    user_id=str(user_id),
+                    testset_data=[
+                        testcase_data for _ in range(len(missing_repeat_indices))
+                    ],  # type: ignore[arg-type]
+                    parameters=revision_parameters,  # type: ignore[arg-type]
+                    uri=uri,
+                    rate_limit_config=run_config,
+                    application_id=str(application.id),
+                    references=references,
+                    scenarios=[
+                        scenario.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        for _ in range(len(missing_repeat_indices))
+                    ],
+                )
+                if len(invocations) != len(missing_repeat_indices):
+                    raise ValueError(
+                        f"Unexpected batch invocation count for scenario {scenario.id}!"
+                    )
+                for repeat_idx, invocation in zip(missing_repeat_indices, invocations):
+                    invocation_error = (
+                        invocation.result.error.model_dump(mode="json")
+                        if invocation.result and invocation.result.error
+                        else None
+                    )
+                    scenario_invocations[(idx, repeat_idx)] = {
+                        "status": (
+                            EvaluationStatus.FAILURE
+                            if invocation_error
+                            else EvaluationStatus.SUCCESS
+                        ),
+                        "trace_id": invocation.trace_id,
+                        "error": invocation_error,
+                    }
         # ----------------------------------------------------------------------
 
         # create invocation results + finalize scenarios ------------------------
@@ -1151,32 +1427,38 @@ async def evaluate_batch_invocation(
                     run_id=run_id,
                     scenario_id=scenario.id,
                     step_key=invocation_step_key,
+                    repeat_idx=repeat_idx,
                     status=(
-                        EvaluationStatus.SUCCESS
-                        if not invocations[idx].result.error
-                        else EvaluationStatus.FAILURE
+                        scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                        or EvaluationStatus.FAILURE
                     ),
-                    trace_id=invocations[idx].trace_id,
-                    error=(
-                        invocations[idx].result.error.model_dump(mode="json")
-                        if invocations[idx].result.error
-                        else None
+                    trace_id=scenario_invocations.get((idx, repeat_idx), {}).get(
+                        "trace_id"
                     ),
+                    error=scenario_invocations.get((idx, repeat_idx), {}).get("error"),
                 )
                 for idx, scenario in enumerate(scenarios)
+                for repeat_idx in repeat_indices
             ],
         )
-        if len(invocation_results) != nof_testcases:
+        if len(invocation_results) != nof_scenarios * len(repeat_indices):
             raise ValueError(f"Failed to create invocation results for run {run_id}!")
 
         for idx, scenario in enumerate(scenarios):
-            invocation = invocations[idx]
             scenario_status = (
                 EvaluationStatus.SUCCESS
-                if not invocation.result.error
+                if all(
+                    scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                    == EvaluationStatus.SUCCESS
+                    for repeat_idx in repeat_indices
+                )
                 else EvaluationStatus.ERRORS
             )
-            if invocation.result.error:
+            if not all(
+                scenario_invocations.get((idx, repeat_idx), {}).get("status")
+                == EvaluationStatus.SUCCESS
+                for repeat_idx in repeat_indices
+            ):
                 run_has_errors += 1
 
             edited_scenario = await evaluations_service.edit_scenario(
@@ -1277,6 +1559,9 @@ async def _evaluate_batch_items(
             )
         if not run.data or not run.data.steps:
             raise ValueError(f"Evaluation run with id {run_id} has no data steps!")
+        repeats = run.data.repeats or 1
+        repeat_indices = build_repeat_indices(repeats)
+        is_cached = bool(run.flags.is_cached)
 
         testcase_ids = testcase_ids or []
         trace_ids = trace_ids or []
@@ -1386,6 +1671,7 @@ async def _evaluate_batch_items(
                             run_id=run_id,
                             scenario_id=scenario.id,
                             step_key=step.key,
+                            repeat_idx=repeat_idx,
                             status=EvaluationStatus.ERRORS,
                             testcase_id=source_testcase_id,
                             error={
@@ -1393,6 +1679,7 @@ async def _evaluate_batch_items(
                             },
                         )
                         for step in annotation_steps
+                        for repeat_idx in repeat_indices
                     ],
                 )
 
@@ -1405,12 +1692,14 @@ async def _evaluate_batch_items(
                             run_id=run_id,
                             scenario_id=scenario.id,
                             step_key=input_step_key,
+                            repeat_idx=repeat_idx,
                             status=EvaluationStatus.SUCCESS,
                             testcase_id=source_testcase_id,
                         )
+                        for repeat_idx in repeat_indices
                     ],
                 )
-                if len(input_results) != 1:
+                if len(input_results) != len(repeat_indices):
                     raise ValueError(
                         f"Failed to create input result for scenario {scenario.id}"
                     )
@@ -1459,12 +1748,14 @@ async def _evaluate_batch_items(
                             run_id=run_id,
                             scenario_id=scenario.id,
                             step_key=input_step_key,
+                            repeat_idx=repeat_idx,
                             status=EvaluationStatus.SUCCESS,
                             trace_id=source_trace_id,
                         )
+                        for repeat_idx in repeat_indices
                     ],
                 )
-                if len(input_results) != 1:
+                if len(input_results) != len(repeat_indices):
                     raise ValueError(
                         f"Failed to create trace input result for scenario {scenario.id}"
                     )
@@ -1482,12 +1773,14 @@ async def _evaluate_batch_items(
                             run_id=run_id,
                             scenario_id=scenario.id,
                             step_key=invocation_step_key,
+                            repeat_idx=repeat_idx,
                             status=EvaluationStatus.SUCCESS,
                             trace_id=source_trace_id,
                         )
+                        for repeat_idx in repeat_indices
                     ],
                 )
-                if len(invocation_results) != 1:
+                if len(invocation_results) != len(repeat_indices):
                     raise ValueError(
                         f"Failed to create invocation result for scenario {scenario.id}"
                     )
@@ -1571,47 +1864,95 @@ async def _evaluate_batch_items(
                         references=evaluator_references.get(annotation_step_key, {}),
                         links=links,
                     )
+                    hash_references: Dict[str, Any] = {
+                        **(evaluator_references.get(annotation_step_key, {}) or {})
+                    }
+                    if source_testcase_id:
+                        hash_references["testcase"] = {"id": str(source_testcase_id)}
 
-                    workflows_service_response = (
-                        await workflows_service.invoke_workflow(
-                            project_id=project_id,
-                            user_id=user_id,
-                            request=workflow_service_request,
-                            annotate=True,
+                    hash_id = make_hash(
+                        references=hash_references,
+                        links=links,
+                    )
+                    cached_traces = []
+                    if is_cached and hash_id and tracing_service is not None:
+                        cached_traces = await fetch_traces_by_hash(
+                            tracing_service,
+                            project_id,
+                            hash_id=hash_id,
+                            limit=len(repeat_indices),
                         )
+
+                    reusable_traces = select_traces_for_reuse(
+                        traces=cached_traces,
+                        required_count=len(repeat_indices),
+                    )
+                    _ = plan_missing_traces(
+                        required_count=len(repeat_indices),
+                        reusable_count=len(reusable_traces),
                     )
 
-                    has_error = workflows_service_response.status.code != 200
-                    result_trace_id = workflows_service_response.trace_id
-                    result_error = None
-                    result_status = EvaluationStatus.SUCCESS
-                    if has_error:
-                        result_status = EvaluationStatus.FAILURE
-                        result_error = workflows_service_response.status.model_dump(
-                            mode="json",
-                            exclude_none=True,
+                    results_payload = [
+                        EvaluationResultCreate(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                            step_key=annotation_step_key,
+                            repeat_idx=repeat_idx,
+                            status=EvaluationStatus.SUCCESS,
+                            testcase_id=source_testcase_id,
+                            trace_id=str(reusable_trace.trace_id),
                         )
-                        scenario_status = EvaluationStatus.ERRORS
-                        run_has_errors = True
+                        for repeat_idx, reusable_trace in zip(
+                            repeat_indices,
+                            reusable_traces,
+                        )
+                        if reusable_trace and reusable_trace.trace_id
+                    ]
 
-                    step_results = await evaluations_service.create_results(
-                        project_id=project_id,
-                        user_id=user_id,
-                        results=[
+                    for repeat_idx in repeat_indices[len(reusable_traces) :]:
+                        workflows_service_response = (
+                            await workflows_service.invoke_workflow(
+                                project_id=project_id,
+                                user_id=user_id,
+                                request=workflow_service_request,
+                                annotate=True,
+                            )
+                        )
+
+                        has_error = workflows_service_response.status.code != 200
+                        result_trace_id = workflows_service_response.trace_id
+                        result_error = None
+                        result_status = EvaluationStatus.SUCCESS
+                        if has_error:
+                            result_status = EvaluationStatus.FAILURE
+                            result_error = workflows_service_response.status.model_dump(
+                                mode="json",
+                                exclude_none=True,
+                            )
+                            scenario_status = EvaluationStatus.ERRORS
+                            run_has_errors = True
+
+                        results_payload.append(
                             EvaluationResultCreate(
                                 run_id=run_id,
                                 scenario_id=scenario.id,
                                 step_key=annotation_step_key,
+                                repeat_idx=repeat_idx,
                                 status=result_status,
                                 testcase_id=source_testcase_id,
                                 trace_id=result_trace_id,
                                 error=result_error,
                             )
-                        ],
+                        )
+
+                    step_results = await evaluations_service.create_results(
+                        project_id=project_id,
+                        user_id=user_id,
+                        results=results_payload,
                     )
-                    if len(step_results) != 1:
+                    if len(step_results) != len(repeat_indices):
                         raise ValueError(
-                            f"Failed to create annotation result for scenario {scenario.id}"
+                            f"Failed to create annotation results for scenario {scenario.id}"
                         )
 
             final_scenario_status = (
@@ -1745,6 +2086,7 @@ async def evaluate_batch_testcases(
     run_id: UUID,
     testcase_ids: List[UUID],
     #
+    tracing_service: TracingService,
     testcases_service: TestcasesService,
     workflows_service: WorkflowsService,
     evaluations_service: EvaluationsService,
@@ -1755,6 +2097,7 @@ async def evaluate_batch_testcases(
         run_id=run_id,
         #
         testcase_ids=testcase_ids,
+        tracing_service=tracing_service,
         testcases_service=testcases_service,
         workflows_service=workflows_service,
         evaluations_service=evaluations_service,

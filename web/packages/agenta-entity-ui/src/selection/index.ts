@@ -213,6 +213,7 @@ export {
     useEvaluatorEnrichedData,
     useEnrichedEvaluatorBrowseAdapter,
     useEnrichedEvaluatorOnlyAdapter,
+    useEnrichedHumanEvaluatorAdapter,
     useEnrichedAnnotationEvaluatorAdapter,
 } from "./adapters"
 

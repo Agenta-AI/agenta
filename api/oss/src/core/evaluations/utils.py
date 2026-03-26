@@ -1,15 +1,31 @@
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Any, Literal
 from uuid import UUID
 from asyncio import sleep
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.tracing.dtos import OTelSpansTree
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Traces
+from oss.src.core.tracing.utils.hashing import make_hash_id
+from oss.src.core.tracing.dtos import (
+    ComparisonOperator,
+    Condition,
+    Fields,
+    Filtering,
+    Focus,
+    Format,
+    Formatting,
+    ListOperator,
+    LogicalOperator,
+    TracingQuery,
+)
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 DEFAULT_BATCH_SIZE = 1 * 2 * 3 * 4 * 5
 
 log = get_module_logger(__name__)
+
+StepKind = Literal["application", "evaluator"]
 
 
 def paginate_ids(
@@ -201,6 +217,158 @@ def get_metrics_keys_from_schema(
         metrics.append({"path": ".".join(path), "type": metric_type})
 
     return metrics
+
+
+def _normalize_reference(reference: Any) -> Dict[str, str]:
+    if hasattr(reference, "model_dump"):
+        reference = reference.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(reference, dict):
+        return {}
+
+    entry = {}
+    for field in ("id", "slug", "version"):
+        value = reference.get(field)
+        if value is not None:
+            entry[field] = str(value)
+    return entry
+
+
+def _normalize_link(link: Any) -> Dict[str, str]:
+    if hasattr(link, "model_dump"):
+        link = link.model_dump(mode="json", exclude_none=True)
+
+    if not isinstance(link, dict):
+        return {}
+
+    entry = {}
+    for field in ("trace_id", "span_id"):
+        value = link.get(field)
+        if value is not None:
+            entry[field] = str(value)
+    return entry
+
+
+def make_hash(
+    *,
+    references: Optional[Dict[str, Any]] = None,
+    links: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    normalized_references = {
+        key: _normalize_reference(reference)
+        for key, reference in (references or {}).items()
+    }
+    normalized_links = {
+        key: _normalize_link(link) for key, link in (links or {}).items()
+    }
+
+    return make_hash_id(
+        references=normalized_references,
+        links=normalized_links,
+    )
+
+
+async def fetch_traces_by_hash(
+    tracing_service,
+    project_id: UUID,
+    *,
+    hash_id: str,
+    limit: Optional[int] = None,
+) -> Traces:
+    if not hash_id:
+        return []
+
+    return await tracing_service.query_traces(
+        project_id=project_id,
+        query=TracingQuery(
+            formatting=Formatting(
+                focus=Focus.TRACE,
+                format=Format.AGENTA,
+            ),
+            windowing=Windowing(
+                limit=limit,
+                order="descending",
+            ),
+            filtering=Filtering(
+                operator=LogicalOperator.AND,
+                conditions=[
+                    Condition(
+                        field=Fields.PARENT_ID,
+                        operator=ComparisonOperator.IS,
+                        value=None,
+                    ),
+                    Condition(
+                        field=Fields.HASHES,
+                        operator=ListOperator.IN,
+                        value=[{"id": hash_id}],
+                    ),
+                ],
+            ),
+        ),
+    )
+
+
+def select_traces_for_reuse(
+    *,
+    traces: Optional[Traces],
+    required_count: int,
+) -> Traces:
+    if not traces or required_count <= 0:
+        return []
+
+    return list(traces[:required_count])
+
+
+def plan_missing_traces(
+    *,
+    required_count: int,
+    reusable_count: int,
+) -> int:
+    return max(0, required_count - max(0, reusable_count))
+
+
+def build_repeat_indices(
+    repeats: Optional[int],
+) -> List[int]:
+    count = repeats or 1
+    if count < 1:
+        count = 1
+    return list(range(count))
+
+
+def required_traces_for_step(
+    *,
+    repeats: Optional[int],
+    is_split: bool,
+    step_kind: StepKind,
+    has_evaluator_steps: bool = True,
+) -> int:
+    count = max(1, repeats or 1)
+
+    if step_kind == "application":
+        if not has_evaluator_steps:
+            return count
+        return count if is_split else 1
+
+    if step_kind == "evaluator":
+        return count
+
+    return count
+
+
+def effective_is_split(
+    *,
+    is_split: bool,
+    is_live: bool = False,
+    is_queue: bool = False,
+    has_application_steps: bool = False,
+    has_evaluator_steps: bool = False,
+) -> bool:
+    if is_live or is_queue:
+        return False
+    if not has_application_steps or not has_evaluator_steps:
+        return False
+    return is_split
 
 
 async def fetch_trace(
