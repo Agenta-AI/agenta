@@ -113,7 +113,7 @@ class TestMatchValid:
         )
         assert r["success"] is True
         assert r["score"] == 1.0
-        assert r["error"] is False
+        assert r["error"] is None
 
     def test_text_invalid_non_string(self):
         r = first_result(

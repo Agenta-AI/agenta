@@ -824,15 +824,15 @@ class EnvironmentsService:
         environment_revision_commit: EnvironmentRevisionCommit,
     ) -> Optional[EnvironmentRevision]:
         # Route to delta handler if delta provided without data
-        if environment_revision_commit.delta and not environment_revision_commit.data:
+        if (
+            environment_revision_commit.delta is not None
+            and environment_revision_commit.data is None
+        ):
             return await self._commit_environment_revision_delta(
                 project_id=project_id,
                 user_id=user_id,
                 environment_revision_commit=environment_revision_commit,
             )
-
-        if not environment_revision_commit.slug:
-            raise ValueError("slug is required for environment revision commit")
 
         dumped = environment_revision_commit.model_dump(
             mode="json",
@@ -949,9 +949,6 @@ class EnvironmentsService:
                 base_references.pop(key, None)
 
         # Reconstruct commit with full data (no delta)
-        if not environment_revision_commit.slug:
-            raise ValueError("slug is required for environment revision commit")
-
         environment_revision_commit = EnvironmentRevisionCommit(
             slug=environment_revision_commit.slug,
             name=environment_revision_commit.name,

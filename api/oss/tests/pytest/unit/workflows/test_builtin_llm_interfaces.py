@@ -13,7 +13,8 @@ def test_chat_v0_interface_uses_prompt_template_parameters_schema():
     assert "$defs" not in parameters
 
     prompt = parameters["properties"]["prompt"]
-    assert prompt["x-ag-type"] == "prompt-template"
+    assert prompt["x-ag-type-ref"] == "prompt-template"
+    assert "x-ag-type" not in prompt
     assert prompt["type"] == "object"
     assert prompt["default"]["messages"][0]["role"] == "system"
     assert prompt["default"]["llm_config"]["model"] == "gpt-4o-mini"
@@ -24,7 +25,8 @@ def test_chat_v0_interface_inputs_allow_any_variables_and_messages():
 
     assert inputs["additionalProperties"] is True
     assert "$defs" not in inputs
-    assert inputs["properties"]["messages"]["x-ag-type"] == "messages"
+    assert inputs["properties"]["messages"]["x-ag-type-ref"] == "messages"
+    assert "x-ag-type" not in inputs["properties"]["messages"]
     assert inputs["properties"]["messages"]["type"] == "array"
     assert "default" not in inputs["properties"]["messages"]
 
@@ -36,7 +38,8 @@ def test_completion_v0_interface_uses_prompt_template_parameters_schema():
     assert "prompt_user" not in parameters["properties"]
 
     prompt = parameters["properties"]["prompt"]
-    assert prompt["x-ag-type"] == "prompt-template"
+    assert prompt["x-ag-type-ref"] == "prompt-template"
+    assert "x-ag-type" not in prompt
     prompt_default = prompt["default"]
     assert prompt_default["messages"][0]["content"] == "You are an expert in geography"
     assert (
@@ -55,7 +58,8 @@ def test_completion_v0_interface_inputs_allow_any_variables_only():
 def test_chat_v0_interface_outputs_use_message_semantic_type():
     outputs = chat_v0_interface.schemas.outputs
 
-    assert outputs["x-ag-type"] == "message"
+    assert outputs["x-ag-type-ref"] == "message"
+    assert "x-ag-type" not in outputs
     assert outputs["type"] == "object"
 
 

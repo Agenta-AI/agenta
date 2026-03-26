@@ -13,6 +13,36 @@ This document consolidates all migration work required across the runnables syst
 
 Migrations are organized by layer. Each entry states what needs to change, what the current state is, what the target state is, and what it depends on.
 
+Compatibility rule for this backlog:
+
+- if the runnable migration intentionally removes legacy code paths, endpoints, or request/response shapes, the required backward-compatibility handling must be captured here as migration work
+- valid handling includes DB/schema migrations, persisted-payload rewrites, read-time normalization, generated-client/type alignment, or an explicit no-migration decision
+- codebase-level compatibility wrappers are optional and should only exist when a specific consumer still requires them
+
+---
+
+## M0 — Plan Alignment for Intentional Breaking Changes
+
+**What:** The runnable workstream is not expand-only anymore. Intentional contract breaks must be tracked as migration work rather than assumed to be handled by preserving legacy runtime/API code paths.
+
+**Current state:**
+- `plan.md` still described checkpoint 1 as expand-only
+- the branch already includes code-level removals and contract simplifications
+- review feedback can over-focus on missing wrappers when the real missing artifact is migration coverage
+
+**Target state:**
+- `plan.md` explicitly states checkpoint 1 is mixed expand/contract
+- every intentional backward-incompatible change has one of:
+  - DB/schema migration work
+  - persisted-payload rewrite / normalization work
+  - generated-type / client-alignment work
+  - explicit `wontfix` / no-migration decision
+- codebase-level compatibility shims are only added when a concrete consumer still needs them
+
+**Depends on:** none
+
+**Migration type:** Planning / schema-migration coordination
+
 ---
 
 ## M1 — URI Backfills

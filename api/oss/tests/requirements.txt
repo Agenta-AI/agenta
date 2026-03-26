@@ -7,6 +7,7 @@ pytest-cov
 pytest-html
 pytest-mock
 pytest-xdist
+fakeredis
 asyncpg
 sendgrid
 agenta

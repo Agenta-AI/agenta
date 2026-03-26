@@ -1,4 +1,6 @@
 import sys
+import asyncio
+from uuid import uuid4
 
 from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
@@ -8,6 +10,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.env import env
 from oss.src.tasks.taskiq.evaluations.worker import EvaluationsWorker
+from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -157,6 +160,31 @@ evaluations_worker = EvaluationsWorker(
 
 # Wire evaluations_worker into evaluations_service (circular dependency)
 evaluations_service.evaluations_worker = evaluations_worker
+
+# Worker identity (stable for the lifetime of this process)
+_WORKER_ID = str(uuid4())
+_worker_heartbeat_task: asyncio.Task = None  # type: ignore[assignment]
+
+
+@broker.on_startup()
+async def _start_worker_heartbeat(state) -> None:
+    global _worker_heartbeat_task
+    _worker_heartbeat_task = asyncio.create_task(
+        run_worker_heartbeat(worker_id=_WORKER_ID)
+    )
+    log.info("[EVAL] Worker heartbeat started", worker_id=_WORKER_ID)
+
+
+@broker.on_shutdown()
+async def _stop_worker_heartbeat(state) -> None:
+    global _worker_heartbeat_task
+    if _worker_heartbeat_task and not _worker_heartbeat_task.done():
+        _worker_heartbeat_task.cancel()
+        try:
+            await _worker_heartbeat_task
+        except asyncio.CancelledError:
+            pass
+    log.info("[EVAL] Worker heartbeat stopped", worker_id=_WORKER_ID)
 
 
 def main() -> int:

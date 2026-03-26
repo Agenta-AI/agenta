@@ -368,17 +368,18 @@ class TestMatchV0Acceptance:
         params = {
             "matchers": [
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "key": "m0",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": reference,
                 }
             ]
         }
         result = run(_match_v0(parameters=params, outputs="Paris"))
-        assert "results" in result
-        assert len(result["results"]) == 1
-        assert result["results"][0]["success"] is True
+        assert "m0" in result
+        assert result["m0"]["success"] is True
+        assert result["success"] is True
 
     def test_exact_match_failure(self):
         """The same exact-match matcher returns success=False for a wrong output."""
@@ -389,15 +390,17 @@ class TestMatchV0Acceptance:
         params = {
             "matchers": [
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "key": "m0",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": reference,
                 }
             ]
         }
         result = run(_match_v0(parameters=params, outputs="London"))
-        assert result["results"][0]["success"] is False
+        assert result["m0"]["success"] is False
+        assert result["success"] is False
 
     def test_contains_matcher(self):
         """A substring regex matcher passes when output contains the substring."""
@@ -405,9 +408,10 @@ class TestMatchV0Acceptance:
         params = {
             "matchers": [
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "key": "m0",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "Paris",
                 }
             ]
@@ -415,7 +419,7 @@ class TestMatchV0Acceptance:
         result = run(
             _match_v0(parameters=params, outputs="The answer is Paris, France.")
         )
-        assert result["results"][0]["success"] is True
+        assert result["m0"]["success"] is True
 
     def test_multiple_matchers_return_multiple_results(self):
         """Multiple matchers in the list produce one result entry each."""
@@ -425,23 +429,25 @@ class TestMatchV0Acceptance:
         params = {
             "matchers": [
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "key": "m0",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "^" + re.escape("yes") + "$",
                 },
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.outputs",
+                    "key": "m1",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.outputs",
                     "reference": "yes",
                 },
             ]
         }
         result = run(_match_v0(parameters=params, outputs="yes"))
-        assert len(result["results"]) == 2
-        assert result["results"][0]["success"] is True
-        assert result["results"][1]["success"] is True
+        assert "m0" in result and "m1" in result
+        assert result["m0"]["success"] is True
+        assert result["m1"]["success"] is True
 
     def test_input_field_path_matcher(self):
         """A path of $.inputs.answer allows matching against a specific input field."""
@@ -451,15 +457,16 @@ class TestMatchV0Acceptance:
         params = {
             "matchers": [
                 {
-                    "kind": "text",
-                    "mode": "regex",
-                    "path": "$.inputs.answer",
+                    "key": "m0",
+                    "mode": "text",
+                    "match": "regex",
+                    "target": "$.inputs.answer",
                     "reference": "^" + re.escape("42") + "$",
                 }
             ]
         }
         result = run(_match_v0(parameters=params, inputs={"answer": "42"}))
-        assert result["results"][0]["success"] is True
+        assert result["m0"]["success"] is True
 
 
 # ---------------------------------------------------------------------------

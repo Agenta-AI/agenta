@@ -84,6 +84,7 @@ class Fields(str, Enum):
     EVENTS = "events"
     LINKS = "links"
     REFERENCES = "references"
+    HASHES = "hashes"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
     DELETED_AT = "deleted_at"
