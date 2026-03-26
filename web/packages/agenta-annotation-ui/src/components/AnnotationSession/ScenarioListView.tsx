@@ -13,6 +13,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {annotationSessionController, OUTPUT_KEYS} from "@agenta/annotation"
 import type {AnnotationColumnDef, ScenarioListColumnDef, SessionView} from "@agenta/annotation"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
+import type {EvaluationStatus} from "@agenta/entities/simpleQueue"
 import {
     traceEntityAtomFamily,
     traceRootSpanAtomFamily,
@@ -34,12 +35,21 @@ import {
     type TableScopeConfig,
     type TableExportColumnContext,
 } from "@agenta/ui/table"
-import {ArrowSquareOut, CaretDown, CaretRight, Check, NotePencil, Eye} from "@phosphor-icons/react"
-import {Button, Drawer, Tag, Tooltip, Typography, message} from "antd"
+import {
+    ArrowSquareOut,
+    CaretDown,
+    CaretRight,
+    Check,
+    NotePencil,
+    Eye,
+    Plus,
+} from "@phosphor-icons/react"
+import {Button, Drawer, Input, Tag, Tooltip, Typography, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {useAnnotationNavigation, useMetricPopoverWrapper} from "../../context/AnnotationUIContext"
+import AnnotationStatusFilterSelect from "../AnnotationStatusFilterSelect"
 import ScenarioContent from "../ScenarioContent"
 
 /** Only binary and categorical metric types should render distribution bars */
@@ -51,6 +61,7 @@ const isDistributionType = (stats: Record<string, unknown> | undefined): boolean
 }
 
 import AnnotationPanel from "./AnnotationPanel"
+import {EnhancedButton} from "@agenta/ui"
 
 // ============================================================================
 // TESTCASE CELL RENDERERS
@@ -1355,6 +1366,34 @@ const ScenarioListView = memo(function ScenarioListView({
     const setActiveView = useSetAtom(annotationSessionController.actions.setActiveView)
     const navigateToIndex = useSetAtom(annotationSessionController.actions.navigateToIndex)
     const listColumnDefs = useAtomValue(annotationSessionController.selectors.listColumnDefs())
+    const queueKind = useAtomValue(annotationSessionController.selectors.queueKind())
+    const canSyncToTestset = useAtomValue(annotationSessionController.selectors.canSyncToTestset())
+    const syncToTestsets = useSetAtom(annotationSessionController.actions.syncToTestsets)
+
+    const [searchTerm, setSearchTerm] = useState("")
+    const [statusFilter, setStatusFilter] = useState<EvaluationStatus | null>(null)
+    const [isSyncing, setIsSyncing] = useState(false)
+
+    const handleSyncToTestset = useCallback(async () => {
+        setIsSyncing(true)
+        try {
+            const result = await syncToTestsets()
+            const summary = `Created ${result.revisionsCreated} revision${result.revisionsCreated === 1 ? "" : "s"}, exported ${result.rowsExported} row${result.rowsExported === 1 ? "" : "s"}`
+            if (result.failedTargets.length > 0) {
+                message.warning(summary)
+            } else {
+                message.success(summary)
+            }
+        } catch (err) {
+            message.error(
+                err instanceof Error && err.message
+                    ? err.message
+                    : "Failed to save annotations to testsets",
+            )
+        } finally {
+            setIsSyncing(false)
+        }
+    }, [syncToTestsets])
     const handleViewChange = useCallback(
         (view: SessionView) => {
             if (onViewChange) {
@@ -1389,18 +1428,84 @@ const ScenarioListView = memo(function ScenarioListView({
     }, [])
 
     // Build table rows
-    const rows: ScenarioTableRow[] = useMemo(() => {
+    const allRows: ScenarioTableRow[] = useMemo(() => {
         return scenarios.map((scenario, index) => {
             const id = scenario.id as string
+            // Extract the visible display ID (trace_id or testcase_id) for search
+            const raw = scenario as Record<string, unknown>
+            const getRef = (key: string): string => {
+                const direct = raw[key]
+                if (typeof direct === "string" && direct) return direct
+                const tags = raw.tags as Record<string, unknown> | null | undefined
+                if (typeof tags?.[key] === "string") return tags[key] as string
+                const meta = raw.meta as Record<string, unknown> | null | undefined
+                if (typeof meta?.[key] === "string") return meta[key] as string
+                return ""
+            }
+            const displayId = getRef("trace_id") || getRef("testcase_id")
             return {
                 key: id || String(index),
                 scenarioIndex: index,
                 scenarioId: id,
+                displayId,
                 status: scenarioStatuses[id] ?? null,
                 raw: scenario,
             }
         })
     }, [scenarios, scenarioStatuses])
+
+    const rows = useMemo(() => {
+        let filtered = allRows
+        if (statusFilter) {
+            filtered = filtered.filter((row) => row.status === statusFilter)
+        }
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase()
+            filtered = filtered.filter(
+                (row) =>
+                    (row.displayId as string).toLowerCase().includes(term) ||
+                    row.scenarioId.toLowerCase().includes(term),
+            )
+        }
+        return filtered
+    }, [allRows, statusFilter, searchTerm])
+
+    const filtersNode = useMemo(
+        () => (
+            <div className="flex items-center gap-2">
+                <Input
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    allowClear
+                    className="!w-60"
+                />
+                <AnnotationStatusFilterSelect
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    size="small"
+                    popupMatchSelectWidth={false}
+                />
+            </div>
+        ),
+        [searchTerm, statusFilter],
+    )
+
+    const primaryActionsNode = useMemo(
+        () =>
+            queueKind === "testcases" ? (
+                <EnhancedButton
+                    type="primary"
+                    icon={<Plus size={14} />}
+                    onClick={handleSyncToTestset}
+                    loading={isSyncing}
+                    disabled={!canSyncToTestset || isSyncing}
+                    tooltipProps={{title: !canSyncToTestset ? "No scenarios annotated" : ""}}
+                    label="Save to testset"
+                />
+            ) : null,
+        [queueKind, canSyncToTestset, isSyncing, handleSyncToTestset],
+    )
 
     // Map column defs to AntD columns (purely presentational mapping)
     const columns = useMemo(() => {
@@ -1500,7 +1605,7 @@ const ScenarioListView = memo(function ScenarioListView({
     )
 
     return (
-        <div className="flex flex-col h-full w-full min-h-0">
+        <div className="flex flex-col h-full w-full min-h-0 px-4">
             <InfiniteVirtualTableFeatureShell<ScenarioTableRow>
                 tableScope={TABLE_SCOPE}
                 columns={columns}
@@ -1513,6 +1618,9 @@ const ScenarioListView = memo(function ScenarioListView({
                 tableClassName="agenta-scenario-table"
                 className="flex-1 min-h-0"
                 exportOptions={exportOptions}
+                exportAction={{label: "Export as CSV"}}
+                filters={filtersNode}
+                primaryActions={primaryActionsNode}
                 store={getDefaultStore()}
             />
 
