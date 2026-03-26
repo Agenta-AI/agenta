@@ -131,7 +131,27 @@ CATALOG_REGISTRY: dict = dict(
                         is_evaluator=True,
                         is_snippet=False,
                     ),
-                    presets=[],
+                    presets=[
+                        dict(
+                            key="quality-rating",
+                            name="Quality Rating",
+                            description="Rate the quality of responses with a simple thumbs up or down.",
+                            categories=[],
+                            flags=None,
+                            data=dict(
+                                uri="agenta:custom:trace:v0",
+                                schemas=dict(
+                                    outputs={
+                                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                        "type": "object",
+                                        "properties": {"approved": {"type": "boolean"}},
+                                        "required": ["approved"],
+                                        "additionalProperties": False,
+                                    }
+                                ),
+                            ),
+                        ),
+                    ],
                 )
             ),
             hook=dict(

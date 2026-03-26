@@ -220,8 +220,13 @@ async def legacy_create_workspace(
 
     # Keep legacy bootstrap aligned with project-level default environments.
     from oss.src.core.environments.defaults import create_default_environments
+    from oss.src.core.evaluators.defaults import create_default_evaluators
 
     await create_default_environments(
+        project_id=project_db.id,
+        user_id=user.id,
+    )
+    await create_default_evaluators(
         project_id=project_db.id,
         user_id=user.id,
     )
