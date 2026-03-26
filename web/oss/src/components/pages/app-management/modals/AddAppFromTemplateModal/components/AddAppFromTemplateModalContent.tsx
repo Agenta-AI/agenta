@@ -29,7 +29,12 @@ const AddAppFromTemplateModalContent = ({
         useTemplates()
 
     const templates = useMemo(
-        () => allTemplates.filter((t) => !t.data?.uri?.startsWith("agenta:custom:")),
+        () =>
+            allTemplates.filter(
+                (t) =>
+                    !t.data?.uri?.startsWith("agenta:custom:") &&
+                    !t.data?.uri?.startsWith("agenta:builtin:llm:"),
+            ),
         [allTemplates],
     )
 
