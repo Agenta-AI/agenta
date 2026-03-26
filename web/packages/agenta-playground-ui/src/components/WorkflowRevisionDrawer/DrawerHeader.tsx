@@ -10,8 +10,8 @@
  * - Action buttons depend on context:
  *   - variant/deployment: Playground, Deploy, Commit
  *   - evaluator-view: (no top-level actions — config header has Commit)
- *   - evaluator-create: Commit only
- * - Navigation arrows appear when navigationIds has > 1 entry
+ *   - evaluator-create: (no actions or navigation — config header has Commit)
+ * - Navigation arrows appear when navigationIds has > 1 entry (except evaluator-create)
  * - Info popover (metadata) shows in expanded mode only
  */
 import {memo, useCallback, useMemo} from "react"
@@ -122,17 +122,6 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
 })
 
 // ================================================================
-// EVALUATOR CREATE HEADER
-// ================================================================
-
-const EvaluatorCreateButton = memo(() => {
-    const {renderCommitButton} = useDrawerProviders()
-    const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
-    if (!entityId || !renderCommitButton) return null
-    return <>{renderCommitButton(entityId)}</>
-})
-
-// ================================================================
 // DRAWER TITLE
 // ================================================================
 
@@ -172,16 +161,14 @@ const DrawerHeader = () => {
                     &times;
                 </Button>
                 <Text className="text-sm font-medium">{title}</Text>
-                {entityId && <NavControls entityId={entityId} />}
+                {entityId && !isEvaluatorCreate && <NavControls entityId={entityId} />}
             </div>
 
             {/* Right: actions + expand */}
             <div className="flex items-center gap-2">
                 {isExpanded ? (
                     entityId && <MetadataPopover entityId={entityId} />
-                ) : isEvaluatorCreate ? (
-                    <EvaluatorCreateButton />
-                ) : isEvaluator ? null : (
+                ) : isEvaluatorCreate ? null : isEvaluator ? null : (
                     entityId && <VariantActionButtons entityId={entityId} />
                 )}
                 <Button
