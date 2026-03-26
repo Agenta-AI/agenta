@@ -178,13 +178,13 @@ const AnnotationPanel = memo(function AnnotationPanel({scenarioId}: AnnotationPa
                 {queueDescription && (
                     <Popover
                         trigger="click"
-                        placement="left"
+                        placement="bottomLeft"
                         destroyOnHidden
                         content={
                             <div
                                 className="overflow-y-auto"
                                 style={{
-                                    width: "min(480px, calc(100vw - 250px))",
+                                    width: "min(350px, calc(100vw - 250px))",
                                     maxHeight: "min(320px, calc(100vh - 160px))",
                                 }}
                             >

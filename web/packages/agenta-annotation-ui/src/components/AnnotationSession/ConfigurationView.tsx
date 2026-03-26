@@ -13,7 +13,7 @@ import type {KeyboardEvent, PropsWithChildren} from "react"
 import {annotationSessionController} from "@agenta/annotation"
 import {evaluatorMolecule} from "@agenta/entities/evaluator"
 import {simpleQueueMolecule} from "@agenta/entities/simpleQueue"
-import {useEntityDelete} from "@agenta/entity-ui"
+import {EntityDeleteModal} from "@agenta/entity-ui"
 import {Editor} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {ArrowSquareOut, CaretDown} from "@phosphor-icons/react"
@@ -686,31 +686,45 @@ const DeleteSection = memo(function DeleteSection({
     queueName?: string | null
 }) {
     const navigation = useAnnotationNavigation()
-    const {deleteEntity} = useEntityDelete()
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false)
 
-    const handleDelete = useCallback(() => {
-        deleteEntity("simpleQueue", queueId, queueName ?? undefined, {
-            onSuccess: () => {
-                navigation.navigateToQueueList()
-            },
-        })
-    }, [deleteEntity, navigation, queueId, queueName])
+    const handleDeleteClick = useCallback(() => {
+        setDeleteModalOpen(true)
+    }, [])
+
+    const handleDeleteClose = useCallback(() => {
+        setDeleteModalOpen(false)
+    }, [])
+
+    const handleDeleteSuccess = useCallback(() => {
+        setDeleteModalOpen(false)
+        navigation.navigateToQueueList()
+    }, [navigation])
 
     return (
-        <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[#FEE4E2] bg-[#FFFBFA]">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col gap-1">
-                    <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
-                    <Text type="secondary">
-                        Permanently remove this annotation queue and return to the queue list.
-                    </Text>
-                </div>
+        <>
+            <div className="flex flex-col gap-4 p-4 rounded-lg border border-solid border-[#FEE4E2] bg-[#FFFBFA]">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-1">
+                        <Text className="text-sm font-semibold text-[#B42318]">Delete queue</Text>
+                        <Text type="secondary">
+                            Permanently remove this annotation queue and return to the queue list.
+                        </Text>
+                    </div>
 
-                <Button danger onClick={handleDelete}>
-                    Delete queue
-                </Button>
+                    <Button danger onClick={handleDeleteClick}>
+                        Delete queue
+                    </Button>
+                </div>
             </div>
-        </div>
+
+            <EntityDeleteModal
+                open={deleteModalOpen}
+                onClose={handleDeleteClose}
+                onSuccess={handleDeleteSuccess}
+                entities={[{type: "simpleQueue", id: queueId, name: queueName ?? undefined}]}
+            />
+        </>
     )
 })
 
