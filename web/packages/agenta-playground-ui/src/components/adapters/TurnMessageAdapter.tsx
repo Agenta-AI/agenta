@@ -10,6 +10,7 @@ import {
     getAttachments,
     updateTextInContent,
 } from "@agenta/shared/utils"
+import {message, modal} from "@agenta/ui"
 import {ChatMessageEditor as MessageEditor, MessageAttachments} from "@agenta/ui/chat-message"
 import {
     getCollapseStyle,
@@ -73,6 +74,49 @@ function extractTextFromContent(content: MessageContent | undefined | null): str
     return ""
 }
 
+function inferSnippetFile(text: string): {filename: string; mimeType: string} {
+    const trimmed = text.trim()
+
+    if (trimmed) {
+        try {
+            JSON.parse(trimmed)
+            return {filename: "snippet.json", mimeType: "application/json"}
+        } catch {
+            // fall through
+        }
+
+        if (/^<!doctype html>|^<html[\s>]/i.test(trimmed)) {
+            return {filename: "snippet.html", mimeType: "text/html"}
+        }
+
+        if (/^<\?xml|^<[a-zA-Z_][\w:.-]*[\s>]/.test(trimmed)) {
+            return {filename: "snippet.xml", mimeType: "application/xml"}
+        }
+
+        if (/(^|\n)#{1,6}\s|```|\[[^\]]+\]\([^)]+\)/.test(trimmed)) {
+            return {filename: "snippet.md", mimeType: "text/markdown"}
+        }
+    }
+
+    return {filename: "snippet.txt", mimeType: "text/plain"}
+}
+
+function createTextFileDataUrl(text: string, mimeType: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result)
+                return
+            }
+
+            reject(new Error("Failed to create snippet data URL."))
+        }
+        reader.onerror = () => reject(reader.error ?? new Error("Failed to read snippet blob."))
+        reader.readAsDataURL(new Blob([text], {type: `${mimeType};charset=utf-8`}))
+    })
+}
+
 const TurnMessageAdapter: React.FC<Props> = ({
     entityId,
     rowId,
@@ -111,10 +155,20 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const patchMessage = useSetAtom(executionItemController.actions.patchMessage)
     const deleteMsg = useSetAtom(executionItemController.actions.deleteMessage)
     const clearResponseByRowEntity = useSetAtom(executionItemController.actions.clearResponse)
-    const {footerClassName, ...messageProps} = (_messageProps || {}) as AdapterMessageProps
+    const {
+        footerClassName,
+        onPasteLimitExceeded: messageOnPasteLimitExceeded,
+        ...messageProps
+    } = (_messageProps || {}) as AdapterMessageProps
     const [isMessageCollapsed, setIsMessageCollapsed] = useState(false)
     const [uploadSlots, setUploadSlots] = useState<
-        {id: string; type: "image" | "document"; file?: UploadFile; filled?: boolean}[]
+        {
+            id: string
+            type: "image" | "document"
+            file?: UploadFile
+            filled?: boolean
+            value?: string
+        }[]
     >([])
     const autoMinimizedRef = useRef(false)
     const isToolKind = kind === "tool"
@@ -265,8 +319,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [handleAddImage],
     )
 
-    const handleDocumentFileChange = useCallback(
-        (slotId: string, fileData: string, filename: string, format: string) => {
+    const handleAddFileAttachment = useCallback(
+        (fileData: string, filename: string, format: string) => {
             patchMessage({
                 target: messageTarget,
                 updater: (m) => {
@@ -277,10 +331,40 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     }
                 },
             })
-            // Mark slot as filled (keep it visible)
-            setUploadSlots((prev) => prev.map((s) => (s.id === slotId ? {...s, filled: true} : s)))
         },
         [messageTarget, patchMessage],
+    )
+
+    const handleDocumentFileChange = useCallback(
+        (slotId: string, fileData: string, filename: string, format: string) => {
+            handleAddFileAttachment(fileData, filename, format)
+            // Mark slot as filled (keep it visible)
+            setUploadSlots((prev) =>
+                prev.map((s) => (s.id === slotId ? {...s, filled: true, value: fileData} : s)),
+            )
+        },
+        [handleAddFileAttachment],
+    )
+
+    const handleAddSnippetAttachment = useCallback(
+        async (pastedText: string) => {
+            const {filename, mimeType} = inferSnippetFile(pastedText)
+            const fileData = await createTextFileDataUrl(pastedText, mimeType)
+            const slotId = uuidv4()
+
+            setUploadSlots((prev) => [
+                ...prev,
+                {
+                    id: slotId,
+                    type: "document",
+                    filled: true,
+                    value: fileData,
+                },
+            ])
+            handleAddFileAttachment(fileData, filename, mimeType)
+            message?.success(`Attached ${filename} as a snippet.`)
+        },
+        [handleAddFileAttachment],
     )
 
     const handleRemoveUploadSlot = useCallback(
@@ -365,6 +449,54 @@ const TurnMessageAdapter: React.FC<Props> = ({
         },
         [messageTarget, patchMessage],
     )
+
+    const defaultOnPasteLimitExceeded = useCallback(
+        ({
+            pastedText,
+            maxPasteChars,
+            overBy,
+        }: {
+            pastedText: string
+            maxPasteChars: number
+            overBy: number
+        }) => {
+            if (!isUserRole || effectiveDisabled || !modal) {
+                return false
+            }
+
+            const limitSummary =
+                overBy > 0
+                    ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
+                    : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+
+            modal.confirm({
+                title: "That's too long to paste",
+                content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
+                okText: "Create Snippet",
+                cancelText: "Dismiss",
+                centered: true,
+                onOk: async () => {
+                    try {
+                        await handleAddSnippetAttachment(pastedText)
+                    } catch (error) {
+                        message?.error(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to create snippet attachment.",
+                        )
+                        throw error
+                    }
+                },
+            })
+
+            return true
+        },
+        [effectiveDisabled, handleAddSnippetAttachment, isUserRole],
+    )
+
+    const onPasteLimitExceeded =
+        messageOnPasteLimitExceeded ??
+        (isUserRole && !effectiveDisabled ? defaultOnPasteLimitExceeded : undefined)
 
     // Check if this user turn has been executed (gates re-run enabled state).
     // We check for ANY child message (assistant, error, tool) — not just assistants,
@@ -479,6 +611,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             <PromptDocumentUpload
                                 key={slot.id}
                                 disabled={effectiveDisabled}
+                                value={slot.value}
                                 onFileChange={(fileData, filename, format) =>
                                     handleDocumentFileChange(slot.id, fileData, filename, format)
                                 }
@@ -621,6 +754,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             }
                             footer={footerContent}
                             editorType={editorType}
+                            onPasteLimitExceeded={onPasteLimitExceeded}
                             {...messageProps}
                         />
                     </div>
@@ -696,6 +830,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         }
                         footer={footerContent}
                         editorType={editorType}
+                        onPasteLimitExceeded={onPasteLimitExceeded}
                         {...messageProps}
                     />
                 </div>

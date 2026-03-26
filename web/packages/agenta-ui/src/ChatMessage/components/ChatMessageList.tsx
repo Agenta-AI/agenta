@@ -14,6 +14,7 @@ import {Copy, MinusCircle, Plus} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 
 import {CollapseToggleButton, getCollapseStyle} from "../../components/presentational/buttons"
+import {message, modal} from "../../utils/appMessageContext"
 import {cn, flexLayouts, gapClasses} from "../../utils/styles"
 
 import AttachmentButton from "./AttachmentButton"
@@ -21,6 +22,49 @@ import ChatMessageEditor from "./ChatMessageEditor"
 import MarkdownToggleButton from "./MarkdownToggleButton"
 import MessageAttachments from "./MessageAttachments"
 import ToolMessageHeader from "./ToolMessageHeader"
+
+function inferSnippetFile(text: string): {filename: string; mimeType: string} {
+    const trimmed = text.trim()
+
+    if (trimmed) {
+        try {
+            JSON.parse(trimmed)
+            return {filename: "snippet.json", mimeType: "application/json"}
+        } catch {
+            // fall through
+        }
+
+        if (/^<!doctype html>|^<html[\s>]/i.test(trimmed)) {
+            return {filename: "snippet.html", mimeType: "text/html"}
+        }
+
+        if (/^<\?xml|^<[a-zA-Z_][\w:.-]*[\s>]/.test(trimmed)) {
+            return {filename: "snippet.xml", mimeType: "application/xml"}
+        }
+
+        if (/(^|\n)#{1,6}\s|```|\[[^\]]+\]\([^)]+\)/.test(trimmed)) {
+            return {filename: "snippet.md", mimeType: "text/markdown"}
+        }
+    }
+
+    return {filename: "snippet.txt", mimeType: "text/plain"}
+}
+
+function createTextFileDataUrl(text: string, mimeType: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result)
+                return
+            }
+
+            reject(new Error("Failed to create snippet data URL."))
+        }
+        reader.onerror = () => reject(reader.error ?? new Error("Failed to read snippet blob."))
+        reader.readAsDataURL(new Blob([text], {type: `${mimeType};charset=utf-8`}))
+    })
+}
 
 const ChatMessageItem: React.FC<{
     msg: SimpleChatMessage
@@ -86,6 +130,53 @@ const ChatMessageItem: React.FC<{
     const attachments = getAttachments(msg.content ?? null)
     const hasAttachmentsFlag = attachments.length > 0
 
+    const handleCreateSnippetFromPaste = useCallback(
+        ({
+            pastedText,
+            maxPasteChars,
+            overBy,
+        }: {
+            pastedText: string
+            maxPasteChars: number
+            overBy: number
+        }) => {
+            if (!allowFileUpload || !modal) {
+                return false
+            }
+
+            const limitSummary =
+                overBy > 0
+                    ? `This paste is ${overBy.toLocaleString()} characters over the ${maxPasteChars.toLocaleString()}-character limit.`
+                    : `This paste exceeds the ${maxPasteChars.toLocaleString()}-character limit.`
+
+            modal.confirm({
+                title: "That's too long to paste",
+                content: `${limitSummary} To keep the editor responsive, you can attach the pasted content as a snippet instead.`,
+                okText: "Create Snippet",
+                cancelText: "Dismiss",
+                centered: true,
+                onOk: async () => {
+                    try {
+                        const {filename, mimeType} = inferSnippetFile(pastedText)
+                        const fileData = await createTextFileDataUrl(pastedText, mimeType)
+                        onAddFile(index, fileData, filename, mimeType)
+                        message?.success(`Attached ${filename} as a snippet.`)
+                    } catch (error) {
+                        message?.error(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to create snippet attachment.",
+                        )
+                        throw error
+                    }
+                },
+            })
+
+            return true
+        },
+        [allowFileUpload, index, onAddFile],
+    )
+
     return (
         <div
             className={cn(flexLayouts.column)}
@@ -106,6 +197,9 @@ const ChatMessageItem: React.FC<{
                 tokens={tokens}
                 loadingFallback={loadingFallback}
                 maxPasteChars={maxPasteChars}
+                onPasteLimitExceeded={({pastedText, maxPasteChars, overBy}) =>
+                    handleCreateSnippetFromPaste({pastedText, maxPasteChars, overBy})
+                }
                 headerBottom={
                     isToolResponse && (msg.name || msg.tool_call_id) ? (
                         <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />

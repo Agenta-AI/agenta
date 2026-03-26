@@ -157,6 +157,7 @@ const SharedEditor = ({
     useAntdInput = false,
     optimizeLargeInput = false,
     maxPasteChars,
+    onPasteLimitExceeded,
     disableContainerTransition = false,
     noProvider = false,
     debug = false,
@@ -295,6 +296,18 @@ const SharedEditor = ({
             ) {
                 event.preventDefault()
                 event.stopPropagation()
+                const handled = onPasteLimitExceeded?.({
+                    pastedText,
+                    currentValue: localValue,
+                    nextValue,
+                    nextLength: nextValue.length,
+                    maxPasteChars: effectiveMaxPasteChars,
+                    overBy: nextValue.length - effectiveMaxPasteChars,
+                })
+                if (handled === true) {
+                    setPasteLimitError(null)
+                    return
+                }
                 setPasteLimitError(
                     buildPasteLimitErrorMessage(nextValue.length, effectiveMaxPasteChars),
                 )
@@ -363,6 +376,7 @@ const SharedEditor = ({
             effectiveMaxPasteChars,
             handleLocalValueChange,
             localValue,
+            onPasteLimitExceeded,
             shouldOptimizeLargeInput,
             usesPlainTextInput,
         ],

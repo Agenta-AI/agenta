@@ -15,7 +15,7 @@
  * ```
  */
 
-import {useCallback, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {dataUriToObjectUrl, isBase64} from "@agenta/shared/utils"
 import {MinusCircleOutlined} from "@ant-design/icons"
@@ -29,6 +29,7 @@ import clsx from "clsx"
 
 export interface PromptDocumentUploadProps {
     disabled?: boolean
+    value?: string
     onFileChange: (fileData: string, filename: string, format: string) => void
     onRemove: () => void
 }
@@ -52,11 +53,22 @@ const isUrl = (value: string): boolean => {
 // COMPONENT
 // ============================================================================
 
-const PromptDocumentUpload = ({disabled, onFileChange, onRemove}: PromptDocumentUploadProps) => {
+const PromptDocumentUpload = ({
+    disabled,
+    value,
+    onFileChange,
+    onRemove,
+}: PromptDocumentUploadProps) => {
     const uploadRef = useRef<HTMLInputElement>(null)
 
     const [rawValue, setRawValue] = useState("")
     const [error, setError] = useState("")
+
+    useEffect(() => {
+        if (value === undefined || value === rawValue) return
+        setRawValue(value)
+        setError("")
+    }, [rawValue, value])
 
     const displayValue = useMemo(() => {
         if (!rawValue) return ""

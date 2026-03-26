@@ -4,6 +4,15 @@ import type {InputProps, TextAreaProps} from "antd/es/input"
 
 import type {EditorProps} from "../Editor"
 
+export interface PasteLimitExceededPayload {
+    pastedText: string
+    currentValue: string
+    nextValue: string
+    nextLength: number
+    maxPasteChars: number
+    overBy: number
+}
+
 /**
  * Base interface for components that render as HTML containers
  * @template T - HTML element type, defaults to HTMLDivElement
@@ -36,6 +45,8 @@ export interface SharedEditorProps extends BaseContainerProps {
     optimizeLargeInput?: boolean
     /** Block paste operations that would make the content exceed this many characters. Defaults to 50k for non-code editors. */
     maxPasteChars?: number
+    /** Optional hook for custom handling when a paste exceeds the limit. Return true to suppress the default inline error. */
+    onPasteLimitExceeded?: (payload: PasteLimitExceededPayload) => boolean | void
     /** Disable root container transition classes (useful in animated parent layouts) */
     disableContainerTransition?: boolean
     antdInputProps?: SharedAntdInputProps
