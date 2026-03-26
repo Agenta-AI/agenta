@@ -261,6 +261,32 @@ const formatLabel = (key: string): string =>
         .replace(/([a-z])([A-Z])/g, "$1 $2")
         .replace(/\b\w/g, (c) => c.toUpperCase())
 
+/** Check if a value is a short primitive suitable for inline display */
+const isShortLeaf = (value: unknown): boolean => {
+    if (value === null || value === undefined) return true
+    if (typeof value === "boolean" || typeof value === "number") return true
+    if (typeof value === "string" && value.length <= 120 && !value.includes("\n")) return true
+    return false
+}
+
+/** Inline key-value pair for compact leaf rendering */
+const InlineKeyValue = memo(function InlineKeyValue({
+    label,
+    value,
+}: {
+    label: string
+    value: string
+}) {
+    return (
+        <div className="flex items-baseline gap-2 min-h-[20px]">
+            <span className="text-xs text-[var(--ant-color-text-tertiary)] shrink-0">{label}</span>
+            <span className="text-sm font-mono text-[var(--ant-color-text)] break-all">
+                {value || "—"}
+            </span>
+        </div>
+    )
+})
+
 const EDITOR_RESET_CLASSES =
     "!min-h-0 [&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-inner]:!min-h-0 [&_.editor-container]:!bg-transparent [&_.editor-container]:!min-h-0 [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-0 [&_.editor-input]:!py-0 [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.agenta-editor-wrapper]:!min-h-0"
 
@@ -535,7 +561,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
     if (value && typeof value === "object" && !Array.isArray(value)) {
         const entries = Object.entries(value as Record<string, unknown>)
         return (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
                 {entries.map(([k, v]) => {
                     const simplified = simplifyValue(v)
                     const nestedChat = extractChatMessages(simplified)
@@ -552,15 +578,26 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                             </div>
                         )
                     }
-                    // Recurse for nested objects instead of stringifying (up to depth limit)
-                    if (
-                        depth < maxDepth &&
-                        simplified &&
-                        typeof simplified === "object" &&
-                        !Array.isArray(simplified)
-                    ) {
+
+                    // Short leaf values → inline key: value on one line
+                    if (isShortLeaf(simplified)) {
                         return (
-                            <div key={k} className="flex flex-col gap-1">
+                            <InlineKeyValue
+                                key={k}
+                                label={formatLabel(k)}
+                                value={
+                                    simplified === null || simplified === undefined
+                                        ? "—"
+                                        : String(simplified)
+                                }
+                            />
+                        )
+                    }
+
+                    // Recurse for nested objects/arrays (up to depth limit)
+                    if (depth < maxDepth && simplified && typeof simplified === "object") {
+                        return (
+                            <div key={k} className="flex flex-col gap-0.5 mt-1">
                                 <span className="text-xs font-medium text-[var(--ant-color-text-tertiary)]">
                                     {formatLabel(k)}
                                 </span>
@@ -576,6 +613,7 @@ const RenderedValueBlock = memo(function RenderedValueBlock({
                         )
                     }
 
+                    // Long strings or depth-limited objects → editor field
                     return (
                         <ReadOnlyVariableField
                             key={k}
