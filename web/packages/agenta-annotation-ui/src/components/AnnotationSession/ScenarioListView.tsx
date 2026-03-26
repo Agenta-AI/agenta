@@ -20,6 +20,7 @@ import {
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
 } from "@agenta/entities/trace"
+import {EnhancedButton} from "@agenta/ui"
 import {
     SmartCellContent,
     MetricCellContent,
@@ -61,7 +62,6 @@ const isDistributionType = (stats: Record<string, unknown> | undefined): boolean
 }
 
 import AnnotationPanel from "./AnnotationPanel"
-import {EnhancedButton} from "@agenta/ui"
 
 // ============================================================================
 // TESTCASE CELL RENDERERS
@@ -1495,7 +1495,6 @@ const ScenarioListView = memo(function ScenarioListView({
         () =>
             queueKind === "testcases" ? (
                 <EnhancedButton
-                    type="primary"
                     icon={<Plus size={14} />}
                     onClick={handleSyncToTestset}
                     loading={isSyncing}
