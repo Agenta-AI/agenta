@@ -1095,6 +1095,39 @@ interface ExportColumnState {
     >
 }
 
+function getSearchableColumnKeys(state: ExportColumnState): string[] {
+    const keys: string[] = []
+
+    state.defByKey.forEach((def, key) => {
+        if (def.columnType === "actions") return
+        keys.push(key)
+    })
+
+    state.traceInputKeyByColumnKey.forEach((_value, key) => {
+        keys.push(key)
+    })
+
+    state.annotationOutputByColumnKey.forEach((_value, key) => {
+        keys.push(key)
+    })
+
+    return keys
+}
+
+function stringifySearchValue(value: unknown): string {
+    if (value === null || value === undefined || value === EXPORT_RESOLVE_SKIP) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+        return String(value)
+    }
+
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
 function resolveExportColumnLabel(
     column: {key?: React.Key},
     state: ExportColumnState,
@@ -1456,43 +1489,6 @@ const ScenarioListView = memo(function ScenarioListView({
         })
     }, [scenarios, scenarioStatuses])
 
-    const rows = useMemo(() => {
-        let filtered = allRows
-        if (statusFilter) {
-            filtered = filtered.filter((row) => row.status === statusFilter)
-        }
-        if (searchTerm.trim()) {
-            const term = searchTerm.toLowerCase()
-            filtered = filtered.filter(
-                (row) =>
-                    (row.displayId as string).toLowerCase().includes(term) ||
-                    row.scenarioId.toLowerCase().includes(term),
-            )
-        }
-        return filtered
-    }, [allRows, statusFilter, searchTerm])
-
-    const filtersNode = useMemo(
-        () => (
-            <div className="flex items-center gap-2">
-                <Input
-                    placeholder="Search"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    allowClear
-                    className="!w-60"
-                />
-                <AnnotationStatusFilterSelect
-                    value={statusFilter}
-                    onChange={setStatusFilter}
-                    size="small"
-                    popupMatchSelectWidth={false}
-                />
-            </div>
-        ),
-        [searchTerm, statusFilter],
-    )
-
     const primaryActionsNode = useMemo(
         () =>
             queueKind === "testcases" ? (
@@ -1551,6 +1547,57 @@ const ScenarioListView = memo(function ScenarioListView({
 
         return {defByKey, traceInputKeyByColumnKey, annotationOutputByColumnKey}
     }, [listColumnDefs])
+
+    const searchableColumnKeys = useMemo(
+        () => getSearchableColumnKeys(exportColumnState),
+        [exportColumnState],
+    )
+
+    const rows = useMemo(() => {
+        let filtered = allRows
+        if (statusFilter) {
+            filtered = filtered.filter((row) => row.status === statusFilter)
+        }
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase()
+            filtered = filtered.filter((row) => {
+                if (
+                    (row.displayId as string).toLowerCase().includes(term) ||
+                    row.scenarioId.toLowerCase().includes(term)
+                ) {
+                    return true
+                }
+
+                return searchableColumnKeys.some((columnKey) =>
+                    stringifySearchValue(resolveExportCellValue(columnKey, row, exportColumnState))
+                        .toLowerCase()
+                        .includes(term),
+                )
+            })
+        }
+        return filtered
+    }, [allRows, statusFilter, searchTerm, searchableColumnKeys, exportColumnState])
+
+    const filtersNode = useMemo(
+        () => (
+            <div className="flex items-center gap-2">
+                <Input
+                    placeholder="Search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    allowClear
+                    className="!w-60"
+                />
+                <AnnotationStatusFilterSelect
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    size="small"
+                    popupMatchSelectWidth={false}
+                />
+            </div>
+        ),
+        [searchTerm, statusFilter],
+    )
 
     // Pagination (in-memory — all rows, no server pagination)
     const pagination = useMemo(
