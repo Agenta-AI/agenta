@@ -192,25 +192,27 @@ interface WaitResult<T> {
 }
 
 async function waitForQueryState<T>(
-    atomToWatch: {read: (get: never) => T},
+    atomToWatch: unknown,
     isReady: (value: T) => boolean,
     timeoutMs = 5000,
 ): Promise<WaitResult<T>> {
     const store = getDefaultStore()
-    const current = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+    const atomRef = atomToWatch as unknown as Parameters<typeof store.get>[0]
+    const subRef = atomToWatch as unknown as Parameters<typeof store.sub>[0]
+    const current = store.get(atomRef) as T
     if (isReady(current)) return {value: current, timedOut: false}
 
     return await new Promise<WaitResult<T>>((resolve) => {
         const timeout = window.setTimeout(() => {
             unsubscribe()
             resolve({
-                value: store.get(atomToWatch as Parameters<typeof store.get>[0]) as T,
+                value: store.get(atomRef) as T,
                 timedOut: true,
             })
         }, timeoutMs)
 
-        const unsubscribe = store.sub(atomToWatch as Parameters<typeof store.sub>[0], () => {
-            const next = store.get(atomToWatch as Parameters<typeof store.get>[0]) as T
+        const unsubscribe = store.sub(subRef, () => {
+            const next = store.get(atomRef) as T
             if (isReady(next)) {
                 window.clearTimeout(timeout)
                 unsubscribe()
@@ -1136,10 +1138,10 @@ function resolveExportColumnLabel(
 function resolveMetricValue(
     store: ReturnType<typeof getDefaultStore>,
     scenarioId: string,
-    evaluatorId: string,
-    evaluatorSlug: string,
-    path: string,
-    stepKey: string,
+    evaluatorId: string | null | undefined,
+    evaluatorSlug: string | null | undefined,
+    path: string | null | undefined,
+    stepKey: string | null | undefined,
 ): unknown {
     const metric = store.get(
         annotationSessionController.selectors.scenarioMetricForEvaluator({
