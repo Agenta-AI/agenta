@@ -34,6 +34,8 @@ export interface SharedEditorProps extends BaseContainerProps {
     useAntdInput?: boolean
     /** Switch oversized rich-text inputs to cheaper plain-text handling paths. */
     optimizeLargeInput?: boolean
+    /** Block paste operations that would make the content exceed this many characters. Defaults to 50k for non-code editors. */
+    maxPasteChars?: number
     /** Disable root container transition classes (useful in animated parent layouts) */
     disableContainerTransition?: boolean
     antdInputProps?: SharedAntdInputProps

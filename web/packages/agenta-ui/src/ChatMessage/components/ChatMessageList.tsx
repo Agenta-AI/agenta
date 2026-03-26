@@ -37,6 +37,7 @@ const ChatMessageItem: React.FC<{
     templateFormat?: "curly" | "fstring" | "jinja2"
     tokens?: string[]
     loadingFallback: "skeleton" | "none" | "static"
+    maxPasteChars?: number
     ImagePreview?: React.ComponentType<{
         src: string
         alt: string
@@ -65,6 +66,7 @@ const ChatMessageItem: React.FC<{
     templateFormat,
     tokens,
     loadingFallback,
+    maxPasteChars,
     ImagePreview,
     onRoleChange,
     onTextChange,
@@ -103,6 +105,7 @@ const ChatMessageItem: React.FC<{
                 templateFormat={templateFormat}
                 tokens={tokens}
                 loadingFallback={loadingFallback}
+                maxPasteChars={maxPasteChars}
                 headerBottom={
                     isToolResponse && (msg.name || msg.tool_call_id) ? (
                         <ToolMessageHeader name={msg.name} toolCallId={msg.tool_call_id} />
@@ -211,6 +214,8 @@ export interface ChatMessageListProps {
     defaultMinimized?: boolean
     /** Suspense fallback mode for editor plugins */
     loadingFallback?: "skeleton" | "none" | "static"
+    /** Block paste operations that would make a message exceed this many characters. */
+    maxPasteChars?: number
 }
 
 /**
@@ -240,6 +245,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     ImagePreview,
     defaultMinimized = false,
     loadingFallback = "skeleton",
+    maxPasteChars,
 }) => {
     // Maintain stable React keys for each message position.
     // This prevents React from reusing the wrong component instance
@@ -376,6 +382,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     templateFormat={templateFormat}
                     tokens={tokens}
                     loadingFallback={loadingFallback}
+                    maxPasteChars={maxPasteChars}
                     ImagePreview={ImagePreview}
                     onRoleChange={handleRoleChange}
                     onTextChange={handleTextChange}

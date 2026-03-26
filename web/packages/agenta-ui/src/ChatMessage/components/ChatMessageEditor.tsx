@@ -7,6 +7,8 @@ import {EditorProvider} from "../../Editor/Editor"
 import {SharedEditor} from "../../SharedEditor"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../utils/styles"
 
+const DEFAULT_MAX_TEXT_PASTE_CHARS = 50_000
+
 export interface ChatMessageEditorProps {
     /** Unique ID for the editor instance */
     id?: string
@@ -56,6 +58,8 @@ export interface ChatMessageEditorProps {
     loadingFallback?: "skeleton" | "none" | "static"
     /** Callback when editor focus state changes */
     onFocusChange?: (focused: boolean) => void
+    /** Block paste operations that would make the message exceed this many characters. */
+    maxPasteChars?: number
 }
 
 /**
@@ -86,6 +90,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
     validationSchema,
     loadingFallback = "skeleton",
     onFocusChange,
+    maxPasteChars = DEFAULT_MAX_TEXT_PASTE_CHARS,
     ...props
 }) => {
     const selectOptions = useMemo(
@@ -143,6 +148,7 @@ const ChatMessageEditorInner: React.FC<ChatMessageEditorProps> = ({
             className={cn("relative", flexLayouts.column, gapClasses.xs, "rounded-md", className)}
             footer={footer}
             onFocusChange={onFocusChange}
+            maxPasteChars={maxPasteChars}
             {...props}
             editorProps={{
                 codeOnly: isJSON,
