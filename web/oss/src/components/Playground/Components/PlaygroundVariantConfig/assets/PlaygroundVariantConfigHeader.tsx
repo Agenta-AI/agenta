@@ -221,15 +221,17 @@ const PlaygroundVariantConfigHeader = ({
                             type="primary"
                             size="small"
                         />
-                        <Tooltip title="Discard draft">
-                            <Button
-                                type="text"
-                                size="small"
-                                danger
-                                icon={<Trash size={16} />}
-                                onClick={handleDiscardLocalDraft}
-                            />
-                        </Tooltip>
+                        {!rawEntity?.meta?.__ephemeral && (
+                            <Tooltip title="Discard draft">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    danger
+                                    icon={<Trash size={16} />}
+                                    onClick={handleDiscardLocalDraft}
+                                />
+                            </Tooltip>
+                        )}
                     </>
                 ) : (
                     <>
