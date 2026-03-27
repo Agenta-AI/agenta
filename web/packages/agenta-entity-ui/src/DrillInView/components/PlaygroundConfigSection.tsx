@@ -491,9 +491,43 @@ function PlaygroundConfigSection({
     }
     prevIsDraftEmptyRef.current = isDraftEmpty
 
-    // Sync editor value when switching to a raw mode, or when draft is discarded
-    // (isDraftEmpty flipping to true means the user discarded changes — re-sync from server data)
+    // Eagerly sync rawEditorValue during render when entering a raw mode.
+    // Without this, switching Form → YAML/JSON after a revision change renders
+    // the SharedEditor with stale/empty content for one frame until the useEffect
+    // fires. The code editor may not properly re-hydrate from that empty initial state.
+    const prevViewModeRef = useRef(viewMode)
+    if (viewMode !== "form" && prevViewModeRef.current !== viewMode) {
+        const next =
+            viewMode === "yaml"
+                ? (() => {
+                      try {
+                          return yaml.dump(displayParameters, {indent: 2, lineWidth: -1})
+                      } catch {
+                          return JSON.stringify(displayParameters, null, 2)
+                      }
+                  })()
+                : JSON.stringify(displayParameters, null, 2)
+        // Only update if the content is actually different to avoid unnecessary re-renders
+        if (next !== rawEditorValue) {
+            setRawEditorValue(next)
+        }
+    }
+    prevViewModeRef.current = viewMode
+
+    // Track whether the latest displayParameters change was caused by the user
+    // editing in this raw editor. When true, the sync effect skips re-serializing
+    // to avoid overwriting the editor content (which kills focus/cursor).
+    const isLocalEditRef = useRef(false)
+
+    // Keep editor value in sync when parameters change from an external source
+    // (e.g., form edits in another mode, draft discard, revision switch) while
+    // already in a raw mode. Skips when the change originated from the user's
+    // own typing in this editor to avoid a re-serialize → focus-loss loop.
     useEffect(() => {
+        if (isLocalEditRef.current) {
+            isLocalEditRef.current = false
+            return
+        }
         if (viewMode === "json") {
             setRawEditorValue(JSON.stringify(displayParameters, null, 2))
         } else if (viewMode === "yaml") {
@@ -520,6 +554,8 @@ function PlaygroundConfigSection({
                         string,
                         unknown
                     >
+                    // Mark that the next displayParameters change is from our own edit
+                    isLocalEditRef.current = true
                     dispatchRawUpdate(revisionId, {data: {parameters: withMetadata}})
 
                     // Validate against parameters schema
