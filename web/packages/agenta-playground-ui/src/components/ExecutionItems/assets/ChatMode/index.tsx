@@ -128,7 +128,7 @@ const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeP
                                         disabled
                                         showControls={false}
                                         allowFileUpload={false}
-                                        enableTokens={tokens.length > 0}
+                                        enableTokens
                                         templateFormat={templateFormat}
                                         tokens={tokens}
                                     />
