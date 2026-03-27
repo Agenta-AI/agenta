@@ -591,7 +591,7 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
     )
     assert resp.status_code == 200, f"Deploy failed: {resp.text}"
 
-    return {
+    ctx: Dict[str, Any] = {
         "template_key": template_key,
         "uri": uri,
         "service_path": _uri_to_service_path(uri),
@@ -608,6 +608,11 @@ def _lifecycle_setup(case: Dict[str, Any], mod_api, mod_services_api) -> Dict[st
         "environment_id": environment_id,
         "environment_slug": environment_slug,
     }
+    if "outputs" in case:
+        ctx["outputs"] = case["outputs"]
+    if "messages" in case:
+        ctx["messages"] = case["messages"]
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -1333,7 +1338,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "all",
+                    "success": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
@@ -1367,7 +1372,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "all",
+                    "success": "all",
                     "matchers": [
                         {
                             "key": "has_paris",
@@ -1400,7 +1405,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "any",
+                    "success": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
@@ -1433,7 +1438,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "any",
+                    "success": "any",
                     "matchers": [
                         {
                             "key": "has_paris",
@@ -1468,7 +1473,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "weighted",
+                    "score": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {
@@ -1505,7 +1510,7 @@ class TestMatchV0Aggregation:
                     "mode": "text",
                     "match": "valid",
                     "target": "$.outputs",
-                    "aggregate": "weighted",
+                    "score": "weighted",
                     "threshold": 0.5,
                     "matchers": [
                         {

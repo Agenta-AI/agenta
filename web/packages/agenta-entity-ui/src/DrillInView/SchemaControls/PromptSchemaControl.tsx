@@ -75,6 +75,10 @@ export interface PromptSchemaControlProps {
 export function isPromptSchema(schema: SchemaProperty | null | undefined): boolean {
     if (!schema) return false
 
+    const xAgTypeRef = (schema as Record<string, unknown>)["x-ag-type-ref"] as string | undefined
+
+    if (xAgTypeRef === "prompt-template") return true
+
     // Check for x-parameter: "prompt"
     const xParam = schema["x-parameter"] as string | undefined
     if (xParam === "prompt") return true

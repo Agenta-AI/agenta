@@ -120,6 +120,86 @@ function hasParameters(data: {parameters?: Record<string, unknown>} | null | und
 }
 
 // ============================================================================
+// AGENTA_METADATA HELPERS
+// ============================================================================
+
+/**
+ * Recursively strip `agenta_metadata` from tool objects in the parameters tree.
+ * Returns a new object safe for display in JSON/YAML view and a map of stripped
+ * metadata keyed by stable path so it can be re-attached after editing.
+ */
+type MetadataMap = Map<string, unknown>
+
+function stripAgentaMetadata(params: Record<string, unknown>): Record<string, unknown> {
+    return stripRecursive(params) as Record<string, unknown>
+}
+
+function stripRecursive(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) => stripRecursive(item))
+    }
+    if (value && typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        const result: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(obj)) {
+            if (k === "agenta_metadata") continue
+            result[k] = stripRecursive(v)
+        }
+        return result
+    }
+    return value
+}
+
+/**
+ * Collect all agenta_metadata values from the original parameters,
+ * keyed by their JSON path (e.g. "prompt.llm_config.tools.0").
+ */
+function collectAgentaMetadata(
+    value: unknown,
+    path = "",
+    map: MetadataMap = new Map(),
+): MetadataMap {
+    if (Array.isArray(value)) {
+        value.forEach((item, i) => collectAgentaMetadata(item, path ? `${path}.${i}` : `${i}`, map))
+    } else if (value && typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        if ("agenta_metadata" in obj) {
+            map.set(path, obj.agenta_metadata)
+        }
+        for (const [k, v] of Object.entries(obj)) {
+            if (k === "agenta_metadata") continue
+            collectAgentaMetadata(v, path ? `${path}.${k}` : k, map)
+        }
+    }
+    return map
+}
+
+/**
+ * Re-inject agenta_metadata values into a parsed parameters object
+ * using the metadata map collected from the original.
+ */
+function reattachAgentaMetadata(value: unknown, metadataMap: MetadataMap, path = ""): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item, i) =>
+            reattachAgentaMetadata(item, metadataMap, path ? `${path}.${i}` : `${i}`),
+        )
+    }
+    if (value && typeof value === "object") {
+        const obj = value as Record<string, unknown>
+        const result: Record<string, unknown> = {}
+        for (const [k, v] of Object.entries(obj)) {
+            result[k] = reattachAgentaMetadata(v, metadataMap, path ? `${path}.${k}` : k)
+        }
+        const meta = metadataMap.get(path)
+        if (meta !== undefined) {
+            result.agenta_metadata = meta
+        }
+        return result
+    }
+    return value
+}
+
+// ============================================================================
 // ATOM MEMOIZATION HELPER
 // ============================================================================
 
@@ -384,20 +464,37 @@ function PlaygroundConfigSection({
     // Write raw edits directly to the draft, bypassing evaluator flatten transform.
     const dispatchRawUpdate = useSetAtom(workflowMolecule.actions.update)
 
-    // Sync editor value when switching to a raw mode
+    // Track draft state so we can detect discard (draft goes from truthy → null)
+    const draftAtom = useMemo(() => mol.atoms.draft(revisionId), [mol, revisionId])
+    const draft = useAtomValue(draftAtom)
+
+    // Strip agenta_metadata from tools before serializing for JSON/YAML view.
+    // This metadata is internal and should not be exposed to the user.
+    // Also collect metadata so it can be re-attached when the user saves edits.
+    const {displayParameters, metadataMap} = useMemo(() => {
+        return {
+            displayParameters: stripAgentaMetadata(parameters),
+            metadataMap: collectAgentaMetadata(parameters),
+        }
+    }, [parameters])
+
+    // Derive a stable flag so the effect fires when draft is discarded (becomes null)
+    const isDraftEmpty = draft === null || draft === undefined
+
+    // Sync editor value when switching to a raw mode, or when draft is discarded
+    // (isDraftEmpty flipping to true means the user discarded changes — re-sync from server data)
     useEffect(() => {
         if (viewMode === "json") {
-            setRawEditorValue(JSON.stringify(parameters, null, 2))
+            setRawEditorValue(JSON.stringify(displayParameters, null, 2))
         } else if (viewMode === "yaml") {
             try {
-                setRawEditorValue(yaml.dump(parameters, {indent: 2, lineWidth: -1}))
+                setRawEditorValue(yaml.dump(displayParameters, {indent: 2, lineWidth: -1}))
             } catch {
-                setRawEditorValue(JSON.stringify(parameters, null, 2))
+                setRawEditorValue(JSON.stringify(displayParameters, null, 2))
             }
         }
-        // Clear validation errors when switching modes
         setValidationErrors([])
-    }, [viewMode]) // Only sync when toggling mode
+    }, [viewMode, isDraftEmpty, displayParameters])
 
     const handleRawEditorChange = useCallback(
         (newValue: string) => {
@@ -408,22 +505,25 @@ function PlaygroundConfigSection({
                         ? (yaml.load(newValue) as Record<string, unknown>)
                         : JSON.parse(newValue)
                 if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-                    dispatchRawUpdate(revisionId, {data: {parameters: parsed}})
+                    // Re-attach agenta_metadata that was stripped for display
+                    const withMetadata = reattachAgentaMetadata(parsed, metadataMap) as Record<
+                        string,
+                        unknown
+                    >
+                    dispatchRawUpdate(revisionId, {data: {parameters: withMetadata}})
 
                     // Validate against parameters schema
-                    console.log("[PlaygroundConfigSection] schema for validation:", schema)
                     const result = validateConfigAgainstSchema(
                         parsed as Record<string, unknown>,
                         schema as Record<string, unknown> | null,
                     )
-                    console.log("[PlaygroundConfigSection] validation result:", result)
                     setValidationErrors(result.errors)
                 }
             } catch {
                 // Invalid syntax — don't emit
             }
         },
-        [dispatchRawUpdate, revisionId, viewMode, schema],
+        [dispatchRawUpdate, revisionId, viewMode, schema, metadataMap],
     )
 
     // ========== COLLAPSE STATE ==========

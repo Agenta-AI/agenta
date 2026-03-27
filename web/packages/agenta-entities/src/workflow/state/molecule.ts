@@ -445,7 +445,7 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
         const storedSchema =
             (entity?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
 
-        // For non-evaluators, enrich any opaque x-ag-type properties with
+        // For non-evaluators, enrich any opaque x-ag-type-ref properties with
         // full sub-property schemas fetched from the ag-types endpoint
         if (!entity?.flags?.is_evaluator) {
             if (!storedSchema?.properties) return storedSchema
@@ -466,8 +466,8 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
                         enrichedProperties[key] = {
                             ...prop,
                             ...agTypeSchema,
-                            // Preserve the original x-ag-type and title
-                            "x-ag-type": agType,
+                            // Preserve the original semantic ref and local overrides.
+                            "x-ag-type-ref": agType,
                             ...(prop.title ? {title: prop.title} : {}),
                             ...(prop.default !== undefined ? {default: prop.default} : {}),
                         }

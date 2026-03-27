@@ -358,13 +358,36 @@ class SimpleWorkflowQuery(Metadata):
 # WORKFLOW CATALOG -------------------------------------------------------------
 
 
-class WorkflowCatalogType(Header):
+class WorkflowCatalogMappingMixin:
+    def _as_catalog_mapping(self) -> dict:
+        return self.model_dump(mode="json", exclude_none=True)
+
+    def __getitem__(self, item: str):
+        return self._as_catalog_mapping()[item]
+
+    def get(self, item: str, default=None):
+        return self._as_catalog_mapping().get(item, default)
+
+    def keys(self):
+        return self._as_catalog_mapping().keys()
+
+    def values(self):
+        return self._as_catalog_mapping().values()
+
+    def items(self):
+        return self._as_catalog_mapping().items()
+
+    def __contains__(self, item: str) -> bool:
+        return item in self._as_catalog_mapping()
+
+
+class WorkflowCatalogType(WorkflowCatalogMappingMixin, Header):
     key: str
 
     json_schema: Schema
 
 
-class WorkflowCatalogTemplate(Header):
+class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     key: str
 
     categories: Optional[list[str]] = None
@@ -373,7 +396,7 @@ class WorkflowCatalogTemplate(Header):
     data: Optional[WorkflowRevisionData] = None
 
 
-class WorkflowCatalogPreset(Header):
+class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
     key: str
 
     categories: Optional[list[str]] = None

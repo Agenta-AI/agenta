@@ -1161,12 +1161,12 @@ export async function fetchWorkflowRevisionsByIdsBatch(
 }
 
 /**
- * Fetch the full dereferenced JSON Schema for an x-ag-type value.
+ * Fetch the full dereferenced JSON Schema for an x-ag-type-ref target.
  *
- * Used to resolve opaque `x-ag-type` markers (e.g. "prompt-template") into
+ * Used to resolve semantic refs (e.g. "prompt-template") into
  * rich sub-property schemas so the frontend can render proper config controls.
  *
- * @param agType - The ag-type key, e.g. "prompt-template"
+ * @param agType - The referenced ag-type key, e.g. "prompt-template"
  * @returns The dereferenced JSON Schema for the ag-type
  */
 export async function fetchAgTypeSchema(agType: string): Promise<Record<string, unknown>> {

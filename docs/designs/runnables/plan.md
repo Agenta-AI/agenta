@@ -4,7 +4,7 @@
 > Date: 2026-03-05
 > Companion: [gap-analysis.md](./gap-analysis.md), [taxonomy.md](./taxonomy.md)
 
-This document breaks the gap analysis into ordered checkpoints using an **expand-and-contract** migration strategy. Checkpoint 1 focuses on the expand phase — adding new capabilities alongside the existing system without removing anything.
+This document breaks the gap analysis into ordered checkpoints using an **expand-and-contract** migration strategy. The current runnable workstream is no longer expand-only: checkpoint 1 now includes selected contract removals and code-path contractions where the target runnable model replaces legacy surfaces.
 
 ---
 
@@ -14,13 +14,15 @@ This document breaks the gap analysis into ordered checkpoints using an **expand
 
 **Contract:** Remove the old code, old endpoints, old flags, old patterns. Only after the new system is proven and consumers have migrated.
 
-Checkpoint 1 is expand-only. Later checkpoints will handle contraction.
+**Compatibility rule:** When checkpoint 1 introduces a backward-incompatible change, the compatibility obligation must be handled at the data schema / migration level: DB migrations, persisted-payload rewrites, read-time normalization, generated-type alignment, or an explicit no-migration decision. Preserving every legacy code path or API wrapper in the codebase is not the default compatibility mechanism.
+
+Checkpoint 1 is a mixed migration checkpoint, not an expand-only checkpoint. Later checkpoints may continue contraction once the required migration work is complete.
 
 ---
 
-## Checkpoint 1: Expand
+## Checkpoint 1: Mixed Migration
 
-The goal is to get the new system to feature parity with the legacy system — and beyond — without removing anything. After this checkpoint, the new system is fully functional and the legacy system is still running but no longer needed.
+The goal is to get the new system to feature parity where needed while allowing targeted removals and contract simplifications already adopted by the branch. When those changes are backward-incompatible, compatibility must be handled through schema/data migration work rather than mandatory legacy code-path preservation.
 
 ### 1a. URI Taxonomy and Derived Classification (G14, G15, G16)
 
