@@ -9,6 +9,8 @@ import useURL from "@/oss/hooks/useURL"
 import {useAppsData} from "@/oss/state/app"
 import {getProjectValues} from "@/oss/state/project"
 
+import {invalidateAppManagementWorkflowQueries} from "../../store"
+
 import {
     closeDeleteAppModalAtom,
     deleteAppModalAtom,
@@ -32,6 +34,7 @@ const DeleteAppModal = (props = {}) => {
             await archiveWorkflow(projectId, appDetails.id)
             invalidateWorkflowsListCache()
             await mutateApps()
+            await invalidateAppManagementWorkflowQueries()
             closeModal()
             if (router.pathname.includes("/overview")) {
                 await router.push(baseProjectURL)
