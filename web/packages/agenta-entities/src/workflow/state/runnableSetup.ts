@@ -93,34 +93,24 @@ function extractInputKeysFromConfigInputKeys(agConfig: Record<string, unknown>):
  *
  * Checks in order:
  * 1. `flags.is_chat` — explicit flag from the backend
- * 2. `data.schemas.inputs` — if the input schema has a `messages` property
- * 3. `data.parameters` — if the parameters contain a prompt object with messages
- *    (covers apps where the flag hasn't been set but the prompt template has messages)
+ * 2. `data.schemas.inputs` — if the input schema has a `messages` property,
+ *    the workflow is a chat app (the flag may lag behind the schema data)
  */
 export const executionModeAtomFamily = atomFamily((workflowId: string) =>
     atom<"chat" | "completion">((get) => {
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (entity?.flags?.is_chat) return "chat"
 
-        // Fallback 1: detect chat mode from input schema
+        // Fallback: detect chat mode from input schema.
+        // Only the INPUT schema (not the parameters schema) distinguishes chat from
+        // completion — chat apps accept `messages` as input, while completion apps
+        // have prompt template messages in parameters but take simple variables as input.
         const inputSchema = entity?.data?.schemas?.inputs as
             | Record<string, unknown>
             | null
             | undefined
         const inputProps = inputSchema?.properties as Record<string, unknown> | null | undefined
         if (inputProps?.messages) return "chat"
-
-        // Fallback 2: detect chat mode from parameters data.
-        // Apps with a prompt template containing a messages array are chat apps
-        // even if the flag or input schema doesn't declare it.
-        const params = entity?.data?.parameters as Record<string, unknown> | null | undefined
-        if (params) {
-            // Check root-level messages (canonical schema)
-            if (Array.isArray(params.messages)) return "chat"
-            // Check nested prompt.messages (legacy schema)
-            const prompt = params.prompt as Record<string, unknown> | null | undefined
-            if (prompt && Array.isArray(prompt.messages)) return "chat"
-        }
 
         return "completion"
     }),
