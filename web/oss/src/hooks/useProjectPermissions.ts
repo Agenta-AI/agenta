@@ -130,6 +130,7 @@ export const useProjectPermissions = () => {
         isReady,
         selectedOrgId,
         selectedProjectId,
+        canExportData: hasRole("owner") || hasRole("admin") || hasRole("manager"),
         canViewApiKeys: hasPermission("view_api_keys"),
         canEditApiKeys: hasPermission("edit_api_keys"),
     }

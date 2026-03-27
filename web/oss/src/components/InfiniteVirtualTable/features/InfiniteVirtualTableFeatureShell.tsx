@@ -6,6 +6,8 @@ import {Button, Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
 import TableShell from "../components/TableShell"
@@ -257,6 +259,8 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
+    const {canExportData} = useProjectPermissions()
+    const exportEnabled = enableExport && canExportData
 
     // Responsive breakpoints for built-in action buttons
     const screens = Grid.useBreakpoint()
@@ -308,7 +312,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     } = exportOptions ?? {}
     const resolvedExportFilename = exportOptionsFilename ?? exportFilename ?? "table-export.csv"
     const exportHandler = useCallback(async () => {
-        if (isExporting) return
+        if (!exportEnabled || isExporting) return
         setIsExporting(true)
         try {
             // If rows are selected, export only selected rows; otherwise export all rows
@@ -350,19 +354,20 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         resolveValue,
         resolveColumnLabel,
         resolvedExportFilename,
+        exportEnabled,
         rowKey,
         rowSelection?.selectedRowKeys,
         tableExport,
     ])
 
     const exportButtonNode = useMemo(() => {
-        if (!enableExport) return null
+        if (!exportEnabled) return null
         if (renderExportButton) {
             return renderExportButton({onExport: exportHandler, loading: isExporting})
         }
         // Export button is now rendered inside the column visibility popover
         return null
-    }, [enableExport, exportHandler, isExporting, renderExportButton])
+    }, [exportEnabled, exportHandler, isExporting, renderExportButton])
 
     // Built-in delete button (wide screens only)
     const builtInDeleteButton = useMemo(() => {
@@ -388,7 +393,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
 
     // Built-in export button (wide screens only, when exportAction is provided)
     const builtInExportButton = useMemo(() => {
-        if (!enableExport || !exportAction || isNarrowScreen) return null
+        if (!exportEnabled || !exportAction || isNarrowScreen) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
             <Button disabled={disabled} onClick={exportHandler} type="text" loading={isExporting}>
@@ -403,7 +408,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
             )
         }
         return button
-    }, [enableExport, exportAction, exportHandler, isExporting, isNarrowScreen])
+    }, [exportEnabled, exportAction, exportHandler, isExporting, isNarrowScreen])
 
     // Resolve settings dropdown delete config (prefer deleteAction over legacy prop)
     const resolvedSettingsDropdownDelete = useMemo(() => {
@@ -438,7 +443,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     }, [builtInDeleteButton, builtInExportButton, secondaryActions, exportButtonNode])
 
     // Only show export in settings when enableExport is true AND no custom renderExportButton is provided
-    const showExportInSettings = enableExport && !renderExportButton
+    const showExportInSettings = exportEnabled && !renderExportButton
 
     const columnVisibilityRenderer = useMemo(
         () =>

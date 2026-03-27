@@ -25,6 +25,7 @@ import EmptyStateEvaluation from "@/oss/components/pages/evaluations/autoEvaluat
 import EmptyStateHumanEvaluation from "@/oss/components/pages/evaluations/humanEvaluation/EmptyStateHumanEvaluation"
 import EmptyStateOnlineEvaluation from "@/oss/components/pages/evaluations/onlineEvaluation/EmptyStateOnlineEvaluation"
 import EmptyStateSdkEvaluation from "@/oss/components/pages/evaluations/sdkEvaluation/EmptyStateSdkEvaluation"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {clearPreviewRunsCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunsRequest"
 import {
     onboardingWidgetActivationAtom,
@@ -230,6 +231,7 @@ const EvaluationRunsTableActive = ({
     const store = useStore()
     const queryClient = useQueryClient()
     const [, setKindParam] = useQueryParamState("kind", "auto")
+    const {canExportData} = useProjectPermissions()
 
     useEffect(() => {
         if (onboardingWidgetActivation !== "sdk-docs") return
@@ -572,17 +574,21 @@ const EvaluationRunsTableActive = ({
 
     // Export action config - shell handles button rendering and narrow screen behavior
     const exportAction = useMemo(
-        () => ({
-            disabled: !selectionSnapshot.hasSelection,
-            disabledTooltip: "Select runs to export",
-        }),
-        [selectionSnapshot.hasSelection],
+        () =>
+            canExportData
+                ? {
+                      disabled: !selectionSnapshot.hasSelection,
+                      disabledTooltip: "Select runs to export",
+                  }
+                : undefined,
+        [canExportData, selectionSnapshot.hasSelection],
     )
 
     const fallbackControlsHeight = showFilters ? 96 : headerTitle ? 48 : 24
 
     const handleExportRow = useCallback(
         async (record: EvaluationRunTableRow) => {
+            if (!canExportData) return
             if (!record || record.__isSkeleton || !record.key) return
             const snapshot = columnsRef.current
             if (!snapshot?.length) {
@@ -605,7 +611,7 @@ const EvaluationRunsTableActive = ({
                 setRowExportingKey((current) => (current === record.key ? null : current))
             }
         },
-        [exportResolveValue, resolveColumnLabel, tableExport],
+        [canExportData, exportResolveValue, resolveColumnLabel, tableExport],
     )
 
     const infiniteTableKeyboardShortcuts = useMemo(
@@ -641,6 +647,7 @@ const EvaluationRunsTableActive = ({
                     record: EvaluationRunTableRow | null
                     selection: Key[]
                 }) => {
+                    if (!canExportData) return
                     if (selection.length > 0) {
                         const exportButton = document.querySelector<HTMLButtonElement>(
                             ".evaluation-runs-table__export",
@@ -654,7 +661,7 @@ const EvaluationRunsTableActive = ({
                 },
             },
         }),
-        [handleExportRow, handleOpenRun, handleRequestDelete],
+        [canExportData, handleExportRow, handleOpenRun, handleRequestDelete],
     )
 
     const exportOptions = useMemo(
@@ -676,8 +683,8 @@ const EvaluationRunsTableActive = ({
         onTestsetNavigation: handleTestsetNavigation,
         onRequestDelete: handleRequestDelete,
         resolveAppId: resolveRowAppIdForScope,
-        onExportRow: handleExportRow,
-        rowExportingKey,
+        onExportRow: canExportData ? handleExportRow : undefined,
+        rowExportingKey: canExportData ? rowExportingKey : null,
     })
 
     useEffect(() => {
