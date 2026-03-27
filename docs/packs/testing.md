@@ -25,7 +25,7 @@ If conflicts, trust scripts.
 --speed <fast|slow>
 --cost <free|paid>
 --plan <hobby|pro|business|enterprise>
---role <owner|admin|editor|viewer>
+--role <owner|admin|manager|evaluator|auditor>
 --scope <scope>
 ```
 

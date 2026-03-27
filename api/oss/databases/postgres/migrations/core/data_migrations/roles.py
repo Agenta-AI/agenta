@@ -1,4 +1,4 @@
-from sqlalchemy import text, Connection
+from sqlalchemy import bindparam, text, Connection
 
 
 ROLE_MAP = {
@@ -77,20 +77,21 @@ def migrate_roles_to_canonical_names(session: Connection) -> None:
     """
 
     # 1. Delete API keys owned by disallowed-role users before renaming.
+    delete_disallowed_api_keys = text(
+        """
+        DELETE FROM api_keys
+        WHERE id IN (
+            SELECT ak.id
+            FROM api_keys ak
+            JOIN project_members pm
+              ON pm.project_id = ak.project_id
+             AND pm.user_id = ak.created_by_id
+            WHERE pm.role IN :disallowed_roles
+        )
+        """
+    ).bindparams(bindparam("disallowed_roles", expanding=True))
     session.execute(
-        text(
-            """
-            DELETE FROM api_keys
-            WHERE id IN (
-                SELECT ak.id
-                FROM api_keys ak
-                JOIN project_members pm
-                  ON pm.project_id = ak.project_id
-                 AND pm.user_id = ak.created_by_id
-                WHERE pm.role IN :disallowed_roles
-            )
-            """
-        ),
+        delete_disallowed_api_keys,
         {"disallowed_roles": DISALLOWED_API_KEY_ROLES},
     )
 

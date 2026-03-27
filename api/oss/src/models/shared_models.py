@@ -1,6 +1,22 @@
 import enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Final, Literal, Optional, TypeAlias
+
+
+CANONICAL_WORKSPACE_ROLES: Final[tuple[str, ...]] = (
+    "owner",
+    "admin",
+    "manager",
+    "evaluator",
+    "auditor",
+)
+CanonicalWorkspaceRole: TypeAlias = Literal[
+    "owner",
+    "admin",
+    "manager",
+    "evaluator",
+    "auditor",
+]
 
 
 class OrganizationFlags(BaseModel):
