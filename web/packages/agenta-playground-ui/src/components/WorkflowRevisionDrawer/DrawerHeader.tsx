@@ -166,11 +166,13 @@ const DrawerHeader = () => {
 
             {/* Right: actions + expand */}
             <div className="flex items-center gap-2">
-                {isExpanded ? (
-                    entityId && <MetadataPopover entityId={entityId} />
-                ) : isEvaluatorCreate ? null : isEvaluator ? null : (
-                    entityId && <VariantActionButtons entityId={entityId} />
-                )}
+                {isExpanded
+                    ? entityId && <MetadataPopover entityId={entityId} />
+                    : isEvaluatorCreate
+                      ? null
+                      : isEvaluator
+                        ? null
+                        : entityId && <VariantActionButtons entityId={entityId} />}
                 <Button
                     onClick={handleToggleExpand}
                     size="small"

@@ -1,23 +1,23 @@
 import {AppstoreOutlined, GithubFilled} from "@ant-design/icons"
 import {
-    ChartLineUp,
-    Database,
-    Desktop,
-    Flask,
-    PaperPlane,
-    Phone,
-    Question,
-    Scroll,
-    SlackLogo,
-    Gear,
-    TreeView,
-    Lightning,
-    Rocket,
-    ChatCircle,
-    Gavel,
+    ChartLineUpIcon,
+    DatabaseIcon,
+    DesktopIcon,
+    FlaskIcon,
+    PaperPlaneIcon,
+    PhoneIcon,
+    QuestionIcon,
+    ScrollIcon,
+    SlackLogoIcon,
+    GearIcon,
+    TreeViewIcon,
+    LightningIcon,
+    RocketIcon,
+    ChatCircleIcon,
+    GavelIcon,
     HouseIcon,
-    RocketLaunch,
-    ListChecks,
+    RocketLaunchIcon,
+    ListChecksIcon,
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -28,6 +28,7 @@ import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useAppsData} from "@/oss/state/app"
+import {useAppState} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 
 import {SidebarConfig} from "../../types"
@@ -35,12 +36,15 @@ import {SidebarConfig} from "../../types"
 export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
+    const {appId: routedAppId, routeLayer} = useAppState()
     const {selectedOrg} = useOrgData()
     const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
+    const hasAppContext =
+        routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -54,7 +58,7 @@ export const useSidebarConfig = () => {
             key: "project-playground-link",
             title: "Playground",
             link: `${projectURL}/playground`,
-            icon: <Rocket size={14} />,
+            icon: <RocketIcon size={14} />,
             isHidden: true,
             disabled: !hasProjectURL,
         },
@@ -69,7 +73,7 @@ export const useSidebarConfig = () => {
             key: "app-testsets-link",
             title: "Test sets",
             link: `${projectURL}/testsets`,
-            icon: <Database size={14} />,
+            icon: <DatabaseIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -77,7 +81,7 @@ export const useSidebarConfig = () => {
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
             // isHidden: !isDemo(),
-            icon: <Gavel size={14} />,
+            icon: <GavelIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
@@ -85,29 +89,29 @@ export const useSidebarConfig = () => {
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
-            icon: <Flask size={14} />,
+            icon: <FlaskIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
             key: "project-annotation-queues-link",
             title: "Annotation Queues",
             link: `${projectURL}/annotations`,
-            icon: <ListChecks size={14} />,
+            icon: <ListChecksIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
             key: "app-observability-link",
             title: "Observability",
             link: `${projectURL}/observability`,
-            icon: <ChartLineUp size={14} />,
+            icon: <ChartLineUpIcon size={14} />,
             disabled: !hasProjectURL,
         },
         {
             key: "overview-link",
             title: "Overview",
             link: `${appURL || recentlyVisitedAppURL}/overview`,
-            icon: <Desktop size={14} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            icon: <DesktopIcon size={14} />,
+            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
             disabled: !hasProjectURL,
         },
@@ -115,8 +119,8 @@ export const useSidebarConfig = () => {
             key: "app-playground-link",
             title: "Playground",
             link: `${appURL || recentlyVisitedAppURL}/playground`,
-            icon: <Rocket size={14} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            icon: <RocketIcon size={14} />,
+            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
             disabled: !hasProjectURL,
         },
@@ -124,9 +128,9 @@ export const useSidebarConfig = () => {
             key: "app-variants-link",
             title: "Registry",
             link: `${appURL || recentlyVisitedAppURL}/variants`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
-            icon: <Lightning size={14} />,
+            icon: <LightningIcon size={14} />,
             disabled: !hasProjectURL,
             dataTour: "registry-nav",
         },
@@ -134,17 +138,17 @@ export const useSidebarConfig = () => {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
-            icon: <Flask size={14} />,
+            icon: <FlaskIcon size={14} />,
             disabled: !hasProjectURL,
             dataTour: "evaluations-nav",
         },
         {
             key: "app-traces-link",
             title: "Observability",
-            icon: <TreeView size={14} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            icon: <TreeViewIcon size={14} />,
+            isHidden: !hasAppContext && !currentApp && !recentlyVisitedAppId,
             isAppSection: true,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
             disabled: !hasProjectURL,
@@ -153,7 +157,7 @@ export const useSidebarConfig = () => {
             key: "settings-link",
             title: "Settings",
             link: `${projectURL}/settings`,
-            icon: <Gear size={14} />,
+            icon: <GearIcon size={14} />,
             isBottom: true,
             tooltip: "Settings",
             disabled: !hasProjectURL,
@@ -162,7 +166,7 @@ export const useSidebarConfig = () => {
             key: "invite-teammate-link",
             title: "Invite Teammate",
             link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlane size={14} />,
+            icon: <PaperPlaneIcon size={14} />,
             isBottom: true,
             tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
@@ -173,7 +177,7 @@ export const useSidebarConfig = () => {
             title: "Get Started Guide",
             icon: (
                 <span id="sidebar-get-started-guide">
-                    <RocketLaunch size={16} />
+                    <RocketLaunchIcon size={16} />
                 </span>
             ),
             isBottom: true,
@@ -187,7 +191,7 @@ export const useSidebarConfig = () => {
         {
             key: "support-chat-link",
             title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-            icon: <ChatCircle size={14} />,
+            icon: <ChatCircleIcon size={14} />,
             isBottom: true,
             isHidden: !isDemo() || !isCrispEnabled,
             onClick: (e) => {
@@ -198,14 +202,14 @@ export const useSidebarConfig = () => {
         {
             key: "help-docs-link",
             title: "Help & Docs",
-            icon: <Question size={14} />,
+            icon: <QuestionIcon size={14} />,
             isBottom: true,
             submenu: [
                 {
                     key: "docs",
                     title: "Documentation",
                     link: "https://agenta.ai/docs/",
-                    icon: <Scroll size={14} />,
+                    icon: <ScrollIcon size={14} />,
                     divider: true,
                 },
                 {
@@ -218,14 +222,14 @@ export const useSidebarConfig = () => {
                     key: "slack-connect",
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
-                    icon: <SlackLogo size={14} />,
+                    icon: <SlackLogoIcon size={14} />,
                     divider: true,
                 },
                 {
                     key: "book-call",
                     title: "Book a call",
                     link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-                    icon: <Phone size={14} />,
+                    icon: <PhoneIcon size={14} />,
                 },
             ],
         },

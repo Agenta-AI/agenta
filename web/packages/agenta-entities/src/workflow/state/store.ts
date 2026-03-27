@@ -1859,6 +1859,90 @@ export function invalidateWorkflowsListCache(options?: StoreOptions) {
 }
 
 /**
+ * Seed the newly created app and its initial revision into the local cache so
+ * the sidebar and playground can render immediately after creation.
+ */
+export function seedCreatedWorkflowCache(
+    params: {
+        appId: string
+        revision: Workflow
+    },
+    options?: StoreOptions,
+) {
+    const store = getStore(options)
+    const queryClient = store.get(queryClientAtom)
+    const projectId = store.get(workflowProjectIdAtom)
+    const appId = String(params.appId || params.revision.workflow_id || params.revision.id || "")
+
+    if (!projectId || !appId || !params.revision?.id) return
+
+    const revision: Workflow = {
+        ...params.revision,
+        workflow_id: params.revision.workflow_id ?? appId,
+    }
+
+    const appRef: WorkflowListRef = {
+        id: appId,
+        name: revision.name ?? null,
+        slug: revision.slug ?? null,
+        description: revision.description ?? null,
+        flags: revision.flags,
+        deleted_at: revision.deleted_at ?? null,
+        created_at: revision.created_at ?? null,
+    }
+
+    store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
+    queryClient.setQueryData(["workflows", "revision", revision.id, projectId], revision)
+    queryClient.setQueryData(["workflows", "latestRevision", appId, projectId], revision)
+
+    queryClient.setQueryData<WorkflowRevisionRefsResponse>(
+        ["workflows", "revisionsByWorkflow", appId, projectId],
+        (current) => {
+            const refs = [...(current?.refs ?? [])]
+            const nextRef: WorkflowRevisionRef = {
+                id: revision.id,
+                version: revision.version ?? null,
+                created_at: revision.created_at ?? null,
+            }
+
+            const existingIndex = refs.findIndex((ref) => ref.id === nextRef.id)
+            if (existingIndex >= 0) {
+                refs[existingIndex] = nextRef
+            } else {
+                refs.unshift(nextRef)
+            }
+
+            return {
+                count: Math.max(current?.count ?? 0, refs.length),
+                refs,
+            }
+        },
+    )
+
+    queryClient.setQueryData<WorkflowListRefsResponse>(
+        ["workflows", "apps", "list", projectId],
+        (current) => {
+            const refs = [...(current?.refs ?? [])]
+            const existingIndex = refs.findIndex((ref) => ref.id === appRef.id)
+
+            if (existingIndex >= 0) {
+                refs[existingIndex] = {
+                    ...refs[existingIndex],
+                    ...appRef,
+                }
+            } else {
+                refs.unshift(appRef)
+            }
+
+            return {
+                count: Math.max(current?.count ?? 0, refs.length),
+                refs,
+            }
+        },
+    )
+}
+
+/**
  * Invalidate a single workflow's cache.
  */
 export function invalidateWorkflowCache(workflowId: string, options?: StoreOptions) {
