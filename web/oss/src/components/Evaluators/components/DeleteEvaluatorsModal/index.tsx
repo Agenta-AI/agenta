@@ -13,7 +13,7 @@ const DeleteEvaluatorsModalContent = dynamic(
 
 const DeleteEvaluatorsModal = ({
     selectedCount,
-    selectedNames,
+    revisionIds,
     confirmLoading = false,
     onConfirm,
     open,
@@ -29,7 +29,7 @@ const DeleteEvaluatorsModal = ({
             okText="Delete"
             cancelText="Cancel"
             onOk={onConfirm}
-            title="Delete evaluators"
+            title={selectedCount === 1 ? "Delete evaluator" : "Delete evaluators"}
             width={480}
             okButtonProps={{
                 ...okButtonProps,
@@ -38,10 +38,7 @@ const DeleteEvaluatorsModal = ({
             }}
             {...modalProps}
         >
-            <DeleteEvaluatorsModalContent
-                selectedCount={selectedCount}
-                selectedNames={selectedNames}
-            />
+            <DeleteEvaluatorsModalContent selectedCount={selectedCount} revisionIds={revisionIds} />
         </EnhancedModal>
     )
 }

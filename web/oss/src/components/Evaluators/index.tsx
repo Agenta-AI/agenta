@@ -104,7 +104,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
-    const [deleteTargetNames, setDeleteTargetNames] = useState<string[]>([])
+    const [deleteTargetRevisionIds, setDeleteTargetRevisionIds] = useState<string[]>([])
 
     const refetchAll = useCallback(() => {
         clearEvaluatorWorkflowCache()
@@ -201,7 +201,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             setIsDeleting(false)
             setIsDeleteModalOpen(false)
             setDeleteTargetIds([])
-            setDeleteTargetNames([])
+            setDeleteTargetRevisionIds([])
         }
     }, [deleteTargetIds, refetchAll, activeTab])
 
@@ -224,7 +224,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             handleDelete: (record: EvaluatorTableRow) => {
                 if (!record.workflowId) return
                 setDeleteTargetIds([record.workflowId])
-                setDeleteTargetNames([record.name])
+                setDeleteTargetRevisionIds([record.revisionId])
                 setIsDeleteModalOpen(true)
             },
         }),
@@ -318,12 +318,12 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 onCancel={() => {
                     setIsDeleteModalOpen(false)
                     setDeleteTargetIds([])
-                    setDeleteTargetNames([])
+                    setDeleteTargetRevisionIds([])
                 }}
                 onConfirm={handleConfirmDelete}
                 confirmLoading={isDeleting}
                 selectedCount={deleteTargetIds.length}
-                selectedNames={deleteTargetNames}
+                revisionIds={deleteTargetRevisionIds}
             />
         </PageLayout>
     )

@@ -88,7 +88,11 @@ const SingleDeleteContent = ({
     const variants = useAtomValue(variantsListAtom)
     const variantEntity = variants.find((v) => v.id === variantId)
     const entityName =
-        variantEntity?.name || variantEntity?.slug || workflowData?.slug || "this revision"
+        variantEntity?.name ||
+        variantEntity?.slug ||
+        workflowData?.name ||
+        workflowData?.slug ||
+        "this revision"
     const entityVersion = workflowData?.version
 
     const onDelete = useCallback(async () => {
@@ -122,12 +126,15 @@ const SingleDeleteContent = ({
 
     return (
         <section className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
                 <Text>
                     You are about to delete{" "}
-                    <EntityNameWithVersion name={entityName} version={entityVersion} />. This action
-                    cannot be undone.
+                    <Text strong>
+                        <EntityNameWithVersion name={entityName} version={entityVersion} />
+                    </Text>
+                    .
                 </Text>
+                <Text type="secondary">This action cannot be undone.</Text>
             </div>
 
             <div className="flex items-center justify-end gap-2">
