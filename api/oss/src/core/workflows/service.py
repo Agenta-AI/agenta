@@ -209,6 +209,14 @@ class WorkflowsService:
             else ArtifactQuery()
         )
 
+        # model_dump(exclude_none=True) strips folder_id when it's None,
+        # but None means "root level only" (WHERE folder_id IS NULL).
+        # Re-apply it so the DAO sees it in model_fields_set.
+        if workflow_query and "folder_id" in workflow_query.model_fields_set:
+            if "folder_id" not in artifact_query.model_fields_set:
+                artifact_query.folder_id = workflow_query.folder_id
+                artifact_query.model_fields_set.add("folder_id")
+
         artifacts = await self.workflows_dao.query_artifacts(
             project_id=project_id,
             #
