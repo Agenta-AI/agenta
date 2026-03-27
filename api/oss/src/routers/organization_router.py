@@ -127,8 +127,8 @@ async def fetch_organization_details(
             },
             "roles": [
                 {
-                    "role_name": "editor",
-                    "role_description": "Can edit workspace content, but cannot manage members or roles.",
+                    "role_name": "admin",
+                    "role_description": "Can manage workspace settings and members but cannot delete the workspace.",
                 }
             ],
         }

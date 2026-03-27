@@ -6,11 +6,10 @@ from pydantic import BaseModel, Field
 
 class WorkspaceRole(str, Enum):
     OWNER = "owner"
-    VIEWER = "viewer"
-    EDITOR = "editor"
+    ADMIN = "admin"
+    MANAGER = "manager"
     EVALUATOR = "evaluator"
-    WORKSPACE_ADMIN = "workspace_admin"
-    DEPLOYMENT_MANAGER = "deployment_manager"
+    AUDITOR = "auditor"
 
     @classmethod
     def is_valid_role(cls, role: str) -> bool:
@@ -20,11 +19,10 @@ class WorkspaceRole(str, Enum):
     def get_description(cls, role):
         descriptions = {
             cls.OWNER: "Can fully manage the workspace, including adding and removing members.",
-            cls.VIEWER: "Can view the workspace content but cannot make changes.",
-            cls.EDITOR: "Can edit workspace content, but cannot manage members or roles.",
+            cls.ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
+            cls.MANAGER: "Can manage model deployments within the workspace.",
             cls.EVALUATOR: "Can evaluate models and provide feedback within the workspace.",
-            cls.WORKSPACE_ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
-            cls.DEPLOYMENT_MANAGER: "Can manage model deployments within the workspace.",
+            cls.AUDITOR: "Can view the workspace content but cannot make changes.",
         }
         return descriptions.get(role, "Description not available, Role not found")
 
@@ -160,7 +158,7 @@ class Permission(str, Enum):
 
     @classmethod
     def default_permissions(cls, role):
-        VIEWER_PERMISSIONS = [
+        AUDITOR_PERMISSIONS = [
             cls.READ_SYSTEM,
             cls.VIEW_APPLICATIONS,
             cls.VIEW_SECRET,
@@ -179,7 +177,6 @@ class Permission(str, Enum):
             cls.VIEW_INVOCATIONS,
             cls.VIEW_SPANS,
             cls.VIEW_FOLDERS,
-            cls.VIEW_API_KEYS,
             cls.VIEW_ENVIRONMENTS,
             cls.VIEW_EVALUATION_RUNS,
             cls.VIEW_EVALUATION_SCENARIOS,
@@ -191,30 +188,8 @@ class Permission(str, Enum):
         ]
         defaults = {
             WorkspaceRole.OWNER: [p for p in cls],
-            WorkspaceRole.VIEWER: VIEWER_PERMISSIONS,
-            WorkspaceRole.EDITOR: [
-                p
-                for p in cls
-                if p
-                not in [
-                    cls.RESET_PASSWORD,
-                    cls.DELETE_TESTSET,
-                    cls.DELETE_WORKSPACE,
-                    cls.CREATE_WORKSPACE,
-                    cls.EDIT_ORGANIZATION,
-                    cls.DELETE_EVALUATION,
-                    cls.MODIFY_USER_ROLES,
-                    cls.EDIT_APPLICATIONS,
-                    cls.DELETE_ORGANIZATION,
-                    cls.ADD_USER_TO_WORKSPACE,
-                    cls.ADD_USER_TO_ORGANIZATION,
-                    cls.EDIT_BILLING,
-                    cls.DEPLOY_ENVIRONMENTS,
-                ]
-            ],
-            WorkspaceRole.DEPLOYMENT_MANAGER: VIEWER_PERMISSIONS
-            + [cls.DEPLOY_APPLICATION, cls.DEPLOY_ENVIRONMENTS, cls.EDIT_ENVIRONMENTS],
-            WorkspaceRole.WORKSPACE_ADMIN: [
+            WorkspaceRole.AUDITOR: AUDITOR_PERMISSIONS,
+            WorkspaceRole.ADMIN: [
                 p
                 for p in cls
                 if p
@@ -226,7 +201,15 @@ class Permission(str, Enum):
                     cls.EDIT_BILLING,
                 ]
             ],
-            WorkspaceRole.EVALUATOR: VIEWER_PERMISSIONS
+            WorkspaceRole.MANAGER: AUDITOR_PERMISSIONS
+            + [
+                cls.VIEW_API_KEYS,
+                cls.EDIT_API_KEYS,
+                cls.DEPLOY_APPLICATION,
+                cls.DEPLOY_ENVIRONMENTS,
+                cls.EDIT_ENVIRONMENTS,
+            ],
+            WorkspaceRole.EVALUATOR: AUDITOR_PERMISSIONS
             + [cls.CREATE_EVALUATION, cls.RUN_EVALUATIONS],
         }
 

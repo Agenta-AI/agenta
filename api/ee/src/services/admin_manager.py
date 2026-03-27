@@ -88,12 +88,11 @@ class ProjectRequest(BaseModel):
 
 OrganizationRole = Literal[
     "owner",
-    "viewer",
-    "editor",
+    "admin",
+    "manager",
     "evaluator",
-    "workspace_admin",
-    "deployment_manager",
-]  # update list
+    "auditor",
+]
 
 
 class OrganizationMembershipRequest(BaseModel):
@@ -104,13 +103,12 @@ class OrganizationMembershipRequest(BaseModel):
     organization_ref: Reference
 
 
-WorkspaceRole = Literal[  # update list
+WorkspaceRole = Literal[
     "owner",
-    "viewer",
-    "editor",
+    "admin",
+    "manager",
     "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "auditor",
 ]
 
 
@@ -122,13 +120,12 @@ class WorkspaceMembershipRequest(BaseModel):
     workspace_ref: Reference
 
 
-ProjectRole = Literal[  # update list
+ProjectRole = Literal[
     "owner",
-    "viewer",
-    "editor",
+    "admin",
+    "manager",
     "evaluator",
-    "workspace_admin",
-    "deployment_manager",
+    "auditor",
 ]
 
 

@@ -212,7 +212,7 @@ async def invite_user_to_workspace(
             )
             if not existing_invitation and not existing_role:
                 # Create a new invitation
-                role = payload_invite.roles[0] if payload_invite.roles else "editor"
+                role = payload_invite.roles[0] if payload_invite.roles else "admin"
                 invitation = await create_invitation(
                     role, project_id, payload_invite.email
                 )
