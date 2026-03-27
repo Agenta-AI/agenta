@@ -2,6 +2,7 @@ import sys
 import asyncio
 from uuid import uuid4
 
+from taskiq import TaskiqEvents
 from taskiq.cli.worker.run import run_worker
 from taskiq.cli.worker.args import WorkerArgs
 from taskiq_redis import RedisStreamBroker
@@ -166,7 +167,7 @@ _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: asyncio.Task = None  # type: ignore[assignment]
 
 
-@broker.on_startup()
+@broker.on_event(TaskiqEvents.WORKER_STARTUP)
 async def _start_worker_heartbeat(state) -> None:
     global _worker_heartbeat_task
     _worker_heartbeat_task = asyncio.create_task(
@@ -175,7 +176,7 @@ async def _start_worker_heartbeat(state) -> None:
     log.info("[EVAL] Worker heartbeat started", worker_id=_WORKER_ID)
 
 
-@broker.on_shutdown()
+@broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)
 async def _stop_worker_heartbeat(state) -> None:
     global _worker_heartbeat_task
     if _worker_heartbeat_task and not _worker_heartbeat_task.done():
