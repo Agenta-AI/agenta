@@ -65,9 +65,9 @@ export const updateVariant = async (
 export const updateAppName = async (appId: string, appName: string, ignoreAxiosError = false) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {app_name: appName},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, name: appName}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -81,9 +81,9 @@ export const updateAppFolder = async (
 ) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {id: appId, folder_id: folderId},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, folder_id: folderId}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 

@@ -101,7 +101,10 @@ export const executionModeAtomFamily = atomFamily((workflowId: string) =>
         const entity = get(workflowBaseEntityAtomFamily(workflowId))
         if (entity?.flags?.is_chat) return "chat"
 
-        // Fallback: detect chat mode from input schema
+        // Fallback: detect chat mode from input schema.
+        // Only the INPUT schema (not the parameters schema) distinguishes chat from
+        // completion — chat apps accept `messages` as input, while completion apps
+        // have prompt template messages in parameters but take simple variables as input.
         const inputSchema = entity?.data?.schemas?.inputs as
             | Record<string, unknown>
             | null

@@ -15,6 +15,7 @@ import {
     workflowMolecule,
     workflowsListQueryStateAtom,
     workflowLatestRevisionIdAtomFamily,
+    createLocalDraftFromWorkflowRevision,
 } from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
@@ -179,7 +180,7 @@ const SelectVariant = ({
         (revisionId: string, e: React.MouseEvent) => {
             e.stopPropagation()
             e.preventDefault()
-            const localDraftId = workflowMolecule.createLocalDraft?.(revisionId) ?? null
+            const localDraftId = createLocalDraftFromWorkflowRevision(revisionId)
             if (localDraftId) {
                 setSelectedVariants((prev) =>
                     prev.includes(localDraftId) ? prev : [...prev, localDraftId],
@@ -274,7 +275,7 @@ const SelectVariant = ({
         const lastRevisionId = Array.isArray(value) ? value[value.length - 1] : value
 
         if (lastRevisionId) {
-            const localDraftId = workflowMolecule.createLocalDraft?.(lastRevisionId) ?? null
+            const localDraftId = createLocalDraftFromWorkflowRevision(lastRevisionId)
 
             if (localDraftId) {
                 setSelectedVariants((prev) =>
