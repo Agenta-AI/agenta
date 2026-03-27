@@ -12,7 +12,7 @@
  * - Model config popover injected via fieldHeader slot
  */
 
-import {memo, useMemo, useCallback, useEffect, useState} from "react"
+import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
 import {
     type EntitySchema,
@@ -480,6 +480,16 @@ function PlaygroundConfigSection({
 
     // Derive a stable flag so the effect fires when draft is discarded (becomes null)
     const isDraftEmpty = draft === null || draft === undefined
+
+    // Track discard events to force re-mount of Form/YAML editors whose internal
+    // state (Lexical editor, local control state) may not fully reset via prop
+    // changes alone. Computed during render to avoid useEffect/setState loops.
+    const discardVersionRef = useRef(0)
+    const prevIsDraftEmptyRef = useRef(isDraftEmpty)
+    if (isDraftEmpty && !prevIsDraftEmptyRef.current) {
+        discardVersionRef.current += 1
+    }
+    prevIsDraftEmptyRef.current = isDraftEmpty
 
     // Sync editor value when switching to a raw mode, or when draft is discarded
     // (isDraftEmpty flipping to true means the user discarded changes — re-sync from server data)
@@ -974,6 +984,7 @@ function PlaygroundConfigSection({
                         )}
                     >
                         <SharedEditor
+                            key={`${viewMode}-${discardVersionRef.current}`}
                             editorType="border"
                             placeholder={`Enter ${viewMode.toUpperCase()} configuration…`}
                             initialValue={rawEditorValue}
@@ -1004,6 +1015,7 @@ function PlaygroundConfigSection({
                 </div>
             ) : (
                 <MoleculeDrillInView
+                    key={`form-${discardVersionRef.current}`}
                     entityId={revisionId}
                     molecule={drillInAdapter}
                     editable={!disabled && !useServerData}
