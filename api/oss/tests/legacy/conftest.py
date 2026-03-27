@@ -373,8 +373,8 @@ async def create_programmatic_all_users(ahttp_client):
 
     roles = [
         "owner",
-        "editor",
-        "workspace_admin",
+        "admin",
+        "admin",
     ]
     for i in range(0, 3):
         randomness = uuid.uuid4().hex[:8]

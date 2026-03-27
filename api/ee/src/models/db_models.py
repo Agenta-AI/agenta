@@ -62,7 +62,7 @@ class WorkspaceMemberDB(Base):
         ForeignKey("workspaces.id", ondelete="CASCADE"),
     )
 
-    role = Column(String, default="viewer")
+    role = Column(String, default="auditor")
 
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -99,7 +99,7 @@ class ProjectMemberDB(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
     )
 
-    role = Column(String, default="viewer")
+    role = Column(String, default="auditor")
 
     is_demo = Column(Boolean, nullable=True)
 

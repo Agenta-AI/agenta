@@ -32,17 +32,19 @@ class TestVaultSecretsAPI:
     @pytest.mark.asyncio
     @pytest.mark.secret_creation
     @pytest.mark.integration
-    async def test_create_secret_with_viewer_role(
+    async def test_create_secret_with_auditor_role(
         self, async_client, valid_secret_payload
     ):
         create_response = await async_client.post(
             "secrets",
-            headers={"Authorization": f"ApiKey {os.environ.get('VIEWER_API_KEY', '')}"},
+            headers={
+                "Authorization": f"ApiKey {os.environ.get('AUDITOR_API_KEY', '')}"
+            },
             json=valid_secret_payload,
         )
 
         assert create_response.status_code == 403, (
-            "Secret creation cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+            "Secret creation cannot be successful. Given that apikey belongs to a user with 'auditor' role."
         )
 
         created_secret_message = create_response.json()["detail"]
@@ -184,7 +186,7 @@ class TestVaultSecretsAPI:
     @pytest.mark.asyncio
     @pytest.mark.secret_update
     @pytest.mark.integration
-    async def test_update_secret_with_viewer_role(
+    async def test_update_secret_with_auditor_role(
         self, async_client, valid_secret_payload
     ):
         create_response = await async_client.post(
@@ -200,12 +202,14 @@ class TestVaultSecretsAPI:
         }
         update_response = await async_client.put(
             f"secrets/{secret_id}",
-            headers={"Authorization": f"ApiKey {os.environ.get('VIEWER_API_KEY', '')}"},
+            headers={
+                "Authorization": f"ApiKey {os.environ.get('AUDITOR_API_KEY', '')}"
+            },
             json=update_payload,
         )
 
         assert update_response.status_code == 403, (
-            "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+            "Secret update cannot be successful. Given that apikey belongs to a user with 'auditor' role."
         )
 
         update_response_message = update_response.json()["detail"]
@@ -240,7 +244,7 @@ class TestVaultSecretsAPI:
     @pytest.mark.asyncio
     @pytest.mark.secret_deletion
     @pytest.mark.integration
-    async def test_delete_secret_with_viewer_role(
+    async def test_delete_secret_with_auditor_role(
         self, async_client, valid_secret_payload
     ):
         create_response = await async_client.post(
@@ -252,10 +256,12 @@ class TestVaultSecretsAPI:
 
         delete_response = await async_client.delete(
             f"secrets/{secret_id}",
-            headers={"Authorization": f"ApiKey {os.environ.get('VIEWER_API_KEY', '')}"},
+            headers={
+                "Authorization": f"ApiKey {os.environ.get('AUDITOR_API_KEY', '')}"
+            },
         )
         assert delete_response.status_code == 403, (
-            "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+            "Secret update cannot be successful. Given that apikey belongs to a user with 'auditor' role."
         )
 
         delete_response_message = delete_response.json()["detail"]

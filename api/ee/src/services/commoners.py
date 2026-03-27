@@ -47,7 +47,7 @@ subscription_service = SubscriptionsService(
 )
 
 DEMOS = "AGENTA_DEMOS"
-DEMO_ROLE = "viewer"
+DEMO_ROLE = "auditor"
 
 
 def can_create_organization(email: str) -> bool:

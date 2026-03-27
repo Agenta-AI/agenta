@@ -7,6 +7,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
@@ -53,6 +54,7 @@ const Settings: React.FC = () => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
     const tab = tabQuery ?? settingsTab ?? "workspace"
+    const {canViewApiKeys} = useProjectPermissions()
     const canShowOrganization = isEE()
     const {user} = useProfileData()
     const {selectedOrg} = useOrgData()
@@ -62,7 +64,8 @@ const Settings: React.FC = () => {
     const resolvedTab =
         (tab === "organization" && !canShowOrganization) ||
         (tab === "billing" && !canShowBilling) ||
-        (tab === "tools" && !canShowTools)
+        (tab === "tools" && !canShowTools) ||
+        (tab === "apiKeys" && !canViewApiKeys)
             ? "workspace"
             : tab
     const {project} = useProjectData()
@@ -120,9 +123,9 @@ const Settings: React.FC = () => {
                 })(),
             },
         }
-    }, [resolvedTab])
+    }, [canViewApiKeys, resolvedTab])
 
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
+    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [resolvedTab])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 

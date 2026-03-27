@@ -16,6 +16,7 @@ import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
@@ -35,13 +36,27 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     const [collapsed] = useAtom(sidebarCollapsedAtom)
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
-    const activeTab = tab ?? settingsTab ?? "workspace"
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()
+    const {canViewApiKeys} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const canShowOrganization = isEE()
     const canShowBilling = isEE() && isBillingEnabled() && isOwner
     const canShowTools = isToolsEnabled()
+    const activeTab = useMemo(() => {
+        const requestedTab = tab ?? settingsTab ?? "workspace"
+
+        if (
+            (requestedTab === "organization" && !canShowOrganization) ||
+            (requestedTab === "billing" && !canShowBilling) ||
+            (requestedTab === "tools" && !canShowTools) ||
+            (requestedTab === "apiKeys" && !canViewApiKeys)
+        ) {
+            return "workspace"
+        }
+
+        return requestedTab
+    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, settingsTab, tab])
 
     useEffect(() => {
         if (tab && tab !== settingsTab) {
@@ -51,11 +66,15 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
 
     const items = useMemo<SidebarConfig[]>(() => {
         const list: SidebarConfig[] = [
-            {
-                key: "apiKeys",
-                title: "API Keys",
-                icon: <Key size={16} className="mt-0.5" />,
-            },
+            ...(canViewApiKeys
+                ? [
+                      {
+                          key: "apiKeys",
+                          title: "API Keys",
+                          icon: <Key size={16} className="mt-0.5" />,
+                      },
+                  ]
+                : []),
             {
                 key: "secrets",
                 title: "Models",
@@ -99,7 +118,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             })
         }
         return list
-    }, [isOwner, canShowOrganization, canShowBilling, canShowTools])
+    }, [canShowBilling, canShowOrganization, canShowTools, canViewApiKeys, isOwner])
 
     return (
         <section

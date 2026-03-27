@@ -505,7 +505,7 @@ class AuthService:
                                     WorkspaceMemberDB(
                                         user_id=user.id,
                                         workspace_id=workspace.id,
-                                        role="editor",
+                                        role="admin",
                                     )
                                 )
 
@@ -535,7 +535,7 @@ class AuthService:
                                     ProjectMemberDB(
                                         user_id=user.id,
                                         project_id=project.id,
-                                        role="editor",
+                                        role="admin",
                                     )
                                 )
 
