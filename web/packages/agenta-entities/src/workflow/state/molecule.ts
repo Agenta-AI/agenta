@@ -467,7 +467,7 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
                             ...prop,
                             ...agTypeSchema,
                             // Preserve the original semantic ref and local overrides.
-                            "x-ag-type-ref": agTypeRef,
+                            "x-ag-type-ref": agType,
                             ...(prop.title ? {title: prop.title} : {}),
                             ...(prop.default !== undefined ? {default: prop.default} : {}),
                         }
