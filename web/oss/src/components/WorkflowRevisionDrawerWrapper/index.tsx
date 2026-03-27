@@ -17,7 +17,12 @@ import {
     evaluatorTemplatesMapAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
+import {
+    createWorkflowRevisionAdapter,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
@@ -34,12 +39,19 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Button, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import {
+    connectAppToEvaluatorAtom,
+    evaluatorConfigEntityIdsAtom,
+    hasAppConnectedAtom,
+    selectedAppLabelAtom,
+} from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
+import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -120,6 +132,60 @@ const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
         }
     }, [entityId, setEntityIds])
 
+    // Evaluator playground: app selector + connect logic
+    const configEntityIds = useAtomValue(evaluatorConfigEntityIdsAtom)
+    const hasAppConnected = useAtomValue(hasAppConnectedAtom)
+    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
+    const evaluatorNode = useMemo(() => {
+        const downstream = nodes.find((n) => n.depth > 0)
+        if (downstream) return downstream
+        return nodes[0] ?? null
+    }, [nodes])
+
+    const appWorkflowAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                skipVariantLevel: true,
+                excludeRevisionZero: true,
+                flags: {is_evaluator: false, is_human: false},
+            }),
+        [],
+    )
+
+    const handleAppSelect = useCallback(
+        (selection: WorkflowRevisionSelectionResult) => {
+            if (!evaluatorNode) return
+            connectApp({
+                appRevisionId: selection.id,
+                appLabel: selection.label,
+                evaluatorRevisionId: evaluatorNode.entityId,
+                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
+            })
+        },
+        [connectApp, evaluatorNode],
+    )
+
+    const runDisabledContent = useMemo(
+        () => (
+            <>
+                <Typography.Text type="secondary" className="text-sm">
+                    Select an app to run the evaluator chain
+                </Typography.Text>
+                <EntityPicker<WorkflowRevisionSelectionResult>
+                    variant="popover-cascader"
+                    adapter={appWorkflowAdapter}
+                    onSelect={handleAppSelect}
+                    size="middle"
+                    placeholder={selectedAppLabel ?? "Select app"}
+                />
+            </>
+        ),
+        [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
+    )
+
     const providers = useMemo(
         () =>
             ({
@@ -132,13 +198,24 @@ const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            <PlaygroundMainView
-                mode={isEvaluator ? "evaluator" : "app"}
-                viewMode={isExpanded ? "full" : "configOnly"}
-                embedded
-                configViewMode={configViewMode}
-                onConfigViewModeChange={setConfigViewMode}
-            />
+            <div className="flex flex-col w-full h-full overflow-hidden">
+                {isEvaluator && isExpanded && (
+                    <EvaluatorPlaygroundHeader
+                        appWorkflowAdapter={appWorkflowAdapter}
+                        onAppSelect={handleAppSelect}
+                    />
+                )}
+                <PlaygroundMainView
+                    mode={isEvaluator ? "evaluator" : "app"}
+                    viewMode={isExpanded ? "full" : "configOnly"}
+                    embedded
+                    configViewMode={configViewMode}
+                    onConfigViewModeChange={setConfigViewMode}
+                    configEntityIdsOverride={isEvaluator ? configEntityIds : undefined}
+                    runDisabled={isEvaluator && !hasAppConnected}
+                    runDisabledContent={isEvaluator ? runDisabledContent : undefined}
+                />
+            </div>
         </OSSPlaygroundShell>
     )
 })
