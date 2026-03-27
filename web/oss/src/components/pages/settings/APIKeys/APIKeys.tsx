@@ -33,6 +33,11 @@ const APIKeys: React.FC = () => {
             return
         }
 
+        if (!workspaceId || workspaceId.trim() === "") {
+            setKeys([])
+            return
+        }
+
         setLoading(Loading.LIST, true)
         fetchAllListApiKeys(workspaceId)
             .then((res) => {

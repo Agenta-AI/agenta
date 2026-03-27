@@ -27,7 +27,7 @@ from oss.databases.postgres.migrations.core.data_migrations.roles import (
 
 # revision identifiers, used by Alembic.
 revision: str = "b1c2d3e4f5a6"
-down_revision: Union[str, None] = "fd77265d65dc"
+down_revision: Union[str, None] = "e5f6a1b2c3d4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
