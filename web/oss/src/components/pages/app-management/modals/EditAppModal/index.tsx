@@ -12,6 +12,8 @@ import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 import {getProjectValues} from "@/oss/state/project"
 
+import {invalidateAppManagementWorkflowQueries} from "../../store"
+
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -54,6 +56,7 @@ const EditAppModal = () => {
             })
             invalidateWorkflowsListCache()
             await mutate()
+            await invalidateAppManagementWorkflowQueries()
             closeModal()
         } catch (error) {
             console.error(error)

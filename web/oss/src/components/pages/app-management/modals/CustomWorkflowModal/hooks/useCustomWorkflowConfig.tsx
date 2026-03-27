@@ -19,6 +19,8 @@ import {
 } from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
 
+import {invalidateAppManagementWorkflowQueries} from "../../../store"
+
 import {useCustomWorkflowConfigProps} from "./types"
 
 const useCustomWorkflowConfig = ({
@@ -64,6 +66,7 @@ const useCustomWorkflowConfig = ({
                     setFetchingTemplate(false)
                 if (status === "success") {
                     await mutate()
+                    await invalidateAppManagementWorkflowQueries()
                     posthog?.capture?.("app_deployment", {
                         properties: {
                             app_id: appId,

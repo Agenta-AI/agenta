@@ -9,6 +9,7 @@ import {createPaginatedEntityStore} from "@agenta/entities/shared"
 import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {queryWorkflows} from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
+import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -188,3 +189,18 @@ export const appWorkflowCountAtom = atom((get) => {
     const query = get(appWorkflowCountQueryAtom)
     return query.data ?? 0
 })
+
+/**
+ * Refreshes all app-management-specific app caches:
+ * - paginated applications table
+ * - unfiltered applications count
+ * - search-filtered applications count
+ */
+export async function invalidateAppManagementWorkflowQueries() {
+    appWorkflowPaginatedStore.invalidate()
+
+    await Promise.all([
+        queryClient.invalidateQueries({queryKey: ["appWorkflowTotalCount"], exact: false}),
+        queryClient.invalidateQueries({queryKey: ["appWorkflowCount"], exact: false}),
+    ])
+}

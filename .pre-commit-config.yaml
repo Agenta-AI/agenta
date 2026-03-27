@@ -19,7 +19,7 @@ repos:
         pass_filenames: false
       - id: turbo-lint
         name: turbo lint (web)
-        entry: bash -c 'cd web && pnpm exec turbo run lint'
+        entry: bash -c 'cd web && if [ "$(sysctl -in hw.optional.arm64 2>/dev/null || echo 0)" = "1" ] && [ "$(node -p "process.arch")" = "x64" ]; then arch -arm64 pnpm exec turbo run lint; else pnpm exec turbo run lint; fi'
         language: system
         files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
         pass_filenames: false
