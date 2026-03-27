@@ -55,7 +55,7 @@ interface AppWorkflowQueryMeta {
 
 const appWorkflowMetaAtom = atom<AppWorkflowQueryMeta>((get) => ({
     projectId: get(projectIdAtom),
-    searchTerm: get(appWorkflowSearchTermAtom) || undefined,
+    searchTerm: get(appWorkflowSearchTermAtom).trim() || undefined,
 }))
 
 // ============================================================================
@@ -92,22 +92,14 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
 
         const response = await queryWorkflows({
             projectId: meta.projectId,
+            name: meta.searchTerm,
             flags: {is_evaluator: false},
             windowing: {limit, order: "descending", next: cursor ?? undefined},
         })
 
-        // Client-side search filtering
-        let workflows = response.workflows
-        if (meta.searchTerm) {
-            const term = meta.searchTerm.toLowerCase()
-            workflows = workflows.filter(
-                (w) => w.name?.toLowerCase().includes(term) || w.slug?.toLowerCase().includes(term),
-            )
-        }
-
         return {
-            rows: workflows,
-            totalCount: null,
+            rows: response.workflows,
+            totalCount: response.count ?? null,
             hasMore: !!response.windowing?.next,
             nextCursor: response.windowing?.next ?? null,
             nextOffset: null,
@@ -141,11 +133,11 @@ export const appWorkflowPaginatedStore = createPaginatedEntityStore<
  * Discards workflow data to avoid duplicating state with the paginated store.
  * Temporary until the backend provides an optimized count endpoint.
  */
-const appWorkflowCountQueryAtom = atomWithQuery((get) => {
+const appWorkflowTotalCountQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
 
     return {
-        queryKey: ["appWorkflowCount", projectId],
+        queryKey: ["appWorkflowTotalCount", projectId],
         queryFn: async () => {
             if (!projectId) return 0
             const response = await queryWorkflows({
@@ -161,7 +153,36 @@ const appWorkflowCountQueryAtom = atomWithQuery((get) => {
 })
 
 /**
- * Derived atom exposing just the count number (0 while loading).
+ * Derived atom exposing the unfiltered total app count (0 while loading).
+ */
+export const appWorkflowTotalCountAtom = atom((get) => {
+    const query = get(appWorkflowTotalCountQueryAtom)
+    return query.data ?? 0
+})
+
+const appWorkflowCountQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
+    const searchTerm = get(appWorkflowSearchTermAtom).trim() || undefined
+
+    return {
+        queryKey: ["appWorkflowCount", projectId, searchTerm ?? null],
+        queryFn: async () => {
+            if (!projectId) return 0
+            const response = await queryWorkflows({
+                projectId,
+                name: searchTerm,
+                flags: {is_evaluator: false},
+            })
+            return response.count ?? response.workflows.length
+        },
+        enabled: !!projectId,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+    }
+})
+
+/**
+ * Derived atom exposing the search-filtered app count (0 while loading).
  */
 export const appWorkflowCountAtom = atom((get) => {
     const query = get(appWorkflowCountQueryAtom)

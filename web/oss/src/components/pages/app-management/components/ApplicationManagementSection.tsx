@@ -9,7 +9,12 @@ import {useRouter} from "next/router"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import useURL from "@/oss/hooks/useURL"
 
-import {appWorkflowPaginatedStore, appWorkflowSearchTermAtom, appWorkflowCountAtom} from "../store"
+import {
+    appWorkflowPaginatedStore,
+    appWorkflowSearchTermAtom,
+    appWorkflowCountAtom,
+    appWorkflowTotalCountAtom,
+} from "../store"
 import type {AppWorkflowRow} from "../store"
 
 import {createAppWorkflowColumns, type AppWorkflowColumnActions} from "./appWorkflowColumns"
@@ -31,7 +36,8 @@ const ApplicationManagementSection = ({
     const router = useRouter()
     const {baseAppURL} = useURL()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const appCount = useAtomValue(appWorkflowCountAtom)
+    const filteredAppCount = useAtomValue(appWorkflowCountAtom)
+    const totalAppCount = useAtomValue(appWorkflowTotalCountAtom)
 
     const handleRowClick = useCallback(
         (record: AppWorkflowRow) => {
@@ -62,7 +68,7 @@ const ApplicationManagementSection = ({
         onRowClick: handleRowClick,
         columnVisibilityStorageKey: "agenta:app-management:column-visibility",
         rowClassName: "cursor-pointer",
-        search: {atom: appWorkflowSearchTermAtom, className: "w-[400px]"},
+        search: {atom: appWorkflowSearchTermAtom, className: "w-full max-w-[400px]"},
     })
 
     const columns = useMemo(() => createAppWorkflowColumns(actions), [actions])
@@ -86,14 +92,14 @@ const ApplicationManagementSection = ({
                 Applications
             </Title>
 
-            {appCount > 0 ? (
+            {totalAppCount > 0 ? (
                 <InfiniteVirtualTableFeatureShell<AppWorkflowRow>
                     {...table.shellProps}
                     columns={columns}
                     primaryActions={primaryActionsNode}
                     paginationMode="paginated"
                     paginatedPageSize={10}
-                    paginatedTotalCount={appCount}
+                    paginatedTotalCount={filteredAppCount}
                 />
             ) : (
                 <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />

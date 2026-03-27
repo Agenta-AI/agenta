@@ -89,6 +89,7 @@ const selectMostRecentWorkflowRevision = (
  */
 export async function queryWorkflows({
     projectId,
+    name,
     flags,
     folderId,
     includeArchived = false,
@@ -102,9 +103,10 @@ export async function queryWorkflows({
     // folder_id is only included when folderId is explicitly provided (not undefined).
     // null → root-level items (IS NULL), string → items in that folder.
     const hasFolderFilter = folderId !== undefined
-    const hasWorkflowQuery = flags || hasFolderFilter
+    const hasWorkflowQuery = Boolean(name || flags || hasFolderFilter)
     const workflowQuery = hasWorkflowQuery
         ? {
+              ...(name ? {name} : {}),
               ...(flags ? {flags} : {}),
               ...(hasFolderFilter ? {folder_id: folderId} : {}),
           }
