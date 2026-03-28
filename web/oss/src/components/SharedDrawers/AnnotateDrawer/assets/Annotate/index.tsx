@@ -8,6 +8,7 @@ import dynamic from "next/dynamic"
 
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 
+import {useEvaluatorSchemas} from "../hooks/useEvaluatorSchemas"
 import {
     getInitialMetricsFromAnnotations,
     getInitialSelectedEvalMetrics,
@@ -29,7 +30,8 @@ const Annotate = ({
     setUpdatedMetrics,
     onCaptureError,
 }: AnnotateProps) => {
-    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
 
     // Stabilize array dependencies to prevent infinite loops
     const selectedEvaluatorsKey = useMemo(
