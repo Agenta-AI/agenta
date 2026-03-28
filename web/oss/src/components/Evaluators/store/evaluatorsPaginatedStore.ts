@@ -91,7 +91,7 @@ const skeletonDefaults: Partial<EvaluatorTableRow> = {
  * triggering individual revision fetches.
  */
 interface WorkflowIdCache {
-    key: string // `${projectId}:${category}`
+    key: string // `${projectId}:${category}:${searchTerm}`
     workflowIds: string[]
 }
 
@@ -100,8 +100,9 @@ let _workflowIdCache: WorkflowIdCache | null = null
 async function ensureWorkflowIdCache(
     projectId: string,
     category: EvaluatorCategory,
+    searchTerm?: string,
 ): Promise<WorkflowIdCache> {
-    const cacheKey = `${projectId}:${category}`
+    const cacheKey = `${projectId}:${category}:${searchTerm ?? ""}`
     if (_workflowIdCache?.key === cacheKey) {
         return _workflowIdCache
     }
@@ -111,7 +112,11 @@ async function ensureWorkflowIdCache(
             ? {is_evaluator: true as const, is_human: true as const}
             : {is_evaluator: true as const, is_human: false as const}
 
-    const workflowsResponse = await queryWorkflows({projectId, flags})
+    const workflowsResponse = await queryWorkflows({
+        projectId,
+        flags,
+        name: searchTerm || undefined,
+    })
     const workflows = (workflowsResponse.workflows ?? []).filter((w) => !w.deleted_at)
 
     const workflowIds: string[] = []
@@ -153,7 +158,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             }
         }
 
-        const cache = await ensureWorkflowIdCache(meta.projectId, meta.category)
+        const cache = await ensureWorkflowIdCache(meta.projectId, meta.category, meta.searchTerm)
 
         if (cache.workflowIds.length === 0) {
             return {
@@ -171,6 +176,7 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
             meta.projectId,
             undefined,
             {next: cursor ?? undefined, limit: limit ?? undefined, order: "descending"},
+            meta.searchTerm,
         )
 
         // Filter out v0 revisions (auto-created initial revisions)

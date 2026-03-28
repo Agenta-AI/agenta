@@ -14,7 +14,7 @@ import {atom} from "jotai"
 
 import {routerAppIdAtom, currentAppAtom} from "@/oss/state/app/selectors/app"
 
-import {selectedEnvironmentIdAtom} from "./deploymentFilterAtoms"
+import {deploymentSearchTermAtom, selectedEnvironmentIdAtom} from "./deploymentFilterAtoms"
 
 // Extended type that includes the appId used for the query and a per-app deployment index
 interface EnvironmentRevisionWithAppContext extends EnvironmentRevision {
@@ -144,6 +144,7 @@ interface DeploymentQueryMeta {
     environmentId: string | null
     appId: string | null
     appSlug: string | null
+    searchTerm?: string
 }
 
 // ============================================================================
@@ -158,6 +159,7 @@ const deploymentPaginatedMetaAtom = atom<DeploymentQueryMeta>((get) => {
         environmentId: get(selectedEnvironmentIdAtom),
         appId: appIdFromRoute || currentApp?.id || null,
         appSlug: currentApp?.name ?? currentApp?.slug ?? null,
+        searchTerm: get(deploymentSearchTermAtom) || undefined,
     }
 })
 
@@ -206,6 +208,7 @@ export const deploymentPaginatedStore = createPaginatedEntityStore<
             projectId: meta.projectId,
             environmentId: meta.environmentId,
             applicationId: meta.appId,
+            message: meta.searchTerm,
         })
 
         // Filter out v0 revisions (auto-created initial revisions) and revisions

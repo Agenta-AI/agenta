@@ -50,7 +50,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     // Search: atom drives the paginated store's metaAtom
-    const setSearchTerm = useSetAtom(evaluatorSearchTermAtom)
+    const [searchTerm, setSearchTerm] = useAtom(evaluatorSearchTermAtom)
     const refreshStore = useSetAtom(evaluatorsPaginatedStore.actions.refresh)
 
     // URL-driven drawer (same pattern as variants registry)
@@ -308,6 +308,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 category={activeTab}
                 onRowClick={handleRowClick}
                 actions={columnActions}
+                searchDeps={[searchTerm]}
                 filters={filters}
                 primaryActions={primaryActions}
                 displayMode="grouped"
