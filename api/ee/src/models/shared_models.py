@@ -6,11 +6,11 @@ from oss.src.models.shared_models import CANONICAL_WORKSPACE_ROLES
 
 
 class WorkspaceRole(str, Enum):
-    OWNER = CANONICAL_WORKSPACE_ROLES[0]
-    ADMIN = CANONICAL_WORKSPACE_ROLES[1]
-    MANAGER = CANONICAL_WORKSPACE_ROLES[2]
-    EVALUATOR = CANONICAL_WORKSPACE_ROLES[3]
-    AUDITOR = CANONICAL_WORKSPACE_ROLES[4]
+    OWNER = "owner"
+    ADMIN = "admin"
+    MANAGER = "manager"
+    EVALUATOR = "evaluator"
+    AUDITOR = "auditor"
 
     @classmethod
     def is_valid_role(cls, role: str) -> bool:
