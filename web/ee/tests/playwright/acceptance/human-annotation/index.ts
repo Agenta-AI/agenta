@@ -20,7 +20,7 @@ const humanAnnotationTests = () => {
         },
         async ({page, apiHelpers, navigateToHumanEvaluation, createHumanEvaluationRun}) => {
             const app = await apiHelpers.getApp("chat")
-            const appId = app.app_id
+            const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
             const variantName = variants[0].name || variants[0].variant_name
@@ -53,7 +53,7 @@ const humanAnnotationTests = () => {
         },
         async ({page, apiHelpers, navigateToHumanEvaluation, createHumanEvaluationRun}) => {
             const app = await apiHelpers.getApp()
-            const appId = app.app_id
+            const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
             const variantName = variants[0].name || variants[0].variant_name

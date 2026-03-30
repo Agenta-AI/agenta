@@ -10,34 +10,40 @@ import {SnakeToCamelCaseKeys, testset} from "../../../../../oss/src/lib/Types"
 type APP_TYPE = "completion" | "chat" | "custom"
 
 interface ListAppsItem {
-    app_id: string
-    app_name: string
+    id: string
+    name: string
     app_type: APP_TYPE
+    flags: {
+        is_chat?: boolean
+        is_custom?: boolean
+        is_application?: boolean
+        is_evaluator?: boolean
+    } | null
+    created_at: string | null
     [key: string]: any
 }
 
 interface ApiVariant {
-    app_id: string
-    app_name: string
-    variant_id: string
-    variant_name: string
-    project_id: string
-    parameters: Record<string, unknown>
-    base_name: string
-    base_id: string
-    config_name: string
-    uri: string
-    revision: number
-    created_at: string
-    updated_at: string
-    modified_by_id: string
+    id: string
+    name: string | null
+    slug: string | null
+    workflow_id: string | null
+    artifact_id: string | null
+    flags: {
+        is_chat?: boolean
+        is_custom?: boolean
+        is_application?: boolean
+        is_evaluator?: boolean
+    } | null
+    created_at: string | null
+    updated_at: string | null
 }
 import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
 import type {ApiHandlerOptions, ApiHelpers} from "./types"
 
 const APP_TYPE_LABELS: Record<APP_TYPE, string> = {
-    completion: "Completion Prompt",
-    chat: "Chat Prompt",
+    completion: "agenta:builtin:completion:v0",
+    chat: "agenta:builtin:chat:v0",
     custom: "Custom Prompt",
 }
 
@@ -173,26 +179,23 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
         throw new Error(`App creation is not implemented for app type '${type}'.`)
     }
 
-    const appTypeOption = dialog.getByText(appTypeLabel, {exact: true}).first()
+    const appTypeOption = dialog.getByText(appTypeLabel).first()
     await expect(appTypeOption).toBeVisible({timeout: 15000})
     await appTypeOption.click()
 
     const createAppResponse = page.waitForResponse((response) => {
-        if (!response.url().includes("/api/apps") || response.request().method() !== "POST") {
+        if (
+            !response.url().includes("/preview/workflows") ||
+            response.url().includes("/query") ||
+            response.url().includes("/variants") ||
+            response.url().includes("/revisions") ||
+            response.request().method() !== "POST"
+        ) {
             return false
         }
 
         const payload = response.request().postData() || ""
         return payload.includes(appName)
-    })
-    const createVariantResponse = page.waitForResponse((response) => {
-        return (
-            response.url().includes("/variant/from-template") &&
-            response.request().method() === "POST"
-        )
-    })
-    const updateVariantParametersResponse = page.waitForResponse((response) => {
-        return response.url().includes("/api/variants/") && response.request().method() === "PUT"
     })
 
     const submitButton = dialog.getByRole("button", {
@@ -205,54 +208,42 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     const response = await createAppResponse
     expect(response.ok()).toBe(true)
 
-    const createdApp = await response.json()
-    const createdAppId = createdApp.app_id
+    const createdApp = (await response.json()) as {workflow: ListAppsItem}
+    const createdWorkflow = createdApp.workflow
 
-    expect(createdAppId).toBeTruthy()
-
-    const createdVariantResponse = await createVariantResponse
-    expect(createdVariantResponse.ok()).toBe(true)
-
-    const createdVariant = await createdVariantResponse.json()
-    const createdVariantId =
-        createdVariant.variant_id ?? createdVariant.variantId ?? createdVariant.id ?? null
-
-    const parametersResponse = await updateVariantParametersResponse
-    expect(parametersResponse.ok()).toBe(true)
-
-    const updatedRevision = await parametersResponse.json()
-    const latestRevisionId = updatedRevision?.id ?? null
-
-    if (createdVariantId && latestRevisionId) {
-        latestRevisionIdByAppId.set(createdAppId, latestRevisionId)
-    }
+    expect(createdWorkflow.id).toBeTruthy()
 
     return {
-        ...createdApp,
-        app_id: createdAppId,
-        app_name: createdApp.app_name ?? appName,
+        ...createdWorkflow,
         app_type: type,
     } as ListAppsItem
 }
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
-    const appsResponse = waitForApiResponse<ListAppsItem[]>(page, {
-        route: "/api/apps",
-        method: "GET",
+    const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
+        route: "/preview/workflows/query",
+        method: "POST",
     })
 
     await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
 
-    const apps = await appsResponse
+    const data = await appsResponse
+    const apps = data.workflows ?? []
 
     expect(Array.isArray(apps)).toBe(true)
+
+    const appMatchesType = (app: ListAppsItem) => {
+        if (type === "chat") return !!app.flags?.is_chat
+        if (type === "custom") return !!app.flags?.is_custom
+        return !app.flags?.is_chat && !app.flags?.is_custom
+    }
 
     let targetApp
     if (!apps.length) {
         targetApp = await createApp(page, type)
     } else if (type) {
-        const app = apps.find((app) => app.app_type === type)
+        const app = apps.find(appMatchesType)
         if (!app) {
             targetApp = await createApp(page, type)
         } else {
@@ -261,7 +252,7 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     } else {
         targetApp = apps[0]
     }
-    const appId = targetApp.app_id
+    const appId = targetApp.id
 
     if (!appId) {
         console.error("[App Fixture] App not found")
@@ -272,9 +263,9 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 }
 
 export const getAppById = async (page: Page, appId: string) => {
-    const appsResponse = waitForApiResponse<ListAppsItem[]>(page, {
-        route: "/api/apps",
-        method: "GET",
+    const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
+        route: "/preview/workflows/query",
+        method: "POST",
     })
 
     // Trigger the API call by going to apps page if not already there
@@ -284,9 +275,10 @@ export const getAppById = async (page: Page, appId: string) => {
         await page.waitForURL("**/apps", {waitUntil: "domcontentloaded"})
     }
 
-    const apps = await appsResponse
+    const data = await appsResponse
+    const apps = data.workflows ?? []
 
-    const app = apps.find((app) => app.app_id === appId)
+    const app = apps.find((app) => app.id === appId)
     if (!app) {
         console.error(`[App Fixture] App not found with ID: ${appId}`)
         throw new Error(`App not found with ID: ${appId}`)
@@ -313,14 +305,23 @@ export const getVariants = async (page: Page, appId: string) => {
     await page.goto(`${getProjectScopedBasePath(page)}/apps`, {waitUntil: "domcontentloaded"})
     const overviewPath = `${getProjectScopedBasePath(page)}/apps/${appId}/overview`
 
-    const variantsResponse = waitForApiResponse<(ApiVariant & {name: string})[]>(page, {
-        route: `/apps/${appId}/variants`,
-        method: "GET",
-    })
+    const variantsResponse = waitForApiResponse<{workflow_variants: ApiVariant[]; count: number}>(
+        page,
+        {
+            route: `/preview/workflows/variants/query`,
+            method: "POST",
+        },
+    )
 
     await page.goto(overviewPath, {waitUntil: "domcontentloaded"})
-    const variants = await variantsResponse
+    const data = await variantsResponse
+
+    console.log("[Playground E2E] Variants API response:", JSON.stringify(data, null, 2))
+
+    const variants = data.workflow_variants || []
+    const variantsCount = data.count || 0
     expect(Array.isArray(variants)).toBe(true)
+    expect(variantsCount).toBeGreaterThan(0)
     expect(variants.length).toBeGreaterThan(0)
 
     // Log the API response for debugging

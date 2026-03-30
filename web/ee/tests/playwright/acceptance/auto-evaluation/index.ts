@@ -23,7 +23,7 @@ const testAutoEval = () => {
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
             // 1. Fetch apps, variants from API
             const app = await apiHelpers.getApp("completion")
-            const appId = app.app_id
+            const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
             const variantName = variants[0].name || variants[0].variant_name
@@ -66,7 +66,7 @@ const testAutoEval = () => {
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
             // 1. Fetch apps, variants from API
             const app = await apiHelpers.getApp("chat")
-            const appId = app.app_id
+            const appId = app.id
 
             const variants = await apiHelpers.getVariants(appId)
             const variantName = variants[0].name || variants[0].variant_name
