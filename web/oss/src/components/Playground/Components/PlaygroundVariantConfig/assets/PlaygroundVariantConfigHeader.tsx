@@ -186,7 +186,7 @@ const PlaygroundVariantConfigHeader = ({
                             </div>
                         ) : (
                             <VariantDetailsWithStatus
-                                className="grow mr-4"
+                                className="mr-4 gap-2"
                                 revision={variantRevision ?? null}
                                 variant={variantMin}
                                 showBadges
