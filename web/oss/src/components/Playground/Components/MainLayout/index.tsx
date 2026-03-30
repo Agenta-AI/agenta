@@ -310,7 +310,7 @@ const PlaygroundMainView = ({
                                 <GenerationComparisonRenderer />
                             ) : (
                                 layoutEntityIds.map((variantId) =>
-                                    displayedEntities.includes(variantId) ? (
+                                    displayedEntities.includes(variantId) || isEvaluatorMode ? (
                                         <ExecutionItems key={variantId} entityId={variantId} />
                                     ) : (
                                         <GenerationPanelPlaceholder

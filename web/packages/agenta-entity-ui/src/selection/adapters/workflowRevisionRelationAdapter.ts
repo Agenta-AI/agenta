@@ -88,8 +88,12 @@ function getWorkflowGroupLabel(key: string): string {
  * Shows: "workflow name" + [Completion] / [Chat] / etc.
  * Only shows the tag when it's NOT the default "completion" type.
  */
+function getWorkflowDisplayName(entity: unknown): string {
+    const w = entity as {name?: string; slug?: string}
+    return w.name?.trim() || w.slug?.trim() || "Unnamed"
+}
+
 function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
-    const w = entity as {name?: string; flags?: Record<string, boolean> | null}
     const groupKey = getWorkflowGroupKey(entity)
     const tag =
         groupKey !== "completion"
@@ -103,7 +107,7 @@ function renderWorkflowLabelNode(entity: unknown): React.ReactNode {
             : undefined
 
     return React.createElement(EntityListItemLabel, {
-        label: w.name ?? "Unnamed",
+        label: getWorkflowDisplayName(entity),
         trailing: tag,
     })
 }
@@ -185,7 +189,7 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     grandparentListAtom: workflowsListQueryStateAtom as Atom<ListQueryState<unknown>>,
     grandparentOverrides: {
         getId: (entity: unknown) => (entity as {id: string}).id,
-        getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+        getLabel: getWorkflowDisplayName,
         getLabelNode: renderWorkflowLabelNode,
         getGroupKey: getWorkflowGroupKey,
         getGroupLabel: getWorkflowGroupLabel,
@@ -198,11 +202,11 @@ export const workflowRevisionAdapter = createThreeLevelAdapter<WorkflowRevisionS
     parentOverrides: {
         autoSelectSingle: true,
         getId: (entity: unknown) => (entity as {id: string}).id ?? "",
-        getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+        getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
         getLabelNode: (entity: unknown) => {
             const v = entity as {name?: string}
             return React.createElement(EntityListItemLabel, {
-                label: v.name ?? "Unnamed",
+                label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                 subtitle: getWorkflowVariantSubtitle(entity),
             })
         },
@@ -447,7 +451,7 @@ export function createWorkflowRevisionAdapter(
             parentListAtom: filteredWorkflowsListAtom,
             parentOverrides: {
                 getId: (entity: unknown) => (entity as {id: string}).id,
-                getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+                getLabel: getWorkflowDisplayName,
                 getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
                 hasChildren: true,
                 isSelectable: false,
@@ -525,15 +529,14 @@ export function createWorkflowRevisionAdapter(
             parentListAtom: resolvedVariantsListAtom,
             parentOverrides: {
                 getId: variantOverrides.getId ?? ((v: unknown) => (v as {id: string}).id ?? ""),
-                getLabel:
-                    variantOverrides.getLabel ??
-                    ((v: unknown) => (v as {name?: string}).name ?? "Unnamed"),
+                getLabel: variantOverrides.getLabel ?? ((v: unknown) => getWorkflowDisplayName(v)),
                 getLabelNode:
                     variantOverrides.getLabelNode ??
                     ((entity: unknown) => {
                         const v = entity as {name?: string}
                         return React.createElement(EntityListItemLabel, {
-                            label: v.name ?? "Unnamed",
+                            label:
+                                v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                             subtitle: getWorkflowVariantSubtitle(entity),
                         })
                     }),
@@ -612,7 +615,7 @@ export function createWorkflowRevisionAdapter(
             parentListAtom: filteredWorkflowsListAtom,
             parentOverrides: {
                 getId: (entity: unknown) => (entity as {id: string}).id,
-                getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+                getLabel: getWorkflowDisplayName,
                 getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
                 getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
                 getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
@@ -694,7 +697,7 @@ export function createWorkflowRevisionAdapter(
         grandparentListAtom: filteredWorkflowsListAtom,
         grandparentOverrides: {
             getId: (entity: unknown) => (entity as {id: string}).id,
-            getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+            getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
             getLabelNode: grandparentOverrides.getLabelNode ?? renderWorkflowLabelNode,
             getGroupKey: grandparentOverrides.getGroupKey ?? getWorkflowGroupKey,
             getGroupLabel: grandparentOverrides.getGroupLabel ?? getWorkflowGroupLabel,
@@ -707,11 +710,11 @@ export function createWorkflowRevisionAdapter(
         parentOverrides: {
             autoSelectSingle: true,
             getId: (entity: unknown) => (entity as {id: string}).id ?? "",
-            getLabel: (entity: unknown) => (entity as {name?: string}).name ?? "Unnamed",
+            getLabel: (entity: unknown) => getWorkflowDisplayName(entity),
             getLabelNode: (entity: unknown) => {
                 const v = entity as {name?: string}
                 return React.createElement(EntityListItemLabel, {
-                    label: v.name ?? "Unnamed",
+                    label: v.name?.trim() || (v as {slug?: string}).slug?.trim() || "Unnamed",
                     subtitle: getWorkflowVariantSubtitle(entity),
                     reserveSubtitleSpace: true,
                 })

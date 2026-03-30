@@ -8,7 +8,7 @@ type Props = EnhancedProps & DeleteVariantModalProps
 
 const DeleteVariantModal = ({revisionIds, forceVariantIds, workflowId, ...props}: Props) => {
     return (
-        <EnhancedModal centered title="Are you sure you want to delete?" footer={null} {...props}>
+        <EnhancedModal centered title="Confirm deletion" footer={null} {...props}>
             <DeleteVariantContent
                 revisionIds={revisionIds}
                 forceVariantIds={forceVariantIds}

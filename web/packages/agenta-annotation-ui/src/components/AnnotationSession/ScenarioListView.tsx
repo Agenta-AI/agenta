@@ -1099,10 +1099,10 @@ function resolveExportColumnLabel(
         if (def.columnType === "annotation") {
             const annotationDef = def.annotationDef
             const name = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.name(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.name(annotationDef.evaluatorId))
                 : null
             const slug = annotationDef.evaluatorId
-                ? store.get(evaluatorMolecule.selectors.slug(annotationDef.evaluatorId))
+                ? store.get(workflowMolecule.selectors.slug(annotationDef.evaluatorId))
                 : null
             return (
                 name ||

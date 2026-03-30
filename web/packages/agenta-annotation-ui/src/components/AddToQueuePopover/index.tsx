@@ -244,7 +244,7 @@ const AddToQueuePopover = ({
                     />
                 ) : null
             }
-            overlayInnerStyle={{padding: 0}}
+            styles={{container: {padding: 0}}}
         >
             <span
                 role="button"

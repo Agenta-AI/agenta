@@ -145,9 +145,11 @@ const EvaluatorTemplateDropdown = ({
                 activeKey={activeTab}
                 onChange={handleTabChange}
                 size="small"
+                tabBarGutter={16}
                 className={cn(
                     "[&_.ant-tabs-nav]:px-4 [&_.ant-tabs-nav]:mb-0",
                     "[&_.ant-tabs-tab]:text-xs [&_.ant-tabs-tab]:py-2",
+                    "[&_.ant-tabs-nav-list]:overflow-auto",
                     "border-b",
                     borderColors.secondary,
                 )}

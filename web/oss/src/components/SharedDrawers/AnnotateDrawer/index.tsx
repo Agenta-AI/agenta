@@ -10,6 +10,7 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {AnnotateDrawerSteps} from "./assets/enum"
+import {useEvaluatorSchemas} from "./assets/hooks/useEvaluatorSchemas"
 import {AnnotateDrawerProps, AnnotateDrawerStepsType, UpdatedMetricsType} from "./assets/types"
 import {isAnnotationCreatedByCurrentUser} from "./assets/utils"
 
@@ -29,7 +30,8 @@ const AnnotateDrawer = ({
     ...props
 }: AnnotateDrawerProps) => {
     const {projectId} = getProjectValues()
-    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
     const evalLSKey = `${projectId}-evaluator`
 
     const [annotations, setAnnotations] = useState<AnnotationDto[]>([])

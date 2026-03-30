@@ -208,7 +208,7 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> & {columnVisibilityLocked?: boolean} {
+): ColumnType<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
     const {
         items,
         width = 56, // TODO: try 61px here
@@ -236,6 +236,8 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
         align: "center",
         // Lock actions column from being toggled in visibility menu
         columnVisibilityLocked: true,
+        // Exclude actions column from CSV export
+        exportEnabled: false,
         render: (_, record) => {
             if (record.__isSkeleton) return null
 

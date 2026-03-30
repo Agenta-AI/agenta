@@ -154,6 +154,7 @@ const EditableColumnHeader = ({
                 onCancel={() => setIsRenameModalOpen(false)}
                 okText="Rename"
                 destroyOnHidden
+                centered
                 afterOpenChange={(open) => {
                     if (open) {
                         // Focus input after modal animation completes
@@ -191,6 +192,7 @@ const EditableColumnHeader = ({
                 okText="Delete"
                 okButtonProps={{danger: true}}
                 destroyOnHidden
+                centered
             >
                 <Typography.Text>
                     Are you sure you want to delete the column &quot;{columnName}&quot;? This will

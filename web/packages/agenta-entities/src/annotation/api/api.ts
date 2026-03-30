@@ -41,7 +41,7 @@ export async function createAnnotation(
     if (!projectId) return null
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/annotations/`,
+        `${getAgentaApiUrl()}/preview/simple/traces/`,
         {annotation: payload},
         {params: {project_id: projectId}},
     )
@@ -104,8 +104,8 @@ export async function updateAnnotation(
     if (!projectId || !traceId) return null
 
     const path = spanId
-        ? `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/annotations/${traceId}`
+        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
+        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
     const response = await axios.patch(path, payload, {params: {project_id: projectId}})
 
@@ -134,8 +134,8 @@ export async function deleteAnnotation(
     if (!projectId || !traceId) return
 
     const path = spanId
-        ? `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}`
-        : `${getAgentaApiUrl()}/preview/annotations/${traceId}`
+        ? `${getAgentaApiUrl()}/preview/simple/traces/${traceId}/${spanId}`
+        : `${getAgentaApiUrl()}/preview/simple/traces/${traceId}`
 
     await axios.delete(path, {
         params: {project_id: projectId},
@@ -179,7 +179,7 @@ export async function queryAnnotations({
         body.windowing = windowing
     }
 
-    const response = await axios.post(`${getAgentaApiUrl()}/preview/annotations/query`, body, {
+    const response = await axios.post(`${getAgentaApiUrl()}/preview/simple/traces/query`, body, {
         params: {project_id: projectId},
     })
 

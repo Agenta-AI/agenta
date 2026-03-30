@@ -479,16 +479,20 @@ export function createEvaluatorColumns(
                 return <ModifiedByCell workflowId={record.workflowId} />
             },
         },
-        {
-            type: "text",
-            key: "commitMessage",
-            title: "Commit message",
-            width: 200,
-            render: (_value, record) => {
-                if (record.__isSkeleton) return <SkeletonLine width="60%" />
-                return <CommitMessageCell revisionId={record.revisionId} />
-            },
-        },
+        ...(category !== "human"
+            ? [
+                  {
+                      type: "text" as const,
+                      key: "commitMessage",
+                      title: "Commit message",
+                      width: 200,
+                      render: (_value: unknown, record: EvaluatorTableRow) => {
+                          if (record.__isSkeleton) return <SkeletonLine width="60%" />
+                          return <CommitMessageCell revisionId={record.revisionId} />
+                      },
+                  },
+              ]
+            : []),
         {
             type: "actions",
             width: 48,

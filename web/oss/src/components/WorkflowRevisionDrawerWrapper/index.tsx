@@ -17,9 +17,15 @@ import {
     evaluatorTemplatesMapAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {EntityPicker} from "@agenta/entity-ui"
 import {PlaygroundConfigSection} from "@agenta/entity-ui/drill-in"
+import {
+    createWorkflowRevisionAdapter,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus, VariantNameCell} from "@agenta/entity-ui/variant"
 import {playgroundController} from "@agenta/playground"
+import {playgroundInitializedAtom} from "@agenta/playground/state"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
 import {
     DrawerProvidersProvider,
@@ -34,12 +40,17 @@ import {
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {EnvironmentTag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Button, Typography} from "antd"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import OSSdrillInUIProvider from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import {
+    connectAppToEvaluatorAtom,
+    selectedAppLabelAtom,
+} from "@/oss/components/Evaluators/components/ConfigureEvaluator/atoms"
+import EvaluatorPlaygroundHeader from "@/oss/components/Evaluators/components/ConfigureEvaluator/EvaluatorPlaygroundHeader"
 import {clearEvaluatorWorkflowCache} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -102,14 +113,13 @@ const PlaygroundButton = memo(({revisionId}: {revisionId: string}) => {
 // The drawer is a playground. Expanding toggles the execution panel.
 // ================================================================
 
-const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
-    const {context} = useAtomValue(workflowRevisionDrawerAtom)
+/**
+ * App playground mode — sets entity IDs directly (no URL sync needed).
+ */
+const DrawerAppPlayground = memo(({entityId}: {entityId: string}) => {
     const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
     const [configViewMode, setConfigViewMode] = useAtom(workflowRevisionDrawerViewModeAtom)
 
-    const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
-
-    // Set up playground entity IDs
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     useEffect(() => {
         if (entityId) {
@@ -133,13 +143,148 @@ const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
     return (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundMainView
-                mode={isEvaluator ? "evaluator" : "app"}
+                mode="app"
                 viewMode={isExpanded ? "full" : "configOnly"}
                 embedded
                 configViewMode={configViewMode}
                 onConfigViewModeChange={setConfigViewMode}
             />
         </OSSPlaygroundShell>
+    )
+})
+
+/**
+ * Evaluator playground mode — mirrors ConfigureEvaluatorPage.
+ * Uses the same atoms (connectAppToEvaluatorAtom, evaluatorConfigEntityIdsAtom,
+ * hasAppConnectedAtom) and same PlaygroundMainView props.
+ *
+ * Key difference from ConfigureEvaluatorPage: no playgroundSyncAtom (URL-driven),
+ * instead uses setEntityIds + playgroundInitializedAtom for drawer-based init.
+ */
+const DrawerEvaluatorPlayground = memo(({entityId}: {entityId: string}) => {
+    const isExpanded = useAtomValue(workflowRevisionDrawerExpandedAtom)
+    const [configViewMode, setConfigViewMode] = useAtom(workflowRevisionDrawerViewModeAtom)
+
+    // Initialize playground with the evaluator entity via addPrimaryNode
+    // (same path as playgroundSyncAtom). This properly links the loadable,
+    // creates initial testcase rows, and sets up the local testset.
+    const addPrimaryNode = useSetAtom(playgroundController.actions.addPrimaryNode)
+    const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
+    const setInitialized = useSetAtom(playgroundInitializedAtom)
+    useEffect(() => {
+        if (entityId) {
+            addPrimaryNode({type: "workflow", id: entityId, label: "Evaluator"})
+            setInitialized(true)
+        }
+        return () => {
+            setEntityIds([])
+            setInitialized(false)
+        }
+    }, [entityId, addPrimaryNode, setEntityIds, setInitialized])
+
+    // Evaluator state — derive directly from nodes instead of external atoms
+    // to avoid stale reads across atom boundaries.
+    const connectApp = useSetAtom(connectAppToEvaluatorAtom)
+    const selectedAppLabel = useAtomValue(selectedAppLabelAtom)
+
+    const nodes = useAtomValue(useMemo(() => playgroundController.selectors.nodes(), []))
+    const evaluatorNode = useMemo(() => {
+        const downstream = nodes.find((n) => n.depth > 0)
+        if (downstream) return downstream
+        return nodes[0] ?? null
+    }, [nodes])
+
+    // Derive from nodes directly (single source of truth, no atom indirection)
+    const hasAppConnected = useMemo(() => nodes.some((n) => n.depth > 0), [nodes])
+    const configEntityIds = useMemo(() => {
+        const downstream = nodes.filter((n) => n.depth > 0)
+        if (downstream.length > 0) return downstream.map((n) => n.entityId)
+        return nodes.map((n) => n.entityId)
+    }, [nodes])
+
+    const appWorkflowAdapter = useMemo(
+        () =>
+            createWorkflowRevisionAdapter({
+                skipVariantLevel: true,
+                excludeRevisionZero: true,
+                flags: {is_evaluator: false, is_human: false},
+            }),
+        [],
+    )
+
+    const handleAppSelect = useCallback(
+        (selection: WorkflowRevisionSelectionResult) => {
+            if (!evaluatorNode) return
+            connectApp({
+                appRevisionId: selection.id,
+                appLabel: selection.label,
+                evaluatorRevisionId: evaluatorNode.entityId,
+                evaluatorLabel: evaluatorNode.label ?? "Evaluator",
+            })
+        },
+        [connectApp, evaluatorNode],
+    )
+
+    const runDisabledContent = useMemo(
+        () => (
+            <>
+                <Typography.Text type="secondary" className="text-sm">
+                    Select an app to run the evaluator chain
+                </Typography.Text>
+                <EntityPicker<WorkflowRevisionSelectionResult>
+                    variant="popover-cascader"
+                    adapter={appWorkflowAdapter}
+                    onSelect={handleAppSelect}
+                    size="middle"
+                    placeholder={selectedAppLabel ?? "Select app"}
+                />
+            </>
+        ),
+        [appWorkflowAdapter, handleAppSelect, selectedAppLabel],
+    )
+
+    const providers = useMemo(
+        () =>
+            ({
+                SimpleSharedEditor,
+                SharedGenerationResultUtils,
+                TestcaseEditor: PlaygroundTestcaseEditor,
+            }) as unknown as PlaygroundUIProviders,
+        [],
+    )
+
+    return (
+        <OSSPlaygroundShell providers={providers}>
+            <div className="flex flex-col w-full h-full overflow-hidden">
+                {isExpanded && (
+                    <EvaluatorPlaygroundHeader
+                        appWorkflowAdapter={appWorkflowAdapter}
+                        onAppSelect={handleAppSelect}
+                    />
+                )}
+                <PlaygroundMainView
+                    mode="evaluator"
+                    viewMode={isExpanded ? "full" : "configOnly"}
+                    embedded
+                    configViewMode={configViewMode}
+                    onConfigViewModeChange={setConfigViewMode}
+                    configEntityIdsOverride={configEntityIds}
+                    runDisabled={!hasAppConnected}
+                    runDisabledContent={runDisabledContent}
+                />
+            </div>
+        </OSSPlaygroundShell>
+    )
+})
+
+const DrawerPlayground = memo(({entityId}: {entityId: string}) => {
+    const {context} = useAtomValue(workflowRevisionDrawerAtom)
+    const isEvaluator = context === "evaluator-view" || context === "evaluator-create"
+
+    return isEvaluator ? (
+        <DrawerEvaluatorPlayground entityId={entityId} />
+    ) : (
+        <DrawerAppPlayground entityId={entityId} />
     )
 })
 

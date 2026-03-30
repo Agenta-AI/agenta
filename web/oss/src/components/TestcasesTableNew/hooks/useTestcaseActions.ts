@@ -261,6 +261,7 @@ export function useTestcaseActions(config: UseTestcaseActionsConfig): UseTestcas
             message: "Are you sure you want to discard all unsaved changes?",
             okText: "Discard",
             okButtonProps: {danger: true},
+            centered: true,
             onOk: () => {
                 // Clear testcase changes
                 table.clearChanges()
