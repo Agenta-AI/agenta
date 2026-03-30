@@ -56,6 +56,7 @@ const DeleteAppModal = (props = {}) => {
             cancelText="No"
             onOk={handleDeleteOk}
             destroyOnHidden
+            centered
             {...props}
             open={open}
         >

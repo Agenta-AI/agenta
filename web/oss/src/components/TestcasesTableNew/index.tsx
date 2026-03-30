@@ -160,6 +160,7 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
             message:
                 "You have unsaved changes in your testset. Do you want to save these changes before leaving the page?",
             okText: "Save",
+            centered: true,
             onOk: async () => {
                 await actions.handleSaveTestset()
                 return true
