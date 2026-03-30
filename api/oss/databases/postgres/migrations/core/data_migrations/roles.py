@@ -11,7 +11,7 @@ ROLE_MAP = {
 # Roles that are not allowed to own API keys after migration.
 # `viewer` maps to `auditor`; `evaluator` stays `evaluator`.
 # Both are disallowed, so we delete their keys before renaming.
-DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator")
+DISALLOWED_API_KEY_ROLES = ("viewer", "auditor", "evaluator")
 
 
 def migrate_invitations_to_canonical_names(session: Connection) -> None:
