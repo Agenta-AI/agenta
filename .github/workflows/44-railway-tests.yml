@@ -157,7 +157,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: railway-preview-tests-${{ inputs.agenta_web_url }}
+  group: railway-preview-tests-${{ inputs.agenta_web_url }}-${{ inputs.packages }}
   cancel-in-progress: true
 
 jobs:
