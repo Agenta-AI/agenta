@@ -713,6 +713,8 @@ export interface CreateHumanEvaluatorParams {
 
 export interface UpdateHumanEvaluatorParams {
     id: string
+    /** Variant ID — required for committing a new revision */
+    variantId?: string
     name: string
     description?: string
     metrics: HumanEvaluatorMetric[]
@@ -837,6 +839,7 @@ export const updateHumanEvaluatorAtom = atom(
 
         await updateWorkflow(projectId, {
             id: params.id,
+            variantId: params.variantId,
             name: params.name,
             description: params.description,
             flags: {
@@ -846,16 +849,17 @@ export const updateHumanEvaluatorAtom = atom(
                 is_hook: false,
                 is_code: false,
                 is_match: false,
-                is_human: true,
                 is_chat: false,
                 has_url: false,
                 has_script: false,
                 has_handler: false,
                 is_application: false,
-                is_evaluator: true,
                 is_snippet: false,
                 is_base: false,
                 ...(params.flags ?? {}),
+                // Always enforce human evaluator flags — must not be overridden
+                is_human: true,
+                is_evaluator: true,
             },
             meta: (params.meta ?? {}) as Record<string, unknown>,
             tags: params.tags,
