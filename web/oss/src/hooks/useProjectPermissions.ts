@@ -116,9 +116,10 @@ export const useProjectPermissions = () => {
     const hasRole = useCallback(
         (role: ProjectRole) => {
             if (!isEE() || !hasRBAC) return true
+            if (isOrgOwner) return true
             if (!isReady) return false
             if (role === "owner") {
-                return isOrgOwner || selectedProjectRole === "owner" || roles.has("owner")
+                return selectedProjectRole === "owner" || roles.has("owner")
             }
             return roles.has(role)
         },
