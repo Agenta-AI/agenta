@@ -335,6 +335,8 @@ class workflow:
         _flags = {**(self.flags or {}), **(request.flags or {})}
         _tags = {**(self.tags or {}), **(request.tags or {})}
         _meta = {**(self.meta or {}), **(request.meta or {})}
+        _references = {**(self.references or {}), **(request.references or {})}
+        _links = {**(self.links or {}), **(request.links or {})}
 
         credentials = (
             credentials
@@ -355,8 +357,8 @@ class workflow:
             tracing_ctx.tags = _tags
             tracing_ctx.meta = _meta
 
-            tracing_ctx.references = self.references
-            tracing_ctx.links = self.links
+            tracing_ctx.references = _references
+            tracing_ctx.links = _links
 
             with running_context_manager(RunningContext.get()):
                 running_ctx = RunningContext.get()
