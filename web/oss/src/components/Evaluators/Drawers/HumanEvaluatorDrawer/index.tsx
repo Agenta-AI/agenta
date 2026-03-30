@@ -11,6 +11,7 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -37,7 +38,6 @@ const HumanEvaluatorDrawer = () => {
     // passed directly by the caller (table row). No extra fetch needed.
     const entityData = useAtomValue(workflowMolecule.selectors.data(revisionId ?? ""))
     const evaluatorWorkflow = mode === "edit" && revisionId ? entityData : null
-    const onSuccessCallback = useAtomValue(humanEvaluatorDrawerCallbackAtom)
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 
     const handleClose = useCallback(() => {
@@ -46,10 +46,15 @@ const HumanEvaluatorDrawer = () => {
 
     const handleSuccess = useCallback(
         async (slug?: string) => {
+            // Read callback imperatively from the Jotai store to avoid stale
+            // closures — the atom value can be lost when React re-renders
+            // (e.g. due to HMR or unrelated state changes) between drawer
+            // open and form submit.
+            const cb = getDefaultStore().get(humanEvaluatorDrawerCallbackAtom)
             closeDrawer()
-            onSuccessCallback?.(slug)
+            cb?.(slug)
         },
-        [closeDrawer, onSuccessCallback],
+        [closeDrawer],
     )
 
     const createEvaluatorProps = useMemo(

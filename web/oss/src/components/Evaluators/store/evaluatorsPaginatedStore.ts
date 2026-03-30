@@ -19,7 +19,9 @@ import {
     queryWorkflows,
     queryWorkflowRevisionsByWorkflows,
     workflowMolecule,
+    onEvaluatorMutation,
 } from "@agenta/entities/workflow"
+import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
@@ -133,6 +135,19 @@ async function ensureWorkflowIdCache(
 /** Clear caches so the next fetch re-queries the API. */
 export const clearEvaluatorWorkflowCache = () => {
     _workflowIdCache = null
+    // Also remove TanStack Query entries so the paginated store
+    // re-fetches from the API instead of returning cached data.
+    queryClient.removeQueries({queryKey: ["evaluator-paginated"], exact: false})
+}
+
+/**
+ * Full invalidation: clear workflow ID cache + refresh the paginated store.
+ * Can be called from anywhere (e.g., after creating/updating/deleting evaluators)
+ * without needing a React component callback chain.
+ */
+export function invalidateEvaluatorsPaginatedStore() {
+    clearEvaluatorWorkflowCache()
+    evaluatorsPaginatedStore.invalidate()
 }
 
 // ============================================================================
@@ -212,4 +227,10 @@ export const evaluatorsPaginatedStore = createPaginatedEntityStore<
     listCountsConfig: {
         totalCountMode: "unknown",
     },
+})
+
+// Auto-refresh when evaluators are created/updated/deleted.
+// The entity package fires this after any evaluator mutation.
+onEvaluatorMutation(() => {
+    invalidateEvaluatorsPaginatedStore()
 })

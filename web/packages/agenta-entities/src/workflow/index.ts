@@ -285,6 +285,7 @@ export {
     humanEvaluatorsListDataAtom,
     // Cache invalidation
     invalidateEvaluatorsListCache,
+    onEvaluatorMutation,
     // Create from template (entity lifecycle)
     createEvaluatorFromTemplate,
     // Human evaluator CRUD

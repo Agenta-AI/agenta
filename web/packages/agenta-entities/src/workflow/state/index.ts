@@ -168,6 +168,7 @@ export {
     humanEvaluatorsListDataAtom,
     // Cache invalidation
     invalidateEvaluatorsListCache,
+    onEvaluatorMutation,
     // Create from template
     createEvaluatorFromTemplate,
     // Human evaluator CRUD

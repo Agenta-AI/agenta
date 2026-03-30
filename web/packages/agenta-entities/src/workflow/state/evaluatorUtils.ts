@@ -104,6 +104,36 @@ export function invalidateEvaluatorsListCache() {
     if (current?.refetch) {
         current.refetch()
     }
+    const humanCurrent = store.get(humanEvaluatorsListQueryAtom)
+    if (humanCurrent?.refetch) {
+        humanCurrent.refetch()
+    }
+    // Notify any registered listeners (e.g. paginated store invalidation)
+    _evaluatorMutationListeners.forEach((fn) => {
+        try {
+            fn()
+        } catch {
+            // ignore listener errors
+        }
+    })
+}
+
+// ============================================================================
+// MUTATION LISTENERS
+// ============================================================================
+
+/**
+ * Registry for callbacks that should fire after evaluator mutations.
+ * Used by app-level stores (e.g. evaluatorsPaginatedStore) to refresh
+ * without creating a circular dependency from entity → app code.
+ */
+const _evaluatorMutationListeners = new Set<() => void>()
+
+export function onEvaluatorMutation(listener: () => void): () => void {
+    _evaluatorMutationListeners.add(listener)
+    return () => {
+        _evaluatorMutationListeners.delete(listener)
+    }
 }
 
 // ============================================================================
@@ -786,6 +816,7 @@ export const createHumanEvaluatorAtom = atom(
         })
 
         invalidateWorkflowsListCache()
+        invalidateEvaluatorsListCache()
         return params.slug
     },
 )
@@ -832,6 +863,7 @@ export const updateHumanEvaluatorAtom = atom(
         })
 
         invalidateWorkflowsListCache()
+        invalidateEvaluatorsListCache()
         return params.name
     },
 )
