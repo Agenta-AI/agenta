@@ -279,8 +279,12 @@ export function useTableManager<T extends InfiniteTableRowBase>({
 
     const {rows, loadNextPage, resetPages, paginationInfo} = pagination
 
-    // Selection state
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    // Selection state — backed by the dataset store's atom so external consumers can read it
+    const storeSelectionAtom = useMemo(
+        () => datasetStore.atoms.selectionAtom({scopeId}),
+        [datasetStore, scopeId],
+    )
+    const [selectedRowKeys, setSelectedRowKeys] = useAtom(storeSelectionAtom)
 
     // Export state
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)

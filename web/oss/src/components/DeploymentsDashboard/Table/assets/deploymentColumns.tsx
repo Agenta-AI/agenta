@@ -92,6 +92,12 @@ export function createDeploymentColumns(actions: DeploymentColumnActions) {
             title: "Variant",
             width: 280,
             fixed: "left",
+            exportValue: (_row) => {
+                const record = _row as DeploymentRevisionRow
+                const name = record.variantSlug || "-"
+                const version = record.deployedRevisionVersion
+                return version != null ? `${name} v${version}` : name
+            },
             render: (_value, record) => {
                 if (record.__isSkeleton) return <SkeletonLine width="70%" />
                 return <DeploymentVariantCell record={record} />
