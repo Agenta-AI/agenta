@@ -2,7 +2,6 @@ from enum import Enum
 from typing import List
 
 from pydantic import BaseModel, Field
-from oss.src.models.shared_models import CANONICAL_WORKSPACE_ROLES
 
 
 class WorkspaceRole(str, Enum):
