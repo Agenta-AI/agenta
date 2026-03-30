@@ -1,3 +1,6 @@
+import traceback
+
+import click
 from sqlalchemy import bindparam, text, Connection
 
 
@@ -11,7 +14,36 @@ ROLE_MAP = {
 # Roles that are not allowed to own API keys after migration.
 # `viewer` maps to `auditor`; `evaluator` stays `evaluator`.
 # Both are disallowed, so we delete their keys before renaming.
-DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator")
+# Include `auditor` to handle rows already carrying the canonical name
+# (e.g. members created between app deploy and migration run).
+DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator", "auditor")
+
+
+def _rename_roles_in_table(session: Connection, table: str) -> None:
+    """Apply ROLE_MAP renames to a single table's `role` column."""
+
+    for old_role, new_role in ROLE_MAP.items():
+        session.execute(
+            text(f"UPDATE {table} SET role = :new_role WHERE role = :old_role"),
+            {"old_role": old_role, "new_role": new_role},
+        )
+
+
+def _revert_roles_in_table(session: Connection, table: str) -> None:
+    """Revert canonical role names back to legacy names in a single table.
+
+    `admin` maps from both `editor` and `workspace_admin`. On downgrade
+    we restore to `editor` since the distinction is lost post-migration.
+    """
+
+    reverse_map = {new: old for old, new in ROLE_MAP.items()}
+    reverse_map["admin"] = "editor"
+
+    for old_role, new_role in reverse_map.items():
+        session.execute(
+            text(f"UPDATE {table} SET role = :new_role WHERE role = :old_role"),
+            {"old_role": old_role, "new_role": new_role},
+        )
 
 
 def migrate_invitations_to_canonical_names(session: Connection) -> None:
@@ -28,35 +60,55 @@ def migrate_invitations_to_canonical_names(session: Connection) -> None:
       viewer           -> auditor
     """
 
-    for old_role, new_role in ROLE_MAP.items():
-        session.execute(
-            text(
-                "UPDATE project_invitations SET role = :new_role WHERE role = :old_role"
+    try:
+        _rename_roles_in_table(session, "project_invitations")
+        session.commit()
+
+        click.echo(
+            click.style(
+                "Successfully migrated project_invitations roles to canonical names.",
+                fg="green",
             ),
-            {"old_role": old_role, "new_role": new_role},
+            color=True,
         )
 
-    session.commit()
+    except Exception as e:
+        session.rollback()
+        click.echo(
+            click.style(
+                f"\nAn ERROR occurred while migrating invitation roles: {traceback.format_exc()}",
+                fg="red",
+            ),
+            color=True,
+        )
+        raise e
 
 
 def revert_invitations_to_legacy_names(session: Connection) -> None:
     """Revert canonical role names in project_invitations back to legacy names."""
 
-    reverse_map = {new: old for old, new in ROLE_MAP.items()}
+    try:
+        _revert_roles_in_table(session, "project_invitations")
+        session.commit()
 
-    # `admin` maps from both `editor` and `workspace_admin`. On downgrade
-    # we restore to `editor` since the distinction is lost post-migration.
-    reverse_map["admin"] = "editor"
-
-    for old_role, new_role in reverse_map.items():
-        session.execute(
-            text(
-                "UPDATE project_invitations SET role = :new_role WHERE role = :old_role"
+        click.echo(
+            click.style(
+                "Successfully reverted project_invitations roles to legacy names.",
+                fg="green",
             ),
-            {"old_role": old_role, "new_role": new_role},
+            color=True,
         )
 
-    session.commit()
+    except Exception as e:
+        session.rollback()
+        click.echo(
+            click.style(
+                f"\nAn ERROR occurred while reverting invitation roles: {traceback.format_exc()}",
+                fg="red",
+            ),
+            color=True,
+        )
+        raise e
 
 
 def migrate_roles_to_canonical_names(session: Connection) -> None:
@@ -68,51 +120,63 @@ def migrate_roles_to_canonical_names(session: Connection) -> None:
       deployment_manager -> manager
       viewer           -> auditor
 
-    API keys owned by users whose project role is `viewer` or `evaluator` are
-    deleted first, because post-migration those roles (`auditor` / `evaluator`)
-    are not permitted to hold API keys.
+    API keys owned by users whose project role is `viewer`, `evaluator`, or
+    `auditor` are deleted first, because post-migration those roles are not
+    permitted to hold API keys.
 
-    Also delegates to migrate_invitations_to_canonical_names for the shared
-    project_invitations table.
+    Also renames roles in project_invitations (shared with OSS).
     """
 
-    # 1. Delete API keys owned by disallowed-role users before renaming.
-    delete_disallowed_api_keys = text(
-        """
-        DELETE FROM api_keys
-        WHERE id IN (
-            SELECT ak.id
-            FROM api_keys ak
-            JOIN project_members pm
-              ON pm.project_id = ak.project_id
-             AND pm.user_id = ak.created_by_id
-            WHERE pm.role IN :disallowed_roles
-        )
-        """
-    ).bindparams(bindparam("disallowed_roles", expanding=True))
-    session.execute(
-        delete_disallowed_api_keys,
-        {"disallowed_roles": DISALLOWED_API_KEY_ROLES},
-    )
-
-    # 2. Rename roles in workspace_members.
-    for old_role, new_role in ROLE_MAP.items():
+    try:
+        # 1. Delete API keys owned by disallowed-role users before renaming.
+        delete_disallowed_api_keys = text(
+            """
+            DELETE FROM api_keys
+            WHERE id IN (
+                SELECT ak.id
+                FROM api_keys ak
+                JOIN project_members pm
+                  ON pm.project_id = ak.project_id
+                 AND pm.user_id = ak.created_by_id
+                WHERE pm.role IN :disallowed_roles
+            )
+            """
+        ).bindparams(bindparam("disallowed_roles", expanding=True))
         session.execute(
-            text(
-                "UPDATE workspace_members SET role = :new_role WHERE role = :old_role"
+            delete_disallowed_api_keys,
+            {"disallowed_roles": DISALLOWED_API_KEY_ROLES},
+        )
+
+        # 2. Rename roles in workspace_members.
+        _rename_roles_in_table(session, "workspace_members")
+
+        # 3. Rename roles in project_members.
+        _rename_roles_in_table(session, "project_members")
+
+        # 4. Rename roles in project_invitations.
+        _rename_roles_in_table(session, "project_invitations")
+
+        session.commit()
+
+        click.echo(
+            click.style(
+                "Successfully migrated roles to canonical names "
+                "(workspace_members, project_members, project_invitations, api_keys).",
+                fg="green",
             ),
-            {"old_role": old_role, "new_role": new_role},
+            color=True,
         )
 
-    # 3. Rename roles in project_members.
-    for old_role, new_role in ROLE_MAP.items():
-        session.execute(
-            text("UPDATE project_members SET role = :new_role WHERE role = :old_role"),
-            {"old_role": old_role, "new_role": new_role},
+    except Exception as e:
+        session.rollback()
+        click.echo(
+            click.style(
+                f"\nAn ERROR occurred while migrating roles: {traceback.format_exc()}",
+                fg="red",
+            ),
+            color=True,
         )
-
-    # 4. Rename roles in project_invitations.
-    migrate_invitations_to_canonical_names(session=session)
+        raise e
 
 
 def revert_roles_to_legacy_names(session: Connection) -> None:
@@ -121,24 +185,29 @@ def revert_roles_to_legacy_names(session: Connection) -> None:
     Note: API keys deleted during the forward migration cannot be restored.
     """
 
-    reverse_map = {new: old for old, new in ROLE_MAP.items()}
+    try:
+        _revert_roles_in_table(session, "workspace_members")
+        _revert_roles_in_table(session, "project_members")
+        _revert_roles_in_table(session, "project_invitations")
 
-    # `admin` maps from both `editor` and `workspace_admin`. On downgrade
-    # we restore to `editor` since the distinction is lost post-migration.
-    reverse_map["admin"] = "editor"
+        session.commit()
 
-    for old_role, new_role in reverse_map.items():
-        session.execute(
-            text(
-                "UPDATE workspace_members SET role = :new_role WHERE role = :old_role"
+        click.echo(
+            click.style(
+                "Successfully reverted roles to legacy names "
+                "(workspace_members, project_members, project_invitations).",
+                fg="green",
             ),
-            {"old_role": old_role, "new_role": new_role},
+            color=True,
         )
 
-    for old_role, new_role in reverse_map.items():
-        session.execute(
-            text("UPDATE project_members SET role = :new_role WHERE role = :old_role"),
-            {"old_role": old_role, "new_role": new_role},
+    except Exception as e:
+        session.rollback()
+        click.echo(
+            click.style(
+                f"\nAn ERROR occurred while reverting roles: {traceback.format_exc()}",
+                fg="red",
+            ),
+            color=True,
         )
-
-    revert_invitations_to_legacy_names(session=session)
+        raise e
