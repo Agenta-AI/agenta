@@ -1,5 +1,3 @@
-import traceback
-
 import click
 from sqlalchemy import bindparam, text, Connection
 
@@ -60,55 +58,29 @@ def migrate_invitations_to_canonical_names(session: Connection) -> None:
       viewer           -> auditor
     """
 
-    try:
-        _rename_roles_in_table(session, "project_invitations")
-        session.commit()
+    _rename_roles_in_table(session, "project_invitations")
 
-        click.echo(
-            click.style(
-                "Successfully migrated project_invitations roles to canonical names.",
-                fg="green",
-            ),
-            color=True,
-        )
-
-    except Exception as e:
-        session.rollback()
-        click.echo(
-            click.style(
-                f"\nAn ERROR occurred while migrating invitation roles: {traceback.format_exc()}",
-                fg="red",
-            ),
-            color=True,
-        )
-        raise e
+    click.echo(
+        click.style(
+            "Successfully migrated project_invitations roles to canonical names.",
+            fg="green",
+        ),
+        color=True,
+    )
 
 
 def revert_invitations_to_legacy_names(session: Connection) -> None:
     """Revert canonical role names in project_invitations back to legacy names."""
 
-    try:
-        _revert_roles_in_table(session, "project_invitations")
-        session.commit()
+    _revert_roles_in_table(session, "project_invitations")
 
-        click.echo(
-            click.style(
-                "Successfully reverted project_invitations roles to legacy names.",
-                fg="green",
-            ),
-            color=True,
-        )
-
-    except Exception as e:
-        session.rollback()
-        click.echo(
-            click.style(
-                f"\nAn ERROR occurred while reverting invitation roles: {traceback.format_exc()}",
-                fg="red",
-            ),
-            color=True,
-        )
-        raise e
+    click.echo(
+        click.style(
+            "Successfully reverted project_invitations roles to legacy names.",
+            fg="green",
+        ),
+        color=True,
+    )
 
 
 def migrate_roles_to_canonical_names(session: Connection) -> None:
@@ -127,56 +99,42 @@ def migrate_roles_to_canonical_names(session: Connection) -> None:
     Also renames roles in project_invitations (shared with OSS).
     """
 
-    try:
-        # 1. Delete API keys owned by disallowed-role users before renaming.
-        delete_disallowed_api_keys = text(
-            """
-            DELETE FROM api_keys
-            WHERE id IN (
-                SELECT ak.id
-                FROM api_keys ak
-                JOIN project_members pm
-                  ON pm.project_id = ak.project_id
-                 AND pm.user_id = ak.created_by_id
-                WHERE pm.role IN :disallowed_roles
-            )
-            """
-        ).bindparams(bindparam("disallowed_roles", expanding=True))
-        session.execute(
-            delete_disallowed_api_keys,
-            {"disallowed_roles": DISALLOWED_API_KEY_ROLES},
+    # 1. Delete API keys owned by disallowed-role users before renaming.
+    delete_disallowed_api_keys = text(
+        """
+        DELETE FROM api_keys
+        WHERE id IN (
+            SELECT ak.id
+            FROM api_keys ak
+            JOIN project_members pm
+              ON pm.project_id = ak.project_id
+             AND pm.user_id = ak.created_by_id
+            WHERE pm.role IN :disallowed_roles
         )
+        """
+    ).bindparams(bindparam("disallowed_roles", expanding=True))
+    session.execute(
+        delete_disallowed_api_keys,
+        {"disallowed_roles": DISALLOWED_API_KEY_ROLES},
+    )
 
-        # 2. Rename roles in workspace_members.
-        _rename_roles_in_table(session, "workspace_members")
+    # 2. Rename roles in workspace_members.
+    _rename_roles_in_table(session, "workspace_members")
 
-        # 3. Rename roles in project_members.
-        _rename_roles_in_table(session, "project_members")
+    # 3. Rename roles in project_members.
+    _rename_roles_in_table(session, "project_members")
 
-        # 4. Rename roles in project_invitations.
-        _rename_roles_in_table(session, "project_invitations")
+    # 4. Rename roles in project_invitations.
+    _rename_roles_in_table(session, "project_invitations")
 
-        session.commit()
-
-        click.echo(
-            click.style(
-                "Successfully migrated roles to canonical names "
-                "(workspace_members, project_members, project_invitations, api_keys).",
-                fg="green",
-            ),
-            color=True,
-        )
-
-    except Exception as e:
-        session.rollback()
-        click.echo(
-            click.style(
-                f"\nAn ERROR occurred while migrating roles: {traceback.format_exc()}",
-                fg="red",
-            ),
-            color=True,
-        )
-        raise e
+    click.echo(
+        click.style(
+            "Successfully migrated roles to canonical names "
+            "(workspace_members, project_members, project_invitations, api_keys).",
+            fg="green",
+        ),
+        color=True,
+    )
 
 
 def revert_roles_to_legacy_names(session: Connection) -> None:
@@ -185,29 +143,15 @@ def revert_roles_to_legacy_names(session: Connection) -> None:
     Note: API keys deleted during the forward migration cannot be restored.
     """
 
-    try:
-        _revert_roles_in_table(session, "workspace_members")
-        _revert_roles_in_table(session, "project_members")
-        _revert_roles_in_table(session, "project_invitations")
+    _revert_roles_in_table(session, "workspace_members")
+    _revert_roles_in_table(session, "project_members")
+    _revert_roles_in_table(session, "project_invitations")
 
-        session.commit()
-
-        click.echo(
-            click.style(
-                "Successfully reverted roles to legacy names "
-                "(workspace_members, project_members, project_invitations).",
-                fg="green",
-            ),
-            color=True,
-        )
-
-    except Exception as e:
-        session.rollback()
-        click.echo(
-            click.style(
-                f"\nAn ERROR occurred while reverting roles: {traceback.format_exc()}",
-                fg="red",
-            ),
-            color=True,
-        )
-        raise e
+    click.echo(
+        click.style(
+            "Successfully reverted roles to legacy names "
+            "(workspace_members, project_members, project_invitations).",
+            fg="green",
+        ),
+        color=True,
+    )

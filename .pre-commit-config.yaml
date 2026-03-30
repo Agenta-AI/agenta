@@ -1,14 +1,9 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.2
-    hooks:
-      - id: ruff-format
-      - id: ruff
   - repo: local
     hooks:
-      - id: gitleaks-pre-commit
-        name: gitleaks git (staged only)
-        entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged'
+      - id: check-code-styling-and-gitleaks
+        name: code styling + gitleaks
+        entry: hooks/check.sh
         language: system
         pass_filenames: false
       - id: gitleaks-pre-push

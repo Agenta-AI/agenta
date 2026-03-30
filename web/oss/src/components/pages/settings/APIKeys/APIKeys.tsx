@@ -49,25 +49,29 @@ const APIKeys: React.FC = () => {
             })
     }, [canViewApiKeys, setLoading, workspaceId])
 
-    const deleteKey = useCallback((prefix: string) => {
-        if (!canEditApiKeys) return
+    const deleteKey = useCallback(
+        (prefix: string) => {
+            if (!canEditApiKeys) return
 
-        AlertPopup({
-            title: "Delete API Key",
-            message: "Are you sure you want to delete this API Key? This action is irreversible!",
-            onOk: async () => {
-                setLoading(Loading.DELETE, true)
-                await deleteApiKey(prefix)
-                    .then(() => {
-                        setKeys((keys) => keys.filter((key) => key.prefix !== prefix))
-                    })
-                    .catch(console.error)
-                    .finally(() => {
-                        setLoading(Loading.DELETE, false)
-                    })
-            },
-        })
-    }, [canEditApiKeys, setLoading])
+            AlertPopup({
+                title: "Delete API Key",
+                message:
+                    "Are you sure you want to delete this API Key? This action is irreversible!",
+                onOk: async () => {
+                    setLoading(Loading.DELETE, true)
+                    await deleteApiKey(prefix)
+                        .then(() => {
+                            setKeys((keys) => keys.filter((key) => key.prefix !== prefix))
+                        })
+                        .catch(console.error)
+                        .finally(() => {
+                            setLoading(Loading.DELETE, false)
+                        })
+                },
+            })
+        },
+        [canEditApiKeys, setLoading],
+    )
 
     const createKey = useCallback(() => {
         if (!canEditApiKeys) return

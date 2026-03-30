@@ -49,7 +49,8 @@ export const useProjectPermissions = () => {
         return (
             members.find(
                 (member) =>
-                    member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email,
+                    member.user?.id === signedInUser?.id ||
+                    member.user?.email === signedInUser?.email,
             ) ?? null
         )
     }, [
@@ -89,7 +90,9 @@ export const useProjectPermissions = () => {
     }, [currentMember?.roles, selectedProjectRole])
 
     const roles = useMemo(() => {
-        const next = new Set(currentMember?.roles?.map((role) => role.role_name).filter(Boolean) ?? [])
+        const next = new Set(
+            currentMember?.roles?.map((role) => role.role_name).filter(Boolean) ?? [],
+        )
         if (selectedProjectRole) {
             next.add(selectedProjectRole)
         }

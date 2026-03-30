@@ -7,8 +7,8 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {TableDescription} from "@/oss/components/InfiniteVirtualTable"
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {UserReference} from "@/oss/components/References/UserReference"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset"
 
