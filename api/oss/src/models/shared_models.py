@@ -7,15 +7,17 @@ CANONICAL_WORKSPACE_ROLES: Final[tuple[str, ...]] = (
     "owner",
     "admin",
     "manager",
-    "evaluator",
-    "auditor",
+    "developer",
+    "annotator",
+    "viewer",
 )
 CanonicalWorkspaceRole: TypeAlias = Literal[
     "owner",
     "admin",
     "manager",
-    "evaluator",
-    "auditor",
+    "developer",
+    "annotator",
+    "viewer",
 ]
 
 

@@ -12,7 +12,7 @@ TYPES = {
     "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
-    "role": ["owner", "admin", "manager", "evaluator", "auditor"],
+    "role": ["owner", "admin", "manager", "developer", "annotator", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],
@@ -73,7 +73,7 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
 @click.option(
     "--role",
     type=click.Choice(TYPES["role"]),
-    help="Role [owner|admin|manager|evaluator|auditor]",
+    help="Role [owner|admin|manager|developer|annotator|viewer]",
 )
 @click.option(
     "--path",

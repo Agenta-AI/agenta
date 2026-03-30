@@ -90,8 +90,9 @@ OrganizationRole = Literal[
     "owner",
     "admin",
     "manager",
-    "evaluator",
-    "auditor",
+    "developer",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -107,8 +108,9 @@ WorkspaceRole = Literal[
     "owner",
     "admin",
     "manager",
-    "evaluator",
-    "auditor",
+    "developer",
+    "annotator",
+    "viewer",
 ]
 
 
@@ -124,8 +126,9 @@ ProjectRole = Literal[
     "owner",
     "admin",
     "manager",
-    "evaluator",
-    "auditor",
+    "developer",
+    "annotator",
+    "viewer",
 ]
 
 

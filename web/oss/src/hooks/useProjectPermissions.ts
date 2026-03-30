@@ -8,22 +8,24 @@ import {useProjectData} from "@/oss/state/project"
 
 type ProjectPermission = string
 type ProjectRole = string
-type CanonicalProjectRole = "owner" | "admin" | "manager" | "evaluator" | "auditor"
+type CanonicalProjectRole = "owner" | "admin" | "manager" | "developer" | "annotator" | "viewer"
 
 const FALLBACK_ROLE_PERMISSIONS: Record<CanonicalProjectRole, ProjectPermission[]> = {
     owner: ["*"],
     admin: ["view_api_keys", "edit_api_keys", "add_new_user_to_workspace", "modify_user_roles"],
     manager: ["view_api_keys", "edit_api_keys"],
-    evaluator: [],
-    auditor: [],
+    developer: [],
+    annotator: [],
+    viewer: [],
 }
 
 const isCanonicalProjectRole = (role: string | null | undefined): role is CanonicalProjectRole =>
     role === "owner" ||
     role === "admin" ||
     role === "manager" ||
-    role === "evaluator" ||
-    role === "auditor"
+    role === "developer" ||
+    role === "annotator" ||
+    role === "viewer"
 
 export const useProjectPermissions = () => {
     const {selectedOrg, loading: orgLoading} = useOrgData()

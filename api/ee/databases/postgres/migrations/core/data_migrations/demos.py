@@ -25,7 +25,7 @@ from ee.src.models.db_models import (
 
 BATCH_SIZE = 100
 DEMOS = "AGENTA_DEMOS"
-DEMO_ROLE = "auditor"
+DEMO_ROLE = "viewer"
 OWNER_ROLE = "owner"
 
 
