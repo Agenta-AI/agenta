@@ -208,7 +208,7 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
 
 function createActionsColumn<T extends InfiniteTableRowBase>(
     def: ActionsColumnDef<T>,
-): ColumnType<T> & {columnVisibilityLocked?: boolean} {
+): ColumnType<T> & {columnVisibilityLocked?: boolean; exportEnabled?: boolean} {
     const {
         items,
         width = 56, // TODO: try 61px here

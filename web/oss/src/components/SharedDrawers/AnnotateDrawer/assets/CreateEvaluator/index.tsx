@@ -199,7 +199,9 @@ const CreateEvaluator = ({
                     const evaluatorWithMeta = evaluator as EvaluatorWithMeta
                     await updateHumanEvaluator({
                         id: evaluator.id,
-                        variantId: (evaluatorWithMeta as any).workflow_variant_id ?? (evaluatorWithMeta as any).variant_id,
+                        variantId:
+                            (evaluatorWithMeta as any).workflow_variant_id ??
+                            (evaluatorWithMeta as any).variant_id,
                         name: values.evaluatorName,
                         description: values.evaluatorDescription,
                         metrics,

@@ -42,9 +42,10 @@ const HumanEvaluatorDrawer = () => {
     // Override `id` with the workflow ID — the entity data is keyed by
     // revision ID, but CreateEvaluator uses `evaluator.id` for the
     // update API call which expects a workflow ID.
-    const evaluatorWorkflow = mode === "edit" && revisionId && entityData
-        ? {...entityData, id: workflowId ?? entityData.workflow_id ?? entityData.id}
-        : null
+    const evaluatorWorkflow =
+        mode === "edit" && revisionId && entityData
+            ? {...entityData, id: workflowId ?? entityData.workflow_id ?? entityData.id}
+            : null
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 
     const handleClose = useCallback(() => {
