@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 
 import {TableDescription} from "@/oss/components/InfiniteVirtualTable"
 import {UserReference} from "@/oss/components/References/UserReference"
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset"
 
@@ -90,7 +89,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
 
     const router = useRouter()
     const enableRevisionsListQuery = useSetAtom(enableRevisionsListQueryAtom)
-    const {canExportData} = useProjectPermissions()
 
     // Remember last selected copy action
     const [lastCopyAction, setLastCopyAction] = useState<CopyAction>("copy-id")
@@ -194,27 +192,23 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             {
                 type: "divider" as const,
             },
-            ...(canExportData
-                ? [
-                      {
-                          key: "export-csv",
-                          label: isExporting ? "Exporting..." : "Export as CSV",
-                          icon: <Export size={16} />,
-                          onClick: () => onExport("csv"),
-                          disabled: isExporting,
-                      },
-                      {
-                          key: "export-json",
-                          label: isExporting ? "Exporting..." : "Export as JSON",
-                          icon: <Export size={16} />,
-                          onClick: () => onExport("json"),
-                          disabled: isExporting,
-                      },
-                      {
-                          type: "divider" as const,
-                      },
-                  ]
-                : []),
+            {
+                key: "export-csv",
+                label: isExporting ? "Exporting..." : "Export as CSV",
+                icon: <Export size={16} />,
+                onClick: () => onExport("csv"),
+                disabled: isExporting,
+            },
+            {
+                key: "export-json",
+                label: isExporting ? "Exporting..." : "Export as JSON",
+                icon: <Export size={16} />,
+                onClick: () => onExport("json"),
+                disabled: isExporting,
+            },
+            {
+                type: "divider" as const,
+            },
             {
                 key: "delete-revision",
                 label: loadingRevisions ? "Delete revision..." : "Delete revision",
@@ -233,7 +227,6 @@ export function TestcaseHeader(props: TestcaseHeaderProps) {
             onExport,
             loadingRevisions,
             isExporting,
-            canExportData,
         ],
     )
 

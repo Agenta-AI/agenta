@@ -6,8 +6,6 @@ import {Button, Grid, Tabs, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 
-import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
 import TableShell from "../components/TableShell"
@@ -259,8 +257,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         store,
     } = props
     const {scopeId, pageSize, enableInfiniteScroll = true} = tableScope
-    const {canExportData} = useProjectPermissions()
-    const exportEnabled = enableExport && canExportData
+    const exportEnabled = enableExport
 
     // Responsive breakpoints for built-in action buttons
     const screens = Grid.useBreakpoint()

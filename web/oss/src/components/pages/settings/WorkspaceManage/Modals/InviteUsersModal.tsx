@@ -134,7 +134,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     <Form.Item
                         name="role"
                         rules={[{required: true, message: "Please select a role"}]}
-                        initialValue="admin"
+                        initialValue="viewer"
                         className="mb-1"
                     >
                         <Select
