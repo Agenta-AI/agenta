@@ -82,6 +82,42 @@ _NULL_UUID = "null"
 _SUPERTOKENS_TIMEOUT = 15  # 15 seconds or whatever you need
 
 
+def _auth_id_tail(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+
+    return value[-12:]
+
+
+def _log_bearer_auth_denied(
+    *,
+    request: Request,
+    query_project_id: Optional[str],
+    query_workspace_id: Optional[str],
+    session_user_id: Optional[str],
+    user_id: Optional[str],
+    cache_key: dict,
+    stage: str,
+    reason: str,
+    is_invite_accept_route: bool,
+    exc: Optional[Exception] = None,
+) -> None:
+    log.debug(
+        "[auth] bearer token unauthorized",
+        path=request.url.path,
+        method=request.method,
+        query_project_id=query_project_id,
+        query_workspace_id=query_workspace_id,
+        session_user_id_tail=_auth_id_tail(session_user_id),
+        user_id_tail=_auth_id_tail(user_id),
+        stage=stage,
+        reason=reason,
+        cache_key=cache_key,
+        is_invite_accept_route=is_invite_accept_route,
+        exception_type=type(exc).__name__ if exc else None,
+    )
+
+
 async def authentication_middleware(request: Request, call_next):
     """
     Middleware function for authentication.
@@ -284,6 +320,22 @@ async def verify_bearer_token(
     user_email = None
     organization_name = None
     cache_key = {}
+    session_user_id = None
+    is_invite_accept_route = _INVITE_ACCEPT_ENDPOINT_IDENTIFIER in request.url.path
+
+    def _deny(stage: str, reason: str, exc: Exception = None):
+        _log_bearer_auth_denied(
+            request=request,
+            query_project_id=query_project_id,
+            query_workspace_id=query_workspace_id,
+            session_user_id=session_user_id,
+            user_id=user_id,
+            cache_key=cache_key,
+            stage=stage,
+            reason=reason,
+            is_invite_accept_route=is_invite_accept_route,
+            exc=exc,
+        )
 
     try:
         session = await get_session(request)  # type: ignore
@@ -293,6 +345,7 @@ async def verify_bearer_token(
         cache_key = {}
 
         if not session_user_id:
+            _deny("session", "no session_user_id")
             raise UnauthorizedException()
 
         user: dict = await get_cache(
@@ -308,6 +361,7 @@ async def verify_bearer_token(
 
         if user is not None:
             if user.get("deny"):
+                _deny("user_cache", "cached deny for session_user_id")
                 raise UnauthorizedException()
 
         else:
@@ -332,6 +386,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("supertokens", "user not found in supertokens")
                 raise UnauthorizedException()
 
             user_email = user_info.emails[0] if user_info.emails else None
@@ -345,6 +400,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("supertokens", "no email in supertokens user")
                 raise UnauthorizedException()
 
             user = await db_manager.get_user_with_email(
@@ -360,6 +416,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("db_user", "no user in db for email")
                 raise UnauthorizedException()
 
             user_id = str(user.id)
@@ -377,7 +434,6 @@ async def verify_bearer_token(
 
         project_id = None
         workspace_id = None
-        is_invite_accept_route = _INVITE_ACCEPT_ENDPOINT_IDENTIFIER in request.url.path
         cache_scope = "invite_accept" if is_invite_accept_route else "default"
 
         cache_key = {
@@ -397,6 +453,7 @@ async def verify_bearer_token(
 
         if state is not None:
             if state.get("deny"):
+                _deny("state_cache", "cached deny for user+project")
                 raise UnauthorizedException()
 
             request.state.user_id = state.get("user_id")
@@ -423,6 +480,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project not found")
                 raise UnauthorizedException()
 
             workspace = await db_manager.get_workspace(
@@ -438,6 +496,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "workspace not found")
                 raise UnauthorizedException()
 
             if project.workspace_id != workspace.id:
@@ -449,6 +508,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project/workspace mismatch")
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -469,6 +529,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "project not found (no workspace_id)")
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -489,6 +550,7 @@ async def verify_bearer_token(
                     value={"deny": True},
                 )
 
+                _deny("resolve", "workspace not found (no project_id)")
                 raise UnauthorizedException()
 
             workspace_id = query_workspace_id
@@ -528,12 +590,19 @@ async def verify_bearer_token(
                 value={"deny": True},
             )
 
+            _deny("resolve", "missing project_id or workspace_id after resolve")
             raise UnauthorizedException()
 
         # Verify the authenticated user is a member of the requested project
         # or workspace.  This is required whenever the caller supplied an
         # explicit project_id or workspace_id (in the latter case we check
         # workspace membership since the default project was resolved from it).
+        #
+        # NOTE: Membership is mutable (invites, auto-join) so we intentionally
+        # do NOT cache {"deny": True} here.  Caching a membership denial would
+        # lock the user out for the full cache TTL even after they accept an
+        # invite.  The deny is raised directly to the middleware, bypassing the
+        # outer except-handler that caches.
         if (
             is_ee()
             and (query_project_id or query_workspace_id)
@@ -551,15 +620,13 @@ async def verify_bearer_token(
                 )
 
             if not is_member:
-                await set_cache(
-                    project_id=query_project_id,
-                    user_id=user_id,
-                    namespace="verify_bearer_token",
-                    key=cache_key,
-                    value={"deny": True},
+                _deny(
+                    "membership",
+                    "project_member" if query_project_id else "workspace_member",
                 )
-
-                raise UnauthorizedException()
+                # Raise HTTPException directly so the outer except-handlers
+                # (which cache deny) are NOT triggered.
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
         # ----------------------------------------------------------------------
         try:
@@ -631,6 +698,7 @@ async def verify_bearer_token(
         raise exc
 
     except UnauthorizedException as exc:
+        _deny("catch_unauthorized", "UnauthorizedException propagated", exc)
         await set_cache(
             project_id=query_project_id,
             user_id=user_id,
@@ -641,7 +709,13 @@ async def verify_bearer_token(
 
         raise exc
 
+    except HTTPException as exc:
+        # Membership failures raise bare HTTPException(401) intentionally
+        # to skip deny-caching.  Re-raise without touching the cache.
+        raise exc
+
     except Exception as exc:  # pylint: disable=bare-except
+        _deny("catch_all", "unexpected exception", exc)
         await set_cache(
             project_id=query_project_id,
             user_id=user_id,
