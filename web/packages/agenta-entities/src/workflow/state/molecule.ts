@@ -40,12 +40,21 @@ import {
     nestEvaluatorConfiguration,
     flattenEvaluatorConfiguration,
 } from "../../runnable/evaluatorTransforms"
-import {extractInputPortsFromSchema, extractOutputPortsFromSchema} from "../../runnable/portHelpers"
+import {
+    extractInputPortsFromSchema,
+    extractOutputPortsFromSchema,
+    extractSystemFieldNames,
+    formatKeyAsName,
+} from "../../runnable/portHelpers"
 import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
 import {extractVariablesFromConfig} from "../../runnable/utils"
 import type {RunnablePort, StoreOptions} from "../../shared"
 import {isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {Workflow} from "../core"
+import {
+    toEvaluatorDefinitionFromWorkflow,
+    type EvaluatorDefinition,
+} from "../core/evaluatorResolution"
 import {parseWorkflowKeyFromUri} from "../core/schema"
 
 import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
@@ -447,20 +456,19 @@ const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
             const enrichedProperties: Record<string, unknown> = {}
 
             for (const [key, prop] of Object.entries(properties)) {
-                const agTypeRef =
-                    (prop?.["x-ag-type-ref"] as string | undefined) ||
-                    (prop?.["x-ag-type"] as string | undefined)
-
-                // Only enrich if the property has a semantic ref but no sub-properties
-                if (agTypeRef && !prop.properties) {
-                    const agTypeQuery = get(agTypeSchemaAtomFamily(agTypeRef))
+                const agType =
+                    (prop?.["x-ag-type"] as string | undefined) ??
+                    (prop?.["x-ag-type-ref"] as string | undefined)
+                // Only enrich if the property has x-ag-type/x-ag-type-ref but no sub-properties
+                if (agType && !prop.properties) {
+                    const agTypeQuery = get(agTypeSchemaAtomFamily(agType))
                     const agTypeSchema = agTypeQuery.data
                     if (agTypeSchema?.properties) {
                         enrichedProperties[key] = {
                             ...prop,
                             ...agTypeSchema,
                             // Preserve the original semantic ref and local overrides.
-                            "x-ag-type-ref": agTypeRef,
+                            "x-ag-type-ref": agType,
                             ...(prop.title ? {title: prop.title} : {}),
                             ...(prop.default !== undefined ? {default: prop.default} : {}),
                         }
@@ -627,13 +635,20 @@ const inputPortsAtomFamily = atomFamily((workflowId: string) =>
             return []
         }
 
-        const schemaPorts = extractInputPortsFromSchema(entity.data?.schemas?.inputs)
+        const inputsSchema = entity.data?.schemas?.inputs
+        const schemaPorts = extractInputPortsFromSchema(inputsSchema)
         if (schemaPorts.length > 0) return schemaPorts
 
-        // Fallback: derive input variables from prompt templates in parameters
+        // Fallback: derive input variables from prompt templates in parameters.
+        // Filter out names that match system-level fields (x-ag-*) in the
+        // inputs schema — these are runtime-managed (e.g. context, consent)
+        // and should not appear as user-facing inputs.
         const params = entity.data?.parameters ?? entity.data?.configuration
         if (params) {
-            const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+            const systemFields = extractSystemFieldNames(inputsSchema)
+            const vars = extractVariablesFromConfig(params as Record<string, unknown>).filter(
+                (key) => !systemFields.has(key),
+            )
             if (vars.length > 0) {
                 return vars.map((key) => ({key, name: key, type: "string", required: true}))
             }
@@ -666,12 +681,35 @@ const outputPortsAtomFamily = atomFamily((workflowId: string) =>
         }
 
         const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
-        if (schemaOutputs.length > 0) return schemaOutputs
 
-        // Evaluator-type workflows default to score/number
+        // For evaluators, the backend output schema may be incomplete (e.g., only "score"
+        // when the json_schema config also defines "reasoning"). Prefer the richer source.
         if (entity?.flags?.is_evaluator) {
+            const config = (entity.data?.parameters ?? entity.data?.configuration) as
+                | Record<string, unknown>
+                | undefined
+            // Nested form: feedback_config.json_schema.schema.properties
+            const feedbackConfig = config?.feedback_config as Record<string, unknown> | undefined
+            const jsonSchema = feedbackConfig?.json_schema as
+                | {schema?: {properties?: Record<string, unknown>}}
+                | undefined
+            // Also check flat form (raw backend data): json_schema at top level
+            const flatJsonSchema = config?.json_schema as typeof jsonSchema | undefined
+            const fbProperties =
+                jsonSchema?.schema?.properties ?? flatJsonSchema?.schema?.properties
+            if (fbProperties && Object.keys(fbProperties).length > schemaOutputs.length) {
+                return Object.entries(fbProperties).map(([key, prop]) => ({
+                    key,
+                    name: formatKeyAsName(key),
+                    type: ((prop as Record<string, unknown>)?.type as string) ?? "string",
+                    schema: prop,
+                }))
+            }
+            if (schemaOutputs.length > 0) return schemaOutputs
             return [{key: "score", name: "Score", type: "number"}]
         }
+
+        if (schemaOutputs.length > 0) return schemaOutputs
         return [{key: "output", name: "Output", type: "string"}]
     }),
 )
@@ -687,6 +725,23 @@ const ioSchemasAtomFamily = atomFamily((workflowId: string) =>
             inputSchema: entity.data.schemas.inputs ?? undefined,
             outputSchema: entity.data.schemas.outputs ?? undefined,
         }
+    }),
+)
+
+/**
+ * Evaluator definition selector.
+ *
+ * Builds a full `EvaluatorDefinition` (id, name, slug, metrics) from the
+ * workflow entity data. Metrics are extracted from `data.schemas.outputs`.
+ *
+ * Use this when you need the evaluator definition with metrics resolved from
+ * the entity's output schema (e.g., for annotation panels, metric columns).
+ */
+const evaluatorDefinitionAtomFamily = atomFamily((workflowId: string) =>
+    atom<EvaluatorDefinition | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity) return null
+        return toEvaluatorDefinitionFromWorkflow(entity)
     }),
 )
 
@@ -850,6 +905,8 @@ export const workflowMolecule = {
         outputPorts: outputPortsAtomFamily,
         /** IO schemas as {inputSchema, outputSchema} tuple */
         ioSchemas: ioSchemasAtomFamily,
+        /** Evaluator definition (id, name, slug, metrics from output schema) */
+        evaluatorDefinition: evaluatorDefinitionAtomFamily,
         /** Server data before draft overlay (for commit diffs) */
         serverData: serverDataAtomFamily,
         /** Server configuration (flat params from server) */

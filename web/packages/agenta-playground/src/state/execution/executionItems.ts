@@ -1153,13 +1153,10 @@ function buildExecutionItem(
                       ...legacyRest
                   } = legacyBody as Record<string, unknown>
 
-                  // Build data.inputs: for chat mode, include messages in inputs
+                  // Build data.inputs from legacy inputs (variable values like "context")
                   const dataInputs: Record<string, unknown> = {}
                   if (legacyInputs && typeof legacyInputs === "object") {
                       Object.assign(dataInputs, legacyInputs)
-                  }
-                  if (Array.isArray(legacyMessages) && legacyMessages.length > 0) {
-                      dataInputs.messages = legacyMessages
                   }
                   // Include any extra top-level fields from legacy body
                   // (e.g. custom workflow fields)
@@ -1182,6 +1179,11 @@ function buildExecutionItem(
                       data: {
                           ...baseData,
                           inputs: dataInputs,
+                          // Chat messages go at data.messages (not data.inputs.messages)
+                          // so the backend schema validator sees only variable inputs
+                          ...(Array.isArray(legacyMessages) && legacyMessages.length > 0
+                              ? {messages: legacyMessages}
+                              : {}),
                           parameters: legacyAgConfig
                               ? (legacyAgConfig as Record<string, unknown>)
                               : baseData?.parameters,

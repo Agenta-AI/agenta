@@ -15,6 +15,7 @@
 import {generateId} from "@agenta/shared/utils"
 
 import {extractVariablesFromConfig} from "../../runnable/utils"
+import type {Workflow} from "../core"
 
 import {
     createWorkflow,
@@ -49,6 +50,7 @@ export interface CreateAppFromTemplateParams {
 export interface CreateAppFromTemplateResult {
     appId: string
     revisionId?: string
+    workflow?: Workflow
 }
 
 // ============================================================================
@@ -199,6 +201,7 @@ export async function createAppFromTemplate({
         slug,
         name: appName,
         flags: {
+            is_application: true,
             is_chat: isChat,
             is_evaluator: false,
             is_custom: isCustomWorkflow || catalogKey === "CUSTOM",
@@ -215,7 +218,8 @@ export async function createAppFromTemplate({
     })
 
     return {
-        appId: workflow.id,
+        appId: workflow.workflow_id ?? workflow.id,
         revisionId: workflow.id, // createWorkflow returns the revision on success
+        workflow,
     }
 }

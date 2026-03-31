@@ -4,15 +4,14 @@ import {
 } from "@agenta/entities/environment"
 import {testsetQueryAtomFamily, type Testset} from "@agenta/entities/testset"
 import {
-    nonArchivedEvaluatorsAtom,
-    workflowLatestRevisionQueryAtomFamily,
+    fetchWorkflow,
+    fetchWorkflowRevisionById,
     workflowMolecule,
     workflowsListQueryStateAtom,
-    type Workflow,
 } from "@agenta/entities/workflow"
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -268,8 +267,44 @@ const extractMetricsFromWorkflow = (workflow: any): EvaluatorReferenceMetric[] =
 }
 
 /**
- * Reactively derives evaluator reference from the evaluators list + latest revision.
- * Evaluators list provides name/slug, latest revision provides metrics schema.
+ * Self-contained query for fetching a workflow revision by ID.
+ * Uses the provided projectId directly — no dependency on shared
+ * projectIdAtom/sessionAtom, so it works in scoped Jotai stores
+ * (e.g., the evaluations page).
+ */
+export const evaluatorWorkflowQueryAtomFamily = atomFamily(
+    ({projectId, revisionId}: {projectId: string; revisionId: string}) =>
+        atomWithQuery(() => ({
+            queryKey: ["evaluator-reference", "workflow", projectId, revisionId],
+            queryFn: async () => {
+                try {
+                    // Try as revision ID first
+                    const revision = await fetchWorkflowRevisionById(revisionId, projectId)
+                    if (revision?.data) return revision
+
+                    // No data — the ID is likely an artifact/workflow ID.
+                    // Fetch the latest revision which carries full data.
+                    const artifactId = revision?.workflow_id ?? revisionId
+                    return await fetchWorkflow({id: artifactId, projectId})
+                } catch {
+                    // Revision endpoint failed — try as artifact ID directly
+                    try {
+                        return await fetchWorkflow({id: revisionId, projectId})
+                    } catch {
+                        return null
+                    }
+                }
+            },
+            enabled: !!projectId && !!revisionId,
+            staleTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+        })),
+)
+
+/**
+ * Resolves evaluator reference (name, slug, metrics) from the workflow
+ * entity system. Uses a self-contained query that works in any Jotai
+ * store — no dependency on shared projectIdAtom/sessionAtom.
  */
 export const evaluatorReferenceAtomFamily = atomFamily(
     ({projectId, slug, id}: {projectId: string | null; slug?: string | null; id?: string | null}) =>
@@ -284,43 +319,35 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 }
             }
 
-            const evaluators = get(nonArchivedEvaluatorsAtom)
-            const match = evaluators.find((e) => (slug && e.slug === slug) || (id && e.id === id))
-
-            if (match) {
-                // Get the latest revision for metrics extraction
-                const revisionQuery = get(workflowLatestRevisionQueryAtomFamily(match.id)) as {
-                    data?: Workflow | null
+            if (id) {
+                const query = get(evaluatorWorkflowQueryAtomFamily({projectId, revisionId: id}))
+                if (query.isPending || query.isFetching) {
+                    return {
+                        data: null,
+                        isPending: true,
+                        isFetching: true,
+                        isLoading: true,
+                        isError: false,
+                    }
                 }
-                const revision = revisionQuery?.data
-
-                return {
-                    data: {
-                        id: match.id ?? id ?? null,
-                        slug: match.slug ?? slug ?? null,
-                        name: match.name ?? match.slug ?? match.id ?? slug ?? id ?? null,
-                        metrics: revision ? extractMetricsFromWorkflow(revision) : [],
-                    },
-                    isPending: false,
-                    isFetching: false,
-                    isLoading: false,
-                    isError: false,
-                }
-            }
-
-            // Evaluators list may still be loading — check the union query state
-            const listState = get(workflowsListQueryStateAtom)
-            if (listState.isPending) {
-                return {
-                    data: null,
-                    isPending: true,
-                    isFetching: true,
-                    isLoading: true,
-                    isError: false,
+                const workflow = query.data
+                if (workflow) {
+                    return {
+                        data: {
+                            id: workflow.workflow_id ?? workflow.id ?? id,
+                            slug: workflow.slug ?? slug ?? null,
+                            name: workflow.name ?? workflow.slug ?? slug ?? id ?? null,
+                            metrics: extractMetricsFromWorkflow(workflow),
+                        },
+                        isPending: false,
+                        isFetching: false,
+                        isLoading: false,
+                        isError: false,
+                    }
                 }
             }
 
-            // List loaded but evaluator not found — return minimal reference
+            // Nothing found — return minimal reference
             return {
                 data: {
                     id: id ?? null,
@@ -334,7 +361,6 @@ export const evaluatorReferenceAtomFamily = atomFamily(
                 isError: false,
             }
         }),
-    (a, b) => a.projectId === b.projectId && a.slug === b.slug && a.id === b.id,
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

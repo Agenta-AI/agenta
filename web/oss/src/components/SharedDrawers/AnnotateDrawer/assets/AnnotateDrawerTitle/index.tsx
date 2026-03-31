@@ -15,6 +15,7 @@ import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"
+import {useEvaluatorSchemas} from "../hooks/useEvaluatorSchemas"
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,
@@ -40,7 +41,8 @@ const AnnotateDrawerTitle = ({
     const [isSaving, setIsSaving] = useState(false)
     const queryClient = useQueryClient()
     const {mutate: mutateCache} = useSWRConfig()
-    const evaluators = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluatorRefs = useAtomValue(humanEvaluatorsListDataAtom)
+    const evaluators = useEvaluatorSchemas(evaluatorRefs as any)
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {
@@ -164,6 +166,16 @@ const AnnotateDrawerTitle = ({
                     queryKey: [queryKey],
                 })
             }
+
+            // 5. Invalidate trace drawer annotation queries (jotai-tanstack-query)
+            await queryClient.invalidateQueries({
+                queryKey: ["trace-drawer-annotations"],
+            })
+
+            // 6. Also refetch the main trace query so annotations get re-attached
+            await queryClient.invalidateQueries({
+                queryKey: ["trace-drawer"],
+            })
 
             message.success("Annotations updated successfully")
             onClose()

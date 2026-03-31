@@ -178,6 +178,7 @@ export const registryPaginatedStore = createPaginatedEntityStore<
             meta.projectId,
             undefined,
             windowing,
+            meta.searchTerm,
         )
 
         // Update variant name cache with any new variants found in revisions

@@ -105,6 +105,7 @@ const CommitTestsetModal = ({
             okButtonProps={{loading: isCommitting, disabled: isCommitting}}
             cancelButtonProps={{disabled: isCommitting}}
             destroyOnHidden
+            centered
             width={hasDiffData ? 900 : 520}
             styles={{
                 body: {

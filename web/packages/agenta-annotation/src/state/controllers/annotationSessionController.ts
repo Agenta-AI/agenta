@@ -425,9 +425,7 @@ const testsetSyncEvaluatorsAtom = atom<TestsetSyncEvaluator[]>((get) => {
 
     for (const step of annotationSteps) {
         const workflowId = step.references?.evaluator?.id ?? null
-        const evaluatorEntity = workflowId
-            ? get(evaluatorMolecule.selectors.data(workflowId))
-            : null
+        const evaluatorEntity = workflowId ? get(workflowMolecule.selectors.data(workflowId)) : null
         const name = evaluatorEntity?.name?.trim() || null
         const slug =
             step.references?.evaluator?.slug ??
@@ -639,9 +637,7 @@ const META_KEYS = new Set(["tags", "meta"])
 type TestcaseColumnGroup = "input" | "output" | "expected"
 
 function getAnnotationDisplayTitle(get: Getter, def: AnnotationColumnDef): string {
-    const evaluator = def.evaluatorId
-        ? get(evaluatorMolecule.selectors.data(def.evaluatorId))
-        : null
+    const evaluator = def.evaluatorId ? get(workflowMolecule.selectors.data(def.evaluatorId)) : null
     return (
         evaluator?.name?.trim() ||
         evaluator?.slug?.trim() ||

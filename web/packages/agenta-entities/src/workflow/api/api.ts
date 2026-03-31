@@ -89,6 +89,7 @@ const selectMostRecentWorkflowRevision = (
  */
 export async function queryWorkflows({
     projectId,
+    name,
     flags,
     folderId,
     includeArchived = false,
@@ -102,9 +103,10 @@ export async function queryWorkflows({
     // folder_id is only included when folderId is explicitly provided (not undefined).
     // null → root-level items (IS NULL), string → items in that folder.
     const hasFolderFilter = folderId !== undefined
-    const hasWorkflowQuery = flags || hasFolderFilter
+    const hasWorkflowQuery = Boolean(name || flags || hasFolderFilter)
     const workflowQuery = hasWorkflowQuery
         ? {
+              ...(name ? {name} : {}),
               ...(flags ? {flags} : {}),
               ...(hasFolderFilter ? {folder_id: folderId} : {}),
           }
@@ -204,8 +206,10 @@ export async function queryWorkflowRevisionsByWorkflow(
     projectId: string,
     flags?: WorkflowQueryFlags,
     windowing?: WorkflowRevisionWindowing,
+    /** Optional name filter — server applies ilike matching */
+    name?: string,
 ): Promise<WorkflowRevisionsResponse> {
-    return queryWorkflowRevisionsByWorkflows([workflowId], projectId, flags, windowing)
+    return queryWorkflowRevisionsByWorkflows([workflowId], projectId, flags, windowing, name)
 }
 
 /**
@@ -224,16 +228,26 @@ export async function queryWorkflowRevisionsByWorkflows(
     projectId: string,
     flags?: WorkflowQueryFlags,
     windowing?: WorkflowRevisionWindowing,
+    /** Optional name filter — server applies ilike matching */
+    name?: string,
 ): Promise<WorkflowRevisionsResponse> {
     if (!projectId || workflowIds.length === 0) {
         return {count: 0, workflow_revisions: []}
     }
 
+    const hasRevisionQuery = flags || name
+    const workflowRevision = hasRevisionQuery
+        ? {
+              ...(flags ? {flags} : {}),
+              ...(name ? {name} : {}),
+          }
+        : undefined
+
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
-            workflow_revision: flags ? {flags} : undefined,
+            workflow_revision: workflowRevision,
             ...(windowing ? {windowing} : {}),
         },
         {params: {project_id: projectId}},

@@ -11,6 +11,7 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {getDefaultStore} from "jotai"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -20,6 +21,7 @@ import {
     closeHumanEvaluatorDrawerAtom,
     humanEvaluatorDrawerCallbackAtom,
     humanEvaluatorDrawerRevisionIdAtom,
+    humanEvaluatorDrawerWorkflowIdAtom,
     humanEvaluatorDrawerModeAtom,
     humanEvaluatorDrawerOpenAtom,
 } from "./store"
@@ -31,13 +33,19 @@ const AnnotateDrawer = dynamic(() => import("@/oss/components/SharedDrawers/Anno
 const HumanEvaluatorDrawer = () => {
     const isOpen = useAtomValue(humanEvaluatorDrawerOpenAtom)
     const mode = useAtomValue(humanEvaluatorDrawerModeAtom)
+    const workflowId = useAtomValue(humanEvaluatorDrawerWorkflowIdAtom)
     const revisionId = useAtomValue(humanEvaluatorDrawerRevisionIdAtom)
 
     // Read full entity data through the molecule using the revision ID
     // passed directly by the caller (table row). No extra fetch needed.
     const entityData = useAtomValue(workflowMolecule.selectors.data(revisionId ?? ""))
-    const evaluatorWorkflow = mode === "edit" && revisionId ? entityData : null
-    const onSuccessCallback = useAtomValue(humanEvaluatorDrawerCallbackAtom)
+    // Override `id` with the workflow ID — the entity data is keyed by
+    // revision ID, but CreateEvaluator uses `evaluator.id` for the
+    // update API call which expects a workflow ID.
+    const evaluatorWorkflow =
+        mode === "edit" && revisionId && entityData
+            ? {...entityData, id: workflowId ?? entityData.workflow_id ?? entityData.id}
+            : null
     const closeDrawer = useSetAtom(closeHumanEvaluatorDrawerAtom)
 
     const handleClose = useCallback(() => {
@@ -46,10 +54,15 @@ const HumanEvaluatorDrawer = () => {
 
     const handleSuccess = useCallback(
         async (slug?: string) => {
+            // Read callback imperatively from the Jotai store to avoid stale
+            // closures — the atom value can be lost when React re-renders
+            // (e.g. due to HMR or unrelated state changes) between drawer
+            // open and form submit.
+            const cb = getDefaultStore().get(humanEvaluatorDrawerCallbackAtom)
             closeDrawer()
-            onSuccessCallback?.(slug)
+            cb?.(slug)
         },
-        [closeDrawer, onSuccessCallback],
+        [closeDrawer],
     )
 
     const createEvaluatorProps = useMemo(

@@ -10,13 +10,13 @@
  * - Action buttons depend on context:
  *   - variant/deployment: Playground, Deploy, Commit
  *   - evaluator-view: (no top-level actions — config header has Commit)
- *   - evaluator-create: Commit only
- * - Navigation arrows appear when navigationIds has > 1 entry
+ *   - evaluator-create: (no actions or navigation — config header has Commit)
+ * - Navigation arrows appear when navigationIds has > 1 entry (except evaluator-create)
  * - Info popover (metadata) shows in expanded mode only
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info} from "@phosphor-icons/react"
+import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
 import {Button, Popover, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -60,7 +60,7 @@ const NavControls = memo(({entityId}: {entityId: string}) => {
     return (
         <div className="flex items-center gap-0.5">
             <Button
-                icon={<CaretUp size={16} />}
+                icon={<CaretUp size={14} />}
                 size="small"
                 type="text"
                 disabled={isPrevDisabled}
@@ -69,7 +69,7 @@ const NavControls = memo(({entityId}: {entityId: string}) => {
                 }}
             />
             <Button
-                icon={<CaretDown size={16} />}
+                icon={<CaretDown size={14} />}
                 size="small"
                 type="text"
                 disabled={isNextDisabled}
@@ -110,26 +110,16 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
         <Popover
             trigger="click"
             placement="bottomRight"
+            styles={{container: {padding: 0}}}
             content={
                 <div className="w-[240px]">
-                    <MetadataSidebar revisionId={entityId} context={context} />
+                    <MetadataSidebar revisionId={entityId} context={context} isCompact={true} />
                 </div>
             }
         >
-            <Button type="text" size="small" icon={<Info size={16} />} />
+            <Button type="text" size="small" icon={<Info size={14} />} />
         </Popover>
     )
-})
-
-// ================================================================
-// EVALUATOR CREATE HEADER
-// ================================================================
-
-const EvaluatorCreateButton = memo(() => {
-    const {renderCommitButton} = useDrawerProviders()
-    const entityId = useAtomValue(workflowRevisionDrawerEntityIdAtom)
-    if (!entityId || !renderCommitButton) return null
-    return <>{renderCommitButton(entityId)}</>
 })
 
 // ================================================================
@@ -165,32 +155,33 @@ const DrawerHeader = () => {
     const title = DRAWER_TITLES[context] ?? "Workflow Revision"
 
     return (
-        <div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-[#0517290F] shrink-0">
+        <div className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[#0517290F] shrink-0">
             {/* Left: close + title + nav */}
             <div className="flex items-center gap-2">
-                <Button type="text" size="small" onClick={handleClose}>
-                    &times;
-                </Button>
-                <Text className="text-sm font-medium">{title}</Text>
-                {entityId && <NavControls entityId={entityId} />}
+                <Button type="text" size="small" onClick={handleClose} icon={<X size={14} />} />
+
+                <div className="flex items-center gap-3">
+                    <Text className="text-sm font-medium">{title}</Text>
+                    {entityId && !isEvaluatorCreate && <NavControls entityId={entityId} />}
+                </div>
             </div>
 
             {/* Right: actions + expand */}
             <div className="flex items-center gap-2">
-                {isExpanded ? (
-                    entityId && <MetadataPopover entityId={entityId} />
-                ) : isEvaluatorCreate ? (
-                    <EvaluatorCreateButton />
-                ) : isEvaluator ? null : (
-                    entityId && <VariantActionButtons entityId={entityId} />
-                )}
+                {isExpanded
+                    ? entityId && <MetadataPopover entityId={entityId} />
+                    : isEvaluatorCreate
+                      ? null
+                      : isEvaluator
+                        ? null
+                        : entityId && <VariantActionButtons entityId={entityId} />}
                 <Button
                     onClick={handleToggleExpand}
                     size="small"
                     type="text"
                     icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                 >
-                    {isExpanded ? "Collapse" : "Expand"}
+                    Test Prompt
                 </Button>
             </div>
         </div>

@@ -132,32 +132,30 @@ The goal is to get the new system to feature parity where needed while allowing 
 
 ### 1g. API Control-Plane Dispatch to Runtime Services (G10)
 
-**What:** Treat the API as a control plane that classifies targets and hands runnable execution/discovery toward the runtime `/services` surface instead of making the API container the long-running execution engine.
+**What:** Treat the API as a control plane that resolves targets and calls the runtime `/services` surface instead of making the API container the long-running execution engine or exposing runnable `/invoke` or `/inspect` routes itself.
 
-- [ ] Use redirect as the API-to-services handoff strategy for runnable targets
-- [ ] Normalize `flags.remote=false` on API-originated runnable invoke requests before redirecting to `/services`
+- [ ] Call the target runtime `/services/.../invoke` endpoint directly from API and worker containers
 - [ ] Route runnable builtin invoke requests toward the runtime `/services` surface
 - [ ] Expose all Agenta builtin runtime routes through the `/services` family, not just the current narrow subset
 - [ ] Review and standardize the service URL shape
 - [ ] Make non-runnable custom targets fail invoke explicitly
+- [ ] Call the target runtime `/services/.../inspect` endpoint directly when live discovery is needed
 - [ ] Keep inspect working for both runnable and non-runnable targets
-- [ ] Make `openapi.json` come from the same provenance as `inspect` for a given target
 - [ ] Refresh builtin service URLs from URI on reads and writes
 - [ ] Refresh builtin input/output schemas from URI/inspect on reads and writes, with caching
 - [ ] Avoid blindly overwriting user-owned parameter schema during builtin refresh
 
-**Does not remove:** Current in-process invoke still exists during expand while the target handoff path is added and validated.
+**Does not remove:** Legacy compatibility routes may remain during migration, but the target runnable contract is runtime `/services`, not API-owned runnable endpoints.
 
 ### 1h. Domain-Level Invoke/Inspect (G12)
 
-**What:** Add invoke and inspect endpoints to applications and evaluators routers.
+**What:** Do not add runnable invoke/inspect endpoints to applications and evaluators routers. Domain-level services may still offer filtered helpers over workflow discovery and persistence, but runtime execution and live inspect belong to `/services`.
 
-- [ ] Add `POST /applications/invoke` and `POST /applications/inspect` — thin wrappers delegating to `WorkflowsService`
-- [ ] Add `POST /evaluators/invoke` and `POST /evaluators/inspect` — thin wrappers delegating to `WorkflowsService`
-- [ ] Wire SDK-side `invoke_application`, `inspect_application`, `invoke_evaluator`, `inspect_evaluator` to these routes
-- [ ] Consider whether simple routers also need invoke/inspect
+- [ ] Keep applications and evaluators as filtered projections over workflow persistence/query surfaces
+- [ ] Route runtime execution and live inspect through `/services` instead of adding API endpoints
+- [ ] Keep SDK-side application/evaluator helpers aligned with the services-backed workflow path
 
-**Does not remove:** Workflows-level invoke/inspect still works. Legacy invoke paths still work.
+**Does not remove:** Workflow-level control-plane helpers may remain in the API service layer while they hand off to `/services`.
 
 ### 1i. Passive Incoming Trace Context Support in SDK Runtime
 
@@ -201,9 +199,9 @@ After checkpoint 1, all of the following are true:
 10. Using workflow/application/evaluator catalog data in normal creation flows persists explicit shared evaluator input schema, optional parameter schema, and full output schema
 11. Catalog entries expose revision-like discovery fields (`uri`, optional precomputed `url`, optional `headers`, and schemas), while presets stay separate override bundles (`parameters`, optional `script`, optional `headers`, and other presettable fields)
 12. Legacy `WorkflowRevisionData.service` and `WorkflowRevisionData.configuration` are removed from the target contract and migrated off concrete code paths
-13. Runnable targets can be handed off from the API control plane to the runtime `/services` surface, while non-runnable targets fail invoke but still support discovery
+13. Runnable targets are invoked and inspected through the runtime `/services` surface, while non-runnable targets fail invoke but still support discovery
 14. Builtin service URLs and builtin input/output schemas are refreshed from URI/inspect with caching, without blindly overwriting user-owned parameter schema
-15. Applications and evaluators have invoke/inspect endpoints as filtered wrappers over the workflow family
+15. Applications and evaluators remain filtered workflow projections; runtime invoke/inspect are not API-owned domain endpoints
 16. SDK routing/running can honor incoming trace context when present for workflow-to-workflow propagation
 17. Frontend can read from inspect truth and send negotiated response headers
 18. **The legacy system still works** — nothing has been removed

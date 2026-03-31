@@ -2,7 +2,9 @@ import {
     createAppFromTemplate,
     AppServiceType,
     type CreateAppFromTemplateResult,
+    seedCreatedWorkflowCache,
 } from "@agenta/entities/workflow"
+import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -10,6 +12,7 @@ import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
+import {recentAppIdAtom} from "@/oss/state/app"
 import {getOrgValues} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForValidURL} from "@/oss/state/url"
@@ -62,9 +65,9 @@ export const updateVariant = async (
 export const updateAppName = async (appId: string, appName: string, ignoreAxiosError = false) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {app_name: appName},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, name: appName}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -78,9 +81,9 @@ export const updateAppFolder = async (
 ) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.patch(
-        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
-        {id: appId, folder_id: folderId},
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/preview/workflows/${appId}?project_id=${projectId}`,
+        {workflow: {id: appId, folder_id: folderId}},
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -125,6 +128,7 @@ export const createAppWithTemplate = async ({
     let result: CreateAppFromTemplateResult | undefined
 
     try {
+        const store = getDefaultStore()
         const {projectId} = getProjectValues()
         const {selectedOrg} = getOrgValues()
 
@@ -142,9 +146,24 @@ export const createAppWithTemplate = async ({
             onConfiguring: () => onStatusChange?.("configuring_app"),
         })
 
-        onStatusChange?.("success", undefined, result.appId)
+        if (result.workflow && result.appId) {
+            seedCreatedWorkflowCache({
+                appId: result.appId,
+                revision: result.workflow,
+            })
+        }
 
-        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
+        if (result.appId) {
+            store.set(recentAppIdAtom, result.appId)
+        }
+
+        await Promise.resolve(onStatusChange?.("success", undefined, result.appId)).catch(
+            (error) => {
+                console.error("App creation success callback failed:", error)
+            },
+        )
+
+        const baseAppURL = (await waitForValidURL({requireProject: true}))?.baseAppURL
 
         if (result.appId) {
             const query: Record<string, string> = {}

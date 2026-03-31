@@ -33,6 +33,7 @@
 import {loadableController} from "@agenta/entities/runnable"
 import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {workflowDraftAtomFamily} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai/vanilla"
 
 import {executeStepForSessionWithExecutionItems} from "./state/execution/executionRunner"
@@ -100,6 +101,15 @@ export async function executeWorkflowRevision(
             status: "error",
             error: {message: "Failed to create synthetic testcase row for execution"},
         }
+    }
+
+    // Suppress any existing draft overlay so the execution uses only committed
+    // server state. If a user has unsaved playground edits for this revision,
+    // those must NOT leak into evaluation invocations.
+    const draftAtom = workflowDraftAtomFamily(revisionId)
+    const stashedDraft = store.get(draftAtom)
+    if (stashedDraft) {
+        store.set(draftAtom, null)
     }
 
     // Build a minimal single-node topology (no chain, depth=0)
@@ -170,6 +180,11 @@ export async function executeWorkflowRevision(
     function cleanup() {
         // Delete the transient testcase entity to avoid memory leaks
         store.set(testcaseMolecule.actions.delete, rowId as string)
+
+        // Restore the stashed draft so playground edits are not lost
+        if (stashedDraft) {
+            store.set(draftAtom, stashedDraft)
+        }
     }
 }
 

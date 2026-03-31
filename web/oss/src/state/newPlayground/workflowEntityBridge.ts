@@ -29,6 +29,7 @@ import {playgroundController, setOnSelectionChangeCallback} from "@agenta/playgr
 import {
     workflowRevisionDrawerEntityIdAtom as drawerVariantIdAtom,
     workflowRevisionDrawerExpandedAtom,
+    workflowRevisionDrawerContextAtom,
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {getDefaultStore} from "jotai"
 
@@ -58,9 +59,14 @@ setOnSelectionChangeCallback((entityIds, _removed) => {
         void writePlaygroundSelectionToQuery(entityIds)
     }
 
-    // Keep drawer selection consistent
+    // Keep drawer selection consistent — but skip when the drawer is in
+    // evaluator context, where the drawer entity (evaluator) intentionally
+    // differs from the primary node (app) after app connection.
+    const drawerContext = store.get(workflowRevisionDrawerContextAtom)
+    const isEvaluatorDrawer =
+        drawerContext === "evaluator-view" || drawerContext === "evaluator-create"
     const currentDrawerId = store.get(drawerVariantIdAtom)
-    if (!currentDrawerId || !entityIds.includes(currentDrawerId)) {
+    if (!isEvaluatorDrawer && (!currentDrawerId || !entityIds.includes(currentDrawerId))) {
         store.set(drawerVariantIdAtom, entityIds[0] ?? null)
     }
 })

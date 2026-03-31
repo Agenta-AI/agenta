@@ -32,6 +32,7 @@ import {useStyles} from "./assets/styles"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import WelcomeCardsSection from "./components/WelcomeCardsSection"
+import {invalidateAppManagementWorkflowQueries} from "./store"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -91,6 +92,7 @@ const AppManagement: React.FC = () => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     if (status === "success") {
                         await mutate()
+                        await invalidateAppManagementWorkflowQueries()
                         posthog?.capture?.("app_deployment", {
                             properties: {
                                 app_id: appId,
@@ -124,7 +126,8 @@ const AppManagement: React.FC = () => {
             const {projectId} = getProjectValues()
             await archiveWorkflow(projectId, statusData.appId).catch(console.error)
             invalidateWorkflowsListCache()
-            mutate()
+            await mutate()
+            await invalidateAppManagementWorkflowQueries()
         }
         handleTemplateCardClick(templateKey as string, appName)
     }
@@ -142,7 +145,8 @@ const AppManagement: React.FC = () => {
             }
         }
         setStatusData((prev) => ({...prev, status: "success", details: undefined}))
-        mutate()
+        await mutate()
+        await invalidateAppManagementWorkflowQueries()
     }
 
     return (

@@ -25,7 +25,18 @@ const AddAppFromTemplateModalContent = ({
     const [templateKey, setTemplateKey] = useState<string | undefined>(undefined)
 
     const {apps} = useAppsData()
-    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
+    const [{data: allTemplates = [], isLoading: fetchingTemplate}, noTemplateMessage] =
+        useTemplates()
+
+    const templates = useMemo(
+        () =>
+            allTemplates.filter(
+                (t) =>
+                    !t.data?.uri?.startsWith("agenta:custom:") &&
+                    !t.data?.uri?.startsWith("agenta:builtin:llm:"),
+            ),
+        [allTemplates],
+    )
 
     const appNameExist = useMemo(
         () =>

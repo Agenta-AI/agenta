@@ -21,6 +21,7 @@ import type {WorkflowQueryFlags} from "./schema"
  */
 export interface WorkflowListParams {
     projectId: string
+    name?: string
     flags?: WorkflowQueryFlags
     /**
      * Filter by folder.

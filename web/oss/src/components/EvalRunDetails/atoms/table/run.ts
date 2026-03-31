@@ -249,20 +249,46 @@ const ensureEvaluatorRevisions = async ({
         },
     }
 
-    // Cache resolved refs for re-application on subsequent fetches
-    const resolvedRefsForRun = new Map<string, {evaluator_revision: any; evaluator_variant?: any}>()
-    updatedSteps.forEach((step: any) => {
-        if (!step || step.type !== "annotation" || typeof step.key !== "string") return
-        if (!step.references?.evaluator_revision) return
-        resolvedRefsForRun.set(step.key, {
-            evaluator_revision: step.references.evaluator_revision,
-            ...(step.references.evaluator_variant
-                ? {evaluator_variant: step.references.evaluator_variant}
-                : {}),
+    try {
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[EvalRunDetails2] Patching run with evaluator revisions", {
+                runId,
+                projectId,
+                patchedRun,
+            })
+        }
+        await axios.patch(
+            `/preview/evaluations/runs/${encodeURIComponent(runId)}`,
+            {run: patchedRun},
+            {
+                params: {project_id: projectId},
+                _ignoreError: true,
+            } as any,
+        )
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("[EvalRunDetails2] Run patch successful", {
+                runId,
+                projectId,
+            })
+        }
+        if (process.env.NODE_ENV !== "production") {
+            console.debug(
+                "[EvalRunDetails2] Metrics refresh would trigger after patch but is disabled",
+                {
+                    runId,
+                    projectId,
+                },
+            )
+        }
+
+        patchedRunRevisionSet.add(runId)
+        return {run: patchedRun, patched: true}
+    } catch (error) {
+        console.warn("[EvalRunDetails2] Failed to patch run with evaluator revisions", {
+            runId,
+            error,
         })
-    })
-    if (resolvedRefsForRun.size > 0) {
-        resolvedEvaluatorRefsByRunKey.set(runKey, resolvedRefsForRun)
+        return {run: rawRun, patched: false}
     }
 
     patchedRunRevisionSet.add(runKey)

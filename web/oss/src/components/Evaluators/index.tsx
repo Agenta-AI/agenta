@@ -50,7 +50,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const setOnboardingWidgetActivation = useSetAtom(setOnboardingWidgetActivationAtom)
 
     // Search: atom drives the paginated store's metaAtom
-    const setSearchTerm = useSetAtom(evaluatorSearchTermAtom)
+    const [searchTerm, setSearchTerm] = useAtom(evaluatorSearchTermAtom)
     const refreshStore = useSetAtom(evaluatorsPaginatedStore.actions.refresh)
 
     // URL-driven drawer (same pattern as variants registry)
@@ -104,7 +104,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [deleteTargetIds, setDeleteTargetIds] = useState<string[]>([])
-    const [deleteTargetNames, setDeleteTargetNames] = useState<string[]>([])
+    const [deleteTargetRevisionIds, setDeleteTargetRevisionIds] = useState<string[]>([])
 
     const refetchAll = useCallback(() => {
         clearEvaluatorWorkflowCache()
@@ -201,7 +201,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             setIsDeleting(false)
             setIsDeleteModalOpen(false)
             setDeleteTargetIds([])
-            setDeleteTargetNames([])
+            setDeleteTargetRevisionIds([])
         }
     }, [deleteTargetIds, refetchAll, activeTab])
 
@@ -224,7 +224,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
             handleDelete: (record: EvaluatorTableRow) => {
                 if (!record.workflowId) return
                 setDeleteTargetIds([record.workflowId])
-                setDeleteTargetNames([record.name])
+                setDeleteTargetRevisionIds([record.revisionId])
                 setIsDeleteModalOpen(true)
             },
         }),
@@ -308,6 +308,7 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 category={activeTab}
                 onRowClick={handleRowClick}
                 actions={columnActions}
+                searchDeps={[searchTerm]}
                 filters={filters}
                 primaryActions={primaryActions}
                 displayMode="grouped"
@@ -318,12 +319,12 @@ const EvaluatorsRegistry = ({scope = "project"}: {scope?: "project" | "app"}) =>
                 onCancel={() => {
                     setIsDeleteModalOpen(false)
                     setDeleteTargetIds([])
-                    setDeleteTargetNames([])
+                    setDeleteTargetRevisionIds([])
                 }}
                 onConfirm={handleConfirmDelete}
                 confirmLoading={isDeleting}
                 selectedCount={deleteTargetIds.length}
-                selectedNames={deleteTargetNames}
+                revisionIds={deleteTargetRevisionIds}
             />
         </PageLayout>
     )

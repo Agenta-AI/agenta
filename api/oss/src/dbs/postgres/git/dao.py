@@ -184,15 +184,23 @@ class GitDAO(GitDAOInterface):
             now = datetime.now(timezone.utc)
             artifact_dbe.updated_at = now  # type: ignore
             artifact_dbe.updated_by_id = user_id  # type: ignore
-            #
-            artifact_dbe.flags = artifact_edit.flags  # type: ignore
-            artifact_dbe.tags = artifact_edit.tags  # type: ignore
-            artifact_dbe.meta = artifact_edit.meta  # type: ignore
-            #
-            artifact_dbe.name = artifact_edit.name  # type: ignore
-            artifact_dbe.description = artifact_edit.description  # type: ignore
-            #
-            artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
+
+            # Only update fields that were explicitly set in the edit request.
+            # This prevents partial edits (e.g., moving to a folder) from
+            # wiping unrelated fields (flags, name, etc.) to None.
+            _set = artifact_edit.model_fields_set
+            if "flags" in _set:
+                artifact_dbe.flags = artifact_edit.flags  # type: ignore
+            if "tags" in _set:
+                artifact_dbe.tags = artifact_edit.tags  # type: ignore
+            if "meta" in _set:
+                artifact_dbe.meta = artifact_edit.meta  # type: ignore
+            if "name" in _set:
+                artifact_dbe.name = artifact_edit.name  # type: ignore
+            if "description" in _set:
+                artifact_dbe.description = artifact_edit.description  # type: ignore
+            if "folder_id" in _set:
+                artifact_dbe.folder_id = artifact_edit.folder_id  # type: ignore
 
             await session.commit()
 

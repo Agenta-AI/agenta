@@ -954,7 +954,7 @@ async def trace_v0(
     a direct return value.
 
     This URI exists as a schema/interface registry entry only.
-    It cannot be invoked directly — raise an error if called.
+    It cannot be invoked directly.
     """
     raise HookV0Error(
         message="agenta:custom:trace:v0 is interface-only and cannot be invoked directly.",

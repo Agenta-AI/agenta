@@ -26,7 +26,6 @@ log = get_module_logger(__name__)
 
 _ALWAYS_ALLOW_LIST = [
     "/health",
-    "/openapi.json",
 ]
 
 _PROVIDER_KINDS = []

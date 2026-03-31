@@ -5,14 +5,54 @@
  * dereferencing $ref references.
  */
 
-import {dereference} from "@scalar/openapi-parser"
-
 /**
  * Result from dereferencing an OpenAPI spec
  */
 export interface DereferencedSchemaResult {
     schema: Record<string, unknown> | null
     errors?: string[]
+}
+
+/**
+ * Resolve a JSON Pointer (e.g. "#/components/schemas/Foo") against a root object.
+ */
+function resolvePointer(root: Record<string, unknown>, pointer: string): unknown {
+    const path = pointer.replace(/^#\//, "").split("/").map(decodeURIComponent)
+    let current: unknown = root
+    for (const segment of path) {
+        if (current == null || typeof current !== "object") return undefined
+        current = (current as Record<string, unknown>)[segment]
+    }
+    return current
+}
+
+/**
+ * Recursively resolve all internal $ref pointers in a JSON value.
+ * Tracks visited refs to handle circular references safely.
+ */
+function resolveRefs(node: unknown, root: Record<string, unknown>, seen: Set<string>): unknown {
+    if (node == null || typeof node !== "object") return node
+
+    if (Array.isArray(node)) {
+        return node.map((item) => resolveRefs(item, root, seen))
+    }
+
+    const obj = node as Record<string, unknown>
+
+    if (typeof obj.$ref === "string") {
+        const ref = obj.$ref
+        if (seen.has(ref)) return obj // circular — return as-is
+        seen.add(ref)
+        const resolved = resolvePointer(root, ref)
+        if (resolved === undefined) return obj // unresolvable — return as-is
+        return resolveRefs(resolved, root, seen)
+    }
+
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(obj)) {
+        result[key] = resolveRefs(value, root, seen)
+    }
+    return result
 }
 
 /**
@@ -39,11 +79,8 @@ export async function dereferenceSchema(
     spec: Record<string, unknown>,
 ): Promise<DereferencedSchemaResult> {
     try {
-        const result = await dereference(spec)
-        return {
-            schema: result.schema as Record<string, unknown> | null,
-            errors: result.errors?.map((e) => (typeof e === "string" ? e : JSON.stringify(e))),
-        }
+        const schema = resolveRefs(spec, spec, new Set()) as Record<string, unknown>
+        return {schema}
     } catch (error) {
         console.error("[dereferenceSchema] Failed to dereference schema:", error)
         return {

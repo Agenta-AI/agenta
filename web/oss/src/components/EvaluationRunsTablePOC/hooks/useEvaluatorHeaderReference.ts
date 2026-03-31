@@ -33,6 +33,10 @@ export const useEvaluatorHeaderReference = ({
         priority: LOW_PRIORITY,
     })
 
+    console.log("useEvaluatorHeaderReference?", {
+        evaluatorSlug,
+        evaluatorId,
+    })
     const effectiveProjectId = projectIdOverride ?? columnContext.projectId ?? null
 
     const viewportAtom = useMemo(() => {

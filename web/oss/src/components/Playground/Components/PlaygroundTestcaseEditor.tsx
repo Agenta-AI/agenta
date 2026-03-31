@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
+import {executionItemController} from "@agenta/playground"
 import {HeightCollapse, SyncStateTag, type SyncState} from "@agenta/ui"
 import {RightOutlined} from "@ant-design/icons"
 import {Code, TreeStructure} from "@phosphor-icons/react"
@@ -86,12 +87,19 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
     const entityData = useAtomValue(useMemo(() => testcaseMolecule.data(testcaseId), [testcaseId]))
     const isDirty = useAtomValue(useMemo(() => testcaseMolecule.isDirty(testcaseId), [testcaseId]))
 
-    // Derive columns from the molecule, filtering out internal fields
+    // Derive columns from the molecule, filtering out internal fields.
+    // Fall back to schema-based variable keys when testcase data is empty
+    // (e.g., newly created testcase with no testset connected).
     const rawColumns = useAtomValue(testcaseMolecule.atoms.columns) as Column[] | null
-    const columns = useMemo(
-        () => rawColumns?.filter((col) => col.key !== "testcase_dedup_id") ?? null,
-        [rawColumns],
-    )
+    const schemaKeys = useAtomValue(executionItemController.selectors.variableKeys) as string[]
+    const columns = useMemo(() => {
+        const dataColumns = rawColumns?.filter((col) => col.key !== "testcase_dedup_id") ?? []
+        if (dataColumns.length > 0) return dataColumns
+        if (schemaKeys.length > 0) {
+            return schemaKeys.map((key) => ({key, label: key}))
+        }
+        return null
+    }, [rawColumns, schemaKeys])
 
     // JSON editor value — only user-facing column data
     const jsonValue = useMemo(() => {

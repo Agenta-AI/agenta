@@ -867,7 +867,15 @@ export const workflowInspectAtomFamily = atomFamily((revisionId: string) =>
         const uri = storedUri ?? (derivedServiceType ? buildWorkflowUri(derivedServiceType) : null)
         // Service URL: prefer stored url, fall back to building from URI
         const serviceUrl = storedUrl ?? buildServiceUrlFromUri(uri)
-        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl
+
+        // Skip inspect when the revision already carries all schemas inline.
+        // The merge step (workflowEntityAtomFamily) gives server schemas
+        // precedence, so fetching inspect would be redundant.
+        const serverSchemas = serverData?.data?.schemas
+        const hasAllSchemas =
+            !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
+
+        const isEnabled = get(sessionAtom) && !!projectId && !!uri && !!serviceUrl && !hasAllSchemas
 
         return {
             queryKey: ["workflows", "inspect", revisionId, uri, serviceUrl, projectId],
@@ -930,11 +938,22 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
         const uri = serverData?.data?.uri ?? null
         const url = serverData?.data?.url ?? null
 
+        // Skip when the revision already carries all schemas inline.
+        const serverSchemas = serverData?.data?.schemas
+        const hasAllSchemas =
+            !!serverSchemas?.inputs && !!serverSchemas?.outputs && !!serverSchemas?.parameters
+
         // Skip if URI exists (inspect handles it), if URL points to a managed
-        // agenta service (inspect handles it), or if no URL at all.
+        // agenta service (inspect handles it), if no URL at all, or if
+        // the revision already has all schemas populated.
         // Only custom user-hosted apps without URIs need OpenAPI fetching.
         const enabled =
-            get(sessionAtom) && !!projectId && !!url && !uri && !isManagedServiceUrl(url)
+            get(sessionAtom) &&
+            !!projectId &&
+            !!url &&
+            !uri &&
+            !isManagedServiceUrl(url) &&
+            !hasAllSchemas
 
         return {
             queryKey: ["workflows", "appSchema", revisionId, url, projectId],
@@ -1837,6 +1856,90 @@ export function invalidateWorkflowsListCache(options?: StoreOptions) {
     if (current?.refetch) {
         current.refetch()
     }
+}
+
+/**
+ * Seed the newly created app and its initial revision into the local cache so
+ * the sidebar and playground can render immediately after creation.
+ */
+export function seedCreatedWorkflowCache(
+    params: {
+        appId: string
+        revision: Workflow
+    },
+    options?: StoreOptions,
+) {
+    const store = getStore(options)
+    const queryClient = store.get(queryClientAtom)
+    const projectId = store.get(workflowProjectIdAtom)
+    const appId = String(params.appId || params.revision.workflow_id || params.revision.id || "")
+
+    if (!projectId || !appId || !params.revision?.id) return
+
+    const revision: Workflow = {
+        ...params.revision,
+        workflow_id: params.revision.workflow_id ?? appId,
+    }
+
+    const appRef: WorkflowListRef = {
+        id: appId,
+        name: revision.name ?? null,
+        slug: revision.slug ?? null,
+        description: revision.description ?? null,
+        flags: revision.flags,
+        deleted_at: revision.deleted_at ?? null,
+        created_at: revision.created_at ?? null,
+    }
+
+    store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
+    queryClient.setQueryData(["workflows", "revision", revision.id, projectId], revision)
+    queryClient.setQueryData(["workflows", "latestRevision", appId, projectId], revision)
+
+    queryClient.setQueryData<WorkflowRevisionRefsResponse>(
+        ["workflows", "revisionsByWorkflow", appId, projectId],
+        (current) => {
+            const refs = [...(current?.refs ?? [])]
+            const nextRef: WorkflowRevisionRef = {
+                id: revision.id,
+                version: revision.version ?? null,
+                created_at: revision.created_at ?? null,
+            }
+
+            const existingIndex = refs.findIndex((ref) => ref.id === nextRef.id)
+            if (existingIndex >= 0) {
+                refs[existingIndex] = nextRef
+            } else {
+                refs.unshift(nextRef)
+            }
+
+            return {
+                count: Math.max(current?.count ?? 0, refs.length),
+                refs,
+            }
+        },
+    )
+
+    queryClient.setQueryData<WorkflowListRefsResponse>(
+        ["workflows", "apps", "list", projectId],
+        (current) => {
+            const refs = [...(current?.refs ?? [])]
+            const existingIndex = refs.findIndex((ref) => ref.id === appRef.id)
+
+            if (existingIndex >= 0) {
+                refs[existingIndex] = {
+                    ...refs[existingIndex],
+                    ...appRef,
+                }
+            } else {
+                refs.unshift(appRef)
+            }
+
+            return {
+                count: Math.max(current?.count ?? 0, refs.length),
+                refs,
+            }
+        },
+    )
 }
 
 /**

@@ -1,6 +1,6 @@
 import {
-    workflowMolecule,
-    workflowLatestRevisionQueryAtomFamily,
+    fetchWorkflow,
+    fetchWorkflowRevisionById,
     extractEvaluatorRef,
     deduplicateRefs,
     toEvaluatorDefinitionFromWorkflow,
@@ -8,7 +8,10 @@ import {
     type EvaluatorDefinition,
 } from "@agenta/entities/workflow"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
+
+import {effectiveProjectIdAtom} from "../run"
 
 import {evaluationRunQueryAtomFamily} from "./run"
 
@@ -22,15 +25,42 @@ interface EvaluatorQueryResult {
 }
 
 /**
- * Derived atom that resolves evaluator definitions for a given evaluation run
- * by reading from the workflow entity system (molecule).
+ * Self-contained query for fetching a workflow by ID.
+ * Tries as revision ID first; if no data, falls back to artifact ID.
+ * Defined locally to ensure it runs in the evaluations scoped store.
+ */
+const evaluatorRevisionQueryAtomFamily = atomFamily(
+    ({projectId, id}: {projectId: string; id: string}) =>
+        atomWithQuery(() => ({
+            queryKey: ["eval-run", "evaluator-workflow", projectId, id],
+            queryFn: async () => {
+                try {
+                    const revision = await fetchWorkflowRevisionById(id, projectId)
+                    if (revision?.data) return revision
+                    // No data — ID is likely an artifact ID, fetch latest revision
+                    const artifactId = revision?.workflow_id ?? id
+                    return await fetchWorkflow({id: artifactId, projectId})
+                } catch {
+                    try {
+                        return await fetchWorkflow({id, projectId})
+                    } catch {
+                        return null
+                    }
+                }
+            },
+            enabled: !!projectId && !!id,
+            staleTime: 5 * 60_000,
+            refetchOnWindowFocus: false,
+        })),
+    (a, b) => a.projectId === b.projectId && a.id === b.id,
+)
+
+/**
+ * Derived atom that resolves evaluator definitions for a given evaluation run.
  *
- * For each evaluator referenced in the run:
- * - If a revision ID is available, reads via workflowMolecule.atoms.query (exact revision)
- * - Otherwise falls back to workflowLatestRevisionQueryAtomFamily (artifact ID → latest)
- * - Last resort: slug lookup via the workflows list
- *
- * The entity system handles batching and caching automatically.
+ * Uses self-contained queries that take projectId directly, bypassing the
+ * shared projectIdAtom/sessionAtom which may not be populated in the
+ * evaluations scoped store.
  */
 export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: string | null) =>
     atom<EvaluatorQueryResult>((get) => {
@@ -43,6 +73,8 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
         if (!runQuery?.data) {
             return {data: [], isPending: true, isFetching: true, isError: false, error: null}
         }
+
+        const projectId = get(effectiveProjectIdAtom)
 
         // --- Extract evaluator refs from run data ---
 
@@ -61,7 +93,6 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
             : []
 
         const evaluatorRefs = deduplicateRefs([...refsFromIndex, ...refsFromRawSteps])
-
         // --- Check for embedded evaluators (inline in run data) ---
 
         const embeddedEvaluators = ((runQuery.data.camelRun as any)?.data?.evaluators ??
@@ -82,49 +113,43 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
             return {data: [], isPending: false, isFetching: false, isError: false, error: null}
         }
 
-        // --- Resolve each ref via the workflow entity system ---
-
-        // Read workflows list for slug-based fallback resolution
-        const allWorkflows = get(workflowMolecule.atoms.listData)
+        // --- Resolve each ref via self-contained queries ---
 
         const definitions: EvaluatorDefinition[] = []
         let anyPending = false
 
         for (const ref of evaluatorRefs) {
-            let workflow = null
-
-            if (ref.revisionId) {
-                // Best path: exact revision ID
-                const revisionQuery = get(workflowMolecule.atoms.query(ref.revisionId))
-                if (revisionQuery.isPending) {
-                    anyPending = true
-                    continue
-                }
-                workflow = revisionQuery.data ?? null
+            const refId = ref.revisionId ?? ref.artifactId
+            if (!refId || !projectId) {
+                continue
             }
 
-            if (!workflow && ref.artifactId) {
-                // Next: artifact ID → latest revision
-                const latestQuery = get(workflowLatestRevisionQueryAtomFamily(ref.artifactId))
-                if (latestQuery.isPending) {
-                    anyPending = true
-                    continue
-                }
-                workflow = latestQuery.data ?? null
+            const query = get(evaluatorRevisionQueryAtomFamily({projectId, id: refId}))
+            if (query.isPending || query.isFetching) {
+                anyPending = true
+                continue
             }
 
-            if (!workflow && ref.artifactId) {
-                // Try entity atom (may already be hydrated from list queries)
-                workflow = get(workflowMolecule.atoms.entity(ref.artifactId))
-            }
-
-            if (!workflow && ref.slug) {
-                // Last resort: slug lookup from loaded workflows list
-                workflow = allWorkflows.find((w) => w.slug === ref.slug) ?? null
-            }
-
+            const workflow = query.data
             if (workflow) {
-                definitions.push(toEvaluatorDefinitionFromWorkflow(workflow))
+                const definition = toEvaluatorDefinitionFromWorkflow(workflow)
+                // Column lookups key by evaluator.id (artifact ID) from step
+                // references. Override the definition ID to match. Also add
+                // the revision ID so both lookup paths work.
+                const lookupId = ref.artifactId ?? ref.revisionId ?? refId
+                if (lookupId && definition.id !== lookupId) {
+                    definition.id = lookupId
+                }
+                definitions.push(definition)
+            } else if (!anyPending) {
+                definitions.push({
+                    id: refId,
+                    name: ref.slug ?? refId,
+                    slug: ref.slug,
+                    description: null,
+                    version: null,
+                    metrics: [],
+                })
             }
         }
 

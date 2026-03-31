@@ -58,6 +58,7 @@ export const upsertStepResultWithInvocation = async ({
     spanId,
     status,
     references,
+    outputs,
     error,
 }: {
     runId: string
@@ -67,6 +68,7 @@ export const upsertStepResultWithInvocation = async ({
     spanId?: string
     status: string
     references?: InvocationReferences
+    outputs?: unknown
     error?: {message: string; stacktrace?: string}
 }): Promise<void> => {
     const {projectId} = getProjectValues()
@@ -95,6 +97,9 @@ export const upsertStepResultWithInvocation = async ({
     }
     if (references) {
         resultPayload.references = references
+    }
+    if (outputs !== undefined) {
+        resultPayload.outputs = outputs
     }
     if (error) {
         resultPayload.error = error

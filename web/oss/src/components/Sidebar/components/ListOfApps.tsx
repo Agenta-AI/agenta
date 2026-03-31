@@ -7,6 +7,7 @@ import {useSetAtom} from "jotai"
 
 import {useAppsData} from "@/oss/state/app"
 import {routerAppNavigationAtom} from "@/oss/state/app/atoms/fetcher"
+import {useAppState} from "@/oss/state/appState"
 
 interface ListOfAppsProps {
     collapsed: boolean
@@ -14,6 +15,7 @@ interface ListOfAppsProps {
 
 const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     const {currentApp, apps, recentlyVisitedAppId} = useAppsData()
+    const {appId: routedAppId} = useAppState()
     const navigateToApp = useSetAtom(routerAppNavigationAtom)
 
     const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -39,7 +41,7 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
         return {appMenuItems: items, appKeyMap: keyMap}
     }, [apps])
 
-    const selectedAppId = currentApp?.id || recentlyVisitedAppId
+    const selectedAppId = currentApp?.id || routedAppId || recentlyVisitedAppId
     const selectedKey = selectedAppId ? [`app:${selectedAppId}`] : undefined
 
     const handleMenuClick: MenuProps["onClick"] = useCallback(
@@ -54,7 +56,9 @@ const ListOfApps = ({collapsed}: ListOfAppsProps) => {
     )
 
     const appLabel =
-        (selectedAppId && (apps?.find((app) => app.id === selectedAppId)?.name ?? "")) ||
+        currentApp?.name ??
+        currentApp?.slug ??
+        (selectedAppId && (apps?.find((app) => app.id === selectedAppId)?.name ?? selectedAppId)) ??
         "Select app"
 
     return (
