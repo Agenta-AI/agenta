@@ -6,11 +6,17 @@ import {getEvaluatorVerdictFromOutput} from "@agenta/playground/utils"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {AddButton} from "@agenta/ui/components/presentational"
-import {CopySimpleIcon, MinusCircleIcon, PlayIcon} from "@phosphor-icons/react"
+import {
+    ArrowsOutLineHorizontalIcon,
+    CopySimpleIcon,
+    MinusCircleIcon,
+    PlayIcon,
+} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {VariableControlAdapter} from "@agenta/playground-ui/adapters"
+import {openPlaygroundFocusDrawerAtom} from "@agenta/playground-ui/state"
 
 import {usePlaygroundUIOptional} from "../../../../context/PlaygroundUIContext"
 
@@ -73,6 +79,7 @@ const ComparisonLayout = ({
     const variableIds = useAtomValue(executionItemController.selectors.variableKeys) as string[]
     const deleteRow = useSetAtom(executionItemController.actions.deleteRow)
     const addRow = useSetAtom(executionItemController.actions.addRow)
+    const openFocusDrawer = useSetAtom(openPlaygroundFocusDrawerAtom)
     const executionRowIds = useAtomValue(
         executionItemController.selectors.executionRowIds,
     ) as string[]
@@ -233,7 +240,7 @@ const ComparisonLayout = ({
             >
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
-                        {variableIds.map((variableId) => (
+                        {variableIds.map((variableId, index) => (
                             <div
                                 key={variableId}
                                 className={clsx([
@@ -267,6 +274,32 @@ const ComparisonLayout = ({
                                                     rowId={rowId}
                                                     variableKey={variableId}
                                                 />
+                                                {index === 0 ? (
+                                                    <EnhancedButton
+                                                        size="small"
+                                                        type="text"
+                                                        icon={
+                                                            <ArrowsOutLineHorizontalIcon
+                                                                size={14}
+                                                            />
+                                                        }
+                                                        onClick={() =>
+                                                            openFocusDrawer({
+                                                                rowId,
+                                                                entityId:
+                                                                    structuralRootNode?.entityId ??
+                                                                    entityId,
+                                                            })
+                                                        }
+                                                        disabled={
+                                                            !(
+                                                                structuralRootNode?.entityId ??
+                                                                entityId
+                                                            )
+                                                        }
+                                                        tooltipProps={{title: "Open details"}}
+                                                    />
+                                                ) : null}
                                                 <EnhancedButton
                                                     size="small"
                                                     type="text"
