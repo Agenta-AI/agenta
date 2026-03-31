@@ -124,11 +124,32 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
         setCurrentPathDataType(controls.currentPathDataType)
     }, [])
 
-    // Add property handler — delegates to DrillIn's addObjectProperty which
-    // knows the current path and handles both root and nested levels
-    const handleAddProperty = useCallback((name: string, type: string) => {
-        controlsRef.current?.addObjectProperty(name, type as any)
-    }, [])
+    // Add property handler — at root level, seeds schema-derived variable keys
+    // into testcase data before adding the new property (schema keys are
+    // display-only until the first mutation).
+    // For nested paths, delegates directly to DrillIn's addObjectProperty.
+    const handleAddProperty = useCallback(
+        (name: string, type: string) => {
+            const controls = controlsRef.current
+            if (!controls) return
+
+            // At root level, seed schema-derived keys that aren't in data yet
+            if (controls.currentPath.length === 0 && schemaKeys.length > 0) {
+                const currentData = entityData?.data ?? {}
+                const hasUnseeded = schemaKeys.some((key) => !(key in currentData))
+                if (hasUnseeded) {
+                    const seeded: Record<string, unknown> = {}
+                    for (const key of schemaKeys) {
+                        seeded[key] = currentData[key] ?? ""
+                    }
+                    updateTestcase(testcaseId, {data: seeded})
+                }
+            }
+
+            controls.addObjectProperty(name, type as any)
+        },
+        [entityData, schemaKeys, updateTestcase, testcaseId],
+    )
 
     const isNewRow = testcaseId.startsWith("new-") || testcaseId.startsWith("local-")
     const syncState: SyncState = isNewRow ? "new" : isDirty ? "modified" : "unmodified"
@@ -167,13 +188,24 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
     )
 
     return (
-        <div>
+        <div className="[&_.drill-in-field-header]:bg-transparent [&_.drill-in-field-header]:border-none">
             {/* Header */}
             <div
-                className="flex items-center cursor-pointer select-none"
+                className="flex items-center cursor-pointer select-none bg-[#FAFAFA] rounded-md border border-solid border-[rgba(5,23,41,0.06)]"
                 style={{padding: "10px 16px", lineHeight: 1.6667}}
                 onClick={() => setIsOpen((v) => !v)}
             >
+                <span
+                    className="flex items-center justify-center transition-transform duration-300"
+                    style={{
+                        height: 22,
+                        marginInlineEnd: 8,
+                        fontSize: 12,
+                        transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    }}
+                >
+                    <RightOutlined />
+                </span>
                 {/* Left side: "Data" label + breadcrumb path segments */}
                 <div
                     className="flex-1 flex items-center gap-0 min-w-0"
@@ -223,17 +255,6 @@ function PlaygroundTestcaseEditor({testcaseId}: {testcaseId: string}) {
                     )}
                     {toolbar}
                 </div>
-                <span
-                    className="flex items-center justify-center transition-transform duration-300"
-                    style={{
-                        height: 22,
-                        marginInlineStart: 12,
-                        fontSize: 12,
-                        transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                    }}
-                >
-                    <RightOutlined />
-                </span>
             </div>
 
             {/* Collapsible content */}

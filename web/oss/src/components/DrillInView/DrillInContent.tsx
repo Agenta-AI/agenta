@@ -959,7 +959,7 @@ export function DrillInContent({
 
                                 {/* Field content - collapsible */}
                                 {(!showFieldCollapse || !isCollapsed) && (
-                                    <div className="drill-in-field-content">
+                                    <div className="drill-in-field-content [&_.agenta-shared-editor]:!mb-0 [&_.agenta-rich-text-editor]:!min-h-0">
                                         {renderFieldContent({
                                             item,
                                             stringValue,
