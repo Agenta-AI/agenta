@@ -8,7 +8,6 @@ Role mapping applied:
   editor           -> admin
   workspace_admin  -> admin
   deployment_manager -> manager
-  viewer           -> auditor
 
 Revision ID: b1c2d3e4f5a6
 Revises: f0a1b2c3d4e5

@@ -86,7 +86,7 @@ from (
     from project_invitations
     group by role
 ) x
-where role in ('viewer', 'editor', 'workspace_admin', 'deployment_manager', 'analyst')
+where role in ('viewer', 'editor', 'workspace_admin', 'deployment_manager', 'analyst', 'evaluator', 'auditor')
 order by table_name, role;
 ```
 
@@ -111,7 +111,7 @@ from (
     from project_invitations
     group by role
 ) x
-where role in ('owner', 'admin', 'manager', 'evaluator', 'auditor')
+where role in ('owner', 'admin', 'manager', 'developer', 'annotator', 'viewer')
 order by table_name, role;
 ```
 
@@ -311,7 +311,7 @@ order by pm.role;
 
 ## 15. API keys that should be deleted by the migration
 
-These are the keys owned by users whose role is currently `viewer` or `evaluator`, which map to post-migration disallowed roles `auditor` and `evaluator`.
+These are the keys owned by users whose role maps to post-migration disallowed roles `developer`, `annotator`, or `viewer`.
 
 ```sql
 select
@@ -335,7 +335,7 @@ left join users u on u.id = ak.created_by_id
 left join project_members pm
     on pm.project_id = ak.project_id
    and pm.user_id = ak.created_by_id
-where pm.role in ('viewer', 'evaluator', 'auditor')
+where pm.role in ('viewer', 'analyst', 'evaluator', 'auditor', 'developer', 'annotator')
 order by organization_name, project_name, email, ak.created_at;
 ```
 
@@ -400,7 +400,7 @@ from (
     from project_invitations
     group by role
 ) x
-where role not in ('owner', 'admin', 'manager', 'evaluator', 'auditor')
+where role not in ('owner', 'admin', 'manager', 'developer', 'annotator', 'viewer')
 order by table_name, role;
 ```
 
@@ -414,7 +414,7 @@ from api_keys ak
 join project_members pm
     on pm.project_id = ak.project_id
    and pm.user_id = ak.created_by_id
-where pm.role in ('evaluator', 'auditor', 'viewer')
+where pm.role in ('developer', 'annotator', 'viewer')
 group by pm.role
 order by pm.role;
 ```

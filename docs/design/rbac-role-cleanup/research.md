@@ -8,7 +8,7 @@ The EE RBAC model is currently centered in `api/ee/src/models/shared_models.py`.
   - `owner`
   - `viewer`
   - `editor`
-  - `evaluator`
+  - `analyst` (maps to `developer` or `annotator` after cleanup)
   - `workspace_admin`
   - `deployment_manager`
 - `Permission.default_permissions(role)` defines the effective permission matrix for those roles.
@@ -30,17 +30,17 @@ Current API key permissions from `Permission.default_permissions(role)`:
 | Current role | `view_api_keys` | `edit_api_keys` | Notes |
 | --- | --- | --- | --- |
 | `owner` | yes | yes | Has every permission |
-| `viewer` | yes | no | Can currently see API keys |
-| `editor` | yes | yes | Can currently create/delete API keys |
-| `evaluator` | yes | no | Can currently see API keys |
-| `deployment_manager` | yes | no | Can currently see but not edit API keys |
-| `workspace_admin` | yes | yes | Can currently create/delete API keys |
+| `viewer` | yes | no | Can currently see API keys; loses access after cleanup |
+| `editor` | yes | yes | Can currently create/delete API keys; maps to `admin` |
+| `analyst` | yes | no | Can currently see API keys; maps to `developer` or `annotator` |
+| `deployment_manager` | yes | no | Can currently see but not edit API keys; maps to `manager` |
+| `workspace_admin` | yes | yes | Can currently create/delete API keys; maps to `admin` |
 
 Implications:
 
 - API key visibility is broader than the target state
 - API key editing is currently available to `editor` and `workspace_admin`, but not `deployment_manager`
-- the requested target state would reduce access for `viewer` and `evaluator`, and broaden edit access for `deployment_manager` if it maps to `manager`
+- the requested target state would reduce access for `viewer` and `analyst`, and broaden edit access for `deployment_manager` if it maps to `manager`
 
 ## 3. Role Persistence in the Database
 

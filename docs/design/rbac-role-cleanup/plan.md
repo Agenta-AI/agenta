@@ -2,7 +2,7 @@
 
 ## 1. Confirmed Decisions
 
-- Canonical role set: `owner`, `admin`, `manager`, `evaluator`, `auditor`.
+- Canonical role set: `owner`, `admin`, `manager`, `developer`, `annotator`, `viewer`.
 - `workspace_admin` is retired and mapped to `admin`.
 - API key "use" remains derived behavior and no new permission is needed.
 - There is no API compatibility layer for old role strings.
@@ -15,7 +15,7 @@
 - Update role descriptions returned by `/workspaces/roles`.
 - Rework `Permission.default_permissions(role)` to enforce:
   - `owner`, `admin`, `manager` can manage API keys
-  - `evaluator`, `auditor` cannot view API keys
+  - `developer`, `annotator`, `viewer` cannot view API keys
 - Replace direct comparisons against old role names across:
   - `api/ee/src/utils/permissions.py`
   - `api/ee/src/services/db_manager_ee.py`
@@ -39,9 +39,10 @@
 - Migration mapping:
   - `editor` -> `admin`
   - `deployment_manager` -> `manager`
-  - `viewer` -> `auditor`
+  - `analyst` -> `developer`
   - `workspace_admin` -> `admin`
-- Delete API keys owned by users whose canonical post-migration role is `evaluator` or `auditor`.
+  - `viewer` stays `viewer`
+- Delete API keys owned by users whose canonical post-migration role is `developer`, `annotator`, or `viewer`.
 - Update code defaults so new inserts no longer emit old names.
 - Add verification queries or migration tests to catch missed rows.
 
@@ -66,7 +67,7 @@
 - Replace ad hoc entitlement/plan checks with `useOrganizationEntitlements()`, `hasEntitlement()`, and `hasPlan()` where relevant.
 - Hide or block API Keys UI for users without `view_api_keys`.
 - Hide create/delete controls for users without `edit_api_keys`.
-- Update settings navigation so `API Keys` is not shown to `evaluator` and `auditor`.
+- Update settings navigation so `API Keys` is not shown to `developer`, `annotator`, or `viewer`.
 - Add tab-routing guards so manually forcing `?tab=apiKeys` does not expose the page.
 
 ## 7. Tooling Scope
@@ -90,9 +91,10 @@
   - `owner` can list/create/delete
   - `admin` can list/create/delete
   - `manager` can list/create/delete
-  - `evaluator` gets 403
-  - `auditor` gets 403
-- Add migration tests or verification queries proving API keys owned by `evaluator`/`auditor` users are removed.
+  - `developer` gets 403
+  - `annotator` gets 403
+  - `viewer` gets 403
+- Add migration tests or verification queries proving API keys owned by `developer`/`annotator`/`viewer` users are removed.
 - Add tests that old role inputs are rejected after the cutover.
 
 ### Frontend tests
@@ -127,7 +129,7 @@
 ## 12. Success Criteria
 
 - Only `owner`, `admin`, and `manager` can manage API keys.
-- API keys owned by `evaluator` and `auditor` users are removed as part of migration.
+- API keys owned by `developer`, `annotator`, and `viewer` users are removed as part of migration.
 - API responses and UI use one canonical role vocabulary.
 - Existing stored memberships and invitations are migrated cleanly.
 - The frontend no longer exposes API Keys affordances to roles that lack permission.

@@ -10,7 +10,7 @@
 ### Desired
 
 - one minimal role set with one canonical name per concept
-- `owner`, `admin`, `manager`, `evaluator`, `auditor`
+- `owner`, `admin`, `manager`, `developer`, `annotator`, `viewer`
 
 ### Required change
 
@@ -28,8 +28,8 @@
 ### Desired
 
 - API key management is limited to `owner`, `admin`, and `manager`
-- `evaluator` and `auditor` should not see API keys
-- API keys owned by users who end up as `evaluator` or `auditor` are deleted during migration
+- `developer`, `annotator`, and `viewer` should not see API keys
+- API keys owned by users who end up as `developer`, `annotator`, or `viewer` are deleted during migration
 
 ### Required change
 
@@ -72,7 +72,7 @@
 ### Required change
 
 - data migration for `workspace_members`, `project_members`, and `project_invitations`
-- data migration or cleanup step for API keys owned by future `evaluator`/`auditor` users
+- data migration or cleanup step for API keys owned by future `developer`/`annotator`/`viewer` users
 - update defaults such as demo-role assignment and invitation defaults
 
 ## Gap 5: `workspace_admin` has hidden behavior beyond naming

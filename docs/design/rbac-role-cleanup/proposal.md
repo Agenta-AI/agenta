@@ -2,30 +2,32 @@
 
 ## 1. Target Role Model
 
-Proposed steady-state role set:
+Canonical steady-state role set:
 
 - `owner`
 - `admin`
 - `manager`
-- `evaluator`
-- `auditor`
+- `developer`
+- `annotator`
+- `viewer`
 
-Proposed rename and normalization map:
+Rename and normalization map:
 
-| Current value | Proposed value |
+| Current value | Canonical value |
 | --- | --- |
 | `owner` | `owner` |
 | `editor` | `admin` |
-| `deployment_manager` | `manager` |
-| `evaluator` | `evaluator` |
-| `viewer` | `auditor` |
 | `workspace_admin` | `admin` |
+| `deployment_manager` | `manager` |
+| `evaluator` | (removed — split into `developer` and `annotator`) |
+| `viewer` | `viewer` |
 
 Rationale:
 
-- this preserves the requested renames
 - this removes the extra `workspace_admin` role to satisfy the "minimally redefine what roles even are" objective
 - this avoids carrying both `admin` and `workspace_admin` as nearly-overlapping concepts
+- `viewer` is kept as-is (clearer than `auditor` for a read-only role)
+- the old `evaluator` role is replaced by two more granular roles: `developer` (editing) and `annotator` (evaluation/annotation)
 
 ## 2. Permission Strategy
 
@@ -69,31 +71,40 @@ Important design choice:
   - narrower than `admin`
   - does not get member-management or the broader workspace-administration capabilities assigned to `admin`
 - diff versus one level down:
-  - broader than `evaluator`
-  - gains deployment-oriented control and API key management that `evaluator` does not have
+  - broader than `developer`
+  - gains deployment-oriented control and API key management that `developer` does not have
 
-### `evaluator`
+### `developer`
 
-- role name stays `evaluator`
-- remains evaluation-oriented
-- loses API key visibility
+- can edit prompts, testsets, evaluators, workflows, and related resources
+- does not have API key visibility or deployment authority
 - diff versus one level up:
   - narrower than `manager`
   - does not get deployment authority or API key management
 - diff versus one level down:
-  - broader than `auditor`
-  - keeps evaluation-oriented capabilities that go beyond read-only access
+  - broader than `annotator`
+  - adds editing capabilities for prompts, testsets, workflows, etc.
 
-### `auditor`
+### `annotator`
 
-- successor for `viewer`
-- remains read-oriented
+- can run evaluations and annotate traces
+- does not have editing capabilities for prompts, testsets, or workflows
+- diff versus one level up:
+  - narrower than `developer`
+  - does not get prompt/testset/workflow editing capabilities
+- diff versus one level down:
+  - broader than `viewer`
+  - keeps evaluation and annotation capabilities that go beyond read-only access
+
+### `viewer`
+
+- remains read-oriented (same name as legacy `viewer`)
 - loses API key visibility
 - diff versus one level up:
-  - narrower than `evaluator`
-  - does not keep evaluation-oriented capabilities and remains read-only
+  - narrower than `annotator`
+  - does not keep evaluation or annotation capabilities and remains read-only
 - diff versus one level down:
-  - none; `auditor` is the lowest role
+  - none; `viewer` is the lowest role
 
 ## 4. Proposed Minimal Permission Rebalance
 
@@ -104,15 +115,16 @@ The proposal intentionally minimizes unrelated permission churn.
 | `owner` | current `owner` | keep view/edit |
 | `admin` | current `workspace_admin` plus current `editor` responsibilities | keep view/edit |
 | `manager` | current `deployment_manager` | add view/edit |
-| `evaluator` | current `evaluator` | remove view |
-| `auditor` | current `viewer` | remove view |
+| `developer` | new (editing without deployment) | no view/edit |
+| `annotator` | new (evaluation/annotation) | no view/edit |
+| `viewer` | current `viewer` | remove view |
 
 Everything outside API keys should stay as close as possible to the current behavior unless there is an explicit reason to change it.
 
 Additional migration rule for API keys:
 
 - do not grandfather API keys for downgraded roles
-- delete API keys owned by users whose canonical post-migration role is `evaluator` or `auditor`
+- delete API keys owned by users whose pre-migration role is `viewer` or `evaluator`
 - after migration, only `owner`, `admin`, and `manager` should have surviving managed API keys
 
 ## 5. Backend Contract
@@ -135,8 +147,9 @@ The API layer should accept only the new canonical role names after this change:
 - `owner`
 - `admin`
 - `manager`
-- `evaluator`
-- `auditor`
+- `developer`
+- `annotator`
+- `viewer`
 
 Old role values should be eliminated through database migration, code updates, and test/tooling updates rather than being accepted indefinitely at runtime.
 
@@ -154,8 +167,8 @@ Migration rule set:
 
 - rewrite existing rows to the new canonical names
 - map `workspace_admin` to `admin`
-- update all code defaults from `viewer`/`editor` to `auditor`/`admin`
-- delete API keys owned by users whose resulting role is `evaluator` or `auditor`
+- update all code defaults from `editor` to `admin`
+- delete API keys owned by users whose pre-migration role is `viewer` or `evaluator`
 
 ## 7. Frontend Proposal
 
@@ -190,7 +203,7 @@ Minimum UI changes:
 - block page access or show an access-denied state when the tab is forced manually
 - show the API key table only for users with `view_api_keys`
 - show generate/delete actions only for users with `edit_api_keys`
-- rename visible role labels everywhere to `admin`, `manager`, `evaluator`, `auditor`
+- rename visible role labels everywhere to `admin`, `manager`, `developer`, `annotator`, `viewer`
 
 ## 8. Tooling Scope
 

@@ -12,7 +12,7 @@ TYPES = {
     "coverage": ["smoke", "full"],
     "lens": ["functional", "performance", "security"],
     "plan": ["hobby", "pro", "business", "enterprise"],
-    "role": ["owner", "admin", "manager", "evaluator", "auditor"],
+    "role": ["owner", "admin", "manager", "developer", "annotator", "viewer"],
     "path": ["happy", "grumpy"],
     "case": ["typical", "edge"],
     "speed": ["fast", "slow"],
@@ -65,7 +65,7 @@ TYPES = {
 @click.option(
     "--role",
     type=click.Choice(TYPES["role"]),
-    help="Role [owner|admin|manager|evaluator|auditor]",
+    help="Role [owner|admin|manager|developer|annotator|viewer]",
 )
 @click.option(
     "--path",

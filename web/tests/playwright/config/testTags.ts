@@ -39,8 +39,9 @@ export const TestRoleType = {
     Owner: "owner",
     Admin: "admin",
     Manager: "manager",
-    Evaluator: "evaluator",
-    Auditor: "auditor",
+    Developer: "developer",
+    Annotator: "annotator",
+    Viewer: "viewer",
 } as const
 
 /**

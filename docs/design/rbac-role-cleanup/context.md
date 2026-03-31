@@ -13,8 +13,8 @@ The requested rename set is:
 
 - `editor` -> `admin`
 - `deployment_manager` -> `manager`
-- `analyst` -> `evaluator`
-- `viewer` -> `auditor`
+- `analyst` -> `developer`
+- `viewer` stays `viewer` (previously misnamed `auditor` in early drafts)
 
 ## Explicit Objectives
 
@@ -32,8 +32,8 @@ The requested rename set is:
 The user clarified that API key use does not need its own permission. For this design:
 
 - `owner`, `admin`, and `manager` should have both `view_api_keys` and `edit_api_keys`
-- `evaluator` and `auditor` should have neither `view_api_keys` nor `edit_api_keys`
-- API keys that belong to users whose post-migration role is `evaluator` or `auditor` should be deleted during migration
+- `developer`, `annotator`, and `viewer` should have neither `view_api_keys` nor `edit_api_keys`
+- API keys that belong to users whose post-migration role is `developer`, `annotator`, or `viewer` should be deleted during migration
 - `view_api_keys` and `edit_api_keys` remain the relevant API key permissions
 - "use" is treated as derived behavior from who can create/manage keys, not as a new permission such as `use_api_keys`
 
@@ -55,8 +55,9 @@ This work touches at least:
   - `owner`
   - `admin`
   - `manager`
-  - `evaluator`
-  - `auditor`
+  - `developer`
+  - `annotator`
+  - `viewer`
 - `workspace_admin` is retired and mapped to `admin`.
 
 ## Non-Goals

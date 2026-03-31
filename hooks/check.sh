@@ -46,7 +46,7 @@ ruff check
 
 (
   cd web
-  pnpm i
+  pnpm i --frozen-lockfile
   pnpm run format
   pnpm run lint
 )
