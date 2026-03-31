@@ -1047,7 +1047,10 @@ class ApplicationsRouter:
                 detail="Application revision not found.",
             )
 
-        target_environment_revision = await self.environments_service.fetch_environment_revision(
+        (
+            target_environment_revision,
+            _,
+        ) = await self.environments_service.retrieve_environment_revision(
             project_id=UUID(request.state.project_id),
             #
             environment_ref=application_deploy_request.environment_ref,

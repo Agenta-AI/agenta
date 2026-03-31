@@ -316,7 +316,17 @@ def select_traces_for_reuse(
     if not traces or required_count <= 0:
         return []
 
-    return list(traces[:required_count])
+    reusable: Traces = []
+    for trace in traces:
+        if not trace:
+            continue
+        if not getattr(trace, "trace_id", None):
+            continue
+        reusable.append(trace)
+        if len(reusable) >= required_count:
+            break
+
+    return reusable
 
 
 def plan_missing_traces(

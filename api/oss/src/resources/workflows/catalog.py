@@ -130,12 +130,26 @@ def get_workflow_catalog_type(*, ag_type: str) -> Optional[WorkflowCatalogType]:
     )
 
 
-catalog = [
-    _enrich_entry(
-        entry, evaluator_metadata=_evaluator_metadata_by_key().get(entry["key"])
-    )
-    for entry in get_all_catalog_templates()
-]
+_catalog: Optional[list[dict[str, Any]]] = None
+
+
+def _build_catalog() -> list[dict[str, Any]]:
+    evaluator_metadata_by_key = _evaluator_metadata_by_key()
+    return [
+        _enrich_entry(
+            entry,
+            evaluator_metadata=evaluator_metadata_by_key.get(entry["key"]),
+        )
+        for entry in get_all_catalog_templates()
+    ]
+
+
+def _get_catalog() -> list[dict[str, Any]]:
+    global _catalog
+    if _catalog is None:
+        _catalog = _build_catalog()
+
+    return _catalog
 
 
 def _get_workflow_catalog_template_entry(
@@ -155,13 +169,13 @@ def _get_workflow_catalog_template_entry(
         return None
 
     return next(
-        (entry for entry in catalog if entry["key"] == sdk_entry["key"]),
+        (entry for entry in _get_catalog() if entry["key"] == sdk_entry["key"]),
         None,
     )
 
 
 def get_all_workflow_catalog_templates() -> list[dict[str, Any]]:
-    return _clone(catalog)
+    return _clone(_get_catalog())
 
 
 def get_filtered_workflow_catalog_templates(

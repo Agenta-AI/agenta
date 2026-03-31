@@ -20,11 +20,27 @@
 - Remote thread `3016391904` is a duplicate/source refresh for `F5`.
 - Remote thread `3016391939` reiterates the existing low-priority `.pre-commit-config.yaml` reproducibility concern and was not promoted to a new top-level finding.
 - Remote thread `3016391966` is process-only scope/title feedback and was not promoted to a code finding.
+- The later Mar 31, 2026 review delta introduced two new top-level findings:
+  - `F19`, now fixed, for dropped evaluator repeats if selected cached trace entries were later rejected as unusable
+  - `F20`, now fixed, for deploy still using `fetch_environment_revision(...)` instead of the newer retrieval path
+- Late Mar 31 comments `3016846465` and `3016980223` are duplicate/source refreshes for `F15`.
+- Late Mar 31 comments `3016846423` and `3016980136` describe the same workflow-catalog startup/per-build inefficiency and were merged into `F21`, now fixed.
+- Late Mar 31 comments `3016846597` and `3016980261` are process-only PR scope/title feedback and were not promoted to code findings.
+- Very late Mar 31 comment `3017096727` is an additional source refresh for `F21`.
+- Very late Mar 31 comment `3017096638` introduced `F22`, which is now closed as an intentional contract break with no backward-compatibility expectation.
+- Very late Mar 31 comment `3017096701` flags `log.warn(...)` usage in live evaluations, but it was not promoted to a top-level finding because the project logger explicitly exposes `warn()` and the concern is deprecation/style-only in the current codebase context.
+
+## Rules
+
+- `findings.md` is the canonical synced findings record for this PR path.
+- All non-findings sections stay above `Open Findings` so context and policy are visible before the finding list.
+- GitHub review threads are only replied to and resolved when the corresponding finding is clearly closed.
 
 ## Notes
 
 - `.pre-commit-config.yaml` reproducibility concerns remain low-priority and already tracked in thread disposition; the Mar 31 thread `3016391939` does not change the finding set.
 - PR scope/title comments remain process-only; the Mar 31 thread `3016391966` reinforces existing scope feedback but is not a code defect.
+- The live-evaluation `log.warn(...)` comment (`3017096701`) remains an unresolved code-review thread, but it is currently treated as logger-style cleanup rather than a branch-specific defect.
 
 ## Open Questions
 
@@ -56,6 +72,91 @@
 
 ## Closed Findings
 
+### [CLOSED] F19. Cached evaluator reuse could skip repeats if selected cached trace entries were unusable
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`, `Robustness`
+- Summary: Reuse selection used to count raw cached trace entries before filtering unusable ones, which could skip fallback invocation for later repeats if malformed cached entries leaked through.
+- Evidence:
+  - `api/oss/src/core/evaluations/utils.py:311-327`
+  - `api/oss/tests/pytest/unit/evaluations/test_cache_split_utils.py`
+- Files:
+  - `api/oss/src/core/evaluations/utils.py`
+  - `api/oss/tests/pytest/unit/evaluations/test_cache_split_utils.py`
+- Cause: `select_traces_for_reuse()` sliced the queried traces without first dropping entries missing `trace_id`.
+- Explanation: Under the intended contract, reusable traces should have `trace_id`. The helper now enforces that defensive assumption directly, so later valid cached traces are still reused and fallback invocation counts stay aligned.
+- Impact: Cached reuse no longer undercounts fallback work when malformed cached entries are present.
+- Suggested Fix: None.
+- Alternatives: None.
+- Sources:
+  - PR thread `3016391790`
+
+### [CLOSED] F20. Application deploy now uses `retrieve_environment_revision(...)`
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`, `Compatibility`
+- Summary: The applications deploy endpoint now uses the retrieval path that resolves refs and follows the newer environment-revision lookup contract.
+- Evidence:
+  - `api/oss/src/apis/fastapi/applications/router.py:1047-1055`
+  - `api/oss/src/core/environments/service.py:573-671`
+  - `api/oss/tests/pytest/unit/applications/test_router.py`
+- Files:
+  - `api/oss/src/apis/fastapi/applications/router.py`
+  - `api/oss/tests/pytest/unit/applications/test_router.py`
+- Cause: The deploy flow had still been calling the older fetch helper directly.
+- Explanation: The deploy handler now routes through `retrieve_environment_revision(...)`, and the unit test asserts that `fetch_environment_revision(...)` is no longer used for this path.
+- Impact: Deploy lookup now matches the retrieval semantics expected by the rest of the branch.
+- Suggested Fix: None.
+- Alternatives: None.
+- Sources:
+  - PR thread `3016846345`
+
+### [CLOSED] F21. Workflow catalog now loads lazily and computes metadata once per build
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Performance`, `Maintainability`
+- Summary: Workflow catalog loading no longer does eager import-time construction with per-entry metadata recomputation.
+- Evidence:
+  - `api/oss/src/resources/workflows/catalog.py`
+  - `api/oss/tests/pytest/unit/workflows/test_catalog_registry.py`
+  - `api/oss/tests/pytest/unit/workflows/test_catalog_lazy_loader.py`
+- Files:
+  - `api/oss/src/resources/workflows/catalog.py`
+  - `api/oss/tests/pytest/unit/workflows/test_catalog_lazy_loader.py`
+- Cause: The previous module-global list built the catalog eagerly and recalculated evaluator metadata inside the comprehension.
+- Explanation: Catalog construction is now lazy, cached once per process, and computes the evaluator metadata map once per build rather than once per entry.
+- Impact: Startup avoids the unnecessary eager catalog build, and catalog construction cost is no longer quadratic in the number of entries due to metadata recomputation.
+- Suggested Fix: None.
+- Alternatives: None.
+- Sources:
+  - PR threads `3016846423`, `3016980136`, `3017096727`
+
+### [CLOSED] F22. Evaluation request models removed `jit` intentionally
+
+- Severity: `P3`
+- Confidence: `high`
+- Status: `wontfix`
+- Category: `Compatibility`, `Migration`
+- Summary: Evaluation request models no longer accept `jit`, and that contract break is intentional.
+- Evidence:
+  - `api/oss/src/apis/fastapi/evaluations/models.py:87-102`
+  - `api/oss/src/apis/fastapi/evaluations/models.py:318-329`
+- Files:
+  - `api/oss/src/apis/fastapi/evaluations/models.py`
+- Cause: The legacy compatibility shim for `jit` was removed as part of the intended contract cleanup.
+- Explanation: The no-backward-compatibility policy was confirmed explicitly, so clients that still send `jit` are out of contract and this branch will not preserve the old request shape.
+- Impact: Older clients can fail validation with `422`, but that is an accepted contract break rather than an unintended regression for this rollout.
+- Suggested Fix: None.
+- Alternatives: Reintroduce an ignored compatibility shim temporarily, but that is not the chosen policy.
+- Sources:
+  - PR thread `3017096638`
+
 ### [CLOSED] F15. Git DAO applies `application_refs` filtering after DB fetch
 
 - Severity: `P2`
@@ -74,7 +175,7 @@
 - Alternatives: Move the adapter to a higher layer temporarily, but that is not the chosen path because the expected transition is direct removal.
 - Sources:
   - `docs/designs/runnables/CR.md`
-  - PR threads `2983188658`, `2984134983`, `2991025273`
+  - PR threads `2983188658`, `2984134983`, `2991025273`, `3016846465`, `3016980223`
 
 ### [CLOSED] F7. Runnable docs still contained stale discovery-contract language
 
@@ -172,7 +273,7 @@
 - Alternatives: None.
 - Sources:
   - `docs/designs/runnables/CR.md`
-  - PR threads `2962186164`, `2962294547`, `2964690962`, `2964690972`
+  - PR threads `2962186164`, `2962294547`, `2964690962`, `2964690972`, `3016980197`
 
 ### [CLOSED] F5. Workflow catalog metadata overrides still mishandle explicit `False` and sparse flags
 
