@@ -11,6 +11,14 @@ CANONICAL_WORKSPACE_ROLES: Final[tuple[str, ...]] = (
     "annotator",
     "viewer",
 )
+CANONICAL_ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
+    "owner": "Can fully manage the workspace, including adding and removing members.",
+    "admin": "Can manage workspace settings and members but cannot delete the workspace.",
+    "manager": "Can deploy, export, and manage API keys and environments.",
+    "developer": "Can edit prompts, testsets, evaluators, and workflows.",
+    "annotator": "Can run evaluations and annotate traces.",
+    "viewer": "Can view the workspace content but cannot make changes.",
+}
 CanonicalWorkspaceRole: TypeAlias = Literal[
     "owner",
     "admin",

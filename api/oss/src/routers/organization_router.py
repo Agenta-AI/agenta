@@ -18,6 +18,7 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
     InviteToken,
 )
+from oss.src.models.shared_models import CANONICAL_ROLE_DESCRIPTIONS
 
 if is_ee():
     from ee.src.utils.permissions import check_action_access
@@ -128,7 +129,9 @@ async def fetch_organization_details(
             "roles": [
                 {
                     "role_name": invitation.role or "viewer",
-                    "role_description": "",
+                    "role_description": CANONICAL_ROLE_DESCRIPTIONS.get(
+                        invitation.role or "viewer", ""
+                    ),
                 }
             ],
         }
