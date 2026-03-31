@@ -54,6 +54,8 @@ interface WorkflowListRefsResponse {
  * Calls `queryWorkflows` with `flags: { is_evaluator: true }`.
  *
  * Caches only thin references in TanStack Query.
+ * staleTime: 0 ensures cross-page consistency — when a component
+ * re-subscribes after navigation, the query always verifies freshness.
  */
 export const evaluatorsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
@@ -100,29 +102,17 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
  */
 export function invalidateEvaluatorsListCache() {
     const store = getDefaultStore()
-
-    // Invalidate via TanStack QueryClient directly — works even when
-    // no component is currently subscribed to the query atoms (e.g.,
-    // evaluator created on one page, picker opened on another page).
+    // Two-step invalidation for cross-page consistency with jotai-tanstack-query:
+    // 1. Invalidate QueryClient cache so staleTime is bypassed on next observer mount
+    // 2. Bump the Jotai atom's refreshAtom so it re-evaluates on next subscription
     try {
         const qc = store.get(queryClientAtom)
-        qc.invalidateQueries({
-            queryKey: ["workflows", "evaluators"],
-            exact: false,
-            refetchType: "all",
-        })
+        qc.invalidateQueries({queryKey: ["workflows", "evaluators"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }
-
-    const current = store.get(evaluatorsListQueryAtom)
-    if (current?.refetch) {
-        current.refetch()
-    }
-    const humanCurrent = store.get(humanEvaluatorsListQueryAtom)
-    if (humanCurrent?.refetch) {
-        humanCurrent.refetch()
-    }
+    store.set(evaluatorsListQueryAtom)
+    store.set(humanEvaluatorsListQueryAtom)
     // Notify any registered listeners (e.g. paginated store invalidation)
     _evaluatorMutationListeners.forEach((fn) => {
         try {
