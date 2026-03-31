@@ -165,79 +165,25 @@ To use an existing Kubernetes Secret instead of having the chart create one, set
 When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without authentication. Any pod that can reach the SuperTokens service can manage auth data. Set an API key for production deployments.
 :::
 
-### Typed self-host configuration
+### Access Control
 
-The chart now exposes first-class values for the most common self-hosted configuration instead of relying on one shared env bucket for everything.
+You can restrict who can sign up and create organizations.
 
-#### Access control (backend only)
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `accessControl.allowedDomains` | Only allow sign-ups from these email domains (comma-separated) | `""` |
+| `accessControl.blockedDomains` | Block sign-ups from these email domains (comma-separated) | `""` |
+| `accessControl.blockedEmails` | Block specific email addresses (comma-separated) | `""` |
+| `accessControl.orgCreationAllowlist` | Only these emails can create organizations (comma-separated) | `""` |
 
-```yaml
-accessControl:
-  allowedDomains: "example.com"
-  blockedDomains: "mailinator.com"
-  blockedEmails: "blocked@example.com"
-  orgCreationAllowlist: "admin@example.com"
-```
+### Email (SendGrid)
 
-#### SendGrid (backend secrets; web receives only a derived public flag)
+To enable transactional emails (invitations, password resets), configure SendGrid.
 
-```yaml
-email:
-  sendgrid:
-    apiKey: "your-sendgrid-api-key"
-    fromAddress: "noreply@example.com"
-```
-
-#### Composio / tools (backend secrets; web receives only a derived public flag)
-
-```yaml
-integrations:
-  composio:
-    apiKey: "your-composio-api-key"
-    apiUrl: "https://backend.composio.dev/api/v3"
-```
-
-#### New Relic (backend only)
-
-```yaml
-observability:
-  newRelic:
-    licenseKey: "your-new-relic-license-key"
-```
-
-#### Backend escape hatches
-
-Use these only for uncommon backend-only values that do not yet have first-class chart fields:
-
-```yaml
-backend:
-  extraEnv:
-    AGENTA_DEFAULT_PLAN: "pro"
-  secretEnv:
-    MY_PRIVATE_BACKEND_TOKEN: "token"
-```
-
-`<component>.env` is still available for component-specific overrides.
-
-#### Notes on web pod scoping
-
-- OAuth provider secrets are still injected into the web pod today because the web entrypoint currently checks both client IDs and client secrets to derive frontend auth provider flags. This should be cleaned up later.
-- SendGrid, Composio, Stripe, and Turnstile are handled differently: the web pod receives only explicit public/derived flags, while backend secrets stay backend-only.
-
-For self-hosted EE, keep these unset by default unless you explicitly need them:
-
-```yaml
-billing:
-  stripe:
-    apiKey: ""
-    webhookSecret: ""
-    pricing: ""
-
-captcha:
-  turnstile:
-    siteKey: ""
-    secretKey: ""
-```
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `email.sendgrid.apiKey` | SendGrid API key | `""` |
+| `email.sendgrid.fromAddress` | Sender email address | `""` |
 
 ### Component Images
 
