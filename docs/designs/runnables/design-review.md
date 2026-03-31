@@ -15,7 +15,6 @@ The document set is now broadly aligned around these decisions:
 - `WorkflowFlags` and `WorkflowRequestFlags` are separate contract types
 - `evaluate` is the external contract term, while lower-level tracing may still use annotation terminology
 - API-to-services handoff uses redirect
-- `openapi.json` must come from the same provenance as `inspect`
 - catalog is list-plus-presets only; there is no single-entry fetch
 - `flags.remote` is the SDK-side remote-forwarding control and must be cleared on forwarded requests
 - legacy `WorkflowRevisionData.service` / `configuration` are removal targets
@@ -66,13 +65,13 @@ The main remaining issues are migration and precedence questions rather than fir
 
 **Severity:** Medium
 
-**Why it matters:** The docs now correctly lock redirect and shared inspect/OpenAPI provenance, but they still do not fully specify what wins when persisted discovery data and live runtime truth disagree.
+**Why it matters:** The docs now correctly lock redirect and inspect as the live discovery surface, but they still do not fully specify what wins when persisted discovery data and live runtime truth disagree.
 
 **Evidence:**
 
 - [gap-analysis.md](./gap-analysis.md) `G2` raises inspect caching/persistence as an unresolved issue.
 - [plan.md](./plan.md) checkpoint `1g` adds refresh-on-read/write for builtin URLs and schemas.
-- [runnables-system-layer.md](./runnables-system-layer.md) now says `openapi.json` must share the same provenance as `inspect`, but persisted-versus-live precedence still needs to be specified per target kind.
+- [runnables-system-layer.md](./runnables-system-layer.md) now points discovery toward persisted revision truth first and `/inspect` as the live fallback, but persisted-versus-live precedence still needs to be specified per target kind.
 
 **Recommendation:**
 
@@ -89,7 +88,7 @@ The main remaining issues are migration and precedence questions rather than fir
 
 ## Risk Register
 
-- **Drift risk:** runtime `inspect`, persisted revision data, and `openapi.json` can diverge if precedence and refresh rules stay implicit.
+- **Drift risk:** runtime `inspect` and persisted revision data can diverge if precedence and refresh rules stay implicit.
 - **Migration risk:** removing `service` / `configuration` touches generated SDK clients, stored data, evaluator defaults, and acceptance tests.
 - **Compatibility risk:** URI normalization can break lookup, caching, or catalog matching if alias behavior is not designed up front.
 - **Operational risk:** redirect-based API-to-services dispatch can still regress auth or streaming if redirect invariants are not specified tightly.

@@ -640,8 +640,8 @@ async def batch_invoke(
 
         while max_recursive_depth > 0 and not openapi_parameters:
             try:
-                openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
-                    runtime_prefix + "/openapi.json",
+                openapi_parameters, openapi_is_chat = await get_parameters_from_inspect(
+                    runtime_prefix,
                     route_path,
                     headers,
                 )
@@ -658,9 +658,9 @@ async def batch_invoke(
                     route_path = ""
                     runtime_prefix = runtime_prefix[:-1]
 
-        # Final attempt to fetch OpenAPI parameters
-        openapi_parameters, openapi_is_chat = await get_parameters_from_openapi(
-            runtime_prefix + "/openapi.json",
+        # Final attempt to fetch runtime inspect parameters
+        openapi_parameters, openapi_is_chat = await get_parameters_from_inspect(
+            runtime_prefix,
             route_path,
             headers,
         )
@@ -790,127 +790,64 @@ def get_parameters_from_schemas(
     return parameters, inferred_is_chat
 
 
-async def get_parameters_from_openapi(
+async def get_parameters_from_inspect(
     runtime_prefix: str,
     route_path: str,
     headers: Optional[Dict[str, str]],
 ) -> tuple[List[Dict], Optional[bool]]:
     """
-    Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
-    Args:
-    uri (str): The URI of the OpenAPI schema.
-
-    Returns:
-        tuple:
-            - list: A list of parameters. Each a dict with name and type.
-              Type can be one of: input, text, choice, float, dict, bool, int, file_url, messages.
-            - Optional[bool]: Whether the OpenAPI declares chat behavior.
-
-    Raises:
-        KeyError: If the required keys are not found in the schema.
-
+    Read runtime inspect output for an LLM app and derive the UI parameter list.
     """
+    inspect_url = _build_inspect_url(
+        runtime_prefix=runtime_prefix,
+        route_path=route_path,
+    )
+    payload = await _post_json_to_uri(
+        uri=inspect_url,
+        headers=headers,
+        body={},
+    )
 
-    schema = await _get_openai_json_from_uri(runtime_prefix, headers)
+    revision = (payload.get("data") or {}).get("revision") or {}
+    revision_data = revision.get("data") or {}
+    schemas = revision_data.get("schemas")
+    flags = payload.get("flags")
 
-    try:
-        body_schema_name = (
-            schema["paths"][route_path + "/test"]["post"]["requestBody"]["content"][
-                "application/json"
-            ]["schema"]["$ref"]
-            .split("/")
-            .pop()
-        )
-    except KeyError:
-        body_schema_name = ""
+    is_chat = None
+    if isinstance(flags, dict) and "is_chat" in flags:
+        is_chat = bool(flags["is_chat"])
 
-    try:
-        properties = schema["components"]["schemas"][body_schema_name]["properties"]
-    except KeyError:
-        properties = {}
-
-    operation, operation_path = _get_openapi_operation(schema, route_path)
-    is_chat = _get_openapi_chat_flag(operation, operation_path)
-    if is_chat is None:
-        is_chat = _fallback_chat_detection(properties, operation_path)
-
-    parameters = []
-    for name, param in properties.items():
-        parameters.append(
-            {
-                "name": name,
-                "type": param.get("x-parameter", "input"),
-                "default": param.get("default", []),
-            }
-        )
-    return parameters, is_chat
+    return get_parameters_from_schemas(
+        schemas=schemas,
+        is_chat=is_chat,
+    )
 
 
-async def _get_openai_json_from_uri(
+def _build_inspect_url(
+    *,
+    runtime_prefix: str,
+    route_path: str,
+) -> str:
+    runtime_prefix = runtime_prefix.rstrip("/")
+    route_path = route_path.strip("/")
+
+    if route_path:
+        return f"{runtime_prefix}/{route_path}/inspect"
+
+    return f"{runtime_prefix}/inspect"
+
+
+async def _post_json_to_uri(
     uri: str,
     headers: Optional[Dict[str, str]],
+    body: Dict[str, Any],
 ):
     if headers is None:
         headers = {}
     headers["ngrok-skip-browser-warning"] = "1"
 
     async with aiohttp.ClientSession() as client:
-        resp = await client.get(uri, headers=headers, timeout=5)
+        resp = await client.post(uri, headers=headers, json=body, timeout=5)
         resp_text = await resp.text()
         json_data = json.loads(resp_text)
         return json_data
-
-
-def _get_openapi_operation(
-    schema: Dict[str, Any],
-    route_path: str,
-) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
-    paths = schema.get("paths") or {}
-    for suffix in ("/test", "/run"):
-        path = f"{route_path}{suffix}"
-        operation = paths.get(path, {}).get("post")
-        if operation:
-            return operation, path
-    return None, None
-
-
-def _get_openapi_chat_flag(
-    operation: Optional[Dict[str, Any]],
-    operation_path: Optional[str],
-) -> Optional[bool]:
-    if not operation:
-        return None
-
-    # The SDK emits flags under the nested vendor extension:
-    #   "x-agenta": {"flags": {"is_chat": true}}
-    agenta_ext = operation.get("x-agenta")
-    if isinstance(agenta_ext, dict):
-        flags = agenta_ext.get("flags")
-        if isinstance(flags, dict) and "is_chat" in flags:
-            is_chat = bool(flags["is_chat"])
-            log.info(
-                "Chat detection from x-agenta.flags",
-                is_chat=is_chat,
-                path=operation_path,
-            )
-            return is_chat
-
-    return None
-
-
-def _fallback_chat_detection(
-    properties: Dict[str, Any],
-    operation_path: Optional[str],
-) -> bool:
-    has_messages_property = "messages" in properties
-    has_messages_parameter = any(
-        isinstance(param, dict) and param.get("x-parameter") == "messages"
-        for param in properties.values()
-    )
-    is_chat = has_messages_property or has_messages_parameter
-    log.info(
-        "Chat detection fallback to heuristic",
-        is_chat=is_chat,
-        path=operation_path,
-    )
-    return is_chat

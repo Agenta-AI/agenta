@@ -12,6 +12,7 @@
 > [runnables-component-layer.md](./runnables-component-layer.md),
 > and [runnables-function-layer.md](./runnables-function-layer.md).
 > Where this document records earlier hypotheses or only the current-state code, the newer layer docs win.
+> The canonical discovery contract is: persisted revision/query truth first, `/inspect` only when no local revision truth exists yet or explicit live discovery is needed.
 
 ## Companion Documents
 
@@ -86,7 +87,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 | Programmatic | `invoke(request=...)` | `WorkflowServiceRequest` -> `WorkflowServiceBatchResponse \| WorkflowServiceStreamResponse` |
 | Programmatic | `inspect()` | `() -> WorkflowServiceRequest` |
 | HTTP | `POST {path}/invoke` | JSON body as `WorkflowServiceRequest` -> JSON or NDJSON/SSE stream |
-| HTTP | `GET {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
+| HTTP | `POST {path}/inspect` | -> `WorkflowServiceRequest` as JSON |
 
 **HTTP routing details** (`routing.py`):
 - `route` class creates a FastAPI app with middleware: CORS -> Vault -> Auth -> OTel
@@ -106,7 +107,7 @@ Uses `@ag.workflow()` / `@ag.application()` / `@ag.evaluator()` decorator classe
 |--------|----------------------|----------------------------------|
 | HTTP endpoints | `/run`, `/test`, `/generate`, `/generate_deployed` | `{path}/invoke`, `{path}/inspect` |
 | Schema source | Python function signature + Pydantic model | Explicit JSON Schema in `WorkflowServiceInterface` |
-| OpenAPI discovery | Legacy `/openapi.json` with `x-agenta` extensions | Not in new system; use `GET /inspect` |
+| OpenAPI discovery | Legacy `/openapi.json` with `x-agenta` extensions | Not in new system; use persisted revision/query truth first and `POST /inspect` as the live fallback |
 | Streaming | Detected from return type | `WorkflowServiceStreamResponse` + Accept header negotiation (SSE/NDJSON) |
 | Tracing | OTel middleware + `TracingContext` | `TracingContext` via context manager |
 | Config resolution | Middleware chain (Config -> request.state) | Resolver middleware |
@@ -272,7 +273,7 @@ Standard Git-pattern CRUD. **Dual mounted** under both `/workflows` and `/previe
 **Architectural implication for the migration plan:**
 - workflows are the canonical runnable API family
 - applications and evaluators are filtered workflow projections, not separate execution systems
-- when execution or discovery surfaces are added at the workflow family level, the application and evaluator families should normally expose the same surface with domain filtering rather than inventing parallel behavior
+- do not assume application/evaluator API router families get their own runnable invoke/inspect endpoints; runtime execution/discovery belongs to `/services`
 - at the subsystem boundary, the target direction is for the API to act as a control plane and hand runnable execution/discovery toward runtime services rather than keeping execution inside the API container
 
 ### 5.3 Invoke & Inspect (New System)

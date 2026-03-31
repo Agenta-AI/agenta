@@ -512,7 +512,7 @@ Any toggle that is shown when the capability is not available should be hidden o
 ## 10. Non-Goals
 
 - Removing the legacy serving system (G1) — separate effort
-- Per-workflow `/openapi.json` (G13) — separate plan
+- Route isolation for `/invoke` and `/inspect` (G13) — separate plan
 - G5 streaming backend changes — handled in `plan.g5.md`; G17 frontend work consumes G5 output
 - Removing `is_chat` from the flag model entirely — it stays as materialized metadata; only authoring is removed
 - Removing `is_evaluator` from stored flags — it does not derive cleanly from URI today; leave as authored for now

@@ -228,7 +228,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 **What:** The frontend reads workflow capability flags from the legacy `/openapi.json` via `x-agenta.flags.is_chat`. It doesn't use the new `/inspect` endpoint or API-provided classification.
 
-**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, evaluation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (`/inspect`, per-workflow `/openapi.json`, or API-provided classification in query/revision responses).
+**Why it matters:** The frontend absolutely needs to read flags — capability flags drive UI behavior (chat vs completion mode, streaming support, evaluation mode, verbose vs concise response rendering). The problem is the source: the legacy `/openapi.json` with `x-agenta` extensions, plus heuristic fallbacks. The frontend should read flags from the new system (persisted API revision/query responses first, `/inspect` only when there is no local revision truth yet).
 
 **Current state:**
 - `web/packages/agenta-entities/src/appRevision/api/schema.ts` reads `x-agenta.flags` from legacy OpenAPI
@@ -238,7 +238,7 @@ This document catalogs gaps found during the initial exploration, organized by c
 - No consumption of API-provided derived classification
 
 **Action:**
-- [ ] Migrate frontend to read flags from the new system: `/inspect` response, per-workflow `/openapi.json` (G13), or API-provided classification in revision/query responses
+- [ ] Migrate frontend to read flags from API-provided classification in revision/query responses, with `/inspect` only as a fallback when no local revision truth exists yet
 - [ ] Ensure the new source provides everything the frontend needs: identity flags (`is_evaluator`, `is_chat`, `is_verbose`), capability flags (`can_stream`, `can_evaluate`, `can_chat`, `can_verbose`), derived classification (`is_custom`, `is_runnable`), and schemas
 - [ ] Remove the legacy `x-agenta.flags` reading path once the new source is available
 - [ ] Remove the heuristic `messages` property fallback — use explicit flags
@@ -247,9 +247,11 @@ This document catalogs gaps found during the initial exploration, organized by c
 
 ## G12. Applications and Evaluators Missing Invoke/Inspect Endpoints
 
-**What:** Only the workflows router (`/workflows/invoke`, `/workflows/inspect`) has invoke and inspect endpoints. The applications router (`/applications/`) and evaluators router (`/evaluators/`) have no equivalent — despite applications and evaluators being filtered workflow views and the primary consumer-facing entities.
+> Status update: superseded by [plan.G12.md](./plan.G12.md). This gap was closed as not planned.
 
-**Why it matters:** Applications and evaluators are thin domain wrappers around workflows. Consumers think in terms of "invoke my application" or "inspect my evaluator", not "invoke a workflow". Without domain-level endpoints, consumers must know the underlying workflow ID and hit the generic workflows endpoint, breaking the abstraction. The workflow family should be canonical, and the domain families should expose the same execution/discovery surface as filtered projections over it.
+**What:** This was the earlier proposal to add API-owned invoke/inspect endpoints for applications and evaluators.
+
+**Decision:** `/invoke` and `/inspect` are runtime `/services` endpoints, not API-owned application/evaluator router endpoints. Applications and evaluators remain filtered workflow projections in CRUD/query/revision and catalog surfaces.
 
 **Current state:**
 - `POST /workflows/invoke` and `POST /workflows/inspect` — exist, implemented
@@ -271,12 +273,10 @@ This document catalogs gaps found during the initial exploration, organized by c
 - `/evaluators/` (+ `/preview/evaluators/`) — CRUD only
 - `/simple/evaluators/` (+ `/preview/simple/evaluators/`) — simplified CRUD
 
-**Action:**
-- [ ] Add `POST /applications/invoke` and `POST /applications/inspect` to the applications router
-- [ ] Add `POST /evaluators/invoke` and `POST /evaluators/inspect` to the evaluators router
-- [ ] Keep the workflows router as the canonical execution/discovery family and make the domain routes thin filtered wrappers over `WorkflowsService.invoke_workflow()` / `inspect_workflow()`
-- [ ] Consider whether the simple routers (`/simple/applications/`, `/simple/evaluators/`) also need invoke/inspect
-- [ ] Ensure the SDK-side `invoke_application`, `inspect_application`, `invoke_evaluator`, `inspect_evaluator` functions are properly connected
+**Current target:**
+- [ ] Keep application/evaluator API surfaces focused on filtered retrieval, query, revision, and catalog behavior
+- [ ] Let the API control plane call runtime `/services/.../invoke` or `/services/.../inspect` internally when explicit live execution or discovery is needed
+- [ ] Avoid adding new API-owned domain runtime endpoints that duplicate the runtime surface
 
 ---
 
@@ -348,12 +348,11 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 
 ## G13. Route Isolation — Each Workflow Must Be Its Own Namespace
 
-**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app and a single `/openapi.json`. Each workflow should instead be an isolated unit with its own `invoke`, `inspect`, and `openapi.json` — mountable independently. `openapi.json` is not a substitute for `inspect`; it is the OpenAPI-format discovery peer for the same runnable namespace.
+**What:** When a user defines multiple workflows (routes) in the same codebase, they currently share a single FastAPI app. Each workflow should instead be an isolated unit with its own `invoke` and `inspect` namespace — mountable independently.
 
-**Why it matters:** A shared `/openapi.json` conflates multiple workflows into one spec. Consumers can't discover the interface of a specific workflow in isolation. If you have a codebase with `/summarize`, `/embed`, and `/chat`, today they all appear in one OpenAPI spec. Instead, each should be a self-contained "app" with:
+**Why it matters:** Shared route registration conflates multiple workflows into one runtime namespace. Consumers cannot target a specific workflow cleanly for execution or live discovery. Instead, each should be a self-contained runtime namespace with:
 - `{path}/invoke` — execute this specific workflow
 - `{path}/inspect` — discover this specific workflow's interface
-- `{path}/openapi.json` — OpenAPI spec for this specific workflow only
 
 **Current state:**
 
@@ -371,18 +370,16 @@ Without this split, evaluator creation stays ad hoc and the resulting workflow r
 
 *New system (`routing.py`):*
 - `route(path="/summarize")` registers `{path}/invoke` and `{path}/inspect` on a shared `default_app` (or a provided app/router)
-- No `/openapi.json` per route — the spec is whatever FastAPI auto-generates for the shared app
-- Multiple `route()` calls on the same app produce multiple invoke/inspect pairs, but they share one OpenAPI namespace
+- Multiple `route()` calls on the same app produce multiple invoke/inspect pairs, but they still share one app registration path
 - No built-in isolation — `route()` doesn't create a sub-application
 
 **Desired behavior:**
 
-Each `@ag.route()` (or `@ag.workflow()`, `@ag.application()`, `@ag.evaluator()`) should produce a self-contained triple:
+Each `@ag.route()` (or `@ag.workflow()`, `@ag.application()`, `@ag.evaluator()`) should produce a self-contained pair:
 
 ```
 {path}/invoke       — POST, execute this workflow
-{path}/inspect      — GET, discover this workflow's interface/schemas/flags
-{path}/openapi.json — GET, OpenAPI 3.x spec for this workflow only
+{path}/inspect      — POST, discover this workflow's interface/schemas/flags
 ```
 
 When a codebase defines multiple workflows:
@@ -398,21 +395,16 @@ The result should be:
 ```
 /summarize/invoke
 /summarize/inspect
-/summarize/openapi.json
 
 /embed/invoke
 /embed/inspect
-/embed/openapi.json
 ```
 
-NOT a single `/openapi.json` containing both.
+Discovery for existing local revisions should still prefer persisted revision/query truth; `/inspect` is the live fallback.
 
 **Action:**
-- [ ] Make each `route()` create an isolated sub-application (or use FastAPI's sub-app mounting) so each workflow gets its own OpenAPI spec
-- [ ] Add `{path}/openapi.json` to the new routing system alongside `invoke` and `inspect`
-- [ ] The `openapi.json` for a specific workflow should reflect only that workflow's invoke request/response schemas
+- [ ] Make each `route()` create an isolated sub-application (or use FastAPI's sub-app mounting) so each workflow gets its own invoke/inspect namespace
 - [ ] Ensure the legacy `create_app()` pattern is either replaced by this or deprecated
-- [ ] Consider whether `/openapi.json` should be generated from the inspect response (schemas, flags) or from the FastAPI route definitions
 - [ ] Update the `route` class in `routing.py` to handle this — currently it just calls `self.root.add_api_route()` on a shared app
 
 ---

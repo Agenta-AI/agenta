@@ -21,31 +21,17 @@
 - Remote thread `3016391939` reiterates the existing low-priority `.pre-commit-config.yaml` reproducibility concern and was not promoted to a new top-level finding.
 - Remote thread `3016391966` is process-only scope/title feedback and was not promoted to a code finding.
 
+## Notes
+
+- `.pre-commit-config.yaml` reproducibility concerns remain low-priority and already tracked in thread disposition; the Mar 31 thread `3016391939` does not change the finding set.
+- PR scope/title comments remain process-only; the Mar 31 thread `3016391966` reinforces existing scope feedback but is not a code defect.
+
+## Open Questions
+
+- Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
+- For F15, keep this blocked until the current DAO analysis is complete.
+
 ## Open Findings
-
-### [OPEN] F7. Runnable docs still contain stale discovery-contract language
-
-- Severity: `P2`
-- Confidence: `high`
-- Status: `in-progress`
-- Category: `Consistency`, `Maintainability`
-- Summary: Several runnable design docs still describe per-route `openapi.json` or paired OpenAPI discovery even though the target contract uses persisted revision truth first and `/inspect` as the runtime fallback.
-- Evidence:
-  - `docs/designs/runnables/plan.md:86-95`
-  - `docs/designs/runnables/runnables-system-layer.md:104-130`
-  - `docs/designs/runnables/runnables-function-layer.md:100-111`
-- Files:
-  - `docs/designs/runnables/plan.md`
-  - `docs/designs/runnables/runnables-system-layer.md`
-  - `docs/designs/runnables/runnables-function-layer.md`
-- Cause: Older design material still described an OpenAPI-based transition shape.
-- Explanation: The primary plan and several companion docs are now aligned on persisted revision truth plus `/inspect` fallback, but additional docs may still need cleanup.
-- Impact: Reviewers and implementers cannot trust the docs as a single source of truth.
-- Suggested Fix: Keep aligning remaining design docs to one contract: persisted revision truth first, `/inspect` only when there is no local revision truth yet or live discovery is explicitly needed.
-- Alternatives: None if the branch is committed to `/inspect` as the only runtime discovery route.
-- Sources:
-  - `docs/designs/runnables/CR.md`
-  - PR threads `2948797791`, `2948797838`, `2949000437`, `2952354703`, `2952354726`, `2954804833`, `2954804871`, `2956985931`, `2962186277`, `2962294682`, `2962294716`, `2964630533`, `2964630562`, `2964630579`
 
 ### [OPEN] F14. Evaluator schema keys were renamed/removed without a confirmed consumer migration
 
@@ -90,6 +76,40 @@
   - PR threads `2983188658`, `2984134983`, `2991025273`
 
 ## Closed Findings
+
+### [CLOSED] F7. Runnable docs still contained stale discovery-contract language
+
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Consistency`, `Maintainability`
+- Summary: Runnable design docs and one legacy helper path were still describing or depending on per-route `openapi.json` or API-owned application/evaluator inspect routes even though the target contract is persisted revision truth first with `/inspect` as the live fallback.
+- Evidence:
+  - `docs/designs/runnables/runnables-subsystem-layer.md`
+  - `docs/designs/runnables/runnables-component-layer.md`
+  - `docs/designs/runnables/gap-analysis.md`
+  - `docs/designs/runnables/README.md`
+  - `docs/designs/runnables/design-review.md`
+  - `docs/designs/runnables/plan.G18.md`
+  - `docs/designs/runnables/plan.GFlags.md`
+  - `api/oss/src/services/llm_apps_service.py`
+- Files:
+  - `docs/designs/runnables/runnables-subsystem-layer.md`
+  - `docs/designs/runnables/runnables-component-layer.md`
+  - `docs/designs/runnables/gap-analysis.md`
+  - `docs/designs/runnables/README.md`
+  - `docs/designs/runnables/design-review.md`
+  - `docs/designs/runnables/plan.G18.md`
+  - `docs/designs/runnables/plan.GFlags.md`
+  - `api/oss/src/services/llm_apps_service.py`
+- Cause: Older design material and one legacy runtime-parameter extraction path still assumed OpenAPI was part of the target runtime discovery contract.
+- Explanation: The remaining docs were updated to one contract: no per-route `openapi.json`, no new API-owned application/evaluator invoke/inspect routes, persisted revision/query truth first, and `/inspect` used only for live discovery fallback. The legacy runtime parameter extraction helper now reads `/inspect` instead of runtime `openapi.json`.
+- Impact: Implementers and reviewers now have one consistent discovery story across the design set and the touched runtime helper.
+- Suggested Fix: None.
+- Alternatives: None.
+- Sources:
+  - `docs/designs/runnables/CR.md`
+  - PR threads `2948797791`, `2948797838`, `2949000437`, `2952354703`, `2952354726`, `2954804833`, `2954804871`, `2956985931`, `2962186277`, `2962294682`, `2962294716`, `2964630533`, `2964630562`, `2964630579`
 
 ### [CLOSED] F1. Migration framing no longer matches the branch's actual mixed expand/contract behavior
 
@@ -392,13 +412,3 @@
 - Sources:
   - `docs/designs/runnables/CR.md`
   - PR threads `2982653209`, `2982653258`
-
-## Non-Promoted Remote Notes
-
-- `.pre-commit-config.yaml` reproducibility concerns remain low-priority and already tracked in the local review thread disposition; the Mar 31 thread `3016391939` does not change the finding set.
-- PR scope/title comments remain process-only; the Mar 31 thread `3016391966` reinforces existing scope feedback but is not a code defect.
-
-## Open Questions
-
-- Should the pre-commit reproducibility concern be promoted from thread-disposition-only tracking into a top-level `P3` finding, or remain an open-low note?
-- For F15, keep this blocked until the current DAO analysis is complete.

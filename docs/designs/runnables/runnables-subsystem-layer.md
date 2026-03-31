@@ -78,9 +78,9 @@ Owns the runtime `/services` surface as the execution-facing service subsystem f
 
 - runtime service URLs under `/services`
 - service-mounted runnable identities
-- service-backed invoke/inspect/OpenAPI requests
+- service-backed invoke/inspect requests
 - streaming HTTP responses
-- runtime OpenAPI documents
+- runtime inspect responses
 
 ### Architectural decision
 
@@ -91,7 +91,7 @@ Services is a subsystem in its own right. It is the runtime-facing service layer
 - expose runnable builtins through the `/services` URL family
 - expand the surface beyond the currently exposed chat/completion subset so all Agenta builtins are reachable
 - converge on one clear URL shape for service-routed builtins and runtime custom handlers
-- preserve `invoke`, `inspect`, and `openapi.json` coherence for any runnable that is actually mounted
+- preserve one inspect contract for any runnable that is actually mounted
 
 ## 3. Runtime HTTP routing subsystem
 
@@ -110,12 +110,11 @@ Owns route composition and per-workflow HTTP namespace structure for the runtime
 - isolated sub-application per workflow
 - `{path}/invoke`
 - `{path}/inspect`
-- `{path}/openapi.json`
 
 ### Main boundary objects
 
 - routed workflow namespace paths
-- HTTP invoke/inspect/OpenAPI handlers
+- HTTP invoke/inspect handlers
 - mounted sub-applications and routers
 
 ### Architectural decision
@@ -142,18 +141,17 @@ Receives authenticated API requests, resolves workflow references, classifies ru
 - `WorkflowRequestFlags`
 - runnable versus non-runnable classification
 - runtime services target URL or route identity
-- API-shaped invoke/inspect/OpenAPI responses
+- API-shaped invoke/inspect responses
 
 ### Key subsystem changes
 
-- add domain-level execution/discovery routes
-- keep workflows as the canonical execution/discovery family and map applications/evaluators as filtered wrappers
+- keep runtime execution/discovery on the `/services` surface instead of adding new API-owned domain routes
+- keep applications/evaluators as filtered workflow projections in CRUD/query/revision surfaces rather than separate runtime endpoint families
 - pass workflow request flags through cleanly
 - expose derived classification and flag truth in fetch/query/revision responses
 - keep external evaluate/evaluator vocabulary separate from internal trace-level annotation terminology
-- use redirect as the runnable-service handoff strategy for invoke/inspect/openapi on runnable targets
+- use redirect as the runnable-service handoff strategy for invoke/inspect on runnable targets
 - make non-runnable custom targets fail invoke while still supporting inspect from persisted discovery truth
-- require `openapi.json` to share the same provenance as `inspect` for a given target
 
 ### Boundary rule
 
@@ -164,9 +162,8 @@ The API subsystem should not own runnable semantics independently from the SDK s
 - if the target is runnable and has a reachable engine, API invoke should hand off to the runtime `/services` surface
 - if the target is not runnable, API invoke should fail explicitly rather than pretending the API can execute it
 - inspect should continue to work for both runnable and non-runnable targets
-- OpenAPI discovery may need two backing modes:
-  - runtime-backed for runnable targets
-  - persisted-schema-backed for non-runnable targets
+- persisted revision/query truth should stay the primary discovery source when a local revision already exists
+- `/inspect` should be used when there is no local revision truth yet, or when explicit live discovery is needed
 
 ## 5. Workflow persistence and classification subsystem
 
@@ -200,7 +197,7 @@ This subsystem is where long-lived runnable truth must live:
 - inspect-compatible interface data
 - persisted schemas
 - enough flag/classification material to avoid heuristic reconstruction
-- enough stored discovery truth for inspect/OpenAPI on non-runnable targets
+- enough stored discovery truth for inspect on non-runnable targets
 
 ## 6. Evaluator/application catalog subsystem
 
