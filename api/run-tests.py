@@ -73,7 +73,7 @@ def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
 @click.option(
     "--role",
     type=click.Choice(TYPES["role"]),
-    help="Role [owner|admin|manager|developer|annotator|viewer]",
+    help="Role [owner|admin|developer|editor|annotator|viewer]",
 )
 @click.option(
     "--path",

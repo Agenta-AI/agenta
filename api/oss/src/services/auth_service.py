@@ -323,7 +323,7 @@ async def verify_bearer_token(
     session_user_id = None
     is_invite_accept_route = _INVITE_ACCEPT_ENDPOINT_IDENTIFIER in request.url.path
 
-    def _deny(stage: str, reason: str, exc: Exception = None):
+    def _deny(stage: str, reason: str, exc: Optional[Exception] = None):
         _log_bearer_auth_denied(
             request=request,
             query_project_id=query_project_id,

@@ -8,7 +8,7 @@ The EE RBAC model is currently centered in `api/ee/src/models/shared_models.py`.
   - `owner`
   - `viewer`
   - `editor`
-  - `analyst` (maps to `developer` or `annotator` after cleanup)
+  - `evaluator`
   - `workspace_admin`
   - `deployment_manager`
 - `Permission.default_permissions(role)` defines the effective permission matrix for those roles.

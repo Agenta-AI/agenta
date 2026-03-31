@@ -50,9 +50,9 @@ def migrate_invitations_to_canonical_names(session: Connection) -> None:
     by the EE migration.
 
     Mapping applied:
-      editor           -> admin
-      workspace_admin  -> admin
-      deployment_manager -> manager
+      editor             -> developer
+      workspace_admin    -> admin
+      deployment_manager -> editor
     """
 
     _rename_roles_in_table(session, "project_invitations")
@@ -84,9 +84,9 @@ def migrate_roles_to_canonical_names(session: Connection) -> None:
     """Rename old role strings to canonical names across all EE membership tables.
 
     Mapping applied:
-      editor           -> admin
-      workspace_admin  -> admin
-      deployment_manager -> manager
+        editor             -> developer
+        workspace_admin    -> admin
+        deployment_manager -> editor
 
     API keys owned by users whose project role is `viewer` or `annotator`
     are deleted first, because post-migration those roles are not permitted

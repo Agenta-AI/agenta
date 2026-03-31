@@ -11,10 +11,9 @@ We want to clean up access control across the product by:
 
 The requested rename set is:
 
-- `editor` -> `admin`
-- `deployment_manager` -> `manager`
-- `analyst` -> `developer`
-- `viewer` stays `viewer` (previously misnamed `auditor` in early drafts)
+- `workspace_admin` -> `admin`
+- `editor` -> `developer`
+- `deployment_manager` -> `editor`
 
 ## Explicit Objectives
 
