@@ -505,7 +505,7 @@ class AuthService:
                                     WorkspaceMemberDB(
                                         user_id=user.id,
                                         workspace_id=workspace.id,
-                                        role="admin",
+                                        role="viewer",
                                     )
                                 )
 
