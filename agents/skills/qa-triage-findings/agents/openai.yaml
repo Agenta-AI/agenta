@@ -1,7 +1,0 @@
-interface:
-  display_name: "Triage QA Findings"
-  short_description: "Sync and triage QA findings"
-  default_prompt: "Use $qa-triage-findings with url=<github-pr-url> to sync remote PR comments and local behavior into a reproducible QA findings set."
-
-policy:
-  allow_implicit_invocation: true

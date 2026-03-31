@@ -1,11 +1,9 @@
 ---
 name: triage-findings
-description: Triage findings across both verification and validation lanes. Accept optional `path` and GitHub PR `url`; when provided, triage against both remote PR state and local state, otherwise default to local-only triage. Default to `path=infer`. Confirm effective variables before starting. Use when the agent should orchestrate independent CR and QA triage and keep `CR.findings.md` and `QA.findings.md` in sync.
+description: Coordinate findings work with the user, decide whether scan, test, or sync should run, and turn the current findings set into a ready plan. Accept optional `path` and GitHub PR `url`; default to `path=infer`. Confirm effective variables before starting.
 ---
 
 # Triage Findings
-
-This is the orchestration wrapper above `cr-triage-findings` and `qa-triage-findings`.
 
 Read these shared references when needed:
 
@@ -14,19 +12,18 @@ Read these shared references when needed:
 
 ## Role
 
-Run two independent triage passes:
+Triage is the planning and clarification layer across findings work.
 
-- verification via `cr-triage-findings`
-- validation via `qa-triage-findings`
-
-Keep `CR.findings.md` and `QA.findings.md` separate even when both are updated in one run.
+- Decide whether the next step is `scan-codebase`, `test-codebase`, `sync-findings`, or `resolve-findings`.
+- Read the active findings record and current code or docs as needed.
+- Ask the next concrete follow-up questions instead of leaving ambiguity buried in statuses.
 
 ## URL Input
 
 Accept an optional GitHub PR `url` from the prompt.
 
-- If a PR URL is provided, do remote plus local triage in both lanes.
-- If no URL is provided, do local-only triage in both lanes.
+- If a PR URL is provided, use it when triage needs GitHub context or should invoke `sync-findings`.
+- If no URL is provided, stay local-only unless the user adds remote context.
 
 Default:
 
@@ -49,24 +46,27 @@ Default:
    Confirm the effective variables first:
    - `path`
    - `url`
-   - branch, PR URL if present, and any focus areas
+   - branch, PR URL if present, current findings file, and any focus areas
 
-2. Run CR triage.
-   Invoke `cr-triage-findings` with the same `url` behavior.
+2. Load the active findings record.
+   Use `path/findings.md`.
 
-3. Run QA triage.
-   Invoke `qa-triage-findings` with the same `url` behavior.
+3. Decide what is missing.
+   Determine whether the next need is:
+   - more review via `scan-codebase`
+   - more validation via `test-codebase`
+   - findings or GitHub reconciliation via `sync-findings`
+   - direct implementation via `resolve-findings`
 
-4. Surface decisions.
-   Collect `needs-user-decision` items from both lanes and present them clearly.
-   If the user has already commented on those findings, turn the remaining uncertainty into explicit follow-up questions in the same turn instead of stopping at a status label.
+4. Surface decisions and blockers.
+   Present open questions, competing fix paths, policy ambiguity, and missing confirmations clearly.
+   If the user has already started answering, ask the next concrete follow-up questions in the same turn.
 
-5. Keep master files synced.
-   Ensure `path/CR.findings.md` and `path/QA.findings.md` reflect current code, current local docs, and remote PR state when applicable.
+5. Produce a ready plan.
+   End triage with a concrete next step, not a vague status-only handoff.
 
-## Orchestration Rules
+## Rules
 
-- Prefer sub-agents when they are available.
-- If sub-agents are not available, run the CR and QA triage passes sequentially.
-- Do not merge CR and QA findings into one combined master document.
-- This skill coordinates; the lane-specific skills own triage logic.
+- Triage is discussion and planning, not silent execution by default.
+- Do not hide ambiguity behind `open` or `needs-user-decision`.
+- Do not force a CR or QA label when the user wants one shared findings workflow.

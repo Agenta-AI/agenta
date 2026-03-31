@@ -1,11 +1,9 @@
 ---
 name: scan-codebase
-description: Perform a fresh-context codebase scan across both verification and validation lanes. Accept optional `path` and `depth` parameters and default to `path=infer`, `depth=deep`. Confirm effective variables before starting. Use when the agent should orchestrate independent CR and QA scans, preferably via sub-agents, before any triage or resolution work.
+description: Perform a fresh-context scan of code and docs that turns verification observations and missing-test gaps into findings. Accept optional `path` and `depth` parameters and default to `path=infer`, `depth=deep`. Confirm effective variables before starting.
 ---
 
 # Scan Codebase
-
-This is the orchestration wrapper above `cr-scan-codebase` and `qa-scan-codebase`.
 
 Read these shared references when needed:
 
@@ -14,21 +12,12 @@ Read these shared references when needed:
 
 ## Role
 
-Run two independent scans:
+Run a fresh review pass from code and docs into findings.
 
-- verification via `cr-scan-codebase`
-- validation via `qa-scan-codebase`
-
-Do not collapse them into one mixed review. Keep CR and QA outputs separate.
-
-## Fresh Context Requirement
-
-The CR pass and QA pass should each start from fresh context.
-
-- Do not preload prior findings into either pass.
-- Do not let CR findings bias QA findings or the reverse.
-- If sub-agents are available, prefer separate sub-agents so each lane starts independently.
-- If sub-agents are not available, run the CR and QA passes sequentially, but keep them mentally and structurally separate.
+- This skill is verification-oriented.
+- It may surface missing tests or coverage gaps as findings.
+- It does not rely on existing findings as the starting point.
+- It does not replace `test-codebase`; if runtime validation is needed, hand off there.
 
 ## Depth
 
@@ -60,21 +49,20 @@ Default:
    - `depth`
    - branch, base, subsystem, and any requested focus areas
 
-2. Run the CR scan.
-   Invoke the `cr-scan-codebase` workflow with the same `depth`.
+2. Start from fresh context.
+   Read current code, docs, tests-as-code, routes, schemas, migrations, and adjacent design material before looking at existing findings.
 
-3. Run the QA scan.
-   Invoke the `qa-scan-codebase` workflow with the same `depth`.
+3. Produce findings from review.
+   Surface correctness, consistency, completeness, soundness, functionality, security, performance, compatibility, migration, and missing-test findings when supported by evidence.
 
-4. Keep findings separate.
-   Report CR candidate findings and QA candidate findings as two distinct outputs.
+4. Update the active findings record.
+   Use `path/findings.md`.
 
-5. Hand off to triage.
-   If the user wants a synced findings set, continue with `triage-findings`, `cr-triage-findings`, or `qa-triage-findings` as appropriate.
+5. Hand off when execution is needed.
+   Use `triage-findings` for discussion and planning, `test-codebase` for validation, and `resolve-findings` for implementation.
 
-## Orchestration Rules
+## Rules
 
-- Prefer sub-agents when they are available.
-- If sub-agents are not available, emulate the same separation sequentially.
-- Do not add new review logic here that duplicates the CR or QA scan skills.
-- This skill coordinates; the lane-specific skills own the review logic.
+- Bias toward deep inspection, not prior-thread anchoring.
+- Do not silently preload old findings into the initial reasoning path.
+- Do not present test execution as completed if you only inferred missing coverage from code.

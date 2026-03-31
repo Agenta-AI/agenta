@@ -1,11 +1,9 @@
 ---
 name: resolve-findings
-description: Resolve findings across both verification and validation lanes. Accept optional `path` and a `priority` selector; by default resolve only the next highest remaining priority bucket, in order `P0`, `P1`, `P2`, `P3`. Also accept explicit levels or `all`. Default to `path=infer`. Confirm effective variables before starting. Use when the agent should orchestrate independent CR and QA resolution while keeping the two lanes separate.
+description: Resolve findings by implementing the chosen fix path in code, tests, or docs. Accept optional `path` and a `priority` selector; by default resolve only the next highest remaining priority bucket, in order `P0`, `P1`, `P2`, `P3`. Also accept explicit levels or `all`. Default to `path=infer`. Confirm effective variables before starting.
 ---
 
 # Resolve Findings
-
-This is the orchestration wrapper above `cr-resolve-findings` and `qa-resolve-findings`.
 
 Read these shared references when needed:
 
@@ -14,12 +12,11 @@ Read these shared references when needed:
 
 ## Role
 
-Run two independent resolve passes:
+Resolve is execution mode from findings back into code, tests, and docs.
 
-- verification via `cr-resolve-findings`
-- validation via `qa-resolve-findings`
-
-Keep CR and QA resolution separate even when both run in the same turn.
+- It may change production code for verification findings.
+- It may change tests or test harnesses for validation findings.
+- It should update the active findings record after implementation and rerun targeted checks when feasible.
 
 ## Priority Input
 
@@ -52,25 +49,24 @@ Default:
    - `priority`
    - target findings files when inferable
 
-   Use the requested `priority`, or the next highest unresolved bucket across `CR.findings.md` and `QA.findings.md`.
+   Use the requested `priority`, or the next highest unresolved bucket in the active findings record.
 
-2. Run CR resolution for that bucket when CR findings exist in it.
+2. Load the active findings record.
+   Use `path/findings.md`.
 
-3. Run QA resolution for that bucket when QA findings exist in it.
+3. Check readiness before coding.
+   If the intended resolution path, policy boundary, or data contract is still ambiguous, ask the next follow-up question before editing.
 
-4. Coordinate execution safely.
-   Run in parallel only when the write scopes are disjoint and sub-agents are available. Otherwise sequence the two passes.
+4. Implement the selected fixes.
+   Make the smallest coherent set of code, test, and doc changes needed for the selected findings bucket.
 
-5. Update both master files.
-   Keep `CR.findings.md` and `QA.findings.md` accurate after resolution.
+5. Re-run targeted checks.
+   Use the narrowest useful verification or validation pass that demonstrates the fix.
 
-6. Surface unresolved decisions before coding.
-   If either lane still has findings whose intended resolution is not implementation-ready, ask those follow-up questions before starting the corresponding lane.
+6. Update the findings record.
+   Move findings between open and closed sections, preserve notes and open questions ordering, and record what was fixed or what remains blocked.
 
-## Orchestration Rules
+## Rules
 
-- Prefer sub-agents when they are available.
-- If sub-agents are not available, run the two passes sequentially.
-- Do not let one lane silently absorb the other.
-- This skill coordinates; the lane-specific skills own resolution logic.
 - Do not hide ambiguity behind `open` or `needs-user-decision` when the user already started answering. Ask the next concrete question.
+- Do not silently widen scope from the selected priority bucket unless the fix is tightly coupled.

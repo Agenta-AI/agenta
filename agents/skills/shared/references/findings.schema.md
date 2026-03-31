@@ -1,14 +1,14 @@
 # Shared Findings Schema
 
-Use one canonical findings shape across CR and QA so scan, curate, and resolve can hand work off cleanly.
+Use one canonical findings shape so scan, test, sync, triage, and resolve can hand work off cleanly.
 
 ## Master Documents
 
-- Verification findings live in `CR.findings.md`
-- Validation findings live in `QA.findings.md`
+- Master findings document: `findings.md`
 
 Each master findings document should be split into:
 
+- optional `## Rules`
 - optional `## Notes`
 - optional `## Open Questions`
 - `## Open Findings`
@@ -20,25 +20,24 @@ Preferred document order:
 
 1. title and sync metadata
 2. sources and summary sections
-3. `## Notes` when needed
-4. `## Open Questions` when needed
-5. `## Open Findings`
-6. `## Closed Findings`
+3. any non-findings sections, for example `## Rules`, `## Notes`, and `## Open Questions`
+4. `## Open Findings`
+5. `## Closed Findings`
 
-Keep `Notes` and `Open Questions` above `Open Findings` so unresolved context is visible before the finding list.
+Keep all non-findings sections above `Open Findings` so context, policy, and unanswered questions are visible before the finding list.
 
 Optional supporting documents:
 
-- `CR.status.md`
-- `QA.status.md`
-
-Use status docs when the findings list is large or when thread-level tracking becomes noisy.
+- `findings.status.md`
+- task-specific status docs when the findings list is large or thread tracking becomes noisy
 
 ## Core Fields
 
 Every finding should include these fields when they are known:
 
 - `ID`
+- `Origin`
+- `Lens`
 - `Severity`
 - `Confidence`
 - `Status`
@@ -54,12 +53,30 @@ Every finding should include these fields when they are known:
 
 Each finding title should also carry a quick visual state prefix:
 
-- `[OPEN]` for `candidate`, `open`, `confirmed`, `needs-user-decision`, `in-progress`, `blocked`, `process`, or `migration`
+- `[OPEN]` for `candidate`, `open`, `confirmed`, `reproduced`, `needs-user-decision`, `in-progress`, `blocked`, `process`, or `migration`
 - `[CLOSED]` for `fixed`, `stale`, or `wontfix`
 
-## CR-Oriented Fields
+## Origin
 
-For verification findings, prefer:
+Use `Origin` to say where the finding came from:
+
+- `scan`
+- `test`
+- `sync`
+- `user`
+- `mixed`
+
+## Lens
+
+Use `Lens` when it adds clarity:
+
+- `verification`
+- `validation`
+- `mixed`
+
+## Scan-Oriented Fields
+
+For scan-driven findings, prefer:
 
 - `Category`
 - `Impact`
@@ -78,9 +95,9 @@ Common categories:
 - `Migration`
 - `Testing`
 
-## QA-Oriented Fields
+## Test-Oriented Fields
 
-For validation findings, prefer:
+For test-driven findings, prefer:
 
 - `Area`
 - `Preconditions`
@@ -113,6 +130,7 @@ Use statuses that reflect lifecycle, not emotion:
 - `candidate`
 - `open`
 - `confirmed`
+- `reproduced`
 - `needs-user-decision`
 - `in-progress`
 - `fixed`
@@ -121,8 +139,6 @@ Use statuses that reflect lifecycle, not emotion:
 - `blocked`
 - `process`
 - `migration`
-
-For QA, `reproduced` may be used in place of `confirmed` when scenario replay matters.
 
 ## Suggested Fix
 
