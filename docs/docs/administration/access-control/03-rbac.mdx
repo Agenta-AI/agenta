@@ -14,31 +14,54 @@ RBAC is available on **Business** and **Enterprise** plans. You can upgrade from
 
 ## Roles
 
-Agenta provides these built-in roles:
+Agenta provides six built-in roles arranged in a linear hierarchy. Each role inherits all permissions from the roles below it.
 
 | Role | What it is for |
-|------|-----------------|
-| **Owner** | Full control of the organization, including member management |
-| **Admin** | Administer members and organization settings |
-| **Editor** | Create and edit most resources in projects |
-| **Viewer** | Read-only access |
-| **Evaluator** | Run evaluations and review results |
-| **Deployment Manager** | Manage deployments |
+|------|----------------|
+| **Owner** | Full control of the organization, including billing, member management, and destructive operations |
+| **Admin** | Manage workspace settings, members, and roles |
+| **Developer** | Deploy to environments, manage API keys, and everything Editors can do |
+| **Editor** | Edit prompts, testsets, evaluators, workflows, and other project resources |
+| **Annotator** | Run evaluations, annotate traces, and review results |
+| **Viewer** | Read-only access to all project resources |
+
+### Role hierarchy
+
+Permissions are cumulative from bottom to top:
+
+```
+Owner        ← full control (billing, org management, destructive ops)
+  Admin      ← + workspace/member management, role assignment
+    Developer  ← + deployments, API keys, environments
+      Editor     ← + edit prompts, testsets, evaluators, workflows
+        Annotator  ← + run evaluations, annotate traces
+          Viewer     ← read-only access
+```
 
 ## Permissions
 
 Under the hood, Agenta authorizes requests using granular permissions. These permissions cover actions and resources across the application, such as:
 
 - Applications and variants
-- Workflows
-- Evaluations and test sets
+- Workflows, prompts, and configurations
+- Evaluations, test sets, and evaluation queues
 - Observability (traces/spans, annotations)
-- Secrets and API keys
-- Deployments and environments
-- Organization membership and roles
-- Billing (for owners)
+- Secrets and API keys (Developer and above)
+- Deployments and environments (Developer and above)
+- Workspace membership and roles (Admin and above)
+- Billing (Owner only)
 
-Owners have full access. Other roles have a default permission set aligned with their responsibilities.
+### Key permission boundaries
+
+| Capability | Minimum role required |
+|-----------|----------------------|
+| View project resources | Viewer |
+| Run evaluations and annotate traces | Annotator |
+| Edit prompts, testsets, evaluators, workflows | Editor |
+| Deploy to environments | Developer |
+| View and manage API keys | Developer |
+| Invite members and assign roles | Admin |
+| Manage billing | Owner |
 
 ## Managing Roles
 
@@ -52,10 +75,11 @@ Owners and Admins can change roles from **Settings** → **Members**.
 
 ## Best Practices
 
-- Give most contributors **Editor** access, and reserve **Owner** access for a small number of people.
-- Use **Viewer** for stakeholders who need visibility but should not change production configurations.
-- Use **Evaluator** for teammates focused on running evaluations.
-- Use **Deployment Manager** for teammates focused on guarded deployments.
+- Give most contributors **Editor** access, which covers day-to-day prompt and evaluation work.
+- Use **Developer** for team members who need to deploy to environments or manage API keys.
+- Use **Annotator** for teammates focused on running evaluations and labeling traces.
+- Use **Viewer** for stakeholders who need visibility but should not change anything.
+- Reserve **Admin** for people who manage team membership, and **Owner** for a small number of people.
 
 ## FAQ
 
@@ -69,5 +93,10 @@ Custom roles are not currently supported. This will be available in the future.
 
 ### What's the difference between Owner and Admin?
 
-- **Owner**: Full control of the organization, including billing.
-- **Admin**: Administer members and settings, without full owner privileges.
+- **Owner**: Full control of the organization, including billing and destructive operations (deleting the workspace or organization).
+- **Admin**: Can manage members, assign roles, and configure workspace settings, but cannot manage billing or perform destructive organization-level operations.
+
+### What's the difference between Developer and Editor?
+
+- **Developer**: Can deploy to environments, manage API keys, and do everything an Editor can.
+- **Editor**: Can edit prompts, testsets, evaluators, and workflows, but cannot deploy or access API keys.

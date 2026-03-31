@@ -95,7 +95,7 @@ Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make su
 ### 📊 LLM Evaluation
 Evaluate your LLM applications systematically with both human and automated feedback.
 - **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
-- **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
+- **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or your custom evaluators
 - **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
 - **Human Feedback Integration**: Collect and incorporate expert annotations
 
@@ -155,7 +155,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 4. Access Agenta at `http://localhost`.
 
-For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
+For deploying on a remote host, or using different ports refer to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## 💬 Community
 

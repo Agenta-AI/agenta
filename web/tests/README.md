@@ -144,7 +144,7 @@ You can filter tests using these flags:
 - `--env <local|staging|beta|prod|demo|oss>`
 - `--feature <ee>` (only allowed if `--license ee`)
 - `--entitlement <hobby|pro>`
-- `--permission <owner|editor|viewer>`
+- `--permission <owner|admin|manager|developer|annotator|viewer>`
 - `--lens <functional|performance|security>`
 - `--case <typical|edge>`
 - `--speed <fast|slow>`
