@@ -110,9 +110,10 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
         <Popover
             trigger="click"
             placement="bottomRight"
+            styles={{container: {padding: 0}}}
             content={
                 <div className="w-[240px]">
-                    <MetadataSidebar revisionId={entityId} context={context} />
+                    <MetadataSidebar revisionId={entityId} context={context} isCompact={true} />
                 </div>
             }
         >
@@ -180,7 +181,7 @@ const DrawerHeader = () => {
                     type="text"
                     icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                 >
-                    {isExpanded ? "Collapse" : "Expand"}
+                    Test Prompt
                 </Button>
             </div>
         </div>
