@@ -7,15 +7,6 @@ global:
   servicesUrl: "http://localhost/services"
   posthogApiKey: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
   imagePullSecrets: []
-  # Extra non-secret env vars injected into all Agenta application pods.
-  # Use this for shared self-hosting configuration such as:
-  #   AGENTA_ALLOWED_DOMAINS: "example.com"
-  #   AGENTA_BLOCKED_DOMAINS: "mailinator.com"
-  #   AGENTA_BLOCKED_EMAILS: "blocked@example.com"
-  #   AGENTA_ORG_CREATION_ALLOWLIST: "admin@example.com"
-  #   SENDGRID_FROM_ADDRESS: "noreply@example.com"
-  #   COMPOSIO_API_URL: "https://backend.composio.dev"
-  extraEnv: {}
   # Wire the Bitnami subchart to read the PostgreSQL password from the
   # chart-managed secret so users only need to set secrets.postgresPassword.
   #
@@ -52,24 +43,67 @@ secrets:
   agentaCryptKey: ""
   postgresPassword: ""
   supertokensApiKey: ""
-  # Extra OAuth env vars injected into application pods (key = env var name)
+  # Extra OAuth env vars injected into backend pods and the web pod.
+  # NOTE: the web entrypoint currently derives OIDC provider flags by checking
+  # both client IDs and client secrets, so these values still need to reach the
+  # web pod for now. This should be cleaned up in a follow-up.
   oauth: {}
   #   GOOGLE_OAUTH_CLIENT_ID: ""
   #   GOOGLE_OAUTH_CLIENT_SECRET: ""
-  # Extra LLM provider API keys injected into application pods
+  # Extra LLM provider API keys injected into backend pods only.
   llmProviders: {}
   #   OPENAI_API_KEY: ""
   #   ANTHROPIC_API_KEY: ""
-  # Extra secret env vars injected into all Agenta application pods.
-  # Use this for shared self-hosting secrets such as:
-  #   SENDGRID_API_KEY: ""
-  #   COMPOSIO_API_KEY: ""
-  #   NEW_RELIC_LICENSE_KEY: ""
-  #   CLOUDFLARE_TURNSTILE_SITE_KEY: ""      # leave unset by default for self-hosted EE
-  #   CLOUDFLARE_TURNSTILE_SECRET_KEY: ""    # leave unset by default for self-hosted EE
-  #   STRIPE_API_KEY: ""                     # leave unset by default for self-hosted EE
-  #   STRIPE_WEBHOOK_SECRET: ""             # leave unset by default for self-hosted EE
+
+# =================================================================
+# Access control (backend-only)
+# =================================================================
+accessControl:
+  allowedDomains: ""
+  blockedDomains: ""
+  blockedEmails: ""
+  orgCreationAllowlist: ""
+
+# =================================================================
+# Email (backend-only secrets; web receives only derived public flags)
+# =================================================================
+email:
+  sendgrid:
+    apiKey: ""
+    fromAddress: ""
+
+# =================================================================
+# Integrations / tools / observability
+# =================================================================
+integrations:
+  composio:
+    apiKey: ""
+    apiUrl: "https://backend.composio.dev/api/v3"
+
+observability:
+  newRelic:
+    licenseKey: ""
+
+# =================================================================
+# Billing / anti-bot (leave unset by default for self-hosted EE)
+# =================================================================
+billing:
+  stripe:
+    apiKey: ""
+    webhookSecret: ""
+    pricing: ""
+
+captcha:
+  turnstile:
+    siteKey: ""
+    secretKey: ""
+
+# =================================================================
+# Backend-only escape hatches
+# =================================================================
+backend:
   extraEnv: {}
+  secretEnv: {}
 
 # =================================================================
 # ServiceAccount
