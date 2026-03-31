@@ -287,7 +287,11 @@ const usePreviewEvaluations = ({
             }
 
             // 2. Invoke the scenario endpoint
-            const response = await axios.post(SCENARIOS_ENDPOINT, payload)
+            const currentProjectId = getProjectValues().projectId
+            const response = await axios.post(
+                `${SCENARIOS_ENDPOINT}?project_id=${currentProjectId}`,
+                payload,
+            )
 
             // Extract and return new scenario IDs
             return response.data.scenarios.map((s: any) => s.id)

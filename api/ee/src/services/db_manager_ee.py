@@ -184,7 +184,7 @@ async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
     """
     Retrieve the administrators of a workspace.
 
-    Administrators are members whose role is WORKSPACE_ADMIN or OWNER.
+    Administrators are members whose role is ADMIN or OWNER.
     """
 
     # Fetch all membership rows for this workspace
@@ -193,7 +193,7 @@ async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
     admin_user_ids = [
         str(member.user_id)
         for member in members
-        if member.role in (WorkspaceRole.WORKSPACE_ADMIN, WorkspaceRole.OWNER)
+        if member.role in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER)
     ]
 
     administrators: List[UserDB] = []

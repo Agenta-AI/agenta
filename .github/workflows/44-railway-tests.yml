@@ -145,7 +145,7 @@ on:
         required: false
         type: string
       role:
-        description: "Role (owner, admin, editor, viewer)"
+        description: "Role (owner, admin, manager, developer, annotator, viewer)"
         required: false
         type: string
       plan:
