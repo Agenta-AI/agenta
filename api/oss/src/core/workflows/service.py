@@ -1,12 +1,15 @@
 from typing import Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
+import httpx
+
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
+from oss.src.utils.helpers import parse_url
 
 from agenta.sdk.engines.running.utils import (
     infer_flags_from_data,
@@ -14,6 +17,7 @@ from agenta.sdk.engines.running.utils import (
     infer_outputs_schema,
     retrieve_interface,
 )
+from agenta.sdk.engines.tracing.propagation import inject
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -77,14 +81,12 @@ from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 
 from agenta.sdk.decorators.running import (
-    invoke_workflow as _invoke_workflow,
-    inspect_workflow as _inspect_workflow,
-)
-from agenta.sdk.models.workflows import (
     WorkflowServiceRequest,  # noqa: F811
     WorkflowServiceBatchResponse,  # noqa: F811
     WorkflowServiceStreamResponse,  # noqa: F811
     WorkflowRequestData,
+    WorkflowInspectRequest,
+    WorkflowServiceStatus,
 )
 
 log = get_module_logger(__name__)
@@ -105,6 +107,166 @@ class WorkflowsService:
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
+
+    @staticmethod
+    def _get_revision_data(
+        *,
+        request: WorkflowServiceRequest,
+    ) -> Optional[WorkflowRevisionData]:
+        revision = request.data.revision if request.data else None
+        if not revision:
+            return None
+
+        revision_data = revision.get("data") if "data" in revision else revision
+        if not revision_data:
+            return None
+
+        return WorkflowRevisionData(**revision_data)
+
+    @staticmethod
+    def _get_service_url(
+        *,
+        revision_data: Optional[WorkflowRevisionData],
+    ) -> Optional[str]:
+        if revision_data is None:
+            return None
+
+        url = revision_data.url
+
+        if not url and revision_data.uri:
+            path = infer_url_from_uri(revision_data.uri)
+            if path:
+                url = env.agenta.services_url.rstrip("/") + path
+
+        if not url:
+            return None
+
+        return parse_url(url).rstrip("/")
+
+    @staticmethod
+    async def _post_service_json(
+        *,
+        url: str,
+        credentials: str,
+        payload: dict,
+    ) -> tuple[httpx.Response, Optional[dict]]:
+        headers = inject(
+            {
+                "Authorization": credentials,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+        )
+
+        async with httpx.AsyncClient(
+            timeout=60.0,
+            follow_redirects=True,
+        ) as client:
+            response = await client.post(
+                url,
+                json=payload,
+                headers=headers,
+            )
+
+        body = None
+
+        try:
+            parsed = response.json()
+            if isinstance(parsed, dict):
+                body = parsed
+        except Exception:
+            body = None
+
+        return response, body
+
+    @staticmethod
+    def _coerce_invoke_response(
+        *,
+        response: httpx.Response,
+        body: Optional[dict],
+    ) -> WorkflowServiceBatchResponse:
+        payload = dict(body or {})
+
+        if response.headers.get("x-ag-trace-id") and "trace_id" not in payload:
+            payload["trace_id"] = response.headers["x-ag-trace-id"]
+
+        if response.headers.get("x-ag-span-id") and "span_id" not in payload:
+            payload["span_id"] = response.headers["x-ag-span-id"]
+
+        if "status" not in payload or not isinstance(payload["status"], dict):
+            payload["status"] = {}
+
+        payload["status"].setdefault("code", response.status_code)
+
+        if response.status_code < 200 or response.status_code >= 300:
+            payload["status"].setdefault(
+                "type",
+                "https://agenta.ai/docs/errors#v1:api:workflow-service-invoke-error",
+            )
+            payload["status"].setdefault(
+                "message",
+                response.text or "Workflow service invocation failed.",
+            )
+
+        return WorkflowServiceBatchResponse.model_validate(payload)
+
+    @staticmethod
+    def _build_inspect_request(
+        *,
+        request: WorkflowServiceRequest,
+    ) -> WorkflowInspectRequest:
+        return WorkflowInspectRequest(
+            version=request.version,
+            revision=request.data.revision if request.data else None,
+            references=request.references,
+            selector=request.selector,
+            flags=request.flags,
+            tags=request.tags,
+            meta=request.meta,
+        )
+
+    async def _ensure_request_revision(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> None:
+        if request.data and request.data.revision:
+            return
+
+        if not request.references:
+            return
+
+        refs = request.references
+        workflow_ref = refs.get("workflow")
+        workflow_revision = None
+
+        if "environment" in refs:
+            key = (
+                f"{workflow_ref.slug}.revision"
+                if workflow_ref and workflow_ref.slug
+                else None
+            )
+            workflow_revision, _ = await self.retrieve_workflow_revision(
+                project_id=project_id,
+                environment_ref=refs["environment"],
+                key=key,
+            )
+
+        elif "workflow_revision" in refs or "workflow" in refs:
+            workflow_revision, _ = await self.retrieve_workflow_revision(
+                project_id=project_id,
+                workflow_ref=workflow_ref,
+                workflow_variant_ref=refs.get("workflow_variant"),
+                workflow_revision_ref=refs.get("workflow_revision"),
+            )
+
+        if workflow_revision and workflow_revision.data:
+            if not request.data:
+                request.data = WorkflowRequestData()
+            request.data.revision = {
+                "data": workflow_revision.data.model_dump(mode="json")
+            }
 
     # workflows ----------------------------------------------------------------
 
@@ -933,47 +1095,35 @@ class WorkflowsService:
 
         credentials = f"Secret {secret_token}"
 
-        # Resolve references → inject revision into request.data before dispatch.
-        # This handles the /preview/workflows/invoke path where we have DB access.
-        # The SDK's ResolverMiddleware handles the same for /services/invoke callers.
-        if request.references and not (request.data and request.data.revision):
-            refs = request.references
-            workflow_ref = refs.get("workflow")
-            workflow_revision = None
-
-            if "environment" in refs:
-                key = (
-                    f"{workflow_ref.slug}.revision"
-                    if workflow_ref and workflow_ref.slug
-                    else None
-                )
-                workflow_revision, _ = await self.retrieve_workflow_revision(
-                    project_id=project_id,
-                    environment_ref=refs["environment"],
-                    key=key,
-                )
-
-            elif "workflow_revision" in refs or "workflow" in refs:
-                workflow_revision, _ = await self.retrieve_workflow_revision(
-                    project_id=project_id,
-                    workflow_ref=workflow_ref,
-                    workflow_variant_ref=refs.get("workflow_variant"),
-                    workflow_revision_ref=refs.get("workflow_revision"),
-                )
-
-            if workflow_revision and workflow_revision.data:
-                if not request.data:
-                    request.data = WorkflowRequestData()
-                request.data.revision = {
-                    "data": workflow_revision.data.model_dump(mode="json")
-                }
-
-        return await _invoke_workflow(
+        await self._ensure_request_revision(
+            project_id=project_id,
             request=request,
-            #
+        )
+
+        revision_data = self._get_revision_data(request=request)
+        service_url = self._get_service_url(revision_data=revision_data)
+
+        if not service_url:
+            return WorkflowServiceBatchResponse(
+                status=WorkflowServiceStatus(
+                    type="https://agenta.ai/docs/errors#v1:api:workflow-service-url-missing",
+                    code=400,
+                    message="Workflow revision has no runnable service URL.",
+                )
+            )
+
+        _response, _body = await self._post_service_json(
+            url=f"{service_url}/invoke",
             credentials=credentials,
-            #
-            **kwargs,
+            payload=request.model_dump(
+                mode="json",
+                exclude_none=True,
+            ),
+        )
+
+        return self._coerce_invoke_response(
+            response=_response,
+            body=_body,
         )
 
     async def inspect_workflow(
@@ -984,9 +1134,53 @@ class WorkflowsService:
         #
         request: WorkflowServiceRequest,
     ) -> WorkflowServiceRequest:
-        return await _inspect_workflow(
+        project = await get_project_by_id(
+            project_id=str(project_id),
+        )
+
+        secret_token = await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(project_id),
+            workspace_id=str(project.workspace_id),
+            organization_id=str(project.organization_id),
+        )
+
+        credentials = f"Secret {secret_token}"
+
+        await self._ensure_request_revision(
+            project_id=project_id,
             request=request,
         )
+
+        revision_data = self._get_revision_data(request=request)
+        service_url = self._get_service_url(revision_data=revision_data)
+
+        if not service_url:
+            raise ValueError("Workflow revision has no inspectable service URL.")
+
+        inspect_request = self._build_inspect_request(request=request)
+
+        response, body = await self._post_service_json(
+            url=f"{service_url}/inspect",
+            credentials=credentials,
+            payload=inspect_request.model_dump(
+                mode="json",
+                exclude_none=True,
+            ),
+        )
+
+        if response.status_code < 200 or response.status_code >= 300:
+            detail = (
+                body.get("details")
+                if isinstance(body, dict)
+                else response.text or "Workflow service inspection failed."
+            )
+            raise ValueError(detail)
+
+        if not isinstance(body, dict):
+            raise ValueError("Workflow service inspection returned an invalid payload.")
+
+        return WorkflowServiceRequest.model_validate(body)
 
     async def resolve_workflow_revision(
         self,

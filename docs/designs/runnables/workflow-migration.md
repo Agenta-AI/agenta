@@ -348,17 +348,17 @@ Values:
 | **1** | **`agenta:builtin:chat:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **2** | **`agenta:builtin:completion:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **3** | **`agenta:builtin:code:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:code:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`null`** | **`preserve`** | **`preserve`** |
-| **4** | **`agenta:builtin:hook:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:webhook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
-| **5** | **`null`** | **`<url>`** | **`{"is_chat":X,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:webhook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
+| **4** | **`agenta:builtin:hook:v0`** | **`X`** | **`X`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":true}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
+| **5** | **`null`** | **`<url>`** | **`{"is_chat":X,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:hook:v0`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`preserve`** | **`preserve`** | **`null`** |
 | **6** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":true,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`null`** | **`null`** |
 | **7** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":true,"is_evaluator":true}`** | **`X`** | **`agenta:custom:feedback:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`null`** | **`null`** |
 | **8** | **`<hook-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<hook-variant-uri>`** | **`preserve`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`preserve`** | **`preserve`** | **`null`** |
 | **9** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<code-variant-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`preserve`** |
-| **10** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<other-builtin-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`null`** |
+| **10** | **`agenta:builtin:*` (other)**  | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":true}`** | **`X`** | **`<preserve>`** | **`null`** | **`{"is_chat":false,"is_evaluator":true,"can_stream":false,"can_evaluate":false}`** | **`backfill`** | **`null`** | **`preserve`** | **`null`** |
 | **11** | **`null`** | **`null`** | **`{"is_chat":true,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **12** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":X,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **13** | **`null`** | **`null`** | **`{"is_chat":false,"is_human":X,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`user:custom:local:latest`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`preserve`** |
-| **14** | **`<user-custom-uri>`** | **`null`** | **`{"is_chat":false,"is_human":false,"is_custom":true,"is_evaluator":false}`** | **`X`** | **`<user-custom-uri>`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`preserve`** | **`null`** | **`preserve`** | **`preserve`** |
+| **14** | **`user:custom:*`** | **`X`** | **`{"is_evaluator":X}`** | **`X`** | **`<preserve>`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** | **`preserve`** |
 | **15** | **`null`** | **`<<url>>`** | **`{"is_chat":true,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:chat:v0`** | **`null`** | **`{"is_chat":true,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 | **16** | **`null`** | **`<<url>>`** | **`{"is_chat":false,"is_human":false,"is_custom":false,"is_evaluator":false}`** | **`X`** | **`agenta:builtin:completion:v0`** | **`null`** | **`{"is_chat":false,"is_evaluator":false,"can_stream":false,"can_evaluate":false}`** | **`null`** | **`null`** | **`preserve`** | **`null`** |
 
@@ -792,6 +792,7 @@ SELECT
   COUNT(*) AS count
 FROM workflow_revisions
 WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' LIKE 'agenta:builtin:%'
   AND data::jsonb ->> 'uri' NOT IN (
     'agenta:builtin:chat:v0',
     'agenta:builtin:completion:v0',
@@ -817,6 +818,7 @@ SELECT
   data::jsonb -> 'configuration' AS configuration
 FROM workflow_revisions
 WHERE data IS NOT NULL
+  AND data::jsonb ->> 'uri' LIKE 'agenta:builtin:%'
   AND data::jsonb ->> 'uri' NOT IN (
     'agenta:builtin:chat:v0',
     'agenta:builtin:completion:v0',
@@ -832,6 +834,8 @@ LIMIT 50;
 
 Success criterion:
 
+- all URIs in this bucket start with `agenta:builtin:`
+- no `user:custom:*` URIs appear
 - the remaining builtin evaluator URIs are semantically coherent as the generic evaluator bucket
 
 #### Row 11: No URI, no URL, chat fallback
@@ -986,41 +990,33 @@ Success criterion:
 - rows are the known local/config-only custom exceptions
 - rows do not look like hidden completion/chat rows
 
-#### Row 14: user:custom URI, no URL, non-evaluator app
+#### Row 14: user:custom URI (all)
 
 ```sql
 SELECT COUNT(*) AS count
 FROM workflow_revisions
 WHERE data IS NOT NULL
-  AND data::jsonb ->> 'uri' LIKE 'user:custom:%'
-  AND (
-    NOT (data::jsonb ? 'url')
-    OR data::jsonb ->> 'url' IS NULL
-  )
-  AND flags->>'is_evaluator' = 'false';
+  AND data::jsonb ->> 'uri' LIKE 'user:custom:%';
 ```
 
 ```sql
 SELECT
   data::jsonb ->> 'uri' AS uri,
+  flags->>'is_evaluator' AS is_evaluator,
   COUNT(*) AS count
 FROM workflow_revisions
 WHERE data IS NOT NULL
   AND data::jsonb ->> 'uri' LIKE 'user:custom:%'
-  AND (
-    NOT (data::jsonb ? 'url')
-    OR data::jsonb ->> 'url' IS NULL
-  )
-  AND flags->>'is_evaluator' = 'false'
-GROUP BY data::jsonb ->> 'uri'
+GROUP BY data::jsonb ->> 'uri', flags->>'is_evaluator'
 ORDER BY count DESC;
 ```
 
 Success criterion:
 
-- all rows are SDK-deployed application variants with existing user:custom URIs
+- all rows have `user:custom:*` URIs
+- no `agenta:builtin:*` URIs appear
+- both evaluator and non-evaluator rows are present and coherent
 - URI key patterns follow `user:custom:<module>.<function>:latest` or `user:custom:<slug>:v0`
-- no row looks like a misclassified evaluator or builtin
 
 #### Row 15: No URI, Agenta service URL, chat
 
@@ -1134,7 +1130,7 @@ WITH classified AS (
       ) AND flags = '{"is_chat": false, "is_human": false, "is_custom": true, "is_evaluator": true}'::jsonb THEN 'row-7'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_webhook_test:v0') THEN 'row-8'
       WHEN data::jsonb ->> 'uri' IN ('agenta:builtin:auto_custom_code_run:v0') THEN 'row-9'
-      WHEN data::jsonb ->> 'uri' IS NOT NULL AND flags->>'is_evaluator' = 'true' THEN 'row-10'
+      WHEN data::jsonb ->> 'uri' LIKE 'agenta:builtin:%' AND flags->>'is_evaluator' = 'true' THEN 'row-10'
       WHEN (
         NOT (data::jsonb ? 'uri')
         OR data::jsonb ->> 'uri' IS NULL
@@ -1156,10 +1152,7 @@ WITH classified AS (
         NOT (data::jsonb ? 'url')
         OR data::jsonb ->> 'url' IS NULL
       ) AND flags->>'is_chat' = 'false' AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false' THEN 'row-13'
-      WHEN data::jsonb ->> 'uri' LIKE 'user:custom:%' AND (
-        NOT (data::jsonb ? 'url')
-        OR data::jsonb ->> 'url' IS NULL
-      ) AND flags->>'is_evaluator' = 'false' THEN 'row-14'
+      WHEN data::jsonb ->> 'uri' LIKE 'user:custom:%' THEN 'row-14'
       WHEN (
         NOT (data::jsonb ? 'uri')
         OR data::jsonb ->> 'uri' IS NULL
@@ -1223,7 +1216,7 @@ WITH unclassified AS (
     )
     AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_webhook_test:v0')
     AND (data::jsonb ->> 'uri' IS DISTINCT FROM 'agenta:builtin:auto_custom_code_run:v0')
-    AND NOT (data::jsonb ->> 'uri' IS NOT NULL AND flags->>'is_evaluator' = 'true')
+    AND NOT (data::jsonb ->> 'uri' LIKE 'agenta:builtin:%' AND flags->>'is_evaluator' = 'true')
     AND NOT (
       (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
       AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
@@ -1239,11 +1232,7 @@ WITH unclassified AS (
       AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
       AND flags->>'is_chat' = 'false' AND flags->>'is_custom' = 'true' AND flags->>'is_evaluator' = 'false'
     )
-    AND NOT (
-      data::jsonb ->> 'uri' LIKE 'user:custom:%'
-      AND (NOT (data::jsonb ? 'url') OR data::jsonb ->> 'url' IS NULL)
-      AND flags->>'is_evaluator' = 'false'
-    )
+    AND NOT (data::jsonb ->> 'uri' LIKE 'user:custom:%')
     AND NOT (
       (NOT (data::jsonb ? 'uri') OR data::jsonb ->> 'uri' IS NULL)
       AND data::jsonb ->> 'url' IS NOT NULL
@@ -1436,26 +1425,22 @@ Family-specific schema expectations:
   - must have `schemas.outputs`
   - `schemas.inputs` may be absent
   - `schemas.parameters` may be absent
-- normal Agenta builtin families
-  - completion/chat currently do not get schema backfill during this migration
-  - no flat schema members are required for completion/chat in this pass
+- normal Agenta builtin families (completion/chat)
+  - backfill `schemas.parameters` and `schemas.outputs` from canonical interface definitions
+  - `schemas.inputs` only for LLM-based families (chat, completion)
 - hook/webhook builtin families
-  - must have `schemas.inputs`
   - must have `schemas.outputs`
   - `schemas.parameters` is optional
+  - `schemas.inputs` is not persisted
 - code builtin families
-  - must have `schemas.inputs`
   - must have `schemas.outputs`
   - `schemas.parameters` is optional
+  - `schemas.inputs` is not persisted
 - `user:custom:*` non-human families
   - keep whatever schema members are actually defined
   - but `schemas.outputs` should exist at least where it is already defined or safely derivable
 
 Migration-specific exceptions:
-
-- builtin `completion` and `chat`
-  - backfill `uri`
-  - do not backfill schemas in this migration pass
 - custom evaluators
   - target requires `schemas.outputs` only
   - other schema members may remain absent
@@ -1614,136 +1599,78 @@ Resolved direction:
   - `parameters = null`
 - legacy `service` is retained temporarily and dropped later in the same contract phase as legacy `configuration`
 
-## Remaining Discussion Topics
+## Resolved Discussion Topics
 
-These are the parts that still require explicit decisions.
+### 1. `user:custom:*` naming mechanics
 
-1. `user:custom:*` naming mechanics
-- exact slug derivation for remote custom rows
-- exact slug derivation for local/config-only custom rows
-- whether `annotator` remains the long-term canonical third segment or is only a migration placeholder
+Resolved:
 
-2. `user:custom:*` versioning mechanics
-- whether `v0` is purely a migration landing version
-- whether later versions track contract evolution independently from revision history
+- remote custom rows: slug derived at SDK registration time via `f"{fn.__module__}.{fn.__name__}"`
+  - reference: `sdk/agenta/sdk/engines/running/utils.py:409`
+  - produces URIs like `user:custom:mymodule.my_workflow:latest`
+- local/config-only custom rows: same as today, no change
+- `annotator` remains the canonical third segment for human evaluator migration targets
+  - backward compatibility: once written, the URI is stable
 
-3. expand/contract sequencing details
-- exact migration ordering across:
-  - URI backfill
-  - flat output-schema backfill
-  - legacy read removal
-  - final `service` / `configuration` removal
-- which families persist it
-- which families derive/refresh it
-- which families must not persist it
+### 2. `user:custom:*` versioning mechanics
 
-Resolved direction:
+Resolved:
+
+- `v0` is purely a migration landing version
+- later versions track contract evolution independently from revision history
+
+### 3. `url` / `headers` persistence policy
+
+Resolved:
 
 - all Agenta builtins derive `url`, except allowlisted hook/webhook-style builtin families
 - allowlisted hook/webhook-style builtin families persist `url`
 - all `user:custom:*` rows persist `url`
-
-3. `headers` persistence policy
-- same matrix as `url`
-
-Resolved direction:
-
-- `headers` uses the exact same matrix as `url`
+- `headers` uses the exact same persistence policy as `url`
 - empty headers normalize to `null`
 
-4. `schemas` target completeness
-- whether target rows must include:
-  - `schemas.inputs`
-  - `schemas.parameters`
-  - `schemas.outputs`
-- what happens when only one or two are knowable
+### 4. `runtime` / `script` persistence policy
 
-Resolved direction:
+Resolved:
+
+- `runtime` is to `script` what `headers` is to `url` — same persist/drop/derive behavior
+- code-style builtin families persist `script` and `runtime`
+- all `user:custom:*` rows persist `script` and `runtime`
+- all other Agenta builtins should have no persisted `script` or `runtime`
+- migration flattens legacy `script` dict `{"runtime": ..., "content": ...}` into top-level `runtime` + string `script`
+
+### 5. `schemas` target completeness
+
+Resolved:
 
 - target persisted schemas may be partial
 - the required members depend on workflow family
-- `schemas.parameters` is intentionally optional for hook/code families
+- `schemas.inputs` only persisted for LLM-based families (chat, completion, ai_critique, llm)
+- all non-LLM interfaces dropped `schemas.inputs`
+- all builtin families get `schemas.parameters` and `schemas.outputs` backfilled from canonical interface definitions
+- `user:custom:*` rows preserve whatever schema members they already have
 
-5. Builtin schema refresh boundaries
-- which schema members are runtime-owned
-- which schema members are user-owned
-- what may be refreshed from registry/inspect
+### 6. `parameters` extraction rules
 
-Partially resolved:
+Resolved:
 
-- normal Agenta builtin families should refresh toward full `inputs` / `parameters` / `outputs`
-- hook/code families do not require best-effort population of `schemas.parameters`
-- further refresh policy still needs to distinguish runtime-owned builtin schemas from user-owned custom schemas
+- flat `parameters` is canonical
+- if only nested configuration exists, migrate the relevant config payload into flat `parameters`
+- if flat `parameters` and nested configuration both exist, flat wins
 
-6. `script` migration rules
-- especially for builtin code evaluators and true user custom rows
+### 7. flags migration scope
 
-Partially resolved:
+Resolved:
 
-- allowlisted code-style builtin families persist `script`
-- all `user:custom:*` rows persist `script`
-- all other Agenta builtins should have no persisted `script`
+- only three user-defined role flags are persisted: `is_evaluator`, `is_application`, `is_snippet`
+- all other flags (`is_managed`, `is_custom`, `is_llm`, `is_hook`, `is_code`, `is_match`, `is_human`, `is_chat`, `has_url`, `has_script`, `has_handler`) are inferred at commit/read time by `infer_flags_from_data()`
+- legacy flags (`is_human`, `is_custom`, `is_chat`, `can_stream`, `can_evaluate`) are dropped entirely during migration, not preserved
 
-7. `parameters` extraction rules
-- especially for rows where nested configuration exists without flat parameters
-- and for mismatched hybrid rows
+### 8. removal sequencing
 
-8. builtin code evaluator split
-- how `script` and `parameters` divide responsibility
-- how legacy nested code/config maps to that split
+Resolved:
 
-9. human evaluator target shape
-- required URI
-- required schema members
-- whether anything besides `schemas.outputs` should persist
-
-Partially resolved:
-
-- human evaluators use `user:custom:*`
-- the minimum required schema member is `schemas.outputs`
-- `schemas.inputs` and `schemas.parameters` may remain absent
-
-10. flags migration scope
-- whether only legacy flags remain
-- or whether target flags/capabilities are backfilled
-
-11. removal sequencing
-- when to eliminate the final `data.service` reads
-- whether legacy-field removal happens only after migrations are complete
-
-Resolved direction:
-
-- use expand/contract
-- expand phase:
-  - populate and normalize all target flat fields
-  - preserve legacy nested fields and any temporarily duplicated fields needed for compatibility
-- contract phase:
-  - remove stale non-authoritative flat fields where they should not exist
-    - e.g. `url`, `headers`, `script` on families that should not persist them
-  - remove nested `service` and `configuration`
-- deletion of stale derived fields should happen only after the flat contract and URI normalization are complete and trusted
-
-## Suggested Next Step
-
-The next useful step is to convert the open discussion into a field-by-field migration matrix:
-
-- rows:
-  - current legacy row shapes and workflow families
-- columns:
-  - `uri`
-  - `url`
-  - `headers`
-  - `schemas.inputs`
-  - `schemas.parameters`
-  - `schemas.outputs`
-  - `script`
-  - `parameters`
-  - `flags`
-- value in each cell:
-  - keep
-  - derive
-  - refresh
-  - drop
-  - open question
-
-That should let us resolve the migration design point by point.
+- migration is a single pass, not expand/contract
+- URI backfill, schema backfill, field normalization, script flattening, and flag replacement happen together per row
+- legacy `service` and `configuration` are retained temporarily for backward compatibility
+- final removal of `service` and `configuration` is a separate follow-up migration after all read paths are updated

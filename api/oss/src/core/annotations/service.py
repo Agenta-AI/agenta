@@ -56,6 +56,8 @@ from oss.src.core.annotations.utils import validate_data_against_schema
 
 log = get_module_logger(__name__)
 
+ANNOTATION_URI = "agenta:custom:trace:v0"
+
 
 class AnnotationsService:
     def __init__(
@@ -86,8 +88,6 @@ class AnnotationsService:
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
-            is_custom=annotation_create.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation_create.origin == AnnotationOrigin.HUMAN,
         )
 
         evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
@@ -104,6 +104,7 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
+                uri=ANNOTATION_URI,
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),
@@ -307,8 +308,6 @@ class AnnotationsService:
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
-            is_custom=annotation.origin == AnnotationOrigin.CUSTOM,
-            is_human=annotation.origin == AnnotationOrigin.HUMAN,
         )
 
         evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
@@ -325,6 +324,7 @@ class AnnotationsService:
             evaluator_outputs_schema: Dict[str, Any] = builder.to_schema()
 
             simple_evaluator_data = SimpleEvaluatorData(
+                uri=ANNOTATION_URI,
                 schemas=dict(
                     outputs=evaluator_outputs_schema,
                 ),
