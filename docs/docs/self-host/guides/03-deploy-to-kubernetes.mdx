@@ -4,7 +4,7 @@ sidebar_label: Deploy on Kubernetes
 description: 'Deploy Agenta on Kubernetes using the official Helm chart. Covers prerequisites, quick start, configuration, ingress, TLS, external databases, upgrading, and troubleshooting.'
 ---
 
-:::info Community-Maintained — Beta
+:::info Community-Maintained Beta
 The Agenta Helm chart is **community-maintained** and currently in **beta**. If you encounter issues or have suggestions, please [open a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose) or reach out in our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw).
 :::
 
@@ -31,14 +31,14 @@ The chart creates the following workloads inside your Kubernetes namespace:
 - **Redis Durable** for queues and persistent state
 - **SuperTokens** for authentication
 - **Alembic** migration job (post-install/post-upgrade hook)
-- **Ingress** resource for routing traffic to web, API, and services
+- **Ingress** resource for routing traffic to web, API, and services (when enabled)
 
 ## Prerequisites
 
 - A running Kubernetes cluster (v1.24+)
 - `kubectl` configured to access your cluster
 - `helm` CLI (v3.10+) installed
-- An ingress controller installed in your cluster (Traefik or NGINX Ingress Controller)
+- An ingress controller if you want to expose Agenta with a public hostname
 
 ## Quick Start
 
@@ -91,12 +91,9 @@ kubectl -n agenta get pods -w
 
 # Check the migration job completed
 kubectl -n agenta get jobs
-
-# Check ingress
-kubectl -n agenta get ingress
 ```
 
-Once all pods are running, access Agenta through your ingress IP or domain. If ingress is not configured with a host, use port-forwarding:
+Once all pods are running, use port-forwarding for a quick local check:
 
 ```bash
 kubectl port-forward svc/agenta-agenta-oss-web 3000:3000 -n agenta
@@ -104,7 +101,11 @@ kubectl port-forward svc/agenta-agenta-oss-web 3000:3000 -n agenta
 
 Then open `http://localhost:3000` in your browser.
 
-## Using a Values File
+If you want to expose Agenta through a public hostname, see [Set Up Ingress and TLS](#set-up-ingress-and-tls).
+
+## How-to Tasks
+
+### Use a Values File
 
 For production deployments, create a `values.yaml` file instead of passing `--set` flags.
 
@@ -125,23 +126,9 @@ helm install agenta hosting/helm/agenta-oss \
   -f values.yaml
 ```
 
-## Configuration Reference
+### Deploy Enterprise Edition
 
-Configuration is done through Helm values. The full default values are in `hosting/helm/agenta-oss/values.yaml`.
-
-### Global Settings
-
-| Value | Purpose | Default |
-|-------|---------|---------|
-| `global.agentaLicense` | Edition to deploy | `oss` |
-| `global.webUrl` | Public web URL | `http://localhost` |
-| `global.apiUrl` | Public API URL | `http://localhost/api` |
-| `global.servicesUrl` | Public services URL | `http://localhost/services` |
-| `global.imagePullSecrets` | Image pull secrets | `[]` |
-
-### Enterprise Edition
-
-To deploy Enterprise Edition, set `global.agentaLicense: ee`.
+Set `global.agentaLicense: ee` to deploy Enterprise Edition.
 
 Enterprise images are private packages in GHCR. Create the namespace and image pull secret first:
 
@@ -155,13 +142,27 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --namespace agenta
 ```
 
-Then install with the EE example file:
+Then copy `hosting/helm/agenta-oss/values-ee.example.yaml`, replace the placeholder secrets and URLs, and install it:
 
 ```bash
 helm install agenta hosting/helm/agenta-oss \
   --namespace agenta \
-  -f hosting/helm/agenta-oss/values-ee.example.yaml
+  -f values-ee.yaml
 ```
+
+## Reference
+
+Configuration is done through Helm values. The full default values are in `hosting/helm/agenta-oss/values.yaml`.
+
+### Global Settings
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `global.agentaLicense` | Edition to deploy | `oss` |
+| `global.webUrl` | Public web URL | `http://localhost` |
+| `global.apiUrl` | Public API URL | `http://localhost/api` |
+| `global.servicesUrl` | Public services URL | `http://localhost/services` |
+| `global.imagePullSecrets` | Image pull secrets | `[]` |
 
 ### Secrets
 
@@ -186,16 +187,37 @@ When `secrets.supertokensApiKey` is empty, the SuperTokens instance runs without
 | Value | Purpose | Default |
 |-------|---------|---------|
 | `api.image.repository` | API image | Derived from `global.agentaLicense` |
-| `api.image.tag` | API image tag | `latest` |
+| `api.image.tag` | API image tag | `.Chart.AppVersion` |
 | `web.image.repository` | Web image | Derived from `global.agentaLicense` |
-| `web.image.tag` | Web image tag | `latest` |
+| `web.image.tag` | Web image tag | `.Chart.AppVersion` |
 | `services.image.repository` | Services image | Derived from `global.agentaLicense` |
-| `services.image.tag` | Services image tag | `latest` |
+| `services.image.tag` | Services image tag | `.Chart.AppVersion` |
 
 Workers, cron, and Alembic jobs reuse the API image.
 
+If you build your own images or mirror them to another registry, set the image repositories directly in your values file:
+
+```yaml
+api:
+  image:
+    repository: registry.example.com/agenta-api-ee
+    tag: v0.95.1
+
+web:
+  image:
+    repository: registry.example.com/agenta-web-ee
+    tag: v0.95.1
+
+services:
+  image:
+    repository: registry.example.com/agenta-services-ee
+    tag: v0.95.1
+```
+
+When these values are set, they override the edition-based defaults.
+
 :::caution
-The default image tag is `latest`, which can pull untested versions and makes it difficult to audit what is running. For production, always pin a specific version tag (e.g., `v0.86.8`). See [Upgrading](#upgrading) for an example.
+For production, pin explicit image tags instead of relying on the chart default. This makes upgrades easier to audit and roll back.
 :::
 
 ### Component Toggles and Replicas
@@ -255,13 +277,23 @@ Migrations run as a Kubernetes Job with `post-install,post-upgrade` hooks. Post-
 | `alembic.backoffLimit` | Retry count | `3` |
 | `alembic.ttlSecondsAfterFinished` | Cleanup delay | `300` |
 
-## Ingress Configuration
+### Set Up Ingress and TLS
 
 The chart creates an Ingress resource with three path rules:
 
 - `/api` routes to the API service
 - `/services` routes to the services backend
 - `/` routes to the web frontend
+
+Use this section when you want a public hostname instead of port-forwarding.
+
+Your ingress setup must route:
+
+- `/` to the web service
+- `/api` to the API service
+- `/services` to the services service
+
+It must also strip the `/api` and `/services` prefixes before forwarding requests upstream.
 
 ### Ingress Values
 
@@ -287,7 +319,7 @@ You can check which ingress classes are available in your cluster with `kubectl 
 
 ### Path Prefix Stripping
 
-The API and services backends expect requests without the `/api` or `/services` prefix. Your ingress controller must strip these prefixes.
+The API and services backends expect requests without the `/api` or `/services` prefix. Configure your ingress controller to strip these prefixes.
 
 **Traefik**: Use a `StripPrefix` Middleware via `extraObjects`:
 
@@ -332,7 +364,7 @@ ingress:
       pathType: ImplementationSpecific
 ```
 
-### Enabling TLS
+### Enable TLS
 
 To enable TLS, provide a TLS secret and update your global URLs to use `https://`:
 
@@ -358,11 +390,13 @@ ingress:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 ```
 
-## Using External Services
+### Use External Services
 
 You can disable any bundled infrastructure component and point to an external instance instead.
 
 ### External PostgreSQL
+
+If you deploy Enterprise Edition, replace `agenta_oss_*` in the examples below with `agenta_ee_*`.
 
 ```yaml
 postgresql:
@@ -378,7 +412,7 @@ postgresql:
     sslmode: "require"
 ```
 
-`sslmode` is appended to auto-constructed connection URIs only (as `?ssl=` for asyncpg and `?sslmode=` for the sync driver). It defaults to `"prefer"`. Set it to `"require"` or `"verify-full"` for managed databases (e.g., AWS RDS, Cloud SQL). When using full URI overrides (`uriCore`, `uriTracing`, `uriSupertokens`), include the SSL parameter directly in the URI — `sslmode` is ignored in that case.
+`sslmode` is appended to auto-constructed connection URIs only (as `?ssl=` for asyncpg and `?sslmode=` for the sync driver). It defaults to `"prefer"`. Set it to `"require"` or `"verify-full"` for managed databases (e.g., AWS RDS, Cloud SQL). When using full URI overrides (`uriCore`, `uriTracing`, `uriSupertokens`), include the SSL parameter directly in the URI. In that case, `sslmode` is ignored.
 
 Create the three databases and grant permissions before installing:
 
@@ -440,7 +474,7 @@ supertokens:
     uri: "http://your-supertokens-host:3567"
 ```
 
-## Adding LLM Provider Keys and OAuth
+### Add LLM Provider Keys and OAuth
 
 Pass LLM API keys and OAuth credentials through the `secrets` section. These are stored in the Kubernetes Secret and injected as environment variables into the application pods.
 
@@ -454,7 +488,7 @@ secrets:
     GOOGLE_OAUTH_CLIENT_SECRET: "..."
 ```
 
-## Upgrading
+### Upgrade
 
 To upgrade to a newer version:
 
@@ -485,7 +519,7 @@ services:
     tag: "v0.86.8"
 ```
 
-## Uninstalling
+### Uninstall
 
 ```bash
 helm uninstall agenta --namespace agenta
