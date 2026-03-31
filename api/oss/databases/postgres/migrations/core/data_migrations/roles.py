@@ -11,7 +11,7 @@ ROLE_MAP = {
 # Roles that are not allowed to own API keys after migration.
 # `viewer` and `annotator` are disallowed, so we delete their keys
 # before renaming.
-DISALLOWED_API_KEY_ROLES = ("viewer", "annotator")
+DISALLOWED_API_KEY_ROLES = ("viewer", "evaluator")
 
 
 def _rename_roles_in_table(session: Connection, table: str) -> None:
