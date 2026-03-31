@@ -16,7 +16,7 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info} from "@phosphor-icons/react"
+import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
 import {Button, Popover, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -60,7 +60,7 @@ const NavControls = memo(({entityId}: {entityId: string}) => {
     return (
         <div className="flex items-center gap-0.5">
             <Button
-                icon={<CaretUp size={16} />}
+                icon={<CaretUp size={14} />}
                 size="small"
                 type="text"
                 disabled={isPrevDisabled}
@@ -69,7 +69,7 @@ const NavControls = memo(({entityId}: {entityId: string}) => {
                 }}
             />
             <Button
-                icon={<CaretDown size={16} />}
+                icon={<CaretDown size={14} />}
                 size="small"
                 type="text"
                 disabled={isNextDisabled}
@@ -116,7 +116,7 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
                 </div>
             }
         >
-            <Button type="text" size="small" icon={<Info size={16} />} />
+            <Button type="text" size="small" icon={<Info size={14} />} />
         </Popover>
     )
 })
@@ -154,14 +154,15 @@ const DrawerHeader = () => {
     const title = DRAWER_TITLES[context] ?? "Workflow Revision"
 
     return (
-        <div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-[#0517290F] shrink-0">
+        <div className="flex items-center justify-between px-4 py-4 border-0 border-b border-solid border-[#0517290F] shrink-0">
             {/* Left: close + title + nav */}
             <div className="flex items-center gap-2">
-                <Button type="text" size="small" onClick={handleClose}>
-                    &times;
-                </Button>
-                <Text className="text-sm font-medium">{title}</Text>
-                {entityId && !isEvaluatorCreate && <NavControls entityId={entityId} />}
+                <Button type="text" size="small" onClick={handleClose} icon={<X size={14} />} />
+
+                <div className="flex items-center gap-3">
+                    <Text className="text-sm font-medium">{title}</Text>
+                    {entityId && !isEvaluatorCreate && <NavControls entityId={entityId} />}
+                </div>
             </div>
 
             {/* Right: actions + expand */}
